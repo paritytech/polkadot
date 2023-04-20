@@ -474,7 +474,7 @@ mod tests {
 
 		let approval_entry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: BitVec::default(),
+			assigned_validators: BitVec::default(),
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -524,7 +524,7 @@ mod tests {
 					assignments: (5..10).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
 			],
-			assignments: bitvec![u8, BitOrderLsb0; 1; 10],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 1; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -596,7 +596,7 @@ mod tests {
 					assignments: (6..10).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
 			],
-			assignments: bitvec![u8, BitOrderLsb0; 1; 10],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 1; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -649,7 +649,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; 5],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; 5],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -693,7 +693,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; 10],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -733,7 +733,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; 10],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -778,7 +778,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; n_validators],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -845,7 +845,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; n_validators],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -936,7 +936,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; n_validators],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -1049,7 +1049,7 @@ mod tests {
 					assignments: (2..5).map(|i| (ValidatorIndex(i), 1.into())).collect(),
 				},
 			],
-			assignments: bitvec![u8, BitOrderLsb0; 1; 3],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 1; 3],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -1099,7 +1099,7 @@ mod tests {
 				backing_group: GroupIndex(0),
 				our_assignment: None,
 				our_approval_sig: None,
-				assignments: bitvec![u8, BitOrderLsb0; 0; 3],
+				assigned_validators: bitvec![u8, BitOrderLsb0; 0; 3],
 				approved: false,
 			}
 			.into();

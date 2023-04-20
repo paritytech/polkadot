@@ -19,8 +19,8 @@ use crate::tests::test_constants::TEST_CONFIG;
 use super::*;
 use polkadot_node_primitives::{
 	approval::{
-		AssignmentCert, AssignmentCertKind, DelayTranche, VRFOutput, VRFProof,
-		RELAY_VRF_MODULO_CONTEXT,
+		v1::RELAY_VRF_MODULO_CONTEXT, AssignmentCert, AssignmentCertKind, AssignmentCertKindV2,
+		AssignmentCertV2, DelayTranche, VRFOutput, VRFProof,
 	},
 	AvailableData, BlockData, PoV,
 };
@@ -248,11 +248,11 @@ where
 
 	fn check_assignment_cert(
 		&self,
-		_claimed_core_index: Vec<polkadot_primitives::CoreIndex>,
+		_claimed_core_bitfield: polkadot_node_primitives::approval::v2::CoreBitfield,
 		validator_index: ValidatorIndex,
 		_config: &criteria::Config,
 		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
-		_assignment: &polkadot_node_primitives::approval::AssignmentCert,
+		_assignment: &polkadot_node_primitives::approval::AssignmentCertV2,
 		_backing_groups: Vec<polkadot_primitives::GroupIndex>,
 	) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
 		self.1(validator_index)
@@ -393,6 +393,17 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let out = inout.to_output();
 
 	AssignmentCert { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
+}
+
+fn garbage_assignment_cert_v2(kind: AssignmentCertKindV2) -> AssignmentCertV2 {
+	let ctx = schnorrkel::signing_context(RELAY_VRF_MODULO_CONTEXT);
+	let msg = b"test-garbage";
+	let mut prng = rand_core::OsRng;
+	let keypair = schnorrkel::Keypair::generate_with(&mut prng);
+	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
+	let out = inout.to_output();
+
+	AssignmentCertV2 { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
 }
 
 fn sign_approval(
@@ -624,9 +635,10 @@ async fn check_and_import_assignment(
 				IndirectAssignmentCertV2 {
 					block_hash,
 					validator,
-					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
+					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
+						.into(),
 				},
-				vec![candidate_index],
+				candidate_index.into(),
 				tx,
 			),
 		},
@@ -1112,9 +1124,10 @@ fn blank_subsystem_act_on_bad_block() {
 						validator: 0u32.into(),
 						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
 							sample: 0,
-						}),
+						})
+						.into(),
 					},
-					vec![0u32],
+					0u32.into(),
 					tx,
 				),
 			},
@@ -1780,9 +1793,10 @@ fn linear_import_act_on_leaf() {
 						validator: 0u32.into(),
 						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
 							sample: 0,
-						}),
+						})
+						.into(),
 					},
-					vec![0u32],
+					0u32.into(),
 					tx,
 				),
 			},
@@ -1850,9 +1864,10 @@ fn forkful_import_at_same_height_act_on_leaf() {
 							validator: 0u32.into(),
 							cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
 								sample: 0,
-							}),
+							})
+							.into(),
 						},
-						vec![0u32],
+						0u32.into(),
 						tx,
 					),
 				},
@@ -2297,7 +2312,9 @@ fn subsystem_validate_approvals_cache() {
 			let _ = assignments.insert(
 				CoreIndex(0),
 				approval_db::v1::OurAssignment {
-					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
+					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
+						.into(),
+					assignment_bitfield: CoreIndex(0u32).into(),
 					tranche: 0,
 					validator_index: ValidatorIndex(0),
 					triggered: false,
@@ -2308,10 +2325,14 @@ fn subsystem_validate_approvals_cache() {
 			let _ = assignments.insert(
 				CoreIndex(0),
 				approval_db::v1::OurAssignment {
-					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModuloCompact {
-						sample: 0,
-						core_indices: vec![CoreIndex(0), CoreIndex(1), CoreIndex(2)],
+					cert: garbage_assignment_cert_v2(AssignmentCertKindV2::RelayVRFModuloCompact {
+						core_bitfield: vec![CoreIndex(0), CoreIndex(1), CoreIndex(2)]
+							.try_into()
+							.unwrap(),
 					}),
+					assignment_bitfield: vec![CoreIndex(0), CoreIndex(1), CoreIndex(2)]
+						.try_into()
+						.unwrap(),
 					tranche: 0,
 					validator_index: ValidatorIndex(0),
 					triggered: false,
@@ -2419,7 +2440,7 @@ async fn handle_double_assignment_import(
 			_,
 			c_indices,
 		)) => {
-			assert_eq!(vec![candidate_index], c_indices);
+			assert_eq!(Into::<CandidateBitfield>::into(candidate_index), c_indices);
 		}
 	);
 
@@ -2432,7 +2453,7 @@ async fn handle_double_assignment_import(
 			_,
 			c_index
 		)) => {
-			assert_eq!(candidate_index, c_index);
+			assert_eq!(Into::<CandidateBitfield>::into(candidate_index), c_index);
 		}
 	);
 
@@ -2528,7 +2549,9 @@ where
 			let _ = assignments.insert(
 				CoreIndex(0),
 				approval_db::v1::OurAssignment {
-					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
+					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
+						.into(),
+					assignment_bitfield: CoreIndex(0).into(),
 					tranche: our_assigned_tranche,
 					validator_index: ValidatorIndex(0),
 					triggered: false,

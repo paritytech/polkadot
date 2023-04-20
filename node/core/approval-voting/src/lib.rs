@@ -1934,7 +1934,10 @@ fn check_and_import_assignment(
 
 	// Check the assignment certificate.
 	let res = state.assignment_criteria.check_assignment_cert(
-		claimed_core_indices.try_into().expect("Checked for null assignment above; qed"),
+		claimed_core_indices
+			.clone()
+			.try_into()
+			.expect("Checked for null assignment above; qed"),
 		assignment.validator,
 		&criteria::Config::from(session_info),
 		block_entry.relay_vrf_story(),
@@ -1942,7 +1945,7 @@ fn check_and_import_assignment(
 		backing_groups,
 	);
 
-	let (claimed_core_indices, tranche) = match res {
+	let tranche = match res {
 		Err(crate::criteria::InvalidAssignment(reason)) =>
 			return Ok((
 				AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(
@@ -1951,7 +1954,7 @@ fn check_and_import_assignment(
 				)),
 				Vec::new(),
 			)),
-		Ok((claimed_core_indices, tranche)) => {
+		Ok(tranche) => {
 			let current_tranche =
 				state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
 
@@ -1961,7 +1964,7 @@ fn check_and_import_assignment(
 				return Ok((AssignmentCheckResult::TooFarInFuture, Vec::new()))
 			}
 
-			(claimed_core_indices, tranche)
+			tranche
 		},
 	};
 

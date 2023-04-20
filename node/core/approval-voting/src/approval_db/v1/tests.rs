@@ -98,7 +98,7 @@ fn read_write() {
 				backing_group: GroupIndex(1),
 				our_assignment: None,
 				our_approval_sig: None,
-				assignments: Default::default(),
+				assigned_validators: Default::default(),
 				approved: false,
 			},
 		)]
