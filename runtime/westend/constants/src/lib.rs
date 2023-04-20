@@ -108,7 +108,7 @@ pub mod system_parachain {
 	pub const BRIDGE_HUB_ID: u32 = 1002;
 
 	frame_support::match_types! {
-		pub type SystemParachain: impl Contains<MultiLocation> = {
+		pub type SystemParachains: impl Contains<MultiLocation> = {
 			MultiLocation {
 				parents: 0,
 				interior: X1(Parachain(WESTMINT_ID | COLLECTIVES_ID | BRIDGE_HUB_ID)),
