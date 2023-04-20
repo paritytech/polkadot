@@ -618,13 +618,19 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::*;
-	use crate::approval_db::v1::DbBackend;
+	use crate::{approval_db::v1::DbBackend, RuntimeInfo, RuntimeInfoConfig};
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
-	use polkadot_node_primitives::approval::{VrfSignature, VrfTranscript};
+	use polkadot_node_primitives::{
+		approval::{VrfSignature, VrfTranscript},
+		DISPUTE_WINDOW,
+	};
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_node_subsystem_util::database::Database;
+	use polkadot_node_subsystem_util::{
+		database::Database,
+		runtime::{ExtendedSessionInfo, ValidatorInfo},
+	};
 	use polkadot_primitives::{Id as ParaId, IndexedVec, SessionInfo, ValidatorId, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
@@ -633,7 +639,7 @@ pub(crate) mod tests {
 	use sp_core::{crypto::VrfSigner, testing::TaskExecutor};
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	pub(crate) use sp_runtime::{Digest, DigestItem};
-	use std::{pin::Pin, sync::Arc};
+	use std::{num::NonZeroUsize, pin::Pin, sync::Arc};
 
 	use crate::{approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry};
 
@@ -658,24 +664,40 @@ pub(crate) mod tests {
 	}
 
 	fn blank_state() -> State {
-		let db = kvdb_memorydb::create(NUM_COLUMNS);
-		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
-		let db: Arc<dyn Database> = Arc::new(db);
 		State {
-			session_window: None,
+			session_info: None,
 			keystore: Arc::new(LocalKeystore::in_memory()),
 			slot_duration_millis: 6_000,
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
-			db,
-			db_config: TEST_CONFIG,
 			spans: HashMap::new(),
 		}
 	}
 
-	fn single_session_state(index: SessionIndex, info: SessionInfo) -> State {
+	fn single_session_state(index: SessionIndex, info: SessionInfo, relay_parent: Hash) -> State {
+		let runtime_info = RuntimeInfo::new_with_cache(
+			RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+					.expect("DISPUTE_WINDOW can't be 0; qed."),
+			},
+			vec![(
+				index,
+				relay_parent,
+				ExtendedSessionInfo {
+					session_info: info,
+					validator_info: ValidatorInfo { our_group: None, our_index: None },
+				},
+			)],
+		);
+
+		//TODO: is it okay to use index for earliest_session and last_consecutive_cached_session?
 		State {
-			session_window: Some(RollingSessionWindow::with_session_info(index, vec![info])),
+			session_info: Some(SessionInfoProvider {
+				earliest_session: index,
+				last_consecutive_cached_session: index,
+				runtime_info,
+			}),
 			..blank_state()
 		}
 	}
@@ -785,13 +807,30 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window =
-				RollingSessionWindow::with_session_info(session, vec![session_info]);
+			let session_info_provider = SessionInfoProvider {
+				runtime_info: RuntimeInfo::new_with_cache(
+					RuntimeInfoConfig {
+						keystore: None,
+						session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+							.expect("DISPUTE_WINDOW can't be 0; qed."),
+					},
+					vec![(
+						session,
+						hash,
+						ExtendedSessionInfo {
+							session_info,
+							validator_info: ValidatorInfo { our_index: None, our_group: None },
+						},
+					)],
+				),
+				last_consecutive_cached_session: session, //TODO: ??
+				earliest_session: session,                //TODO: ??
+			};
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					runtime_info: &Some(session_window),
+					runtime_info: &mut Some(session_info_provider),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -891,13 +930,30 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_window =
-				RollingSessionWindow::with_session_info(session, vec![session_info]);
+			let session_info_provider = SessionInfoProvider {
+				runtime_info: RuntimeInfo::new_with_cache(
+					RuntimeInfoConfig {
+						keystore: None,
+						session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+							.expect("DISPUTE_WINDOW can't be 0; qed."),
+					},
+					vec![(
+						session,
+						hash,
+						ExtendedSessionInfo {
+							session_info,
+							validator_info: ValidatorInfo { our_index: None, our_group: None },
+						},
+					)],
+				),
+				last_consecutive_cached_session: session, //TODO: ??
+				earliest_session: session,                //TODO: ??
+			};
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					runtime_info: &Some(session_window),
+					runtime_info: &mut Some(session_info_provider),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -991,12 +1047,12 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_window = None;
+			let mut runtime_info = None;
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					runtime_info: &session_window,
+					runtime_info: &mut runtime_info,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -1086,13 +1142,30 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window =
-				Some(RollingSessionWindow::with_session_info(session, vec![session_info]));
+			let session_info_provider = SessionInfoProvider {
+				runtime_info: RuntimeInfo::new_with_cache(
+					RuntimeInfoConfig {
+						keystore: None,
+						session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+							.expect("DISPUTE_WINDOW can't be 0; qed."),
+					},
+					vec![(
+						session,
+						hash,
+						ExtendedSessionInfo {
+							session_info,
+							validator_info: ValidatorInfo { our_index: None, our_group: None },
+						},
+					)],
+				),
+				last_consecutive_cached_session: session, //TODO: ??
+				earliest_session: session,                //TODO: ??
+			};
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					runtime_info: &session_window,
+					runtime_info: &mut Some(session_info_provider),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -1229,7 +1302,7 @@ pub(crate) mod tests {
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
-		let mut state = single_session_state(session, session_info);
+		let mut state = single_session_state(session, session_info, parent_hash);
 		overlay_db.write_block_entry(
 			v1::BlockEntry {
 				block_hash: parent_hash,
