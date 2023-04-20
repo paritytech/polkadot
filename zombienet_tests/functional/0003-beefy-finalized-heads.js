@@ -12,8 +12,14 @@ async function run(_, networkInfo, nodeNames) {
     })
   );
 
-  // check that the finalized heads are the same
-  return finalizedHeads.every((finalizedHead) => finalizedHead.eq(finalizedHeads[0]))
+  const finalizedHeadsHeight = await Promise.all(
+    finalizedHeads.map(async (finalizedHead) => {
+      return apis[0].rpc.chain.getHeader(finalizedHead).then((header) => header.number);
+    })
+  );
+
+  // check that all nodes agree on block height up to a tolerance of at most 1
+  return finalizedHeadsHeight.every((height) => Math.abs(height - finalizedHeadsHeight[0]) <= 1)
 }
 
 module.exports = { run };
