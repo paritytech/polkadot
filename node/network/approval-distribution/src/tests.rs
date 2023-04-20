@@ -428,7 +428,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 					claimed_candidate_index,
 					tx,
 				)) => {
-					assert_eq!(assignment, assignments[i].0.into());
+					assert_eq!(assignment, assignments[i].0.clone().into());
 					assert_eq!(claimed_candidate_index, assignments[i].1.into());
 					tx.send(AssignmentCheckResult::Accepted).unwrap();
 				}
@@ -990,7 +990,7 @@ fn import_remotely_then_locally() {
 				i,
 				tx,
 			)) => {
-				assert_eq!(assignment, cert.into());
+				assert_eq!(assignment, cert.clone().into());
 				assert_eq!(i, candidate_index.into());
 				tx.send(AssignmentCheckResult::Accepted).unwrap();
 			}
@@ -1001,7 +1001,10 @@ fn import_remotely_then_locally() {
 		// import the same assignment locally
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::DistributeAssignment(cert.into(), candidate_index.into()),
+			ApprovalDistributionMessage::DistributeAssignment(
+				cert.clone().into(),
+				candidate_index.into(),
+			),
 		)
 		.await;
 
@@ -1186,7 +1189,7 @@ fn race_condition_in_local_vs_remote_view_update() {
 					claimed_candidate_index,
 					tx,
 				)) => {
-					assert_eq!(assignment, assignments[i].0.into());
+					assert_eq!(assignment, assignments[i].0.clone().into());
 					assert_eq!(claimed_candidate_index, assignments[i].1.into());
 					tx.send(AssignmentCheckResult::Accepted).unwrap();
 				}
@@ -2371,7 +2374,7 @@ fn batch_test_round(message_count: usize) {
 					assert_eq!(peers.len(), 1);
 
 					for (message_index,  assignment) in sent_assignments.iter().enumerate() {
-						assert_eq!(assignment.0, assignments[assignment_index + message_index].0);
+						assert_eq!(assignment.0, assignments[assignment_index + message_index].0.clone().try_into().unwrap());
 						assert_eq!(assignment.1, 0);
 					}
 				}
