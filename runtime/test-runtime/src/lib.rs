@@ -314,7 +314,7 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const OnChainMaxWinners: u32 = u32::MAX;
 	// Unbounded number of election targets and voters.
-	pub ElectionBoundsOnChain: ElectionBounds = ElectionBoundsBuilder::default();
+	pub ElectionBoundsOnChain: ElectionBounds = ElectionBoundsBuilder::default().build();
 }
 
 pub struct OnChainSeqPhragmen;
