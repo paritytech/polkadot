@@ -14,6 +14,47 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! PVF artifacts (final compiled code blobs).
+//!
+//!	# Lifecycle of an artifact
+//!
+//! 1. During node start-up, the artifacts cache is cleaned up. This means that all local artifacts
+//!    stored on-disk are cleared, and we start with an empty [`Artifacts`] table.
+//!
+//! 2. In order to be executed, a PVF should be prepared first. This means that artifacts should
+//!    have an [`ArtifactState::Prepared`] entry for that artifact in the table. If not, the
+//!    preparation process kicks in. The execution request is stashed until after the preparation is
+//!    done, and the artifact state in the host is set to [`ArtifactState::Preparing`]. Preparation
+//!    goes through the preparation queue and the pool.
+//!
+//!    1. If the artifact is already being processed, we add another execution request to the
+//!       existing preparation job, without starting a new one.
+//!
+//!    2. Note that if the state is [`ArtifactState::FailedToProcess`], we usually do not retry
+//!       preparation, though we may under certain conditions.
+//!
+//! 3. The pool gets an available worker and instructs it to work on the given PVF. The worker
+//!    starts compilation. When the worker finishes successfully, it writes the serialized artifact
+//!    into a temporary file and notifies the host that it's done. The host atomically moves
+//!    (renames) the temporary file to the destination filename of the artifact.
+//!
+//! 4. If the worker concluded successfully or returned an error, then the pool notifies the queue.
+//!    In both cases, the queue reports to the host that the result is ready.
+//!
+//! 5. The host will react by changing the artifact state to either [`ArtifactState::Prepared`] or
+//!    [`ArtifactState::FailedToProcess`] for the PVF in question. On success, the
+//!    `last_time_needed` will be set to the current time. It will also dispatch the pending
+//!    execution requests.
+//!
+//! 6. On success, the execution request will come through the execution queue and ultimately be
+//!    processed by an execution worker. When this worker receives the request, it will read the
+//!    requested artifact. If it doesn't exist it reports an internal error. A request for execution
+//!    will bump the `last_time_needed` to the current time.
+//!
+//! 7. There is a separate process for pruning the prepared artifacts whose `last_time_needed` is
+//!    older by a predefined parameter. This process is run very rarely (say, once a day). Once the
+//!    artifact is expired it is removed from disk eagerly atomically.
+
 use crate::{error::PrepareError, host::PrepareResultSender, prepare::PrepareStats};
 use always_assert::always;
 use polkadot_parachain::primitives::ValidationCodeHash;
