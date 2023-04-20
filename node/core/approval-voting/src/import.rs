@@ -366,23 +366,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 	// Update session info based on most recent head.
 	state.cache_session_info_for_head(ctx, head).await;
-	// Err(e) => {
-	// 	gum::debug!(
-	// 		target: LOG_TARGET,
-	// 		?head,
-	// 		?e,
-	// 		"Could not cache session info when processing head.",
-	// 	);
-	// 	return Ok(Vec::new())
-	// },
-	// Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
-	// 	gum::info!(
-	// 		target: LOG_TARGET,
-	// 		update = ?a,
-	// 		"Advanced session window for approvals",
-	// 	);
-	// },
-	// Ok(_) => {},s
 
 	// If we've just started the node and are far behind,
 	// import at most `MAX_HEADS_LOOK_BACK` blocks.

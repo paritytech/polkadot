@@ -119,8 +119,6 @@ impl RuntimeInfo {
 	}
 
 	/// Create an instance with pre-populated cache. Used only for testing
-	// TODO: why doesn't compile
-	// #[cfg(test)]
 	pub fn new_with_cache(
 		cfg: Config,
 		data: Vec<(SessionIndex, Hash, ExtendedSessionInfo)>,
