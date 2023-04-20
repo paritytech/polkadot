@@ -703,6 +703,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 	const STASH: u128 = 100 * KSM;
 
 	kusama::GenesisConfig {
+		sudo: kusama::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 		system: kusama::SystemConfig { code: wasm_binary.to_vec() },
 		balances: kusama::BalancesConfig {
 			balances: endowed_accounts
@@ -1452,6 +1455,9 @@ pub fn kusama_testnet_genesis(
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
 		nis_counterpart_balances: Default::default(),
+		sudo: kusama::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 	}
 }
 

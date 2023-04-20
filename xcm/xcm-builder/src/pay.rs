@@ -20,6 +20,7 @@ use frame_support::traits::{
 	tokens::{Pay, PaymentStatus},
 	Get,
 };
+use primitives::AccountId;
 use sp_std::{marker::PhantomData, vec};
 use xcm::prelude::*;
 use xcm_executor::traits::{FinishedQuery, QueryResponseStatus, XcmQueryHandler};
@@ -52,7 +53,7 @@ pub struct PayOverXcm<
 );
 impl<
 		DestinationChain: Get<MultiLocation>,
-		SenderAccount: Get<InteriorMultiLocation>,
+		SenderAccount: Get<AccountId>,
 		Router: SendXcm,
 		Querier: XcmQueryHandler,
 		Timeout: Get<Querier::BlockNumber>,
@@ -65,17 +66,20 @@ impl<
 	type AssetKind = AssetKind;
 	type Balance = u128;
 	type Id = Querier::QueryId;
+	type Error = xcm::latest::Error;
 
 	fn pay(
 		who: &Self::Beneficiary,
 		asset_kind: Self::AssetKind,
 		amount: Self::Balance,
-	) -> Result<Self::Id, ()> {
+	) -> Result<Self::Id, Self::Error> {
 		let destination_chain = DestinationChain::get();
 		let sender_account = SenderAccount::get();
 		let mut message = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
-			DescendOrigin(sender_account),
+			DescendOrigin(
+				Junction::AccountId32 { network: None, id: sender_account.into() }.into(),
+			),
 			TransferAsset {
 				beneficiary: AccountId32 { network: None, id: who.clone().into() }.into(),
 				assets: vec![MultiAsset {
@@ -86,10 +90,9 @@ impl<
 			},
 		]);
 		let id = Querier::report_outcome(&mut message, destination_chain, Timeout::get())
-			.map_err(|_| ())?;
-		let (ticket, _) =
-			Router::validate(&mut Some(destination_chain), &mut Some(message)).map_err(|_| ())?;
-		Router::deliver(ticket).map_err(|_| ())?;
+			.map_err(|_| Self::Error::LocationNotInvertible)?;
+		let (ticket, _) = Router::validate(&mut Some(destination_chain), &mut Some(message))?;
+		Router::deliver(ticket)?;
 		Ok(id)
 	}
 

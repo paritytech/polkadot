@@ -50,10 +50,15 @@ impl<
 		);
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
+		log::debug!("🔥 Check that we handle asset {:?} {:?} ", asset_id, amount);
+
+		log::debug!("🔥 from location we're converting  {:?} ", from);
 		let source = AccountIdConverter::convert_ref(from)
 			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		log::debug!("🔥 to location we're converting  {:?} ", to);
 		let dest = AccountIdConverter::convert_ref(to)
 			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		log::debug!("🔥 we reached actual asset transfer call");
 		Assets::transfer(asset_id, &source, &dest, amount, Preserve)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())

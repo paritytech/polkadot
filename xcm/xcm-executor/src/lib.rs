@@ -497,6 +497,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			TransferAsset { assets, beneficiary } => {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
+				log::debug!("🔥 In TransferAsset showing origin which becomes from  {:?} ", origin);
 				for asset in assets.inner() {
 					Config::AssetTransactor::transfer_asset(
 						&asset,

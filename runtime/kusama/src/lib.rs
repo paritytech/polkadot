@@ -627,7 +627,8 @@ parameter_types! {
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 	// PayOverXcmTimeout is set to 3 x the spend period to provide buffer before status messages
 	// are deleted from storage
-	pub const PayOverXcmTimeout: BlockNumber = 6 * 3 * DAYS;
+	pub const PayOverXcmTimeout: BlockNumber = 1 * MINUTES;
+	// pub const PayOverXcmTimeout: BlockNumber = 6 * 3 * DAYS;
 }
 
 ord_parameter_types! {
@@ -1452,8 +1453,18 @@ construct_runtime! {
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
+
+		// Added in the top to avoid merge conflicts.
+		// Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>} = 255,
+
+
 	}
 }
+
+// impl pallet_sudo::Config for Runtime {
+// 	type RuntimeEvent = RuntimeEvent;
+// 	type RuntimeCall = RuntimeCall;
+// }
 
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;

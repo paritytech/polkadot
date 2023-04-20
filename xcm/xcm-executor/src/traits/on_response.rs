@@ -122,7 +122,7 @@ pub enum QueryResponseStatus<BlockNumber> {
 pub trait XcmQueryHandler {
 	type QueryId: FullCodec + MaxEncodedLen + TypeInfo + Clone + Eq + PartialEq + Debug + Copy;
 	type BlockNumber;
-	type Error;
+	type Error: Debug;
 
 	/// Consume `message` and return another which is equivalent to it except that it reports
 	/// back the outcome.

@@ -126,6 +126,7 @@ pub trait TransactAsset {
 		to: &MultiLocation,
 		context: &XcmContext,
 	) -> Result<Assets, XcmError> {
+        log::debug!("🔥 In transfer Asset in xcm-executor");
 		match Self::internal_transfer_asset(asset, from, to, context) {
 			Err(XcmError::AssetNotFound | XcmError::Unimplemented) => {
 				let assets = Self::withdraw_asset(asset, from, Some(context))?;
