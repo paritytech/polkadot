@@ -363,8 +363,10 @@ pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 /// * initial genesis for the Parachains configuration
 /// * checking updates to this stored runtime configuration do not exceed this limit
 /// * when detecting a code decompression bomb in the client
+///
+/// Should never be larger than the total block size.
 // NOTE: This value is used in the runtime so be careful when changing it.
-pub const MAX_CODE_SIZE: u32 = 10 * 1024 * 1024;
+pub const MAX_CODE_SIZE: u32 = 4 * 1024 * 1024;
 
 /// Maximum head data size we support right now.
 ///
