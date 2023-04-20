@@ -17,6 +17,7 @@
 use crate::configuration::*;
 use frame_benchmarking::{benchmarks, BenchmarkError, BenchmarkResult};
 use frame_system::RawOrigin;
+use primitives::{ExecutorParam, ExecutorParams, PvfExecTimeoutKind, PvfPrepTimeoutKind};
 use sp_runtime::traits::One;
 
 benchmarks! {
@@ -35,6 +36,18 @@ benchmarks! {
 	}
 
 	set_config_with_balance {}: set_hrmp_sender_deposit(RawOrigin::Root, 100_000_000_000)
+
+	set_config_with_executor_params {}: set_executor_params(RawOrigin::Root, ExecutorParams::from(&[
+		ExecutorParam::MaxMemoryPages(2080),
+		ExecutorParam::StackLogicalMax(65536),
+		ExecutorParam::StackNativeMax(256 * 1024 * 1024),
+		ExecutorParam::WasmExtBulkMemory,
+		ExecutorParam::PrecheckingMaxMemory(2 * 1024 * 1024 * 1024),
+		ExecutorParam::PvfPrepTimeout(PvfPrepTimeoutKind::Precheck, 60_000),
+		ExecutorParam::PvfPrepTimeout(PvfPrepTimeoutKind::Lenient, 360_000),
+		ExecutorParam::PvfExecTimeout(PvfExecTimeoutKind::Backing, 2_000),
+		ExecutorParam::PvfExecTimeout(PvfExecTimeoutKind::Approval, 12_000),
+	][..]))
 
 	impl_benchmark_test_suite!(
 		Pallet,
