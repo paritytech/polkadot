@@ -485,7 +485,6 @@ impl<T: Config> Pallet<T> {
 				let core_idx = CoreIndex::from(core_idx);
 
 				// add previously timedout paras back into the queue
-				// TODO: retry logic in assignment provider
 				if let Some(mut entry) = timedout_paras.remove(&core_idx) {
 					if entry.retries < T::AssignmentProvider::get_max_retries(core_idx) {
 						entry.retries += 1;
