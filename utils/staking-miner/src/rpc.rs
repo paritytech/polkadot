@@ -118,12 +118,6 @@ impl Deref for SharedRpcClient {
 }
 
 impl SharedRpcClient {
-	/// Consume and extract the inner client.
-	#[allow(dead_code)]
-	pub fn into_inner(self) -> Arc<WsClient> {
-		self.0
-	}
-
 	/// Get the URI of the client.
 	pub fn uri(&self) -> &str {
 		&self.1
