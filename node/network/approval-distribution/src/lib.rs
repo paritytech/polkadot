@@ -225,6 +225,47 @@ struct PeerEntry {
 	pub version: ProtocolVersion,
 }
 
+/// Aggression configuration representation
+#[derive(Clone)]
+struct AggressionConfig {
+	/// Aggression level 1: all validators send all their own messages to all peers.
+	l1_threshold: Option<BlockNumber>,
+	/// Aggression level 2: level 1 + all validators send all messages to all peers in the X and Y dimensions.
+	l2_threshold: Option<BlockNumber>,
+	/// How often to re-send messages to all targeted recipients.
+	/// This applies to all unfinalized blocks.
+	resend_unfinalized_period: Option<BlockNumber>,
+}
+
+impl AggressionConfig {
+	/// Returns `true` if block is not too old depending on the aggression level
+	fn is_age_relevant(&self, block_age: BlockNumber) -> bool {
+		if let Some(t) = self.l1_threshold {
+			block_age >= t
+		} else if let Some(t) = self.resend_unfinalized_period {
+			block_age > 0 && block_age % t == 0
+		} else {
+			false
+		}
+	}
+}
+
+impl Default for AggressionConfig {
+	fn default() -> Self {
+		AggressionConfig {
+			l1_threshold: Some(13),
+			l2_threshold: Some(28),
+			resend_unfinalized_period: Some(8),
+		}
+	}
+}
+
+#[derive(PartialEq)]
+enum Resend {
+	Yes,
+	No,
+}
+
 /// The [`State`] struct is responsible for tracking the overall state of the subsystem.
 ///
 /// It tracks metadata about our view of the unfinalized chain,
@@ -254,6 +295,9 @@ struct State {
 
 	/// HashMap from active leaves to spans
 	spans: HashMap<Hash, jaeger::PerLeafSpan>,
+
+	/// Aggression configuration.
+	aggression_config: AggressionConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -672,7 +716,7 @@ impl State {
 			}
 		}
 
-		// self.enable_aggression(ctx, Resend::Yes, metrics).await;
+		self.enable_aggression(ctx, Resend::Yes, metrics).await;
 	}
 
 	async fn handle_new_session_topology<Context>(
@@ -903,8 +947,8 @@ impl State {
 
 	async fn handle_block_finalized<Context>(
 		&mut self,
-		_ctx: &mut Context,
-		_metrics: &Metrics,
+		ctx: &mut Context,
+		metrics: &Metrics,
 		finalized_number: BlockNumber,
 	) {
 		// we want to prune every block up to (including) finalized_number
@@ -927,7 +971,7 @@ impl State {
 
 		// If a block was finalized, this means we may need to move our aggression
 		// forward to the now oldest block(s).
-		// self.enable_aggression(ctx, Resend::No, metrics).await;
+		self.enable_aggression(ctx, Resend::No, metrics).await;
 	}
 
 	async fn import_and_circulate_assignment<Context, R>(
@@ -1608,95 +1652,99 @@ impl State {
 		}
 	}
 
-	// async fn enable_aggression<Context>(
-	// 	&mut self,
-	// 	ctx: &mut Context,
-	// 	resend: Resend,
-	// 	metrics: &Metrics,
-	// ) {
-	// 	let min_age = self.blocks_by_number.iter().next().map(|(num, _)| num);
-	// 	let max_age = self.blocks_by_number.iter().rev().next().map(|(num, _)| num);
-	// 	let config = self.aggression_config.clone();
+	async fn enable_aggression<Context>(
+		&mut self,
+		ctx: &mut Context,
+		resend: Resend,
+		metrics: &Metrics,
+	) {
+		let min_age = self.blocks_by_number.iter().next().map(|(num, _)| num);
+		let max_age = self.blocks_by_number.iter().rev().next().map(|(num, _)| num);
+		let config = self.aggression_config.clone();
 
-	// 	let (min_age, max_age) = match (min_age, max_age) {
-	// 		(Some(min), Some(max)) => (min, max),
-	// 		_ => return, // empty.
-	// 	};
+		let (min_age, max_age) = match (min_age, max_age) {
+			(Some(min), Some(max)) => (min, max),
+			_ => return, // empty.
+		};
 
-	// 	let diff = max_age - min_age;
-	// 	if !self.aggression_config.is_age_relevant(diff) {
-	// 		return
-	// 	}
+		let diff = max_age - min_age;
+		if !self.aggression_config.is_age_relevant(diff) {
+			return
+		}
 
-	// 	adjust_required_routing_and_propagate(
-	// 		ctx,
-	// 		&mut self.blocks,
-	// 		&self.topologies,
-	// 		|block_entry| {
-	// 			let block_age = max_age - block_entry.number;
+		adjust_required_routing_and_propagate(
+			ctx,
+			&mut self.blocks,
+			&self.topologies,
+			|block_entry| {
+				let block_age = max_age - block_entry.number;
 
-	// 			if resend == Resend::Yes &&
-	// 				config
-	// 					.resend_unfinalized_period
-	// 					.as_ref()
-	// 					.map_or(false, |p| block_age > 0 && block_age % p == 0)
-	// 			{
-	// 				// Retry sending to all peers.
-	// 				for (_, knowledge) in block_entry.known_by.iter_mut() {
-	// 					knowledge.sent = Knowledge::default();
-	// 				}
+				if resend == Resend::Yes &&
+					config
+						.resend_unfinalized_period
+						.as_ref()
+						.map_or(false, |p| block_age > 0 && block_age % p == 0)
+				{
+					// Retry sending to all peers.
+					for (_, knowledge) in block_entry.known_by.iter_mut() {
+						knowledge.sent = Knowledge::default();
+					}
 
-	// 				true
-	// 			} else {
-	// 				false
-	// 			}
-	// 		},
-	// 		|_, _, _| {},
-	// 	)
-	// 	.await;
+					true
+				} else {
+					false
+				}
+			},
+			|required_routing, _, _| *required_routing,
+			&self.peer_views,
+		)
+		.await;
 
-	// 	adjust_required_routing_and_propagate(
-	// 		ctx,
-	// 		&mut self.blocks,
-	// 		&self.topologies,
-	// 		|block_entry| {
-	// 			// Ramp up aggression only for the very oldest block(s).
-	// 			// Approval voting can get stuck on a single block preventing
-	// 			// its descendants from being finalized. Waste minimal bandwidth
-	// 			// this way. Also, disputes might prevent finality - again, nothing
-	// 			// to waste bandwidth on newer blocks for.
-	// 			&block_entry.number == min_age
-	// 		},
-	// 		|required_routing, local, _| {
-	// 			// It's a bit surprising not to have a topology at this age.
-	// 			if *required_routing == RequiredRouting::PendingTopology {
-	// 				gum::debug!(
-	// 					target: LOG_TARGET,
-	// 					age = ?diff,
-	// 					"Encountered old block pending gossip topology",
-	// 				);
-	// 				return
-	// 			}
+		adjust_required_routing_and_propagate(
+			ctx,
+			&mut self.blocks,
+			&self.topologies,
+			|block_entry| {
+				// Ramp up aggression only for the very oldest block(s).
+				// Approval voting can get stuck on a single block preventing
+				// its descendants from being finalized. Waste minimal bandwidth
+				// this way. Also, disputes might prevent finality - again, nothing
+				// to waste bandwidth on newer blocks for.
+				&block_entry.number == min_age
+			},
+			|required_routing, local, _| {
+				// It's a bit surprising not to have a topology at this age.
+				if *required_routing == RequiredRouting::PendingTopology {
+					gum::debug!(
+						target: LOG_TARGET,
+						age = ?diff,
+						"Encountered old block pending gossip topology",
+					);
+					return *required_routing
+				}
 
-	// 			if config.l1_threshold.as_ref().map_or(false, |t| &diff >= t) {
-	// 				// Message originator sends to everyone.
-	// 				if local && *required_routing != RequiredRouting::All {
-	// 					metrics.on_aggression_l1();
-	// 					*required_routing = RequiredRouting::All;
-	// 				}
-	// 			}
+				if config.l2_threshold.as_ref().map_or(false, |t| &diff >= t) {
+					// Message originator sends to everyone. Everyone else sends to XY.
+					if !local && *required_routing != RequiredRouting::GridXY {
+						metrics.on_aggression_l2();
+						return RequiredRouting::GridXY
+					}
+				}
 
-	// 			if config.l2_threshold.as_ref().map_or(false, |t| &diff >= t) {
-	// 				// Message originator sends to everyone. Everyone else sends to XY.
-	// 				if !local && *required_routing != RequiredRouting::GridXY {
-	// 					metrics.on_aggression_l2();
-	// 					*required_routing = RequiredRouting::GridXY;
-	// 				}
-	// 			}
-	// 		},
-	// 	)
-	// 	.await;
-	// }
+				if config.l1_threshold.as_ref().map_or(false, |t| &diff >= t) {
+					// Message originator sends to everyone.
+					if local && *required_routing != RequiredRouting::All {
+						metrics.on_aggression_l1();
+						return RequiredRouting::All
+					}
+				}
+
+				*required_routing
+			},
+			&self.peer_views,
+		)
+		.await;
+	}
 }
 
 // This adjusts the required routing of messages in blocks that pass the block filter

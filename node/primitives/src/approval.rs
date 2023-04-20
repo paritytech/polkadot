@@ -284,6 +284,7 @@ impl From<AssignmentCert> for AssignmentCertV2 {
 }
 
 /// Errors that can occur when trying to convert to/from assignment v1/v2
+#[derive(Debug)]
 pub enum AssignmentConversionError {
 	/// Assignment certificate is not supported in v1.
 	CertificateNotSupported,
