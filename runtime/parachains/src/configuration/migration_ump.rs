@@ -106,12 +106,20 @@ pub mod latest {
 				"There must be a new pending upgrade enqueued"
 			);
 
-			log::info!(target: LOG_TARGET, "Checking active config");
-			ActiveConfig::<T>::get().panic_if_not_consistent();
+			let mut any_pending_valid = false;
 			PendingConfigs::<T>::get().iter().for_each(|(s, cfg)| {
 				log::info!(target: LOG_TARGET, "Checking config s={}", s);
 				cfg.panic_if_not_consistent();
+				any_pending_valid = true;
 			});
+
+			if let Err(err) = ActiveConfig::<T>::get().check_consistency() {
+				if any_pending_valid {
+					log::error!(target: LOG_TARGET, "The ActiveConfig is inconsistent: {:?}. We tolerate this since there are pending consistent upgrades.", err);
+				} else {
+					panic!("The ActiveConfig is inconsistent: {:?} and there are no pending consistent ones.", err)
+				}
+			}
 
 			Ok(())
 		}

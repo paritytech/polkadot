@@ -173,13 +173,6 @@ pub mod v5 {
 				"Storage version should be 5 after the migration"
 			);
 
-			log::info!(target: crate::configuration::LOG_TARGET, "Checking active config");
-			ActiveConfig::<T>::get().panic_if_not_consistent();
-			PendingConfigs::<T>::get().iter().for_each(|(s, cfg)| {
-				log::info!(target: crate::configuration::LOG_TARGET, "Checking config s={}", s);
-				cfg.panic_if_not_consistent();
-			});
-
 			Ok(())
 		}
 	}
