@@ -290,7 +290,7 @@ fn reqs_get_queued_when_out_of_capacity() {
 #[test]
 fn reqs_get_queued_on_no_recent_block() {
 	let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
-	let (mut unblock_test, mut wait_for_verification) = async_channel::bounded(1);;
+	let (unblock_test, mut wait_for_verification) = async_channel::bounded(1);
 	let test = async {
 		let (sender, _worker_receiver) = async_channel::bounded(2);
 		let mut participation = Participation::new(sender, Metrics::default());
