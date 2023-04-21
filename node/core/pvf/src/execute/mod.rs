@@ -21,7 +21,7 @@
 //! `polkadot_node_core_pvf_worker::execute_worker_entrypoint`.
 
 mod queue;
-mod worker;
+mod worker_intf;
 
-pub use queue::{start, ToQueue};
-pub use worker::{Handshake as ExecuteHandshake, Response as ExecuteResponse};
+pub use queue::{start, PendingExecutionRequest, ToQueue};
+pub use worker_intf::{Handshake as ExecuteHandshake, Response as ExecuteResponse};

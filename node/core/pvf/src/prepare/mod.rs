@@ -24,7 +24,7 @@
 
 mod pool;
 mod queue;
-mod worker;
+mod worker_intf;
 
 pub use pool::start as start_pool;
 pub use queue::{start as start_queue, FromQueue, ToQueue};
@@ -47,7 +47,7 @@ pub struct MemoryStats {
 	/// Memory stats from `tikv_jemalloc_ctl`.
 	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 	pub memory_tracker_stats: Option<MemoryAllocationStats>,
-	/// `ru_maxrss` from `getrusage`. A string error since `io::Error` is not `Encode`able.
+	/// `ru_maxrss` from `getrusage`. `None` if an error occurred.
 	#[cfg(target_os = "linux")]
 	pub max_rss: Option<i64>,
 }

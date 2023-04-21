@@ -31,7 +31,8 @@ pub use prepare::worker_entrypoint as prepare_worker_entrypoint;
 
 pub use executor_intf::{prepare, prevalidate};
 
-// TODO: Does logging in the worker have any effect?
+// NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
+//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf-worker=trace`.
 const LOG_TARGET: &str = "parachain::pvf-worker";
 
 /// Use this macro to declare a `fn main() {}` that will create an executable that can be used for
