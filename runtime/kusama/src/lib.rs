@@ -106,16 +106,11 @@ pub mod xcm_config;
 
 // Governance configurations.
 pub mod governance;
+use crate::xcm_config::Statemine;
 use governance::{
 	pallet_custom_origins, AuctionAdmin, Fellows, GeneralAdmin, LeaseAdmin, StakingAdmin,
 	Treasurer, TreasurySpender,
 };
-use xcm::{
-	latest::{InteriorMultiLocation, MultiLocation},
-	v3::Junction,
-};
-
-use crate::xcm_config::Statemine;
 use xcm_builder::PayOverXcm;
 
 #[cfg(test)]
@@ -605,8 +600,6 @@ impl pallet_fast_unstake::Config for Runtime {
 	type MaxBackersPerValidator = MaxNominatorRewardedPerValidator;
 	type WeightInfo = weights::pallet_fast_unstake::WeightInfo<Runtime>;
 }
-
-use xcm::opaque::lts::Junctions;
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
