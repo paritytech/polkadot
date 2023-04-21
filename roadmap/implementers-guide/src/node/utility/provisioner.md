@@ -108,8 +108,6 @@ To select backable candidates:
     - Else-if `occupied_core.time_out_at == block_number`
       - If `Some(scheduled_core) = occupied_core.next_up_on_timeout`, the core will be vacated and in need of a provisioned candidate. A candidate is requested in exactly the same way as with `CoreState::Scheduled`.
       - Else the core being vacated is unscheduled and doesn’t need to be provisioned with a candidate
-
-
 The end result of this process is a vector of `CandidateHash`s, sorted in order of their core index.
 
 Required Path:
