@@ -18,10 +18,10 @@
 //!
 //! The validation host [runs the queue][`start`] communicating with it by sending [`ToQueue`]
 //! messages. The queue will spawn workers in new processes. Those processes should jump to
-//! [`worker_entrypoint`].
+//! `polkadot_node_core_pvf_worker::execute_worker_entrypoint`.
 
 mod queue;
-mod worker;
+mod worker_intf;
 
 pub use queue::{start, PendingExecutionRequest, ToQueue};
-pub use worker::{worker_entrypoint, Response as ExecuteResponse};
+pub use worker_intf::{Handshake as ExecuteHandshake, Response as ExecuteResponse};

@@ -97,7 +97,10 @@ impl MalusCli {
 
 				#[cfg(not(target_os = "android"))]
 				{
-					polkadot_node_core_pvf::prepare_worker_entrypoint(&cmd.socket_path, None);
+					polkadot_node_core_pvf_worker::prepare_worker_entrypoint(
+						&cmd.socket_path,
+						None,
+					);
 				}
 			},
 			NemesisVariant::PvfExecuteWorker(cmd) => {
@@ -108,7 +111,10 @@ impl MalusCli {
 
 				#[cfg(not(target_os = "android"))]
 				{
-					polkadot_node_core_pvf::execute_worker_entrypoint(&cmd.socket_path, None);
+					polkadot_node_core_pvf_worker::execute_worker_entrypoint(
+						&cmd.socket_path,
+						None,
+					);
 				}
 			},
 		}
