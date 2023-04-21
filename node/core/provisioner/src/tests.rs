@@ -601,13 +601,7 @@ mod select_candidates {
 			.collect();
 
 		test_harness(
-			|r| {
-				mock_overseer(
-					r,
-					expected_backed,
-					prospective_parachains_mode,
-				)
-			},
+			|r| mock_overseer(r, expected_backed, prospective_parachains_mode),
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,
