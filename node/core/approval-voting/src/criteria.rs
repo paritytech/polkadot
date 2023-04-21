@@ -694,7 +694,7 @@ pub(crate) fn check_assignment_cert(
 	match &assignment.kind {
 		AssignmentCertKindV2::RelayVRFModuloCompact { core_bitfield } => {
 			// Check that claimed core bitfield match the one from certificate.
-			if claimed_core_indices != core_bitfield {
+			if &claimed_core_indices != core_bitfield {
 				return Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
 			}
 
