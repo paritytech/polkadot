@@ -23,5 +23,5 @@
 mod queue;
 mod worker;
 
-pub use queue::{start, ToQueue};
+pub use queue::{start, PendingExecutionRequest, ToQueue};
 pub use worker::{worker_entrypoint, Response as ExecuteResponse};

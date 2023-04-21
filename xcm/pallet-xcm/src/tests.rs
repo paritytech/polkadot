@@ -358,7 +358,7 @@ fn teleport_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get() * 2;
+		let weight = BaseXcmWeight::get() * 3;
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::teleport_assets(
@@ -401,7 +401,7 @@ fn limited_teleport_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get() * 2;
+		let weight = BaseXcmWeight::get() * 3;
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::limited_teleport_assets(
@@ -445,7 +445,7 @@ fn unlimited_teleport_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get() * 2;
+		let weight = BaseXcmWeight::get() * 3;
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::limited_teleport_assets(
@@ -487,7 +487,7 @@ fn reserve_transfer_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get();
+		let weight = BaseXcmWeight::get() * 2;
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
@@ -534,7 +534,7 @@ fn limited_reserve_transfer_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get();
+		let weight = BaseXcmWeight::get() * 2;
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
@@ -582,7 +582,7 @@ fn unlimited_reserve_transfer_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get();
+		let weight = BaseXcmWeight::get() * 2;
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
