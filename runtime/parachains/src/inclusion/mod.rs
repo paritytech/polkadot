@@ -1014,17 +1014,18 @@ impl<T: Config> Pallet<T> {
 	/// to deal with the messages as given. Messages that are too long will be ignored since such
 	/// candidates should have already been rejected in [`Self::check_upward_messages`].
 	pub(crate) fn receive_upward_messages(para: ParaId, upward_messages: &[Vec<u8>]) -> Weight {
-		let bounded = upward_messages
-			.iter()
-			.filter_map(|d| {
-				BoundedSlice::try_from(&d[..])
-					.map_err(|e| {
-						defensive!("Too long inbound upward message (l={}) in accepted candidate. Ignoring.", d.len());
-						e
-					})
-					.ok()
-			})
-			.collect();
+		let bounded =
+			upward_messages
+				.iter()
+				.filter_map(|d| {
+					BoundedSlice::try_from(&d[..])
+						.map_err(|e| {
+							defensive!("Too long inbound upward message in accepted candidate. Ignoring. L=", d.len());
+							e
+						})
+						.ok()
+				})
+				.collect();
 		Self::receive_bounded_upward_messages(para, bounded)
 	}
 
