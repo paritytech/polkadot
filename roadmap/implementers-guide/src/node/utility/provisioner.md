@@ -28,6 +28,23 @@ Dispute resolution is complex and is explained in substantially more detail [her
 
 ## Protocol
 
+The subsystem should maintain a set of handles to Block Authorship Provisioning iterations that are currently live.
+
+### On Overseer Signal
+
+- `ActiveLeavesUpdate`:
+  - For each `activated` head:
+    - spawn a Block Authorship Provisioning iteration with the given relay parent, storing a bidirectional channel with that iteration.
+  - For each `deactivated` head:
+    - terminate the Block Authorship Provisioning iteration for the given relay parent, if any.
+- `Conclude`: Forward `Conclude` to all iterations, waiting a small amount of time for them to join, and then hard-exiting.
+
+### On `ProvisionerMessage`
+
+Forward the message to the appropriate Block Authorship Provisioning iteration, or discard if no appropriate iteration is currently active.
+
+### Per Provisioning Iteration
+
 Input: [`ProvisionerMessage`](../../types/overseer-protocol.md#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.md), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.md), and disputes come from the [Disputes Subsystem](../disputes/dispute-coordinator.md). Misbehavior reports are currently sent from the [Candidate Backing subsystem](../backing/candidate-backing.md) and contain the following misbehaviors:
 
 1. `Misbehavior::ValidityDoubleVote`
@@ -148,27 +165,6 @@ Legacy candidate selection and prospective parachains candidate selection both l
 
 The response is a vector of `BackedCandidate`s, sorted in order of their core index and ready to be provisioned to block authoring. The candidate selection and retrieval process should select at maximum one candidate which upgrades the runtime validation code.
 
-### Notes
-
-See also: [Scheduler Module: Availability Cores](../../runtime/scheduler.md#availability-cores).
-
-## Functionality
-
-The subsystem should maintain a set of handles to Block Authorship Provisioning Jobs that are currently live.
-
-### On Overseer Signal
-
-- `ActiveLeavesUpdate`:
-  - For each `activated` head:
-    - spawn a Block Authorship Provisioning Job with the given relay parent, storing a bidirectional channel with that job.
-  - For each `deactivated` head:
-    - terminate the Block Authorship Provisioning Job for the given relay parent, if any.
-- `Conclude`: Forward `Conclude` to all jobs, waiting a small amount of time for them to join, and then hard-exiting.
-
-### On `ProvisionerMessage`
-
-Forward the message to the appropriate Block Authorship Provisioning Job, or discard if no appropriate job is currently active.
-
 ## Glossary
 
 - **Relay-parent:** 
@@ -181,7 +177,7 @@ Forward the message to the appropriate Block Authorship Provisioning Job, or dis
   - Two versions, prospective parachains candidate selection and legacy candidate selection. See their respective protocol sections for details.
 - **Availability Core:** 
   - Often referred to simply as "cores", availability cores are an abstraction used for resource management. For the provisioner, availability cores are most relevant in that core states determine which `para_id`s to provision backable candidates for.
-  - For more on availability cores see [scheduler](../../runtime/scheduler.md)
+  - For more on availability cores see [Scheduler Module: Availability Cores](../../runtime/scheduler.md#availability-cores)
 - **Availability Bitfield:**
   - Often referred to simply as a "bitfield", an availability bitfield represents the view of parablock candidate availability from a particular validator's perspective. Each bit in the bitfield corresponds to a single [availability core](../runtime-api/availability-cores.md).
   - For more on availability bitfields see [availability](../../types/availability.md)
