@@ -93,7 +93,7 @@ impl Initialized {
 	) -> Self {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
-		let (participation_sender, participation_receiver) = async_channel::bounded(8);
+		let (participation_sender, participation_receiver) = async_channel::unbounded();
 		let participation = Participation::new(participation_sender, metrics.clone());
 		let highest_session = rolling_session_window.latest_session();
 
