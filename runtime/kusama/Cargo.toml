@@ -20,21 +20,21 @@ authority-discovery-primitives = { package = "sp-authority-discovery", git = "ht
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 beefy-primitives = { package = "sp-consensus-beefy", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 kusama-runtime-constants = { package = "kusama-runtime-constants", path = "./constants", default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-arithmetic = { package = "sp-arithmetic", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
@@ -128,6 +128,7 @@ std = [
 	"parity-scale-codec/std",
 	"scale-info/std",
 	"inherents/std",
+	"sp-arithmetic/std",
 	"sp-core/std",
 	"sp-api/std",
 	"tx-pool-api/std",

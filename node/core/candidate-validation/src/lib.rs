@@ -691,6 +691,9 @@ trait ValidationBackend {
 
 	/// Tries executing a PVF. Will retry once if an error is encountered that may have been
 	/// transient.
+	///
+	/// NOTE: Should retry only on errors that are a result of execution itself, and not of
+	/// preparation.
 	async fn validate_candidate_with_retry(
 		&mut self,
 		raw_validation_code: Vec<u8>,
@@ -698,31 +701,44 @@ trait ValidationBackend {
 		params: ValidationParams,
 		executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
-		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
 		let prep_timeout = pvf_prep_timeout(&executor_params, PvfPrepTimeoutKind::Lenient);
+		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
 		let pvf = PvfPrepData::from_code(raw_validation_code, executor_params, prep_timeout);
 
 		let mut validation_result =
 			self.validate_candidate(pvf.clone(), exec_timeout, params.encode()).await;
 
-		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
-		// assumption that the conditions that caused this error may have been transient. Note that
-		// this error is only a result of execution itself and not of preparation.
-		if let Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =
-			validation_result
-		{
-			// Wait a brief delay before retrying.
-			futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
+		// Allow limited retries for each kind of error.
+		let mut num_internal_retries_left = 1;
+		let mut num_awd_retries_left = 1;
+		loop {
+			match validation_result {
+				Err(ValidationError::InvalidCandidate(
+					WasmInvalidCandidate::AmbiguousWorkerDeath,
+				)) if num_awd_retries_left > 0 => num_awd_retries_left -= 1,
+				Err(ValidationError::InternalError(_)) if num_internal_retries_left > 0 =>
+					num_internal_retries_left -= 1,
+				_ => break,
+			}
 
-			gum::warn!(
-				target: LOG_TARGET,
-				?pvf,
-				"Re-trying failed candidate validation due to AmbiguousWorkerDeath."
-			);
+			// If we got a possibly transient error, retry once after a brief delay, on the assumption
+			// that the conditions that caused this error may have resolved on their own.
+			{
+				// Wait a brief delay before retrying.
+				futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
 
-			// Encode the params again when re-trying. We expect the retry case to be relatively
-			// rare, and we want to avoid unconditionally cloning data.
-			validation_result = self.validate_candidate(pvf, exec_timeout, params.encode()).await;
+				gum::warn!(
+					target: LOG_TARGET,
+					?pvf,
+					"Re-trying failed candidate validation due to possible transient error: {:?}",
+					validation_result
+				);
+
+				// Encode the params again when re-trying. We expect the retry case to be relatively
+				// rare, and we want to avoid unconditionally cloning data.
+				validation_result =
+					self.validate_candidate(pvf.clone(), exec_timeout, params.encode()).await;
+			}
 		}
 
 		validation_result

@@ -24,7 +24,7 @@ tikv-jemallocator = "0.5.0"
 
 # Crates in our workspace, defined as dependencies so we can pass them feature flags.
 polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
-polkadot-node-core-pvf = { path = "node/core/pvf" }
+polkadot-node-core-pvf-worker = { path = "node/core/pvf/worker" }
 polkadot-overseer = { path = "node/overseer" }
 
 [dev-dependencies]
@@ -80,6 +80,7 @@ members = [
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
+	"node/core/pvf/worker",
 	"node/core/pvf-checker",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
@@ -206,7 +207,7 @@ try-runtime = [ "polkadot-cli/try-runtime" ]
 fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
-jemalloc-allocator = ["polkadot-node-core-pvf/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
+jemalloc-allocator = ["polkadot-node-core-pvf-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
