@@ -16,7 +16,7 @@
 
 //! A queue that handles requests for PVF execution.
 
-use super::worker::Outcome;
+use super::worker_intf::Outcome;
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId},
 	host::ResultSender,
@@ -416,7 +416,8 @@ async fn spawn_worker_task(
 	use futures_timer::Delay;
 
 	loop {
-		match super::worker::spawn(&program_path, job.executor_params.clone(), spawn_timeout).await
+		match super::worker_intf::spawn(&program_path, job.executor_params.clone(), spawn_timeout)
+			.await
 		{
 			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle, job),
 			Err(err) => {
@@ -460,9 +461,13 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 	queue.mux.push(
 		async move {
 			let _timer = execution_timer;
-			let outcome =
-				super::worker::start_work(idle, job.artifact.clone(), job.exec_timeout, job.params)
-					.await;
+			let outcome = super::worker_intf::start_work(
+				idle,
+				job.artifact.clone(),
+				job.exec_timeout,
+				job.params,
+			)
+			.await;
 			QueueEvent::StartWork(worker, outcome, job.artifact.id, job.result_tx)
 		}
 		.boxed(),
