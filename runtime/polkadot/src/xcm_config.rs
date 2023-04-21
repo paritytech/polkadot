@@ -234,48 +234,16 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			RuntimeCall::Session(pallet_session::Call::purge_keys { .. }) |
 			RuntimeCall::Grandpa(..) |
 			RuntimeCall::ImOnline(..) |
-			RuntimeCall::Democracy(
-				pallet_democracy::Call::second { .. } |
-				pallet_democracy::Call::vote { .. } |
-				pallet_democracy::Call::emergency_cancel { .. } |
-				pallet_democracy::Call::fast_track { .. } |
-				pallet_democracy::Call::veto_external { .. } |
-				pallet_democracy::Call::cancel_referendum { .. } |
-				pallet_democracy::Call::delegate { .. } |
-				pallet_democracy::Call::undelegate { .. } |
-				pallet_democracy::Call::clear_public_proposals { .. } |
-				pallet_democracy::Call::unlock { .. } |
-				pallet_democracy::Call::remove_vote { .. } |
-				pallet_democracy::Call::remove_other_vote { .. } |
-				pallet_democracy::Call::blacklist { .. } |
-				pallet_democracy::Call::cancel_proposal { .. },
-			) |
-			RuntimeCall::Council(
-				pallet_collective::Call::vote { .. } |
-				pallet_collective::Call::disapprove_proposal { .. } |
-				pallet_collective::Call::close { .. },
-			) |
-			RuntimeCall::TechnicalCommittee(
-				pallet_collective::Call::vote { .. } |
-				pallet_collective::Call::disapprove_proposal { .. } |
-				pallet_collective::Call::close { .. },
-			) |
-			RuntimeCall::PhragmenElection(
-				pallet_elections_phragmen::Call::remove_voter { .. } |
-				pallet_elections_phragmen::Call::submit_candidacy { .. } |
-				pallet_elections_phragmen::Call::renounce_candidacy { .. } |
-				pallet_elections_phragmen::Call::remove_member { .. } |
-				pallet_elections_phragmen::Call::clean_defunct_voters { .. },
-			) |
-			RuntimeCall::TechnicalMembership(
-				pallet_membership::Call::add_member { .. } |
-				pallet_membership::Call::remove_member { .. } |
-				pallet_membership::Call::swap_member { .. } |
-				pallet_membership::Call::change_key { .. } |
-				pallet_membership::Call::set_prime { .. } |
-				pallet_membership::Call::clear_prime { .. },
-			) |
 			RuntimeCall::Treasury(..) |
+			RuntimeCall::ConvictionVoting(..) |
+			RuntimeCall::Referenda(
+				pallet_referenda::Call::place_decision_deposit { .. } |
+				pallet_referenda::Call::refund_decision_deposit { .. } |
+				pallet_referenda::Call::cancel { .. } |
+				pallet_referenda::Call::kill { .. } |
+				pallet_referenda::Call::nudge_referendum { .. } |
+				pallet_referenda::Call::one_fewer_deciding { .. },
+			) |
 			RuntimeCall::Claims(
 				super::claims::Call::claim { .. } |
 				super::claims::Call::mint_claim { .. } |
@@ -337,7 +305,8 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
 			}) |
-			RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. }) => true,
+			RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. }) |
+			RuntimeCall::Proxy(..) => true,
 			_ => false,
 		}
 	}
