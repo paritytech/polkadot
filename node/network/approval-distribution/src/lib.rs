@@ -124,12 +124,12 @@ struct AggressionConfig {
 }
 
 impl AggressionConfig {
-	/// Returns `true` if block is not too old depending on the aggression level
-	fn is_age_relevant(&self, block_age: BlockNumber) -> bool {
+	/// Returns `true` if lag is past threshold depending on the aggression level
+	fn should_trigger_aggression(&self, approval_checking_lag: BlockNumber) -> bool {
 		if let Some(t) = self.l1_threshold {
-			block_age >= t
+			approval_checking_lag >= t
 		} else if let Some(t) = self.resend_unfinalized_period {
-			block_age > 0 && block_age % t == 0
+			approval_checking_lag > 0 && approval_checking_lag % t == 0
 		} else {
 			false
 		}
@@ -184,6 +184,9 @@ struct State {
 
 	/// HashMap from active leaves to spans
 	spans: HashMap<Hash, jaeger::PerLeafSpan>,
+
+	/// Current approval checking finality lag.
+	approval_checking_lag: BlockNumber,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1425,19 +1428,29 @@ impl State {
 		resend: Resend,
 		metrics: &Metrics,
 	) {
-		let min_age = self.blocks_by_number.iter().next().map(|(num, _)| num);
-		let max_age = self.blocks_by_number.iter().rev().next().map(|(num, _)| num);
 		let config = self.aggression_config.clone();
 
-		let (min_age, max_age) = match (min_age, max_age) {
-			(Some(min), Some(max)) => (min, max),
+		if !self.aggression_config.should_trigger_aggression(self.approval_checking_lag) {
+			gum::trace!(
+				target: LOG_TARGET,
+				approval_checking_lag = self.approval_checking_lag,
+				"Aggression not enabled",
+			);
+			return
+		}
+
+		let max_age = self.blocks_by_number.iter().rev().next().map(|(num, _)| num);
+
+		let max_age = match max_age {
+			Some(max) => *max,
 			_ => return, // empty.
 		};
 
-		let diff = max_age - min_age;
-		if !self.aggression_config.is_age_relevant(diff) {
-			return
-		}
+		// Since we have the approval checking lag, we need to set the `min_age` accordingly to
+		// enable aggresion for the oldest block that is not approved.
+		let min_age = max_age.saturating_sub(self.approval_checking_lag);
+
+		gum::debug!(target: LOG_TARGET, min_age, max_age, "Aggression enabled",);
 
 		adjust_required_routing_and_propagate(
 			ctx,
@@ -1476,20 +1489,21 @@ impl State {
 				// its descendants from being finalized. Waste minimal bandwidth
 				// this way. Also, disputes might prevent finality - again, nothing
 				// to waste bandwidth on newer blocks for.
-				&block_entry.number == min_age
+				block_entry.number == min_age
 			},
 			|required_routing, local, _| {
 				// It's a bit surprising not to have a topology at this age.
 				if *required_routing == RequiredRouting::PendingTopology {
 					gum::debug!(
 						target: LOG_TARGET,
-						age = ?diff,
+						lag = ?self.approval_checking_lag,
 						"Encountered old block pending gossip topology",
 					);
 					return
 				}
 
-				if config.l1_threshold.as_ref().map_or(false, |t| &diff >= t) {
+				if config.l1_threshold.as_ref().map_or(false, |t| &self.approval_checking_lag >= t)
+				{
 					// Message originator sends to everyone.
 					if local && *required_routing != RequiredRouting::All {
 						metrics.on_aggression_l1();
@@ -1497,7 +1511,8 @@ impl State {
 					}
 				}
 
-				if config.l2_threshold.as_ref().map_or(false, |t| &diff >= t) {
+				if config.l2_threshold.as_ref().map_or(false, |t| &self.approval_checking_lag >= t)
+				{
 					// Message originator sends to everyone. Everyone else sends to XY.
 					if !local && *required_routing != RequiredRouting::GridXY {
 						metrics.on_aggression_l2();
@@ -1763,6 +1778,10 @@ impl ApprovalDistribution {
 						"Sending back approval signatures failed, oneshot got closed"
 					);
 				}
+			},
+			ApprovalDistributionMessage::ApprovalCheckingLagUpdate(lag) => {
+				gum::debug!(target: LOG_TARGET, lag, "Received `ApprovalCheckingLagUpdate`");
+				state.approval_checking_lag = lag;
 			},
 		}
 	}
