@@ -1,6 +1,6 @@
 # Provisioner
 
-Relay chain block authorship authority is governed by BABE and is beyond the scope of the Overseer and the rest of the subsystems. That said, ultimately the block author needs to select a set of backable parachain candidates and other consensus data, and assemble a block from them. This subsystem is responsible for providing the necessary data to all potential block authors.
+Relay chain block authorship authority is governed by BABE and is beyond the scope of the Overseer and the rest of the subsystems. That said, ultimately the block author needs to select a set of backable parachain candidates and other consensus data, and assemble a block from them. This subsystem is responsible for providing the necessary data to all potential block authors. 
 
 ## Provisionable Data
 
@@ -8,7 +8,7 @@ There are several distinct types of provisionable data, but they share this prop
 
 ### Backed Candidates
 
-The block author can choose 0 or 1 backed parachain candidates per parachain; the only constraint is that each backable candidate has the appropriate relay parent. However, the choice of a backed candidate must be the block author's.
+The block author can choose 0 or 1 backed parachain candidates per parachain; the only constraint is that each backable candidate has the appropriate relay parent. However, the choice of a backed candidate must be the block author's. The provisioner subsystem is how those block authors make this choice in practice.
 
 ### Signed Bitfields
 
@@ -43,7 +43,7 @@ Block authors request the inherent data they should use for constructing the inh
 
 ## Block Production
 
-When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a [`ParaInherentData`](../../types/runtime.md#parainherentdata). Each relay chain block backs at most one backable parachain block candidate per parachain. Additionally no farther block candidate can be backed until the previous one either gets declared available or expired. Appropriate bitfields, as outlined in the section on [bitfield selection](#bitfield-selection), and any dispute statements should be attached as well.
+When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a [`ParaInherentData`](../../types/runtime.md#parainherentdata). Each relay chain block backs at most one backable parachain block candidate per parachain. Additionally no further block candidate can be backed until the previous one either gets declared available or expired. If bitfields indicate that candidate A, predecessor of B, should be declared available, then B can be backed in the same relay block. Appropriate bitfields, as outlined in the section on [bitfield selection](#bitfield-selection), and any dispute statements should be attached as well.
 
 ### Bitfield Selection
 
@@ -85,7 +85,7 @@ The state of the provisioner `PerRelayParent` tracks an important setting, `Pros
 `ProspectiveParachainsMode::Disabled` - The provisioner uses its own internal legacy candidate selection. 
 `ProspectiveParachainsMode::Enabled` - The provisioner requests that [prospective parachains](../backing/prospective-parachains.md) provide selected candidates.
 
-Candidates selected with `ProspectiveParachainsMode::Enabled` are able to benefit from the increased block production time asynchronous backing allows. For this reason, once asynchronous backing has been sufficiently tested the code related to legacy candidate selection will be removed.
+Candidates selected with `ProspectiveParachainsMode::Enabled` are able to benefit from the increased block production time asynchronous backing allows. For this reason all Polkadot protocol networks will eventually use prospective parachains candidate selection. Then legacy candidate selection will be removed as obsolete.
 
 ### Prospective Parachains Candidate Selection
 
@@ -98,7 +98,7 @@ To select backable candidates:
   - On `CoreState::Free`
     - The core is unscheduled and doesn’t need to be provisioned with a candidate
   - On `CoreState::Scheduled`
-    - The availability core is scheduled to secure availability for the next block for a particular `para_id`. Also the core is not currently occupied by a candidate pending availability.
+    - The core is unoccupied and scheduled to accept a backed block for a particular `para_id`.
     - The provisioner requests a backable candidate from [prospective parachains](../backing/prospective-parachains.md) with the desired relay parent, the core’s scheduled `para_id`, and an empty required path. 
   - On `CoreState::Occupied`
     - The availability core is occupied by a parachain block candidate pending availability. A further candidate need not be provided by the provisioner unless the core will be vacated this block. This is the case when either bitfields indicate the current core occupant has been made available or a timeout is reached.
@@ -112,17 +112,15 @@ To select backable candidates:
 
 The end result of this process is a vector of `CandidateHash`s, sorted in order of their core index.
 
-Required Path:
+#### Required Path
 
 Required path is a parameter for `ProspectiveParachainsMessage::GetBackableCandidate`, which the provisioner sends in candidate selection. 
 
-An empty required path indicates that the requested candidate should be a direct child of the most recent parablock for the given `para_id` as of the given relay parent. 
+An empty required path indicates that the requested candidate should be a direct child of the most recently included parablock for the given `para_id` as of the given relay parent. 
 
 In contrast, a required path with one or more entries prompts [prospective parachains](../backing/prospective-parachains.md) to step forward through its fragment tree for the given `para_id` and relay parent until the desired parablock is reached. We then select a direct child of that parablock to pass to the provisioner. 
 
-The parablocks making up a required path do not need to have been previously seen as included in relay chain blocks. Thus the ability to provision backable candidates based on a required path effectively decouples backing from inclusion, resulting in the tremendous performance increase of Asynchronous Backing.
-
-> TODO: The provisioner’s use of `required_path` doesn't work for parathreads, since no candidate will be provided if `scheduled_core.para_id != occupied_core.candidate_descriptor.para_id`. We lean hard on the assumption that cores are fixed to specific parachains within a session. https://github.com/paritytech/polkadot/issues/5492 
+The parablocks making up a required path do not need to have been previously seen as included in relay chain blocks. Thus the ability to provision backable candidates based on a required path effectively decouples backing from inclusion.
 
 ### Legacy Candidate Selection 
 
@@ -173,14 +171,10 @@ The subsystem should maintain a set of handles to Block Authorship Provisioning 
 
 Forward the message to the appropriate Block Authorship Provisioning Job, or discard if no appropriate job is currently active.
 
-### Block Authorship Provisioning Job
-
-Maintain the set of channels to block authors. On receiving provisionable data, send a copy over each channel.
-
 ## Glossary
 
 - **Relay-parent:** 
-  - A particular relay-chain block to which a process, perspective, and/or subset of state is linked.
+  - A particular relay-chain block which serves as an anchor and reference point for processes and data which depend on relay-chain state.
 - **Active Leaf:** 
   - A relay chain block which is the head of an active fork of the relay chain. 
   - Block authorship provisioning jobs are spawned per active leaf and concluded for any leaves which become inactive.
