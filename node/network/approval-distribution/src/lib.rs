@@ -1471,20 +1471,27 @@ impl State {
 			let v1_peers = filter_by_peer_version(&peers, ValidationVersion::V1.into());
 			let v2_peers = filter_by_peer_version(&peers, ValidationVersion::VStaging.into());
 
-			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-				v1_peers,
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Approvals(approvals.clone()),
-				)),
-			))
-			.await;
-			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-				v2_peers,
-				Versioned::VStaging(protocol_vstaging::ValidationProtocol::ApprovalDistribution(
-					protocol_vstaging::ApprovalDistributionMessage::Approvals(approvals),
-				)),
-			))
-			.await;
+			if v1_peers.len() > 0 {
+				ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+					v1_peers,
+					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Approvals(approvals.clone()),
+					)),
+				))
+				.await;
+			}
+
+			if v2_peers.len() > 0 {
+				ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+					v2_peers,
+					Versioned::VStaging(
+						protocol_vstaging::ValidationProtocol::ApprovalDistribution(
+							protocol_vstaging::ApprovalDistributionMessage::Approvals(approvals),
+						),
+					),
+				))
+				.await;
+			}
 		}
 	}
 
@@ -1627,6 +1634,7 @@ impl State {
 			gum::trace!(
 				target: LOG_TARGET,
 				?peer_id,
+				?protocol_version,
 				num = assignments_to_send.len(),
 				"Sending assignments to unified peer",
 			);
@@ -1643,6 +1651,7 @@ impl State {
 			gum::trace!(
 				target: LOG_TARGET,
 				?peer_id,
+				?protocol_version,
 				num = approvals_to_send.len(),
 				"Sending approvals to unified peer",
 			);
@@ -1723,23 +1732,24 @@ impl State {
 					return *required_routing
 				}
 
-				if config.l2_threshold.as_ref().map_or(false, |t| &diff >= t) {
-					// Message originator sends to everyone. Everyone else sends to XY.
-					if !local && *required_routing != RequiredRouting::GridXY {
-						metrics.on_aggression_l2();
-						return RequiredRouting::GridXY
-					}
-				}
+				let mut new_required_routing = *required_routing;
 
 				if config.l1_threshold.as_ref().map_or(false, |t| &diff >= t) {
 					// Message originator sends to everyone.
-					if local && *required_routing != RequiredRouting::All {
+					if local && new_required_routing != RequiredRouting::All {
 						metrics.on_aggression_l1();
-						return RequiredRouting::All
+						new_required_routing = RequiredRouting::All;
 					}
 				}
 
-				*required_routing
+				if config.l2_threshold.as_ref().map_or(false, |t| &diff >= t) {
+					// Message originator sends to everyone. Everyone else sends to XY.
+					if !local && new_required_routing != RequiredRouting::GridXY {
+						metrics.on_aggression_l2();
+						new_required_routing = RequiredRouting::GridXY;
+					}
+				}
+				new_required_routing
 			},
 			&self.peer_views,
 		)
