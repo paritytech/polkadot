@@ -637,9 +637,14 @@ impl CurrentlyCheckingSet {
 	}
 }
 
+// Wraps `RuntimeInfo` and some metadata. On each new leaf `SessionInfo` is
+// cached. `RuntimeInfo` keeps the last `DISPUTE_WINDOW` number of sessions.
 struct SessionInfoProvider {
+	// `RuntimeInfo` caches sessions internally.
 	runtime_info: RuntimeInfo,
+	// Will be true if an error had occurred during the last session caching attempt
 	gaps_in_cache: bool,
+	// Highest session index seen so far. Also used to calculate the earliest one.
 	highest_session_seen: SessionIndex,
 }
 
