@@ -11,18 +11,18 @@ parity-scale-codec = { version = "3.4.0", default-features = false, features = [
 scale-info = { version = "2.5.0", default-features = false, features = ["bit-vec", "derive"] }
 serde = { version = "1.0.137", optional = true, features = ["derive"] }
 
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "sync-evict-idle-peers" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }

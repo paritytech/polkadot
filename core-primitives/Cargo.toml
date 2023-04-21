@@ -5,9 +5,9 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 parity-scale-codec = { version = "3.4.0", default-features = false, features = [ "derive" ] }
 

@@ -10,22 +10,22 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "sync-evict-idle-peers" }
-frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "sync-evict-idle-peers" }
-sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "sync-evict-idle-peers" }
-sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "sync-evict-idle-peers" }
-sp-io = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "sync-evict-idle-peers" }
+frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
+frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
+sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
+sp-io = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
 xcm-executor = { path = "../xcm-executor", default-features = false }
-frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "sync-evict-idle-peers" }
+frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "master" }
 xcm = { path = "..", default-features = false }
 xcm-builder = { path = "../xcm-builder", default-features = false }
 log = "0.4.17"
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "sync-evict-idle-peers" }
-pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "sync-evict-idle-peers" }
-sp-core = { git = "https://github.com/paritytech/substrate" , branch = "sync-evict-idle-peers" }
-sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "sync-evict-idle-peers" }
+pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "master" }
+pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate" , branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "master" }
 xcm = { path = ".." }
 # temp
 pallet-xcm = { path = "../pallet-xcm" }

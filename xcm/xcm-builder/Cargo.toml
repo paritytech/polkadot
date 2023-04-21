@@ -11,13 +11,13 @@ parity-scale-codec = { version = "3.4.0", default-features = false, features = [
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 log = { version = "0.4.17", default-features = false }
 
 # Polkadot dependencies
@@ -25,7 +25,7 @@ polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
 primitive-types = "0.12.1"
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-xcm = { path = "../pallet-xcm" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 assert_matches = "1.5.0"

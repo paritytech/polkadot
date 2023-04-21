@@ -5,11 +5,11 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "sync-evict-idle-peers" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "sync-evict-idle-peers" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 parity-scale-codec = { version = "3.4.0", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "sync-evict-idle-peers" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "master" }
 
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 
