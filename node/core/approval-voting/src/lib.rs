@@ -664,118 +664,6 @@ struct State {
 
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 impl State {
-	/// If `head` is in a new session - cache it
-	pub async fn cache_session_info_for_head<Context>(
-		&mut self,
-		ctx: &mut Context,
-		head: Hash,
-		session_info: &mut Option<SessionInfoProvider>,
-	) where
-		<Context as overseer::SubsystemContext>::Sender: Sized + Send,
-	{
-		match session_info.take() {
-			None => {
-				let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
-					keystore: None,
-					session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-						.expect("DISPUTE_WINDOW can't be 0; qed."),
-				});
-
-				let head_session_idx =
-					match runtime_info.get_session_index_for_child(ctx.sender(), head).await {
-						Ok(session_idx) => session_idx,
-						Err(err) => {
-							gum::debug!(
-								target: LOG_TARGET,
-								?head,
-								?err,
-								"Error getting session index for head. Won't cache any sessions"
-							);
-							return
-						},
-					};
-
-				let mut gaps_in_cache = false;
-				for idx in
-					head_session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)..=head_session_idx
-				{
-					if let Err(err) =
-						runtime_info.get_session_info_by_index(ctx.sender(), head, idx).await
-					{
-						gaps_in_cache = true;
-						gum::debug!(
-							target: LOG_TARGET,
-							?err,
-							session = idx,
-							"Can't cache session. Moving on."
-						);
-						continue
-					}
-				}
-
-				*session_info = Some(SessionInfoProvider {
-					runtime_info,
-					gaps_in_cache,
-					highest_session_seen: head_session_idx,
-				});
-			},
-			Some(mut session_info_provider) => {
-				let head_session_idx = match session_info_provider
-					.runtime_info
-					.get_session_index_for_child(ctx.sender(), head)
-					.await
-				{
-					Ok(session_idx) => session_idx,
-					Err(err) => {
-						gum::debug!(
-							target: LOG_TARGET,
-							?head,
-							?err,
-							"Error getting session index for head. Won't cache any sessions"
-						);
-						return
-					},
-				};
-
-				let mut gaps_in_cache = false;
-				if session_info_provider.gaps_in_cache ||
-					head_session_idx > session_info_provider.highest_session_seen
-				{
-					let lower_bound = if session_info_provider.gaps_in_cache {
-						head_session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)
-					} else {
-						session_info_provider.highest_session_seen + 1
-					};
-
-					for idx in lower_bound..=head_session_idx {
-						if let Err(err) = session_info_provider
-							.runtime_info
-							.get_session_info_by_index(ctx.sender(), head, idx)
-							.await
-						{
-							gaps_in_cache = true;
-							gum::debug!(
-								target: LOG_TARGET,
-								?err,
-								session = idx,
-								"Can cache session. Moving on."
-							);
-							continue
-						}
-					}
-
-					session_info_provider = SessionInfoProvider {
-						runtime_info: session_info_provider.runtime_info,
-						gaps_in_cache,
-						highest_session_seen: head_session_idx,
-					};
-				}
-
-				*session_info = Some(session_info_provider);
-			},
-		}
-	}
-
 	// Compute the required tranches for approval for this block and candidate combo.
 	// Fails if there is no approval entry for the block under the candidate or no candidate entry
 	// under the block, or if the session is out of bounds.
@@ -2984,5 +2872,113 @@ where
 		},
 
 		None => None,
+	}
+}
+
+/// If `head` is in a new session - cache it
+async fn cache_session_info_for_head<Sender>(
+	sender: &mut Sender,
+	head: Hash,
+	session_info: &mut Option<SessionInfoProvider>,
+) where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	match session_info.take() {
+		None => {
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+					.expect("DISPUTE_WINDOW can't be 0; qed."),
+			});
+
+			let head_session_idx =
+				match runtime_info.get_session_index_for_child(sender, head).await {
+					Ok(session_idx) => session_idx,
+					Err(err) => {
+						gum::debug!(
+							target: LOG_TARGET,
+							?head,
+							?err,
+							"Error getting session index for head. Won't cache any sessions"
+						);
+						return
+					},
+				};
+
+			let mut gaps_in_cache = false;
+			for idx in head_session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)..=head_session_idx
+			{
+				if let Err(err) = runtime_info.get_session_info_by_index(sender, head, idx).await {
+					gaps_in_cache = true;
+					gum::debug!(
+						target: LOG_TARGET,
+						?err,
+						session = idx,
+						"Can't cache session. Moving on."
+					);
+					continue
+				}
+			}
+
+			*session_info = Some(SessionInfoProvider {
+				runtime_info,
+				gaps_in_cache,
+				highest_session_seen: head_session_idx,
+			});
+		},
+		Some(mut session_info_provider) => {
+			let head_session_idx = match session_info_provider
+				.runtime_info
+				.get_session_index_for_child(sender, head)
+				.await
+			{
+				Ok(session_idx) => session_idx,
+				Err(err) => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?head,
+						?err,
+						"Error getting session index for head. Won't cache any sessions"
+					);
+					return
+				},
+			};
+
+			let mut gaps_in_cache = false;
+			if session_info_provider.gaps_in_cache ||
+				head_session_idx > session_info_provider.highest_session_seen
+			{
+				let lower_bound = if session_info_provider.gaps_in_cache {
+					head_session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)
+				} else {
+					session_info_provider.highest_session_seen + 1
+				};
+
+				for idx in lower_bound..=head_session_idx {
+					if let Err(err) = session_info_provider
+						.runtime_info
+						.get_session_info_by_index(sender, head, idx)
+						.await
+					{
+						gaps_in_cache = true;
+						gum::debug!(
+							target: LOG_TARGET,
+							?err,
+							session = idx,
+							"Can cache session. Moving on."
+						);
+						continue
+					}
+				}
+
+				session_info_provider = SessionInfoProvider {
+					runtime_info: session_info_provider.runtime_info,
+					gaps_in_cache,
+					highest_session_seen: head_session_idx,
+				};
+			}
+
+			*session_info = Some(session_info_provider);
+		},
 	}
 }

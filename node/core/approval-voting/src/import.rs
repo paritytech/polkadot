@@ -56,6 +56,7 @@ use std::collections::HashMap;
 use super::approval_db::v1;
 use crate::{
 	backend::{Backend, OverlayedBackend},
+	cache_session_info_for_head,
 	criteria::{AssignmentCriteria, OurAssignment},
 	persisted_entries::CandidateEntry,
 	time::{slot_number_to_tick, Tick},
@@ -366,7 +367,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	};
 
 	// Update session info based on most recent head.
-	state.cache_session_info_for_head(ctx, head, session_info_provider).await;
+	cache_session_info_for_head(ctx.sender(), head, session_info_provider).await;
 
 	// If we've just started the node and are far behind,
 	// import at most `MAX_HEADS_LOOK_BACK` blocks.
