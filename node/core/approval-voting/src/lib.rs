@@ -637,7 +637,6 @@ impl CurrentlyCheckingSet {
 	}
 }
 
-// TODO: better name
 struct SessionInfoProvider {
 	runtime_info: RuntimeInfo,
 	last_consecutive_cached_session: SessionIndex,
@@ -672,7 +671,12 @@ impl State {
 			{
 				Ok(extended_info) => Some(&extended_info.session_info),
 				Err(_) => {
-					// todo log error
+					gum::error!(
+						target: LOG_TARGET,
+						session: session_index,
+						?relay_parent,
+						"Can't get SessionInfo"
+					);
 					None
 				},
 			},
