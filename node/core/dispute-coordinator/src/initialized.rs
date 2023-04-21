@@ -18,10 +18,8 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use futures::{
-	channel::{mpsc, oneshot},
-	FutureExt, StreamExt,
-};
+use async_channel;
+use futures::{channel::oneshot, FutureExt, StreamExt};
 
 use sc_keystore::LocalKeystore;
 
@@ -95,7 +93,7 @@ impl Initialized {
 	) -> Self {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
-		let (participation_sender, participation_receiver) = mpsc::channel(1);
+		let (participation_sender, participation_receiver) = async_channel::bounded(8);
 		let participation = Participation::new(participation_sender, metrics.clone());
 		let highest_session = rolling_session_window.latest_session();
 
