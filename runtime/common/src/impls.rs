@@ -104,7 +104,7 @@ mod tests {
 	use frame_support::{
 		dispatch::DispatchClass,
 		parameter_types,
-		traits::{ConstU32, FindAuthor},
+		traits::{tokens::PayFromAccount, ConstU32, FindAuthor},
 		weights::Weight,
 		PalletId,
 	};
@@ -195,9 +195,14 @@ mod tests {
 	parameter_types! {
 		pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 		pub const MaxApprovals: u32 = 100;
+		pub TreasuryAccount: u128 = Treasury::account_id();
 	}
 
 	impl pallet_treasury::Config for Test {
+		type PalletId = TreasuryPalletId;
+		type AssetKind = xcm::latest::AssetId;
+		type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
+		type BalanceConverter = ();
 		type Currency = pallet_balances::Pallet<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<AccountId>;
 		type RejectOrigin = frame_system::EnsureRoot<AccountId>;
@@ -214,6 +219,8 @@ mod tests {
 		type MaxApprovals = MaxApprovals;
 		type WeightInfo = ();
 		type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u64>;
+		#[cfg(feature = "runtime-benchmarks")]
+		type BenchmarkHelper = ();
 	}
 
 	pub struct OneAuthor;
