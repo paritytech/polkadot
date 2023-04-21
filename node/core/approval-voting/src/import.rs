@@ -329,7 +329,7 @@ pub struct BlockImportedCandidates {
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 pub(crate) async fn handle_new_head<Context, B: Backend>(
 	ctx: &mut Context,
-	state: &mut State,
+	state: &State,
 	db: &mut OverlayedBackend<'_, B>,
 	session_info_provider: &mut Option<SessionInfoProvider>,
 	head: Hash,
@@ -1286,7 +1286,7 @@ pub(crate) mod tests {
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
-		let (mut state, session_info_provider) =
+		let (state, session_info_provider) =
 			single_session_state(session, session_info, parent_hash);
 		overlay_db.write_block_entry(
 			v1::BlockEntry {
@@ -1311,7 +1311,7 @@ pub(crate) mod tests {
 				let mut overlay_db = OverlayedBackend::new(&db);
 				let result = handle_new_head(
 					&mut ctx,
-					&mut state,
+					&state,
 					&mut overlay_db,
 					&mut Some(session_info_provider),
 					hash,

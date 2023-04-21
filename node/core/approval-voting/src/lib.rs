@@ -668,7 +668,7 @@ impl State {
 	// Fails if there is no approval entry for the block under the candidate or no candidate entry
 	// under the block, or if the session is out of bounds.
 	async fn approval_status<Sender, 'a, 'b>(
-		&'a mut self,
+		&'a self,
 		sender: &mut Sender,
 		session_info_provider: &'a mut Option<SessionInfoProvider>,
 		block_entry: &'a BlockEntry,
@@ -795,7 +795,7 @@ where
 				subsystem.metrics.on_wakeup();
 				process_wakeup(
 					&mut ctx,
-					&mut state,
+					&state,
 					&mut overlayed_db,
 					&mut session_info_provider,
 					woken_block,
@@ -857,7 +857,7 @@ where
 
 		if handle_actions(
 			&mut ctx,
-			&mut state,
+			&state,
 			&mut overlayed_db,
 			&mut session_info_provider,
 			&subsystem.metrics,
@@ -904,7 +904,7 @@ where
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 async fn handle_actions<Context>(
 	ctx: &mut Context,
-	state: &mut State,
+	state: &State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut Option<SessionInfoProvider>,
 	metrics: &Metrics,
@@ -1051,7 +1051,7 @@ async fn handle_actions<Context>(
 
 fn distribution_messages_for_activation(
 	db: &OverlayedBackend<'_, impl Backend>,
-	state: &mut State,
+	state: &State,
 ) -> SubsystemResult<Vec<ApprovalDistributionMessage>> {
 	let all_blocks: Vec<Hash> = db.load_all_blocks()?;
 
@@ -1755,7 +1755,7 @@ fn schedule_wakeup_action(
 
 async fn check_and_import_assignment<Sender>(
 	sender: &mut Sender,
-	state: &mut State,
+	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut Option<SessionInfoProvider>,
 	assignment: IndirectAssignmentCert,
@@ -1928,7 +1928,7 @@ where
 
 async fn check_and_import_approval<T, Sender>(
 	sender: &mut Sender,
-	state: &mut State,
+	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut Option<SessionInfoProvider>,
 	metrics: &Metrics,
@@ -2099,7 +2099,7 @@ impl ApprovalStateTransition {
 // necessary and schedules any further wakeups.
 async fn advance_approval_state<Sender>(
 	sender: &mut Sender,
-	state: &mut State,
+	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut Option<SessionInfoProvider>,
 	metrics: &Metrics,
@@ -2275,7 +2275,7 @@ fn should_trigger_assignment(
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 async fn process_wakeup<Context>(
 	ctx: &mut Context,
-	state: &mut State,
+	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut Option<SessionInfoProvider>,
 	relay_block: Hash,
@@ -2641,7 +2641,7 @@ async fn launch_approval<Context>(
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 async fn issue_approval<Context>(
 	ctx: &mut Context,
-	state: &mut State,
+	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut Option<SessionInfoProvider>,
 	metrics: &Metrics,
