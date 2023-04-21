@@ -14073,6 +14073,7 @@ dependencies = [
  "pallet-xcm",
  "parity-scale-codec",
  "polkadot-parachain",
+ "polkadot-primitives",
  "polkadot-runtime-parachains",
  "primitive-types",
  "scale-info",

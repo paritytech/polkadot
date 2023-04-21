@@ -20,7 +20,7 @@ use frame_support::traits::{
 	tokens::{Pay, PaymentStatus},
 	Get,
 };
-use primitives::AccountId;
+use polkadot_primitives::AccountId;
 use sp_std::{marker::PhantomData, vec};
 use xcm::prelude::*;
 use xcm_executor::traits::{FinishedQuery, QueryResponseStatus, XcmQueryHandler};
