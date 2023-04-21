@@ -158,7 +158,7 @@ async fn imported_block_info<Context>(
 				return Err(ImportedBlockInfoError::FutureCancelled("SessionIndexForChild", error)),
 		};
 
-		if env.runtime_info.as_ref().map_or(true, |s| session_index < s.earliest_session) {
+		if env.runtime_info.as_ref().map_or(true, |s| session_index < s.earliest_session()) {
 			gum::debug!(
 				target: LOG_TARGET,
 				"Block {} is from ancient session {}. Skipping",
@@ -674,11 +674,10 @@ pub(crate) mod tests {
 			)],
 		);
 
-		//TODO: is it okay to use index for earliest_session and last_consecutive_cached_session?
 		State {
 			session_info: Some(SessionInfoProvider {
-				earliest_session: index,
-				last_consecutive_cached_session: index,
+				highest_session_seen: index,
+				gaps_in_cache: false,
 				runtime_info,
 			}),
 			..blank_state()
@@ -806,8 +805,8 @@ pub(crate) mod tests {
 						},
 					)],
 				),
-				last_consecutive_cached_session: session, //TODO: ??
-				earliest_session: session,                //TODO: ??
+				gaps_in_cache: false,
+				highest_session_seen: session,
 			};
 
 			let header = header.clone();
@@ -929,8 +928,8 @@ pub(crate) mod tests {
 						},
 					)],
 				),
-				last_consecutive_cached_session: session, //TODO: ??
-				earliest_session: session,                //TODO: ??
+				gaps_in_cache: false,
+				highest_session_seen: session,
 			};
 
 			let header = header.clone();
@@ -1141,8 +1140,8 @@ pub(crate) mod tests {
 						},
 					)],
 				),
-				last_consecutive_cached_session: session, //TODO: ??
-				earliest_session: session,                //TODO: ??
+				gaps_in_cache: false,
+				highest_session_seen: session,
 			};
 
 			let header = header.clone();

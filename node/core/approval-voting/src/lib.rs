@@ -639,11 +639,18 @@ impl CurrentlyCheckingSet {
 
 struct SessionInfoProvider {
 	runtime_info: RuntimeInfo,
-	last_consecutive_cached_session: SessionIndex,
-	earliest_session: SessionIndex,
+	gaps_in_cache: bool,
+	highest_session_seen: SessionIndex,
+}
+
+impl SessionInfoProvider {
+	fn earliest_session(&self) -> SessionIndex {
+		self.highest_session_seen.saturating_sub(DISPUTE_WINDOW.get() - 1)
+	}
 }
 
 struct State {
+	// `None` on start-up. Gets initialized/updated on leaf update
 	session_info: Option<SessionInfoProvider>,
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
@@ -673,7 +680,7 @@ impl State {
 				Err(_) => {
 					gum::error!(
 						target: LOG_TARGET,
-						session: session_index,
+						session = session_index,
 						?relay_parent,
 						"Can't get SessionInfo"
 					);
@@ -712,35 +719,28 @@ impl State {
 						},
 					};
 
-				let mut gap_in_cache = false;
-				let mut last_consecutive_cached_session = 0;
-				// TODO: fix this -> start of the windoow should be no less than the last finalized block
-				for idx in head_session_idx.saturating_sub(DISPUTE_WINDOW.get())..=head_session_idx
+				let mut gaps_in_cache = false;
+				for idx in
+					head_session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)..=head_session_idx
 				{
 					if let Err(err) =
 						runtime_info.get_session_info_by_index(ctx.sender(), head, idx).await
 					{
-						gap_in_cache = true;
+						gaps_in_cache = true;
 						gum::debug!(
 							target: LOG_TARGET,
 							?err,
 							session = idx,
-							"Can cache session. Moving on."
+							"Can't cache session. Moving on."
 						);
 						continue
 					}
-
-					if !gap_in_cache {
-						last_consecutive_cached_session = idx;
-					}
 				}
 
-				// TODO: fix this
-				let earliest_session = 0;
 				self.session_info = Some(SessionInfoProvider {
 					runtime_info,
-					last_consecutive_cached_session,
-					earliest_session,
+					gaps_in_cache,
+					highest_session_seen: head_session_idx,
 				});
 			},
 			Some(mut session_info_provider) => {
@@ -761,17 +761,23 @@ impl State {
 					},
 				};
 
-				let mut gap_in_cache = false;
-				if head_session_idx > session_info_provider.last_consecutive_cached_session {
-					for idx in
-						session_info_provider.last_consecutive_cached_session + 1..=head_session_idx
-					{
+				let mut gaps_in_cache = false;
+				if session_info_provider.gaps_in_cache ||
+					head_session_idx > session_info_provider.highest_session_seen
+				{
+					let lower_bound = if session_info_provider.gaps_in_cache {
+						head_session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)
+					} else {
+						session_info_provider.highest_session_seen + 1
+					};
+
+					for idx in lower_bound..=head_session_idx {
 						if let Err(err) = session_info_provider
 							.runtime_info
 							.get_session_info_by_index(ctx.sender(), head, idx)
 							.await
 						{
-							gap_in_cache = true;
+							gaps_in_cache = true;
 							gum::debug!(
 								target: LOG_TARGET,
 								?err,
@@ -780,14 +786,14 @@ impl State {
 							);
 							continue
 						}
-
-						if !gap_in_cache {
-							session_info_provider.last_consecutive_cached_session = idx;
-						}
 					}
-				}
 
-				// TODO: update `earliest_session`
+					session_info_provider = SessionInfoProvider {
+						runtime_info: session_info_provider.runtime_info,
+						gaps_in_cache,
+						highest_session_seen: head_session_idx,
+					};
+				}
 
 				self.session_info = Some(session_info_provider);
 			},
