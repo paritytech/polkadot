@@ -14103,7 +14103,6 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-core-primitives",
  "polkadot-parachain",
- "polkadot-primitives",
  "polkadot-runtime-parachains",
  "primitive-types",
  "scale-info",
