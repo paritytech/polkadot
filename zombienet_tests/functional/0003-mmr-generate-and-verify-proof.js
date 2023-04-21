@@ -1,10 +1,7 @@
+const common = require('./0003-common.js');
+
 async function run(_, networkInfo, nodeNames) {
-  const apis = await Promise.all(
-    nodeNames.map(async (nodeName) => {
-      const { wsUri, userDefinedTypes } = networkInfo.nodesByName[nodeName];
-      return await zombie.connect(wsUri, userDefinedTypes);
-    })
-  );
+  const apis = await common.getApis(networkInfo, nodeNames);
 
   // generate proof on arbitrary node
   const proof = await apis[Math.floor(Math.random(0, apis.length - 1))].rpc.mmr.generateProof([1, 9, 20]);
