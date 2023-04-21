@@ -112,8 +112,8 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let id = match location {
-            // support account IDs from the relay chain
-            MultiLocation { parents: 1, interior: X1(AccountId32 { id, network: None }) } => id,
+			// support account IDs from the relay chain
+			MultiLocation { parents: 1, interior: X1(AccountId32 { id, network: None }) } => id,
 			MultiLocation { parents: 0, interior: X1(AccountId32 { id, network: None }) } => id,
 			MultiLocation { parents: 0, interior: X1(AccountId32 { id, network }) }
 				if network == Network::get() =>
