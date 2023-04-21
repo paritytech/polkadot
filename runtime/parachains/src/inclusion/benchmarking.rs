@@ -16,14 +16,21 @@
 
 use super::*;
 use frame_benchmarking::benchmarks;
+use pallet_message_queue as mq;
 
 benchmarks! {
+	where_clause {
+		where
+			T: mq::Config,
+	}
+
 	receive_upward_messages {
 		let i in 1 .. 1000;
 
+		let max_len = mq::MaxMessageLenOf::<T>::get() as usize;
 		let para = 42u32.into();	// not especially important.
-		let upward_messages = vec![vec![0; MAX_UPWARD_MESSAGE_SIZE_BOUND as usize]; i as usize];
-		Pallet::<T>::receive_upward_messages(para, vec![vec![0; MAX_UPWARD_MESSAGE_SIZE_BOUND as usize]; 1].as_slice());
+		let upward_messages = vec![vec![0; max_len]; i as usize];
+		Pallet::<T>::receive_upward_messages(para, vec![vec![0; max_len]; 1].as_slice());
 	}: { Pallet::<T>::receive_upward_messages(para, upward_messages.as_slice()) }
 
 	impl_benchmark_test_suite!(
