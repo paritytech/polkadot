@@ -330,6 +330,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	ctx: &mut Context,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, B>,
+	session_info_provider: &mut Option<SessionInfoProvider>,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
@@ -365,7 +366,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	};
 
 	// Update session info based on most recent head.
-	state.cache_session_info_for_head(ctx, head).await;
+	state.cache_session_info_for_head(ctx, head, session_info_provider).await;
 
 	// If we've just started the node and are far behind,
 	// import at most `MAX_HEADS_LOOK_BACK` blocks.
@@ -394,7 +395,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
 			let env = ImportedBlockInfoEnv {
-				runtime_info: &mut state.session_info,
+				runtime_info: session_info_provider,
 				assignment_criteria: &*state.assignment_criteria,
 				keystore: &state.keystore,
 			};
@@ -449,8 +450,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		} = imported_block_info;
 
 		// todo: refactor this
-		let session_info = &state
-			.session_info
+		let session_info = &session_info_provider
 			.as_mut()
 			.map(|s| &mut s.runtime_info)
 			.expect("imported_block_info requires session info to be available; qed")
@@ -648,7 +648,6 @@ pub(crate) mod tests {
 
 	fn blank_state() -> State {
 		State {
-			session_info: None,
 			keystore: Arc::new(LocalKeystore::in_memory()),
 			slot_duration_millis: 6_000,
 			clock: Box::new(MockClock::default()),
@@ -657,7 +656,11 @@ pub(crate) mod tests {
 		}
 	}
 
-	fn single_session_state(index: SessionIndex, info: SessionInfo, relay_parent: Hash) -> State {
+	fn single_session_state(
+		index: SessionIndex,
+		info: SessionInfo,
+		relay_parent: Hash,
+	) -> (State, SessionInfoProvider) {
 		let runtime_info = RuntimeInfo::new_with_cache(
 			RuntimeInfoConfig {
 				keystore: None,
@@ -674,14 +677,12 @@ pub(crate) mod tests {
 			)],
 		);
 
-		State {
-			session_info: Some(SessionInfoProvider {
-				highest_session_seen: index,
-				gaps_in_cache: false,
-				runtime_info,
-			}),
-			..blank_state()
-		}
+		let state = blank_state();
+
+		let session_info_provider =
+			SessionInfoProvider { runtime_info, gaps_in_cache: false, highest_session_seen: index };
+
+		(state, session_info_provider)
 	}
 
 	struct MockAssignmentCriteria;
@@ -1284,7 +1285,8 @@ pub(crate) mod tests {
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
-		let mut state = single_session_state(session, session_info, parent_hash);
+		let (mut state, session_info_provider) =
+			single_session_state(session, session_info, parent_hash);
 		overlay_db.write_block_entry(
 			v1::BlockEntry {
 				block_hash: parent_hash,
@@ -1306,9 +1308,16 @@ pub(crate) mod tests {
 		let test_fut = {
 			Box::pin(async move {
 				let mut overlay_db = OverlayedBackend::new(&db);
-				let result = handle_new_head(&mut ctx, &mut state, &mut overlay_db, hash, &Some(1))
-					.await
-					.unwrap();
+				let result = handle_new_head(
+					&mut ctx,
+					&mut state,
+					&mut overlay_db,
+					&mut Some(session_info_provider),
+					hash,
+					&Some(1),
+				)
+				.await
+				.unwrap();
 
 				let write_ops = overlay_db.into_write_ops();
 				db.write(write_ops).unwrap();
