@@ -317,10 +317,10 @@ pub mod pallet {
 					// need to do for their lifecycle management, just swap the underlying
 					// data.
 					T::OnSwap::on_swap(id, other);
-					Self::deposit_event(Event::<T>::Swapped { para_id: id, other_id: other });
 				} else {
 					return Err(Error::<T>::CannotSwap.into())
 				}
+				Self::deposit_event(Event::<T>::Swapped { para_id: id, other_id: other });
 				PendingSwap::<T>::remove(other);
 			} else {
 				PendingSwap::<T>::insert(id, other);
@@ -649,7 +649,6 @@ impl<T: Config> Pallet<T> {
 		let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(to_upgrade);
 		debug_assert!(res2.is_ok());
 		T::OnSwap::on_swap(to_upgrade, to_downgrade);
-		Self::deposit_event(Event::<T>::Swapped { para_id: to_upgrade, other_id: to_downgrade });
 	}
 }
 
@@ -1147,17 +1146,16 @@ mod tests {
 			// Swap between parathread and parachain
 			assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
 			assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
-			// Should be para_2 and para_1 ???
 			System::assert_last_event(RuntimeEvent::Registrar(paras_registrar::Event::Swapped {
-				para_id: para_1,
-				other_id: para_2,
+				para_id: para_2,
+				other_id: para_1,
 			}));
 
 			// Data is swapped
 			assert_eq!(SwapData::get().get(&para_1).unwrap(), &69);
 			assert_eq!(SwapData::get().get(&para_2).unwrap(), &1337);
 
-			// Test for parachain to parachain swap
+			// Parachain to parachain swap
 			let para_3 = LOWEST_PUBLIC_ID + 2;
 			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(3)));
 			assert_ok!(Registrar::register(
@@ -1169,7 +1167,7 @@ mod tests {
 
 			run_to_session(8);
 
-			// Upgrade para 1 into a parachain
+			// Upgrade para 3 into a parachain
 			assert_ok!(Registrar::make_parachain(para_3));
 
 			// Set some mock swap data.
