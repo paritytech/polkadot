@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -31,7 +31,6 @@ fn main() -> Result<(), PerfCheckError> {
 
 #[cfg(build_type = "release")]
 mod run {
-	use polkadot_node_core_pvf::sp_maybe_compressed_blob;
 	use polkadot_node_primitives::VALIDATION_CODE_BOMB_LIMIT;
 	use polkadot_performance_test::{
 		measure_erasure_coding, measure_pvf_prepare, PerfCheckError, ERASURE_CODING_N_VALIDATORS,
