@@ -662,7 +662,7 @@ mod tests {
 		parameter_types,
 		traits::{ConstU32, GenesisBuild, OnFinalize, OnInitialize},
 	};
-	use frame_system::{limits};
+	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
 	use primitives::{Balance, BlockNumber, Header};
 	use runtime_parachains::{configuration, origin, shared};
@@ -808,9 +808,11 @@ mod tests {
 		)
 		.unwrap();
 
-		pallet_balances::GenesisConfig::<Test> { balances: vec![(1, 10_000_000), (2, 10_000_000), (3, 10_000_000)] }
-			.assimilate_storage(&mut t)
-			.unwrap();
+		pallet_balances::GenesisConfig::<Test> {
+			balances: vec![(1, 10_000_000), (2, 10_000_000), (3, 10_000_000)],
+		}
+		.assimilate_storage(&mut t)
+		.unwrap();
 
 		t.into()
 	}
@@ -1195,7 +1197,6 @@ mod tests {
 			// Data is swapped
 			assert_eq!(SwapData::get().get(&para_3).unwrap(), &69);
 			assert_eq!(SwapData::get().get(&para_1).unwrap(), &777);
-			
 		});
 	}
 
