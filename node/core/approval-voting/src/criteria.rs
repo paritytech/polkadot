@@ -275,7 +275,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 		config: &Config,
 		leaving_cores: Vec<(CandidateHash, CoreIndex, GroupIndex)>,
 	) -> HashMap<CoreIndex, OurAssignment> {
-		compute_assignments(keystore, relay_vrf_story, config, leaving_cores, true)
+		compute_assignments(keystore, relay_vrf_story, config, leaving_cores, false)
 	}
 
 	fn check_assignment_cert(
@@ -356,7 +356,7 @@ pub(crate) fn compute_assignments(
 	// Ignore any cores where the assigned group is our own.
 	let leaving_cores = leaving_cores
 		.into_iter()
-		.filter(|&(_, _, ref g)| !is_in_backing_group(&config.validator_groups, index, *g))
+		.filter(|(_, _, g)| !is_in_backing_group(&config.validator_groups, index, *g))
 		.map(|(c_hash, core, _)| (c_hash, core))
 		.collect::<Vec<_>>();
 
@@ -690,7 +690,7 @@ pub(crate) fn check_assignment_cert(
 		}
 	}
 
-	let &(ref vrf_output, ref vrf_proof) = &assignment.vrf;
+	let (vrf_output, vrf_proof) = &assignment.vrf;
 	match &assignment.kind {
 		AssignmentCertKindV2::RelayVRFModuloCompact { core_bitfield } => {
 			// Check that claimed core bitfield match the one from certificate.
