@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# Wrapper for building the PVF worker binaries with musl.
+#
+# musl unfortunately requires a musl-enabled C compiler (musl-gcc) to be
+# installed, which can be kind of a pain to get installed depending on the
+# distro. That's not a very good user experience.
+#
+# The real musl-gcc wrapper sets the correct system include paths for linking
+# with musl libc library. Since this is not actually used to link any binaries
+# it should most likely work just fine.
+
+gcc "$@"
