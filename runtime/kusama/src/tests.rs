@@ -27,7 +27,7 @@ use sp_runtime::FixedPointNumber;
 
 #[test]
 fn nis_hold_reason_encoding_is_correct() {
-	assert_eq!(NisHoldReason::get().encode(), [38, 0]);
+	assert_eq!(RuntimeHoldReason::Nis(pallet_nis::HoldReason::NftReceipt).encode(), [38, 0]);
 }
 
 #[test]
