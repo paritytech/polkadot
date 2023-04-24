@@ -430,9 +430,12 @@ impl pallet_xcm::Config for Runtime {
 
 #[test]
 fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
+	use frame_support::dispatch::GetDispatchInfo;
 	use parity_scale_codec::Decode;
 	use xcm::VersionedXcm;
 	use xcm_executor::traits::WeightBounds;
+
+	// should be [WithdrawAsset, BuyExecution, Transact, RefundSurplus, DepositAsset]
 	let blob = hex_literal::hex!("02140004000000000700e40b540213000000000700e40b54020006010700c817a804341801000006010b00c490bf4302140d010003ffffffff000100411f");
 	let Ok(VersionedXcm::V2(old_xcm)) =
 		VersionedXcm::<super::RuntimeCall>::decode(&mut &blob[..]) else { panic!("can't decode XCM blob") };
@@ -441,5 +444,21 @@ fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
 	let weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut xcm)
 		.expect("weighing XCM failed");
 
-	assert_eq!(weight, Weight::from_parts(20_313_281_000, 0));
+	// Test that the weigher gives us a sensible weight
+	assert_eq!(weight, Weight::from_parts(20_313_281_000, 65536));
+
+	let Some(Transact { require_weight_at_most, call, .. }) =
+		xcm.inner_mut().into_iter().find(|inst| matches!(inst, Transact { .. })) else {
+			panic!("no Transact instruction found")
+		};
+	// should be pallet_utility.as_derivative { index: 0, call: pallet_staking::bond_extra { max_additional: 2490000000000 } }
+	let message_call = call.take_decoded().expect("can't decode Transact call");
+	let call_weight = message_call.get_dispatch_info().weight;
+	// Ensure that the Transact instruction is giving a sensible `require_weight_at_most` value
+	assert!(
+		call_weight.all_lte(*require_weight_at_most),
+		"call weight ({:?}) was not less than or equal to require_weight_at_most ({:?})",
+		call_weight,
+		require_weight_at_most
+	);
 }
