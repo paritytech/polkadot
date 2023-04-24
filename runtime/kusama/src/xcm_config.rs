@@ -458,6 +458,7 @@ fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
 	assert!(
 		call_weight.all_lte(*require_weight_at_most),
 		"call weight ({:?}) was not less than require_weight_at_most ({:?})",
-		call_weight, require_weight_at_most
+		call_weight,
+		require_weight_at_most
 	);
 }
