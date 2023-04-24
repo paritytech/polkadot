@@ -18,7 +18,7 @@
 
 use crate::{
 	artifacts::ArtifactPathId,
-	worker_common::{
+	worker_intf::{
 		framed_recv, framed_send, path_to_bytes, spawn_with_program_path, IdleWorker, SpawnErr,
 		WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 	},
@@ -45,7 +45,7 @@ pub async fn spawn(
 	let (mut idle_worker, worker_handle) = spawn_with_program_path(
 		"execute",
 		program_path,
-		&["--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
+		&["execute-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
 		spawn_timeout,
 	)
 	.await?;

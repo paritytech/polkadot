@@ -37,18 +37,21 @@ const LOG_TARGET: &str = "parachain::pvf-worker";
 
 /// Use this macro to declare a `fn main() {}` that will create an executable that can be used for
 /// spawning the desired worker.
-#[macro_export(local_inner_macros)]
+#[macro_export]
 macro_rules! decl_worker_main {
-	($command:tt) => {
+	($expected_command:expr) => {
 		fn main() {
 			$crate::sp_tracing::try_init_simple();
 
 			let args = std::env::args().collect::<Vec<_>>();
+			if args.len() < 3 {
+				panic!("wrong number of arguments");
+			}
 
 			let mut version = None;
 			let mut socket_path: &str = "";
 
-			for i in 1..args.len() {
+			for i in 2..args.len() {
 				match args[i].as_ref() {
 					"--socket-path" => socket_path = args[i + 1].as_str(),
 					"--node-version" => version = Some(args[i + 1].as_str()),
@@ -56,18 +59,22 @@ macro_rules! decl_worker_main {
 				}
 			}
 
-			decl_worker_main_command!($command, socket_path, version)
+			let subcommand = &args[1];
+			if subcommand != $expected_command {
+				panic!(
+					"trying to run {} binary with the {} subcommand",
+					$expected_command, subcommand
+				)
+			}
+			match subcommand.as_ref() {
+				"prepare-worker" => {
+					$crate::prepare_worker_entrypoint(&socket_path, version);
+				},
+				"execute-worker" => {
+					$crate::execute_worker_entrypoint(&socket_path, version);
+				},
+				other => panic!("unknown subcommand: {}", other),
+			}
 		}
-	};
-}
-
-#[macro_export]
-#[doc(hidden)]
-macro_rules! decl_worker_main_command {
-	(prepare, $socket_path:expr, $version: expr) => {
-		$crate::prepare_worker_entrypoint(&$socket_path, $version)
-	};
-	(execute, $socket_path:expr, $version: expr) => {
-		$crate::execute_worker_entrypoint(&$socket_path, $version)
 	};
 }

@@ -38,6 +38,7 @@ use std::{
 	path::{Path, PathBuf},
 	time::{Duration, SystemTime},
 };
+use tokio;
 
 /// The time period after which a failed preparation artifact is considered ready to be retried.
 /// Note that we will only retry if another request comes in after this cooldown has passed.
@@ -48,6 +49,15 @@ pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_millis(200);
 
 /// The amount of times we will retry failed prepare jobs.
 pub const NUM_PREPARE_RETRIES: u32 = 5;
+
+// HACK: Getting the binary locations this way is a bit ugly but seems to work? Should eventually
+// use something like wasm-builder: <https://github.com/paritytech/substrate/issues/13982>.
+/// The prepare worker binary.
+const PREPARE_EXE: &'static [u8] =
+	include_bytes!(concat!(env!("OUT_DIR"), "/../../../prepare_worker"));
+/// The execute worker binary.
+const EXECUTE_EXE: &'static [u8] =
+	include_bytes!(concat!(env!("OUT_DIR"), "/../../../execute_worker"));
 
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
@@ -140,6 +150,8 @@ struct ExecutePvfInputs {
 pub struct Config {
 	/// The root directory where the prepared artifacts can be stored.
 	pub cache_path: PathBuf,
+	/// If we are using the embedded worker binaries, the directory where they are extracted to.
+	pub workers_path: Option<PathBuf>,
 	/// The path to the program that can be used to spawn the prepare workers.
 	pub prepare_worker_program_path: PathBuf,
 	/// The time allotted for a prepare worker to spawn and report to the host.
@@ -159,18 +171,28 @@ pub struct Config {
 
 impl Config {
 	/// Create a new instance of the configuration.
+	///
+	/// The binary at `program_path` will be used if that is `Some`, otherwise the embedded workers
+	/// will be extracted to `workers_path` and used.
 	pub fn new(
 		cache_path: std::path::PathBuf,
-		prepare_worker_path: std::path::PathBuf,
-		execute_worker_path: std::path::PathBuf,
+		workers_path: std::path::PathBuf,
+		program_path: Option<std::path::PathBuf>,
 	) -> Self {
 		// Do not contaminate the other parts of the codebase with the types from `tokio`.
 		let cache_path = PathBuf::from(cache_path);
-		let prepare_worker_path = PathBuf::from(prepare_worker_path);
-		let execute_worker_path = PathBuf::from(execute_worker_path);
+
+		let (prepare_worker_path, execute_worker_path, workers_path) =
+			if let Some(path) = program_path {
+				let path = PathBuf::from(path);
+				(path.clone(), path, None)
+			} else {
+				(worker_path(&workers_path, "prepare"), worker_path(&workers_path, "execute"), Some(workers_path))
+			};
 
 		Self {
 			cache_path,
+			workers_path,
 			prepare_worker_program_path: prepare_worker_path.clone(),
 			prepare_worker_spawn_timeout: Duration::from_secs(3),
 			prepare_workers_soft_max_num: 1,
@@ -222,6 +244,17 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 	let run_sweeper = sweeper_task(to_sweeper_rx);
 
 	let run_host = async move {
+		if let Some(workers_path) = config.workers_path {
+			// Make sure that the workers path directory and all its parents are created.
+			// TODO?: First delete any existing binaries.
+			// let _ = tokio::fs::remove_dir_all(config.workers_path).await;
+			let _ = tokio::fs::create_dir_all(workers_path).await;
+			extract_worker_binaries(
+				&config.prepare_worker_program_path,
+				&config.execute_worker_program_path,
+			)
+			.await;
+		}
 		let artifacts = Artifacts::new(&config.cache_path).await;
 
 		run(Inner {
@@ -854,6 +887,27 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 		}
 	})
 	.map(|_| ())
+}
+
+// TODO: Should we purge unneeded binaries?
+/// Extracts the worker binaries embedded in this binary onto disk and return their paths.
+async fn extract_worker_binaries(prepare_worker_path: &Path, execute_worker_path: &Path) {
+	// Skip extraction if the binaries are already present.
+	if !prepare_worker_path.exists() {
+		let _ = tokio::fs::write(prepare_worker_path, PREPARE_EXE).await;
+	}
+	if !execute_worker_path.exists() {
+		let _ = tokio::fs::write(execute_worker_path, EXECUTE_EXE).await;
+	}
+}
+
+/// Returns the expected path to this worker given the root of the cache.
+///
+/// Appends with the version (including the commit) to avoid conflicts with other versions of
+/// polkadot running, i.e. in testnets.
+fn worker_path(workers_path: &Path, job_kind: &str) -> PathBuf {
+	let file_name = format!("{}-worker_{}", job_kind, env!("SUBSTRATE_CLI_IMPL_VERSION"));
+	workers_path.join(file_name)
 }
 
 #[cfg(test)]

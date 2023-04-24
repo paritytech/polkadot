@@ -21,7 +21,7 @@ use crate::{
 	metrics::Metrics,
 	prepare::PrepareStats,
 	pvf::PvfPrepData,
-	worker_common::{
+	worker_intf::{
 		framed_recv, framed_send, path_to_bytes, spawn_with_program_path, tmpfile_in, IdleWorker,
 		SpawnErr, WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 	},

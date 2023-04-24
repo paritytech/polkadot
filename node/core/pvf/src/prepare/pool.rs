@@ -19,7 +19,7 @@ use crate::{
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
 	pvf::PvfPrepData,
-	worker_common::{IdleWorker, WorkerHandle},
+	worker_intf::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
 };
 use always_assert::never;

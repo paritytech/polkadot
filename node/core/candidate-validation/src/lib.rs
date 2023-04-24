@@ -81,9 +81,11 @@ const DEFAULT_APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 pub struct Config {
 	/// The path where candidate validation can store compiled artifacts for PVFs.
 	pub artifacts_cache_path: PathBuf,
+	/// The path to extract the PVF workers to, if `program_path` is `None`.
+	pub pvf_workers_path: PathBuf,
 	/// The path to the executable which can be used for spawning PVF compilation & validation
 	/// workers.
-	pub program_path: PathBuf,
+	pub program_path: Option<PathBuf>,
 }
 
 /// The candidate validation subsystem.
@@ -117,6 +119,7 @@ impl<Context> CandidateValidationSubsystem {
 			self.metrics,
 			self.pvf_metrics,
 			self.config.artifacts_cache_path,
+			self.config.pvf_workers_path,
 			self.config.program_path,
 		)
 		.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
@@ -131,10 +134,11 @@ async fn run<Context>(
 	metrics: Metrics,
 	pvf_metrics: polkadot_node_core_pvf::Metrics,
 	cache_path: PathBuf,
-	program_path: PathBuf,
+	workers_path: PathBuf,
+	program_path: Option<PathBuf>,
 ) -> SubsystemResult<()> {
 	let (validation_host, task) = polkadot_node_core_pvf::start(
-		polkadot_node_core_pvf::Config::new(cache_path, program_path),
+		polkadot_node_core_pvf::Config::new(cache_path, workers_path, program_path),
 		pvf_metrics,
 	);
 	ctx.spawn_blocking("pvf-validation-host", task.boxed())?;

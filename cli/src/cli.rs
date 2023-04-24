@@ -42,14 +42,6 @@ pub enum Subcommand {
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
 
-	#[allow(missing_docs)]
-	#[command(name = "prepare-worker", hide = true)]
-	PvfPrepareWorker(ValidationWorkerCommand),
-
-	#[allow(missing_docs)]
-	#[command(name = "execute-worker", hide = true)]
-	PvfExecuteWorker(ValidationWorkerCommand),
-
 	/// Sub-commands concerned with benchmarking.
 	/// The pallet benchmarking moved to the `pallet` sub-command.
 	#[command(subcommand)]
@@ -73,17 +65,6 @@ pub enum Subcommand {
 
 	/// Db meta columns information.
 	ChainInfo(sc_cli::ChainInfoCmd),
-}
-
-#[allow(missing_docs)]
-#[derive(Debug, Parser)]
-pub struct ValidationWorkerCommand {
-	/// The path to the validation host's socket.
-	#[arg(long)]
-	pub socket_path: String,
-	/// Calling node implementation version
-	#[arg(long)]
-	pub node_impl_version: String,
 }
 
 #[allow(missing_docs)]

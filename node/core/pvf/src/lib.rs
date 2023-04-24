@@ -96,7 +96,7 @@ mod metrics;
 mod prepare;
 mod priority;
 mod pvf;
-mod worker_common;
+mod worker_intf;
 
 pub use artifacts::CompiledArtifact;
 pub use error::{InvalidCandidate, PrepareError, PrepareResult, ValidationError};
@@ -109,11 +109,6 @@ pub use pvf::PvfPrepData;
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
-pub use worker_common::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
+pub use worker_intf::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
 
 const LOG_TARGET: &str = "parachain::pvf";
-
-#[doc(hidden)]
-pub mod testing {
-	pub use crate::worker_common::{spawn_with_program_path, SpawnErr};
-}

@@ -1,7 +1,0 @@
-#!/bin/sh
-
-# Wrapper for building the PVF worker binaries with musl.
-#
-# See comments for musl-gcc in this repo.
-
-g++ "$@"

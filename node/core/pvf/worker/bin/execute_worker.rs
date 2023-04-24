@@ -16,6 +16,5 @@
 
 //! Execute worker.
 // TODO: Build with musl.
-// TODO: Embed into polkadot binary.
 
-polkadot_node_core_pvf_worker::decl_worker_main!(execute);
+polkadot_node_core_pvf_worker::decl_worker_main!("execute-worker");

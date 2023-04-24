@@ -16,6 +16,5 @@
 
 //! Prepare worker.
 // TODO: Build with musl.
-// TODO: Embed into polkadot binary.
 
-polkadot_node_core_pvf_worker::decl_worker_main!(prepare);
+polkadot_node_core_pvf_worker::decl_worker_main!("prepare-worker");

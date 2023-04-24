@@ -907,10 +907,12 @@ where
 			.path()
 			.ok_or(Error::DatabasePathRequired)?
 			.join("pvf-artifacts"),
-		program_path: match program_path {
-			None => std::env::current_exe()?,
-			Some(p) => p,
-		},
+		pvf_workers_path: config
+			.database
+			.path()
+			.ok_or(Error::DatabasePathRequired)?
+			.join("pvf-workers"),
+		program_path,
 	};
 
 	let chain_selection_config = ChainSelectionConfig {

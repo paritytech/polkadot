@@ -7201,6 +7201,8 @@ dependencies = [
  "sp-wasm-interface",
  "substrate-build-script-utils",
  "tempfile",
+ "test-parachain-adder",
+ "test-parachain-halt",
  "tokio",
  "tracing-gum",
 ]
@@ -7251,8 +7253,6 @@ dependencies = [
  "sp-tracing",
  "substrate-build-script-utils",
  "tempfile",
- "test-parachain-adder",
- "test-parachain-halt",
  "tikv-jemalloc-ctl",
  "tokio",
  "tracing-gum",
