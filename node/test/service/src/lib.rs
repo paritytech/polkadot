@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -37,8 +37,10 @@ use polkadot_test_runtime::{
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
-use sc_network::{config::NetworkConfiguration, multiaddr};
-use sc_network_common::{config::TransportConfig, service::NetworkStateInfo};
+use sc_network::{
+	config::{NetworkConfiguration, TransportConfig},
+	multiaddr, NetworkStateInfo,
+};
 use sc_service::{
 	config::{
 		DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod,
@@ -171,7 +173,6 @@ pub fn node_config(
 		transaction_pool: Default::default(),
 		network: network_config,
 		keystore: KeystoreConfig::InMemory,
-		keystore_remote: Default::default(),
 		database: DatabaseSource::RocksDb { path: root.join("db"), cache_size: 128 },
 		trie_cache_maximum_size: Some(64 * 1024 * 1024),
 		state_pruning: Default::default(),
@@ -393,10 +394,11 @@ pub fn construct_transfer_extrinsic(
 	dest: sp_keyring::AccountKeyring,
 	value: Balance,
 ) -> UncheckedExtrinsic {
-	let function = polkadot_test_runtime::RuntimeCall::Balances(pallet_balances::Call::transfer {
-		dest: MultiSigner::from(dest.public()).into_account().into(),
-		value,
-	});
+	let function =
+		polkadot_test_runtime::RuntimeCall::Balances(pallet_balances::Call::transfer_allow_death {
+			dest: MultiSigner::from(dest.public()).into_account().into(),
+			value,
+		});
 
 	construct_extrinsic(client, function, origin, 0)
 }

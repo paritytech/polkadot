@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -21,6 +21,7 @@
 #![warn(missing_docs)]
 
 use futures::{channel::oneshot, FutureExt as _};
+use polkadot_node_jaeger as jaeger;
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopologies, SessionGridTopology},
@@ -35,7 +36,7 @@ use polkadot_node_subsystem::{
 		ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVotingMessage,
 		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeTxMessage,
 	},
-	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_primitives::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
@@ -123,12 +124,12 @@ struct AggressionConfig {
 }
 
 impl AggressionConfig {
-	/// Returns `true` if block is not too old depending on the aggression level
-	fn is_age_relevant(&self, block_age: BlockNumber) -> bool {
+	/// Returns `true` if lag is past threshold depending on the aggression level
+	fn should_trigger_aggression(&self, approval_checking_lag: BlockNumber) -> bool {
 		if let Some(t) = self.l1_threshold {
-			block_age >= t
+			approval_checking_lag >= t
 		} else if let Some(t) = self.resend_unfinalized_period {
-			block_age > 0 && block_age % t == 0
+			approval_checking_lag > 0 && approval_checking_lag % t == 0
 		} else {
 			false
 		}
@@ -180,6 +181,12 @@ struct State {
 
 	/// Config for aggression.
 	aggression_config: AggressionConfig,
+
+	/// HashMap from active leaves to spans
+	spans: HashMap<Hash, jaeger::PerLeafSpan>,
+
+	/// Current approval checking finality lag.
+	approval_checking_lag: BlockNumber,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -390,9 +397,18 @@ impl State {
 	) {
 		let mut new_hashes = HashSet::new();
 		for meta in &metas {
+			let mut span = self
+				.spans
+				.get(&meta.hash)
+				.map(|span| span.child(&"handle-new-blocks"))
+				.unwrap_or_else(|| jaeger::Span::new(meta.hash, &"handle-new-blocks"))
+				.with_string_tag("block-hash", format!("{:?}", meta.hash))
+				.with_stage(jaeger::Stage::ApprovalDistribution);
+
 			match self.blocks.entry(meta.hash) {
 				hash_map::Entry::Vacant(entry) => {
 					let candidates_count = meta.candidates.len();
+					span.add_uint_tag("candidates-count", candidates_count as u64);
 					let mut candidates = Vec::with_capacity(candidates_count);
 					candidates.resize_with(candidates_count, Default::default);
 
@@ -690,6 +706,7 @@ impl State {
 			if let Some(block_entry) = self.blocks.remove(relay_block) {
 				self.topologies.dec_session_refs(block_entry.session);
 			}
+			self.spans.remove(&relay_block);
 		});
 
 		// If a block was finalized, this means we may need to move our aggression
@@ -1230,6 +1247,14 @@ impl State {
 	) -> HashMap<ValidatorIndex, ValidatorSignature> {
 		let mut all_sigs = HashMap::new();
 		for (hash, index) in indices {
+			let _span = self
+				.spans
+				.get(&hash)
+				.map(|span| span.child("get-approval-signatures"))
+				.unwrap_or_else(|| jaeger::Span::new(&hash, "get-approval-signatures"))
+				.with_string_tag("block-hash", format!("{:?}", hash))
+				.with_stage(jaeger::Stage::ApprovalDistribution);
+
 			let block_entry = match self.blocks.get(&hash) {
 				None => {
 					gum::debug!(
@@ -1403,19 +1428,29 @@ impl State {
 		resend: Resend,
 		metrics: &Metrics,
 	) {
-		let min_age = self.blocks_by_number.iter().next().map(|(num, _)| num);
-		let max_age = self.blocks_by_number.iter().rev().next().map(|(num, _)| num);
 		let config = self.aggression_config.clone();
 
-		let (min_age, max_age) = match (min_age, max_age) {
-			(Some(min), Some(max)) => (min, max),
+		if !self.aggression_config.should_trigger_aggression(self.approval_checking_lag) {
+			gum::trace!(
+				target: LOG_TARGET,
+				approval_checking_lag = self.approval_checking_lag,
+				"Aggression not enabled",
+			);
+			return
+		}
+
+		let max_age = self.blocks_by_number.iter().rev().next().map(|(num, _)| num);
+
+		let max_age = match max_age {
+			Some(max) => *max,
 			_ => return, // empty.
 		};
 
-		let diff = max_age - min_age;
-		if !self.aggression_config.is_age_relevant(diff) {
-			return
-		}
+		// Since we have the approval checking lag, we need to set the `min_age` accordingly to
+		// enable aggresion for the oldest block that is not approved.
+		let min_age = max_age.saturating_sub(self.approval_checking_lag);
+
+		gum::debug!(target: LOG_TARGET, min_age, max_age, "Aggression enabled",);
 
 		adjust_required_routing_and_propagate(
 			ctx,
@@ -1454,20 +1489,21 @@ impl State {
 				// its descendants from being finalized. Waste minimal bandwidth
 				// this way. Also, disputes might prevent finality - again, nothing
 				// to waste bandwidth on newer blocks for.
-				&block_entry.number == min_age
+				block_entry.number == min_age
 			},
 			|required_routing, local, _| {
 				// It's a bit surprising not to have a topology at this age.
 				if *required_routing == RequiredRouting::PendingTopology {
 					gum::debug!(
 						target: LOG_TARGET,
-						age = ?diff,
+						lag = ?self.approval_checking_lag,
 						"Encountered old block pending gossip topology",
 					);
 					return
 				}
 
-				if config.l1_threshold.as_ref().map_or(false, |t| &diff >= t) {
+				if config.l1_threshold.as_ref().map_or(false, |t| &self.approval_checking_lag >= t)
+				{
 					// Message originator sends to everyone.
 					if local && *required_routing != RequiredRouting::All {
 						metrics.on_aggression_l1();
@@ -1475,7 +1511,8 @@ impl State {
 					}
 				}
 
-				if config.l2_threshold.as_ref().map_or(false, |t| &diff >= t) {
+				if config.l2_threshold.as_ref().map_or(false, |t| &self.approval_checking_lag >= t)
+				{
 					// Message originator sends to everyone. Everyone else sends to XY.
 					if !local && *required_routing != RequiredRouting::GridXY {
 						metrics.on_aggression_l2();
@@ -1650,13 +1687,18 @@ impl ApprovalDistribution {
 			match message {
 				FromOrchestra::Communication { msg } =>
 					Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
-				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					..
-				})) => {
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
 					// the relay chain blocks relevant to the approval subsystems
 					// are those that are available, but not finalized yet
-					// actived and deactivated heads hence are irrelevant to this subsystem
+					// actived and deactivated heads hence are irrelevant to this subsystem, other than
+					// for tracing purposes.
+					if let Some(activated) = update.activated {
+						let head = activated.hash;
+						let approval_distribution_span =
+							jaeger::PerLeafSpan::new(activated.span, "approval-distribution");
+						state.spans.insert(head, approval_distribution_span);
+					}
 				},
 				FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
 					gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
@@ -1682,6 +1724,14 @@ impl ApprovalDistribution {
 				state.handle_new_blocks(ctx, metrics, metas, rng).await;
 			},
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index) => {
+				let _span = state
+					.spans
+					.get(&cert.block_hash)
+					.map(|span| span.child("import-and-distribute-assignment"))
+					.unwrap_or_else(|| jaeger::Span::new(&cert.block_hash, "distribute-assignment"))
+					.with_string_tag("block-hash", format!("{:?}", cert.block_hash))
+					.with_stage(jaeger::Stage::ApprovalDistribution);
+
 				gum::debug!(
 					target: LOG_TARGET,
 					"Distributing our assignment on candidate (block={}, index={})",
@@ -1701,6 +1751,14 @@ impl ApprovalDistribution {
 					.await;
 			},
 			ApprovalDistributionMessage::DistributeApproval(vote) => {
+				let _span = state
+					.spans
+					.get(&vote.block_hash)
+					.map(|span| span.child("import-and-distribute-approval"))
+					.unwrap_or_else(|| jaeger::Span::new(&vote.block_hash, "distribute-approval"))
+					.with_string_tag("block-hash", format!("{:?}", vote.block_hash))
+					.with_stage(jaeger::Stage::ApprovalDistribution);
+
 				gum::debug!(
 					target: LOG_TARGET,
 					"Distributing our approval vote on candidate (block={}, index={})",
@@ -1720,6 +1778,10 @@ impl ApprovalDistribution {
 						"Sending back approval signatures failed, oneshot got closed"
 					);
 				}
+			},
+			ApprovalDistributionMessage::ApprovalCheckingLagUpdate(lag) => {
+				gum::debug!(target: LOG_TARGET, lag, "Received `ApprovalCheckingLagUpdate`");
+				state.approval_checking_lag = lag;
 			},
 		}
 	}

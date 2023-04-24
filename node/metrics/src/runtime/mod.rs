@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,12 +20,16 @@
 //! tracing support. This requires that the custom profiler (`TraceHandler`) to be
 //! registered in substrate via a `logger_hook()`. Events emitted from runtime are
 //! then captured/processed by the `TraceHandler` implementation.
+//!
+//! Don't add logs in this file because it gets executed before the logger is
+//! initialized and they won't be delivered. Add println! statements if you need
+//! to debug this code.
 
 #![cfg(feature = "runtime-metrics")]
 
 use codec::Decode;
 use primitives::{
-	metric_definitions::{CounterDefinition, CounterVecDefinition},
+	metric_definitions::{CounterDefinition, CounterVecDefinition, HistogramDefinition},
 	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
 };
 use std::{
@@ -33,17 +37,16 @@ use std::{
 	sync::{Arc, Mutex, MutexGuard},
 };
 use substrate_prometheus_endpoint::{
-	register, Counter, CounterVec, Opts, PrometheusError, Registry, U64,
+	register, Counter, CounterVec, Histogram, HistogramOpts, Opts, PrometheusError, Registry, U64,
 };
 mod parachain;
-
-const LOG_TARGET: &'static str = "metrics::runtime";
 
 /// Holds the registered Prometheus metric collections.
 #[derive(Clone, Default)]
 pub struct Metrics {
 	counter_vecs: Arc<Mutex<HashMap<String, CounterVec<U64>>>>,
 	counters: Arc<Mutex<HashMap<String, Counter<U64>>>>,
+	histograms: Arc<Mutex<HashMap<String, Histogram>>>,
 }
 
 /// Runtime metrics wrapper.
@@ -80,7 +83,20 @@ impl RuntimeMetricsProvider {
 		})
 	}
 
-	/// Increment a counter with labels by a value.
+	/// Register a histogram metric
+	pub fn register_histogram(&self, hist: HistogramDefinition) {
+		self.with_histograms_lock_held(|mut hashmap| {
+			hashmap.entry(hist.name.to_owned()).or_insert(register(
+				Histogram::with_opts(
+					HistogramOpts::new(hist.name, hist.description).buckets(hist.buckets.to_vec()),
+				)?,
+				&self.0,
+			)?);
+			return Ok(())
+		})
+	}
+
+	/// Increment a counter with labels by a value
 	pub fn inc_counter_vec_by(&self, name: &str, value: u64, labels: &RuntimeMetricLabelValues) {
 		self.with_counter_vecs_lock_held(|mut hashmap| {
 			hashmap.entry(name.to_owned()).and_modify(|counter_vec| {
@@ -101,28 +117,35 @@ impl RuntimeMetricsProvider {
 		})
 	}
 
+	/// Observe a histogram. `value` should be in `ns`.
+	pub fn observe_histogram(&self, name: &str, value: u128) {
+		self.with_histograms_lock_held(|mut hashmap| {
+			hashmap
+				.entry(name.to_owned())
+				.and_modify(|histogram| histogram.observe(value as f64 / 1_000_000_000.0)); // ns to sec
+			Ok(())
+		})
+	}
+
 	fn with_counters_lock_held<F>(&self, do_something: F)
 	where
 		F: FnOnce(MutexGuard<'_, HashMap<String, Counter<U64>>>) -> Result<(), PrometheusError>,
 	{
-		let _ = self.1.counters.lock().map(do_something).or_else(|error| {
-			gum::error!(target: LOG_TARGET, "Cannot acquire the counter hashmap lock: {:?}", error);
-			Err(error)
-		});
+		let _ = self.1.counters.lock().map(do_something).or_else(|error| Err(error));
 	}
 
 	fn with_counter_vecs_lock_held<F>(&self, do_something: F)
 	where
 		F: FnOnce(MutexGuard<'_, HashMap<String, CounterVec<U64>>>) -> Result<(), PrometheusError>,
 	{
-		let _ = self.1.counter_vecs.lock().map(do_something).or_else(|error| {
-			gum::error!(
-				target: LOG_TARGET,
-				"Cannot acquire the countervec hashmap lock: {:?}",
-				error
-			);
-			Err(error)
-		});
+		let _ = self.1.counter_vecs.lock().map(do_something).or_else(|error| Err(error));
+	}
+
+	fn with_histograms_lock_held<F>(&self, do_something: F)
+	where
+		F: FnOnce(MutexGuard<'_, HashMap<String, Histogram>>) -> Result<(), PrometheusError>,
+	{
+		let _ = self.1.histograms.lock().map(do_something).or_else(|error| Err(error));
 	}
 }
 
@@ -149,8 +172,8 @@ impl sc_tracing::TraceHandler for RuntimeMetricsProvider {
 				Ok(update_op) => {
 					self.parse_metric_update(update_op);
 				},
-				Err(e) => {
-					gum::error!(target: LOG_TARGET, "TraceEvent decode failed: {:?}", e);
+				Err(_) => {
+					// do nothing
 				},
 			}
 		}
@@ -165,6 +188,8 @@ impl RuntimeMetricsProvider {
 				self.inc_counter_vec_by(update.metric_name(), value, labels),
 			RuntimeMetricOp::IncrementCounter(value) =>
 				self.inc_counter_by(update.metric_name(), value),
+			RuntimeMetricOp::ObserveHistogram(value) =>
+				self.observe_histogram(update.metric_name(), value),
 		}
 	}
 
@@ -191,7 +216,6 @@ impl RuntimeMetricsProvider {
 pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration) -> () {
 	|logger_builder, config| {
 		if config.prometheus_registry().is_none() {
-			gum::debug!(target: LOG_TARGET, "Prometheus registry is not configured.",);
 			return
 		}
 		let registry = config.prometheus_registry().cloned().unwrap();

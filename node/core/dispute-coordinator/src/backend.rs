@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -21,7 +21,6 @@
 //! [`Backend`], maintaining consistency between queries and temporary writes,
 //! before any commit to the underlying storage is made.
 
-use polkadot_node_subsystem::SubsystemResult;
 use polkadot_primitives::{CandidateHash, SessionIndex};
 
 use std::collections::HashMap;
@@ -40,17 +39,17 @@ pub enum BackendWriteOp {
 /// An abstraction over backend storage for the logic of this subsystem.
 pub trait Backend {
 	/// Load the earliest session, if any.
-	fn load_earliest_session(&self) -> SubsystemResult<Option<SessionIndex>>;
+	fn load_earliest_session(&self) -> FatalResult<Option<SessionIndex>>;
 
 	/// Load the recent disputes, if any.
-	fn load_recent_disputes(&self) -> SubsystemResult<Option<RecentDisputes>>;
+	fn load_recent_disputes(&self) -> FatalResult<Option<RecentDisputes>>;
 
 	/// Load the candidate votes for the specific session-candidate pair, if any.
 	fn load_candidate_votes(
 		&self,
 		session: SessionIndex,
 		candidate_hash: &CandidateHash,
-	) -> SubsystemResult<Option<CandidateVotes>>;
+	) -> FatalResult<Option<CandidateVotes>>;
 
 	/// Atomically writes the list of operations, with later operations taking precedence over
 	/// prior.
@@ -93,7 +92,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	}
 
 	/// Load the earliest session, if any.
-	pub fn load_earliest_session(&self) -> SubsystemResult<Option<SessionIndex>> {
+	pub fn load_earliest_session(&self) -> FatalResult<Option<SessionIndex>> {
 		if let Some(val) = self.earliest_session {
 			return Ok(Some(val))
 		}
@@ -102,7 +101,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	}
 
 	/// Load the recent disputes, if any.
-	pub fn load_recent_disputes(&self) -> SubsystemResult<Option<RecentDisputes>> {
+	pub fn load_recent_disputes(&self) -> FatalResult<Option<RecentDisputes>> {
 		if let Some(val) = &self.recent_disputes {
 			return Ok(Some(val.clone()))
 		}
@@ -115,7 +114,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		&self,
 		session: SessionIndex,
 		candidate_hash: &CandidateHash,
-	) -> SubsystemResult<Option<CandidateVotes>> {
+	) -> FatalResult<Option<CandidateVotes>> {
 		if let Some(val) = self.candidate_votes.get(&(session, *candidate_hash)) {
 			return Ok(val.clone())
 		}

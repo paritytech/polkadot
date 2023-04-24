@@ -1,5 +1,5 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Cumulus.
+// Copyright (C) Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
 
 // Substrate is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Version 3 of the Cross-Consensus Message format data structures.
 
@@ -34,12 +34,14 @@ use scale_info::TypeInfo;
 
 mod junction;
 pub(crate) mod junctions;
+mod matcher;
 mod multiasset;
 mod multilocation;
 mod traits;
 
 pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use junctions::Junctions;
+pub use matcher::Matcher;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
@@ -923,7 +925,7 @@ pub enum Instruction<Call> {
 	/// asset to be transferred.
 	///
 	/// - `asset`: The asset to be unlocked.
-	/// - `owner`: The owner of the asset on the local chain.
+	/// - `target`: The owner of the asset on the local chain.
 	///
 	/// Safety: No concerns.
 	///
@@ -1189,8 +1191,9 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	}
 }
 
-/// Default value for the proof size weight component. Set at 64 KB.
-const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
+/// Default value for the proof size weight component. Set at 0 KB.
+/// NOTE: Make sure this is removed after we properly account for PoV weights.
+const DEFAULT_PROOF_SIZE: u64 = 0;
 
 // Convert from a v2 instruction to a v3 instruction.
 impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {

@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,17 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! This module provides an implementation for the runtime metrics types: `Counter`
-//! and `CounterVec`. These types expose a Prometheus like interface and same functionality.
-//! Each instance of a runtime metric is mapped to a Prometheus metric on the client side.
-//! The runtime metrics must be registered with the registry in the client, otherwise
-//! they will not be published.
+//! This module provides an implementation for the runtime metrics types: `Counter`,
+//! `CounterVec` and `Histogram`. These types expose a Prometheus like interface and
+//! same functionality. Each instance of a runtime metric is mapped to a Prometheus
+//! metric on the client side. The runtime metrics must be registered with the registry
+//! in the client, otherwise they will not be published.
 
 const TRACING_TARGET: &'static str = "metrics";
 
 use parity_scale_codec::Encode;
 use primitives::{
-	metric_definitions::{CounterDefinition, CounterVecDefinition},
+	metric_definitions::{CounterDefinition, CounterVecDefinition, HistogramDefinition},
 	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
 };
 
@@ -38,6 +38,10 @@ pub struct CounterVec {
 
 /// A counter metric.
 pub struct Counter {
+	name: &'static str,
+}
+
+pub struct Histogram {
 	name: &'static str,
 }
 
@@ -77,6 +81,7 @@ impl LabeledMetric {
 
 impl MetricEmitter for LabeledMetric {}
 impl MetricEmitter for Counter {}
+impl MetricEmitter for Histogram {}
 
 impl CounterVec {
 	/// Create a new counter as specified by `definition`. This metric needs to be registered
@@ -115,4 +120,28 @@ impl Counter {
 	pub fn inc(&self) {
 		self.inc_by(1);
 	}
+}
+
+impl Histogram {
+	/// Create a new histogram as specified by `definition`. This metric needs to be registered
+	/// in the client before it can be used.
+	pub const fn new(definition: HistogramDefinition) -> Self {
+		// No register op is emitted since the metric is supposed to be registered
+		// on the client by the time `inc()` is called.
+		Histogram { name: definition.name }
+	}
+
+	// Observe a value in the histogram
+	pub fn observe(&self, value: u128) {
+		let metric_update = RuntimeMetricUpdate {
+			metric_name: Vec::from(self.name),
+			op: RuntimeMetricOp::ObserveHistogram(value),
+		};
+		Self::emit(&metric_update);
+	}
+}
+
+/// Returns current time in ns
+pub fn get_current_time() -> u128 {
+	frame_benchmarking::benchmarking::current_time()
 }

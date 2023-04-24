@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -173,6 +173,7 @@ impl TestNetworkHandle {
 			protocol: self.peerset_protocol_names.get_main_name(peer_set),
 			negotiated_fallback: None,
 			role: role.into(),
+			received_handshake: vec![],
 		})
 		.await;
 	}

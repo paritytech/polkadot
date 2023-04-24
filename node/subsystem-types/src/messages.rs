@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -39,19 +39,18 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::{
-	vstaging::ExecutorParams, AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent,
-	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
+	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
+	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
+	DisputeState, ExecutorParams, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
-	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
-	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, PvfExecTimeoutKind,
+	SessionIndex, SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 	sync::Arc,
-	time::Duration,
 };
 
 /// Network events as transmitted to other subsystems, wrapped in their message types.
@@ -68,7 +67,8 @@ pub enum CandidateBackingMessage {
 	/// given relay-parent (ref. by hash). This candidate must be validated.
 	Second(Hash, CandidateReceipt, PoV),
 	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
-	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
+	/// to a broader check by the Disputes Subsystem, though that escalation is deferred until the approval voting
+	/// stage to guarantee availability. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
 }
 
@@ -120,7 +120,7 @@ pub enum CandidateValidationMessage {
 		CandidateReceipt,
 		Arc<PoV>,
 		/// Execution timeout
-		Duration,
+		PvfExecTimeoutKind,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
@@ -138,7 +138,7 @@ pub enum CandidateValidationMessage {
 		CandidateReceipt,
 		Arc<PoV>,
 		/// Execution timeout
-		Duration,
+		PvfExecTimeoutKind,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 	/// Try to compile the given validation code and send back
@@ -824,6 +824,8 @@ pub enum ApprovalDistributionMessage {
 		HashSet<(Hash, CandidateIndex)>,
 		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
 	),
+	/// Approval checking lag update measured in blocks.
+	ApprovalCheckingLagUpdate(BlockNumber),
 }
 
 /// Message to the Gossip Support subsystem.

@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -396,7 +396,7 @@ impl MockValidateCandidateBackend {
 impl ValidationBackend for MockValidateCandidateBackend {
 	async fn validate_candidate(
 		&mut self,
-		_pvf_with_params: PvfWithExecutorParams,
+		_pvf: PvfPrepData,
 		_timeout: Duration,
 		_encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError> {
@@ -408,10 +408,7 @@ impl ValidationBackend for MockValidateCandidateBackend {
 		result
 	}
 
-	async fn precheck_pvf(
-		&mut self,
-		_pvf_with_params: PvfWithExecutorParams,
-	) -> Result<PrepareStats, PrepareError> {
+	async fn precheck_pvf(&mut self, _pvf: PvfPrepData) -> Result<PrepareStats, PrepareError> {
 		unreachable!()
 	}
 }
@@ -476,7 +473,7 @@ fn candidate_validation_ok_is_ok() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	})
@@ -535,7 +532,7 @@ fn candidate_validation_bad_return_is_invalid() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	});
@@ -606,7 +603,7 @@ fn candidate_validation_one_ambiguous_error_is_valid() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	})
@@ -666,13 +663,69 @@ fn candidate_validation_multiple_ambiguous_errors_is_invalid() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	})
 	.unwrap();
 
 	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::ExecutionError(_)));
+}
+
+// Test that we retry on internal errors.
+#[test]
+fn candidate_validation_retry_internal_errors() {
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+	let pov = PoV { block_data: BlockData(vec![1; 32]) };
+	let validation_code = ValidationCode(vec![2; 16]);
+
+	let descriptor = make_valid_candidate_descriptor(
+		ParaId::from(1_u32),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice,
+	);
+
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
+	assert!(check.is_ok());
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result_list(vec![
+				Err(ValidationError::InternalError("foo".into())),
+				// Throw an AWD error, we should still retry again.
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
+				// Throw another internal error.
+				Err(ValidationError::InternalError("bar".into())),
+			]),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	});
+
+	assert_matches!(v, Err(ValidationFailed(s)) if s == "bar".to_string());
 }
 
 #[test]
@@ -718,7 +771,7 @@ fn candidate_validation_timeout_is_internal_error() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	});
@@ -770,7 +823,7 @@ fn candidate_validation_commitment_hash_mismatch_is_invalid() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	})
@@ -821,7 +874,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Duration::from_secs(0),
+		PvfExecTimeoutKind::Backing,
 		&Default::default(),
 	))
 	.unwrap();
@@ -884,7 +937,7 @@ fn compressed_code_works() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	});
@@ -937,7 +990,7 @@ fn code_decompression_failure_is_error() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Duration::from_secs(0),
+		PvfExecTimeoutKind::Backing,
 		&Default::default(),
 	));
 
@@ -990,7 +1043,7 @@ fn pov_decompression_failure_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Duration::from_secs(0),
+		PvfExecTimeoutKind::Backing,
 		&Default::default(),
 	));
 
@@ -1011,17 +1064,14 @@ impl MockPreCheckBackend {
 impl ValidationBackend for MockPreCheckBackend {
 	async fn validate_candidate(
 		&mut self,
-		_pvf_with_params: PvfWithExecutorParams,
+		_pvf: PvfPrepData,
 		_timeout: Duration,
 		_encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError> {
 		unreachable!()
 	}
 
-	async fn precheck_pvf(
-		&mut self,
-		_pvf_with_params: PvfWithExecutorParams,
-	) -> Result<PrepareStats, PrepareError> {
+	async fn precheck_pvf(&mut self, _pvf: PvfPrepData) -> Result<PrepareStats, PrepareError> {
 		self.result.clone()
 	}
 }

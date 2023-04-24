@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -359,6 +359,14 @@ fn apply_ancestor_reversions(
 	// of unviability is only heavy on the first log.
 	for revert_number in reversions {
 		let maybe_block_entry = load_ancestor(backend, block_hash, block_number, revert_number)?;
+		if let Some(block_entry) = &maybe_block_entry {
+			gum::trace!(
+				target: LOG_TARGET,
+				?revert_number,
+				revert_hash = ?block_entry.block_hash,
+				"Block marked as reverted via scraped on-chain reversions"
+			);
+		}
 		revert_single_block_entry_if_present(
 			backend,
 			maybe_block_entry,
@@ -380,6 +388,12 @@ pub(crate) fn apply_single_reversion(
 	revert_hash: Hash,
 	revert_number: BlockNumber,
 ) -> Result<(), Error> {
+	gum::trace!(
+		target: LOG_TARGET,
+		?revert_number,
+		?revert_hash,
+		"Block marked as reverted via ChainSelectionMessage::RevertBlocks"
+	);
 	let maybe_block_entry = backend.load_block_entry(&revert_hash)?;
 	revert_single_block_entry_if_present(
 		backend,

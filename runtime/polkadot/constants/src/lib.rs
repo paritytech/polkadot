@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -29,6 +29,7 @@ pub mod currency {
 
 	pub const UNITS: Balance = 10_000_000_000;
 	pub const DOLLARS: Balance = UNITS; // 10_000_000_000
+	pub const GRAND: Balance = DOLLARS * 1_000; // 10_000_000_000_000
 	pub const CENTS: Balance = DOLLARS / 100; // 100_000_000
 	pub const MILLICENTS: Balance = CENTS / 1_000; // 100_000
 
@@ -96,6 +97,26 @@ pub mod fee {
 			}]
 		}
 	}
+}
+
+/// XCM protocol related constants.
+pub mod xcm {
+	/// Pluralistic bodies existing within the consensus.
+	pub mod body {
+		// Preallocated for the Root body.
+		#[allow(dead_code)]
+		const ROOT_INDEX: u32 = 0;
+		// The bodies corresponding to the Polkadot OpenGov Origins.
+		pub const FELLOWSHIP_ADMIN_INDEX: u32 = 1;
+	}
+}
+
+/// System Parachains.
+pub mod system_parachain {
+	/// Statemint parachain ID.
+	pub const STATEMINT_ID: u32 = 1000;
+	/// Collectives parachain ID.
+	pub const COLLECTIVES_ID: u32 = 1001;
 }
 
 #[cfg(test)]

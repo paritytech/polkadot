@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@ use crate::tests::test_constants::TEST_CONFIG;
 use super::*;
 use polkadot_node_primitives::{
 	approval::{
-		AssignmentCert, AssignmentCertKind, DelayTranche, VRFOutput, VRFProof,
+		AssignmentCert, AssignmentCertKind, DelayTranche, VrfOutput, VrfProof, VrfSignature,
 		RELAY_VRF_MODULO_CONTEXT,
 	},
 	AvailableData, BlockData, PoV,
@@ -43,7 +43,7 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
-use sp_keystore::CryptoStore;
+use sp_keystore::Keystore;
 use std::{
 	pin::Pin,
 	sync::{
@@ -56,14 +56,16 @@ use super::{
 	approval_db::v1::StoredBlockRange,
 	backend::BackendWriteOp,
 	import::tests::{
-		garbage_vrf, AllowedSlots, BabeEpoch, BabeEpochConfiguration, CompatibleDigestItem, Digest,
-		DigestItem, PreDigest, SecondaryVRFPreDigest,
+		garbage_vrf_signature, AllowedSlots, BabeEpoch, BabeEpochConfiguration,
+		CompatibleDigestItem, Digest, DigestItem, PreDigest, SecondaryVRFPreDigest,
 	},
 };
 
 use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig};
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
+
+const TIMEOUT: Duration = Duration::from_millis(2000);
 
 #[derive(Clone)]
 struct TestSyncOracle {
@@ -390,7 +392,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
 	let out = inout.to_output();
 
-	AssignmentCert { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
+	AssignmentCert { kind, vrf: VrfSignature { output: VrfOutput(out), proof: VrfProof(proof) } }
 }
 
 fn sign_approval(
@@ -546,7 +548,6 @@ async fn overseer_recv_with_timeout(
 	overseer.recv().timeout(timeout).await
 }
 
-const TIMEOUT: Duration = Duration::from_millis(2000);
 async fn overseer_signal(overseer: &mut VirtualOverseer, signal: OverseerSignal) {
 	overseer
 		.send(FromOrchestra::Signal(signal))
@@ -567,7 +568,7 @@ where
 }
 
 fn make_candidate(para_id: ParaId, hash: &Hash) -> CandidateReceipt {
-	let mut r = dummy_candidate_receipt_bad_sig(hash.clone(), Some(Default::default()));
+	let mut r = dummy_candidate_receipt_bad_sig(*hash, Some(Default::default()));
 	r.descriptor.para_id = para_id;
 	r
 }
@@ -661,13 +662,13 @@ impl ChainBuilder {
 		builder
 	}
 
-	pub fn add_block<'a>(
-		&'a mut self,
+	pub fn add_block(
+		&mut self,
 		hash: Hash,
 		parent_hash: Hash,
 		number: u32,
 		config: BlockConfig,
-	) -> &'a mut Self {
+	) -> &mut Self {
 		assert!(number != 0, "cannot add duplicate genesis block");
 		assert!(hash != Self::GENESIS_HASH, "cannot add block with genesis hash");
 		assert!(
@@ -678,13 +679,13 @@ impl ChainBuilder {
 		self.add_block_inner(hash, parent_hash, number, config)
 	}
 
-	fn add_block_inner<'a>(
-		&'a mut self,
+	fn add_block_inner(
+		&mut self,
 		hash: Hash,
 		parent_hash: Hash,
 		number: u32,
 		config: BlockConfig,
-	) -> &'a mut Self {
+	) -> &mut Self {
 		let header = ChainBuilder::make_header(parent_hash, config.slot, number);
 		assert!(
 			self.blocks_by_hash.insert(hash, (header, config)).is_none(),
@@ -720,9 +721,9 @@ impl ChainBuilder {
 	fn make_header(parent_hash: Hash, slot: Slot, number: u32) -> Header {
 		let digest = {
 			let mut digest = Digest::default();
-			let (vrf_output, vrf_proof) = garbage_vrf();
+			let vrf_signature = garbage_vrf_signature();
 			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
+				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_signature },
 			)));
 			digest
 		};
@@ -1107,7 +1108,7 @@ fn blank_subsystem_act_on_bad_block() {
 			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
 					IndirectAssignmentCert {
-						block_hash: bad_block_hash.clone(),
+						block_hash: bad_block_hash,
 						validator: 0u32.into(),
 						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
 							sample: 0,
@@ -2311,12 +2312,8 @@ fn subsystem_validate_approvals_cache() {
 	let store = config.backend();
 
 	test_harness(config, |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			clock,
-			sync_oracle_handle: _sync_oracle_handle,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, clock, sync_oracle_handle: _sync_oracle_handle } =
+			test_harness;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -2398,7 +2395,7 @@ fn subsystem_validate_approvals_cache() {
 }
 
 /// Ensure that when two assignments are imported, only one triggers the Approval Checking work
-pub async fn handle_double_assignment_import(
+async fn handle_double_assignment_import(
 	virtual_overseer: &mut VirtualOverseer,
 	candidate_index: CandidateIndex,
 ) {
@@ -2415,25 +2412,33 @@ pub async fn handle_double_assignment_import(
 	recover_available_data(virtual_overseer).await;
 	fetch_validation_code(virtual_overseer).await;
 
-	let first_message = virtual_overseer.recv().await;
-	let second_message = virtual_overseer.recv().await;
-
-	for msg in vec![first_message, second_message].into_iter() {
-		match msg {
-			AllMessages::ApprovalDistribution(
-				ApprovalDistributionMessage::DistributeAssignment(_, c_index),
-			) => {
-				assert_eq!(candidate_index, c_index);
-			},
-			AllMessages::CandidateValidation(
-				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx),
-			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
-				tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default())))
-					.unwrap();
-			},
-			_ => panic! {},
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
+			_,
+			c_index
+		)) => {
+			assert_eq!(candidate_index, c_index);
 		}
-	}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::CandidateValidation(CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)) if timeout == PvfExecTimeoutKind::Approval => {
+			tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default())))
+				.unwrap();
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(_))
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(_))
+	);
 
 	// Assert that there are no more messages being sent by the subsystem
 	assert!(overseer_recv(virtual_overseer).timeout(TIMEOUT / 2).await.is_none());
@@ -2600,11 +2605,7 @@ where
 				candidate_hash,
 				1,
 				expect_chain_approved,
-				Some(sign_approval(
-					validators[validator_index as usize].clone(),
-					candidate_hash,
-					1,
-				)),
+				Some(sign_approval(validators[validator_index as usize], candidate_hash, 1)),
 			)
 			.await;
 			assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));

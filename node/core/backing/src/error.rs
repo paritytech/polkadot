@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -70,6 +70,10 @@ pub enum Error {
 
 	#[error(transparent)]
 	SubsystemError(#[from] SubsystemError),
+
+	#[fatal]
+	#[error(transparent)]
+	OverseerExited(SubsystemError),
 }
 
 /// Utility for eating top level errors and log them.

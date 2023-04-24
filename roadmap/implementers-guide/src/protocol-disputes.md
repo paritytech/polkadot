@@ -13,10 +13,14 @@ Disputes differ from backing and approval process (and can not be part of those)
 
 Every dispute stems from a disagreement among two or more validators. If a bad actor creates a bad block, but the bad actor never distributes it to honest validators, then nobody will dispute it. Of course, such a situation is not even an attack on the network, so we don't need to worry about defending against it.
 
-From most to least important, here are the attack scenarios we are interested in identifying and deterring:
+We are interested in identifying and deterring the following attack scenario:
   * A parablock included on a branch of the relay chain is bad
+
+We are also interested in identifying these additional scenarios:
   * A parablock backed on a branch of the relay chain is bad
   * A parablock seconded, but not backed on any branch of the relay chain, is bad.
+
+Punishing misbehavior in the latter two scenarios doesn't effect our security guarantees and introduces substantial technical challenges as described in the `No Disputes for Non Included Candidates` section of [Dispute Coordinator](./node/disputes/dispute-coordinator.md). We therefore choose to punt on disputes in these cases, instead favoring the protocol simplicity resulting from only punishing in the first scenario.
 
 As covered in the [protocol overview](./protocol-overview.md), checking a parachain block requires 3 pieces of data: the parachain validation code, the [`AvailableData`](types/availability.md), and the [`CandidateReceipt`](types/candidate.md). The validation code is available on-chain, and published ahead of time, so that no two branches of the relay chain have diverging views of the validation code for a given parachain. Note that only for the first scenario, where the parablock has been included on a branch of the relay chain, is the data necessarily available. Thus, dispute processes should begin with an availability process to ensure availability of the `AvailableData`. This availability process will conclude quickly if the data is already available. If the data is not already available, then the initiator of the dispute must make it available.
 
@@ -58,6 +62,6 @@ Validators are rewarded for providing statements to the chain as well as for par
 
 ## Dispute Conclusion
 
-Disputes, roughly, are over when one side reaches a ⅔ supermajority. They may also conclude after a timeout, without either side witnessing supermajority, which will only happen if the majority of validators are unable to vote for some reason. Furthermore, disputes on-chain will stay open for some fixed amount of time even after concluding, to accept new votes.
+Disputes, roughly, are over when one side reaches a ⅔ supermajority. They may also never conclude without either side witnessing supermajority, which will only happen if the majority of validators are unable to vote for some reason. Furthermore, disputes on-chain will stay open for some fixed amount of time even after concluding, to accept new votes.
 
 Late votes, after the dispute already reached a ⅔ supermajority, must be rewarded (albeit a smaller amount) as well.
