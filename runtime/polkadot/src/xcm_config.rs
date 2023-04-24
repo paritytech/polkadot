@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,9 +17,9 @@
 //! XCM configuration for Polkadot.
 
 use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, Dmp,
 	FellowshipAdmin, ParaId, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin,
-	WeightToFee, XcmPallet,
+	TransactionByteFee, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	match_types, parameter_types,
@@ -28,8 +28,14 @@ use frame_support::{
 };
 use frame_system::EnsureRoot;
 use pallet_xcm::XcmPassthrough;
-use polkadot_runtime_constants::{system_parachain::*, xcm::body::FELLOWSHIP_ADMIN_INDEX};
-use runtime_common::{crowdloan, paras_registrar, xcm_sender, ToAuthor};
+use polkadot_runtime_constants::{
+	currency::CENTS, system_parachain::*, xcm::body::FELLOWSHIP_ADMIN_INDEX,
+};
+use runtime_common::{
+	crowdloan, paras_registrar,
+	xcm_sender::{ChildParachainRouter, ExponentialPrice},
+	ToAuthor,
+};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -106,13 +112,21 @@ parameter_types! {
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;
+	/// The asset ID for the asset that we use to pay for message delivery fees.
+	pub FeeAssetId: AssetId = Concrete(TokenLocation::get());
+	/// The base fee for the message delivery fees.
+	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 }
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet, ()>,
+	ChildParachainRouter<
+		Runtime,
+		XcmPallet,
+		ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, Dmp>,
+	>,
 );
 
 parameter_types! {
@@ -220,50 +234,16 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			RuntimeCall::Session(pallet_session::Call::purge_keys { .. }) |
 			RuntimeCall::Grandpa(..) |
 			RuntimeCall::ImOnline(..) |
-			RuntimeCall::Democracy(
-				pallet_democracy::Call::second { .. } |
-				pallet_democracy::Call::vote { .. } |
-				pallet_democracy::Call::emergency_cancel { .. } |
-				pallet_democracy::Call::fast_track { .. } |
-				pallet_democracy::Call::veto_external { .. } |
-				pallet_democracy::Call::cancel_referendum { .. } |
-				pallet_democracy::Call::delegate { .. } |
-				pallet_democracy::Call::undelegate { .. } |
-				pallet_democracy::Call::clear_public_proposals { .. } |
-				pallet_democracy::Call::unlock { .. } |
-				pallet_democracy::Call::remove_vote { .. } |
-				pallet_democracy::Call::remove_other_vote { .. } |
-				pallet_democracy::Call::blacklist { .. } |
-				pallet_democracy::Call::cancel_proposal { .. },
-			) |
-			RuntimeCall::Council(
-				pallet_collective::Call::vote { .. } |
-				pallet_collective::Call::close_old_weight { .. } |
-				pallet_collective::Call::disapprove_proposal { .. } |
-				pallet_collective::Call::close { .. },
-			) |
-			RuntimeCall::TechnicalCommittee(
-				pallet_collective::Call::vote { .. } |
-				pallet_collective::Call::close_old_weight { .. } |
-				pallet_collective::Call::disapprove_proposal { .. } |
-				pallet_collective::Call::close { .. },
-			) |
-			RuntimeCall::PhragmenElection(
-				pallet_elections_phragmen::Call::remove_voter { .. } |
-				pallet_elections_phragmen::Call::submit_candidacy { .. } |
-				pallet_elections_phragmen::Call::renounce_candidacy { .. } |
-				pallet_elections_phragmen::Call::remove_member { .. } |
-				pallet_elections_phragmen::Call::clean_defunct_voters { .. },
-			) |
-			RuntimeCall::TechnicalMembership(
-				pallet_membership::Call::add_member { .. } |
-				pallet_membership::Call::remove_member { .. } |
-				pallet_membership::Call::swap_member { .. } |
-				pallet_membership::Call::change_key { .. } |
-				pallet_membership::Call::set_prime { .. } |
-				pallet_membership::Call::clear_prime { .. },
-			) |
 			RuntimeCall::Treasury(..) |
+			RuntimeCall::ConvictionVoting(..) |
+			RuntimeCall::Referenda(
+				pallet_referenda::Call::place_decision_deposit { .. } |
+				pallet_referenda::Call::refund_decision_deposit { .. } |
+				pallet_referenda::Call::cancel { .. } |
+				pallet_referenda::Call::kill { .. } |
+				pallet_referenda::Call::nudge_referendum { .. } |
+				pallet_referenda::Call::one_fewer_deciding { .. },
+			) |
 			RuntimeCall::Claims(
 				super::claims::Call::claim { .. } |
 				super::claims::Call::mint_claim { .. } |
@@ -325,7 +305,8 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
 			}) |
-			RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. }) => true,
+			RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. }) |
+			RuntimeCall::Proxy(..) => true,
 			_ => false,
 		}
 	}

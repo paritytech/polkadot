@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -925,7 +925,7 @@ pub enum Instruction<Call> {
 	/// asset to be transferred.
 	///
 	/// - `asset`: The asset to be unlocked.
-	/// - `owner`: The owner of the asset on the local chain.
+	/// - `target`: The owner of the asset on the local chain.
 	///
 	/// Safety: No concerns.
 	///
