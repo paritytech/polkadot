@@ -976,13 +976,15 @@ mod tests {
 		let test_fut = {
 			let sender = ctx.sender().clone();
 			Box::pin(async move {
-				let res = RollingSessionWindow::new(sender.clone(), hash, db_params_clone).await;
-				assert!(res.is_ok());
-				let mut rsw = res.unwrap();
-				assert_eq!(rsw.earliest_session, 0);
-				assert_eq!(rsw.session_info.len(), 101);
+				let mut rsw =
+					RollingSessionWindow::new(sender.clone(), hash, db_params_clone).await.unwrap();
+
 				let session_info = rsw.session_info.clone();
 				let earliest_session = rsw.earliest_session();
+
+				assert_eq!(earliest_session, 0);
+				assert_eq!(session_info.len(), 101);
+
 				rsw.db_save(StoredWindow { earliest_session, session_info });
 			})
 		};
