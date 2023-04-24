@@ -209,7 +209,7 @@ impl RollingSessionWindow {
 			}?
 		} else {
 			// There are no new sessions to be fetched from chain state.
-			Vec::new()
+			stored_sessions
 		};
 
 		Ok(Self {
