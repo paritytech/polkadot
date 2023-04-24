@@ -502,17 +502,17 @@ impl<T: Config> Pallet<T> {
 		para_id: ParaId,
 	) -> Result<(PositionInClaimqueue, ParasEntry), &'static str> {
 		let mut cq = ClaimQueue::<T>::get();
-		let la_vec = cq.get_mut(&core_idx).ok_or_else(|| "core_idx not found in lookahead")?;
+		let la_vec = cq.get_mut(&core_idx).ok_or("core_idx not found in lookahead")?;
 
 		let pos = la_vec
 			.iter()
 			.position(|a| a.as_ref().map_or(false, |pe| pe.para_id == para_id))
-			.ok_or_else(|| "para id not found at core_idx lookahead")?;
+			.ok_or("para id not found at core_idx lookahead")?;
 
 		let pe = la_vec
 			.remove(pos)
-			.expect("position() above tells us this element exist.")
-			.expect("position() above tells us this element exist.");
+			.ok_or("remove returned None")?
+			.ok_or("Element in Claimqueue was None.")?;
 
 		// Since the core is now occupied, the next entry in the claimqueue in order to achieve 12 second block times needs to be None
 		if la_vec.front() != Some(&None) {
