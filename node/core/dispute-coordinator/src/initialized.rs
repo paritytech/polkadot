@@ -137,6 +137,7 @@ impl Initialized {
 			scraper,
 			participation,
 			participation_receiver,
+			chain_import_backlog: VecDeque::new(),
 			metrics,
 		}
 	}
