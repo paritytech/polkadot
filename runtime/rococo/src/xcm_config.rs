@@ -27,7 +27,7 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::EnsureRoot;
-use rococo_runtime_constants::{currency::CENTS, system_parachain};
+use rococo_runtime_constants::{currency::CENTS, system_parachain::*};
 use runtime_common::{
 	crowdloan, paras_registrar,
 	xcm_sender::{ChildParachainRouter, ExponentialPrice},

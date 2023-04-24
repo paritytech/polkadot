@@ -103,7 +103,7 @@ pub mod fee {
 pub mod system_parachain {
 	use xcm::latest::prelude::*;
 
-	/// Statemine parachain ID.
+	/// Rockmine parachain ID.
 	pub const ROCKMINE_ID: u32 = 1000;
 	/// Contracts parachain ID.
 	pub const CONTRACTS_ID: u32 = 1002;
