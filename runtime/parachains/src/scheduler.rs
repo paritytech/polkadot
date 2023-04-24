@@ -462,7 +462,9 @@ impl<T: Config> Pallet<T> {
 					}
 				}
 
-				let n_lookahead_used = cq.get(&core_idx).map_or(0, |v| v.len() as u32);
+				// We  consider occupied cores to be part of the claimqueue
+				let n_lookahead_used = cq.get(&core_idx).map_or(0, |v| v.len() as u32) +
+					if Self::is_core_occupied(core_idx) { 1 } else { 0 };
 				for _ in n_lookahead_used..n_lookahead {
 					let concluded_para = concluded_paras.remove(&core_idx);
 					if let Some(pe) =
@@ -477,6 +479,13 @@ impl<T: Config> Pallet<T> {
 			debug_assert!(concluded_paras.is_empty());
 
 			Self::scheduled_claimqueue(now)
+		}
+	}
+
+	fn is_core_occupied(core_idx: CoreIndex) -> bool {
+		match AvailabilityCores::<T>::get().get(core_idx.0 as usize) {
+			None | Some(CoreOccupied::Free) => false,
+			Some(CoreOccupied::Paras(_)) => true,
 		}
 	}
 
