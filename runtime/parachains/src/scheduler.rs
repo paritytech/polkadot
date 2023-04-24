@@ -323,44 +323,15 @@ impl<T: Config> Pallet<T> {
 	/// This really should not be a box, but is working around a compiler limitation filed here:
 	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
-	pub(crate) fn availability_timeout_predicate(
-	) -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
-		let now = <frame_system::Pallet<T>>::block_number();
-		let config = <configuration::Pallet<T>>::config();
+	pub(crate) fn availability_timeout_predicate() -> Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>
+	{
+		let predicate = move |core_index: CoreIndex, pending_since| {
+			let availability_period = T::AssignmentProvider::get_availability_period(core_index);
+			let now = <frame_system::Pallet<T>>::block_number();
+			now.saturating_sub(pending_since) >= availability_period
+		};
 
-		let session_start = <SessionStartBlock<T>>::get();
-		let blocks_since_session_start = now.saturating_sub(session_start);
-		let blocks_since_last_rotation =
-			blocks_since_session_start % config.group_rotation_frequency;
-
-		let absolute_cutoff =
-			sp_std::cmp::max(config.chain_availability_period, config.thread_availability_period);
-
-		let availability_cores = AvailabilityCores::<T>::get();
-
-		if blocks_since_last_rotation >= absolute_cutoff {
-			None
-		} else {
-			let predicate = move |core_index: CoreIndex, pending_since| {
-				match availability_cores.get(core_index.0 as usize) {
-					None => true, // out-of-bounds, doesn't really matter what is returned.
-					Some(CoreOccupied::Free) => true, // core not occupied, still doesn't really matter.
-					Some(_) => {
-						// core not occupied, still doesn't really matter.
-						let availability_period =
-							T::AssignmentProvider::get_availability_period(core_index);
-						if blocks_since_last_rotation >= availability_period {
-							false // no pruning except recently after rotation.
-						} else {
-							let now = <frame_system::Pallet<T>>::block_number();
-							now.saturating_sub(pending_since) >= availability_period
-						}
-					},
-				}
-			};
-
-			Some(Box::new(predicate))
-		}
+		Box::new(predicate)
 	}
 
 	/// Returns a helper for determining group rotation.
