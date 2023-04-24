@@ -151,8 +151,8 @@ impl<T: Config> Pallet<T> {
 			},
 		);
 
-		Self::push_occupied_cores_to_assignment_provider(n_cores);
 		Self::push_claimqueue_items_to_assignment_provider();
+		Self::push_occupied_cores_to_assignment_provider(n_cores);
 		T::AssignmentProvider::new_session();
 
 		// shuffle validators into groups.
@@ -391,7 +391,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
 		Self::next_up_on_available(core).or_else(|| {
 			// Or, if none, the claim currently occupying the core,
-			// as it would be put back on the queue after timing out.
+			// as it would be put back on the queue after timing out if number of retries is not at the maximum.
 			let cores = AvailabilityCores::<T>::get();
 			cores.get(core.0 as usize).and_then(|c| match c {
 				CoreOccupied::Free => None,
@@ -402,24 +402,20 @@ impl<T: Config> Pallet<T> {
 
 	// on new session
 	fn push_occupied_cores_to_assignment_provider(n_cores: u32) {
-		let cores = AvailabilityCores::<T>::get();
-		for (core_idx, core) in cores.into_iter().enumerate() {
-			match core {
-				CoreOccupied::Free => continue,
-				CoreOccupied::Paras(entry) =>
-				// We do not push back on session change if paras have already been tried to run before
-					if entry.retries == 0 {
-						T::AssignmentProvider::push_parasentry_for_core(
-							CoreIndex::from(core_idx as u32),
-							entry,
-						);
-					},
-			}
-		}
-
-		// clear all cores and resize
 		AvailabilityCores::<T>::mutate(|cores| {
-			for core in cores.iter_mut() {
+			for (core_idx, core) in cores.iter_mut().enumerate() {
+				match core {
+					CoreOccupied::Free => continue,
+					CoreOccupied::Paras(entry) =>
+					// We do not push back on session change if paras have already been tried to run before
+						if entry.retries == 0 {
+							T::AssignmentProvider::push_parasentry_for_core(
+								CoreIndex::from(core_idx as u32),
+								entry.clone(),
+							);
+						},
+				}
+
 				*core = CoreOccupied::Free;
 			}
 
