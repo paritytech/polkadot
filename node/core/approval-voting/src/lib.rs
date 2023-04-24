@@ -677,8 +677,7 @@ impl State {
 	where
 		Sender: SubsystemSender<RuntimeApiMessage>,
 	{
-		// We can't borrow the session here. Only get copies of what's needed.
-		let (no_show_slots, needed_approvals) = match get_session_info(
+		let session_info = match get_session_info(
 			session_info_provider,
 			sender,
 			block_entry.parent_hash(),
@@ -686,7 +685,7 @@ impl State {
 		)
 		.await
 		{
-			Some(s) => (s.no_show_slots, s.needed_approvals),
+			Some(s) => s,
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -700,8 +699,10 @@ impl State {
 
 		let tranche_now = self.clock.tranche_now(self.slot_duration_millis, block_entry.slot());
 		let block_tick = slot_number_to_tick(self.slot_duration_millis, block_entry.slot());
-		let no_show_duration =
-			slot_number_to_tick(self.slot_duration_millis, Slot::from(u64::from(no_show_slots)));
+		let no_show_duration = slot_number_to_tick(
+			self.slot_duration_millis,
+			Slot::from(u64::from(session_info.no_show_slots)),
+		);
 
 		if let Some(approval_entry) = candidate_entry.approval_entry(&block_hash) {
 			let required_tranches = approval_checking::tranches_to_approve(
@@ -710,7 +711,7 @@ impl State {
 				tranche_now,
 				block_tick,
 				no_show_duration,
-				needed_approvals as _,
+				session_info.needed_approvals as _,
 			);
 
 			let status = ApprovalStatus { required_tranches, block_tick, tranche_now };
@@ -771,7 +772,6 @@ where
 
 	// `None` on start-up. Gets initialized/updated on leaf update
 	let mut session_info_provider: Option<SessionInfoProvider> = None;
-
 	let mut wakeups = Wakeups::default();
 	let mut currently_checking_set = CurrentlyCheckingSet::default();
 	let mut approvals_cache = lru::LruCache::new(APPROVAL_CACHE_SIZE);
@@ -1849,11 +1849,10 @@ where
 				)),
 		};
 
-		let config = &criteria::Config::from(session_info);
 		let res = state.assignment_criteria.check_assignment_cert(
 			claimed_core_index,
 			assignment.validator,
-			config,
+			&criteria::Config::from(session_info),
 			block_entry.relay_vrf_story(),
 			&assignment.cert,
 			approval_entry.backing_group(),
@@ -2065,9 +2064,6 @@ where
 
 	Ok((actions, t))
 }
-
-// TODO?
-// fn get_session_info(..) {}
 
 #[derive(Debug)]
 enum ApprovalStateTransition {
@@ -2301,8 +2297,6 @@ async fn process_wakeup<Context>(
 		_ => return Ok(Vec::new()),
 	};
 
-	let slot_duration_millis = state.slot_duration_millis;
-	let tranche_now = state.clock.tranche_now(slot_duration_millis, block_entry.slot());
 	let session_info = match get_session_info(
 		session_info_provider,
 		ctx.sender(),
@@ -2324,12 +2318,12 @@ async fn process_wakeup<Context>(
 		},
 	};
 
-	let block_tick = slot_number_to_tick(slot_duration_millis, block_entry.slot());
+	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
 	let no_show_duration = slot_number_to_tick(
-		slot_duration_millis,
+		state.slot_duration_millis,
 		Slot::from(u64::from(session_info.no_show_slots)),
 	);
-
+	let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
 	span.add_uint_tag("tranche", tranche_now as u64);
 	gum::trace!(
 		target: LOG_TARGET,
@@ -2738,7 +2732,7 @@ async fn issue_approval<Context>(
 	};
 
 	let validator_pubkey = match session_info.validators.get(validator_index) {
-		Some(p) => p.clone(), // todo: remove this
+		Some(p) => p,
 		None => {
 			gum::warn!(
 				target: LOG_TARGET,
@@ -2884,7 +2878,7 @@ where
 				target: LOG_TARGET,
 				session = session_index,
 				?relay_parent,
-				"Can't get SessionInfo"
+				"Can't obtain SessionInfo"
 			);
 			None
 		},
