@@ -39,14 +39,12 @@ validator-1: reports substrate_beefy_best_block is at least 21 within 130 second
 validator-2: reports substrate_beefy_best_block is at least 21 within 130 seconds
 
 # Custom JS to test BEEFY RPCs.
-# The `validator:` prefix is a stub to satisfy current zndsl parsing rules - it's ignored by the script.
 validator: js-script ./0003-beefy-finalized-heads.js with "validator-0,validator-1,validator-2" return is 1 within 5 seconds
 
 # Custom JS to test MMR RPCs.
 validator-0: js-script ./0003-mmr-leaves.js with "21" return is 1 within 5 seconds
 validator-1: js-script ./0003-mmr-leaves.js with "21" return is 1 within 5 seconds
 validator-2: js-script ./0003-mmr-leaves.js with "21" return is 1 within 5 seconds
-# The `validator:` prefix is a stub to satisfy current zndsl parsing rules - it's ignored by the script.
 validator: js-script ./0003-mmr-generate-and-verify-proof.js with "validator-0,validator-1,validator-2" return is 1 within 5 seconds
 
 # Resume validator-unstable and verify it imports all BEEFY justification and catches up.
