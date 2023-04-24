@@ -366,10 +366,13 @@ impl Initialized {
 			);
 
 			let inclusions = self.scraper.get_blocks_including_candidate(&candidate_hash);
-			debug_assert!(
-				!inclusions.is_empty(),
-				"Couldn't find inclusion parent for an unapplied slash",
-			);
+			if inclusions.is_empty() {
+				gum::info!(
+					target: LOG_TARGET,
+					"Couldn't find inclusion parent for an unapplied slash",
+				);
+				return
+			}
 
 			// Find the first inclusion parent that we can use
 			// to generate key ownership proof on.
