@@ -753,7 +753,7 @@ fn schedule_clears_availability_cores() {
 		run_to_block(3, |_| None);
 
 		// now note that cores 0 and 2 were freed.
-		Scheduler::fill_claimqueue(
+		Scheduler::free_cores_and_fill_claimqueue(
 			vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)]
 				.into_iter()
 				.collect::<Vec<_>>(),

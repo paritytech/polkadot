@@ -211,16 +211,14 @@ impl<T: Config> Pallet<T> {
 					match &cores[freed_index.0 as usize] {
 						CoreOccupied::Free => {},
 						CoreOccupied::Paras(entry) => {
-							if <paras::Pallet<T>>::is_parathread(entry.para_id) {
-								match freed_reason {
-									FreedReason::Concluded => {
-										concluded_paras.insert(freed_index, entry.para_id);
-									},
-									FreedReason::TimedOut => {
-										timedout_paras.insert(freed_index, entry.clone());
-									},
-								};
-							}
+							match freed_reason {
+								FreedReason::Concluded => {
+									concluded_paras.insert(freed_index, entry.para_id);
+								},
+								FreedReason::TimedOut => {
+									timedout_paras.insert(freed_index, entry.clone());
+								},
+							};
 						},
 					};
 
@@ -410,12 +408,13 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	/// Updates the claimqueue by moving it to the next paras and filling empty spots with new paras.
 	pub(crate) fn update_claimqueue(
 		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
 		now: T::BlockNumber,
 	) -> Vec<CoreAssignment> {
 		Self::move_claimqueue_forward();
-		Self::fill_claimqueue(just_freed_cores, now)
+		Self::free_cores_and_fill_claimqueue(just_freed_cores, now)
 	}
 
 	fn move_claimqueue_forward() {
@@ -433,7 +432,8 @@ impl<T: Config> Pallet<T> {
 		ClaimQueue::<T>::set(cq);
 	}
 
-	fn fill_claimqueue(
+	/// Frees cores and fills the free claimqueue spots by popping from the `AssignmentProvider`.
+	fn free_cores_and_fill_claimqueue(
 		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
 		now: T::BlockNumber,
 	) -> Vec<CoreAssignment> {
