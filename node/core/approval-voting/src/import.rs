@@ -359,27 +359,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		}
 	};
 
-	// Update session info based on most recent head.
-	match state.cache_session_info_for_head(ctx, head).await {
-		Err(e) => {
-			gum::debug!(
-				target: LOG_TARGET,
-				?head,
-				?e,
-				"Could not cache session info when processing head.",
-			);
-			return Ok(Vec::new())
-		},
-		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
-			gum::info!(
-				target: LOG_TARGET,
-				update = ?a,
-				"Advanced session window for approvals",
-			);
-		},
-		Ok(_) => {},
-	}
-
 	// If we've just started the node and are far behind,
 	// import at most `MAX_HEADS_LOOK_BACK` blocks.
 	let lower_bound_number = header.number.saturating_sub(MAX_HEADS_LOOK_BACK);
@@ -406,6 +385,27 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	let imported_blocks_and_info = {
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
+			// Update session info based on the current head.
+			match state.cache_session_info_for_head(ctx, block_hash).await {
+				Err(e) => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?head,
+						?e,
+						"Could not cache session info when processing head.",
+					);
+					return Ok(Vec::new())
+				},
+				Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
+					gum::info!(
+						target: LOG_TARGET,
+						update = ?a,
+						"Advanced session window for approvals",
+					);
+				},
+				Ok(_) => {},
+			}
+
 			let env = ImportedBlockInfoEnv {
 				session_window: &state.session_window,
 				assignment_criteria: &*state.assignment_criteria,
