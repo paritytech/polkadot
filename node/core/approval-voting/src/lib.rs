@@ -678,7 +678,7 @@ impl State {
 		Sender: SubsystemSender<RuntimeApiMessage>,
 	{
 		// We can't borrow the session here. Only get copies of what's needed.
-		let (no_show_slots, needed_approvals) = match session_info(
+		let (no_show_slots, needed_approvals) = match get_session_info(
 			session_info_provider,
 			sender,
 			block_entry.parent_hash(),
@@ -1786,7 +1786,7 @@ where
 			)),
 	};
 
-	let session_info = match session_info(
+	let session_info = match get_session_info(
 		session_info_provider,
 		sender,
 		block_entry.parent_hash(),
@@ -1963,7 +1963,7 @@ where
 		},
 	};
 
-	let session_info = match session_info(
+	let session_info = match get_session_info(
 		session_info_provider,
 		sender,
 		approval.block_hash,
@@ -2303,7 +2303,7 @@ async fn process_wakeup<Context>(
 
 	let slot_duration_millis = state.slot_duration_millis;
 	let tranche_now = state.clock.tranche_now(slot_duration_millis, block_entry.slot());
-	let session_info = match session_info(
+	let session_info = match get_session_info(
 		session_info_provider,
 		ctx.sender(),
 		block_entry.parent_hash(),
@@ -2685,7 +2685,7 @@ async fn issue_approval<Context>(
 	};
 	issue_approval_span.add_int_tag("candidate_index", candidate_index as i64);
 
-	let session_info = match session_info(
+	let session_info = match get_session_info(
 		session_info_provider,
 		ctx.sender(),
 		block_entry.parent_hash(),
@@ -2844,7 +2844,7 @@ fn issue_local_invalid_statement<Sender>(
 	));
 }
 
-async fn session_info<'a, Sender>(
+async fn get_session_info<'a, Sender>(
 	session_info_provider: &'a mut Option<SessionInfoProvider>,
 	sender: &mut Sender,
 	relay_parent: Hash,
@@ -2853,25 +2853,41 @@ async fn session_info<'a, Sender>(
 where
 	Sender: SubsystemSender<RuntimeApiMessage>,
 {
-	match session_info_provider {
-		Some(session_info_provider) => match session_info_provider
-			.runtime_info
-			.get_session_info_by_index(sender, relay_parent, session_index)
-			.await
-		{
-			Ok(extended_info) => Some(&extended_info.session_info),
-			Err(_) => {
-				gum::error!(
-					target: LOG_TARGET,
-					session = session_index,
-					?relay_parent,
-					"Can't get SessionInfo"
-				);
-				None
-			},
-		},
+	// If `SessionInfoProvider` is not initialized - try to initialize it first
+	if session_info_provider.is_none() {
+		cache_session_info_for_head(sender, relay_parent, session_info_provider).await;
+	}
 
-		None => None,
+	if session_info_provider.is_none() {
+		// `cache_session_info_for_head` should initialize `session_info_provider`
+		// no matter what so log an error if it is still `None`
+		gum::error!(
+			target: LOG_TARGET,
+			session = session_index,
+			?relay_parent,
+			"SessionInfoProvider is not initialized after caching sessions"
+		);
+		return None
+	}
+
+	// And then process the request
+	match session_info_provider
+		.as_mut()
+		.expect("Checked that session_info_provider is Some on the line above. qed.")
+		.runtime_info
+		.get_session_info_by_index(sender, relay_parent, session_index)
+		.await
+	{
+		Ok(extended_info) => Some(&extended_info.session_info),
+		Err(_) => {
+			gum::error!(
+				target: LOG_TARGET,
+				session = session_index,
+				?relay_parent,
+				"Can't get SessionInfo"
+			);
+			None
+		},
 	}
 }
 
