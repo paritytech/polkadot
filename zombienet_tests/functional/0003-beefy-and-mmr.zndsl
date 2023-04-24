@@ -6,22 +6,22 @@ Creds: config
 validator-0: reports node_roles is 4
 validator-1: reports node_roles is 4
 validator-2: reports node_roles is 4
-validator-3: reports node_roles is 4
+validator-unstable: reports node_roles is 4
 
 # BEEFY sanity checks.
 validator-0: reports substrate_beefy_validator_set_id is 0
 validator-1: reports substrate_beefy_validator_set_id is 0
 validator-2: reports substrate_beefy_validator_set_id is 0
-validator-3: reports substrate_beefy_validator_set_id is 0
+validator-unstable: reports substrate_beefy_validator_set_id is 0
 
 # Verify voting happens and 1st mandatory block is finalized within 1st session.
 validator-0: reports substrate_beefy_best_block is at least 1 within 60 seconds
 validator-1: reports substrate_beefy_best_block is at least 1 within 60 seconds
 validator-2: reports substrate_beefy_best_block is at least 1 within 60 seconds
-validator-3: reports substrate_beefy_best_block is at least 1 within 60 seconds
+validator-unstable: reports substrate_beefy_best_block is at least 1 within 60 seconds
 
-# Pause validator-3 and test chain is making progress without it.
-validator-3: pause
+# Pause validator-unstable and test chain is making progress without it.
+validator-unstable: pause
 
 # Verify validator sets get changed on new sessions.
 validator-0: reports substrate_beefy_validator_set_id is at least 1 within 70 seconds
@@ -49,7 +49,7 @@ validator-2: js-script ./0003-mmr-leaves.js with "21" return is 1 within 5 secon
 # The `validator:` prefix is a stub to satisfy current zndsl parsing rules - it's ignored by the script.
 validator: js-script ./0003-mmr-generate-and-verify-proof.js with "validator-0,validator-1,validator-2" return is 1 within 5 seconds
 
-# Resume validator-3 and verify it imports all BEEFY justification and catches up.
-validator-3: resume
-validator-3: reports substrate_beefy_validator_set_id is at least 2 within 30 seconds
-validator-3: reports substrate_beefy_best_block is at least 21 within 30 seconds
+# Resume validator-unstable and verify it imports all BEEFY justification and catches up.
+validator-unstable: resume
+validator-unstable: reports substrate_beefy_validator_set_id is at least 2 within 30 seconds
+validator-unstable: reports substrate_beefy_best_block is at least 21 within 30 seconds
