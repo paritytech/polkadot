@@ -363,6 +363,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-recursion"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e97ce7de6cf12de5d7226c73f5ba9811622f4db3a5b91b55c53e987e5f91cba"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.15",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2523,7 +2534,9 @@ dependencies = [
 name = "frame-remote-externalities"
 version = "0.10.0-dev"
 dependencies = [
+ "async-recursion",
  "futures",
+ "jsonrpsee",
  "log",
  "parity-scale-codec",
  "serde",
@@ -3284,6 +3297,7 @@ dependencies = [
  "rustls-native-certs",
  "tokio",
  "tokio-rustls",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -3524,6 +3538,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d291e3a5818a2384645fd9756362e6d89cf0541b0b916fa7702ea4a9833608e"
 dependencies = [
  "jsonrpsee-core",
+ "jsonrpsee-http-client",
  "jsonrpsee-proc-macros",
  "jsonrpsee-server",
  "jsonrpsee-types",
@@ -3575,6 +3590,25 @@ dependencies = [
  "serde",
  "serde_json",
  "soketto",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "jsonrpsee-http-client"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc345b0a43c6bc49b947ebeb936e886a419ee3d894421790c969cc56040542ad"
+dependencies = [
+ "async-trait",
+ "hyper",
+ "hyper-rustls",
+ "jsonrpsee-core",
+ "jsonrpsee-types",
+ "rustc-hash",
+ "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "tracing",
@@ -14228,6 +14262,13 @@ name = "pallet-alliance"
 version = "4.0.0-dev"
 
 [[patch.unused]]
+<<<<<<< Updated upstream
+=======
+name = "pallet-asset-rate"
+version = "4.0.0-dev"
+
+[[patch.unused]]
+>>>>>>> Stashed changes
 name = "pallet-asset-tx-payment"
 version = "4.0.0-dev"
 
@@ -14260,6 +14301,13 @@ name = "pallet-core-fellowship"
 version = "4.0.0-dev"
 
 [[patch.unused]]
+<<<<<<< Updated upstream
+=======
+name = "pallet-dev-mode"
+version = "4.0.0-dev"
+
+[[patch.unused]]
+>>>>>>> Stashed changes
 name = "pallet-example-basic"
 version = "4.0.0-dev"
 
@@ -14404,6 +14452,13 @@ name = "subkey"
 version = "3.0.0"
 
 [[patch.unused]]
+<<<<<<< Updated upstream
+=======
+name = "substrate-cli-test-utils"
+version = "0.1.0"
+
+[[patch.unused]]
+>>>>>>> Stashed changes
 name = "substrate-frame-cli"
 version = "4.0.0-dev"
 
