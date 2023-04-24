@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -1260,13 +1260,13 @@ impl<T: Config> Pallet<T> {
 			UpcomingUpgrades::<T>::mutate(|upcoming_upgrades| {
 				*upcoming_upgrades = mem::take(upcoming_upgrades)
 					.into_iter()
-					.filter(|&(ref para, _)| !outgoing.contains(para))
+					.filter(|(para, _)| !outgoing.contains(para))
 					.collect();
 			});
 			UpgradeCooldowns::<T>::mutate(|upgrade_cooldowns| {
 				*upgrade_cooldowns = mem::take(upgrade_cooldowns)
 					.into_iter()
-					.filter(|&(ref para, _)| !outgoing.contains(para))
+					.filter(|(para, _)| !outgoing.contains(para))
 					.collect();
 			});
 		}

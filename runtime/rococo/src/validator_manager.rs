@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -67,7 +67,7 @@ pub mod pallet {
 		///
 		/// The new validators will be active from current session + 2.
 		#[pallet::call_index(0)]
-		#[pallet::weight(100_000)]
+		#[pallet::weight({100_000})]
 		pub fn register_validators(
 			origin: OriginFor<T>,
 			validators: Vec<T::ValidatorId>,
@@ -84,7 +84,7 @@ pub mod pallet {
 		///
 		/// The removed validators will be deactivated from current session + 2.
 		#[pallet::call_index(1)]
-		#[pallet::weight(100_000)]
+		#[pallet::weight({100_000})]
 		pub fn deregister_validators(
 			origin: OriginFor<T>,
 			validators: Vec<T::ValidatorId>,

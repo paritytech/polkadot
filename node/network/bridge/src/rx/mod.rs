@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -652,7 +652,7 @@ where
 	)
 	.remote_handle();
 
-	ctx.spawn("network-bridge-in-network-worker", Box::pin(task))?;
+	ctx.spawn_blocking("network-bridge-in-network-worker", Box::pin(task))?;
 	futures::pin_mut!(network_event_handler);
 
 	let orchestra_signal_handler = run_incoming_orchestra_signals(
