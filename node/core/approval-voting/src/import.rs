@@ -58,6 +58,7 @@ use crate::{
 	backend::{Backend, OverlayedBackend},
 	cache_session_info_for_head,
 	criteria::{AssignmentCriteria, OurAssignment},
+	get_session_info,
 	persisted_entries::CandidateEntry,
 	time::{slot_number_to_tick, Tick},
 	SessionInfoProvider,
@@ -207,26 +208,19 @@ async fn imported_block_info<Context>(
 		}
 	};
 
-	// todo: refactor this
-	let session_info = if let Some(session_info_provider) = env.runtime_info {
-		session_info_provider
-			.runtime_info
-			.get_session_info_by_index(ctx.sender(), block_hash, session_index)
-			.await
-			.map_err(|_| ImportedBlockInfoError::SessionInfoUnavailable)
-	} else {
-		gum::debug!(target: LOG_TARGET, "SessionInfoProvider unavailable for block {}", block_hash,);
-		return Err(ImportedBlockInfoError::SessionInfoUnavailable)
-	};
-
-	let session_info = match session_info {
-		Ok(extended_session_info) => &extended_session_info.session_info,
-		Err(_) => {
-			gum::debug!(target: LOG_TARGET, "Session info unavailable for block {}", block_hash,);
-
-			return Err(ImportedBlockInfoError::SessionInfoUnavailable)
-		},
-	};
+	let session_info =
+		match get_session_info(env.runtime_info, ctx.sender(), block_hash, session_index).await {
+			Some(session_info) => session_info,
+			None => {
+				gum::error!(
+					target: LOG_TARGET,
+					relay_parent = ?block_hash,
+					session = session_index,
+					"Session info unavailable"
+				);
+				return Err(ImportedBlockInfoError::SessionInfoUnavailable)
+			},
+		};
 
 	let (assignments, slot, relay_vrf_story) = {
 		let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
@@ -450,15 +444,25 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			force_approve,
 		} = imported_block_info;
 
-		// todo: refactor this
-		let session_info = &session_info_provider
-			.as_mut()
-			.map(|s| &mut s.runtime_info)
-			.expect("imported_block_info requires session info to be available; qed")
-			.get_session_info_by_index(ctx.sender(), head, session_index)
-			.await
-			.map_err(|e| SubsystemError::FromOrigin { origin: "", source: e.into() })?
-			.session_info;
+		let session_info = match get_session_info(
+			session_info_provider,
+			ctx.sender(),
+			head,
+			session_index,
+		)
+		.await
+		{
+			Some(session_info) => session_info,
+			None => {
+				gum::error!(
+					target: LOG_TARGET,
+					session = session_index,
+					?head,
+					"Can't get session info for the new head"
+				);
+				return Ok(Vec::new())
+			},
+		};
 
 		let (block_tick, no_show_duration) = {
 			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
