@@ -408,7 +408,7 @@ impl<T: Config> Pallet<T> {
 	fn push_claimqueue_items_to_assignment_provider() {
 		for (core_idx, cqv) in ClaimQueue::<T>::take() {
 			// Push back in reverse order so that when we pop from the provider again,
-			// the entries in the claimqueue have the same order as they do right now.
+			// the entries in the claimqueue are in the same order as they are right now.
 			for pe in cqv.into_iter().flatten().rev() {
 				T::AssignmentProvider::push_parasentry_for_core(core_idx, pe);
 			}
