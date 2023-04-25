@@ -925,7 +925,7 @@ pub enum Instruction<Call> {
 	/// asset to be transferred.
 	///
 	/// - `asset`: The asset to be unlocked.
-	/// - `owner`: The owner of the asset on the local chain.
+	/// - `target`: The owner of the asset on the local chain.
 	///
 	/// Safety: No concerns.
 	///
@@ -1191,7 +1191,8 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	}
 }
 
-/// Default value for the proof size weight component. Set at 64 KB.
+/// Default value for the proof size weight component when converting from V2. Set at 64 KB.
+/// NOTE: Make sure this is removed after we properly account for PoV weights.
 const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 // Convert from a v2 instruction to a v3 instruction.

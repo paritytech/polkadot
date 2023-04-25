@@ -792,7 +792,7 @@ pub struct ParathreadClaim(pub Id, pub Option<CollatorId>);
 pub struct ParathreadEntry {
 	/// The claim.
 	pub claim: ParathreadClaim,
-	/// Number of retries.
+	/// Number of retries
 	pub retries: u32,
 }
 
