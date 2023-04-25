@@ -96,6 +96,7 @@ impl BitfieldGossipMessage {
 }
 
 // We keep track of each peer view and protocol version using this struct.
+#[derive(Debug, PartialEq)]
 struct PeerEntry {
 	pub view: View,
 	pub version: net_protocol::peer_set::ProtocolVersion,
@@ -452,17 +453,21 @@ async fn relay_message<Context>(
 		let v2_peers =
 			filter_by_peer_version(&interested_peers, ValidationVersion::VStaging.into());
 
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			v1_peers,
-			message.clone().into_validation_protocol(ValidationVersion::V1.into()),
-		))
-		.await;
+		if v1_peers.len() > 0 {
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+				v1_peers,
+				message.clone().into_validation_protocol(ValidationVersion::V1.into()),
+			))
+			.await;
+		}
 
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			v2_peers,
-			message.into_validation_protocol(ValidationVersion::VStaging.into()),
-		))
-		.await;
+		if v2_peers.len() > 0 {
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+				v2_peers,
+				message.into_validation_protocol(ValidationVersion::VStaging.into()),
+			))
+			.await;
+		}
 	}
 }
 
