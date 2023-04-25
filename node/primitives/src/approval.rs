@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,8 +16,7 @@
 
 //! Types relevant for approval.
 
-pub use sp_consensus_babe::Slot;
-pub use sp_consensus_vrf::schnorrkel::{Randomness, VRFOutput, VRFProof};
+pub use sp_consensus_babe::{Randomness, Slot, VrfOutput, VrfProof, VrfSignature, VrfTranscript};
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::{
@@ -256,8 +255,8 @@ pub enum AssignmentCertKindV2 {
 pub struct AssignmentCert {
 	/// The criterion which is claimed to be met by this cert.
 	pub kind: AssignmentCertKind,
-	/// The VRF showing the criterion is met.
-	pub vrf: (VRFOutput, VRFProof),
+	/// The VRF signature showing the criterion is met.
+	pub vrf: VrfSignature,
 }
 
 /// A certification of assignment.
@@ -266,7 +265,7 @@ pub struct AssignmentCertV2 {
 	/// The criterion which is claimed to be met by this cert.
 	pub kind: AssignmentCertKindV2,
 	/// The VRF showing the criterion is met.
-	pub vrf: (VRFOutput, VRFProof),
+	pub vrf: (VrfOutput, VrfProof),
 }
 
 impl From<AssignmentCert> for AssignmentCertV2 {
@@ -278,7 +277,7 @@ impl From<AssignmentCert> for AssignmentCertV2 {
 				AssignmentCertKind::RelayVRFModulo { sample } =>
 					AssignmentCertKindV2::RelayVRFModulo { sample },
 			},
-			vrf: cert.vrf,
+			vrf: (cert.vrf.output, cert.vrf.proof),
 		}
 	}
 }
@@ -302,7 +301,7 @@ impl TryFrom<AssignmentCertV2> for AssignmentCert {
 				// Not supported
 				_ => return Err(AssignmentConversionError::CertificateNotSupported),
 			},
-			vrf: cert.vrf,
+			vrf: VrfSignature { output: cert.vrf.0, proof: cert.vrf.1 },
 		})
 	}
 }
@@ -398,7 +397,7 @@ pub enum ApprovalError {
 
 /// An unsafe VRF output. Provide BABE Epoch info to create a `RelayVRFStory`.
 pub struct UnsafeVRFOutput {
-	vrf_output: VRFOutput,
+	vrf_output: VrfOutput,
 	slot: Slot,
 	authority_index: u32,
 }
@@ -424,12 +423,12 @@ impl UnsafeVRFOutput {
 		let pubkey = schnorrkel::PublicKey::from_bytes(author.as_slice())
 			.map_err(ApprovalError::SchnorrkelSignature)?;
 
-		let transcript = babe_primitives::make_transcript(randomness, self.slot, epoch_index);
+		let transcript = sp_consensus_babe::make_transcript(randomness, self.slot, epoch_index);
 
 		let inout = self
 			.vrf_output
 			.0
-			.attach_input_hash(&pubkey, transcript)
+			.attach_input_hash(&pubkey, transcript.0)
 			.map_err(ApprovalError::SchnorrkelSignature)?;
 		Ok(RelayVRFStory(inout.make_bytes(v1::RELAY_VRF_STORY_CONTEXT)))
 	}
@@ -441,21 +440,18 @@ impl UnsafeVRFOutput {
 /// the digest has type `SecondaryPlain`, which Substrate nodes do
 /// not produce or accept anymore.
 pub fn babe_unsafe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
-	use babe_primitives::digests::{CompatibleDigestItem, PreDigest};
+	use babe_primitives::digests::CompatibleDigestItem;
 
 	for digest in &header.digest.logs {
 		if let Some(pre) = digest.as_babe_pre_digest() {
 			let slot = pre.slot();
 			let authority_index = pre.authority_index();
 
-			// exhaustive match to defend against upstream variant changes.
-			let vrf_output = match pre {
-				PreDigest::Primary(primary) => primary.vrf_output,
-				PreDigest::SecondaryVRF(secondary) => secondary.vrf_output,
-				PreDigest::SecondaryPlain(_) => return None,
-			};
-
-			return Some(UnsafeVRFOutput { vrf_output, slot, authority_index })
+			return pre.vrf_signature().map(|sig| UnsafeVRFOutput {
+				vrf_output: sig.output.clone(),
+				slot,
+				authority_index,
+			})
 		}
 	}
 

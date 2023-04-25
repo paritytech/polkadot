@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@ use super::*;
 use polkadot_node_primitives::{
 	approval::{
 		v1::RELAY_VRF_MODULO_CONTEXT, AssignmentCert, AssignmentCertKind, AssignmentCertKindV2,
-		AssignmentCertV2, DelayTranche, VRFOutput, VRFProof,
+		AssignmentCertV2, DelayTranche, VrfOutput, VrfProof, VrfSignature,
 	},
 	AvailableData, BlockData, PoV,
 };
@@ -56,8 +56,8 @@ use super::{
 	approval_db::v1::StoredBlockRange,
 	backend::BackendWriteOp,
 	import::tests::{
-		garbage_vrf, AllowedSlots, BabeEpoch, BabeEpochConfiguration, CompatibleDigestItem, Digest,
-		DigestItem, PreDigest, SecondaryVRFPreDigest,
+		garbage_vrf_signature, AllowedSlots, BabeEpoch, BabeEpochConfiguration,
+		CompatibleDigestItem, Digest, DigestItem, PreDigest, SecondaryVRFPreDigest,
 	},
 };
 
@@ -392,7 +392,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
 	let out = inout.to_output();
 
-	AssignmentCert { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
+	AssignmentCert { kind, vrf: VrfSignature { output: VrfOutput(out), proof: VrfProof(proof) } }
 }
 
 fn garbage_assignment_cert_v2(kind: AssignmentCertKindV2) -> AssignmentCertV2 {
@@ -579,7 +579,7 @@ where
 }
 
 fn make_candidate(para_id: ParaId, hash: &Hash) -> CandidateReceipt {
-	let mut r = dummy_candidate_receipt_bad_sig(hash.clone(), Some(Default::default()));
+	let mut r = dummy_candidate_receipt_bad_sig(*hash, Some(Default::default()));
 	r.descriptor.para_id = para_id;
 	r
 }
@@ -674,13 +674,13 @@ impl ChainBuilder {
 		builder
 	}
 
-	pub fn add_block<'a>(
-		&'a mut self,
+	pub fn add_block(
+		&mut self,
 		hash: Hash,
 		parent_hash: Hash,
 		number: u32,
 		config: BlockConfig,
-	) -> &'a mut Self {
+	) -> &mut Self {
 		assert!(number != 0, "cannot add duplicate genesis block");
 		assert!(hash != Self::GENESIS_HASH, "cannot add block with genesis hash");
 		assert!(
@@ -691,13 +691,13 @@ impl ChainBuilder {
 		self.add_block_inner(hash, parent_hash, number, config)
 	}
 
-	fn add_block_inner<'a>(
-		&'a mut self,
+	fn add_block_inner(
+		&mut self,
 		hash: Hash,
 		parent_hash: Hash,
 		number: u32,
 		config: BlockConfig,
-	) -> &'a mut Self {
+	) -> &mut Self {
 		let header = ChainBuilder::make_header(parent_hash, config.slot, number);
 		assert!(
 			self.blocks_by_hash.insert(hash, (header, config)).is_none(),
@@ -733,9 +733,9 @@ impl ChainBuilder {
 	fn make_header(parent_hash: Hash, slot: Slot, number: u32) -> Header {
 		let digest = {
 			let mut digest = Digest::default();
-			let (vrf_output, vrf_proof) = garbage_vrf();
+			let vrf_signature = garbage_vrf_signature();
 			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
+				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_signature },
 			)));
 			digest
 		};
@@ -2641,11 +2641,7 @@ where
 				candidate_hash,
 				1,
 				expect_chain_approved,
-				Some(sign_approval(
-					validators[validator_index as usize].clone(),
-					candidate_hash,
-					1,
-				)),
+				Some(sign_approval(validators[validator_index as usize], candidate_hash, 1)),
 			)
 			.await;
 			assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));

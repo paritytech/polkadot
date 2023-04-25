@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -448,10 +448,10 @@ fn compute_relay_vrf_modulo_assignments(
 			// has been executed.
 			let cert = AssignmentCert {
 				kind: AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
-				vrf: (
-					approval_types::VRFOutput(vrf_in_out.to_output()),
-					approval_types::VRFProof(vrf_proof),
-				),
+				vrf: approval_types::VrfSignature {
+					output: approval_types::VrfOutput(vrf_in_out.to_output()),
+					proof: approval_types::VrfProof(vrf_proof),
+				},
 			};
 
 			// All assignments of type RelayVRFModulo have tranche 0.
@@ -531,8 +531,8 @@ fn compute_relay_vrf_modulo_assignments_v2(
 				core_bitfield: assignment_bitfield.clone(),
 			},
 			vrf: (
-				approval_types::VRFOutput(vrf_in_out.to_output()),
-				approval_types::VRFProof(vrf_proof),
+				approval_types::VrfOutput(vrf_in_out.to_output()),
+				approval_types::VrfProof(vrf_proof),
 			),
 		};
 
@@ -566,8 +566,8 @@ fn compute_relay_vrf_delay_assignments(
 		let cert = AssignmentCertV2 {
 			kind: AssignmentCertKindV2::RelayVRFDelay { core_index: core },
 			vrf: (
-				approval_types::VRFOutput(vrf_in_out.to_output()),
-				approval_types::VRFProof(vrf_proof),
+				approval_types::VrfOutput(vrf_in_out.to_output()),
+				approval_types::VrfProof(vrf_proof),
 			),
 		};
 
@@ -797,7 +797,7 @@ fn is_in_backing_group(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
+	use crate::import::tests::garbage_vrf_signature;
 	use polkadot_primitives::{Hash, ASSIGNMENT_KEY_TYPE_ID};
 	use sp_application_crypto::sr25519;
 	use sp_core::crypto::Pair as PairT;
@@ -849,15 +849,6 @@ mod tests {
 					.collect::<Vec<_>>()
 			})
 			.collect()
-	}
-
-	// used for generating assignments where the validity of the VRF doesn't matter.
-	fn garbage_vrf() -> (VRFOutput, VRFProof) {
-		let key = Sr25519Keyring::Alice.pair();
-		let key: &schnorrkel::Keypair = key.as_ref();
-
-		let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
-		(VRFOutput(o.to_output()), VRFProof(p))
 	}
 
 	#[test]
