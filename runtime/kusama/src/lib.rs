@@ -1511,7 +1511,7 @@ mod benches {
 		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::paras, Paras]
 		[runtime_parachains::ump, Ump]
-		// Substrate
+		// Substrate.
 		[pallet_balances, Balances]
 		[pallet_balances, NisCounterpartBalances]
 		[pallet_bags_list, VoterList]
