@@ -18,7 +18,6 @@
 
 use crate::NegativeImbalance;
 use frame_support::traits::{Currency, Imbalance, OnUnbalanced};
-use pallet_treasury::BenchmarkHelper;
 use primitives::Balance;
 use sp_runtime::Perquintill;
 use xcm::latest::Junctions;
@@ -64,7 +63,9 @@ where
 #[cfg(feature = "runtime-benchmarks")]
 pub struct JunctionsBenchmarkHelper;
 #[cfg(feature = "runtime-benchmarks")]
-impl<AssetKind: From<Junctions>> BenchmarkHelper<AssetKind> for JunctionsBenchmarkHelper {
+impl<AssetKind: From<Junctions>> pallet_treasury::BenchmarkHelper<AssetKind>
+	for JunctionsBenchmarkHelper
+{
 	fn create_asset_kind(_id: u32) -> AssetKind {
 		Junctions::Here.into()
 	}
