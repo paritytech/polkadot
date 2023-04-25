@@ -665,7 +665,7 @@ construct_runtime! {
 		ParasOrigin: parachains_origin::{Pallet, Origin},
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>},
-		Dmp: parachains_dmp::{Pallet, Call, Storage},
+		Dmp: parachains_dmp::{Pallet, Storage},
 		Xcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 
