@@ -95,17 +95,18 @@ mod host;
 mod metrics;
 mod prepare;
 mod priority;
-mod pvf;
 mod worker_intf;
 
-pub use artifacts::CompiledArtifact;
-pub use error::{InvalidCandidate, PrepareError, PrepareResult, ValidationError};
+#[doc(hidden)]
+pub mod testing;
+
+// TODO: Remove when moving the host into its own crate.
+#[doc(hidden)]
+pub use sp_tracing;
+
+pub use error::{InvalidCandidate, ValidationError};
 pub use execute::{ExecuteHandshake, ExecuteResponse};
-#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-pub use prepare::MemoryAllocationStats;
-pub use prepare::{MemoryStats, PrepareStats};
 pub use priority::Priority;
-pub use pvf::PvfPrepData;
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;

@@ -22,15 +22,18 @@
 
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
-	error::PrepareError,
 	execute::{self, PendingExecutionRequest},
 	metrics::Metrics,
-	prepare, PrepareResult, Priority, PvfPrepData, ValidationError, LOG_TARGET,
+	prepare, Priority, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use futures::{
 	channel::{mpsc, oneshot},
 	Future, FutureExt, SinkExt, StreamExt,
+};
+use polkadot_node_core_pvf_common::{
+	error::{PrepareError, PrepareResult},
+	pvf::PvfPrepData,
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
@@ -187,7 +190,11 @@ impl Config {
 				let path = PathBuf::from(path);
 				(path.clone(), path, None)
 			} else {
-				(worker_path(&workers_path, "prepare"), worker_path(&workers_path, "execute"), Some(workers_path))
+				(
+					worker_path(&workers_path, "prepare"),
+					worker_path(&workers_path, "execute"),
+					Some(workers_path),
+				)
 			};
 
 		Self {
@@ -461,7 +468,7 @@ async fn handle_precheck_pvf(
 	pvf: PvfPrepData,
 	result_sender: PrepareResultSender,
 ) -> Result<(), Fatal> {
-	let artifact_id = pvf.as_artifact_id();
+	let artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
@@ -505,7 +512,7 @@ async fn handle_execute_pvf(
 	inputs: ExecutePvfInputs,
 ) -> Result<(), Fatal> {
 	let ExecutePvfInputs { pvf, exec_timeout, params, priority, result_tx } = inputs;
-	let artifact_id = pvf.as_artifact_id();
+	let artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
 	let executor_params = (*pvf.executor_params()).clone();
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
@@ -628,7 +635,7 @@ async fn handle_heads_up(
 	let now = SystemTime::now();
 
 	for active_pvf in active_pvfs {
-		let artifact_id = active_pvf.as_artifact_id();
+		let artifact_id = ArtifactId::from_pvf_prep_data(&active_pvf);
 		if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 			match state {
 				ArtifactState::Prepared { last_time_needed, .. } => {
@@ -911,14 +918,15 @@ fn worker_path(workers_path: &Path, job_kind: &str) -> PathBuf {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
 	use super::*;
-	use crate::{prepare::PrepareStats, InvalidCandidate, PrepareError};
+	use crate::InvalidCandidate;
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
-
-	const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
-	pub(crate) const TEST_PREPARATION_TIMEOUT: Duration = Duration::from_secs(30);
+	use polkadot_node_core_pvf_common::{
+		prepare::PrepareStats,
+		tests::{TEST_EXECUTION_TIMEOUT, TEST_PREPARATION_TIMEOUT},
+	};
 
 	#[tokio::test]
 	async fn pulse_test() {

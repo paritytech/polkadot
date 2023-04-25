@@ -7189,6 +7189,8 @@ dependencies = [
  "parity-scale-codec",
  "pin-project",
  "polkadot-core-primitives",
+ "polkadot-node-core-pvf-common",
+ "polkadot-node-core-pvf-worker",
  "polkadot-node-metrics",
  "polkadot-node-primitives",
  "polkadot-parachain",
@@ -7231,15 +7233,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-pvf-common"
+version = "0.9.41"
+dependencies = [
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "polkadot-primitives",
+ "sp-core",
+ "tokio",
+]
+
+[[package]]
 name = "polkadot-node-core-pvf-worker"
 version = "0.9.41"
 dependencies = [
- "assert_matches",
  "cpu-time",
  "futures",
  "libc",
  "parity-scale-codec",
- "polkadot-node-core-pvf",
+ "polkadot-node-core-pvf-common",
  "polkadot-parachain",
  "polkadot-primitives",
  "rayon",

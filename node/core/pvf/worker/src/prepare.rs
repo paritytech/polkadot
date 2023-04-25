@@ -25,12 +25,30 @@ use crate::{
 use cpu_time::ProcessTime;
 use futures::{pin_mut, select_biased, FutureExt};
 use parity_scale_codec::{Decode, Encode};
-use polkadot_node_core_pvf::{
-	framed_recv, framed_send, CompiledArtifact, MemoryStats, PrepareError, PrepareResult,
-	PrepareStats, PvfPrepData,
+use polkadot_node_core_pvf_common::{
+	error::{PrepareError, PrepareResult},
+	framed_recv, framed_send,
+	prepare::{MemoryStats, PrepareStats},
+	pvf::PvfPrepData,
 };
 use std::{any::Any, panic, path::PathBuf, sync::mpsc::channel};
 use tokio::{io, net::UnixStream};
+
+/// Contains the bytes for a successfully compiled artifact.
+pub struct CompiledArtifact(Vec<u8>);
+
+impl CompiledArtifact {
+	/// Creates a `CompiledArtifact`.
+	pub fn new(code: Vec<u8>) -> Self {
+		Self(code)
+	}
+}
+
+impl AsRef<[u8]> for CompiledArtifact {
+	fn as_ref(&self) -> &[u8] {
+		self.0.as_slice()
+	}
+}
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
 	let pvf = framed_recv(stream).await?;

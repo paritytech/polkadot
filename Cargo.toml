@@ -80,6 +80,7 @@ members = [
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
+	"node/core/pvf/common",
     "node/core/pvf/worker",
 	"node/core/pvf-checker",
 	"node/core/runtime-api",

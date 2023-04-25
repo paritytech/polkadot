@@ -1,0 +1,15 @@
+[package]
+name = "polkadot-node-core-pvf-common"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio = { version = "1.24.2", features = ["fs", "process", "io-util"] }
+
+parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
+
+polkadot-parachain = { path = "../../../../parachain" }
+polkadot-primitives = { path = "../../../../primitives" }
+
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

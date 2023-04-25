@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{PREPARE_EXE, PUPPET_EXE};
+use crate::PUPPET_EXE;
 use polkadot_node_core_pvf::testing::{spawn_with_program_path, SpawnErr};
 use std::time::Duration;
 
@@ -37,7 +37,12 @@ async fn spawn_timeout() {
 
 #[tokio::test]
 async fn should_connect() {
-	let _ = spawn_with_program_path("integration-test", PREPARE_EXE, &[], Duration::from_secs(2))
-		.await
-		.unwrap();
+	let _ = spawn_with_program_path(
+		"integration-test",
+		PUPPET_EXE,
+		&["prepare-worker"],
+		Duration::from_secs(2),
+	)
+	.await
+	.unwrap();
 }

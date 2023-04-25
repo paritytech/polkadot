@@ -22,8 +22,9 @@ use crate::{
 use cpu_time::ProcessTime;
 use futures::{pin_mut, select_biased, FutureExt};
 use parity_scale_codec::{Decode, Encode};
-use polkadot_node_core_pvf::{
-	framed_recv, framed_send, ExecuteHandshake as Handshake, ExecuteResponse as Response,
+use polkadot_node_core_pvf_common::{
+	execute::{Handshake, Response},
+	framed_recv, framed_send,
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
