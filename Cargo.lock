@@ -7244,6 +7244,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-pvf-musl-builder"
+version = "0.9.41"
+dependencies = [
+ "ansi_term",
+ "build-helper",
+ "cargo_metadata",
+ "filetime",
+ "sp-maybe-compressed-blob",
+ "strum",
+ "tempfile",
+ "toml 0.7.3",
+ "walkdir",
+]
+
+[[package]]
 name = "polkadot-node-core-pvf-worker"
 version = "0.9.41"
 dependencies = [

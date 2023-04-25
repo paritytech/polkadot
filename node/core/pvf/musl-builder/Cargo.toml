@@ -1,0 +1,21 @@
+[package]
+name = "polkadot-node-core-pvf-musl-builder"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-musl"]
+
+# TODO: Check cargo udeps
+[dependencies]
+ansi_term = "0.12.1"
+build-helper = "0.1.1"
+cargo_metadata = "0.15.4"
+strum = { version = "0.24.1", features = ["derive"] }
+tempfile = "3.1.0"
+toml = "0.7.3"
+walkdir = "2.3.2"
+filetime = "0.2.16"
+
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
