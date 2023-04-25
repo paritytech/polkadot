@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::worker::{self, Outcome};
+use super::worker_intf::{self, Outcome};
 use crate::{
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
@@ -250,7 +250,7 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 	use futures_timer::Delay;
 
 	loop {
-		match worker::spawn(&program_path, spawn_timeout).await {
+		match worker_intf::spawn(&program_path, spawn_timeout).await {
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err);
@@ -271,7 +271,7 @@ async fn start_work_task<Timer>(
 	artifact_path: PathBuf,
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
-	let outcome = worker::start_work(&metrics, idle, pvf, &cache_path, artifact_path).await;
+	let outcome = worker_intf::start_work(&metrics, idle, pvf, &cache_path, artifact_path).await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
