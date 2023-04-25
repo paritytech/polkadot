@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::PUPPET_EXE;
-use polkadot_node_core_pvf::testing::worker_common::{spawn_with_program_path, SpawnErr};
+use polkadot_node_core_pvf::testing::{spawn_with_program_path, SpawnErr};
 use std::time::Duration;
 
 // Test spawning a program that immediately exits with a failure code.

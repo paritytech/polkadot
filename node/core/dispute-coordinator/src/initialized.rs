@@ -26,7 +26,8 @@ use futures::{
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
+	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement,
+	Timestamp, DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -35,17 +36,16 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
-use polkadot_node_subsystem_util::rolling_session_window::{
-	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
-};
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
-	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
+	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex,
 };
 
 use crate::{
-	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
+	db,
+	error::{log_error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	import::{CandidateEnvironment, CandidateVoteState},
 	is_potential_spam,
 	metrics::Metrics,
@@ -55,7 +55,7 @@ use crate::{
 
 use super::{
 	backend::Backend,
-	db, make_dispute_message,
+	make_dispute_message,
 	participation::{
 		self, Participation, ParticipationPriority, ParticipationRequest, ParticipationStatement,
 		WorkerMessageReceiver,
@@ -65,23 +65,31 @@ use super::{
 	OverlayedBackend,
 };
 
+// Initial data for `dispute-coordinator`. It is provided only at first start.
+pub struct InitialData {
+	pub participations: Vec<(ParticipationPriority, ParticipationRequest)>,
+	pub votes: Vec<ScrapedOnChainVotes>,
+	pub leaf: ActivatedLeaf,
+}
+
 /// After the first active leaves update we transition to `Initialized` state.
 ///
 /// Before the first active leaves update we can't really do much. We cannot check incoming
-/// statements for validity, we cannot query orderings, we have no valid `RollingSessionWindow`,
+/// statements for validity, we cannot query orderings, we have no valid `SessionInfo`,
 /// ...
-pub struct Initialized {
+pub(crate) struct Initialized {
 	keystore: Arc<LocalKeystore>,
-	rolling_session_window: RollingSessionWindow,
-	highest_session: SessionIndex,
+	runtime_info: RuntimeInfo,
+	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doen't matter if it was
+	/// cached successfully or not. It is used to detect ancient disputes.
+	highest_session_seen: SessionIndex,
+	/// Will be set to `true` if an error occured during the last caching attempt
+	gaps_in_cache: bool,
 	spam_slots: SpamSlots,
 	participation: Participation,
 	scraper: ChainScraper,
 	participation_receiver: WorkerMessageReceiver,
 	metrics: Metrics,
-	// This tracks only rolling session window failures.
-	// It can be a `Vec` if the need to track more arises.
-	error: Option<SessionsUnavailable>,
 }
 
 #[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
@@ -89,55 +97,46 @@ impl Initialized {
 	/// Make initialized subsystem, ready to `run`.
 	pub fn new(
 		subsystem: DisputeCoordinatorSubsystem,
-		rolling_session_window: RollingSessionWindow,
+		runtime_info: RuntimeInfo,
 		spam_slots: SpamSlots,
 		scraper: ChainScraper,
+		highest_session_seen: SessionIndex,
+		gaps_in_cache: bool,
 	) -> Self {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
 		let (participation_sender, participation_receiver) = mpsc::channel(1);
 		let participation = Participation::new(participation_sender, metrics.clone());
-		let highest_session = rolling_session_window.latest_session();
 
 		Self {
 			keystore,
-			rolling_session_window,
-			highest_session,
+			runtime_info,
+			highest_session_seen,
+			gaps_in_cache,
 			spam_slots,
 			scraper,
 			participation,
 			participation_receiver,
 			metrics,
-			error: None,
 		}
 	}
 
 	/// Run the initialized subsystem.
 	///
-	/// Optionally supply initial participations and a first leaf to process.
+	/// `initial_data` is optional. It is passed on first start and is `None` on subsystem restarts.
 	pub async fn run<B, Context>(
 		mut self,
 		mut ctx: Context,
 		mut backend: B,
-		mut participations: Vec<(ParticipationPriority, ParticipationRequest)>,
-		mut votes: Vec<ScrapedOnChainVotes>,
-		mut first_leaf: Option<ActivatedLeaf>,
+		mut initial_data: Option<InitialData>,
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
 		B: Backend,
 	{
 		loop {
-			let res = self
-				.run_until_error(
-					&mut ctx,
-					&mut backend,
-					&mut participations,
-					&mut votes,
-					&mut first_leaf,
-					&*clock,
-				)
-				.await;
+			let res =
+				self.run_until_error(&mut ctx, &mut backend, &mut initial_data, &*clock).await;
 			if let Ok(()) = res {
 				gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				return Ok(())
@@ -155,23 +154,29 @@ impl Initialized {
 		&mut self,
 		ctx: &mut Context,
 		backend: &mut B,
-		participations: &mut Vec<(ParticipationPriority, ParticipationRequest)>,
-		on_chain_votes: &mut Vec<ScrapedOnChainVotes>,
-		first_leaf: &mut Option<ActivatedLeaf>,
+		initial_data: &mut Option<InitialData>,
 		clock: &dyn Clock,
 	) -> Result<()>
 	where
 		B: Backend,
 	{
-		for (priority, request) in participations.drain(..) {
-			self.participation.queue_participation(ctx, priority, request).await?;
-		}
-
+		if let Some(InitialData { participations, votes: on_chain_votes, leaf: first_leaf }) =
+			initial_data.take()
 		{
+			for (priority, request) in participations {
+				self.participation.queue_participation(ctx, priority, request).await?;
+			}
+
 			let mut overlay_db = OverlayedBackend::new(backend);
-			for votes in on_chain_votes.drain(..) {
+			for votes in on_chain_votes {
 				let _ = self
-					.process_on_chain_votes(ctx, &mut overlay_db, votes, clock.now())
+					.process_on_chain_votes(
+						ctx,
+						&mut overlay_db,
+						votes,
+						clock.now(),
+						first_leaf.hash,
+					)
 					.await
 					.map_err(|error| {
 						gum::warn!(
@@ -185,9 +190,7 @@ impl Initialized {
 				let ops = overlay_db.into_write_ops();
 				backend.write(ops)?;
 			}
-		}
 
-		if let Some(first_leaf) = first_leaf.take() {
 			// Also provide first leaf to participation for good measure.
 			self.participation
 				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf))
@@ -283,37 +286,56 @@ impl Initialized {
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
-			match self
-				.rolling_session_window
-				.cache_session_info_for_head(ctx.sender(), new_leaf.hash)
-				.await
-			{
-				Err(e) => {
-					gum::warn!(
-						target: LOG_TARGET,
-						err = ?e,
-						"Failed to update session cache for disputes",
-					);
-					self.error = Some(e);
-				},
-				Ok(SessionWindowUpdate::Advanced {
-					new_window_end: window_end,
-					new_window_start,
-					..
-				}) => {
-					self.error = None;
-					let session = window_end;
-					if self.highest_session < session {
-						gum::trace!(target: LOG_TARGET, session, "Observed new session. Pruning");
+			let session_idx =
+				self.runtime_info.get_session_index_for_child(ctx.sender(), new_leaf.hash).await;
 
-						self.highest_session = session;
+			match session_idx {
+				Ok(session_idx)
+					if self.gaps_in_cache || session_idx > self.highest_session_seen =>
+				{
+					// If error has occurred during last session caching - fetch the whole window
+					// Otherwise - cache only the new sessions
+					let lower_bound = if self.gaps_in_cache {
+						session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)
+					} else {
+						self.highest_session_seen + 1
+					};
 
-						db::v1::note_earliest_session(overlay_db, new_window_start)?;
-						self.spam_slots.prune_old(new_window_start);
+					// There is a new session. Perform a dummy fetch to cache it.
+					for idx in lower_bound..=session_idx {
+						if let Err(err) = self
+							.runtime_info
+							.get_session_info_by_index(ctx.sender(), new_leaf.hash, idx)
+							.await
+						{
+							gum::debug!(
+								target: LOG_TARGET,
+								session_idx,
+								leaf_hash = ?new_leaf.hash,
+								?err,
+								"Error caching SessionInfo on ActiveLeaves update"
+							);
+							self.gaps_in_cache = true;
+						}
 					}
+
+					self.highest_session_seen = session_idx;
+
+					db::v1::note_earliest_session(
+						overlay_db,
+						session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1),
+					)?;
+					self.spam_slots.prune_old(session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1));
 				},
-				Ok(SessionWindowUpdate::Unchanged) => {},
-			};
+				Ok(_) => { /* no new session => nothing to cache */ },
+				Err(err) => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?err,
+						"Failed to update session cache for disputes - can't fetch session index",
+					);
+				},
+			}
 
 			gum::trace!(
 				target: LOG_TARGET,
@@ -325,15 +347,16 @@ impl Initialized {
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
 			// so there is no point in running these in parallel
 			for votes in scraped_updates.on_chain_votes {
-				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
-					|error| {
+				let _ = self
+					.process_on_chain_votes(ctx, overlay_db, votes, now, new_leaf.hash)
+					.await
+					.map_err(|error| {
 						gum::warn!(
 							target: LOG_TARGET,
 							?error,
 							"Skipping scraping block due to error",
 						);
-					},
-				);
+					});
 			}
 		}
 
@@ -349,6 +372,7 @@ impl Initialized {
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		votes: ScrapedOnChainVotes,
 		now: u64,
+		block_hash: Hash,
 	) -> Result<()> {
 		let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = votes;
 
@@ -360,23 +384,24 @@ impl Initialized {
 		// the new active leaf as if we received them via gossip.
 		for (candidate_receipt, backers) in backing_validators_per_candidate {
 			// Obtain the session info, for sake of `ValidatorId`s
-			// either from the rolling session window.
-			// Must be called _after_ `fn cache_session_info_for_head`
-			// which guarantees that the session info is available
-			// for the current session.
-			let session_info: &SessionInfo =
-				if let Some(session_info) = self.rolling_session_window.session_info(session) {
-					session_info
-				} else {
+			let relay_parent = candidate_receipt.descriptor.relay_parent;
+			let session_info = match self
+				.runtime_info
+				.get_session_info_by_index(ctx.sender(), relay_parent, session)
+				.await
+			{
+				Ok(extended_session_info) => &extended_session_info.session_info,
+				Err(err) => {
 					gum::warn!(
 						target: LOG_TARGET,
 						?session,
-						"Could not retrieve session info from rolling session window",
+						?err,
+						"Could not retrieve session info from RuntimeInfo",
 					);
 					return Ok(())
-				};
+				},
+			};
 
-			let relay_parent = candidate_receipt.descriptor.relay_parent;
 			let candidate_hash = candidate_receipt.hash();
 			gum::trace!(
 				target: LOG_TARGET,
@@ -470,18 +495,23 @@ impl Initialized {
 				?session,
 				"Importing dispute votes from chain for candidate"
 			);
-			let session_info =
-				if let Some(session_info) = self.rolling_session_window.session_info(session) {
-					session_info
-				} else {
+			let session_info = match self
+				.runtime_info
+				.get_session_info_by_index(ctx.sender(), block_hash, session)
+				.await
+			{
+				Ok(extended_session_info) => &extended_session_info.session_info,
+				Err(err) => {
 					gum::warn!(
 						target: LOG_TARGET,
 						?candidate_hash,
 						?session,
-						"Could not retrieve session info from rolling session window for recently concluded dispute"
+						?err,
+						"Could not retrieve session info for recently concluded dispute"
 					);
 					continue
-				};
+				},
+			};
 
 			let statements = statements
 				.into_iter()
@@ -593,9 +623,6 @@ impl Initialized {
 				}
 			},
 			DisputeCoordinatorMessage::RecentDisputes(tx) => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
-
 				gum::trace!(target: LOG_TARGET, "Loading recent disputes from db");
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
@@ -609,11 +636,7 @@ impl Initialized {
 				);
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
-
 				gum::trace!(target: LOG_TARGET, "DisputeCoordinatorMessage::ActiveDisputes");
-
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
 				} else {
@@ -629,11 +652,7 @@ impl Initialized {
 				);
 			},
 			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
-
 				gum::trace!(target: LOG_TARGET, "DisputeCoordinatorMessage::QueryCandidateVotes");
-
 				let mut query_output = Vec::new();
 				for (session_index, candidate_hash) in query {
 					if let Some(v) =
@@ -673,8 +692,6 @@ impl Initialized {
 				block_descriptions,
 				tx,
 			} => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
 				gum::trace!(
 					target: LOG_TARGET,
 					"DisputeCoordinatorMessage::DetermineUndisputedChain"
@@ -694,15 +711,6 @@ impl Initialized {
 		Ok(Box::new(|| Ok(())))
 	}
 
-	// Helper function for checking subsystem errors in message processing.
-	fn ensure_available_session_info(&self) -> Result<()> {
-		if let Some(subsystem_error) = self.error.clone() {
-			return Err(Error::RollingSessionWindow(subsystem_error))
-		}
-
-		Ok(())
-	}
-
 	// We use fatal result rather than result here. Reason being, We for example increase
 	// spam slots in this function. If then the import fails for some non fatal and
 	// unrelated reason, we should likely actually decrement previously incremented spam
@@ -717,16 +725,39 @@ impl Initialized {
 		now: Timestamp,
 	) -> FatalResult<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
-		if !self.rolling_session_window.contains(session) {
+		if self.session_is_ancient(session) {
 			// It is not valid to participate in an ancient dispute (spam?) or too new.
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
+		let candidate_hash = candidate_receipt.hash();
+		let votes_in_db = overlay_db.load_candidate_votes(session, &candidate_hash)?;
+		let relay_parent = match &candidate_receipt {
+			MaybeCandidateReceipt::Provides(candidate_receipt) =>
+				candidate_receipt.descriptor().relay_parent,
+			MaybeCandidateReceipt::AssumeBackingVotePresent(candidate_hash) => match &votes_in_db {
+				Some(votes) => votes.candidate_receipt.descriptor().relay_parent,
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						session,
+						?candidate_hash,
+						"Cannot obtain relay parent without `CandidateReceipt` available!"
+					);
+					return Ok(ImportStatementsResult::InvalidImport)
+				},
+			},
+		};
+
 		let env = match CandidateEnvironment::new(
 			&self.keystore,
-			&self.rolling_session_window,
+			ctx,
+			&mut self.runtime_info,
 			session,
-		) {
+			relay_parent,
+		)
+		.await
+		{
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -738,8 +769,6 @@ impl Initialized {
 			},
 			Some(env) => env,
 		};
-
-		let candidate_hash = candidate_receipt.hash();
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -757,10 +786,7 @@ impl Initialized {
 		// There is one exception: A sufficiently sophisticated attacker could prevent
 		// us from seeing the backing votes by withholding arbitrary blocks, and hence we do
 		// not have a `CandidateReceipt` available.
-		let old_state = match overlay_db
-			.load_candidate_votes(session, &candidate_hash)?
-			.map(CandidateVotes::from)
-		{
+		let old_state = match votes_in_db.map(CandidateVotes::from) {
 			Some(votes) => CandidateVoteState::new(votes, &env, now),
 			None =>
 				if let MaybeCandidateReceipt::Provides(candidate_receipt) = candidate_receipt {
@@ -1120,12 +1146,17 @@ impl Initialized {
 			?now,
 			"Issuing local statement for candidate!"
 		);
+
 		// Load environment:
 		let env = match CandidateEnvironment::new(
 			&self.keystore,
-			&self.rolling_session_window,
+			ctx,
+			&mut self.runtime_info,
 			session,
-		) {
+			candidate_receipt.descriptor.relay_parent,
+		)
+		.await
+		{
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -1175,10 +1206,10 @@ impl Initialized {
 					statements.push((signed_dispute_statement, *index));
 				},
 				Ok(None) => {},
-				Err(e) => {
+				Err(err) => {
 					gum::error!(
 						target: LOG_TARGET,
-						err = ?e,
+						?err,
 						"Encountered keystore error while signing dispute statement",
 					);
 				},
@@ -1232,6 +1263,10 @@ impl Initialized {
 		}
 
 		Ok(())
+	}
+
+	fn session_is_ancient(&self, session_idx: SessionIndex) -> bool {
+		return session_idx < self.highest_session_seen.saturating_sub(DISPUTE_WINDOW.get() - 1)
 	}
 }
 
