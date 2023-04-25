@@ -56,9 +56,7 @@ use std::collections::HashMap;
 use super::approval_db::v1;
 use crate::{
 	backend::{Backend, OverlayedBackend},
-	cache_session_info_for_head,
 	criteria::{AssignmentCriteria, OurAssignment},
-	get_session_info,
 	persisted_entries::CandidateEntry,
 	time::{slot_number_to_tick, Tick},
 	SessionInfoProvider,
@@ -78,7 +76,7 @@ struct ImportedBlockInfo {
 }
 
 struct ImportedBlockInfoEnv<'a> {
-	runtime_info: &'a mut Option<SessionInfoProvider>, // this is required just for the `earliest_session()`
+	runtime_info: &'a mut SessionInfoProvider, // this is required just for the `earliest_session()`
 	assignment_criteria: &'a (dyn AssignmentCriteria + Send + Sync),
 	keystore: &'a LocalKeystore,
 }
@@ -160,7 +158,7 @@ async fn imported_block_info<Context>(
 				return Err(ImportedBlockInfoError::FutureCancelled("SessionIndexForChild", error)),
 		};
 
-		if env.runtime_info.as_ref().map_or(true, |s| session_index < s.earliest_session()) {
+		if env.runtime_info.earliest_session().map_or(true, |s| session_index < s) {
 			gum::debug!(
 				target: LOG_TARGET,
 				"Block {} is from ancient session {}. Skipping",
@@ -209,7 +207,7 @@ async fn imported_block_info<Context>(
 	};
 
 	let session_info =
-		match get_session_info(env.runtime_info, ctx.sender(), block_hash, session_index).await {
+		match env.runtime_info.get_session_info(ctx.sender(), block_hash, session_index).await {
 			Some(session_info) => session_info,
 			None => {
 				gum::error!(
@@ -325,7 +323,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	ctx: &mut Context,
 	state: &State,
 	db: &mut OverlayedBackend<'_, B>,
-	session_info_provider: &mut Option<SessionInfoProvider>,
+	session_info_provider: &mut SessionInfoProvider,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
@@ -361,7 +359,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	};
 
 	// Update session info based on most recent head.
-	cache_session_info_for_head(ctx.sender(), head, session_info_provider).await;
+	session_info_provider.cache_session_info_for_head(ctx.sender(), head).await;
 
 	// If we've just started the node and are far behind,
 	// import at most `MAX_HEADS_LOOK_BACK` blocks.
@@ -444,25 +442,19 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			force_approve,
 		} = imported_block_info;
 
-		let session_info = match get_session_info(
-			session_info_provider,
-			ctx.sender(),
-			head,
-			session_index,
-		)
-		.await
-		{
-			Some(session_info) => session_info,
-			None => {
-				gum::error!(
-					target: LOG_TARGET,
-					session = session_index,
-					?head,
-					"Can't get session info for the new head"
-				);
-				return Ok(Vec::new())
-			},
-		};
+		let session_info =
+			match session_info_provider.get_session_info(ctx.sender(), head, session_index).await {
+				Some(session_info) => session_info,
+				None => {
+					gum::error!(
+						target: LOG_TARGET,
+						session = session_index,
+						?head,
+						"Can't get session info for the new head"
+					);
+					return Ok(Vec::new())
+				},
+			};
 
 		let (block_tick, no_show_duration) = {
 			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
@@ -684,8 +676,11 @@ pub(crate) mod tests {
 
 		let state = blank_state();
 
-		let session_info_provider =
-			SessionInfoProvider { runtime_info, gaps_in_cache: false, highest_session_seen: index };
+		let session_info_provider = SessionInfoProvider {
+			runtime_info,
+			gaps_in_cache: false,
+			highest_session_seen: Some(index),
+		};
 
 		(state, session_info_provider)
 	}
@@ -795,7 +790,7 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_info_provider = SessionInfoProvider {
+			let mut session_info_provider = SessionInfoProvider {
 				runtime_info: RuntimeInfo::new_with_cache(
 					RuntimeInfoConfig {
 						keystore: None,
@@ -812,13 +807,13 @@ pub(crate) mod tests {
 					)],
 				),
 				gaps_in_cache: false,
-				highest_session_seen: session,
+				highest_session_seen: Some(session),
 			};
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					runtime_info: &mut Some(session_info_provider),
+					runtime_info: &mut session_info_provider,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -918,7 +913,7 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_info_provider = SessionInfoProvider {
+			let mut session_info_provider = SessionInfoProvider {
 				runtime_info: RuntimeInfo::new_with_cache(
 					RuntimeInfoConfig {
 						keystore: None,
@@ -935,13 +930,13 @@ pub(crate) mod tests {
 					)],
 				),
 				gaps_in_cache: false,
-				highest_session_seen: session,
+				highest_session_seen: Some(session),
 			};
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					runtime_info: &mut Some(session_info_provider),
+					runtime_info: &mut session_info_provider,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -1035,7 +1030,7 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let mut runtime_info = None;
+			let mut runtime_info = SessionInfoProvider::new();
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1130,7 +1125,7 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_info_provider = SessionInfoProvider {
+			let mut session_info_provider = SessionInfoProvider {
 				runtime_info: RuntimeInfo::new_with_cache(
 					RuntimeInfoConfig {
 						keystore: None,
@@ -1147,13 +1142,13 @@ pub(crate) mod tests {
 					)],
 				),
 				gaps_in_cache: false,
-				highest_session_seen: session,
+				highest_session_seen: Some(session),
 			};
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					runtime_info: &mut Some(session_info_provider),
+					runtime_info: &mut session_info_provider,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -1290,7 +1285,7 @@ pub(crate) mod tests {
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
-		let (state, session_info_provider) =
+		let (state, mut session_info_provider) =
 			single_session_state(session, session_info, parent_hash);
 		overlay_db.write_block_entry(
 			v1::BlockEntry {
@@ -1317,7 +1312,7 @@ pub(crate) mod tests {
 					&mut ctx,
 					&state,
 					&mut overlay_db,
-					&mut Some(session_info_provider),
+					&mut session_info_provider,
 					hash,
 					&Some(1),
 				)
