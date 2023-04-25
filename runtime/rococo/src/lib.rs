@@ -1523,7 +1523,6 @@ pub type Migrations = (
 
 /// Helpers to configure all migrations.
 pub mod migrations {
-	use primitives::MAX_CODE_SIZE;
 	use runtime_parachains::configuration::migration_ump;
 
 	pub const MAX_UPWARD_QUEUE_SIZE: u32 = 8 * 1024 * 1024;
@@ -1537,7 +1536,6 @@ pub mod migrations {
 		MAX_UPWARD_QUEUE_COUNT,
 		MAX_UPWARD_MESSAGE_SIZE,
 		MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE,
-		MAX_CODE_SIZE,
 	>;
 }
 

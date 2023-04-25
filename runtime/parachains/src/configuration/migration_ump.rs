@@ -33,7 +33,6 @@ pub mod latest {
 		const MAX_UPWARD_QUEUE_COUNT: u32,
 		const MAX_UPWARD_MESSAGE_SIZE: u32,
 		const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32,
-		const MAX_CODE_SIZE: u32,
 	>(core::marker::PhantomData<T>);
 
 	impl<
@@ -42,7 +41,6 @@ pub mod latest {
 			const MAX_UPWARD_QUEUE_COUNT: u32,
 			const MAX_UPWARD_MESSAGE_SIZE: u32,
 			const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32,
-			const MAX_CODE_SIZE: u32,
 		> OnRuntimeUpgrade
 		for ScheduleConfigUpdate<
 			T,
@@ -50,7 +48,6 @@ pub mod latest {
 			MAX_UPWARD_QUEUE_COUNT,
 			MAX_UPWARD_MESSAGE_SIZE,
 			MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE,
-			MAX_CODE_SIZE,
 		>
 	{
 		#[cfg(feature = "try-runtime")]
@@ -80,7 +77,6 @@ pub mod latest {
 				cfg.max_upward_queue_count = MAX_UPWARD_QUEUE_COUNT;
 				cfg.max_upward_message_size = MAX_UPWARD_MESSAGE_SIZE;
 				cfg.max_upward_message_num_per_candidate = MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE;
-				cfg.max_code_size = MAX_CODE_SIZE;
 			}) {
 				log::error!(
 					target: LOG_TARGET,
