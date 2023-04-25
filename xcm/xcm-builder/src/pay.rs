@@ -76,7 +76,6 @@ impl<
 		let destination_chain = DestinationChain::get();
 		let sender_account = SenderAccount::get();
 		let mut message = Xcm(vec![
-			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			DescendOrigin(
 				Junction::AccountId32 { network: None, id: sender_account.into() }.into(),
 			),
@@ -91,6 +90,11 @@ impl<
 		]);
 		let id = Querier::report_outcome(&mut message, destination_chain, Timeout::get())
 			.map_err(|_| Self::Error::LocationNotInvertible)?;
+
+		message
+			.0
+			.insert(0, UnpaidExecution { weight_limit: Unlimited, check_origin: None });
+
 		let (ticket, _) = Router::validate(&mut Some(destination_chain), &mut Some(message))?;
 		Router::deliver(ticket)?;
 		Ok(id)
