@@ -16,7 +16,7 @@
 
 use crate::traits::{
 	AssetExchange, AssetLock, CallDispatcher, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm,
-	FeeManager, OnResponse, ProcessInstruction, ShouldExecute, TransactAsset,
+	FeeManager, OnResponse, PreprocessInstruction, ShouldExecute, TransactAsset,
 	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::{
@@ -107,6 +107,6 @@ pub trait Config {
 	/// temporary measure until we properly account for proof size weights for XCM instructions.
 	type SafeCallFilter: Contains<Self::RuntimeCall>;
 
-	/// The processor implementation that process XCM instructions
-	type ProcessInstruction: ProcessInstruction<Self::RuntimeCall>;
+	/// The pre-processor implementation that process XCM instructions
+	type InstructionPreprocessor: PreprocessInstruction<Self::RuntimeCall>;
 }

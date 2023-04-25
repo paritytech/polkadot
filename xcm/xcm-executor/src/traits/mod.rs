@@ -33,8 +33,8 @@ pub use fee_manager::{FeeManager, FeeReason};
 mod filter_asset_location;
 #[allow(deprecated)]
 pub use filter_asset_location::FilterAssetLocation;
-mod instruction_processor;
-pub use instruction_processor::ProcessInstruction;
+mod preprocessor;
+pub use preprocessor::PreprocessInstruction;
 mod token_matching;
 pub use token_matching::{
 	Error, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,

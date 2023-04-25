@@ -160,7 +160,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
-	type ProcessInstruction = xcm_executor::XcmProcessor<Self>;
+	type InstructionPreprocessor = ();
 }
 
 impl crate::Config for Test {

@@ -268,7 +268,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = WithOriginFilter<SafeCallFilter>;
 	type SafeCallFilter = SafeCallFilter;
-	type ProcessInstruction = xcm_executor::XcmProcessor<Self>;
+	type InstructionPreprocessor = ();
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location

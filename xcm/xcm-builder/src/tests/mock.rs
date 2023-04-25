@@ -645,7 +645,7 @@ impl Config for TestConfig {
 	type MessageExporter = TestMessageExporter;
 	type CallDispatcher = TestCall;
 	type SafeCallFilter = Everything;
-	type ProcessInstruction = xcm_executor::XcmProcessor<Self>;
+	type InstructionPreprocessor = ();
 }
 
 pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {

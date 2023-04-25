@@ -17,18 +17,15 @@
 use crate::XcVmRegisters;
 use xcm::latest::{Error as XcmError, Instruction};
 
-pub trait ProcessInstruction<Call>: Sized {
-	/// Initialize the processor
-	fn new() -> Self;
-
+pub trait PreprocessInstruction<Call>: Default + Sized {
 	/// Process a single XCM instruction, mutating the state of the XCM virtual machine.
-	fn process_instruction(
+	fn preprocess_instruction(
 		&mut self,
-		vm_state: &mut XcVmRegisters<Call>,
-		instr: Instruction<Call>,
-	) -> Result<(), XcmError>;
-
-	/// Execute any final operations after having executed the XCM message.
-	/// This includes refunding surplus weight.
-	fn post_process(&mut self, vm_state: &mut XcVmRegisters<Call>);
+		_vm_state: &mut XcVmRegisters<Call>,
+		_instr: &mut Instruction<Call>,
+	) -> Result<bool, XcmError> {
+		Ok(true)
+	}
 }
+
+impl<Call> PreprocessInstruction<Call> for () {}
