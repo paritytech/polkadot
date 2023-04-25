@@ -1295,9 +1295,9 @@ impl paras_sudo_wrapper::Config for Runtime {}
 
 parameter_types! {
 	pub const PermanentSlotLeasePeriodLength: u32 = 365;
-	pub const TemporarySlotLeasePeriodLength: u32 = 3;
-	pub const MaxPermanentSlots: u32 = 40;
-	pub const MaxTemporarySlots: u32 = 40;
+	pub const TemporarySlotLeasePeriodLength: u32 = 5;
+	pub const MaxPermanentSlots: u32 = 100;
+	pub const MaxTemporarySlots: u32 = 100;
 	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
 }
 
