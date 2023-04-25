@@ -393,7 +393,6 @@ impl RequestChunksFromValidators {
 						metrics.on_chunk_request_succeeded();
 						gum::trace!(
 							target: LOG_TARGET,
-
 							candidate_hash = ?params.candidate_hash,
 							validator_index = ?chunk.index,
 							"Received valid chunk",
