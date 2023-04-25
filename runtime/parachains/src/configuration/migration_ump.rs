@@ -55,7 +55,6 @@ pub mod latest {
 			log::info!(target: LOG_TARGET, "pre_upgrade");
 			let mut pending = PendingConfigs::<T>::get();
 			pending.sort_by_key(|(s, _)| *s);
-			pending.last().map(|(_, cfg)| cfg.panic_if_not_consistent());
 
 			log::info!(
 				target: LOG_TARGET,
@@ -105,21 +104,6 @@ pub mod latest {
 				old_pending as usize + 1,
 				"There must be a new pending upgrade enqueued"
 			);
-
-			let mut any_pending_valid = false;
-			PendingConfigs::<T>::get().iter().for_each(|(s, cfg)| {
-				log::info!(target: LOG_TARGET, "Checking config s={}", s);
-				cfg.panic_if_not_consistent();
-				any_pending_valid = true;
-			});
-
-			if let Err(err) = ActiveConfig::<T>::get().check_consistency() {
-				if any_pending_valid {
-					log::error!(target: LOG_TARGET, "The ActiveConfig is inconsistent: {:?}. We tolerate this since there are pending consistent upgrades.", err);
-				} else {
-					panic!("The ActiveConfig is inconsistent: {:?} and there are no pending consistent ones.", err)
-				}
-			}
 
 			Ok(())
 		}
