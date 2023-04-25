@@ -356,10 +356,10 @@ fn compute_relay_vrf_modulo_assignments(
 			// has been executed.
 			let cert = AssignmentCert {
 				kind: AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
-				vrf: (
-					approval_types::VRFOutput(vrf_in_out.to_output()),
-					approval_types::VRFProof(vrf_proof),
-				),
+				vrf: approval_types::VrfSignature {
+					output: approval_types::VrfOutput(vrf_in_out.to_output()),
+					proof: approval_types::VrfProof(vrf_proof),
+				},
 			};
 
 			// All assignments of type RelayVRFModulo have tranche 0.
@@ -393,10 +393,10 @@ fn compute_relay_vrf_delay_assignments(
 
 		let cert = AssignmentCert {
 			kind: AssignmentCertKind::RelayVRFDelay { core_index: core },
-			vrf: (
-				approval_types::VRFOutput(vrf_in_out.to_output()),
-				approval_types::VRFProof(vrf_proof),
-			),
+			vrf: approval_types::VrfSignature {
+				output: approval_types::VrfOutput(vrf_in_out.to_output()),
+				proof: approval_types::VrfProof(vrf_proof),
+			},
 		};
 
 		let our_assignment = OurAssignment { cert, tranche, validator_index, triggered: false };
@@ -496,7 +496,7 @@ pub(crate) fn check_assignment_cert(
 		return Err(InvalidAssignment(Reason::IsInBackingGroup))
 	}
 
-	let (vrf_output, vrf_proof) = &assignment.vrf;
+	let vrf_signature = &assignment.vrf;
 	match assignment.kind {
 		AssignmentCertKind::RelayVRFModulo { sample } => {
 			if sample >= config.relay_vrf_modulo_samples {
@@ -506,8 +506,8 @@ pub(crate) fn check_assignment_cert(
 			let (vrf_in_out, _) = public
 				.vrf_verify_extra(
 					relay_vrf_modulo_transcript(relay_vrf_story, sample),
-					&vrf_output.0,
-					&vrf_proof.0,
+					&vrf_signature.output.0,
+					&vrf_signature.proof.0,
 					assigned_core_transcript(claimed_core_index),
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
@@ -527,8 +527,8 @@ pub(crate) fn check_assignment_cert(
 			let (vrf_in_out, _) = public
 				.vrf_verify(
 					relay_vrf_delay_transcript(relay_vrf_story, core_index),
-					&vrf_output.0,
-					&vrf_proof.0,
+					&vrf_signature.output.0,
+					&vrf_signature.proof.0,
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFDelayOutputMismatch))?;
 
@@ -552,7 +552,7 @@ fn is_in_backing_group(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
+	use crate::import::tests::garbage_vrf_signature;
 	use polkadot_primitives::{Hash, ASSIGNMENT_KEY_TYPE_ID};
 	use sp_application_crypto::sr25519;
 	use sp_core::crypto::Pair as PairT;
@@ -604,15 +604,6 @@ mod tests {
 					.collect::<Vec<_>>()
 			})
 			.collect()
-	}
-
-	// used for generating assignments where the validity of the VRF doesn't matter.
-	fn garbage_vrf() -> (VRFOutput, VRFProof) {
-		let key = Sr25519Keyring::Alice.pair();
-		let key: &schnorrkel::Keypair = key.as_ref();
-
-		let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
-		(VRFOutput(o.to_output()), VRFProof(p))
 	}
 
 	#[test]
@@ -825,7 +816,7 @@ mod tests {
 		check_mutated_assignments(40, 10, 8, |m| {
 			match m.cert.kind.clone() {
 				AssignmentCertKind::RelayVRFDelay { .. } => {
-					m.cert.vrf = garbage_vrf();
+					m.cert.vrf = garbage_vrf_signature();
 					Some(false)
 				},
 				_ => None, // skip everything else.
@@ -838,7 +829,7 @@ mod tests {
 		check_mutated_assignments(200, 100, 25, |m| {
 			match m.cert.kind.clone() {
 				AssignmentCertKind::RelayVRFModulo { .. } => {
-					m.cert.vrf = garbage_vrf();
+					m.cert.vrf = garbage_vrf_signature();
 					Some(false)
 				},
 				_ => None, // skip everything else.
