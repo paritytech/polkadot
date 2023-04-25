@@ -347,7 +347,7 @@ impl<T: Config> Pallet<T> {
 		ClaimQueue::<T>::get().get(&core).and_then(|a| {
 			a.iter()
 				.find_map(|e| e.as_ref())
-				.and_then(|pe| Some(Self::paras_entry_to_scheduled_core(pe)))
+				.map(|pe| Self::paras_entry_to_scheduled_core(pe))
 		})
 	}
 
@@ -364,7 +364,12 @@ impl<T: Config> Pallet<T> {
 			let cores = AvailabilityCores::<T>::get();
 			cores.get(core.0 as usize).and_then(|c| match c {
 				CoreOccupied::Free => None,
-				CoreOccupied::Paras(pe) => Some(Self::paras_entry_to_scheduled_core(pe)),
+				CoreOccupied::Paras(pe) =>
+					if pe.retries < T::AssignmentProvider::get_max_retries(core) {
+						Some(Self::paras_entry_to_scheduled_core(pe))
+					} else {
+						None
+					},
 			})
 		})
 	}
@@ -402,7 +407,9 @@ impl<T: Config> Pallet<T> {
 	// on new session
 	fn push_claimqueue_items_to_assignment_provider() {
 		for (core_idx, cqv) in ClaimQueue::<T>::take() {
-			for pe in cqv.into_iter().flatten() {
+			// Push back in reverse order so that when we pop from the provider again,
+			// the entries in the claimqueue have the same order as they do right now.
+			for pe in cqv.into_iter().flatten().rev() {
 				T::AssignmentProvider::push_parasentry_for_core(core_idx, pe);
 			}
 		}
