@@ -14,4 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-polkadot_node_core_pvf::decl_puppet_worker_main!();
+fn main() {
+	substrate_build_script_utils::generate_cargo_keys();
+}

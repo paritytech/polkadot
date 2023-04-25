@@ -494,7 +494,7 @@ pub fn run() -> Result<()> {
 
 			#[cfg(not(target_os = "android"))]
 			{
-				polkadot_node_core_pvf::prepare_worker_entrypoint(
+				polkadot_node_core_pvf_worker::prepare_worker_entrypoint(
 					&cmd.socket_path,
 					Some(&cmd.node_impl_version),
 				);
@@ -516,7 +516,7 @@ pub fn run() -> Result<()> {
 
 			#[cfg(not(target_os = "android"))]
 			{
-				polkadot_node_core_pvf::execute_worker_entrypoint(
+				polkadot_node_core_pvf_worker::execute_worker_entrypoint(
 					&cmd.socket_path,
 					Some(&cmd.node_impl_version),
 				);

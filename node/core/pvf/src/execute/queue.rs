@@ -16,7 +16,7 @@
 
 //! A queue that handles requests for PVF execution.
 
-use super::worker::Outcome;
+use super::worker_intf::Outcome;
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId},
 	host::ResultSender,
@@ -50,13 +50,17 @@ slotmap::new_key_type! { struct Worker; }
 
 #[derive(Debug)]
 pub enum ToQueue {
-	Enqueue {
-		artifact: ArtifactPathId,
-		exec_timeout: Duration,
-		params: Vec<u8>,
-		executor_params: ExecutorParams,
-		result_tx: ResultSender,
-	},
+	Enqueue { artifact: ArtifactPathId, pending_execution_request: PendingExecutionRequest },
+}
+
+/// An execution request that should execute the PVF (known in the context) and send the results
+/// to the given result sender.
+#[derive(Debug)]
+pub struct PendingExecutionRequest {
+	pub exec_timeout: Duration,
+	pub params: Vec<u8>,
+	pub executor_params: ExecutorParams,
+	pub result_tx: ResultSender,
 }
 
 struct ExecuteJob {
@@ -259,7 +263,9 @@ async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 }
 
 fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
-	let ToQueue::Enqueue { artifact, exec_timeout, params, executor_params, result_tx } = to_queue;
+	let ToQueue::Enqueue { artifact, pending_execution_request } = to_queue;
+	let PendingExecutionRequest { exec_timeout, params, executor_params, result_tx } =
+		pending_execution_request;
 	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact.id.code_hash,
@@ -410,7 +416,8 @@ async fn spawn_worker_task(
 	use futures_timer::Delay;
 
 	loop {
-		match super::worker::spawn(&program_path, job.executor_params.clone(), spawn_timeout).await
+		match super::worker_intf::spawn(&program_path, job.executor_params.clone(), spawn_timeout)
+			.await
 		{
 			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle, job),
 			Err(err) => {
@@ -454,9 +461,13 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 	queue.mux.push(
 		async move {
 			let _timer = execution_timer;
-			let outcome =
-				super::worker::start_work(idle, job.artifact.clone(), job.exec_timeout, job.params)
-					.await;
+			let outcome = super::worker_intf::start_work(
+				idle,
+				job.artifact.clone(),
+				job.exec_timeout,
+				job.params,
+			)
+			.await;
 			QueueEvent::StartWork(worker, outcome, job.artifact.id, job.result_tx)
 		}
 		.boxed(),
