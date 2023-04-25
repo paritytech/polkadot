@@ -18,8 +18,10 @@
 
 use crate::NegativeImbalance;
 use frame_support::traits::{Currency, Imbalance, OnUnbalanced};
+use pallet_treasury::BenchmarkHelper;
 use primitives::Balance;
 use sp_runtime::Perquintill;
+use xcm::latest::Junctions;
 
 /// Logic for the author to get a portion of fees.
 pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
@@ -56,6 +58,15 @@ where
 			<Treasury<R> as OnUnbalanced<_>>::on_unbalanced(split.0);
 			<ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(split.1);
 		}
+	}
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+pub struct JunctionsBenchmarkHelper;
+#[cfg(feature = "runtime-benchmarks")]
+impl<AssetKind: From<Junctions>> BenchmarkHelper<AssetKind> for JunctionsBenchmarkHelper {
+	fn create_asset_kind(_id: u32) -> AssetKind {
+		Junctions::Here.into()
 	}
 }
 
@@ -220,7 +231,7 @@ mod tests {
 		type WeightInfo = ();
 		type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u64>;
 		#[cfg(feature = "runtime-benchmarks")]
-		type BenchmarkHelper = ();
+		type BenchmarkHelper = JunctionsBenchmarkHelper;
 	}
 
 	pub struct OneAuthor;

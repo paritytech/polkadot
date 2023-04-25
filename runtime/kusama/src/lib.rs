@@ -656,7 +656,7 @@ impl pallet_treasury::Config for Runtime {
 	type SpendFunds = Bounties;
 	type SpendOrigin = TreasurySpender;
 	#[cfg(feature = "runtime-benchmarks")]
-	type BenchmarkHelper = ();
+	type BenchmarkHelper = runtime_common::impls::JunctionsBenchmarkHelper;
 }
 
 parameter_types! {

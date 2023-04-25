@@ -80,6 +80,7 @@ use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
+use xcm::latest::AssetId;
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -666,7 +667,7 @@ ord_parameter_types! {
 
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
-	type AssetKind = xcm::latest::AssetId;
+	type AssetKind = AssetId;
 	type Paymaster = PayOverXcm<
 		Statemint,
 		TreasuryAccountId,
@@ -693,7 +694,7 @@ impl pallet_treasury::Config for Runtime {
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendOrigin = TreasurySpender;
 	#[cfg(feature = "runtime-benchmarks")]
-	type BenchmarkHelper = ();
+	type BenchmarkHelper = runtime_common::impls::JunctionsBenchmarkHelper;
 }
 
 parameter_types! {
