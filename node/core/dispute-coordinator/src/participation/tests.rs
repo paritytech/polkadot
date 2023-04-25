@@ -189,7 +189,7 @@ fn same_req_wont_get_queued_if_participation_is_already_running() {
 	futures::executor::block_on(async {
 		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
 
-		let (sender, mut worker_receiver) = mpsc::channel(1);
+		let (sender, mut worker_receiver) = async_channel::bounded(2);
 		let mut participation = Participation::new(sender, Metrics::default());
 		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
 		participate(&mut ctx, &mut participation).await.unwrap();
@@ -228,7 +228,7 @@ fn reqs_get_queued_when_out_of_capacity() {
 	let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
 
 	let test = async {
-		let (sender, mut worker_receiver) = mpsc::channel(1);
+		let (sender, mut worker_receiver) = async_channel::bounded(2);
 		let mut participation = Participation::new(sender, Metrics::default());
 		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
 		participate(&mut ctx, &mut participation).await.unwrap();
@@ -290,9 +290,9 @@ fn reqs_get_queued_when_out_of_capacity() {
 #[test]
 fn reqs_get_queued_on_no_recent_block() {
 	let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
-	let (mut unblock_test, mut wait_for_verification) = mpsc::channel(0);
+	let (unblock_test, mut wait_for_verification) = async_channel::bounded(1);
 	let test = async {
-		let (sender, _worker_receiver) = mpsc::channel(1);
+		let (sender, _worker_receiver) = async_channel::bounded(2);
 		let mut participation = Participation::new(sender, Metrics::default());
 		participate(&mut ctx, &mut participation).await.unwrap();
 
@@ -342,7 +342,7 @@ fn cannot_participate_if_cannot_recover_available_data() {
 	futures::executor::block_on(async {
 		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
 
-		let (sender, mut worker_receiver) = mpsc::channel(1);
+		let (sender, mut worker_receiver) = async_channel::bounded(2);
 		let mut participation = Participation::new(sender, Metrics::default());
 		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
 		participate(&mut ctx, &mut participation).await.unwrap();
@@ -372,7 +372,7 @@ fn cannot_participate_if_cannot_recover_validation_code() {
 	futures::executor::block_on(async {
 		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
 
-		let (sender, mut worker_receiver) = mpsc::channel(1);
+		let (sender, mut worker_receiver) = async_channel::bounded(2);
 		let mut participation = Participation::new(sender, Metrics::default());
 		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
 		participate(&mut ctx, &mut participation).await.unwrap();
@@ -409,7 +409,7 @@ fn cast_invalid_vote_if_available_data_is_invalid() {
 	futures::executor::block_on(async {
 		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
 
-		let (sender, mut worker_receiver) = mpsc::channel(1);
+		let (sender, mut worker_receiver) = async_channel::bounded(2);
 		let mut participation = Participation::new(sender, Metrics::default());
 		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
 		participate(&mut ctx, &mut participation).await.unwrap();
@@ -440,7 +440,7 @@ fn cast_invalid_vote_if_validation_fails_or_is_invalid() {
 	futures::executor::block_on(async {
 		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
 
-		let (sender, mut worker_receiver) = mpsc::channel(1);
+		let (sender, mut worker_receiver) = async_channel::bounded(2);
 		let mut participation = Participation::new(sender, Metrics::default());
 		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
 		participate(&mut ctx, &mut participation).await.unwrap();
@@ -477,7 +477,7 @@ fn cast_invalid_vote_if_commitments_dont_match() {
 	futures::executor::block_on(async {
 		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
 
-		let (sender, mut worker_receiver) = mpsc::channel(1);
+		let (sender, mut worker_receiver) = async_channel::bounded(2);
 		let mut participation = Participation::new(sender, Metrics::default());
 		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
 		participate(&mut ctx, &mut participation).await.unwrap();
@@ -514,7 +514,7 @@ fn cast_valid_vote_if_validation_passes() {
 	futures::executor::block_on(async {
 		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
 
-		let (sender, mut worker_receiver) = mpsc::channel(1);
+		let (sender, mut worker_receiver) = async_channel::bounded(2);
 		let mut participation = Participation::new(sender, Metrics::default());
 		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
 		participate(&mut ctx, &mut participation).await.unwrap();

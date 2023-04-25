@@ -584,7 +584,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	gossip_support: GossipSupport,
 
-	#[subsystem(blocking, message_capacity: 32000, DisputeCoordinatorMessage, sends: [
+	#[subsystem(blocking, message_capacity: 4096, DisputeCoordinatorMessage, sends: [
 		RuntimeApiMessage,
 		ChainApiMessage,
 		DisputeDistributionMessage,
@@ -596,7 +596,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	dispute_coordinator: DisputeCoordinator,
 
-	#[subsystem(DisputeDistributionMessage, sends: [
+	#[subsystem(DisputeDistributionMessage, message_capacity: 4096, sends: [
 		RuntimeApiMessage,
 		DisputeCoordinatorMessage,
 		NetworkBridgeTxMessage,
@@ -661,8 +661,9 @@ where
 						);
 						metrics.memory_stats_snapshot(memory_stats_snapshot);
 					},
-					Err(e) =>
-						gum::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
+					Err(e) => {
+						gum::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e)
+					},
 				}),
 			Err(_) => {
 				gum::debug!(

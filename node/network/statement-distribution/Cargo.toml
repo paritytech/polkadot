@@ -9,7 +9,7 @@ edition.workspace = true
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }

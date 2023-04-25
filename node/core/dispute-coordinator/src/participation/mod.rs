@@ -18,10 +18,8 @@ use std::collections::HashSet;
 #[cfg(test)]
 use std::time::Duration;
 
-use futures::{
-	channel::{mpsc, oneshot},
-	FutureExt, SinkExt,
-};
+use async_channel;
+use futures::{channel::oneshot, FutureExt};
 #[cfg(test)]
 use futures_timer::Delay;
 
@@ -83,10 +81,10 @@ pub struct Participation {
 pub struct WorkerMessage(ParticipationStatement);
 
 /// Sender use by worker tasks.
-pub type WorkerMessageSender = mpsc::Sender<WorkerMessage>;
+pub type WorkerMessageSender = async_channel::Sender<WorkerMessage>;
 
 /// Receiver to receive messages from worker tasks.
-pub type WorkerMessageReceiver = mpsc::Receiver<WorkerMessage>;
+pub type WorkerMessageReceiver = async_channel::Receiver<WorkerMessage>;
 
 /// Statement as result of the validation process.
 #[derive(Debug)]
@@ -416,7 +414,7 @@ async fn send_result(
 	req: ParticipationRequest,
 	outcome: ParticipationOutcome,
 ) {
-	if let Err(err) = sender.feed(WorkerMessage::from_request(req, outcome)).await {
+	if let Err(err) = sender.send(WorkerMessage::from_request(req, outcome)).await {
 		gum::error!(
 			target: LOG_TARGET,
 			?err,

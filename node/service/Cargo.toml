@@ -12,7 +12,7 @@ babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/sub
 beefy = { package = "sc-consensus-beefy", git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa = { package = "sc-consensus-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master"}
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -29,7 +29,7 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Primitives

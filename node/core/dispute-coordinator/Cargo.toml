@@ -12,6 +12,7 @@ kvdb = "0.13.0"
 thiserror = "1.0.31"
 lru = "0.9.0"
 fatality = "0.0.6"
+async-channel = "1.8.0"
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }

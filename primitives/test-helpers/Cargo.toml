@@ -6,8 +6,8 @@ edition.workspace = true
 
 [dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "master" }
 polkadot-primitives = { path = "../" }
 rand = "0.8.5"
