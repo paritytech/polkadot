@@ -109,9 +109,21 @@ benchmarks! {
 		let v in (BenchBuilder::<T>::fallback_min_backing_votes())
 			..(BenchBuilder::<T>::fallback_max_validators_per_core());
 
-		let u in 0 .. (BenchBuilder::<T>::fallback_max_upward_message_num_per_candidate() * BenchBuilder::<T>::fallback_max_upward_message_size());
-		let h in 0 .. (BenchBuilder::<T>::fallback_hrmp_max_message_num_per_candidate() * BenchBuilder::<T>::fallback_hrmp_channel_max_message_size());
-		let c in 0 .. (BenchBuilder::<T>::fallback_max_code_size());
+		// Can't use real limits as this would lead to severely over estimated base case:
+		// https://github.com/paritytech/substrate/issues/13808
+
+		// let u in 0 .. (BenchBuilder::<T>::fallback_max_upward_message_num_per_candidate() * BenchBuilder::<T>::fallback_max_upward_message_size());
+		// let h in 0 .. (BenchBuilder::<T>::fallback_hrmp_max_message_num_per_candidate() * BenchBuilder::<T>::fallback_hrmp_channel_max_message_size());
+		// let c in 0 .. (BenchBuilder::<T>::fallback_max_code_size());
+
+		// These low values may lead to constant factors being ignored (although it just worked for
+		// me locally), but that is currently the
+		// better option than having a base weight that would only allow one to two backed
+		// candidates per block. We will limit by size in addition to CPU weight, which should
+		// suffice to also not exceed the weight limit in practice.
+		let u in 0 .. 100;
+		let h in 0 .. 100;
+		let c in 0 .. 100;
 
 		BenchBuilder::<T>::adjust_config_benchmarking();
 
