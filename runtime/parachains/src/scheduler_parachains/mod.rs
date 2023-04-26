@@ -46,8 +46,6 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 		<paras::Pallet<T>>::parachains().len() as u32
 	}
 
-	fn new_session() {}
-
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		_concluded_para: Option<ParaId>,

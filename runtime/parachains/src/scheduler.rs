@@ -136,6 +136,12 @@ impl<T: Config> Pallet<T> {
 	/// Called by the initializer to finalize the scheduler pallet.
 	pub(crate) fn initializer_finalize() {}
 
+	/// Called before the initializer notifies of a new session.
+	pub(crate) fn pre_new_session() {
+		Self::push_claimqueue_items_to_assignment_provider();
+		Self::push_occupied_cores_to_assignment_provider();
+	}
+
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
 		notification: &SessionChangeNotification<T::BlockNumber>,
@@ -151,12 +157,9 @@ impl<T: Config> Pallet<T> {
 			},
 		);
 
-		Self::push_claimqueue_items_to_assignment_provider();
-		Self::push_occupied_cores_to_assignment_provider(n_cores);
-		// Instead of exposing the AssignmentProvider to the initializer
-		// for the new_session notification, we keep the AssignmentProvider
-		// internal to the scheduler and have it forward the new_session call.
-		T::AssignmentProvider::new_session();
+		AvailabilityCores::<T>::mutate(|cores| {
+			cores.resize(n_cores as _, CoreOccupied::Free);
+		});
 
 		// shuffle validators into groups.
 		if n_cores == 0 || validators.is_empty() {
@@ -378,7 +381,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	// on new session
-	fn push_occupied_cores_to_assignment_provider(n_cores: u32) {
+	fn push_occupied_cores_to_assignment_provider() {
 		AvailabilityCores::<T>::mutate(|cores| {
 			for (core_idx, core) in cores.iter_mut().enumerate() {
 				match core {
@@ -395,8 +398,6 @@ impl<T: Config> Pallet<T> {
 
 				*core = CoreOccupied::Free;
 			}
-
-			cores.resize(n_cores as _, CoreOccupied::Free);
 		});
 	}
 

@@ -67,6 +67,8 @@ fn run_to_block(
 			if notification_with_session_index.session_index == SessionIndex::default() {
 				notification_with_session_index.session_index = ParasShared::scheduled_session();
 			}
+			Scheduler::pre_new_session();
+
 			Paras::initializer_on_new_session(&notification_with_session_index);
 			Scheduler::initializer_on_new_session(&notification_with_session_index);
 		}
@@ -94,6 +96,8 @@ fn run_to_end_of_block(
 	Paras::initializer_finalize(to);
 
 	if let Some(notification) = new_session(to + 1) {
+		Scheduler::pre_new_session();
+
 		Paras::initializer_on_new_session(&notification);
 		Scheduler::initializer_on_new_session(&notification);
 	}
