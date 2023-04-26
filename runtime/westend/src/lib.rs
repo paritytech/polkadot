@@ -1353,9 +1353,6 @@ sp_api::impl_runtime_apis! {
 			tx: <Block as BlockT>::Extrinsic,
 			block_hash: <Block as BlockT>::Hash,
 		) -> TransactionValidity {
-			use frame_support::dispatch::GetDispatchInfo;
-			log::error!("DISPATCH INFO: {:?}", tx.function.get_dispatch_info());
-
 			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
