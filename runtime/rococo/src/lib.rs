@@ -1481,6 +1481,7 @@ pub type UncheckedExtrinsic =
 pub type Migrations = (
 	// Unreleased - add new migrations here:
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	pallet_offences::migration::v1::MigrateToV1<Runtime>,
 );
 
 /// Executive: handles dispatch to the various modules.
