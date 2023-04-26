@@ -662,10 +662,11 @@ mod tests {
 	};
 	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
-	use primitives::{Balance, BlockNumber, Header};
+	use primitives::{Balance, BlockNumber, Header, PvfCheckStatement, SessionIndex};
 	use runtime_parachains::{configuration, origin, shared};
 	use sp_core::H256;
 	use sp_io::TestExternalities;
+	use sp_keyring::Sr25519Keyring;
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup},
 		transaction_validity::TransactionPriority,
@@ -831,6 +832,14 @@ mod tests {
 
 	const BLOCKS_PER_SESSION: u32 = 3;
 
+	const VALIDATORS: &[Sr25519Keyring] = &[
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Ferdie,
+	];
+
 	fn run_to_block(n: BlockNumber) {
 		// NOTE that this function only simulates modules of interest. Depending on new pallet may
 		// require adding it here.
@@ -843,14 +852,32 @@ mod tests {
 			}
 			// Session change every 3 blocks.
 			if (b + 1) % BLOCKS_PER_SESSION == 0 {
-				shared::Pallet::<Test>::set_session_index(
-					shared::Pallet::<Test>::session_index() + 1,
-				);
+				let session_index = shared::Pallet::<Test>::session_index() + 1;
+				let validators_pub_keys = VALIDATORS.iter().map(|v| v.public().into()).collect();
+
+				shared::Pallet::<Test>::set_session_index(session_index);
+				shared::Pallet::<Test>::set_active_validators_ascending(validators_pub_keys);
+
 				Parachains::test_on_new_session();
 			}
 			System::set_block_number(b + 1);
 			System::on_initialize(System::block_number());
 		}
+	}
+
+	fn conclude_pvf_checking(validation_code: &ValidationCode, session_index: SessionIndex) {
+		VALIDATORS.iter().enumerate().take(4).for_each(|(idx, key)| {
+			let validator_index = idx as u32;
+			let statement = PvfCheckStatement {
+				accept: true,
+				subject: validation_code.hash(),
+				session_index,
+				validator_index: validator_index.into(),
+			};
+			let signature = key.sign(&statement.signing_payload());
+			Parachains::include_pvf_check_statement(None.into(), statement, signature.into())
+				.unwrap();
+		})
 	}
 
 	fn run_to_session(n: BlockNumber) {
@@ -891,35 +918,41 @@ mod tests {
 	fn end_to_end_scenario_works() {
 		new_test_ext().execute_with(|| {
 			let para_id = LOWEST_PUBLIC_ID;
-			run_to_block(1);
+
+			const START_SESSION_INDEX: SessionIndex = 1;
+			run_to_session(START_SESSION_INDEX);
+
 			// first para is not yet registered
 			assert!(!Parachains::is_parathread(para_id));
 			// We register the Para ID
+			let validation_code = test_validation_code(32);
 			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_ok!(Registrar::register(
 				RuntimeOrigin::signed(1),
 				para_id,
 				test_genesis_head(32),
-				test_validation_code(32),
+				validation_code.clone(),
 			));
-			run_to_session(2);
+			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+
+			run_to_session(START_SESSION_INDEX + 2);
 			// It is now a parathread.
 			assert!(Parachains::is_parathread(para_id));
 			assert!(!Parachains::is_parachain(para_id));
 			// Some other external process will elevate parathread to parachain
 			assert_ok!(Registrar::make_parachain(para_id));
-			run_to_session(4);
+			run_to_session(START_SESSION_INDEX + 4);
 			// It is now a parachain.
 			assert!(!Parachains::is_parathread(para_id));
 			assert!(Parachains::is_parachain(para_id));
 			// Turn it back into a parathread
 			assert_ok!(Registrar::make_parathread(para_id));
-			run_to_session(6);
+			run_to_session(START_SESSION_INDEX + 6);
 			assert!(Parachains::is_parathread(para_id));
 			assert!(!Parachains::is_parachain(para_id));
 			// Deregister it
 			assert_ok!(Registrar::deregister(RuntimeOrigin::root(), para_id,));
-			run_to_session(8);
+			run_to_session(START_SESSION_INDEX + 8);
 			// It is nothing
 			assert!(!Parachains::is_parathread(para_id));
 			assert!(!Parachains::is_parachain(para_id));
@@ -929,18 +962,24 @@ mod tests {
 	#[test]
 	fn register_works() {
 		new_test_ext().execute_with(|| {
-			run_to_block(1);
+			const START_SESSION_INDEX: SessionIndex = 1;
+			run_to_session(START_SESSION_INDEX);
+
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
+
+			let validation_code = test_validation_code(32);
 			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
 			assert_ok!(Registrar::register(
 				RuntimeOrigin::signed(1),
 				para_id,
 				test_genesis_head(32),
-				test_validation_code(32),
+				validation_code.clone(),
 			));
-			run_to_session(2);
+			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+
+			run_to_session(START_SESSION_INDEX + 2);
 			assert!(Parachains::is_parathread(para_id));
 			assert_eq!(
 				Balances::reserved_balance(&1),
@@ -984,7 +1023,7 @@ mod tests {
 				test_genesis_head(max_head_size() as usize),
 				test_validation_code(max_code_size() as usize),
 			));
-
+			// Can skip pre-check and deregister para which's still onboarding.
 			run_to_session(2);
 
 			assert_ok!(Registrar::deregister(RuntimeOrigin::root(), para_id));
@@ -1034,20 +1073,26 @@ mod tests {
 	#[test]
 	fn deregister_works() {
 		new_test_ext().execute_with(|| {
-			run_to_block(1);
+			const START_SESSION_INDEX: SessionIndex = 1;
+			run_to_session(START_SESSION_INDEX);
+
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
+
+			let validation_code = test_validation_code(32);
 			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_ok!(Registrar::register(
 				RuntimeOrigin::signed(1),
 				para_id,
 				test_genesis_head(32),
-				test_validation_code(32),
+				validation_code.clone(),
 			));
-			run_to_session(2);
+			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+
+			run_to_session(START_SESSION_INDEX + 2);
 			assert!(Parachains::is_parathread(para_id));
 			assert_ok!(Registrar::deregister(RuntimeOrigin::root(), para_id,));
-			run_to_session(4);
+			run_to_session(START_SESSION_INDEX + 4);
 			assert!(paras::Pallet::<Test>::lifecycle(para_id).is_none());
 			assert_eq!(Balances::reserved_balance(&1), 0);
 		});
@@ -1056,22 +1101,28 @@ mod tests {
 	#[test]
 	fn deregister_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			run_to_block(1);
+			const START_SESSION_INDEX: SessionIndex = 1;
+			run_to_session(START_SESSION_INDEX);
+
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
+
+			let validation_code = test_validation_code(32);
 			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_ok!(Registrar::register(
 				RuntimeOrigin::signed(1),
 				para_id,
 				test_genesis_head(32),
-				test_validation_code(32),
+				validation_code.clone(),
 			));
-			run_to_session(2);
+			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+
+			run_to_session(START_SESSION_INDEX + 2);
 			assert!(Parachains::is_parathread(para_id));
 			// Owner check
 			assert_noop!(Registrar::deregister(RuntimeOrigin::signed(2), para_id,), BadOrigin);
 			assert_ok!(Registrar::make_parachain(para_id));
-			run_to_session(4);
+			run_to_session(START_SESSION_INDEX + 4);
 			// Cant directly deregister parachain
 			assert_noop!(
 				Registrar::deregister(RuntimeOrigin::root(), para_id,),
@@ -1083,24 +1134,31 @@ mod tests {
 	#[test]
 	fn swap_works() {
 		new_test_ext().execute_with(|| {
+			const START_SESSION_INDEX: SessionIndex = 1;
+			run_to_session(START_SESSION_INDEX);
+
 			// Successfully register first two parachains
 			let para_1 = LOWEST_PUBLIC_ID;
 			let para_2 = LOWEST_PUBLIC_ID + 1;
+
+			let validation_code = test_validation_code(max_code_size() as usize);
 			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_ok!(Registrar::register(
 				RuntimeOrigin::signed(1),
 				para_1,
 				test_genesis_head(max_head_size() as usize),
-				test_validation_code(max_code_size() as usize),
+				validation_code.clone(),
 			));
 			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(2)));
 			assert_ok!(Registrar::register(
 				RuntimeOrigin::signed(2),
 				para_2,
 				test_genesis_head(max_head_size() as usize),
-				test_validation_code(max_code_size() as usize),
+				validation_code.clone(),
 			));
-			run_to_session(2);
+			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+
+			run_to_session(START_SESSION_INDEX + 2);
 
 			// Upgrade para 1 into a parachain
 			assert_ok!(Registrar::make_parachain(para_1));
@@ -1111,7 +1169,7 @@ mod tests {
 			swap_data.insert(para_2, 1337);
 			SwapData::set(swap_data);
 
-			run_to_session(4);
+			run_to_session(START_SESSION_INDEX + 4);
 
 			// Roles are as we expect
 			assert!(Parachains::is_parachain(para_1));
@@ -1123,7 +1181,7 @@ mod tests {
 			assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
 			assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
 
-			run_to_session(6);
+			run_to_session(START_SESSION_INDEX + 6);
 
 			// Roles are swapped
 			assert!(!Parachains::is_parachain(para_1));
@@ -1171,9 +1229,12 @@ mod tests {
 	#[test]
 	fn swap_handles_bad_states() {
 		new_test_ext().execute_with(|| {
+			const START_SESSION_INDEX: SessionIndex = 1;
+			run_to_session(START_SESSION_INDEX);
+
 			let para_1 = LOWEST_PUBLIC_ID;
 			let para_2 = LOWEST_PUBLIC_ID + 1;
-			run_to_block(1);
+
 			// paras are not yet registered
 			assert!(!Parachains::is_parathread(para_1));
 			assert!(!Parachains::is_parathread(para_2));
@@ -1185,20 +1246,22 @@ mod tests {
 			);
 
 			// We register Paras 1 and 2
+			let validation_code = test_validation_code(32);
 			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(2)));
 			assert_ok!(Registrar::register(
 				RuntimeOrigin::signed(1),
 				para_1,
 				test_genesis_head(32),
-				test_validation_code(32),
+				validation_code.clone(),
 			));
 			assert_ok!(Registrar::register(
 				RuntimeOrigin::signed(2),
 				para_2,
 				test_genesis_head(32),
-				test_validation_code(32),
+				validation_code.clone(),
 			));
+			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
@@ -1207,7 +1270,7 @@ mod tests {
 				Error::<Test>::CannotSwap
 			);
 
-			run_to_session(2);
+			run_to_session(START_SESSION_INDEX + 2);
 
 			// They are now a parathread.
 			assert!(Parachains::is_parathread(para_1));
@@ -1230,7 +1293,7 @@ mod tests {
 				Error::<Test>::CannotSwap
 			);
 
-			run_to_session(3);
+			run_to_session(START_SESSION_INDEX + 3);
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
@@ -1239,7 +1302,7 @@ mod tests {
 				Error::<Test>::CannotSwap
 			);
 
-			run_to_session(4);
+			run_to_session(START_SESSION_INDEX + 4);
 
 			// It is now a parachain.
 			assert!(Parachains::is_parachain(para_1));
@@ -1249,7 +1312,7 @@ mod tests {
 			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
 			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_2, para_1));
 
-			run_to_session(5);
+			run_to_session(START_SESSION_INDEX + 5);
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
@@ -1258,7 +1321,7 @@ mod tests {
 				Error::<Test>::CannotSwap
 			);
 
-			run_to_session(6);
+			run_to_session(START_SESSION_INDEX + 6);
 
 			// Swap worked!
 			assert!(Parachains::is_parachain(para_2));
@@ -1267,7 +1330,7 @@ mod tests {
 			// Something starts to downgrade a para
 			assert_ok!(Registrar::make_parathread(para_2));
 
-			run_to_session(7);
+			run_to_session(START_SESSION_INDEX + 7);
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
@@ -1276,7 +1339,7 @@ mod tests {
 				Error::<Test>::CannotSwap
 			);
 
-			run_to_session(8);
+			run_to_session(START_SESSION_INDEX + 8);
 
 			assert!(Parachains::is_parathread(para_1));
 			assert!(Parachains::is_parathread(para_2));
