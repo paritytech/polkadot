@@ -59,6 +59,7 @@ pub struct XcmExecutor<Config: config::Config> {
 	holding: Assets,
 	holding_limit: usize,
 	context: XcmContext,
+	/// The physical origin (chain, etc) which the instructions originated from.
 	physical_origin: MultiLocation,
 	trader: Config::Trader,
 	/// The most recent error result and instruction index into the fragment in which it occurred,
@@ -277,7 +278,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Self {
 			holding: Assets::new(),
 			holding_limit: Config::MaxAssetsIntoHolding::get() as usize,
-			context: XcmContext { origin: Some(computed_origin), message_hash, topic: None },
+			context: XcmContext {
+				computed_origin: Some(computed_origin),
+				message_hash,
+				topic: None,
+			},
 			physical_origin: computed_origin,
 			trader: Config::Trader::new(),
 			error: None,
@@ -368,7 +373,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				"Trapping assets in holding register: {:?}, context: {:?} (physical_origin: {:?})",
 				self.holding, self.context, self.physical_origin,
 			);
-			let effective_origin = self.context.origin.as_ref().unwrap_or(&self.physical_origin);
+			let effective_origin =
+				self.context.computed_origin.as_ref().unwrap_or(&self.physical_origin);
 			let trap_weight =
 				Config::AssetTrap::drop_assets(effective_origin, self.holding, &self.context);
 			weight_used.saturating_accrue(trap_weight);
@@ -386,11 +392,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	fn origin_ref(&self) -> Option<&MultiLocation> {
-		self.context.origin.as_ref()
+		self.context.computed_origin.as_ref()
 	}
 
 	fn cloned_origin(&self) -> Option<MultiLocation> {
-		self.context.origin
+		self.context.computed_origin
 	}
 
 	/// Send an XCM, charging fees from Holding as needed.
@@ -590,13 +596,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			DescendOrigin(who) => self
 				.context
-				.origin
+				.computed_origin
 				.as_mut()
 				.ok_or(XcmError::BadOrigin)?
 				.append_with(who)
 				.map_err(|_| XcmError::LocationFull),
 			ClearOrigin => {
-				self.context.origin = None;
+				self.context.computed_origin = None;
 				Ok(())
 			},
 			ReportError(response_info) => {
@@ -746,7 +752,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ExpectAsset(assets) =>
 				self.holding.ensure_contains(&assets).map_err(|_| XcmError::ExpectationFalse),
 			ExpectOrigin(origin) => {
-				ensure!(self.context.origin == origin, XcmError::ExpectationFalse);
+				ensure!(self.context.computed_origin == origin, XcmError::ExpectationFalse);
 				Ok(())
 			},
 			ExpectError(error) => {
@@ -816,7 +822,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(ok, XcmError::InvalidLocation);
 				let (_, new_global) = origin_xform;
 				let new_origin = X1(new_global).relative_to(&universal_location);
-				self.context.origin = Some(new_origin);
+				self.context.computed_origin = Some(new_origin);
 				Ok(())
 			},
 			ExportMessage { network, destination, xcm } => {
@@ -827,7 +833,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				//
 				// This only works because the remote chain empowers the bridge
 				// to speak for the local network.
-				let origin = self.context.origin.ok_or(XcmError::BadOrigin)?;
+				let origin = self.context.computed_origin.ok_or(XcmError::BadOrigin)?;
 				let universal_source = Config::UniversalLocation::get()
 					.within_global(origin)
 					.map_err(|()| XcmError::Unanchored)?;
@@ -912,7 +918,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			AliasOrigin(_) => Err(XcmError::NoPermission),
 			UnpaidExecution { check_origin, .. } => {
 				ensure!(
-					check_origin.is_none() || self.context.origin == check_origin,
+					check_origin.is_none() || self.context.computed_origin == check_origin,
 					XcmError::BadOrigin
 				);
 				Ok(())
