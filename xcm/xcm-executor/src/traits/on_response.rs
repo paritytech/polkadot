@@ -130,6 +130,7 @@ pub trait XcmQueryHandler {
 	/// - `message`: The message whose outcome should be reported.
 	/// - `responder`: The origin from which a response should be expected.
 	/// - `timeout`: The block number after which it is permissible to return `NotFound` from `take_response`.
+	/// - `interior`: Indicates the computed location which is expected to report the outcome.
 	///
 	/// `report_outcome` may return an error if the `responder` is not invertible.
 	///
@@ -139,6 +140,7 @@ pub trait XcmQueryHandler {
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
 		timeout: Self::BlockNumber,
+		interior: impl Into<MultiLocation>,
 	) -> result::Result<Self::QueryId, Self::Error>;
 
 	/// Makes sure to expect a response with the given id
