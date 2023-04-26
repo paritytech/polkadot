@@ -27,38 +27,14 @@
 //! <https://github.com/paritytech/polkadot/issues/6472#issuecomment-1381941762> for more
 //! background.
 
-use parity_scale_codec::{Decode, Encode};
-
-/// Helper struct to contain all the memory stats, including [`MemoryAllocationStats`] and, if
-/// supported by the OS, `ru_maxrss`.
-#[derive(Clone, Debug, Default, Encode, Decode)]
-pub struct MemoryStats {
-	/// Memory stats from `tikv_jemalloc_ctl`.
-	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-	pub memory_tracker_stats: Option<MemoryAllocationStats>,
-	/// `ru_maxrss` from `getrusage`. A string error since `io::Error` is not `Encode`able.
-	#[cfg(target_os = "linux")]
-	pub max_rss: Option<i64>,
-}
-
-/// Statistics of collected memory metrics.
-#[non_exhaustive]
-#[derive(Clone, Debug, Default, Encode, Decode)]
-pub struct MemoryAllocationStats {
-	/// Total resident memory, in bytes.
-	pub resident: u64,
-	/// Total allocated memory, in bytes.
-	pub allocated: u64,
-}
-
 /// Module for the memory tracker. The memory tracker runs in its own thread, where it polls memory
 /// usage at an interval.
 ///
 /// NOTE: Requires jemalloc enabled.
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub mod memory_tracker {
-	use super::*;
 	use crate::LOG_TARGET;
+	use polkadot_node_core_pvf::MemoryAllocationStats;
 	use std::{
 		sync::mpsc::{Receiver, RecvTimeoutError, Sender},
 		time::Duration,
@@ -197,33 +173,21 @@ pub mod memory_tracker {
 #[cfg(target_os = "linux")]
 pub mod max_rss_stat {
 	use crate::LOG_TARGET;
-	use libc::{getrusage, rusage, timeval, RUSAGE_THREAD};
+	use core::mem::MaybeUninit;
+	use libc::{getrusage, rusage, RUSAGE_THREAD};
 	use std::io;
 
 	/// Get the rusage stats for the current thread.
 	fn getrusage_thread() -> io::Result<rusage> {
-		let mut result = rusage {
-			ru_utime: timeval { tv_sec: 0, tv_usec: 0 },
-			ru_stime: timeval { tv_sec: 0, tv_usec: 0 },
-			ru_maxrss: 0,
-			ru_ixrss: 0,
-			ru_idrss: 0,
-			ru_isrss: 0,
-			ru_minflt: 0,
-			ru_majflt: 0,
-			ru_nswap: 0,
-			ru_inblock: 0,
-			ru_oublock: 0,
-			ru_msgsnd: 0,
-			ru_msgrcv: 0,
-			ru_nsignals: 0,
-			ru_nvcsw: 0,
-			ru_nivcsw: 0,
-		};
-		if unsafe { getrusage(RUSAGE_THREAD, &mut result) } == -1 {
+		let mut result: MaybeUninit<rusage> = MaybeUninit::zeroed();
+
+		// SAFETY: `result` is a valid pointer, so calling this is safe.
+		if unsafe { getrusage(RUSAGE_THREAD, result.as_mut_ptr()) } == -1 {
 			return Err(io::Error::last_os_error())
 		}
-		Ok(result)
+
+		// SAFETY: `result` was successfully initialized by `getrusage`.
+		unsafe { Ok(result.assume_init()) }
 	}
 
 	/// Gets the `ru_maxrss` for the current thread.

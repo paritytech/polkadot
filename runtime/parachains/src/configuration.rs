@@ -24,8 +24,8 @@ use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
 use primitives::{
-	vstaging::AsyncBackingParams, Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE,
-	MAX_POV_SIZE,
+	vstaging::AsyncBackingParams, Balance, ExecutorParams, SessionIndex, MAX_CODE_SIZE,
+	MAX_HEAD_DATA_SIZE, MAX_POV_SIZE,
 };
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
@@ -157,6 +157,8 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_channel_max_message_size: u32,
+	/// The executor environment parameters
+	pub executor_params: ExecutorParams,
 
 	/**
 	 * Parameters that will unlikely be needed by parachains.
@@ -296,6 +298,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
+			executor_params: Default::default(),
 		}
 	}
 }
@@ -450,6 +453,7 @@ pub trait WeightInfo {
 	fn set_config_with_weight() -> Weight;
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
+	fn set_config_with_executor_params() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -470,6 +474,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn set_hrmp_open_request_ttl() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_executor_params() -> Weight {
 		Weight::MAX
 	}
 }
@@ -1161,6 +1168,19 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.async_backing_params = new;
+			})
+		}
+
+		/// Set PVF executor parameters.
+		#[pallet::call_index(46)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_executor_params(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_executor_params(origin: OriginFor<T>, new: ExecutorParams) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.executor_params = new;
 			})
 		}
 	}
