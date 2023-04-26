@@ -192,21 +192,21 @@ impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Con
 		}
 	}
 	fn execute(
-		computed_origin: impl Into<MultiLocation>,
+		origin: impl Into<MultiLocation>,
 		WeighedMessage(xcm_weight, mut message): WeighedMessage<Config::RuntimeCall>,
 		message_hash: XcmHash,
 		mut weight_credit: Weight,
 	) -> Outcome {
-		let computed_origin = computed_origin.into();
+		let origin = origin.into();
 		log::trace!(
 			target: "xcm::execute_xcm_in_credit",
 			"origin: {:?}, message: {:?}, weight_credit: {:?}",
-			computed_origin,
+			origin,
 			message,
 			weight_credit,
 		);
 		if let Err(e) = Config::Barrier::should_execute(
-			&computed_origin,
+			&origin,
 			message.inner_mut(),
 			xcm_weight,
 			&mut weight_credit,
@@ -215,14 +215,14 @@ impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Con
 				target: "xcm::execute_xcm_in_credit",
 				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_credit: {:?})",
 				e,
-				computed_origin,
+				origin,
 				message,
 				weight_credit,
 			);
 			return Outcome::Error(XcmError::Barrier)
 		}
 
-		let mut vm = Self::new(computed_origin, message_hash);
+		let mut vm = Self::new(origin, message_hash);
 
 		while !message.0.is_empty() {
 			let result = vm.process(message);
