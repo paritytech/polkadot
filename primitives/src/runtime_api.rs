@@ -218,5 +218,11 @@ sp_api::decl_runtime_apis! {
 
 		/// Returns execution parameters for the session.
 		fn session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>;
+
+		/***** STAGING *****/
+		/// Returns the latest pending executor parameter set, or the current set if no configuration
+		/// changes are pending
+		#[api_version(5)]
+		fn pending_executor_params() -> ExecutorParams;
 	}
 }

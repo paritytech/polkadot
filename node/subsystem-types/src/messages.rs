@@ -603,6 +603,9 @@ pub enum RuntimeApiRequest {
 	),
 	/// Returns all on-chain disputes at given block number. Available in `v3`.
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
+	/// Returns the latest pending executor parameter set, or the current set if no configuration
+	/// changes are pending
+	PendingExecutorParams(RuntimeApiSender<ExecutorParams>),
 }
 
 impl RuntimeApiRequest {
@@ -613,6 +616,9 @@ impl RuntimeApiRequest {
 
 	/// `ExecutorParams`
 	pub const EXECUTOR_PARAMS_RUNTIME_REQUIREMENT: u32 = 4;
+
+	/// Pending `ExecutorParams`
+	pub const PENDING_EXECUTOR_PARAMS_RUNTIME_REQUIREMENT: u32 = 5;
 }
 
 /// A message to the Runtime API subsystem.

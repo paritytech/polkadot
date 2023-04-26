@@ -292,6 +292,18 @@ where
 	.await
 }
 
+async fn request_pending_executor_params<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+) -> Result<ExecutorParams, RuntimeRequestFailed>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	let (tx, rx) = oneshot::channel();
+	runtime_api_request(sender, relay_parent, RuntimeApiRequest::PendingExecutorParams(tx), rx)
+		.await
+}
+
 async fn precheck_pvf<Sender>(
 	sender: &mut Sender,
 	mut validation_backend: impl ValidationBackend,
@@ -319,12 +331,12 @@ where
 		};
 
 	let executor_params =
-		if let Ok(executor_params) = executor_params_at_relay_parent(relay_parent, sender).await {
+		if let Ok(executor_params) = request_pending_executor_params(sender, relay_parent).await {
 			gum::debug!(
 				target: LOG_TARGET,
 				?relay_parent,
 				?validation_code_hash,
-				"precheck: acquired executor params for the session: {:?}",
+				"precheck: acquired pending executor params: {:?}",
 				executor_params,
 			);
 			executor_params
@@ -333,7 +345,7 @@ where
 				target: LOG_TARGET,
 				?relay_parent,
 				?validation_code_hash,
-				"precheck: failed to acquire executor params for the session, thus voting against.",
+				"precheck: failed to acquire pending executor params, thus voting against.",
 			);
 			return PreCheckOutcome::Invalid
 		};
