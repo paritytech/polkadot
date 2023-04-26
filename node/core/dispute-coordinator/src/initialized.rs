@@ -25,7 +25,6 @@ use futures::{
 
 use sc_keystore::LocalKeystore;
 
-use parity_scale_codec::Encode;
 use polkadot_node_primitives::{
 	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
 };
@@ -438,24 +437,20 @@ impl Initialized {
 				key_ownership_proofs.into_iter().zip(dispute_proofs.into_iter())
 			{
 				let validator_id = dispute_proof.validator_id.clone();
-				let encoded_key_ownership_proof = key_ownership_proof.encode();
 
 				gum::info!(
 					target: LOG_TARGET,
 					?session_index,
 					?candidate_hash,
-					key_ownership_proof_len = encoded_key_ownership_proof.len(),
+					key_ownership_proof_len = key_ownership_proof.len(),
 					"Trying to submit a slashing report",
 				);
-
-				let opaque_key_ownership_proof =
-					vstaging::slashing::OpaqueKeyOwnershipProof::new(encoded_key_ownership_proof);
 
 				let res = submit_report_dispute_lost(
 					ctx.sender(),
 					relay_parent,
 					dispute_proof,
-					opaque_key_ownership_proof,
+					key_ownership_proof,
 				)
 				.await;
 
