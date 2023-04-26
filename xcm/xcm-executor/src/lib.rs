@@ -59,7 +59,7 @@ pub struct XcmExecutor<Config: config::Config> {
 	holding: Assets,
 	holding_limit: usize,
 	context: XcmContext,
-	original_origin: MultiLocation,
+	physical_origin: MultiLocation,
 	trader: Config::Trader,
 	/// The most recent error result and instruction index into the fragment in which it occurred,
 	/// if any.
@@ -191,21 +191,21 @@ impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Con
 		}
 	}
 	fn execute(
-		origin: impl Into<MultiLocation>,
+		computed_origin: impl Into<MultiLocation>,
 		WeighedMessage(xcm_weight, mut message): WeighedMessage<Config::RuntimeCall>,
 		message_hash: XcmHash,
 		mut weight_credit: Weight,
 	) -> Outcome {
-		let origin = origin.into();
+		let computed_origin = computed_origin.into();
 		log::trace!(
 			target: "xcm::execute_xcm_in_credit",
 			"origin: {:?}, message: {:?}, weight_credit: {:?}",
-			origin,
+			computed_origin,
 			message,
 			weight_credit,
 		);
 		if let Err(e) = Config::Barrier::should_execute(
-			&origin,
+			&computed_origin,
 			message.inner_mut(),
 			xcm_weight,
 			&mut weight_credit,
@@ -214,14 +214,14 @@ impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Con
 				target: "xcm::execute_xcm_in_credit",
 				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_credit: {:?})",
 				e,
-				origin,
+				computed_origin,
 				message,
 				weight_credit,
 			);
 			return Outcome::Error(XcmError::Barrier)
 		}
 
-		let mut vm = Self::new(origin, message_hash);
+		let mut vm = Self::new(computed_origin, message_hash);
 
 		while !message.0.is_empty() {
 			let result = vm.process(message);
@@ -272,13 +272,13 @@ impl From<ExecutorError> for frame_benchmarking::BenchmarkError {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	pub fn new(origin: impl Into<MultiLocation>, message_hash: XcmHash) -> Self {
-		let origin = origin.into();
+	pub fn new(computed_origin: impl Into<MultiLocation>, message_hash: XcmHash) -> Self {
+		let computed_origin = computed_origin.into();
 		Self {
 			holding: Assets::new(),
 			holding_limit: Config::MaxAssetsIntoHolding::get() as usize,
-			context: XcmContext { origin: Some(origin), message_hash, topic: None },
-			original_origin: origin,
+			context: XcmContext { origin: Some(computed_origin), message_hash, topic: None },
+			physical_origin: computed_origin,
 			trader: Config::Trader::new(),
 			error: None,
 			total_surplus: Weight::zero(),
@@ -365,10 +365,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		if !self.holding.is_empty() {
 			log::trace!(
 				target: "xcm::execute_xcm_in_credit",
-				"Trapping assets in holding register: {:?}, context: {:?} (original_origin: {:?})",
-				self.holding, self.context, self.original_origin,
+				"Trapping assets in holding register: {:?}, context: {:?} (physical_origin: {:?})",
+				self.holding, self.context, self.physical_origin,
 			);
-			let effective_origin = self.context.origin.as_ref().unwrap_or(&self.original_origin);
+			let effective_origin = self.context.origin.as_ref().unwrap_or(&self.physical_origin);
 			let trap_weight =
 				Config::AssetTrap::drop_assets(effective_origin, self.holding, &self.context);
 			weight_used.saturating_accrue(trap_weight);
@@ -379,7 +379,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
 			// the error which didn't end up being executed.
 			Some((_i, e)) => {
-				log::trace!(target: "xcm::execute_xcm_in_credit", "Execution errored at {:?}: {:?} (original_origin: {:?})", _i, e, self.original_origin);
+				log::trace!(target: "xcm::execute_xcm_in_credit", "Execution errored at {:?}: {:?} (physical_origin: {:?})", _i, e, self.physical_origin);
 				Outcome::Incomplete(weight_used, e)
 			},
 		}
@@ -726,7 +726,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 				// We don't allow derivative origins to subscribe since it would otherwise pose a
 				// DoS risk.
-				ensure!(&self.original_origin == origin, XcmError::BadOrigin);
+				ensure!(&self.physical_origin == origin, XcmError::BadOrigin);
 				Config::SubscriptionService::start(
 					origin,
 					query_id,
@@ -736,7 +736,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			UnsubscribeVersion => {
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
-				ensure!(&self.original_origin == origin, XcmError::BadOrigin);
+				ensure!(&self.physical_origin == origin, XcmError::BadOrigin);
 				Config::SubscriptionService::stop(origin, &self.context)
 			},
 			BurnAsset(assets) => {
