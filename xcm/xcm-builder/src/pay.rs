@@ -75,10 +75,9 @@ impl<
 	) -> Result<Self::Id, Self::Error> {
 		let destination_chain = DestinationChain::get();
 		let sender_account = SenderAccount::get();
+		let sender_origin = Junction::AccountId32 { network: None, id: sender_account.into() };
 		let mut message = Xcm(vec![
-			DescendOrigin(
-				Junction::AccountId32 { network: None, id: sender_account.into() }.into(),
-			),
+			DescendOrigin(sender_origin.into()),
 			TransferAsset {
 				beneficiary: AccountId32 { network: None, id: who.clone().into() }.into(),
 				assets: vec![MultiAsset {
@@ -88,8 +87,9 @@ impl<
 				.into(),
 			},
 		]);
-		let id = Querier::report_outcome(&mut message, destination_chain, Timeout::get())
-			.map_err(|_| Self::Error::LocationNotInvertible)?;
+		let id =
+			Querier::report_outcome(&mut message, destination_chain, Timeout::get(), sender_origin)
+				.map_err(|_| Self::Error::LocationNotInvertible)?;
 
 		message
 			.0

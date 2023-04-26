@@ -1110,12 +1110,13 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
 		timeout: Self::BlockNumber,
+		interior: impl Into<MultiLocation>,
 	) -> Result<Self::QueryId, Self::Error> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
 			.invert_target(&responder)
 			.map_err(|()| XcmError::LocationNotInvertible)?;
-		let query_id = Self::new_query(responder, timeout, Here);
+		let query_id = Self::new_query(responder, timeout, interior);
 		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
 		let report_error = Xcm(vec![ReportError(response_info)]);
 		message.0.insert(0, SetAppendix(report_error));
