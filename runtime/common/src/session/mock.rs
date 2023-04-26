@@ -185,6 +185,7 @@ impl crate::historical::SessionManager<u64, u64> for TestSessionManager {
 	}
 }
 
+#[allow(dead_code)]
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 	let keys: Vec<_> = NextValidators::get()
