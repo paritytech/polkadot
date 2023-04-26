@@ -24,7 +24,7 @@
 //! validation results as well as a sink for votes received by other subsystems. When importing a dispute vote from
 //! another node, this will trigger dispute participation to recover and validate the block.
 
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
 use futures::FutureExt;
 
@@ -33,6 +33,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
+	DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
 	messages::DisputeDistributionMessage, overseer, ActivatedLeaf, FromOrchestra, OverseerSignal,
@@ -40,12 +41,14 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	database::Database,
-	rolling_session_window::{DatabaseParams, RollingSessionWindow},
+	runtime::{Config as RuntimeInfoConfig, RuntimeInfo},
 };
-use polkadot_primitives::{DisputeStatement, ScrapedOnChainVotes, SessionInfo, ValidatorIndex};
+use polkadot_primitives::{
+	DisputeStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorIndex,
+};
 
 use crate::{
-	error::{FatalResult, JfyiError, Result},
+	error::{FatalResult, Result},
 	metrics::Metrics,
 	status::{get_active_with_status, SystemClock},
 };
@@ -65,7 +68,7 @@ pub(crate) mod error;
 
 /// Subsystem after receiving the first active leaf.
 mod initialized;
-use initialized::Initialized;
+use initialized::{InitialData, Initialized};
 
 /// Provider of data scraped from chain.
 ///
@@ -187,7 +190,7 @@ impl DisputeCoordinatorSubsystem {
 		};
 
 		initialized
-			.run(ctx, backend, participations, votes, Some(first_leaf), clock)
+			.run(ctx, backend, Some(InitialData { participations, votes, leaf: first_leaf }), clock)
 			.await
 	}
 
@@ -210,31 +213,32 @@ impl DisputeCoordinatorSubsystem {
 		B: Backend + 'static,
 	{
 		loop {
-			let db_params =
-				DatabaseParams { db: self.store.clone(), db_column: self.config.col_session_data };
+			let first_leaf = match wait_for_first_leaf(ctx).await {
+				Ok(Some(activated_leaf)) => activated_leaf,
+				Ok(None) => continue,
+				Err(e) => {
+					e.split()?.log();
+					continue
+				},
+			};
 
-			let (first_leaf, rolling_session_window) =
-				match get_rolling_session_window(ctx, db_params).await {
-					Ok(Some(update)) => update,
-					Ok(None) => {
-						gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
-						return Ok(None)
-					},
-					Err(e) => {
-						e.split()?.log();
-						continue
-					},
-				};
-
+			// `RuntimeInfo` cache should match `DISPUTE_WINDOW` so that we can
+			// keep all sessions for a dispute window
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+					.expect("DISPUTE_WINDOW can't be 0; qed."),
+			});
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
-			let (participations, votes, spam_slots, ordering_provider) = match self
-				.handle_startup(
-					ctx,
-					first_leaf.clone(),
-					&rolling_session_window,
-					&mut overlay_db,
-					clock,
-				)
+			let (
+				participations,
+				votes,
+				spam_slots,
+				ordering_provider,
+				highest_session_seen,
+				gaps_in_cache,
+			) = match self
+				.handle_startup(ctx, first_leaf.clone(), &mut runtime_info, &mut overlay_db, clock)
 				.await
 			{
 				Ok(v) => v,
@@ -252,7 +256,14 @@ impl DisputeCoordinatorSubsystem {
 				participations,
 				votes,
 				first_leaf,
-				Initialized::new(self, rolling_session_window, spam_slots, ordering_provider),
+				Initialized::new(
+					self,
+					runtime_info,
+					spam_slots,
+					ordering_provider,
+					highest_session_seen,
+					gaps_in_cache,
+				),
 				backend,
 			)))
 		}
@@ -267,7 +278,7 @@ impl DisputeCoordinatorSubsystem {
 		&self,
 		ctx: &mut Context,
 		initial_head: ActivatedLeaf,
-		rolling_session_window: &RollingSessionWindow,
+		runtime_info: &mut RuntimeInfo,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		clock: &dyn Clock,
 	) -> Result<(
@@ -275,10 +286,9 @@ impl DisputeCoordinatorSubsystem {
 		Vec<ScrapedOnChainVotes>,
 		SpamSlots,
 		ChainScraper,
+		SessionIndex,
+		bool,
 	)> {
-		// Prune obsolete disputes:
-		db::v1::note_earliest_session(overlay_db, rolling_session_window.earliest_session())?;
-
 		let now = clock.now();
 
 		let active_disputes = match overlay_db.load_recent_disputes() {
@@ -292,23 +302,63 @@ impl DisputeCoordinatorSubsystem {
 			},
 		};
 
+		// We assume the highest session is the passed leaf. If we can't get the session index
+		// we can't initialize the subsystem so we'll wait for a new leaf
+		let highest_session = runtime_info
+			.get_session_index_for_child(ctx.sender(), initial_head.hash)
+			.await?;
+
+		let mut gap_in_cache = false;
+		// Cache the sessions. A failure to fetch a session here is not that critical so we
+		// won't abort the initialization
+		for idx in highest_session.saturating_sub(DISPUTE_WINDOW.get() - 1)..=highest_session {
+			if let Err(e) = runtime_info
+				.get_session_info_by_index(ctx.sender(), initial_head.hash, idx)
+				.await
+			{
+				gum::debug!(
+					target: LOG_TARGET,
+					leaf_hash = ?initial_head.hash,
+					session_idx = idx,
+					err = ?e,
+					"Can't cache SessionInfo during subsystem initialization. Skipping session."
+				);
+				gap_in_cache = true;
+				continue
+			};
+		}
+
+		// Prune obsolete disputes:
+		db::v1::note_earliest_session(
+			overlay_db,
+			highest_session.saturating_sub(DISPUTE_WINDOW.get() - 1),
+		)?;
+
 		let mut participation_requests = Vec::new();
 		let mut spam_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
+		let leaf_hash = initial_head.hash;
 		let (scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), _) in active_disputes {
-			let env =
-				match CandidateEnvironment::new(&self.keystore, &rolling_session_window, session) {
-					None => {
-						gum::warn!(
-							target: LOG_TARGET,
-							session,
-							"We are lacking a `SessionInfo` for handling db votes on startup."
-						);
+			let env = match CandidateEnvironment::new(
+				&self.keystore,
+				ctx,
+				runtime_info,
+				highest_session,
+				leaf_hash,
+			)
+			.await
+			{
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						session,
+						"We are lacking a `SessionInfo` for handling db votes on startup."
+					);
 
-						continue
-					},
-					Some(env) => env,
-				};
+					continue
+				},
+				Some(env) => env,
+			};
 
 			let votes: CandidateVotes =
 				match overlay_db.load_candidate_votes(session, candidate_hash) {
@@ -370,26 +420,14 @@ impl DisputeCoordinatorSubsystem {
 			}
 		}
 
-		Ok((participation_requests, votes, SpamSlots::recover_from_state(spam_disputes), scraper))
-	}
-}
-
-/// Wait for `ActiveLeavesUpdate` on startup, returns `None` if `Conclude` signal came first.
-#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
-async fn get_rolling_session_window<Context>(
-	ctx: &mut Context,
-	db_params: DatabaseParams,
-) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>> {
-	if let Some(leaf) = { wait_for_first_leaf(ctx) }.await? {
-		let sender = ctx.sender().clone();
-		Ok(Some((
-			leaf.clone(),
-			RollingSessionWindow::new(sender, leaf.hash, db_params)
-				.await
-				.map_err(JfyiError::RollingSessionWindow)?,
-		)))
-	} else {
-		Ok(None)
+		Ok((
+			participation_requests,
+			votes,
+			SpamSlots::recover_from_state(spam_disputes),
+			scraper,
+			highest_session,
+			gap_in_cache,
+		))
 	}
 }
 
