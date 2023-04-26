@@ -14,35 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use pallet_session::{Pallet, Config};
+use pallet_session::Config;
 use frame_support::{
     traits::{Get, OnRuntimeUpgrade},
-    dispatch::GetStorageVersion,
     storage::storage_prefix,
     weights::Weight,
 };
 use sp_io::{storage::clear_prefix, KillStorageResult};
 
-const LOG_TARGET: &str = "runtime::session";
-
 pub struct MigrateToV2<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-        let onchain = Pallet::<T>::on_chain_storage_version();
-        ensure!(onchain < 2, "pallet_session::MigrateToV2 migration can be deleted");
         Ok(Vec::new())
     }
 
     fn on_runtime_upgrade() -> Weight {
-        let current = Pallet::<T>::current_storage_version();
-        let onchain = Pallet::<T>::on_chain_storage_version();
-
-        if onchain > 1 {
-            log::info!(target: LOG_TARGET, "pallet_session::MigrateToV2 should be removed");
-            return T::DbWeight::get().reads(1)
-        }
-
         let prefix = storage_prefix(b"Session", b"StoredRange");
         let keys_removed_stored_range = match clear_prefix(&prefix, None) {
 			KillStorageResult::AllRemoved(value) => value,
@@ -68,15 +55,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
         let keys_removed = keys_removed_stored_range + keys_removed_historical_sessions;
 		log::info!("Removed {} keys 🧹", keys_removed);
 
-        current.put::<Pallet<T>>();
-
         T::DbWeight::get().reads_writes(keys_removed, keys_removed)
     }
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
-        let onchain = Pallet::<T>::on_chain_storage_version();
-        ensure!(onchain == 2, "pallet_session::MigrateToV2 needs to be run");
         Ok(())
     }
 }
