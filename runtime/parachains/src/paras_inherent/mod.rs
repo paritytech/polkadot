@@ -209,32 +209,6 @@ pub mod pallet {
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
 			let inherent_data = Self::create_inherent_inner(data)?;
-			// Sanity check: session changes can invalidate an inherent,
-			// and we _really_ don't want that to happen.
-			// See <https://github.com/paritytech/polkadot/issues/1327>
-
-			// Calling `Self::enter` here is a safe-guard, to avoid any discrepancy between on-chain checks
-			// (`enter`) and the off-chain checks by the block author (this function). Once we are confident
-			// in all the logic in this module this check should be removed to optimize performance.
-
-			let inherent_data = match Self::enter_inner(inherent_data.clone(), FullCheck::Skip) {
-				Ok(_) => inherent_data,
-				Err(err) => {
-					log::error!(
-						target: LOG_TARGET,
-						"dropping paras inherent data because they produced \
-							an invalid paras inherent: {:?}",
-						err.error,
-					);
-
-					ParachainsInherentData {
-						bitfields: Vec::new(),
-						backed_candidates: Vec::new(),
-						disputes: Vec::new(),
-						parent_header: inherent_data.parent_header,
-					}
-				},
-			};
 
 			Some(Call::enter { data: inherent_data })
 		}
