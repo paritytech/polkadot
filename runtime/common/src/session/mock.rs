@@ -21,16 +21,15 @@ use pallet_session::*;
 
 use std::collections::BTreeMap;
 
+use parity_scale_codec as codec;
 use sp_core::{crypto::key_types::DUMMY, H256};
 use sp_runtime::{
 	impl_opaque_keys,
 	testing::{Header, UintAuthorityId},
-	traits::{BlakeTwo256, IdentityLookup, OpaqueKeys, Convert},
-	KeyTypeId,
-	RuntimeAppPublic
+	traits::{BlakeTwo256, Convert, IdentityLookup, OpaqueKeys},
+	KeyTypeId, RuntimeAppPublic,
 };
 use sp_staking::SessionIndex;
-use parity_scale_codec as codec;
 
 use frame_support::{
 	parameter_types,
