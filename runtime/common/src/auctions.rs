@@ -1731,16 +1731,15 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{Pallet as Auctions, *};
-	use crate::mock::{conclude_pvf_checking, validators_public_keys};
-	use frame_support::traits::{EnsureOrigin, OnInitialize};
+	use frame_support::{
+		assert_ok,
+		traits::{EnsureOrigin, OnInitialize},
+	};
 	use frame_system::RawOrigin;
-	use runtime_parachains::{paras, shared};
-	use sp_keyring::Sr25519Keyring;
+	use runtime_parachains::paras;
 	use sp_runtime::{traits::Bounded, SaturatedConversion};
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller, BenchmarkError};
-
-	const VALIDATORS: &[Sr25519Keyring] = &[Sr25519Keyring::Alice];
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1750,12 +1749,9 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn fill_winners<T: Config + paras::Config + shared::Config>(
-		lease_period_index: LeasePeriodOf<T>,
-	) {
+	fn fill_winners<T: Config + paras::Config>(lease_period_index: LeasePeriodOf<T>) {
 		let auction_index = AuctionCounter::<T>::get();
 		let minimum_balance = CurrencyOf::<T>::minimum_balance();
-		let session_index = shared::Pallet::<T>::session_index();
 
 		for n in 1..=SlotRange::SLOT_RANGE_COUNT as u32 {
 			let owner = account("owner", n, 0);
@@ -1771,11 +1767,10 @@ mod benchmarking {
 			)
 			.is_ok());
 		}
-		conclude_pvf_checking::<T>(
-			&T::Registrar::worst_validation_code(),
-			VALIDATORS,
-			session_index,
-		);
+		assert_ok!(paras::Pallet::<T>::add_trusted_validation_code(
+			frame_system::Origin::<T>::Root.into(),
+			T::Registrar::worst_validation_code(),
+		));
 
 		T::Registrar::execute_pending_transitions();
 
@@ -1799,7 +1794,7 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		where_clause { where T: pallet_babe::Config + paras::Config + shared::Config }
+		where_clause { where T: pallet_babe::Config + paras::Config }
 
 		new_auction {
 			let duration = T::BlockNumber::max_value();
@@ -1817,8 +1812,6 @@ mod benchmarking {
 
 		// Worst case scenario a new bid comes in which kicks out an existing bid for the same slot.
 		bid {
-			let public = validators_public_keys(VALIDATORS);
-			shared::Pallet::<T>::set_active_validators_ascending(public);
 			// If there is an offset, we need to be on that block to be able to do lease things.
 			let (_, offset) = T::Leaser::lease_period_length();
 			frame_system::Pallet::<T>::set_block_number(offset + One::one());
@@ -1840,9 +1833,10 @@ mod benchmarking {
 			let worst_validation_code = T::Registrar::worst_validation_code();
 			T::Registrar::register(owner.clone(), para, worst_head_data.clone(), worst_validation_code.clone())?;
 			T::Registrar::register(owner, new_para, worst_head_data, worst_validation_code.clone())?;
-
-			let session_index = shared::Pallet::<T>::session_index();
-			conclude_pvf_checking::<T>(&T::Registrar::worst_validation_code(), VALIDATORS, session_index);
+			assert_ok!(paras::Pallet::<T>::add_trusted_validation_code(
+				frame_system::Origin::<T>::Root.into(),
+				worst_validation_code,
+			));
 
 			T::Registrar::execute_pending_transitions();
 
@@ -1875,8 +1869,6 @@ mod benchmarking {
 		// Worst case: 10 bidders taking all wining spots, and we need to calculate the winner for auction end.
 		// Entire winner map should be full and removed at the end of the benchmark.
 		on_initialize {
-			let public = validators_public_keys(VALIDATORS);
-			shared::Pallet::<T>::set_active_validators_ascending(public);
 			// If there is an offset, we need to be on that block to be able to do lease things.
 			let (lease_length, offset) = T::Leaser::lease_period_length();
 			frame_system::Pallet::<T>::set_block_number(offset + One::one());
@@ -1922,8 +1914,6 @@ mod benchmarking {
 
 		// Worst case: 10 bidders taking all wining spots, and winning data is full.
 		cancel_auction {
-			let public = validators_public_keys(VALIDATORS);
-			shared::Pallet::<T>::set_active_validators_ascending(public);
 			// If there is an offset, we need to be on that block to be able to do lease things.
 			let (lease_length, offset) = T::Leaser::lease_period_length();
 			frame_system::Pallet::<T>::set_block_number(offset + One::one());

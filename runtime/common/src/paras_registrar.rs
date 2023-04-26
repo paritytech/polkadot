@@ -1337,20 +1337,14 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{Pallet as Registrar, *};
-	use crate::{
-		mock::{conclude_pvf_checking, validators_public_keys},
-		traits::Registrar as RegistrarT,
-	};
+	use crate::traits::Registrar as RegistrarT;
 	use frame_support::assert_ok;
 	use frame_system::RawOrigin;
 	use primitives::{MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
-	use sp_keyring::Sr25519Keyring;
 	use sp_runtime::traits::Bounded;
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
-
-	const VALIDATORS: &[Sr25519Keyring] = &[Sr25519Keyring::Alice];
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1360,9 +1354,8 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn register_para<T: Config + shared::Config + paras::Config>(id: u32) -> ParaId {
+	fn register_para<T: Config>(id: u32) -> ParaId {
 		let para = ParaId::from(id);
-		let session_index = shared::Pallet::<T>::session_index();
 		let genesis_head = Registrar::<T>::worst_head_data();
 		let validation_code = Registrar::<T>::worst_validation_code();
 		let caller: T::AccountId = whitelisted_caller();
@@ -1374,7 +1367,10 @@ mod benchmarking {
 			genesis_head,
 			validation_code.clone()
 		));
-		conclude_pvf_checking::<T>(&validation_code, VALIDATORS, session_index);
+		assert_ok!(runtime_parachains::paras::Pallet::<T>::add_trusted_validation_code(
+			frame_system::Origin::<T>::Root.into(),
+			validation_code,
+		));
 		return para
 	}
 
@@ -1389,11 +1385,7 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		where_clause {
-			where
-				ParaOrigin: Into<<T as frame_system::Config>::RuntimeOrigin>,
-				T: paras::Config + shared::Config,
-		}
+		where_clause { where ParaOrigin: Into<<T as frame_system::Config>::RuntimeOrigin> }
 
 		reserve {
 			let caller: T::AccountId = whitelisted_caller();
@@ -1406,9 +1398,6 @@ mod benchmarking {
 		}
 
 		register {
-			let public = validators_public_keys(VALIDATORS);
-			shared::Pallet::<T>::set_active_validators_ascending(public);
-
 			let para = LOWEST_PUBLIC_ID;
 			let genesis_head = Registrar::<T>::worst_head_data();
 			let validation_code = Registrar::<T>::worst_validation_code();
@@ -1419,16 +1408,15 @@ mod benchmarking {
 		verify {
 			assert_last_event::<T>(Event::<T>::Registered{ para_id: para, manager: caller }.into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
-			let session_index = shared::Pallet::<T>::session_index();
-			conclude_pvf_checking::<T>(&validation_code, VALIDATORS, session_index);
+			assert_ok!(runtime_parachains::paras::Pallet::<T>::add_trusted_validation_code(
+				frame_system::Origin::<T>::Root.into(),
+				validation_code,
+			));
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
 		}
 
 		force_register {
-			let public = validators_public_keys(VALIDATORS);
-			shared::Pallet::<T>::set_active_validators_ascending(public);
-
 			let manager: T::AccountId = account("manager", 0, 0);
 			let deposit = 0u32.into();
 			let para = ParaId::from(69);
@@ -1438,16 +1426,15 @@ mod benchmarking {
 		verify {
 			assert_last_event::<T>(Event::<T>::Registered { para_id: para, manager }.into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
-			let session_index = shared::Pallet::<T>::session_index();
-			conclude_pvf_checking::<T>(&validation_code, VALIDATORS, session_index);
+			assert_ok!(runtime_parachains::paras::Pallet::<T>::add_trusted_validation_code(
+				frame_system::Origin::<T>::Root.into(),
+				validation_code,
+			));
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
 		}
 
 		deregister {
-			let public = validators_public_keys(VALIDATORS);
-			shared::Pallet::<T>::set_active_validators_ascending(public);
-
 			let para = register_para::<T>(LOWEST_PUBLIC_ID.into());
 			next_scheduled_session::<T>();
 			let caller: T::AccountId = whitelisted_caller();
@@ -1457,9 +1444,6 @@ mod benchmarking {
 		}
 
 		swap {
-			let public = validators_public_keys(VALIDATORS);
-			shared::Pallet::<T>::set_active_validators_ascending(public);
-
 			let parathread = register_para::<T>(LOWEST_PUBLIC_ID.into());
 			let parachain = register_para::<T>((LOWEST_PUBLIC_ID + 1).into());
 
