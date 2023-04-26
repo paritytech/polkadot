@@ -121,9 +121,9 @@ benchmarks! {
 		// better option than having a base weight that would only allow one to two backed
 		// candidates per block. We will limit by size in addition to CPU weight, which should
 		// suffice to also not exceed the weight limit in practice.
-		let u in 0 .. 100;
-		let h in 0 .. 100;
-		let c in 0 .. 100;
+		let u in 0 .. 10;
+		let h in 0 .. 10;
+		let c in 0 .. 10;
 
 		BenchBuilder::<T>::adjust_config_benchmarking();
 
