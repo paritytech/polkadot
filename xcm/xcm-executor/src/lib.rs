@@ -273,17 +273,13 @@ impl From<ExecutorError> for frame_benchmarking::BenchmarkError {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	pub fn new(physical_origin: impl Into<MultiLocation>, message_hash: XcmHash) -> Self {
-		let physical_origin = physical_origin.into();
+	pub fn new(origin: impl Into<MultiLocation>, message_hash: XcmHash) -> Self {
+		let origin = origin.into();
 		Self {
 			holding: Assets::new(),
 			holding_limit: Config::MaxAssetsIntoHolding::get() as usize,
-			context: XcmContext {
-				computed_origin: Some(physical_origin),
-				message_hash,
-				topic: None,
-			},
-			physical_origin,
+			context: XcmContext { computed_origin: Some(origin), message_hash, topic: None },
+			physical_origin: origin,
 			trader: Config::Trader::new(),
 			error: None,
 			total_surplus: Weight::zero(),
