@@ -21,6 +21,7 @@ use frame_support::{
 };
 use pallet_session::Config;
 use sp_io::{storage::clear_prefix, KillStorageResult};
+use sp_std::vec::Vec;
 
 pub struct MigrateToV2<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
