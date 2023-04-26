@@ -15,3 +15,4 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 pub mod migration;
+mod mock;

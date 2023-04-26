@@ -67,7 +67,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
 #[cfg(test)]
 mod test {
 	use super::*;
-    use crate::mock::{new_test_ext, Test as T};
+    use crate::session::mock::{new_test_ext, Test as T};
     use frame_support::{weights::RuntimeDbWeight, Twox64Concat};
 
     #[test]
