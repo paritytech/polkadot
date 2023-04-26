@@ -340,8 +340,7 @@ impl TryFrom<OldWeightLimit> for WeightLimit {
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub struct XcmContext {
 	/// The `MultiLocation` origin of the corresponding XCM.
-	/// The origin is could point to physical locations (Chains, etc),
-	/// but also conceptual locations such as Accounts or Pallet.
+	/// The computed origin would usually be sending a message onbehalf of itself.
 	pub computed_origin: Option<MultiLocation>,
 	/// The hash of the XCM.
 	pub message_hash: XcmHash,
