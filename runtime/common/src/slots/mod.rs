@@ -986,13 +986,18 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::*;
+	use crate::mock::{conclude_pvf_checking, validators_public_keys};
 	use frame_support::assert_ok;
 	use frame_system::RawOrigin;
+	use runtime_parachains::{paras, shared};
+	use sp_keyring::Sr25519Keyring;
 	use sp_runtime::traits::{Bounded, One};
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller, BenchmarkError};
 
 	use crate::slots::Pallet as Slots;
+
+	const VALIDATORS: &[Sr25519Keyring] = &[Sr25519Keyring::Alice];
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1002,7 +1007,10 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn register_a_parathread<T: Config>(i: u32) -> (ParaId, T::AccountId) {
+	fn register_a_parathread<T: Config + paras::Config + shared::Config>(
+		i: u32,
+	) -> (ParaId, T::AccountId) {
+		let session_index = shared::Pallet::<T>::session_index();
 		let para = ParaId::from(i);
 		let leaser: T::AccountId = account("leaser", i, 0);
 		T::Currency::make_free_balance_be(&leaser, BalanceOf::<T>::max_value());
@@ -1013,14 +1021,18 @@ mod benchmarking {
 			leaser.clone(),
 			para,
 			worst_head_data,
-			worst_validation_code
+			worst_validation_code.clone(),
 		));
+		conclude_pvf_checking::<T>(&worst_validation_code, VALIDATORS, session_index);
+
 		T::Registrar::execute_pending_transitions();
 
 		(para, leaser)
 	}
 
 	benchmarks! {
+		where_clause { where T: paras::Config + shared::Config }
+
 		force_lease {
 			// If there is an offset, we need to be on that block to be able to do lease things.
 			frame_system::Pallet::<T>::set_block_number(T::LeaseOffset::get() + One::one());
@@ -1048,6 +1060,9 @@ mod benchmarking {
 			// Assume reasonable maximum of 100 paras at any time
 			let c in 0 .. 100;
 			let t in 0 .. 100;
+
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
 
 			let period_begin = 1u32.into();
 			let period_count = 4u32.into();
@@ -1138,6 +1153,9 @@ mod benchmarking {
 		}
 
 		trigger_onboard {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			// get a parachain into a bad state where they did not onboard
 			let (para, _) = register_a_parathread::<T>(1);
 			Leases::<T>::insert(para, vec![Some((account::<T::AccountId>("lease_insert", 0, 0), BalanceOf::<T>::default()))]);

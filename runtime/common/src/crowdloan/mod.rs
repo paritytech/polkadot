@@ -1951,13 +1951,18 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{Pallet as Crowdloan, *};
+	use crate::mock::{conclude_pvf_checking, validators_public_keys};
 	use frame_support::{assert_ok, traits::OnInitialize};
 	use frame_system::RawOrigin;
+	use runtime_parachains::{paras, shared};
 	use sp_core::crypto::UncheckedFrom;
+	use sp_keyring::Sr25519Keyring;
 	use sp_runtime::traits::{Bounded, CheckedSub};
 	use sp_std::prelude::*;
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
+
+	const VALIDATORS: &[Sr25519Keyring] = &[Sr25519Keyring::Alice];
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1967,7 +1972,10 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn create_fund<T: Config>(id: u32, end: T::BlockNumber) -> ParaId {
+	fn create_fund<T: Config + shared::Config + paras::Config>(
+		id: u32,
+		end: T::BlockNumber,
+	) -> ParaId {
 		let cap = BalanceOf::<T>::max_value();
 		let (_, offset) = T::Auctioneer::lease_period_length();
 		// Set to the very beginning of lease period index 0.
@@ -1985,9 +1993,17 @@ mod benchmarking {
 		// Assume ed25519 is most complex signature format
 		let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 
+		let session_index = shared::Pallet::<T>::session_index();
 		let head_data = T::Registrar::worst_head_data();
 		let validation_code = T::Registrar::worst_validation_code();
-		assert_ok!(T::Registrar::register(caller.clone(), para_id, head_data, validation_code));
+		assert_ok!(T::Registrar::register(
+			caller.clone(),
+			para_id,
+			head_data,
+			validation_code.clone()
+		));
+		conclude_pvf_checking::<T>(&validation_code, VALIDATORS, session_index);
+
 		T::Registrar::execute_pending_transitions();
 
 		assert_ok!(Crowdloan::<T>::create(
@@ -2020,7 +2036,12 @@ mod benchmarking {
 	}
 
 	benchmarks! {
+		where_clause { where T: paras::Config + shared::Config }
+
 		create {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let para_id = ParaId::from(1_u32);
 			let cap = BalanceOf::<T>::max_value();
 			let first_period = 0u32.into();
@@ -2029,13 +2050,15 @@ mod benchmarking {
 			let end = lpl + offset;
 
 			let caller: T::AccountId = whitelisted_caller();
+			let session_index = shared::Pallet::<T>::session_index();
 			let head_data = T::Registrar::worst_head_data();
 			let validation_code = T::Registrar::worst_validation_code();
 
 			let verifier = MultiSigner::unchecked_from(account::<[u8; 32]>("verifier", 0, 0));
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
+			T::Registrar::register(caller.clone(), para_id, head_data, validation_code.clone())?;
+			conclude_pvf_checking::<T>(&validation_code, VALIDATORS, session_index);
 			T::Registrar::execute_pending_transitions();
 
 		}: _(RawOrigin::Signed(caller), para_id, cap, first_period, last_period, end, Some(verifier))
@@ -2045,6 +2068,9 @@ mod benchmarking {
 
 		// Contribute has two arms: PreEnding and Ending, but both are equal complexity.
 		contribute {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let (lpl, offset) = T::Auctioneer::lease_period_length();
 			let end = lpl + offset;
 			let fund_index = create_fund::<T>(1, end);
@@ -2065,6 +2091,9 @@ mod benchmarking {
 		}
 
 		withdraw {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let (lpl, offset) = T::Auctioneer::lease_period_length();
 			let end = lpl + offset;
 			let fund_index = create_fund::<T>(1337, end);
@@ -2081,6 +2110,10 @@ mod benchmarking {
 		#[skip_meta]
 		refund {
 			let k in 0 .. T::RemoveKeysLimit::get();
+
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let (lpl, offset) = T::Auctioneer::lease_period_length();
 			let end = lpl + offset;
 			let fund_index = create_fund::<T>(1337, end);
@@ -2090,6 +2123,7 @@ mod benchmarking {
 				contribute_fund::<T>(&account("contributor", i, 0), fund_index);
 			}
 
+
 			let caller: T::AccountId = whitelisted_caller();
 			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 		}: _(RawOrigin::Signed(caller), fund_index)
@@ -2098,6 +2132,9 @@ mod benchmarking {
 		}
 
 		dissolve {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let (lpl, offset) = T::Auctioneer::lease_period_length();
 			let end = lpl + offset;
 			let fund_index = create_fund::<T>(1337, end);
@@ -2109,6 +2146,9 @@ mod benchmarking {
 		}
 
 		edit {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let para_id = ParaId::from(1_u32);
 			let cap = BalanceOf::<T>::max_value();
 			let first_period = 0u32.into();
@@ -2119,11 +2159,14 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 			let head_data = T::Registrar::worst_head_data();
 			let validation_code = T::Registrar::worst_validation_code();
+			let session_index = shared::Pallet::<T>::session_index();
 
 			let verifier = MultiSigner::unchecked_from(account::<[u8; 32]>("verifier", 0, 0));
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
+			T::Registrar::register(caller.clone(), para_id, head_data, validation_code.clone())?;
+			conclude_pvf_checking::<T>(&validation_code, VALIDATORS, session_index);
+
 			T::Registrar::execute_pending_transitions();
 
 			Crowdloan::<T>::create(
@@ -2138,6 +2181,9 @@ mod benchmarking {
 		}
 
 		add_memo {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let (lpl, offset) = T::Auctioneer::lease_period_length();
 			let end = lpl + offset;
 			let fund_index = create_fund::<T>(1, end);
@@ -2154,6 +2200,9 @@ mod benchmarking {
 		}
 
 		poke {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let (lpl, offset) = T::Auctioneer::lease_period_length();
 			let end = lpl + offset;
 			let fund_index = create_fund::<T>(1, end);
@@ -2173,6 +2222,10 @@ mod benchmarking {
 		on_initialize {
 			// We test the complexity over different number of new raise
 			let n in 2 .. 100;
+
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let (lpl, offset) = T::Auctioneer::lease_period_length();
 			let end_block = lpl + offset - 1u32.into();
 

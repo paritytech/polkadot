@@ -653,7 +653,9 @@ impl<T: Config> Pallet<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{paras_registrar, traits::Registrar as RegistrarTrait};
+	use crate::{
+		mock::conclude_pvf_checking, paras_registrar, traits::Registrar as RegistrarTrait,
+	};
 	use frame_support::{
 		assert_noop, assert_ok,
 		error::BadOrigin,
@@ -662,7 +664,7 @@ mod tests {
 	};
 	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
-	use primitives::{Balance, BlockNumber, Header, PvfCheckStatement, SessionIndex};
+	use primitives::{Balance, BlockNumber, Header, SessionIndex};
 	use runtime_parachains::{configuration, origin, shared};
 	use sp_core::H256;
 	use sp_io::TestExternalities;
@@ -865,21 +867,6 @@ mod tests {
 		}
 	}
 
-	fn conclude_pvf_checking(validation_code: &ValidationCode, session_index: SessionIndex) {
-		VALIDATORS.iter().enumerate().take(4).for_each(|(idx, key)| {
-			let validator_index = idx as u32;
-			let statement = PvfCheckStatement {
-				accept: true,
-				subject: validation_code.hash(),
-				session_index,
-				validator_index: validator_index.into(),
-			};
-			let signature = key.sign(&statement.signing_payload());
-			Parachains::include_pvf_check_statement(None.into(), statement, signature.into())
-				.unwrap();
-		})
-	}
-
 	fn run_to_session(n: BlockNumber) {
 		let block_number = n * BLOCKS_PER_SESSION;
 		run_to_block(block_number);
@@ -933,7 +920,7 @@ mod tests {
 				test_genesis_head(32),
 				validation_code.clone(),
 			));
-			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+			conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 			run_to_session(START_SESSION_INDEX + 2);
 			// It is now a parathread.
@@ -977,7 +964,7 @@ mod tests {
 				test_genesis_head(32),
 				validation_code.clone(),
 			));
-			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+			conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 			run_to_session(START_SESSION_INDEX + 2);
 			assert!(Parachains::is_parathread(para_id));
@@ -1087,7 +1074,7 @@ mod tests {
 				test_genesis_head(32),
 				validation_code.clone(),
 			));
-			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+			conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 			run_to_session(START_SESSION_INDEX + 2);
 			assert!(Parachains::is_parathread(para_id));
@@ -1115,7 +1102,7 @@ mod tests {
 				test_genesis_head(32),
 				validation_code.clone(),
 			));
-			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+			conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 			run_to_session(START_SESSION_INDEX + 2);
 			assert!(Parachains::is_parathread(para_id));
@@ -1156,7 +1143,7 @@ mod tests {
 				test_genesis_head(max_head_size() as usize),
 				validation_code.clone(),
 			));
-			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+			conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 			run_to_session(START_SESSION_INDEX + 2);
 
@@ -1261,7 +1248,7 @@ mod tests {
 				test_genesis_head(32),
 				validation_code.clone(),
 			));
-			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+			conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 			// Cannot swap
 			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
@@ -1350,14 +1337,20 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{Pallet as Registrar, *};
-	use crate::traits::Registrar as RegistrarT;
+	use crate::{
+		mock::{conclude_pvf_checking, validators_public_keys},
+		traits::Registrar as RegistrarT,
+	};
 	use frame_support::assert_ok;
 	use frame_system::RawOrigin;
 	use primitives::{MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
+	use sp_keyring::Sr25519Keyring;
 	use sp_runtime::traits::Bounded;
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
+
+	const VALIDATORS: &[Sr25519Keyring] = &[Sr25519Keyring::Alice];
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1367,8 +1360,9 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn register_para<T: Config>(id: u32) -> ParaId {
+	fn register_para<T: Config + shared::Config + paras::Config>(id: u32) -> ParaId {
 		let para = ParaId::from(id);
+		let session_index = shared::Pallet::<T>::session_index();
 		let genesis_head = Registrar::<T>::worst_head_data();
 		let validation_code = Registrar::<T>::worst_validation_code();
 		let caller: T::AccountId = whitelisted_caller();
@@ -1378,8 +1372,9 @@ mod benchmarking {
 			RawOrigin::Signed(caller).into(),
 			para,
 			genesis_head,
-			validation_code
+			validation_code.clone()
 		));
+		conclude_pvf_checking::<T>(&validation_code, VALIDATORS, session_index);
 		return para
 	}
 
@@ -1394,7 +1389,11 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		where_clause { where ParaOrigin: Into<<T as frame_system::Config>::RuntimeOrigin> }
+		where_clause {
+			where
+				ParaOrigin: Into<<T as frame_system::Config>::RuntimeOrigin>,
+				T: paras::Config + shared::Config,
+		}
 
 		reserve {
 			let caller: T::AccountId = whitelisted_caller();
@@ -1407,35 +1406,48 @@ mod benchmarking {
 		}
 
 		register {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let para = LOWEST_PUBLIC_ID;
 			let genesis_head = Registrar::<T>::worst_head_data();
 			let validation_code = Registrar::<T>::worst_validation_code();
 			let caller: T::AccountId = whitelisted_caller();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
-		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
+		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code.clone())
 		verify {
 			assert_last_event::<T>(Event::<T>::Registered{ para_id: para, manager: caller }.into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
+			let session_index = shared::Pallet::<T>::session_index();
+			conclude_pvf_checking::<T>(&validation_code, VALIDATORS, session_index);
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
 		}
 
 		force_register {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let manager: T::AccountId = account("manager", 0, 0);
 			let deposit = 0u32.into();
 			let para = ParaId::from(69);
 			let genesis_head = Registrar::<T>::worst_head_data();
 			let validation_code = Registrar::<T>::worst_validation_code();
-		}: _(RawOrigin::Root, manager.clone(), deposit, para, genesis_head, validation_code)
+		}: _(RawOrigin::Root, manager.clone(), deposit, para, genesis_head, validation_code.clone())
 		verify {
 			assert_last_event::<T>(Event::<T>::Registered { para_id: para, manager }.into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
+			let session_index = shared::Pallet::<T>::session_index();
+			conclude_pvf_checking::<T>(&validation_code, VALIDATORS, session_index);
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
 		}
 
 		deregister {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let para = register_para::<T>(LOWEST_PUBLIC_ID.into());
 			next_scheduled_session::<T>();
 			let caller: T::AccountId = whitelisted_caller();
@@ -1445,6 +1457,9 @@ mod benchmarking {
 		}
 
 		swap {
+			let public = validators_public_keys(VALIDATORS);
+			shared::Pallet::<T>::set_active_validators_ascending(public);
+
 			let parathread = register_para::<T>(LOWEST_PUBLIC_ID.into());
 			let parachain = register_para::<T>((LOWEST_PUBLIC_ID + 1).into());
 

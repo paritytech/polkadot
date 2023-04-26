@@ -17,7 +17,9 @@
 //! Mocking utilities for testing with real pallets.
 
 use crate::{
-	auctions, crowdloan, paras_registrar,
+	auctions, crowdloan,
+	mock::{conclude_pvf_checking, validators_public_keys},
+	paras_registrar,
 	slot_range::SlotRange,
 	slots,
 	traits::{AuctionStatus, Auctioneer, Leaser, Registrar as RegistrarT},
@@ -32,8 +34,7 @@ use frame_support_test::TestRandomness;
 use frame_system::EnsureRoot;
 use parity_scale_codec::Encode;
 use primitives::{
-	BlockNumber, HeadData, Header, Id as ParaId, PvfCheckStatement, SessionIndex, ValidationCode,
-	LOWEST_PUBLIC_ID,
+	BlockNumber, HeadData, Header, Id as ParaId, SessionIndex, ValidationCode, LOWEST_PUBLIC_ID,
 };
 use runtime_parachains::{
 	configuration, origin, paras, shared, Origin as ParaOrigin, ParaLifecycle,
@@ -313,26 +314,12 @@ const VALIDATORS: &[Sr25519Keyring] = &[
 fn maybe_new_session(n: u32) {
 	if n % BLOCKS_PER_SESSION == 0 {
 		let session_index = shared::Pallet::<Test>::session_index() + 1;
-		let validators_pub_keys = VALIDATORS.iter().map(|v| v.public().into()).collect();
+		let validators_pub_keys = validators_public_keys(VALIDATORS);
 
 		shared::Pallet::<Test>::set_session_index(session_index);
 		shared::Pallet::<Test>::set_active_validators_ascending(validators_pub_keys);
 		Paras::test_on_new_session();
 	}
-}
-
-fn conclude_pvf_checking(validation_code: &ValidationCode, session_index: SessionIndex) {
-	VALIDATORS.iter().enumerate().take(4).for_each(|(idx, key)| {
-		let validator_index = idx as u32;
-		let statement = PvfCheckStatement {
-			accept: true,
-			subject: validation_code.hash(),
-			session_index,
-			validator_index: validator_index.into(),
-		};
-		let signature = key.sign(&statement.signing_payload());
-		Paras::include_pvf_check_statement(None.into(), statement, signature.into()).unwrap();
-	})
 }
 
 fn test_genesis_head(size: usize) -> HeadData {
@@ -404,7 +391,7 @@ fn basic_end_to_end_works() {
 				genesis_head.clone(),
 				validation_code.clone(),
 			));
-			conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+			conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 			assert_ok!(Registrar::reserve(signed(2)));
 			assert_ok!(Registrar::register(
 				signed(2),
@@ -639,7 +626,7 @@ fn competing_slots() {
 			));
 		}
 		// The code undergoing the prechecking is the same for all paras.
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		// Start a new auction in the future
 		let duration = 149u32;
@@ -741,7 +728,7 @@ fn competing_bids() {
 			));
 		}
 		// The code undergoing the prechecking is the same for all paras.
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		// Finish registration of paras.
 		run_to_session(START_SESSION_INDEX + 2);
@@ -846,7 +833,7 @@ fn basic_swap_works() {
 			test_genesis_head(10),
 			validation_code.clone(),
 		));
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		let validation_code = test_validation_code(20);
 		assert_ok!(Registrar::reserve(signed(2)));
@@ -856,7 +843,7 @@ fn basic_swap_works() {
 			test_genesis_head(20),
 			validation_code.clone(),
 		));
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		// Paras should be onboarding
 		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Onboarding));
@@ -1008,7 +995,7 @@ fn parachain_swap_works() {
 			test_genesis_head(10),
 			validation_code.clone(),
 		));
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		let validation_code = test_validation_code(20);
 		assert_ok!(Registrar::reserve(signed(2)));
@@ -1018,7 +1005,7 @@ fn parachain_swap_works() {
 			test_genesis_head(20),
 			validation_code.clone(),
 		));
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		// Paras should be onboarding
 		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Onboarding));
@@ -1180,7 +1167,7 @@ fn crowdloan_ending_period_bid() {
 			test_genesis_head(10),
 			validation_code.clone(),
 		));
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		let validation_code = test_validation_code(20);
 		assert_ok!(Registrar::reserve(signed(2)));
@@ -1190,7 +1177,7 @@ fn crowdloan_ending_period_bid() {
 			test_genesis_head(20),
 			validation_code.clone(),
 		));
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		// Paras should be onboarding
 		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Onboarding));
@@ -1312,7 +1299,7 @@ fn auction_bid_requires_registered_para() {
 			test_genesis_head(10),
 			validation_code.clone(),
 		));
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		// Still can't bid until it is fully onboarded
 		assert_noop!(
@@ -1378,7 +1365,7 @@ fn gap_bids_work() {
 			test_genesis_head(10),
 			validation_code.clone(),
 		));
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		// Onboarded on Session 2
 		run_to_session(START_SESSION_INDEX + 2);
@@ -1548,7 +1535,7 @@ fn cant_bid_on_existing_lease_periods() {
 			test_genesis_head(10),
 			validation_code.clone(),
 		));
-		conclude_pvf_checking(&validation_code, START_SESSION_INDEX);
+		conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 		// Start a new auction in the future
 		let starting_block = System::block_number();
