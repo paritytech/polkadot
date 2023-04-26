@@ -153,6 +153,9 @@ impl<T: Config> Pallet<T> {
 
 		Self::push_claimqueue_items_to_assignment_provider();
 		Self::push_occupied_cores_to_assignment_provider(n_cores);
+		// Instead of exposing the AssignmentProvider to the initializer
+		// for the new_session notification, we keep the AssignmentProvider
+		// internal to the scheduler and have it forward the new_session call.
 		T::AssignmentProvider::new_session();
 
 		// shuffle validators into groups.

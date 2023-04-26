@@ -39,8 +39,13 @@ pub mod pallet {
 	{
 	}
 
+	/// This value is used as (at least for now), the paras module gets updated before the scheduler module
+	/// when a new session starts. As the parachains assignment provider uses the paras module for reporting
+	/// its `session_core_count`, the returned value will be of the new session while the scheduler still depends
+	/// on the old one for the session change bookkeeping.
+	/// TODO: This is solved by running the session change logic of the scheduler before the paras module.
 	#[pallet::storage]
-	pub(crate) type NumParachains<T> = StorageValue<_, Option<u32>, ValueQuery>;
+	pub(crate) type BufferedNumParachains<T> = StorageValue<_, Option<u32>, ValueQuery>;
 }
 
 impl<T: Config> AssignmentProvider<T> for Pallet<T> {
@@ -52,7 +57,7 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 
 	fn new_session() {
 		let n_parachains = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
-		NumParachains::<T>::mutate(|val| *val = Some(n_parachains));
+		BufferedNumParachains::<T>::mutate(|val| *val = Some(n_parachains));
 	}
 
 	fn pop_assignment_for_core(
@@ -74,7 +79,7 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 
 	fn push_parasentry_for_core(core_idx: CoreIndex, entry: ParasEntry) {
 		if entry.retries == 0 {
-			let parachain_cores = NumParachains::<T>::get()
+			let parachain_cores = BufferedNumParachains::<T>::get()
 				.unwrap_or_else(|| <crate::scheduler_parachains::Pallet<T>>::session_core_count());
 			if (0..parachain_cores).contains(&core_idx.0) {
 				<crate::scheduler_parachains::Pallet<T>>::push_parasentry_for_core(core_idx, entry)
