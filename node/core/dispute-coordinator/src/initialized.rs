@@ -845,8 +845,8 @@ impl Initialized {
 			//
 			// See guide: We import on fresh disputes to maximize likelihood of fetching votes for
 			// dead forks and once concluded to maximize time for approval votes to trickle in.
-			if intermediate_result.is_freshly_disputed() ||
-				intermediate_result.is_freshly_concluded()
+			if (intermediate_result.is_freshly_disputed() ||
+				intermediate_result.is_freshly_concluded()) && false
 			{
 				gum::trace!(
 					target: LOG_TARGET,
