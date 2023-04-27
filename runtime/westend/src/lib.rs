@@ -1266,6 +1266,7 @@ pub type Migrations = (
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	// Unreleased - add new migrations here:
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	pallet_offences::migration::v1::MigrateToV1<Runtime>,
 	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 	migrations::UpdateUmpLimits,
 );
