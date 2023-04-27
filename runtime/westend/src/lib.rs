@@ -30,6 +30,7 @@ use frame_support::{
 	PalletId,
 };
 use frame_system::EnsureRoot;
+use pallet_election_provider_multi_phase::GeometricDepositBase;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
@@ -69,7 +70,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent,
 };
 use sp_staking::SessionIndex;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -343,6 +344,7 @@ parameter_types! {
 	pub const SignedMaxSubmissions: u32 = 128;
 	pub const SignedMaxRefunds: u32 = 128 / 4;
 	pub const SignedDepositBase: Balance = deposit(2, 0);
+	pub const SignedDepositBaseIncreaseFactor: Percent = Percent::from_percent(10);
 	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1 WND as reward
 	pub SignedRewardBase: Balance = 1 * UNITS;
@@ -414,7 +416,9 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SignedMaxSubmissions = SignedMaxSubmissions;
 	type SignedMaxRefunds = SignedMaxRefunds;
 	type SignedRewardBase = SignedRewardBase;
-	type SignedDepositBase = SignedDepositBase;
+	type SignedDepositBase = GeometricDepositBase<Runtime>;
+	type SignedFixedDepositBase = SignedDepositBase;
+	type SignedDepositBaseIncreaseFactor = SignedDepositBaseIncreaseFactor;
 	type SignedDepositByte = SignedDepositByte;
 	type SignedDepositWeight = ();
 	type SignedMaxWeight =
