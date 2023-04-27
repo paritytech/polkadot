@@ -12,10 +12,10 @@ polkadot-runtime-constants = { path = "../../../runtime/polkadot/constants" }
 kusama-runtime-constants = { path = "../../../runtime/kusama/constants" }
 westend-runtime-constants = { path = "../../../runtime/westend/constants" }
 
-pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
 
 clap = { version = "4.0.9", features = ["derive"] }
 log = "0.4.17"

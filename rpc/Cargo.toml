@@ -7,26 +7,26 @@ edition.workspace = true
 [dependencies]
 jsonrpsee = { version = "0.16.2", features = ["server"] }
 polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-consensus-beefy = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-consensus-beefy-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-consensus-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-consensus-beefy = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-consensus-beefy-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-consensus-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }

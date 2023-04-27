@@ -5,11 +5,11 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "liam-try-runtime-ci-stability" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "liam-try-runtime-ci-stability-improvements" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
 parity-scale-codec = { version = "3.4.0", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "liam-try-runtime-ci-stability" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
 
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 

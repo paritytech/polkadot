@@ -18,20 +18,20 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
 
 
 [dev-dependencies]
 kvdb-memorydb = "0.13.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
 assert_matches = "1.4.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
 futures-timer = "3.0.2"
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
 
 [features]
 # If not enabled, the dispute coordinator will do nothing.

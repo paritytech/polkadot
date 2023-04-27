@@ -25,22 +25,22 @@ polkadot-client = { path = "../node/client", optional = true }
 polkadot-node-core-pvf-worker = { path = "../node/core/pvf/worker", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability" }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability" }
-sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability" }
-sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability" }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
 
 [features]
 default = ["db", "cli", "full-node", "polkadot-native"]

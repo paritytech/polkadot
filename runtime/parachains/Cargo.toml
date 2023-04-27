@@ -14,29 +14,29 @@ serde = { version = "1.0.139", features = [ "derive" ], optional = true }
 derive_more = "0.99.17"
 bitflags = "1.3.2"
 
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "liam-try-runtime-ci-stability" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "liam-try-runtime-ci-stability" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "liam-try-runtime-ci-stability" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -51,11 +51,11 @@ polkadot-runtime-metrics = { path = "../metrics", default-features = false}
 [dev-dependencies]
 futures = "0.3.21"
 hex-literal = "0.4.1"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers"}
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
 thousands = "0.2.0"
 assert_matches = "1"
 serde_json = "1.0.96"

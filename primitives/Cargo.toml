@@ -11,18 +11,18 @@ parity-scale-codec = { version = "3.4.0", default-features = false, features = [
 scale-info = { version = "2.5.0", default-features = false, features = ["bit-vec", "derive"] }
 serde = { version = "1.0.137", optional = true, features = ["derive"] }
 
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
 
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }

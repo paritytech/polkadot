@@ -8,8 +8,8 @@ edition.workspace = true
 paste = "1.0"
 enumn = "0.1.5"
 parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "liam-try-runtime-ci-stability-improvements" }
 
 [features]
 default = ["std"]

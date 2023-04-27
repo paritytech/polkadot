@@ -9,7 +9,7 @@ futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 lru = "0.9"
 
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-metrics = { path = "../../metrics" }
@@ -17,10 +17,10 @@ polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-types = { path = "../../subsystem-types" }
 
 [dev-dependencies]
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "liam-try-runtime-ci-stability-improvements" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-node-primitives = { path = "../../primitives" }

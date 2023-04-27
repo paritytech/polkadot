@@ -10,22 +10,22 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability" }
-frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability" }
-sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability" }
-sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability" }
-sp-io = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability" }
+frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability-improvements" }
+frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-io = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability-improvements" }
 xcm-executor = { path = "../xcm-executor", default-features = false }
-frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability" }
+frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability-improvements" }
 xcm = { path = "..", default-features = false }
 xcm-builder = { path = "../xcm-builder", default-features = false }
 log = "0.4.17"
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability" }
-pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability" }
-sp-core = { git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability" }
-sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability" }
+pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability-improvements" }
+pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-core = { git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability-improvements" }
+sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "liam-try-runtime-ci-stability-improvements" }
 xcm = { path = ".." }
 # temp
 pallet-xcm = { path = "../pallet-xcm" }
