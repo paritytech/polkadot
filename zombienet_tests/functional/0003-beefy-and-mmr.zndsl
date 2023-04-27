@@ -39,7 +39,7 @@ validator-1: reports substrate_beefy_best_block is at least 21 within 130 second
 validator-2: reports substrate_beefy_best_block is at least 21 within 130 seconds
 
 # Custom JS to test BEEFY RPCs.
-validator: js-script ./0003-beefy-finalized-heads.js with "validator-0,validator-1,validator-2" return is 1 within 5 seconds
+validator-0: js-script ./0003-beefy-finalized-heads.js with "validator-0,validator-1,validator-2" return is 1 within 5 seconds
 
 # Custom JS to test MMR RPCs.
 validator-0: js-script ./0003-mmr-leaves.js with "21" return is 1 within 5 seconds

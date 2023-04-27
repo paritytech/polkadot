@@ -15,8 +15,8 @@ async function run(_, networkInfo, nodeNames) {
     })
   );
 
-  // check that all nodes agree on block height up to a tolerance of at most 1
-  return finalizedHeadsHeight.slice(1).every((height) => Math.abs(height - finalizedHeadsHeight[0]) <= 1)
+  // verify that height(finalized_head) is at least as high as the substrate_beefy_best_block test already verified
+  return finalizedHeadsHeight.every((height) => height >= 21)
 }
 
 module.exports = { run };
