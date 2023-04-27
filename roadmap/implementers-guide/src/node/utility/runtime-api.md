@@ -12,6 +12,6 @@ Output: None
 
 On receipt of `RuntimeApiMessage::Request(relay_parent, request)`, answer the request using the post-state of the `relay_parent` provided and provide the response to the side-channel embedded within the request.
 
-## Jobs
+## Background Tasks
 
 > TODO Don't limit requests based on parent hash, but limit caching. No caching should be done for any requests on `relay_parent`s that are not active based on `ActiveLeavesUpdate` messages. Maybe with some leeway for things that have just been stopped.

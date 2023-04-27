@@ -15,12 +15,9 @@ Output:
 
 ## Functionality
 
-Upon receipt of an `ActiveLeavesUpdate`, launch bitfield signing job for each `activated` head referring to a fresh leaf. Stop the job for each `deactivated` head.
+Upon receipt of an `ActiveLeavesUpdate`, 
 
-## Bitfield Signing Job
 
-Localized to a specific relay-parent `r`
-If not running as a validator, do nothing.
 
 - For each fresh leaf, begin by waiting a fixed period of time so availability distribution has the chance to make candidates available.
 - Determine our validator index `i`, the set of backed candidates pending availability in `r`, and which bit of the bitfield each corresponds to.

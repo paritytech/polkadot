@@ -324,10 +324,7 @@ sequenceDiagram
     CB ->> AS: StoreAvailableData
 ```
 
-At this point, things have gone a bit nonlinear. Let's pick up the thread again with `BitfieldSigning`. As
-the `Overseer` activates each relay parent, it starts a `BitfieldSigningJob` which operates on an extremely
-simple metric: after creation, it immediately goes to sleep for 1.5 seconds. On waking, it records the state
-of the world pertaining to availability at that moment.
+At this point, things have gone a bit nonlinear. Let's pick up the thread again with `BitfieldSigning`.
 
 ```mermaid
 sequenceDiagram
@@ -367,9 +364,6 @@ sequenceDiagram
 We've now seen the message flow to the `Provisioner`: both `CandidateBacking` and `BitfieldDistribution`
 contribute provisionable data. Now, let's look at that subsystem.
 
-Much like the `BitfieldSigning` subsystem, the `Provisioner` creates a new job for each newly-activated
-leaf, and starts a timer. Unlike `BitfieldSigning`, we won't depict that part of the process, because
-the `Provisioner` also has other things going on.
 
 ```mermaid
 sequenceDiagram

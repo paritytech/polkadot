@@ -86,9 +86,9 @@ machine and not the PVF.
 #### CPU clock timeouts
 
 Another timeout-related mitigation we employ is to measure the time taken by
-jobs using CPU time, rather than wall clock time. This is because the CPU time
-of a process is less variable under different system conditions. When the
-overall system is under heavy load, the wall clock time of a job is affected
-more than the CPU time.
+background tasks using CPU time, rather than wall clock time. This is because 
+the CPU time of a process is less variable under different system conditions. 
+When the overall system is under heavy load, the wall clock time of a task is 
+affected more than the CPU time.
 
 [CVM]: ../../types/overseer-protocol.md#validationrequesttype

@@ -15,7 +15,7 @@ We introduce
 ## Components
 
 The node architecture consists of the following components:
-  * The Overseer (and subsystems): A hierarchy of state machines where an overseer supervises subsystems. Subsystems can contain their own internal hierarchy of jobs. This is elaborated on in the next section on Subsystems.
+  * The Overseer (and subsystems): A hierarchy of state machines where an overseer supervises subsystems. Subsystems can contain their own internal hierarchy of background tasks. This is elaborated on in the next section on Subsystems.
   * A block proposer: Logic triggered by the consensus algorithm of the chain when the node should author a block.
   * A GRANDPA voting rule: A strategy for selecting chains to vote on in the GRANDPA algorithm to ensure that only valid parachain candidates appear in finalized relay-chain blocks.
 
