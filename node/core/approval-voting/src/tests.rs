@@ -19,7 +19,7 @@ use crate::tests::test_constants::TEST_CONFIG;
 use super::*;
 use polkadot_node_primitives::{
 	approval::{
-		AssignmentCert, AssignmentCertKind, DelayTranche, VrfOutput, VrfProof, VrfSignature,
+		AssignmentCert, AssignmentCertKind, DelayTranche, VrfPreOutput, VrfProof, VrfSignature,
 		RELAY_VRF_MODULO_CONTEXT,
 	},
 	AvailableData, BlockData, PoV,
@@ -392,7 +392,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
 	let out = inout.to_output();
 
-	AssignmentCert { kind, vrf: VrfSignature { output: VrfOutput(out), proof: VrfProof(proof) } }
+	AssignmentCert { kind, vrf: VrfSignature { preout: VrfPreOutput(out), proof: VrfProof(proof) } }
 }
 
 fn sign_approval(

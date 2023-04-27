@@ -24,9 +24,9 @@ use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_test_client::Sr25519Keyring;
 use sp_consensus_babe::{
 	digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
-	VrfTranscript,
+	VrfInput,
 };
-use sp_core::{crypto::VrfSigner, testing::TaskExecutor};
+use sp_core::{crypto::VrfSecret, testing::TaskExecutor};
 use sp_runtime::{testing::*, DigestItem};
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
@@ -131,8 +131,8 @@ const TIMEOUT: Duration = Duration::from_millis(2000);
 
 // used for generating assignments where the validity of the VRF doesn't matter.
 fn garbage_vrf_signature() -> VrfSignature {
-	let transcript = VrfTranscript::new(b"test-garbage", &[]);
-	Sr25519Keyring::Alice.pair().vrf_sign(&transcript)
+	let input = VrfInput::new(b"test-garbage", &[]);
+	Sr25519Keyring::Alice.pair().vrf_sign(&input)
 }
 
 /// Representation of a local representation

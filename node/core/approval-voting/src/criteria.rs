@@ -357,7 +357,7 @@ fn compute_relay_vrf_modulo_assignments(
 			let cert = AssignmentCert {
 				kind: AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
 				vrf: approval_types::VrfSignature {
-					output: approval_types::VrfOutput(vrf_in_out.to_output()),
+					preout: approval_types::VrfPreOutput(vrf_in_out.to_output()),
 					proof: approval_types::VrfProof(vrf_proof),
 				},
 			};
@@ -394,7 +394,7 @@ fn compute_relay_vrf_delay_assignments(
 		let cert = AssignmentCert {
 			kind: AssignmentCertKind::RelayVRFDelay { core_index: core },
 			vrf: approval_types::VrfSignature {
-				output: approval_types::VrfOutput(vrf_in_out.to_output()),
+				preout: approval_types::VrfPreOutput(vrf_in_out.to_output()),
 				proof: approval_types::VrfProof(vrf_proof),
 			},
 		};
@@ -506,7 +506,7 @@ pub(crate) fn check_assignment_cert(
 			let (vrf_in_out, _) = public
 				.vrf_verify_extra(
 					relay_vrf_modulo_transcript(relay_vrf_story, sample),
-					&vrf_signature.output.0,
+					&vrf_signature.preout.0,
 					&vrf_signature.proof.0,
 					assigned_core_transcript(claimed_core_index),
 				)
@@ -527,7 +527,7 @@ pub(crate) fn check_assignment_cert(
 			let (vrf_in_out, _) = public
 				.vrf_verify(
 					relay_vrf_delay_transcript(relay_vrf_story, core_index),
-					&vrf_signature.output.0,
+					&vrf_signature.preout.0,
 					&vrf_signature.proof.0,
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFDelayOutputMismatch))?;
