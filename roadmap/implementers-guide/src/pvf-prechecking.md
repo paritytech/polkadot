@@ -46,6 +46,8 @@ The logic described above is implemented by the [paras] module.
 
 On the node-side, there is a PVF pre-checking [subsystem][pvf-prechecker-subsystem] that scans the chain for new PVFs via using [runtime APIs][pvf-runtime-api]. Upon finding a new PVF, the subsystem will initiate a PVF pre-checking request and wait for the result. Whenever the result is obtained, the subsystem will use the [runtime API][pvf-runtime-api] to submit a vote for the PVF. The vote is an unsigned transaction. The vote will be distributed via the gossip similarly to a normal transaction. Eventually a block producer will include the vote into the block where it will be handled by the [runtime][paras].
 
+It is worth noting that executor environment parameters, which are part of [configuration], may affect the results of PVF pre-checking. For example, changing limits exposed by execution environment parameters may render valid a PVF that was invalid before the parameters changed. To perform pre-checking deterministically, the pre-checking subsystem uses pending execution environment parameters instead of the current ones. Pending configurations changes are postponed for two sessions, as well as the PVF upgrade, so a PVF pre-checked in session N is guaranteed to be valid and usable in session N+2 no matter if any configuration changes are pending or not.
+
 ## Summary
 
 Parachains' and parathreads' validation function is described by a wasm module that we refer to as a PVF.
@@ -62,3 +64,4 @@ Besides pre-checking, preparation can also be triggered by execution, since a co
 [paras]: runtime/paras.md
 [pvf-runtime-api]: runtime-api/pvf-prechecking.md
 [pvf-prechecker-subsystem]: node/utility/pvf-prechecker.md
+[configuration]: runtime/configuration.md
