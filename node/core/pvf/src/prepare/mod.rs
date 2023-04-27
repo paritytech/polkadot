@@ -20,23 +20,44 @@
 //! (by running [`start_pool`]).
 //!
 //! The pool will spawn workers in new processes and those should execute pass control to
-//! [`worker_entrypoint`].
+//! `polkadot_node_core_pvf_worker::prepare_worker_entrypoint`.
 
-mod memory_stats;
 mod pool;
 mod queue;
-mod worker;
+mod worker_intf;
 
-pub use memory_stats::MemoryStats;
 pub use pool::start as start_pool;
 pub use queue::{start as start_queue, FromQueue, ToQueue};
-pub use worker::worker_entrypoint;
 
 use parity_scale_codec::{Decode, Encode};
 
 /// Preparation statistics, including the CPU time and memory taken.
 #[derive(Debug, Clone, Default, Encode, Decode)]
 pub struct PrepareStats {
-	cpu_time_elapsed: std::time::Duration,
-	memory_stats: MemoryStats,
+	/// The CPU time that elapsed for the preparation job.
+	pub cpu_time_elapsed: std::time::Duration,
+	/// The observed memory statistics for the preparation job.
+	pub memory_stats: MemoryStats,
+}
+
+/// Helper struct to contain all the memory stats, including `MemoryAllocationStats` and, if
+/// supported by the OS, `ru_maxrss`.
+#[derive(Clone, Debug, Default, Encode, Decode)]
+pub struct MemoryStats {
+	/// Memory stats from `tikv_jemalloc_ctl`.
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+	pub memory_tracker_stats: Option<MemoryAllocationStats>,
+	/// `ru_maxrss` from `getrusage`. `None` if an error occurred.
+	#[cfg(target_os = "linux")]
+	pub max_rss: Option<i64>,
+}
+
+/// Statistics of collected memory metrics.
+#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+#[derive(Clone, Debug, Default, Encode, Decode)]
+pub struct MemoryAllocationStats {
+	/// Total resident memory, in bytes.
+	pub resident: u64,
+	/// Total allocated memory, in bytes.
+	pub allocated: u64,
 }
