@@ -403,7 +403,7 @@ fn garbage_assignment_cert_v2(kind: AssignmentCertKindV2) -> AssignmentCertV2 {
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
 	let out = inout.to_output();
 
-	AssignmentCertV2 { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
+	AssignmentCertV2 { kind, vrf: (VrfOutput(out), VrfProof(proof)) }
 }
 
 fn sign_approval(

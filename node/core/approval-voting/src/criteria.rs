@@ -1069,9 +1069,10 @@ mod tests {
 	#[test]
 	fn check_rejects_delay_bad_vrf() {
 		check_mutated_assignments(40, 10, 8, |m| {
+			let vrf_signature = garbage_vrf_signature();
 			match m.cert.kind.clone() {
 				AssignmentCertKindV2::RelayVRFDelay { .. } => {
-					m.cert.vrf = garbage_vrf();
+					m.cert.vrf = (vrf_signature.output, vrf_signature.proof);
 					Some(false)
 				},
 				_ => None, // skip everything else.
@@ -1082,13 +1083,14 @@ mod tests {
 	#[test]
 	fn check_rejects_modulo_bad_vrf() {
 		check_mutated_assignments(200, 100, 25, |m| {
+			let vrf_signature = garbage_vrf_signature();
 			match m.cert.kind.clone() {
 				AssignmentCertKindV2::RelayVRFModulo { .. } => {
-					m.cert.vrf = garbage_vrf();
+					m.cert.vrf = (vrf_signature.output, vrf_signature.proof);
 					Some(false)
 				},
 				AssignmentCertKindV2::RelayVRFModuloCompact { .. } => {
-					m.cert.vrf = garbage_vrf();
+					m.cert.vrf = (vrf_signature.output, vrf_signature.proof);
 					Some(false)
 				},
 				_ => None, // skip everything else.
