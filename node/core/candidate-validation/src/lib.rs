@@ -238,7 +238,11 @@ async fn run<Context>(
 	}
 }
 
-struct RuntimeRequestFailed;
+enum RuntimeRequestFailed {
+	Dropped,
+	InternalError,
+	NotSupported,
+}
 
 async fn runtime_api_request<T, Sender>(
 	sender: &mut Sender,
@@ -258,7 +262,7 @@ where
 		.map_err(|_| {
 			gum::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
 
-			RuntimeRequestFailed
+			RuntimeRequestFailed::Dropped
 		})
 		.and_then(|res| {
 			res.map_err(|e| {
@@ -269,7 +273,7 @@ where
 					"Runtime API request internal error"
 				);
 
-				RuntimeRequestFailed
+				RuntimeRequestFailed::InternalError
 			})
 		})
 }
@@ -300,8 +304,33 @@ where
 	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let (tx, rx) = oneshot::channel();
-	runtime_api_request(sender, relay_parent, RuntimeApiRequest::PendingExecutorParams(tx), rx)
-		.await
+	sender
+		.send_message(
+			RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::PendingExecutorParams(tx))
+				.into(),
+		)
+		.await;
+
+	rx.await
+		.map_err(|_| {
+			gum::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
+
+			RuntimeRequestFailed::Dropped
+		})
+		.and_then(|res| {
+			res.map_err(|e| {
+				gum::debug!(
+					target: LOG_TARGET,
+					?relay_parent,
+					err = ?e,
+					"Runtime API request internal error"
+				);
+				match e {
+					RuntimeApiError::Execution { .. } => RuntimeRequestFailed::InternalError,
+					RuntimeApiError::NotSupported { .. } => RuntimeRequestFailed::NotSupported,
+				}
+			})
+		})
 }
 
 async fn precheck_pvf<Sender>(
@@ -330,8 +359,8 @@ where
 			},
 		};
 
-	let executor_params =
-		if let Ok(executor_params) = request_pending_executor_params(sender, relay_parent).await {
+	let executor_params = match request_pending_executor_params(sender, relay_parent).await {
+		Ok(executor_params) => {
 			gum::debug!(
 				target: LOG_TARGET,
 				?relay_parent,
@@ -340,7 +369,33 @@ where
 				executor_params,
 			);
 			executor_params
-		} else {
+		},
+		Err(RuntimeRequestFailed::NotSupported) => {
+			// Old runtime that doesn't support retrieving pending configuration. Use the
+			// current configuration as a backward compatibility measure.
+			// TODO: Remove this after all the networks are upgraded to runtimes supporting
+			//       pending_executor_params()
+			if let Ok(executor_params) = executor_params_at_relay_parent(relay_parent, sender).await
+			{
+				gum::debug!(
+					target: LOG_TARGET,
+					?relay_parent,
+					?validation_code_hash,
+					"precheck: acquired current executor params: {:?}",
+					executor_params,
+				);
+				executor_params
+			} else {
+				gum::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					?validation_code_hash,
+					"precheck: failed to acquire current executor params, thus voting against.",
+				);
+				return PreCheckOutcome::Invalid
+			}
+		},
+		Err(_) => {
 			gum::warn!(
 				target: LOG_TARGET,
 				?relay_parent,
@@ -348,7 +403,8 @@ where
 				"precheck: failed to acquire pending executor params, thus voting against.",
 			);
 			return PreCheckOutcome::Invalid
-		};
+		},
+	};
 
 	let timeout = pvf_prep_timeout(&executor_params, PvfPrepTimeoutKind::Precheck);
 
@@ -400,7 +456,7 @@ where
 		.await;
 
 		match d {
-			Ok(None) | Err(RuntimeRequestFailed) => return AssumptionCheckOutcome::BadRequest,
+			Ok(None) | Err(_) => return AssumptionCheckOutcome::BadRequest,
 			Ok(Some(d)) => d,
 		}
 	};
@@ -418,7 +474,7 @@ where
 		.await;
 
 		match validation_code {
-			Ok(None) | Err(RuntimeRequestFailed) => AssumptionCheckOutcome::BadRequest,
+			Ok(None) | Err(_) => AssumptionCheckOutcome::BadRequest,
 			Ok(Some(v)) => AssumptionCheckOutcome::Matches(validation_data, v),
 		}
 	} else {
@@ -528,8 +584,7 @@ where
 		{
 			Ok(true) => {},
 			Ok(false) => return Ok(ValidationResult::Invalid(InvalidCandidate::InvalidOutputs)),
-			Err(RuntimeRequestFailed) =>
-				return Err(ValidationFailed("Check Validation Outputs: Bad request".into())),
+			Err(_) => return Err(ValidationFailed("Check Validation Outputs: Bad request".into())),
 		}
 	}
 
