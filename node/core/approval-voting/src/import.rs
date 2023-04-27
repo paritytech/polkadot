@@ -76,7 +76,7 @@ struct ImportedBlockInfo {
 }
 
 struct ImportedBlockInfoEnv<'a> {
-	runtime_info: &'a mut SessionInfoProvider, // this is required just for the `earliest_session()`
+	runtime_info: &'a mut SessionInfoProvider,
 	assignment_criteria: &'a (dyn AssignmentCriteria + Send + Sync),
 	keystore: &'a LocalKeystore,
 }
@@ -94,8 +94,8 @@ enum ImportedBlockInfoError {
 	#[error(transparent)]
 	ApprovalError(approval_types::ApprovalError),
 
-	#[error("block is from an ancient session")]
-	BlockFromAncientSession,
+	#[error("block is already finalized")]
+	BlockAlreadyFinalized,
 
 	#[error("session info unavailable")]
 	SessionInfoUnavailable,
@@ -111,6 +111,7 @@ async fn imported_block_info<Context>(
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
+	last_finalized_height: &Option<BlockNumber>,
 ) -> Result<ImportedBlockInfo, ImportedBlockInfoError> {
 	// Ignore any runtime API errors - that means these blocks are old and finalized.
 	// Only unfinalized blocks factor into the approval voting process.
@@ -158,15 +159,17 @@ async fn imported_block_info<Context>(
 				return Err(ImportedBlockInfoError::FutureCancelled("SessionIndexForChild", error)),
 		};
 
-		if env.runtime_info.earliest_session().map_or(true, |s| session_index < s) {
+		// If we can't determine if the block is finalized or not - try processing it
+		if last_finalized_height.map_or(false, |finalized| block_header.number < finalized) {
 			gum::debug!(
 				target: LOG_TARGET,
-				"Block {} is from ancient session {}. Skipping",
+				session = session_index,
+				finalized = ?last_finalized_height,
+				"Block {} is either finalized or last finalized height is unknown. Skipping",
 				block_hash,
-				session_index
 			);
 
-			return Err(ImportedBlockInfoError::BlockFromAncientSession)
+			return Err(ImportedBlockInfoError::BlockAlreadyFinalized)
 		}
 
 		session_index
@@ -393,7 +396,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				keystore: &state.keystore,
 			};
 
-			match imported_block_info(ctx, env, block_hash, &block_header).await {
+			match imported_block_info(ctx, env, block_hash, &block_header, finalized_number).await {
 				Ok(i) => imported_blocks_and_info.push((block_hash, block_header, i)),
 				Err(error) => {
 					// It's possible that we've lost a race with finality.
@@ -818,7 +821,8 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(&mut ctx, env, hash, &header).await.unwrap();
+				let info =
+					imported_block_info(&mut ctx, env, hash, &header, &Some(4)).await.unwrap();
 
 				assert_eq!(info.included_candidates, included_candidates);
 				assert_eq!(info.session_index, session);
@@ -941,7 +945,7 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(&mut ctx, env, hash, &header).await;
+				let info = imported_block_info(&mut ctx, env, hash, &header, &Some(4)).await;
 
 				assert_matches!(info, Err(ImportedBlockInfoError::VrfInfoUnavailable));
 			})
@@ -1040,9 +1044,9 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(&mut ctx, env, hash, &header).await;
+				let info = imported_block_info(&mut ctx, env, hash, &header, &Some(6)).await;
 
-				assert_matches!(info, Err(ImportedBlockInfoError::BlockFromAncientSession));
+				assert_matches!(info, Err(ImportedBlockInfoError::BlockAlreadyFinalized));
 			})
 		};
 
@@ -1153,7 +1157,8 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(&mut ctx, env, hash, &header).await.unwrap();
+				let info =
+					imported_block_info(&mut ctx, env, hash, &header, &Some(4)).await.unwrap();
 
 				assert_eq!(info.included_candidates, included_candidates);
 				assert_eq!(info.session_index, session);

@@ -661,10 +661,6 @@ impl SessionInfoProvider {
 		}
 	}
 
-	fn earliest_session(&self) -> Option<SessionIndex> {
-		self.highest_session_seen.map(|s| s.saturating_sub(DISPUTE_WINDOW.get() - 1))
-	}
-
 	async fn cache_session_info_for_head<Sender>(&mut self, sender: &mut Sender, head: Hash)
 	where
 		Sender: SubsystemSender<RuntimeApiMessage>,
@@ -1307,7 +1303,7 @@ async fn handle_from_overseer<Context>(
 					db,
 					session_info_provider,
 					head,
-					&*last_finalized_height,
+					last_finalized_height,
 				)
 				.await
 				{
