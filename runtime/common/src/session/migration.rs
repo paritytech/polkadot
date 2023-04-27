@@ -24,8 +24,11 @@ use sp_io::{storage::clear_prefix, KillStorageResult};
 #[cfg(feature = "try-runtime")]
 use sp_std::vec::Vec;
 
-pub struct MigrateToV2<T>(sp_std::marker::PhantomData<T>);
-impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
+/// This migration clears everything under `Session::HistoricalSessions` 
+/// and `Session::StoredRange` that were not cleared when
+/// the pallet was moved to its new prefix (`Historical`)  
+pub struct ClearOldSessionStorage<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> OnRuntimeUpgrade for ClearOldSessionStorage<T> {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
 		Ok(Vec::new())
