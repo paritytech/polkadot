@@ -501,7 +501,8 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn add_trusted_validation_code(_c: u32) -> Weight {
-		Weight::MAX
+		// Called during integration tests for para initialization.
+		Weight::zero()
 	}
 	fn poke_unused_validation_code() -> Weight {
 		Weight::MAX
