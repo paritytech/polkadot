@@ -1073,18 +1073,12 @@ impl parachains_scheduler::Config for Runtime {
 }
 
 parameter_types! {
-	pub const OnDemandMaxEntries: u32 = 10_000;
-	pub const OnDemandMaxParaIdsInAffinityMap: u32 = 500;
-	pub const OnDemandMaxUpperBoundLookahead: u32 = 2;
 	pub const OnDemandTrafficDefaultValue: FixedU128 = FixedU128::from_u32(1);
 }
 
 impl parachains_assigner_on_demand::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type MaxEntries = OnDemandMaxEntries;
-	type MaxParaIdsInAffinityMap = OnDemandMaxParaIdsInAffinityMap;
-	type MaxUpperBoundLookahead = OnDemandMaxUpperBoundLookahead;
 	type TrafficDefaultValue = OnDemandTrafficDefaultValue;
 }
 
