@@ -257,38 +257,38 @@ pub trait ExecuteXcm<Call> {
 	type Prepared: PreparedMessage;
 	fn prepare(message: Xcm<Call>) -> result::Result<Self::Prepared, Xcm<Call>>;
 	fn execute(
-		origin: impl Into<MultiLocation>,
+		physical_origin: impl Into<MultiLocation>,
 		pre: Self::Prepared,
 		hash: XcmHash,
 		weight_credit: Weight,
 	) -> Outcome;
 
-	/// Execute some XCM `message` with the message `hash` from `origin` using no more than `weight_limit` weight.
+	/// Execute some XCM `message` with the message `hash` from `physical_origin` using no more than `weight_limit` weight.
 	/// The weight limit is a basic hard-limit and the implementation may place further restrictions or requirements
 	/// on weight and other aspects.
 	fn execute_xcm(
-		origin: impl Into<MultiLocation>,
+		physical_origin: impl Into<MultiLocation>,
 		message: Xcm<Call>,
 		hash: XcmHash,
 		weight_limit: Weight,
 	) -> Outcome {
-		let origin = origin.into();
+		let physical_origin = physical_origin.into();
 		log::debug!(
 			target: "xcm::execute_xcm",
-			"origin: {:?}, message: {:?}, weight_limit: {:?}",
-			origin,
+			"physical_origin: {:?}, message: {:?}, weight_limit: {:?}",
+			physical_origin,
 			message,
 			weight_limit,
 		);
-		Self::execute_xcm_in_credit(origin, message, hash, weight_limit, Weight::zero())
+		Self::execute_xcm_in_credit(physical_origin, message, hash, weight_limit, Weight::zero())
 	}
 
-	/// Execute some XCM `message` with the message `hash` from `origin` using no more than `weight_limit` weight.
+	/// Execute some XCM `message` with the message `hash` from `physical_origin` using no more than `weight_limit` weight.
 	///
 	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
 	/// execution without associated payment.
 	fn execute_xcm_in_credit(
-		origin: impl Into<MultiLocation>,
+		physical_origin: impl Into<MultiLocation>,
 		message: Xcm<Call>,
 		hash: XcmHash,
 		weight_limit: Weight,
@@ -302,7 +302,7 @@ pub trait ExecuteXcm<Call> {
 		if xcm_weight.any_gt(weight_limit) {
 			return Outcome::Error(Error::WeightLimitReached(xcm_weight))
 		}
-		Self::execute(origin, pre, hash, weight_credit)
+		Self::execute(physical_origin, pre, hash, weight_credit)
 	}
 
 	/// Deduct some `fees` to the sovereign account of the given `location` and place them as per
