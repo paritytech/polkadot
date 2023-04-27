@@ -16,7 +16,7 @@ version.workspace = true
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 repository = "https://github.com/paritytech/polkadot.git"
-version = "0.9.41"
+version = "0.9.42"
 
 [dependencies]
 color-eyre = { version = "0.6.1", default-features = false }
@@ -32,7 +32,7 @@ assert_cmd = "2.0.4"
 nix = { version = "0.26.1", features = ["signal"] }
 tempfile = "3.2.0"
 tokio = "1.24.2"
-substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
 polkadot-core-primitives = { path = "core-primitives" }
 
 [workspace]
