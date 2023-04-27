@@ -15,6 +15,7 @@
 # moment of time.
 
 stages:
+  - .pre
   - weights
   - check
   - test
@@ -33,10 +34,11 @@ variables:
   GIT_DEPTH: 100
   CI_SERVER_NAME: "GitLab CI"
   CI_IMAGE: "paritytech/ci-linux:production"
-  BUILDAH_IMAGE: "quay.io/buildah/stable:v1.27"
+  BUILDAH_IMAGE: "quay.io/buildah/stable:v1.29"
+  BUILDAH_COMMAND: "buildah --storage-driver overlay2"
   DOCKER_OS: "debian:stretch"
   ARCH: "x86_64"
-  ZOMBIENET_IMAGE: "docker.io/paritytech/zombienet:v1.3.37"
+  ZOMBIENET_IMAGE: "docker.io/paritytech/zombienet:v1.3.43"
 
 default:
   cache: {}
@@ -47,6 +49,11 @@ default:
       - unknown_failure
       - api_failure
   interruptible: true
+
+.common-before-script:
+  before_script:
+    - !reference [.job-switcher, before_script]
+    - !reference [.timestamp, before_script]
 
 .collect-artifacts:
   artifacts:
@@ -68,7 +75,6 @@ default:
 # they will be used if the job fails
 .pipeline-stopper-vars:
   before_script:
-    - !reference [.job-switcher, before_script]
     - echo "FAILED_JOB_URL=${CI_JOB_URL}" > pipeline-stopper.env
     - echo "FAILED_JOB_NAME=${CI_JOB_NAME}" >> pipeline-stopper.env
     - echo "FAILED_JOB_NAME=${CI_JOB_NAME}" >> pipeline-stopper.env
@@ -86,20 +92,20 @@ default:
 .kubernetes-env:
   image: "${CI_IMAGE}"
   before_script:
-    - !reference [.job-switcher, before_script]
+    - !reference [.common-before-script, before_script]
   tags:
     - kubernetes-parity-build
 
 .docker-env:
   image: "${CI_IMAGE}"
   before_script:
-    - !reference [.job-switcher, before_script]
+    - !reference [.common-before-script, before_script]
   tags:
     - linux-docker-vm-c2
 
 .compiler-info:
   before_script:
-    - !reference [.job-switcher, before_script]
+    - !reference [.common-before-script, before_script]
     - rustup show
     - cargo --version
 
@@ -154,7 +160,7 @@ default:
 
 .build-push-image:
   before_script:
-    - !reference [.job-switcher, before_script]
+    - !reference [.common-before-script, before_script]
     - test -s ./artifacts/VERSION || exit 1
     - test -s ./artifacts/EXTRATAG || exit 1
     - VERSION="$(cat ./artifacts/VERSION)"
@@ -164,7 +170,7 @@ default:
     - test "$DOCKER_USER" -a "$DOCKER_PASS" ||
       ( echo "no docker credentials provided"; exit 1 )
     - cd ./artifacts
-    - buildah bud
+    - $BUILDAH_COMMAND build
       --format=docker
       --build-arg VCS_REF="${CI_COMMIT_SHA}"
       --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -175,11 +181,28 @@ default:
     # The job will success only on the protected branch
     - echo "$DOCKER_PASS" |
       buildah login --username "$DOCKER_USER" --password-stdin docker.io
-    - buildah info
-    - buildah push --format=v2s2 "$IMAGE_NAME:$VERSION"
-    - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
+    - $BUILDAH_COMMAND info
+    - $BUILDAH_COMMAND push --format=v2s2 "$IMAGE_NAME:$VERSION"
+    - $BUILDAH_COMMAND push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
   after_script:
     - buildah logout --all
+
+#### stage:                       .pre
+
+# By default our pipelines are interruptible, but some special pipelines shouldn't be interrupted:
+# * multi-project pipelines such as the ones triggered by the scripts repo
+#
+# In those cases, we add an uninterruptible .pre job; once that one has started,
+# the entire pipeline becomes uninterruptible.
+uninterruptible-pipeline:
+  extends: .kubernetes-env
+  variables:
+    CI_IMAGE: "paritytech/tools:latest"
+  stage: .pre
+  interruptible: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+  script: "true"
 
 include:
   # weights jobs
@@ -196,6 +219,10 @@ include:
   - scripts/ci/gitlab/pipeline/publish.yml
   # zombienet jobs
   - scripts/ci/gitlab/pipeline/zombienet.yml
+  # timestamp handler
+  - project: parity/infrastructure/ci_cd/shared
+    ref: v0.2
+    file: /common/timestamp.yml
 
 #### stage:                        .post
 

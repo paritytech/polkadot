@@ -1,4 +1,4 @@
-// Copyright 2017-2023 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -28,7 +28,10 @@ pub mod pallet {
 		dispatch::{Dispatchable, GetDispatchInfo},
 		pallet_prelude::Encode,
 	};
-	use xcm::latest::{Junction, MultiAsset, MultiAssets, MultiLocation, Response};
+	use xcm::latest::{
+		InteriorMultiLocation, Junction, MultiAsset, MultiAssets, MultiLocation, NetworkId,
+		Response,
+	};
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
@@ -49,10 +52,10 @@ pub mod pallet {
 		/// If set to `Err`, benchmarks which rely on an `exchange_asset` will be skipped.
 		fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError>;
 
-		/// A `Junction` that is one of the `UniversalAliases` configured by the XCM executor.
+		/// A `(MultiLocation, Junction)` that is one of the `UniversalAliases` configured by the XCM executor.
 		///
 		/// If set to `Err`, benchmarks which rely on a universal alias will be skipped.
-		fn universal_alias() -> Result<Junction, BenchmarkError>;
+		fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError>;
 
 		/// The `MultiLocation` and `RuntimeCall` used for successful transaction XCMs.
 		///
@@ -71,6 +74,12 @@ pub mod pallet {
 
 		/// Return an unlocker, owner and assets that can be locked and unlocked.
 		fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError>;
+
+		/// A `(MultiLocation, NetworkId, InteriorMultiLocation)` we can successfully export message to.
+		///
+		/// If set to `Err`, benchmarks which rely on `export_message` will be skipped.
+		fn export_message_origin_and_destination(
+		) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError>;
 	}
 
 	#[pallet::pallet]

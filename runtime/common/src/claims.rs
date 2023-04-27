@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -164,7 +164,6 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -718,13 +717,14 @@ mod tests {
 		assert_err, assert_noop, assert_ok,
 		dispatch::{DispatchError::BadOrigin, GetDispatchInfo, Pays},
 		ord_parameter_types, parameter_types,
-		traits::{ExistenceRequirement, GenesisBuild, WithdrawReasons},
+		traits::{ConstU32, ExistenceRequirement, GenesisBuild, WithdrawReasons},
 	};
 	use pallet_balances;
 	use sp_runtime::{
 		testing::Header,
 		traits::{BlakeTwo256, Identity, IdentityLookup},
 		transaction_validity::TransactionLongevity,
+		TokenError,
 	};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -787,6 +787,10 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	parameter_types! {
@@ -1207,7 +1211,7 @@ mod tests {
 					180,
 					ExistenceRequirement::AllowDeath
 				),
-				pallet_balances::Error::<Test, _>::LiquidityRestrictions,
+				TokenError::Frozen,
 			);
 		});
 	}
@@ -1295,6 +1299,8 @@ mod tests {
 	#[test]
 	fn claiming_while_vested_doesnt_work() {
 		new_test_ext().execute_with(|| {
+			CurrencyOf::<Test>::make_free_balance_be(&69, total_claims());
+			assert_eq!(Balances::free_balance(69), total_claims());
 			// A user is already vested
 			assert_ok!(<Test as Config>::VestingSchedule::add_vesting_schedule(
 				&69,
@@ -1302,8 +1308,6 @@ mod tests {
 				100,
 				10
 			));
-			CurrencyOf::<Test>::make_free_balance_be(&69, total_claims());
-			assert_eq!(Balances::free_balance(69), total_claims());
 			assert_ok!(Claims::mint_claim(
 				RuntimeOrigin::root(),
 				eth(&bob()),
