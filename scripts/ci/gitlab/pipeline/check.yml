@@ -87,7 +87,7 @@ check-runtime-migration-polkadot:
     - .check-runtime-migration
   variables:
     NETWORK: "polkadot"
-    allow_failure: true # FIXME https://github.com/paritytech/substrate/issues/13107
+  allow_failure: true # FIXME https://github.com/paritytech/substrate/issues/13107
 
 check-runtime-migration-kusama:
   stage: check
@@ -98,7 +98,7 @@ check-runtime-migration-kusama:
     - .check-runtime-migration
   variables:
     NETWORK: "kusama"
-    allow_failure: true # FIXME https://github.com/paritytech/substrate/issues/13107
+  allow_failure: true # FIXME https://github.com/paritytech/substrate/issues/13107
 
 check-runtime-migration-westend:
   stage: check
