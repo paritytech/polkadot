@@ -41,8 +41,11 @@ impl<
 		{
 			return true
 		}
-		let Some(loc) = origin else { return false };
-		WaivedLocations::contains(loc)
+		#[cfg(not(feature = "runtime-benchmarks"))]
+		{
+			let Some(loc) = origin else { return false };
+			WaivedLocations::contains(loc)
+		}
 	}
 
 	fn handle_fee(fees: MultiAssets, context: Option<&XcmContext>) {
