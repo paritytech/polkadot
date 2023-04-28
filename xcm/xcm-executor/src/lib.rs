@@ -95,16 +95,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		self.holding_limit = v
 	}
 	pub fn origin(&self) -> &Option<MultiLocation> {
-		&self.context.origin
+		&self.context.computed_origin
 	}
 	pub fn set_origin(&mut self, v: Option<MultiLocation>) {
-		self.context.origin = v
+		self.context.computed_origin = v
 	}
 	pub fn original_origin(&self) -> &MultiLocation {
-		&self.original_origin
+		&self.physical_origin
 	}
 	pub fn set_original_origin(&mut self, v: MultiLocation) {
-		self.original_origin = v
+		self.physical_origin = v
 	}
 	pub fn trader(&self) -> &Config::Trader {
 		&self.trader
