@@ -45,6 +45,7 @@ mod tests;
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
 
+/// Keeps track of how many assignments a scheduler currently has for a specific core index.
 #[derive(Encode, Decode, Default, Clone, Copy, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 struct CoreAffinityCount {
@@ -52,6 +53,7 @@ struct CoreAffinityCount {
 	count: u32,
 }
 
+/// An indicator as to which end of the `OnDemandQueue` an assignment will be placed.
 pub enum QueuePushDirection {
 	Back,
 	Front,
@@ -92,6 +94,7 @@ pub mod pallet {
 		VecDeque::new()
 	}
 
+	/// Keeps track of the multiplier used to calculate the current spot price for the on demand assigner.
 	#[pallet::storage]
 	pub(super) type SpotTraffic<T: Config> =
 		StorageValue<_, FixedU128, ValueQuery, SpotTrafficOnEmpty<T>>;
@@ -102,6 +105,9 @@ pub mod pallet {
 	pub type OnDemandQueue<T: Config> =
 		StorageValue<_, VecDeque<ParathreadEntry>, ValueQuery, OnDemandQueueOnEmpty<T>>;
 
+	/// Maps a `ParaId` to `CoreIndex` and keeps track of how many assignments the scheduler has in it's
+	/// lookahead. Keeping track of this affinity prevents parallel execution of two or more `ParaId`s on different
+	/// `CoreIndex`es.
 	#[pallet::storage]
 	pub(super) type ParaIdAffinity<T: Config> =
 		StorageMap<_, Twox256, ParaId, CoreAffinityCount, OptionQuery>;
@@ -357,8 +363,8 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 	/// Take the next queued entry that is available for a given core index.
 	/// Parameters:
 	/// - `core_idx`: The core index
-	/// - `previous_paraid`: Which paraid was previously processed on the requested core. Is None if nothing was processed
-	///    on the core.
+	/// - `previous_paraid`: Which paraid was previously processed on the requested core.
+	///    Is None if nothing was processed on the core.
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		previous_para: Option<ParaId>,
@@ -391,8 +397,8 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 		return None
 	}
 
-	/// Pushes an assignment back to the queue on session boundaries.
-	/// Drops the assignment if retries exceeds `config.parathread_retries`.
+	/// Push an assignment back to the queue.
+	/// Typically used on session boundaries.
 	/// Parameters:
 	/// - `core_idx`: The core index
 	/// - `assignment`: The on demand assignment.
