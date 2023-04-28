@@ -1103,6 +1103,16 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 	type QueryId = u64;
 	type BlockNumber = T::BlockNumber;
 	type Error = XcmError;
+	type UniversalLocation = T::UniversalLocation;
+
+	/// Attempt to create a new query ID and register it as a query that is yet to respond.
+	fn new_query(
+		responder: impl Into<MultiLocation>,
+		timeout: T::BlockNumber,
+		match_querier: impl Into<MultiLocation>,
+	) -> Self::QueryId {
+		Self::do_new_query(responder, None, timeout, match_querier).into()
+	}
 
 	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
 	/// value.
@@ -1110,13 +1120,12 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
 		timeout: Self::BlockNumber,
-		interior: impl Into<MultiLocation>,
 	) -> Result<Self::QueryId, Self::Error> {
 		let responder = responder.into();
-		let destination = T::UniversalLocation::get()
+		let destination = Self::UniversalLocation::get()
 			.invert_target(&responder)
 			.map_err(|()| XcmError::LocationNotInvertible)?;
-		let query_id = Self::new_query(responder, timeout, interior);
+		let query_id = Self::new_query(responder, timeout, Here);
 		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
 		let report_error = Xcm(vec![ReportError(response_info)]);
 		message.0.insert(0, SetAppendix(report_error));
@@ -1550,15 +1559,6 @@ impl<T: Config> Pallet<T> {
 		let report_error = Xcm(vec![ReportError(response_info)]);
 		message.0.insert(0, SetAppendix(report_error));
 		Ok(())
-	}
-
-	/// Attempt to create a new query ID and register it as a query that is yet to respond.
-	pub fn new_query(
-		responder: impl Into<MultiLocation>,
-		timeout: T::BlockNumber,
-		match_querier: impl Into<MultiLocation>,
-	) -> u64 {
-		Self::do_new_query(responder, None, timeout, match_querier)
 	}
 
 	/// Attempt to create a new query ID and register it as a query that is yet to respond, and
