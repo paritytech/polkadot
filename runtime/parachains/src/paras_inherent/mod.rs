@@ -23,7 +23,7 @@
 
 use crate::{
 	configuration,
-	disputes::{DisputesHandler, VerifyDisputeSignatures},
+	disputes::DisputesHandler,
 	inclusion,
 	inclusion::{CandidateCheckContext, FullCheck},
 	initializer,
@@ -33,6 +33,7 @@ use crate::{
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
+	dispatch::{DispatchErrorWithPostInfo, PostDispatchInfo},
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
 	pallet_prelude::*,
 	traits::Randomness,
@@ -268,13 +269,19 @@ pub mod pallet {
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 			Included::<T>::set(Some(()));
 
-			Self::enter_inner(data, FullCheck::Yes)
+			Self::enter_inner(data)
 		}
 	}
 }
 
 impl<T: Config> Pallet<T> {
 	pub(crate) fn enter_inner(
+		mut data: ParachainsInherentData<T::Header>,
+	) -> DispatchResultWithPostInfo {
+		Self::process_inherent_data(data).map(|(_processed, post_info)| post_info)
+	}
+
+	pub(crate) fn enter_inner_old(
 		data: ParachainsInherentData<T::Header>,
 		full_check: FullCheck,
 	) -> DispatchResultWithPostInfo {
@@ -325,19 +332,9 @@ impl<T: Config> Pallet<T> {
 			let post_conclusion_acceptance_period =
 				config.dispute_post_conclusion_acceptance_period;
 
-			let verify_dispute_sigs = if let FullCheck::Yes = full_check {
-				VerifyDisputeSignatures::Yes
-			} else {
-				VerifyDisputeSignatures::Skip
-			};
-
 			// .. and prepare a helper closure.
 			let dispute_set_validity_check = move |set| {
-				T::DisputesHandler::filter_dispute_data(
-					set,
-					post_conclusion_acceptance_period,
-					verify_dispute_sigs,
-				)
+				T::DisputesHandler::filter_dispute_data(set, post_conclusion_acceptance_period)
 			};
 
 			// In case of an overweight block, consume up to the entire block weight
@@ -519,12 +516,7 @@ impl<T: Config> Pallet<T> {
 	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in [`Self::create_inherent`].
 	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
 	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<T::Header>> {
-		let ParachainsInherentData::<T::Header> {
-			bitfields,
-			backed_candidates,
-			mut disputes,
-			parent_header,
-		} = match data.get_data(&Self::INHERENT_IDENTIFIER) {
+		let mut parachains_inherent_data = match data.get_data(&Self::INHERENT_IDENTIFIER) {
 			Ok(Some(d)) => d,
 			Ok(None) => return None,
 			Err(_) => {
@@ -532,6 +524,40 @@ impl<T: Config> Pallet<T> {
 				return None
 			},
 		};
+		match Self::process_inherent_data(parachains_inherent_data) {
+			Ok((processed, _)) => Some(processed),
+			Err(err) => {
+				log::warn!(target: LOG_TARGET, "Processing inherent data failed: {:?}", err);
+				None
+			},
+		}
+	}
+
+	/// Process inherent data.
+	///
+	/// The given inherent data is processed and state is altered accordingly. If any data could
+	/// not be applied (inconsitencies, weight limit, ...) if is removed via the mutable reference.
+	///
+	/// This function can both be called on block creation in `create_inherent` and on block import
+	/// in `enter`. The mutation of `data` is only useful in the `create_inherent` case as it
+	/// avoids overweight blocks for example.
+	///
+	/// Returns: Result containing processed inherent data and actually consumed weight.
+	fn process_inherent_data(
+		mut data: ParachainsInherentData<T::Header>,
+	) -> sp_std::result::Result<
+		(ParachainsInherentData<T::Header>, PostDispatchInfo),
+		DispatchErrorWithPostInfo,
+	> {
+		#[cfg(feature = "runtime-metrics")]
+		sp_io::init_tracing();
+
+		let ParachainsInherentData {
+			mut bitfields,
+			mut backed_candidates,
+			mut parent_header,
+			mut disputes,
+		} = data;
 
 		log::debug!(
 			target: LOG_TARGET,
@@ -543,13 +569,10 @@ impl<T: Config> Pallet<T> {
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 
-		if parent_hash != parent_header.hash() {
-			log::warn!(
-				target: LOG_TARGET,
-				"ParachainsInherentData references a different parent header hash than frame"
-			);
-			return None
-		}
+		ensure!(
+			parent_header.hash().as_ref() == parent_hash.as_ref(),
+			Error::<T>::InvalidParentHeader,
+		);
 
 		let current_session = <shared::Pallet<T>>::session_index();
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
@@ -560,7 +583,7 @@ impl<T: Config> Pallet<T> {
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
 		// Filter out duplicates and continue.
-		if let Err(_) = T::DisputesHandler::deduplicate_and_sort_dispute_data(&mut disputes) {
+		if let Err(()) = T::DisputesHandler::deduplicate_and_sort_dispute_data(&mut disputes) {
 			log::debug!(target: LOG_TARGET, "Found duplicate statement sets, retaining the first");
 		}
 
@@ -576,14 +599,7 @@ impl<T: Config> Pallet<T> {
 			checked_disputes_sets_consumed_weight,
 		) = frame_support::storage::with_transaction_unchecked(|| {
 			let dispute_statement_set_valid = move |set: DisputeStatementSet| {
-				T::DisputesHandler::filter_dispute_data(
-					set,
-					post_conclusion_acceptance_period,
-					// `DisputeCoordinator` on the node side only forwards
-					// valid dispute statement sets and hence this does not
-					// need to be checked.
-					VerifyDisputeSignatures::Skip,
-				)
+				T::DisputesHandler::filter_dispute_data(set, post_conclusion_acceptance_period)
 			};
 
 			// Limit the disputes first, since the following statements depend on the votes include here.
@@ -729,12 +745,12 @@ impl<T: Config> Pallet<T> {
 			.map(|checked| checked.into())
 			.collect::<Vec<_>>();
 
-		Some(ParachainsInherentData::<T::Header> {
-			bitfields,
-			backed_candidates,
-			disputes,
-			parent_header,
-		})
+		let processed =
+			ParachainsInherentData { bitfields, backed_candidates, disputes, parent_header };
+		Ok((
+			processed,
+			Some(actual_weight.saturating_add(checked_disputes_sets_consumed_weight)).into(),
+		))
 	}
 }
 
