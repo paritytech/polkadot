@@ -244,11 +244,11 @@ pub mod pallet {
 		/// The maximum number of local XCM locks that a single account may have.
 		type MaxLockers: Get<u32>;
 
-		/// The maximum number of users a single remote lock may have.
-		type MaxRemoteLockUsers: Get<u32>;
+		/// The maximum number of consumers a single remote lock may have.
+		type MaxRemoteLockConsumers: Get<u32>;
 
-		/// The ID type for remote lock users.
-		type RemoteLockIdentifier: Parameter + Member + MaxEncodedLen + Ord + Copy;
+		/// The ID type for local consumers of remote locks.
+		type RemoteLockConsumerIdentifier: Parameter + Member + MaxEncodedLen + Ord + Copy;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -445,7 +445,7 @@ pub mod pallet {
 		FeesNotMet,
 		/// A remote lock with the corresponding data could not be found.
 		LockNotFound,
-		/// The unlock operation cannot succeed because there are still users of the lock.
+		/// The unlock operation cannot succeed because there are still consumers of the lock.
 		InUse,
 	}
 
@@ -588,19 +588,25 @@ pub mod pallet {
 		StorageValue<_, VersionMigrationStage, OptionQuery>;
 
 	#[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, TypeInfo, MaxEncodedLen)]
-	#[scale_info(skip_type_params(MaxUsers))]
-	pub struct RemoteLockedFungibleRecord<RemoteLockIdentifier, MaxUsers: Get<u32>> {
+	#[scale_info(skip_type_params(MaxConsumers))]
+	pub struct RemoteLockedFungibleRecord<ConsumerIdentifier, MaxConsumers: Get<u32>> {
+		/// Total amount of the asset held by the remote lock.
 		pub amount: u128,
+		/// The owner of the locked asset.
 		pub owner: VersionedMultiLocation,
+		/// The location which holds the original lock.
 		pub locker: VersionedMultiLocation,
-		pub users: BoundedVec<(RemoteLockIdentifier, u128), MaxUsers>,
+		/// Local consumers of the remote lock with consumer identifiers and the amount
+		/// of fungible asset every consumer holds.
+		/// Every consumer can hold up to total amount of the remote lock.
+		pub consumers: BoundedVec<(ConsumerIdentifier, u128), MaxConsumers>,
 	}
 
-	impl<LockId, MaxUsers: Get<u32>> RemoteLockedFungibleRecord<LockId, MaxUsers> {
-		/// Amount of the remote lock in use by users.
-		/// Returns zero if the remote lock has no users.
-		pub fn amount_held(&self) -> u128 {
-			self.users.iter().max_by(|x, y| x.1.cmp(&y.1)).map_or(0, |max| max.1)
+	impl<LockId, MaxConsumers: Get<u32>> RemoteLockedFungibleRecord<LockId, MaxConsumers> {
+		/// Amount of the remote lock in use by consumers.
+		/// Returns `None` if the remote lock has no consumers.
+		pub fn amount_held(&self) -> Option<u128> {
+			self.consumers.iter().max_by(|x, y| x.1.cmp(&y.1)).map(|max| max.1)
 		}
 	}
 
@@ -613,7 +619,7 @@ pub mod pallet {
 			NMapKey<Blake2_128Concat, T::AccountId>,
 			NMapKey<Blake2_128Concat, VersionedAssetId>,
 		),
-		RemoteLockedFungibleRecord<T::RemoteLockIdentifier, T::MaxRemoteLockUsers>,
+		RemoteLockedFungibleRecord<T::RemoteLockConsumerIdentifier, T::MaxRemoteLockConsumers>,
 		OptionQuery,
 	>;
 
@@ -1683,7 +1689,7 @@ impl<T: Config> xcm_executor::traits::Enact for ReduceTicket<T> {
 		let mut record = RemoteLockedFungibles::<T>::get(&self.key).ok_or(UnexpectedState)?;
 		ensure!(self.locker == record.locker && self.owner == record.owner, UnexpectedState);
 		let new_amount = record.amount.checked_sub(self.amount).ok_or(UnexpectedState)?;
-		ensure!(record.users.len() == 0 || new_amount >= record.amount_held(), UnexpectedState);
+		ensure!(record.amount_held().map_or(true, |h| new_amount >= h), UnexpectedState);
 		if new_amount == 0 {
 			RemoteLockedFungibles::<T>::remove(&self.key);
 		} else {
@@ -1748,11 +1754,11 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		let id: VersionedAssetId = asset.id.into();
 		let key = (XCM_VERSION, account, id);
 		let mut record =
-			RemoteLockedFungibleRecord { amount, owner, locker, users: BoundedVec::default() };
+			RemoteLockedFungibleRecord { amount, owner, locker, consumers: BoundedVec::default() };
 		if let Some(old) = RemoteLockedFungibles::<T>::get(&key) {
 			// Make sure that the new record wouldn't clobber any old data.
 			ensure!(old.locker == record.locker && old.owner == record.owner, WouldClobber);
-			record.users = old.users;
+			record.consumers = old.consumers;
 			record.amount = record.amount.max(old.amount);
 		}
 		RemoteLockedFungibles::<T>::insert(&key, record);
@@ -1781,7 +1787,7 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		ensure!(locker == record.locker && owner == record.owner, WouldClobber);
 		ensure!(record.amount >= amount, NotEnoughLocked);
 		ensure!(
-			record.users.len() == 0 || record.amount.saturating_sub(amount) >= record.amount_held(),
+			record.amount_held().map_or(true, |h| record.amount.saturating_sub(amount) >= h),
 			InUse
 		);
 		Ok(ReduceTicket { key, amount, locker, owner })
