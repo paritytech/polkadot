@@ -903,7 +903,7 @@ async fn extract_worker_binaries(prepare_worker_path: &Path, execute_worker_path
 	use std::os::unix::fs::OpenOptionsExt;
 	let mut open_options = OpenOptions::new();
 	#[cfg(unix)]
-	open_options.write(true).create_new(true).mode(744);
+	open_options.write(true).create_new(true).mode(0o744);
 	#[cfg(not(unix))]
 	open_options.write(true).create_new(true);
 

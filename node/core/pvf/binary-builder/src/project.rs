@@ -338,7 +338,7 @@ fn create_project_cargo_toml(
 	}
 
 	let mut package = Table::new();
-	package.insert("name".into(), format!("{}", crate_name).into());
+	package.insert("name".into(), crate_name.into());
 	package.insert("version".into(), "1.0.0".into());
 	package.insert("edition".into(), "2021".into());
 
@@ -724,7 +724,7 @@ fn compact_file(
 	let in_path = project
 		.join(format!("target/{}", target))
 		.join(profile.directory())
-		.join(format!("{}", default_out_name));
+		.join(default_out_name);
 
 	let (compact_path, compact_compressed_path) = if profile.wants_compact() {
 		// TODO: For a generalized builder we may want to support passing in a function to compact the
@@ -746,7 +746,7 @@ fn compact_file(
 		(None, None)
 	};
 
-	let bloaty_path = project.join(format!("{}", out_name));
+	let bloaty_path = project.join(out_name);
 	fs::copy(in_path, &bloaty_path).expect("Copying the bloaty file to the project dir.");
 
 	(compact_path, compact_compressed_path, BinaryBloaty(bloaty_path))
@@ -930,6 +930,6 @@ fn copy_binary_to_target_directory(cargo_manifest: &Path, binary: &Binary) {
 
 	fs::create_dir_all(&target_dir).expect("Creates `TARGET_DIRECTORY`.");
 
-	fs::copy(binary.binary_path(), target_dir.join(format!("{}", get_binary_name(cargo_manifest))))
+	fs::copy(binary.binary_path(), target_dir.join(get_binary_name(cargo_manifest)))
 		.expect("Copies binary to `TARGET_DIRECTORY`.");
 }
