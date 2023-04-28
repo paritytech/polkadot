@@ -4,7 +4,6 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
-# TODO: cargo udeps
 [dependencies]
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../../gum" }

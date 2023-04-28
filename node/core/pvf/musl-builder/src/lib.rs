@@ -195,7 +195,7 @@ impl CargoCommand {
 	///
 	/// Assumes that cargo version matches the rustc version.
 	fn supports_env(&self) -> bool {
-		// Just a stub for now -- not sure this is needed for musl-builder.
+		// TODO: Just a stub for now -- not sure this is needed for musl-builder.
 		true
 	}
 }

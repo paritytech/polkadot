@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{write_file_if_changed, CargoCommandVersioned, OFFLINE};
+use crate::{copy_file_if_changed, write_file_if_changed, CargoCommandVersioned, OFFLINE};
 
 use build_helper::rerun_if_changed;
 use cargo_metadata::{CargoOpt, Metadata, MetadataCommand};
@@ -28,7 +28,7 @@ use std::{
 	process,
 };
 use strum::{EnumIter, IntoEnumIterator};
-use toml::value::Table;
+use toml::value::{Array, Table};
 use walkdir::WalkDir;
 
 /// Colorize an info message.
@@ -58,6 +58,7 @@ impl BinaryBloaty {
 }
 
 /// Holds the path to the binary.
+#[derive(Debug)]
 pub struct Binary(PathBuf);
 
 impl Binary {
@@ -280,6 +281,10 @@ fn create_project_cargo_toml(
 	binary: &str,
 	enabled_features: impl Iterator<Item = String>,
 ) {
+	// For the PVF workers we want unwinding panics (we have panic handlers in place).
+	// TODO: Allow customizing this for the generalized builder.
+	let panic_setting = "unwind";
+
 	let mut root_workspace_toml: Table = toml::from_str(
 		&fs::read_to_string(workspace_root_path.join("Cargo.toml"))
 			.expect("Workspace root `Cargo.toml` exists; qed"),
@@ -290,7 +295,7 @@ fn create_project_cargo_toml(
 
 	// Add different profiles which are selected by setting `BUILD_TYPE`.
 	let mut release_profile = Table::new();
-	release_profile.insert("panic".into(), "abort".into());
+	release_profile.insert("panic".into(), panic_setting.into());
 	release_profile.insert("lto".into(), "thin".into());
 
 	let mut production_profile = Table::new();
@@ -299,7 +304,7 @@ fn create_project_cargo_toml(
 	production_profile.insert("codegen-units".into(), 1.into());
 
 	let mut dev_profile = Table::new();
-	dev_profile.insert("panic".into(), "abort".into());
+	dev_profile.insert("panic".into(), panic_setting.into());
 
 	let mut profile = Table::new();
 	profile.insert("release".into(), release_profile.into());
@@ -339,11 +344,21 @@ fn create_project_cargo_toml(
 
 	workspace_toml.insert("package".into(), package.into());
 
-	let mut lib = Table::new();
-	lib.insert("name".into(), binary.into());
-	lib.insert("crate-type".into(), vec!["cdylib".to_string()].into());
+	// For PVF workers use `bin` instead of wasm-builder's lib.
+	// TODO: Allow choose between bin/lib for the generalized builder.
+	let mut bin_array = Array::new();
+	let mut bin = Table::new();
+	bin.insert("name".into(), binary.into());
+	bin.insert("path".into(), "src/main.rs".into());
+	bin_array.insert(0, bin.into());
 
-	workspace_toml.insert("lib".into(), lib.into());
+	workspace_toml.insert("bin".into(), bin_array.into());
+
+	// let mut lib = Table::new();
+	// lib.insert("name".into(), binary.into());
+	// lib.insert("crate-type".into(), vec!["cdylib".to_string()].into());
+
+	// workspace_toml.insert("lib".into(), lib.into());
 
 	let mut dependencies = Table::new();
 
@@ -444,6 +459,14 @@ fn project_enabled_features(
 		.map(|d| d.0.clone())
 		.collect::<Vec<_>>();
 
+	// Assert that the "builder" feature is present but disabled.
+	assert!(
+		package.features.contains_key("builder") &&
+			!enabled_features.contains(&"builder".to_string())
+	);
+	// Enable the builder feature so that it is only present when building the binary.
+	enabled_features.push("builder".into());
+
 	enabled_features.sort();
 	enabled_features
 }
@@ -501,9 +524,14 @@ fn create_project(
 
 	write_file_if_changed(project_folder.join("src/lib.rs"), "#![no_std] pub use project::*;");
 
+	let main_path = crate_path.join("src/main.rs");
+	if main_path.exists() {
+		copy_file_if_changed(main_path, project_folder.join("src/main.rs"));
+	}
+
 	if let Some(crate_lock_file) = find_cargo_lock(project_cargo_toml) {
 		// Use the `Cargo.lock` of the main project.
-		crate::copy_file_if_changed(crate_lock_file, project_folder.join("Cargo.lock"));
+		copy_file_if_changed(crate_lock_file, project_folder.join("Cargo.lock"));
 	}
 
 	project_folder
@@ -631,8 +659,16 @@ fn build_project(
 	let manifest_path = project.join("Cargo.toml");
 	let mut build_cmd = cargo_cmd.command();
 
+	// TODO: If wasm-builder is ever refactored to use this generalized builder, it needs the
+	// following default flags:
+	//
+	// ```
+	// -C target-cpu=mvp -C target-feature=-sign-ext -C link-arg=--export-table
+	// ```
+	//
+	// See <https://github.com/paritytech/substrate/issues/13982>.
 	let rustflags = format!(
-		"-C target-cpu=mvp -C target-feature=-sign-ext -C link-arg=--export-table {} {}",
+		"{} {}",
 		default_rustflags,
 		env::var(crate::BUILD_RUSTFLAGS_ENV).unwrap_or_default(),
 	);
@@ -675,7 +711,7 @@ fn build_project(
 	}
 }
 
-/// Compact the binary if supported for the target.
+/// Compact the binary and compress it using zstd.
 fn compact_file(
 	project: &Path,
 	profile: Profile,
@@ -694,7 +730,11 @@ fn compact_file(
 		// TODO: For a generalized builder we may want to support passing in a function to compact the
 		// binary.
 
-		let compact_path = project.join(format!("{}.compact", out_name,));
+		let compact_path = project.join(format!("{}.compact", out_name));
+		// TODO: Wasm compaction goes here.
+		// TODO: For other targets, compaction is a noop so the compact
+		//       and compressed binaries are the same right now.
+		fs::copy(&in_path, &compact_path).expect("Copying the binary to the project dir.");
 
 		let compact_compressed_path = project.join(format!("{}.compact.compressed", out_name));
 		if compress(&compact_path, &compact_compressed_path) {

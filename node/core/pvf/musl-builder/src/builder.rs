@@ -74,11 +74,17 @@ pub struct BuilderSelectTarget {
 }
 
 impl BuilderSelectTarget {
-	/// Select the Rust target to use for building the binary.
+	/// Use the current Rust target for building the binary.
+	pub fn with_current_target(self) -> Builder {
+		self.with_target(env::var("TARGET").expect("this is set by cargo! qed"))
+	}
+
+	/// Use the given Rust target for building the binary.
 	pub fn with_target(self, target: impl Into<String>) -> Builder {
 		Builder {
 			rust_flags: Vec::new(),
 			file_name: None,
+			constant_name: None,
 			project_cargo_toml: self.project_cargo_toml,
 			features_to_enable: Vec::new(),
 			target: target.into(),
@@ -104,6 +110,10 @@ pub struct Builder {
 	///
 	/// Defaults to `binary.rs`.
 	file_name: Option<String>,
+	/// The name of the Rust constant that is generated which contains the binary bytes.
+	///
+	/// Defaults to `BINARY`.
+	constant_name: Option<String>,
 	/// The path to the `Cargo.toml` of the project that should be built.
 	project_cargo_toml: PathBuf,
 	/// Features that should be enabled when building the binary.
@@ -136,6 +146,14 @@ impl Builder {
 		self
 	}
 
+	/// Set the name of the constant that will be generated in the Rust code to include!.
+	///
+	/// If this function is not called, `constant_name` defaults to `BINARY`
+	pub fn set_constant_name(mut self, constant_name: impl Into<String>) -> Self {
+		self.constant_name = Some(constant_name.into());
+		self
+	}
+
 	/// Instruct the linker to import the memory into the binary.
 	///
 	/// This adds `-C link-arg=--import-memory` to `RUST_FLAGS`.
@@ -164,6 +182,7 @@ impl Builder {
 	pub fn build(self) {
 		let out_dir = PathBuf::from(env::var("OUT_DIR").expect("`OUT_DIR` is set by cargo!"));
 		let file_path = out_dir.join(self.file_name.clone().unwrap_or_else(|| "binary.rs".into()));
+		let constant_name = self.constant_name.clone().unwrap_or_else(|| "BINARY".into());
 
 		if check_skip_build() {
 			// If we skip the build, we still want to make sure to be called when an env variable
@@ -177,6 +196,7 @@ impl Builder {
 
 		build_project(
 			file_path,
+			constant_name,
 			self.project_cargo_toml,
 			self.rust_flags.into_iter().map(|f| format!("{} ", f)).collect(),
 			self.features_to_enable,
@@ -245,6 +265,7 @@ fn generate_rerun_if_changed_instructions() {
 /// `target` - The binary target.
 fn build_project(
 	file_name: PathBuf,
+	constant_name: String,
 	project_cargo_toml: PathBuf,
 	default_rustflags: String,
 	features_to_enable: Vec<String>,
@@ -279,9 +300,8 @@ fn build_project(
 		file_name,
 		format!(
 			r#"
-				pub const BINARY: Option<&[u8]> = Some(include_bytes!("{binary}"));
+				pub const {constant_name}: Option<&[u8]> = Some(include_bytes!("{binary}"));
 			"#,
-			binary = binary,
 		),
 	);
 }

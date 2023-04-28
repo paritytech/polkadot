@@ -8,6 +8,7 @@ edition.workspace = true
 name = "puppet_worker"
 path = "bin/puppet_worker.rs"
 
+# TODO: run `cargo udeps`. Currently broken with the builder.
 [dependencies]
 always-assert = "0.1"
 futures = "0.3.21"
