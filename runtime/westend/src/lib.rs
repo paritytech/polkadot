@@ -1952,7 +1952,7 @@ mod clean_state_migration {
 
 	impl OnRuntimeUpgrade for CleanMigrate {
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+		fn pre_upgrade() -> Result<Vec<u8>, DispatchError> {
 			Ok(Default::default())
 		}
 
@@ -1964,7 +1964,7 @@ mod clean_state_migration {
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+		fn post_upgrade(_state: Vec<u8>) -> DispatchResult {
 			frame_support::ensure!(
 				!AutoLimits::exists() && !SignedMigrationMaxLimits::exists(),
 				"State migration clean.",
