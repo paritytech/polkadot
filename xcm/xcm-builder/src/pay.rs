@@ -22,7 +22,7 @@ use frame_support::traits::{
 };
 use polkadot_core_primitives::AccountId;
 use sp_std::{marker::PhantomData, vec};
-use xcm::prelude::*;
+use xcm::{opaque::lts::Weight, prelude::*};
 use xcm_executor::traits::{FinishedQuery, QueryResponseStatus, XcmQueryHandler};
 
 /// Implementation of the `frame_support_traits::tokens::Pay` trait, to allow
@@ -76,7 +76,20 @@ impl<
 		let destination_chain = DestinationChain::get();
 		let sender_account = SenderAccount::get();
 		let sender_origin = Junction::AccountId32 { network: None, id: sender_account.into() };
-		let mut message = Xcm(vec![
+
+		let destination = Querier::UniversalLocation::get()
+			.invert_target(&destination_chain)
+			.map_err(|()| Self::Error::LocationNotInvertible)?;
+
+		let query_id = Querier::new_query(destination_chain, Timeout::get(), sender_origin);
+
+		let message = Xcm(vec![
+			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
+				destination,
+				query_id,
+				max_weight: Weight::zero(),
+			})])),
 			DescendOrigin(sender_origin.into()),
 			TransferAsset {
 				beneficiary: AccountId32 { network: None, id: who.clone().into() }.into(),
@@ -87,17 +100,10 @@ impl<
 				.into(),
 			},
 		]);
-		let id =
-			Querier::report_outcome(&mut message, destination_chain, Timeout::get(), sender_origin)
-				.map_err(|_| Self::Error::LocationNotInvertible)?;
-
-		message
-			.0
-			.insert(0, UnpaidExecution { weight_limit: Unlimited, check_origin: None });
 
 		let (ticket, _) = Router::validate(&mut Some(destination_chain), &mut Some(message))?;
 		Router::deliver(ticket)?;
-		Ok(id)
+		Ok(query_id.into())
 	}
 
 	fn check_payment(id: Self::Id) -> PaymentStatus {

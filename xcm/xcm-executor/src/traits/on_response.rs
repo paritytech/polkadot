@@ -16,10 +16,14 @@
 
 use crate::Xcm;
 use core::result;
-use frame_support::{dispatch::fmt::Debug, pallet_prelude::TypeInfo};
+use frame_support::{
+	dispatch::fmt::Debug,
+	pallet_prelude::{Get, TypeInfo},
+};
 use parity_scale_codec::{FullCodec, MaxEncodedLen};
 use xcm::latest::{
-	Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult, Weight, XcmContext,
+	Error as XcmError, InteriorMultiLocation, MultiLocation, QueryId, Response,
+	Result as XcmResult, Weight, XcmContext,
 };
 
 /// Define what needs to be done upon receiving a query response.
@@ -120,9 +124,25 @@ pub enum QueryResponseStatus<BlockNumber> {
 
 /// Provides methods to expect responses from XCMs and query their status.
 pub trait XcmQueryHandler {
-	type QueryId: FullCodec + MaxEncodedLen + TypeInfo + Clone + Eq + PartialEq + Debug + Copy;
+	type QueryId: From<u64>
+		+ FullCodec
+		+ MaxEncodedLen
+		+ TypeInfo
+		+ Clone
+		+ Eq
+		+ PartialEq
+		+ Debug
+		+ Copy;
 	type BlockNumber;
 	type Error;
+	type UniversalLocation: Get<InteriorMultiLocation>;
+
+	/// Attempt to create a new query ID and register it as a query that is yet to respond.
+	fn new_query(
+		responder: impl Into<MultiLocation>,
+		timeout: Self::BlockNumber,
+		match_querier: impl Into<MultiLocation>,
+	) -> QueryId;
 
 	/// Consume `message` and return another which is equivalent to it except that it reports
 	/// back the outcome.
@@ -130,7 +150,6 @@ pub trait XcmQueryHandler {
 	/// - `message`: The message whose outcome should be reported.
 	/// - `responder`: The origin from which a response should be expected.
 	/// - `timeout`: The block number after which it is permissible to return `NotFound` from `take_response`.
-	/// - `interior`: Indicates the computed location which is expected to report the outcome.
 	///
 	/// `report_outcome` may return an error if the `responder` is not invertible.
 	///
@@ -140,7 +159,6 @@ pub trait XcmQueryHandler {
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
 		timeout: Self::BlockNumber,
-		interior: impl Into<MultiLocation>,
 	) -> result::Result<Self::QueryId, Self::Error>;
 
 	/// Makes sure to expect a response with the given id
