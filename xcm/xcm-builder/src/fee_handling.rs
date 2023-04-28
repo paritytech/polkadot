@@ -39,7 +39,8 @@ impl<
 	fn is_waived(origin: Option<&MultiLocation>, _: FeeReason) -> bool {
 		#[cfg(feature = "runtime-benchmarks")]
 		{
-			return true
+			let _ = origin;
+			true
 		}
 		#[cfg(not(feature = "runtime-benchmarks"))]
 		{
