@@ -1520,7 +1520,7 @@ pub mod migrations {
 	use runtime_parachains::configuration::migration_ump;
 
 	pub const MAX_UPWARD_QUEUE_SIZE: u32 = 4 * 1024 * 1024;
-	pub const MAX_UPWARD_QUEUE_COUNT: u32 = 838860;
+	pub const MAX_UPWARD_QUEUE_COUNT: u32 = 699050;
 	pub const MAX_UPWARD_MESSAGE_SIZE: u32 = (1 << 16) - 5; // Checked in test `max_upward_message_size`.
 	pub const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32 = 128;
 
