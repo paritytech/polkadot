@@ -42,11 +42,8 @@ fn filter_dispute_set(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeSta
 	stmts
 		.into_iter()
 		.filter_map(|set| {
-			let filter = Pallet::<Test>::filter_dispute_data(
-				&set,
-				post_conclusion_acceptance_period,
-				VerifyDisputeSignatures::Skip,
-			);
+			let filter =
+				Pallet::<Test>::filter_dispute_data(&set, post_conclusion_acceptance_period);
 			filter.filter_statement_set(set)
 		})
 		.collect::<Vec<_>>()
@@ -1895,7 +1892,6 @@ fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
 		if let Some(checked) = <Pallet<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
 			dispute_statement,
 			post_conclusion_acceptance_period,
-			VerifyDisputeSignatures::Yes,
 		) {
 			acc.push(checked);
 		}
@@ -1970,11 +1966,7 @@ fn filter_removes_duplicates_within_set() {
 		let post_conclusion_acceptance_period = 10;
 		let statements = <Pallet<Test> as DisputesHandler<
 			<Test as frame_system::Config>::BlockNumber,
-		>>::filter_dispute_data(
-			statements,
-			post_conclusion_acceptance_period,
-			VerifyDisputeSignatures::Yes,
-		);
+		>>::filter_dispute_data(statements, post_conclusion_acceptance_period);
 
 		assert_eq!(
 			statements,
