@@ -100,10 +100,6 @@ mod worker_intf;
 #[doc(hidden)]
 pub mod testing;
 
-// TODO: Remove when moving the host into its own crate.
-#[doc(hidden)]
-pub use sp_tracing;
-
 pub use error::{InvalidCandidate, ValidationError};
 pub use execute::{ExecuteHandshake, ExecuteResponse};
 pub use priority::Priority;

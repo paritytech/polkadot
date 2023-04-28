@@ -35,9 +35,14 @@ use polkadot_node_core_pvf_common::{
 	error::{PrepareError, PrepareResult},
 	pvf::PvfPrepData,
 };
+use polkadot_node_core_pvf_execute_worker::EXECUTE_EXE;
+use polkadot_node_core_pvf_prepare_worker::PREPARE_EXE;
 use polkadot_parachain::primitives::ValidationResult;
+use sp_maybe_compressed_blob::{decompress, CODE_BLOB_BOMB_LIMIT};
 use std::{
 	collections::HashMap,
+	fs::OpenOptions,
+	io::Write,
 	path::{Path, PathBuf},
 	time::{Duration, SystemTime},
 };
@@ -52,15 +57,6 @@ pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_millis(200);
 
 /// The amount of times we will retry failed prepare jobs.
 pub const NUM_PREPARE_RETRIES: u32 = 5;
-
-// HACK: Getting the binary locations this way is a bit ugly but seems to work? Should eventually
-// use something like wasm-builder: <https://github.com/paritytech/substrate/issues/13982>.
-/// The prepare worker binary.
-const PREPARE_EXE: &'static [u8] =
-	include_bytes!(concat!(env!("OUT_DIR"), "/../../../prepare_worker"));
-/// The execute worker binary.
-const EXECUTE_EXE: &'static [u8] =
-	include_bytes!(concat!(env!("OUT_DIR"), "/../../../execute_worker"));
 
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
@@ -897,14 +893,56 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 }
 
 // TODO: Should we purge unneeded binaries?
-/// Extracts the worker binaries embedded in this binary onto disk and return their paths.
+// TODO: Test on windows.
+/// Extracts the worker binaries embedded in this binary onto disk and returns their paths. Skips
+/// extraction if the binaries are already present.
 async fn extract_worker_binaries(prepare_worker_path: &Path, execute_worker_path: &Path) {
-	// Skip extraction if the binaries are already present.
+	// Options for opening a binary file. Should create only if it doesn't already exist, and create
+	// with secure permissions.
+	#[cfg(unix)]
+	use std::os::unix::fs::OpenOptionsExt;
+	let mut open_options = OpenOptions::new();
+	#[cfg(unix)]
+	open_options.write(true).create_new(true).mode(744);
+	#[cfg(not(unix))]
+	open_options.write(true).create_new(true);
+
+	gum::debug!(
+		target: LOG_TARGET,
+		"extracting prepare-worker binary to {}",
+		prepare_worker_path.display()
+	);
 	if !prepare_worker_path.exists() {
-		let _ = tokio::fs::write(prepare_worker_path, PREPARE_EXE).await;
+		let prepare_exe = decompress(
+			PREPARE_EXE.expect(
+				"prepare-worker binary is not available. \
+				 This means it was built with `SKIP_BUILD` flag",
+			),
+			CODE_BLOB_BOMB_LIMIT,
+		)
+		.expect("binary should have been built correctly; qed");
+		let _ = open_options
+			.open(prepare_worker_path)
+			.and_then(|mut file| file.write_all(&prepare_exe));
 	}
+
+	gum::debug!(
+		target: LOG_TARGET,
+		"extracting execute-worker binary to {}",
+		execute_worker_path.display()
+	);
 	if !execute_worker_path.exists() {
-		let _ = tokio::fs::write(execute_worker_path, EXECUTE_EXE).await;
+		let execute_exe = decompress(
+			EXECUTE_EXE.expect(
+				"execute-worker binary is not available. \
+				 This means it was built with `SKIP_BUILD` flag",
+			),
+			CODE_BLOB_BOMB_LIMIT,
+		)
+		.expect("binary should have been built correctly; qed");
+		let _ = open_options
+			.open(execute_worker_path)
+			.and_then(|mut file| file.write_all(&execute_exe));
 	}
 }
 
@@ -913,7 +951,14 @@ async fn extract_worker_binaries(prepare_worker_path: &Path, execute_worker_path
 /// Appends with the version (including the commit) to avoid conflicts with other versions of
 /// polkadot running, i.e. in testnets.
 fn worker_path(workers_path: &Path, job_kind: &str) -> PathBuf {
-	let file_name = format!("{}-worker_{}", job_kind, env!("SUBSTRATE_CLI_IMPL_VERSION"));
+	// Windows needs the .exe path for executables.
+	#[cfg(windows)]
+	let extension = ".exe";
+	#[cfg(not(windows))]
+	let extension = "";
+
+	let file_name =
+		format!("{}-worker_{}{}", job_kind, env!("SUBSTRATE_CLI_IMPL_VERSION"), extension);
 	workers_path.join(file_name)
 }
 
@@ -923,10 +968,7 @@ mod tests {
 	use crate::InvalidCandidate;
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
-	use polkadot_node_core_pvf_common::{
-		prepare::PrepareStats,
-		tests::{TEST_EXECUTION_TIMEOUT, TEST_PREPARATION_TIMEOUT},
-	};
+	use polkadot_node_core_pvf_common::{prepare::PrepareStats, tests::TEST_EXECUTION_TIMEOUT};
 
 	#[tokio::test]
 	async fn pulse_test() {
@@ -944,7 +986,7 @@ mod tests {
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn artifact_id(descriminator: u32) -> ArtifactId {
-		PvfPrepData::from_discriminator(descriminator).as_artifact_id()
+		ArtifactId::from_pvf_prep_data(&PvfPrepData::from_discriminator(descriminator))
 	}
 
 	fn artifact_path(descriminator: u32) -> PathBuf {

@@ -487,10 +487,11 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{error::PrepareError, prepare::PrepareStats};
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
-	use polkadot_node_core_pvf_common::tests::TEST_PREPARATION_TIMEOUT;
+	use polkadot_node_core_pvf_common::{
+		error::PrepareError, prepare::PrepareStats, tests::TEST_PREPARATION_TIMEOUT,
+	};
 	use slotmap::SlotMap;
 	use std::task::Poll;
 

@@ -22,7 +22,6 @@ pyro = { package = "pyroscope", version = "0.3.1", optional = true }
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-client = { path = "../node/client", optional = true }
-polkadot-node-core-pvf-worker = { path = "../node/core/pvf/worker", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -53,7 +52,6 @@ cli = [
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
 	"polkadot-client",
-	"polkadot-node-core-pvf-worker",
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",

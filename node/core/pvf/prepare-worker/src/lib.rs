@@ -14,15 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+mod executor_intf;
+mod memory_stats;
+
+// NOTE: main.rs is copied to a temp dir when built with only this current library as a dependency.
+#[doc(hidden)]
+pub use polkadot_node_core_pvf_common::decl_worker_main;
+
+pub use executor_intf::{prepare, prevalidate};
+
+// The prepare worker binary, brought in at `PREPARE_EXE`.
+#[cfg(not(feature = "builder"))]
+include!(concat!(env!("OUT_DIR"), "/prepare-worker.rs"));
+
+// NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
+//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf-prepare-worker=trace`.
+const LOG_TARGET: &str = "parachain::pvf::prepare-worker";
+
 #[cfg(target_os = "linux")]
 use crate::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread};
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 use crate::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
-use crate::{
-	common::{bytes_to_path, cpu_time_monitor_loop, worker_event_loop},
-	prepare, prevalidate, LOG_TARGET,
-};
-use cpu_time::ProcessTime;
 use futures::{pin_mut, select_biased, FutureExt};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_core_pvf_common::{
@@ -30,6 +42,8 @@ use polkadot_node_core_pvf_common::{
 	framed_recv, framed_send,
 	prepare::{MemoryStats, PrepareStats},
 	pvf::PvfPrepData,
+	worker::{bytes_to_path, cpu_time_monitor_loop, worker_event_loop},
+	ProcessTime,
 };
 use std::{any::Any, panic, path::PathBuf, sync::mpsc::channel};
 use tokio::{io, net::UnixStream};

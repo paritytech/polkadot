@@ -6586,7 +6586,7 @@ dependencies = [
  "nix 0.26.2",
  "polkadot-cli",
  "polkadot-core-primitives",
- "polkadot-node-core-pvf-worker",
+ "polkadot-node-core-pvf-prepare-worker",
  "polkadot-overseer",
  "substrate-rpc-client",
  "tempfile",
@@ -6712,7 +6712,6 @@ dependencies = [
  "futures",
  "log",
  "polkadot-client",
- "polkadot-node-core-pvf-worker",
  "polkadot-node-metrics",
  "polkadot-performance-test",
  "polkadot-service",
@@ -7190,7 +7189,8 @@ dependencies = [
  "pin-project",
  "polkadot-core-primitives",
  "polkadot-node-core-pvf-common",
- "polkadot-node-core-pvf-worker",
+ "polkadot-node-core-pvf-execute-worker",
+ "polkadot-node-core-pvf-prepare-worker",
  "polkadot-node-metrics",
  "polkadot-node-primitives",
  "polkadot-parachain",
@@ -7236,11 +7236,44 @@ dependencies = [
 name = "polkadot-node-core-pvf-common"
 version = "0.9.41"
 dependencies = [
+ "cpu-time",
+ "futures",
+ "libc",
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-primitives",
+ "sc-executor-common",
+ "sc-executor-wasmtime",
  "sp-core",
+ "sp-tracing",
+ "substrate-build-script-utils",
  "tokio",
+ "tracing-gum",
+]
+
+[[package]]
+name = "polkadot-node-core-pvf-execute-worker"
+version = "0.9.41"
+dependencies = [
+ "cpu-time",
+ "futures",
+ "parity-scale-codec",
+ "polkadot-node-core-pvf-common",
+ "polkadot-node-core-pvf-musl-builder",
+ "polkadot-parachain",
+ "polkadot-primitives",
+ "rayon",
+ "sc-executor",
+ "sc-executor-common",
+ "sc-executor-wasmtime",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-maybe-compressed-blob",
+ "tempfile",
+ "tikv-jemalloc-ctl",
+ "tokio",
+ "tracing-gum",
 ]
 
 [[package]]
@@ -7259,22 +7292,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-pvf-worker"
+name = "polkadot-node-core-pvf-prepare-worker"
 version = "0.9.41"
 dependencies = [
- "cpu-time",
  "futures",
  "libc",
  "parity-scale-codec",
  "polkadot-node-core-pvf-common",
+ "polkadot-node-core-pvf-musl-builder",
  "polkadot-parachain",
  "polkadot-primitives",
  "rayon",
  "sc-executor",
  "sc-executor-common",
  "sc-executor-wasmtime",
- "sp-core",
- "sp-externalities",
  "sp-io",
  "sp-maybe-compressed-blob",
  "sp-tracing",
@@ -7534,7 +7565,7 @@ dependencies = [
  "kusama-runtime",
  "log",
  "polkadot-erasure-coding",
- "polkadot-node-core-pvf-worker",
+ "polkadot-node-core-pvf-prepare-worker",
  "polkadot-node-primitives",
  "polkadot-primitives",
  "quote",
@@ -8037,7 +8068,8 @@ dependencies = [
  "polkadot-node-core-backing",
  "polkadot-node-core-candidate-validation",
  "polkadot-node-core-dispute-coordinator",
- "polkadot-node-core-pvf-worker",
+ "polkadot-node-core-pvf-execute-worker",
+ "polkadot-node-core-pvf-prepare-worker",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -12097,7 +12129,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "polkadot-cli",
- "polkadot-node-core-pvf-worker",
+ "polkadot-node-core-pvf",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-parachain",
@@ -12145,7 +12177,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "polkadot-cli",
- "polkadot-node-core-pvf-worker",
+ "polkadot-node-core-pvf",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-parachain",

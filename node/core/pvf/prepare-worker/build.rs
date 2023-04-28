@@ -14,7 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Prepare worker.
-// TODO: Build with musl.
+fn main() {
+	substrate_build_script_utils::generate_cargo_keys();
 
-polkadot_node_core_pvf_worker::decl_worker_main!("prepare-worker");
+	let builder = polkadot_node_core_pvf_musl_builder::Builder::new()
+		// Tell the builder to build the project (crate) this `build.rs` is part of.
+		.with_current_project();
+
+	// Only require musl on supported secure-mode platforms.
+	#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+	let builder = builder.with_target("x86_64-unknown-linux-musl");
+	#[cfg(not(all(target_arch = "x86_64", target_os = "linux")))]
+	let builder = builder.with_current_target();
+
+	builder
+		.set_file_name("prepare-worker.rs")
+		.set_constant_name("PREPARE_EXE")
+		// Build it.
+		.build();
+}

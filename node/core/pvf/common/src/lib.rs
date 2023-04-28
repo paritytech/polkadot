@@ -14,10 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Functionality that is shared by the host and the workers.
+
 pub mod error;
 pub mod execute;
+pub mod executor_intf;
 pub mod prepare;
 pub mod pvf;
+pub mod worker;
+
+#[doc(hidden)]
+pub use sp_tracing;
+
+pub use cpu_time::ProcessTime;
+
+// TODO: Is this right?
+const LOG_TARGET: &str = "parachain::pvf::common";
 
 use std::mem;
 use tokio::io::{self, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};

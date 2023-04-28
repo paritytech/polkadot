@@ -17,9 +17,10 @@
 use assert_matches::assert_matches;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
-	start, Config, InvalidCandidate, Metrics, PvfPrepData, ValidationError, ValidationHost,
+	start, Config, InvalidCandidate, Metrics, ValidationError, ValidationHost,
 	JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 };
+use polkadot_node_core_pvf_common::pvf::PvfPrepData;
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
 use polkadot_primitives::{ExecutorParam, ExecutorParams};
 use std::time::Duration;
@@ -33,7 +34,7 @@ const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 const TEST_PREPARATION_TIMEOUT: Duration = Duration::from_secs(3);
 
 struct TestHost {
-	cache_dir: tempfile::TempDir,
+	cache_dir: std::path::PathBuf,
 	host: Mutex<ValidationHost>,
 }
 
@@ -46,10 +47,9 @@ impl TestHost {
 	where
 		F: FnOnce(&mut Config),
 	{
-		let cache_dir = tempfile::tempdir().unwrap();
-		let workers_dir = tempfile::tempdir().unwrap();
-		let mut config =
-			Config::new(cache_dir.path().to_owned(), workers_dir.path().to_owned(), None);
+		let cache_dir = tempfile::tempdir().unwrap().path().join("pvf-artifacts");
+		let workers_dir = tempfile::tempdir().unwrap().path().join("pvf-workers");
+		let mut config = Config::new(cache_dir.to_owned(), workers_dir.to_owned(), None);
 		f(&mut config);
 		let (host, task) = start(config, Metrics::default());
 		let _ = tokio::task::spawn(task);
@@ -246,7 +246,7 @@ async fn execute_queue_doesnt_stall_with_varying_executor_params() {
 #[tokio::test]
 async fn deleting_prepared_artifact_does_not_dispute() {
 	let host = TestHost::new();
-	let cache_dir = host.cache_dir.path().clone();
+	let cache_dir = host.cache_dir.clone();
 
 	let result = host
 		.validate_candidate(

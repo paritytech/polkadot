@@ -14,17 +14,29 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{
-	common::{bytes_to_path, cpu_time_monitor_loop, worker_event_loop},
-	executor_intf::Executor,
-	LOG_TARGET,
-};
+mod executor_intf;
+
+// NOTE: main.rs is copied to a temp dir when built with only this current library as a dependency.
+#[doc(hidden)]
+pub use polkadot_node_core_pvf_common::decl_worker_main;
+
+pub use executor_intf::Executor;
+
+// The execute worker binary, brought in at `EXECUTE_EXE`.
+#[cfg(not(feature = "builder"))]
+include!(concat!(env!("OUT_DIR"), "/execute-worker.rs"));
+
+// NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
+//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf-execute-worker=trace`.
+const LOG_TARGET: &str = "parachain::pvf::execute-worker";
+
 use cpu_time::ProcessTime;
 use futures::{pin_mut, select_biased, FutureExt};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_core_pvf_common::{
 	execute::{Handshake, Response},
 	framed_recv, framed_send,
+	worker::{bytes_to_path, cpu_time_monitor_loop, worker_event_loop},
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{

@@ -14,4 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-polkadot_node_core_pvf::decl_puppet_worker_main!();
+fn main() {
+	let builder = polkadot_node_core_pvf_musl_builder::Builder::new()
+		// Tell the builder to build the project (crate) this `build.rs` is part of.
+		.with_current_project();
+
+	// Only require musl on supported secure-mode platforms.
+	#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+	let builder = builder.with_target("x86_64-unknown-linux-musl");
+	#[cfg(not(all(target_arch = "x86_64", target_os = "linux")))]
+	let builder = builder.with_current_target();
+
+	builder
+		.set_file_name("execute-worker.rs")
+		.set_constant_name("EXECUTE_EXE")
+		// Build it.
+		.build();
+}
