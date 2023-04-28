@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-// TODO: Extract common parts into a generalized builder that wasm/musl builders are based on.
+// TODO: Extract common parts into a generalized builder that wasm-builder is based on.
 
 // TODO: Make sure we build with O2 and LTO.
 
@@ -32,6 +32,8 @@ use std::{
 	process::Command,
 };
 use version::Version;
+
+// TODO: Allow customizing the env vars, for wasm-builder.
 
 /// Environment variable that tells us to skip building the binary.
 const SKIP_BUILD_ENV: &str = "BUILDER_SKIP_BUILD";
@@ -195,7 +197,7 @@ impl CargoCommand {
 	///
 	/// Assumes that cargo version matches the rustc version.
 	fn supports_env(&self) -> bool {
-		// TODO: Just a stub for now -- not sure this is needed for musl-builder.
+		// TODO: Just a stub for now -- generalize.
 		true
 	}
 }

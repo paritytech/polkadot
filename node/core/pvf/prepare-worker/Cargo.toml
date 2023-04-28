@@ -30,7 +30,7 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 tikv-jemalloc-ctl = "0.5.0"
 
 [build-dependencies]
-polkadot-node-core-pvf-musl-builder = { path = "../musl-builder" }
+polkadot-node-core-pvf-binary-builder = { path = "../binary-builder" }
 
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 

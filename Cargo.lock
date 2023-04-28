@@ -7210,6 +7210,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-pvf-binary-builder"
+version = "0.9.41"
+dependencies = [
+ "ansi_term",
+ "build-helper",
+ "cargo_metadata",
+ "filetime",
+ "sp-maybe-compressed-blob",
+ "strum",
+ "tempfile",
+ "toml 0.7.3",
+ "walkdir",
+]
+
+[[package]]
 name = "polkadot-node-core-pvf-checker"
 version = "0.9.41"
 dependencies = [
@@ -7258,8 +7273,8 @@ dependencies = [
  "cpu-time",
  "futures",
  "parity-scale-codec",
+ "polkadot-node-core-pvf-binary-builder",
  "polkadot-node-core-pvf-common",
- "polkadot-node-core-pvf-musl-builder",
  "polkadot-parachain",
  "polkadot-primitives",
  "rayon",
@@ -7277,29 +7292,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-pvf-musl-builder"
-version = "0.9.41"
-dependencies = [
- "ansi_term",
- "build-helper",
- "cargo_metadata",
- "filetime",
- "sp-maybe-compressed-blob",
- "strum",
- "tempfile",
- "toml 0.7.3",
- "walkdir",
-]
-
-[[package]]
 name = "polkadot-node-core-pvf-prepare-worker"
 version = "0.9.41"
 dependencies = [
  "futures",
  "libc",
  "parity-scale-codec",
+ "polkadot-node-core-pvf-binary-builder",
  "polkadot-node-core-pvf-common",
- "polkadot-node-core-pvf-musl-builder",
  "polkadot-parachain",
  "polkadot-primitives",
  "rayon",

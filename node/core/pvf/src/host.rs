@@ -916,7 +916,7 @@ async fn extract_worker_binaries(prepare_worker_path: &Path, execute_worker_path
 		let prepare_exe = decompress(
 			PREPARE_EXE.expect(
 				"prepare-worker binary is not available. \
-				 This means it was built with `SKIP_BUILD` flag",
+				 This means it was built with `BUILDER_SKIP_BUILD` flag",
 			),
 			CODE_BLOB_BOMB_LIMIT,
 		)
@@ -935,7 +935,7 @@ async fn extract_worker_binaries(prepare_worker_path: &Path, execute_worker_path
 		let execute_exe = decompress(
 			EXECUTE_EXE.expect(
 				"execute-worker binary is not available. \
-				 This means it was built with `SKIP_BUILD` flag",
+				 This means it was built with `BUILDER_SKIP_BUILD` flag",
 			),
 			CODE_BLOB_BOMB_LIMIT,
 		)

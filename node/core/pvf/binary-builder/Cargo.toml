@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-node-core-pvf-musl-builder"
+name = "polkadot-node-core-pvf-binary-builder"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

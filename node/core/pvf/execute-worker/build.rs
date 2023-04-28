@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 fn main() {
-	let builder = polkadot_node_core_pvf_musl_builder::Builder::new()
+	let builder = polkadot_node_core_pvf_binary_builder::Builder::new()
 		// Tell the builder to build the project (crate) this `build.rs` is part of.
 		.with_current_project();
 

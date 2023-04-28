@@ -81,7 +81,7 @@ members = [
 	"node/core/provisioner",
 	"node/core/pvf",
 	"node/core/pvf/common",
-	"node/core/pvf/musl-builder",
+	"node/core/pvf/binary-builder",
 	"node/core/pvf/execute-worker",
 	"node/core/pvf/prepare-worker",
 	"node/core/pvf-checker",
