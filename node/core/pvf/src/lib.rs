@@ -29,11 +29,11 @@
 //!
 //! Then using the handle the client can send three types of requests:
 //!
-//! (a) PVF pre-checking. This takes the PVF [code][`Pvf`] and tries to prepare it (verify and
+//! (a) PVF pre-checking. This takes the `Pvf` code and tries to prepare it (verify and
 //! compile) in order to pre-check its validity.
 //!
 //! (b) PVF execution. This accepts the PVF [`params`][`polkadot_parachain::primitives::ValidationParams`]
-//!     and the PVF [code][`Pvf`], prepares (verifies and compiles) the code, and then executes PVF
+//!     and the `Pvf` code, prepares (verifies and compiles) the code, and then executes PVF
 //!     with the `params`.
 //!
 //! (c) Heads up. This request allows to signal that the given PVF may be needed soon and that it
@@ -91,7 +91,6 @@
 mod artifacts;
 mod error;
 mod execute;
-mod executor_intf;
 mod host;
 mod metrics;
 mod prepare;
@@ -99,27 +98,22 @@ mod priority;
 mod pvf;
 mod worker_common;
 
-#[doc(hidden)]
-pub mod testing;
-
-#[doc(hidden)]
-pub use sp_tracing;
-
+pub use artifacts::CompiledArtifact;
 pub use error::{InvalidCandidate, PrepareError, PrepareResult, ValidationError};
-pub use prepare::PrepareStats;
+pub use execute::{ExecuteHandshake, ExecuteResponse};
+#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+pub use prepare::MemoryAllocationStats;
+pub use prepare::{MemoryStats, PrepareStats};
 pub use priority::Priority;
 pub use pvf::PvfPrepData;
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
-pub use worker_common::JOB_TIMEOUT_WALL_CLOCK_FACTOR;
-
-pub use execute::worker_entrypoint as execute_worker_entrypoint;
-pub use prepare::worker_entrypoint as prepare_worker_entrypoint;
-
-pub use executor_intf::{prepare, prevalidate};
-
-pub use sc_executor_common;
-pub use sp_maybe_compressed_blob;
+pub use worker_common::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
 
 const LOG_TARGET: &str = "parachain::pvf";
+
+#[doc(hidden)]
+pub mod testing {
+	pub use crate::worker_common::{spawn_with_program_path, SpawnErr};
+}

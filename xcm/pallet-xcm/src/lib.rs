@@ -52,7 +52,8 @@ use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use xcm_executor::{
 	traits::{
-		ClaimAssets, DropAssets, MatchesFungible, OnResponse, VersionChangeNotifier, WeightBounds,
+		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse,
+		VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -66,6 +67,7 @@ pub trait WeightInfo {
 	fn force_default_xcm_version() -> Weight;
 	fn force_subscribe_version_notify() -> Weight;
 	fn force_unsubscribe_version_notify() -> Weight;
+	fn force_suspension() -> Weight;
 	fn migrate_supported_version() -> Weight;
 	fn migrate_version_notifiers() -> Weight;
 	fn already_notified_target() -> Weight;
@@ -107,6 +109,10 @@ impl WeightInfo for TestWeightInfo {
 	}
 
 	fn force_unsubscribe_version_notify() -> Weight {
+		Weight::from_parts(100_000_000, 0)
+	}
+
+	fn force_suspension() -> Weight {
 		Weight::from_parts(100_000_000, 0)
 	}
 
@@ -612,6 +618,10 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
+	/// Global suspension state of the XCM executor.
+	#[pallet::storage]
+	pub(super) type XcmExecutionSuspended<T: Config> = StorageValue<_, bool, ValueQuery>;
+
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		/// The default version to encode outgoing XCM messages with.
@@ -908,7 +918,7 @@ pub mod pallet {
 		/// Extoll that a particular destination can be communicated with through a particular
 		/// version of XCM.
 		///
-		/// - `origin`: Must be Root.
+		/// - `origin`: Must be an origin specified by AdminOrigin.
 		/// - `location`: The destination that is being described.
 		/// - `xcm_version`: The latest version of XCM that `location` supports.
 		#[pallet::call_index(4)]
@@ -932,7 +942,7 @@ pub mod pallet {
 		/// Set a safe XCM version (the version that XCM should be encoded with if the most recent
 		/// version a destination can accept is unknown).
 		///
-		/// - `origin`: Must be Root.
+		/// - `origin`: Must be an origin specified by AdminOrigin.
 		/// - `maybe_xcm_version`: The default XCM encoding version, or `None` to disable.
 		#[pallet::call_index(5)]
 		#[pallet::weight(T::WeightInfo::force_default_xcm_version())]
@@ -947,7 +957,7 @@ pub mod pallet {
 
 		/// Ask a location to notify us regarding their XCM version and any changes to it.
 		///
-		/// - `origin`: Must be Root.
+		/// - `origin`: Must be an origin specified by AdminOrigin.
 		/// - `location`: The location to which we should subscribe for XCM version notifications.
 		#[pallet::call_index(6)]
 		#[pallet::weight(T::WeightInfo::force_subscribe_version_notify())]
@@ -970,7 +980,7 @@ pub mod pallet {
 		/// Require that a particular destination should no longer notify us regarding any XCM
 		/// version changes.
 		///
-		/// - `origin`: Must be Root.
+		/// - `origin`: Must be an origin specified by AdminOrigin.
 		/// - `location`: The location to which we are currently subscribed for XCM version
 		///   notifications which we no longer desire.
 		#[pallet::call_index(7)]
@@ -1091,6 +1101,18 @@ pub mod pallet {
 				fee_asset_item,
 				Some(weight_limit),
 			)
+		}
+
+		/// Set or unset the global suspension state of the XCM executor.
+		///
+		/// - `origin`: Must be an origin specified by AdminOrigin.
+		/// - `suspended`: `true` to suspend, `false` to resume.
+		#[pallet::call_index(10)]
+		#[pallet::weight(T::WeightInfo::force_suspension())]
+		pub fn force_suspension(origin: OriginFor<T>, suspended: bool) -> DispatchResult {
+			T::AdminOrigin::ensure_origin(origin)?;
+			XcmExecutionSuspended::<T>::set(suspended);
+			Ok(())
 		}
 	}
 }
@@ -2041,6 +2063,17 @@ impl<T: Config> OnResponse for Pallet<T> {
 				Weight::zero()
 			},
 		}
+	}
+}
+
+impl<T: Config> CheckSuspension for Pallet<T> {
+	fn is_suspended<Call>(
+		_origin: &MultiLocation,
+		_instructions: &mut [Instruction<Call>],
+		_max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> bool {
+		XcmExecutionSuspended::<T>::get()
 	}
 }
 

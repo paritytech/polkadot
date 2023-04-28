@@ -65,9 +65,11 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
+/// Contains the bytes for a successfully compiled artifact.
 pub struct CompiledArtifact(Vec<u8>);
 
 impl CompiledArtifact {
+	/// Creates a `CompiledArtifact`.
 	pub fn new(code: Vec<u8>) -> Self {
 		Self(code)
 	}
