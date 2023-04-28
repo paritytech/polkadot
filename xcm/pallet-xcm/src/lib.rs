@@ -596,7 +596,7 @@ pub mod pallet {
 		pub owner: VersionedMultiLocation,
 		/// The location which holds the original lock.
 		pub locker: VersionedMultiLocation,
-		/// Local consumers of the remote lock with consumer identifiers and the amount
+		/// Local consumers of the remote lock with a consumer identifier and the amount
 		/// of fungible asset every consumer holds.
 		/// Every consumer can hold up to total amount of the remote lock.
 		pub consumers: BoundedVec<(ConsumerIdentifier, u128), MaxConsumers>,
