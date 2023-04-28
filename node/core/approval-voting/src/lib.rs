@@ -637,142 +637,29 @@ impl CurrentlyCheckingSet {
 	}
 }
 
-// Wraps `RuntimeInfo` and some metadata. On each new leaf `SessionInfo` is
-// cached. `RuntimeInfo` keeps the last `DISPUTE_WINDOW` number of sessions.
-struct SessionInfoProvider {
-	// `RuntimeInfo` caches sessions internally.
-	runtime_info: RuntimeInfo,
-	// Will be true if an error had occurred during the last session caching attempt
-	gaps_in_cache: bool,
-	// Highest session index seen so far. Also used to calculate the earliest one.
-	highest_session_seen: Option<SessionIndex>,
-}
-
-impl SessionInfoProvider {
-	fn new() -> Self {
-		SessionInfoProvider {
-			runtime_info: RuntimeInfo::new_with_config(RuntimeInfoConfig {
-				keystore: None,
-				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-					.expect("DISPUTE_WINDOW can't be 0; qed."),
-			}),
-			gaps_in_cache: false,
-			highest_session_seen: None,
-		}
-	}
-
-	async fn cache_session_info_for_head<Sender>(&mut self, sender: &mut Sender, head: Hash)
-	where
-		Sender: SubsystemSender<RuntimeApiMessage>,
+async fn get_session_info<'a, Sender>(
+	runtime_info: &'a mut RuntimeInfo,
+	sender: &mut Sender,
+	relay_parent: Hash,
+	session_index: SessionIndex,
+) -> Option<&'a SessionInfo>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	match runtime_info
+		.get_session_info_by_index(sender, relay_parent, session_index)
+		.await
 	{
-		match self.highest_session_seen {
-			None => {
-				let head_session_idx =
-					match self.runtime_info.get_session_index_for_child(sender, head).await {
-						Ok(session_idx) => session_idx,
-						Err(err) => {
-							gum::debug!(
-								target: LOG_TARGET,
-								?head,
-								?err,
-								"Error getting session index for head. Won't cache any sessions"
-							);
-							return
-						},
-					};
-
-				for idx in
-					head_session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)..=head_session_idx
-				{
-					if let Err(err) =
-						self.runtime_info.get_session_info_by_index(sender, head, idx).await
-					{
-						self.gaps_in_cache = true;
-						gum::debug!(
-							target: LOG_TARGET,
-							?err,
-							session = idx,
-							"Can't cache session. Moving on."
-						);
-						continue
-					}
-				}
-
-				self.highest_session_seen = Some(head_session_idx);
-			},
-			Some(highest_session_seen) => {
-				let head_session_idx =
-					match self.runtime_info.get_session_index_for_child(sender, head).await {
-						Ok(session_idx) => session_idx,
-						Err(err) => {
-							gum::debug!(
-								target: LOG_TARGET,
-								?head,
-								?err,
-								"Error getting session index for head. Won't cache any sessions"
-							);
-							return
-						},
-					};
-
-				if self.gaps_in_cache || head_session_idx > highest_session_seen {
-					let lower_bound = if self.gaps_in_cache {
-						head_session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)
-					} else {
-						highest_session_seen + 1
-					};
-
-					for idx in lower_bound..=head_session_idx {
-						if let Err(err) =
-							self.runtime_info.get_session_info_by_index(sender, head, idx).await
-						{
-							self.gaps_in_cache = true;
-							gum::debug!(
-								target: LOG_TARGET,
-								?err,
-								session = idx,
-								"Can cache session. Moving on."
-							);
-							continue
-						}
-					}
-
-					self.highest_session_seen = Some(head_session_idx);
-				}
-			},
-		}
-	}
-
-	async fn get_session_info<'a, Sender>(
-		&'a mut self,
-		sender: &mut Sender,
-		relay_parent: Hash,
-		session_index: SessionIndex,
-	) -> Option<&'a SessionInfo>
-	where
-		Sender: SubsystemSender<RuntimeApiMessage>,
-	{
-		// If this session is new - perform caching
-		if self.highest_session_seen.map_or(true, |s| session_index > s) {
-			self.cache_session_info_for_head(sender, relay_parent).await;
-		}
-
-		match self
-			.runtime_info
-			.get_session_info_by_index(sender, relay_parent, session_index)
-			.await
-		{
-			Ok(extended_info) => Some(&extended_info.session_info),
-			Err(_) => {
-				gum::error!(
-					target: LOG_TARGET,
-					session = session_index,
-					?relay_parent,
-					"Can't obtain SessionInfo"
-				);
-				None
-			},
-		}
+		Ok(extended_info) => Some(&extended_info.session_info),
+		Err(_) => {
+			gum::error!(
+				target: LOG_TARGET,
+				session = session_index,
+				?relay_parent,
+				"Can't obtain SessionInfo"
+			);
+			None
+		},
 	}
 }
 
@@ -792,16 +679,20 @@ impl State {
 	async fn approval_status<Sender, 'a, 'b>(
 		&'a self,
 		sender: &mut Sender,
-		session_info_provider: &'a mut SessionInfoProvider,
+		session_info_provider: &'a mut RuntimeInfo,
 		block_entry: &'a BlockEntry,
 		candidate_entry: &'b CandidateEntry,
 	) -> Option<(&'b ApprovalEntry, ApprovalStatus)>
 	where
 		Sender: SubsystemSender<RuntimeApiMessage>,
 	{
-		let session_info = match session_info_provider
-			.get_session_info(sender, block_entry.parent_hash(), block_entry.session())
-			.await
+		let session_info = match get_session_info(
+			session_info_provider,
+			sender,
+			block_entry.parent_hash(),
+			block_entry.session(),
+		)
+		.await
 		{
 			Some(s) => s,
 			None => {
@@ -889,7 +780,11 @@ where
 	};
 
 	// `None` on start-up. Gets initialized/updated on leaf update
-	let mut session_info_provider = SessionInfoProvider::new();
+	let mut session_info_provider = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+		keystore: None,
+		session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+			.expect("DISPUTE_WINDOW can't be 0; qed."),
+	});
 	let mut wakeups = Wakeups::default();
 	let mut currently_checking_set = CurrentlyCheckingSet::default();
 	let mut approvals_cache = lru::LruCache::new(APPROVAL_CACHE_SIZE);
@@ -1024,7 +919,7 @@ async fn handle_actions<Context>(
 	ctx: &mut Context,
 	state: &State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
-	session_info_provider: &mut SessionInfoProvider,
+	session_info_provider: &mut RuntimeInfo,
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
 	currently_checking_set: &mut CurrentlyCheckingSet,
@@ -1283,7 +1178,7 @@ async fn handle_from_overseer<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
-	session_info_provider: &mut SessionInfoProvider,
+	session_info_provider: &mut RuntimeInfo,
 	metrics: &Metrics,
 	x: FromOrchestra<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
@@ -1875,7 +1770,7 @@ async fn check_and_import_assignment<Sender>(
 	sender: &mut Sender,
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
-	session_info_provider: &mut SessionInfoProvider,
+	session_info_provider: &mut RuntimeInfo,
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)>
@@ -1904,9 +1799,13 @@ where
 			)),
 	};
 
-	let session_info = match session_info_provider
-		.get_session_info(sender, block_entry.parent_hash(), block_entry.session())
-		.await
+	let session_info = match get_session_info(
+		session_info_provider,
+		sender,
+		block_entry.parent_hash(),
+		block_entry.session(),
+	)
+	.await
 	{
 		Some(s) => s,
 		None =>
@@ -2043,7 +1942,7 @@ async fn check_and_import_approval<T, Sender>(
 	sender: &mut Sender,
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
-	session_info_provider: &mut SessionInfoProvider,
+	session_info_provider: &mut RuntimeInfo,
 	metrics: &Metrics,
 	approval: IndirectSignedApprovalVote,
 	with_response: impl FnOnce(ApprovalCheckResult) -> T,
@@ -2076,9 +1975,13 @@ where
 		},
 	};
 
-	let session_info = match session_info_provider
-		.get_session_info(sender, approval.block_hash, block_entry.session())
-		.await
+	let session_info = match get_session_info(
+		session_info_provider,
+		sender,
+		approval.block_hash,
+		block_entry.session(),
+	)
+	.await
 	{
 		Some(s) => s,
 		None => {
@@ -2207,7 +2110,7 @@ async fn advance_approval_state<Sender>(
 	sender: &mut Sender,
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
-	session_info_provider: &mut SessionInfoProvider,
+	session_info_provider: &mut RuntimeInfo,
 	metrics: &Metrics,
 	mut block_entry: BlockEntry,
 	candidate_hash: CandidateHash,
@@ -2383,7 +2286,7 @@ async fn process_wakeup<Context>(
 	ctx: &mut Context,
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
-	session_info_provider: &mut SessionInfoProvider,
+	session_info_provider: &mut RuntimeInfo,
 	relay_block: Hash,
 	candidate_hash: CandidateHash,
 	metrics: &Metrics,
@@ -2407,9 +2310,13 @@ async fn process_wakeup<Context>(
 		_ => return Ok(Vec::new()),
 	};
 
-	let session_info = match session_info_provider
-		.get_session_info(ctx.sender(), block_entry.parent_hash(), block_entry.session())
-		.await
+	let session_info = match get_session_info(
+		session_info_provider,
+		ctx.sender(),
+		block_entry.parent_hash(),
+		block_entry.session(),
+	)
+	.await
 	{
 		Some(i) => i,
 		None => {
@@ -2743,7 +2650,7 @@ async fn issue_approval<Context>(
 	ctx: &mut Context,
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
-	session_info_provider: &mut SessionInfoProvider,
+	session_info_provider: &mut RuntimeInfo,
 	metrics: &Metrics,
 	candidate_hash: CandidateHash,
 	ApprovalVoteRequest { validator_index, block_hash }: ApprovalVoteRequest,
@@ -2785,9 +2692,13 @@ async fn issue_approval<Context>(
 	};
 	issue_approval_span.add_int_tag("candidate_index", candidate_index as i64);
 
-	let session_info = match session_info_provider
-		.get_session_info(ctx.sender(), block_entry.parent_hash(), block_entry.session())
-		.await
+	let session_info = match get_session_info(
+		session_info_provider,
+		ctx.sender(),
+		block_entry.parent_hash(),
+		block_entry.session(),
+	)
+	.await
 	{
 		Some(s) => s,
 		None => {

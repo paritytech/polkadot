@@ -40,7 +40,7 @@ use polkadot_node_subsystem::{
 	},
 	overseer, RuntimeApiError, SubsystemError, SubsystemResult,
 };
-use polkadot_node_subsystem_util::determine_new_blocks;
+use polkadot_node_subsystem_util::{determine_new_blocks, runtime::RuntimeInfo};
 use polkadot_primitives::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
 	GroupIndex, Hash, Header, SessionIndex,
@@ -57,9 +57,9 @@ use super::approval_db::v1;
 use crate::{
 	backend::{Backend, OverlayedBackend},
 	criteria::{AssignmentCriteria, OurAssignment},
+	get_session_info,
 	persisted_entries::CandidateEntry,
 	time::{slot_number_to_tick, Tick},
-	SessionInfoProvider,
 };
 
 use super::{State, LOG_TARGET};
@@ -76,7 +76,7 @@ struct ImportedBlockInfo {
 }
 
 struct ImportedBlockInfoEnv<'a> {
-	runtime_info: &'a mut SessionInfoProvider,
+	runtime_info: &'a mut RuntimeInfo,
 	assignment_criteria: &'a (dyn AssignmentCriteria + Send + Sync),
 	keystore: &'a LocalKeystore,
 }
@@ -210,7 +210,7 @@ async fn imported_block_info<Context>(
 	};
 
 	let session_info =
-		match env.runtime_info.get_session_info(ctx.sender(), block_hash, session_index).await {
+		match get_session_info(env.runtime_info, ctx.sender(), block_hash, session_index).await {
 			Some(session_info) => session_info,
 			None => {
 				gum::error!(
@@ -326,7 +326,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	ctx: &mut Context,
 	state: &State,
 	db: &mut OverlayedBackend<'_, B>,
-	session_info_provider: &mut SessionInfoProvider,
+	session_info_provider: &mut RuntimeInfo,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
@@ -360,9 +360,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			Ok(Some(h)) => h,
 		}
 	};
-
-	// Update session info based on most recent head.
-	session_info_provider.cache_session_info_for_head(ctx.sender(), head).await;
 
 	// If we've just started the node and are far behind,
 	// import at most `MAX_HEADS_LOOK_BACK` blocks.
@@ -445,19 +442,25 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			force_approve,
 		} = imported_block_info;
 
-		let session_info =
-			match session_info_provider.get_session_info(ctx.sender(), head, session_index).await {
-				Some(session_info) => session_info,
-				None => {
-					gum::error!(
-						target: LOG_TARGET,
-						session = session_index,
-						?head,
-						"Can't get session info for the new head"
-					);
-					return Ok(Vec::new())
-				},
-			};
+		let session_info = match get_session_info(
+			session_info_provider,
+			ctx.sender(),
+			head,
+			session_index,
+		)
+		.await
+		{
+			Some(session_info) => session_info,
+			None => {
+				gum::error!(
+					target: LOG_TARGET,
+					session = session_index,
+					?head,
+					"Can't get session info for the new head"
+				);
+				return Ok(Vec::new())
+			},
+		};
 
 		let (block_tick, no_show_duration) = {
 			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
@@ -660,7 +663,7 @@ pub(crate) mod tests {
 		index: SessionIndex,
 		info: SessionInfo,
 		relay_parent: Hash,
-	) -> (State, SessionInfoProvider) {
+	) -> (State, RuntimeInfo) {
 		let runtime_info = RuntimeInfo::new_with_cache(
 			RuntimeInfoConfig {
 				keystore: None,
@@ -677,15 +680,7 @@ pub(crate) mod tests {
 			)],
 		);
 
-		let state = blank_state();
-
-		let session_info_provider = SessionInfoProvider {
-			runtime_info,
-			gaps_in_cache: false,
-			highest_session_seen: Some(index),
-		};
-
-		(state, session_info_provider)
+		(blank_state(), runtime_info)
 	}
 
 	struct MockAssignmentCriteria;
@@ -793,25 +788,21 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let mut session_info_provider = SessionInfoProvider {
-				runtime_info: RuntimeInfo::new_with_cache(
-					RuntimeInfoConfig {
-						keystore: None,
-						session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-							.expect("DISPUTE_WINDOW can't be 0; qed."),
+			let mut session_info_provider = RuntimeInfo::new_with_cache(
+				RuntimeInfoConfig {
+					keystore: None,
+					session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+						.expect("DISPUTE_WINDOW can't be 0; qed."),
+				},
+				vec![(
+					session,
+					hash,
+					ExtendedSessionInfo {
+						session_info,
+						validator_info: ValidatorInfo { our_index: None, our_group: None },
 					},
-					vec![(
-						session,
-						hash,
-						ExtendedSessionInfo {
-							session_info,
-							validator_info: ValidatorInfo { our_index: None, our_group: None },
-						},
-					)],
-				),
-				gaps_in_cache: false,
-				highest_session_seen: Some(session),
-			};
+				)],
+			);
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -917,25 +908,21 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let mut session_info_provider = SessionInfoProvider {
-				runtime_info: RuntimeInfo::new_with_cache(
-					RuntimeInfoConfig {
-						keystore: None,
-						session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-							.expect("DISPUTE_WINDOW can't be 0; qed."),
+			let mut session_info_provider = RuntimeInfo::new_with_cache(
+				RuntimeInfoConfig {
+					keystore: None,
+					session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+						.expect("DISPUTE_WINDOW can't be 0; qed."),
+				},
+				vec![(
+					session,
+					hash,
+					ExtendedSessionInfo {
+						session_info,
+						validator_info: ValidatorInfo { our_index: None, our_group: None },
 					},
-					vec![(
-						session,
-						hash,
-						ExtendedSessionInfo {
-							session_info,
-							validator_info: ValidatorInfo { our_index: None, our_group: None },
-						},
-					)],
-				),
-				gaps_in_cache: false,
-				highest_session_seen: Some(session),
-			};
+				)],
+			);
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1034,7 +1021,11 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let mut runtime_info = SessionInfoProvider::new();
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+					.expect("DISPUTE_WINDOW can't be 0; qed."),
+			});
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1129,25 +1120,21 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let mut session_info_provider = SessionInfoProvider {
-				runtime_info: RuntimeInfo::new_with_cache(
-					RuntimeInfoConfig {
-						keystore: None,
-						session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-							.expect("DISPUTE_WINDOW can't be 0; qed."),
+			let mut session_info_provider = RuntimeInfo::new_with_cache(
+				RuntimeInfoConfig {
+					keystore: None,
+					session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+						.expect("DISPUTE_WINDOW can't be 0; qed."),
+				},
+				vec![(
+					session,
+					hash,
+					ExtendedSessionInfo {
+						session_info,
+						validator_info: ValidatorInfo { our_index: None, our_group: None },
 					},
-					vec![(
-						session,
-						hash,
-						ExtendedSessionInfo {
-							session_info,
-							validator_info: ValidatorInfo { our_index: None, our_group: None },
-						},
-					)],
-				),
-				gaps_in_cache: false,
-				highest_session_seen: Some(session),
-			};
+				)],
+			);
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1291,7 +1278,7 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let (state, mut session_info_provider) =
-			single_session_state(session, session_info, parent_hash);
+			single_session_state(session, session_info.clone(), parent_hash);
 		overlay_db.write_block_entry(
 			v1::BlockEntry {
 				block_hash: parent_hash,
