@@ -549,6 +549,7 @@ pub mod pallet_test_notifier {
 	use pallet_xcm::ensure_response;
 	use sp_runtime::DispatchResult;
 	use xcm::latest::prelude::*;
+	use xcm_executor::traits::XcmQueryHandler;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -584,7 +585,7 @@ pub mod pallet_test_notifier {
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
-			let qid = pallet_xcm::Pallet::<T>::new_query(
+			let qid = <pallet_xcm::Pallet<T> as XcmQueryHandler>::new_query(
 				Junction::AccountId32 { network: None, id },
 				100u32.into(),
 				Here,
@@ -602,7 +603,7 @@ pub mod pallet_test_notifier {
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
 			let call =
 				Call::<T>::notification_received { query_id: 0, response: Default::default() };
-			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
+			let qid = <pallet_xcm::Pallet<T> as XcmQueryHandler>::new_notify_query(
 				Junction::AccountId32 { network: None, id },
 				<T as Config>::RuntimeCall::from(call),
 				100u32.into(),
