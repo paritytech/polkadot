@@ -385,16 +385,15 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 			None => return true,
 		});
 
-		if let Some(i) = pos {
-			// Smell, should either check pos/i or the result of remove, not both.
-			if let Some(entry) = queue.remove(i) {
+		pos.and_then(|p: usize| {
+			if let Some(entry) = queue.remove(p) {
 				Pallet::<T>::increase_affinity(entry.claim.0, core_idx);
 				// Write changes to storage.
 				OnDemandQueue::<T>::set(queue);
 				return Some(Assignment::ParathreadA(entry))
 			};
-		}
-		return None
+			return None
+		})
 	}
 
 	/// Push an assignment back to the queue.
