@@ -921,7 +921,7 @@ mod sanitizers {
 		}
 		let validator_public = validator_pubkeys(&validators);
 
-		let unchecked_bitfields = [
+		let checked_bitfields = [
 			BitVec::<u8, Lsb0>::repeat(true, expected_bits),
 			BitVec::<u8, Lsb0>::repeat(true, expected_bits),
 			{
@@ -943,9 +943,14 @@ mod sanitizers {
 			)
 			.unwrap()
 			.unwrap()
-			.into_unchecked()
 		})
-		.collect::<Vec<_>>();
+		.collect::<Vec<SignedAvailabilityBitfield>>();
+
+		let unchecked_bitfields = checked_bitfields
+			.iter()
+			.cloned()
+			.map(|v| v.into_unchecked())
+			.collect::<Vec<_>>();
 
 		let disputed_bitfield = DisputedBitfield::zeros(expected_bits);
 
@@ -958,9 +963,8 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Skip,
 				),
-				unchecked_bitfields.clone()
+				checked_bitfields.clone()
 			);
 			assert_eq!(
 				sanitize_bitfields::<Test>(
@@ -970,9 +974,8 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Yes
 				),
-				unchecked_bitfields.clone()
+				checked_bitfields.clone()
 			);
 		}
 
@@ -991,7 +994,6 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Yes
 				)
 				.len(),
 				1
@@ -1004,7 +1006,6 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Skip
 				)
 				.len(),
 				1
@@ -1020,7 +1021,6 @@ mod sanitizers {
 				parent_hash,
 				session_index,
 				&validator_public[..],
-				FullCheck::Yes
 			)
 			.is_empty());
 			assert!(sanitize_bitfields::<Test>(
@@ -1030,7 +1030,6 @@ mod sanitizers {
 				parent_hash,
 				session_index,
 				&validator_public[..],
-				FullCheck::Skip
 			)
 			.is_empty());
 		}
@@ -1046,9 +1045,8 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..shortened],
-					FullCheck::Yes,
 				)[..],
-				&unchecked_bitfields[..shortened]
+				&checked_bitfields[..shortened]
 			);
 			assert_eq!(
 				&sanitize_bitfields::<Test>(
@@ -1058,9 +1056,8 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..shortened],
-					FullCheck::Skip,
 				)[..],
-				&unchecked_bitfields[..shortened]
+				&checked_bitfields[..shortened]
 			);
 		}
 
@@ -1069,30 +1066,18 @@ mod sanitizers {
 			let mut unchecked_bitfields = unchecked_bitfields.clone();
 			let x = unchecked_bitfields.swap_remove(0);
 			unchecked_bitfields.push(x);
-			assert_eq!(
-				&sanitize_bitfields::<Test>(
-					unchecked_bitfields.clone(),
-					disputed_bitfield.clone(),
-					expected_bits,
-					parent_hash,
-					session_index,
-					&validator_public[..],
-					FullCheck::Yes
-				)[..],
-				&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
-			);
-			assert_eq!(
-				&sanitize_bitfields::<Test>(
-					unchecked_bitfields.clone(),
-					disputed_bitfield.clone(),
-					expected_bits,
-					parent_hash,
-					session_index,
-					&validator_public[..],
-					FullCheck::Skip
-				)[..],
-				&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
-			);
+			let result: UncheckedSignedAvailabilityBitfields = sanitize_bitfields::<Test>(
+				unchecked_bitfields.clone(),
+				disputed_bitfield.clone(),
+				expected_bits,
+				parent_hash,
+				session_index,
+				&validator_public[..],
+			)
+			.into_iter()
+			.map(|v| v.into_unchecked())
+			.collect();
+			assert_eq!(&result, &unchecked_bitfields[..(unchecked_bitfields.len() - 2)]);
 		}
 
 		// check the validators signature
@@ -1113,21 +1098,30 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Yes
 				)[..],
-				&unchecked_bitfields[..last_bit_idx]
+				&checked_bitfields[..last_bit_idx]
 			);
+		}
+		// duplicate bitfields
+		{
+			let mut unchecked_bitfields = unchecked_bitfields.clone();
+
+			// insert a bad signature for the last bitfield
+			let last_bit_idx = unchecked_bitfields.len() - 1;
+			unchecked_bitfields
+				.get_mut(last_bit_idx)
+				.and_then(|u| Some(u.set_signature(UncheckedFrom::unchecked_from([1u8; 64]))))
+				.expect("we are accessing a valid index");
 			assert_eq!(
 				&sanitize_bitfields::<Test>(
-					unchecked_bitfields.clone(),
+					unchecked_bitfields.clone().into_iter().chain(unchecked_bitfields).collect(),
 					disputed_bitfield.clone(),
 					expected_bits,
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Skip
 				)[..],
-				&unchecked_bitfields[..]
+				&checked_bitfields[..last_bit_idx]
 			);
 		}
 	}
