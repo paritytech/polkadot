@@ -15,10 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	configuration, inclusion, initializer, paras,
+	configuration,
+	hrmp::{HrmpChannel, HrmpChannels},
+	inclusion, initializer, paras,
 	paras::ParaKind,
-	paras_inherent::{self},
-	scheduler, session_info, shared,
+	paras_inherent, scheduler, session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
@@ -26,10 +27,10 @@ use primitives::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
 	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
-	HeadData, Id as ParaId, IndexedVec, InherentData as ParachainsInherentData,
-	InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext,
-	UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex,
-	ValidityAttestation,
+	HeadData, HrmpChannelId, Id as ParaId, IndexedVec, InherentData as ParachainsInherentData,
+	InvalidDisputeStatementKind, OutboundHrmpMessage, PersistedValidationData, SessionIndex,
+	SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId,
+	ValidatorIndex, ValidityAttestation,
 };
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -37,7 +38,7 @@ use sp_runtime::{
 	traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_map::BTreeMap, prelude::Vec, vec};
+use sp_std::{cmp, collections::btree_map::BTreeMap, prelude::Vec, vec};
 
 fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
@@ -74,8 +75,6 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	session: SessionIndex,
 	/// Session we want the scenario to take place in. We will roll to this session.
 	target_session: u32,
-	/// Optionally set the max validators per core; otherwise uses the configuration value.
-	max_validators_per_core: Option<u32>,
 	/// Optionally set the max validators; otherwise uses the configuration value.
 	max_validators: Option<u32>,
 	/// Optionally set the number of dispute statements for each candidate.
@@ -86,11 +85,8 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	/// will correspond to core index 3. There must be one entry for each core with a dispute
 	/// statement set.
 	dispute_sessions: Vec<u32>,
-	/// Map from core seed to number of validity votes.
-	backed_and_concluding_cores: BTreeMap<u32, u32>,
-	/// Make every candidate include a code upgrade by setting this to `Some` where the interior
-	/// value is the byte length of the new code.
-	code_upgrade: Option<u32>,
+	/// Map from core seed to data for a backed candidate.
+	backed_and_concluding_cores: BTreeMap<u32, BackedCandidateScenario>,
 	_phantom: sp_std::marker::PhantomData<T>,
 }
 
@@ -102,6 +98,18 @@ pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) _block_number: T::BlockNumber,
 }
 
+#[derive(Copy, Clone)]
+pub struct BackedCandidateScenario {
+	/// Number of validity votes
+	pub validity_votes: u32,
+	/// Upward messages in bytes
+	pub ump: u32,
+	/// Horizontal messages in bytes
+	pub hrmp: u32,
+	/// Any code upgrade in bytes
+	pub code: u32,
+}
+
 impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create a new `BenchBuilder` with some opinionated values that should work with the rest
 	/// of the functions in this implementation.
@@ -111,14 +119,33 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			block_number: Zero::zero(),
 			session: SessionIndex::from(0u32),
 			target_session: 2u32,
-			max_validators_per_core: None,
 			max_validators: None,
 			dispute_statements: BTreeMap::new(),
 			dispute_sessions: Default::default(),
 			backed_and_concluding_cores: Default::default(),
-			code_upgrade: None,
 			_phantom: sp_std::marker::PhantomData::<T>,
 		}
+	}
+
+	/// Make sure config contains suitable values for benchmarking.
+	///
+	/// Fallback values are chosen based on current Kusama values at the time of writing.
+	pub(crate) fn adjust_config_benchmarking() {
+		let mut config = configuration::Pallet::<T>::config();
+
+		config.max_upward_message_num_per_candidate =
+			Self::fallback_max_upward_message_num_per_candidate();
+		config.max_upward_message_size = Self::fallback_max_upward_message_size();
+		config.max_upward_queue_count = Self::fallback_max_upward_queue_count();
+		config.max_upward_queue_size = Self::fallback_max_upward_queue_size();
+
+		config.hrmp_max_message_num_per_candidate =
+			Self::fallback_hrmp_max_message_num_per_candidate();
+		config.hrmp_channel_max_message_size = Self::fallback_hrmp_channel_max_message_size();
+
+		config.max_code_size = Self::fallback_max_code_size();
+
+		configuration::Pallet::<T>::force_set_active_config(config);
 	}
 
 	/// Set the session index for each dispute statement set (in other words, set the session the
@@ -136,16 +163,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Set a map from core/para id seed to number of validity votes.
 	pub(crate) fn set_backed_and_concluding_cores(
 		mut self,
-		backed_and_concluding_cores: BTreeMap<u32, u32>,
+		backed_and_concluding_cores: BTreeMap<u32, BackedCandidateScenario>,
 	) -> Self {
 		self.backed_and_concluding_cores = backed_and_concluding_cores;
-		self
-	}
-
-	/// Set to include a code upgrade for all backed candidates. The value will be the byte length
-	/// of the code.
-	pub(crate) fn set_code_upgrade(mut self, code_upgrade: impl Into<Option<u32>>) -> Self {
-		self.code_upgrade = code_upgrade.into();
 		self
 	}
 
@@ -178,6 +198,61 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self.max_validators.unwrap_or(Self::fallback_max_validators())
 	}
 
+	pub(crate) fn fallback_max_upward_queue_count() -> u32 {
+		// Make sure we can at least queue as many messages as are allowed in a single candidate.
+		cmp::max(
+			Self::fallback_max_upward_message_num_per_candidate(),
+			configuration::Pallet::<T>::config().max_upward_queue_count,
+		)
+	}
+
+	pub(crate) fn fallback_max_upward_message_num_per_candidate() -> u32 {
+		// Make sure we get some benchmark data, no matter what (values are current Kusama values
+		// at the time of writing):
+		let min_value = 10;
+		cmp::max(
+			configuration::Pallet::<T>::config().max_upward_message_num_per_candidate,
+			min_value,
+		)
+	}
+
+	pub(crate) fn fallback_max_upward_queue_size() -> u32 {
+		// Make sure we can at least queue as many messages as are allowed in a single candidate.
+		cmp::max(
+			Self::fallback_max_upward_message_size() *
+				Self::fallback_max_upward_message_num_per_candidate(),
+			configuration::Pallet::<T>::config().max_upward_queue_size,
+		)
+	}
+
+	pub(crate) fn fallback_max_upward_message_size() -> u32 {
+		// Make sure we get some benchmark data, no matter what (values are current Kusama values
+		// at the time of writing):
+		let min_value = 51_200;
+		cmp::max(configuration::Pallet::<T>::config().max_upward_message_size, min_value)
+	}
+
+	pub(crate) fn fallback_hrmp_max_message_num_per_candidate() -> u32 {
+		// Make sure we get some benchmark data, no matter what (values are current Kusama values
+		// at the time of writing):
+		let min_value = 10;
+		cmp::max(configuration::Pallet::<T>::config().hrmp_max_message_num_per_candidate, min_value)
+	}
+
+	pub(crate) fn fallback_hrmp_channel_max_message_size() -> u32 {
+		// Make sure we get some benchmark data, no matter what (values are current Kusama values
+		// at the time of writing):
+		let min_value = 102_400;
+		cmp::max(configuration::Pallet::<T>::config().hrmp_channel_max_message_size, min_value)
+	}
+
+	pub(crate) fn fallback_max_code_size() -> u32 {
+		// Make sure we get some benchmark data, no matter what (values are current Kusama values
+		// at the time of writing):
+		let min_value = 3_145_728;
+		cmp::max(configuration::Pallet::<T>::config().max_code_size, min_value)
+	}
+
 	/// Set the maximum number of active validators.
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_max_validators(mut self, n: u32) -> Self {
@@ -202,27 +277,18 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self
 	}
 
-	/// Get the maximum number of validators per core.
-	fn max_validators_per_core(&self) -> u32 {
-		self.max_validators_per_core.unwrap_or(Self::fallback_max_validators_per_core())
-	}
-
-	/// Set maximum number of validators per core.
-	#[cfg(not(feature = "runtime-benchmarks"))]
-	pub(crate) fn set_max_validators_per_core(mut self, n: u32) -> Self {
-		self.max_validators_per_core = Some(n);
-		self
-	}
-
 	/// Get the maximum number of cores we expect from this configuration.
 	pub(crate) fn max_cores(&self) -> u32 {
-		self.max_validators() / self.max_validators_per_core()
+		self.max_validators() / Self::fallback_max_validators_per_core()
 	}
 
 	/// Get the minimum number of validity votes in order for a backed candidate to be included.
 	#[cfg(feature = "runtime-benchmarks")]
-	pub(crate) fn fallback_min_validity_votes() -> u32 {
-		(Self::fallback_max_validators() / 2) + 1
+	pub(crate) fn fallback_min_backing_votes() -> u32 {
+		use crate::inclusion::minimum_backing_votes;
+		minimum_backing_votes(Self::fallback_max_validators_per_core() as _)
+			.try_into()
+			.unwrap()
 	}
 
 	/// Create para id, core index, and grab the associated group index from the scheduler pallet.
@@ -305,7 +371,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Create an `AvailabilityBitfield` where `concluding` is a map where each key is a core index
 	/// that is concluding and `cores` is the total number of cores in the system.
-	fn availability_bitvec(concluding: &BTreeMap<u32, u32>, cores: u32) -> AvailabilityBitfield {
+	fn availability_bitvec<C>(concluding: &BTreeMap<u32, C>, cores: u32) -> AvailabilityBitfield {
 		let mut bitfields = bitvec::bitvec![u8, bitvec::order::Lsb0; 0; 0];
 		for i in 0..cores {
 			if concluding.get(&(i as u32)).is_some() {
@@ -429,9 +495,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// `concluding_cores` is fully available. Additionally set up storage such that each
 	/// `concluding_cores`is pending becoming fully available so the generated bitfields will be
 	///  to the cores successfully being freed from the candidates being marked as available.
-	fn create_availability_bitfields(
+	fn create_availability_bitfields<C>(
 		&self,
-		concluding_cores: &BTreeMap<u32, u32>,
+		concluding_cores: &BTreeMap<u32, C>,
 		total_cores: u32,
 	) -> Vec<UncheckedSigned<AvailabilityBitfield>> {
 		let validators =
@@ -476,8 +542,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// validity votes.
 	fn create_backed_candidates(
 		&self,
-		cores_with_backed_candidates: &BTreeMap<u32, u32>,
-		includes_code_upgrade: Option<u32>,
+		cores_with_backed_candidates: &BTreeMap<u32, BackedCandidateScenario>,
 	) -> Vec<BackedCandidate<T::Hash>> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
@@ -485,8 +550,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		cores_with_backed_candidates
 			.iter()
-			.map(|(seed, num_votes)| {
-				assert!(*num_votes <= validators.len() as u32);
+			.map(|(seed, scenario)| {
+				assert!(scenario.validity_votes <= validators.len() as u32);
 				let (para_id, _core_idx, group_idx) = self.create_indexes(seed.clone());
 
 				// This generates a pair and adds it to the keystore, returning just the public.
@@ -534,22 +599,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						para_head: head_data.hash(),
 						validation_code_hash,
 					},
-					commitments: CandidateCommitments::<u32> {
-						upward_messages: Default::default(),
-						horizontal_messages: Default::default(),
-						new_validation_code: includes_code_upgrade
-							.map(|v| ValidationCode(vec![42u8; v as usize])),
-						head_data,
-						processed_downward_messages: 0,
-						hrmp_watermark: self.relay_parent_number(),
-					},
+					commitments: self.create_candidate_commitments(para_id, head_data, scenario),
 				};
 
 				let candidate_hash = candidate.hash();
 
 				let validity_votes: Vec<_> = group_validators
 					.iter()
-					.take(*num_votes as usize)
+					.take(scenario.validity_votes as usize)
 					.map(|val_idx| {
 						let public = validators.get(*val_idx).unwrap();
 						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
@@ -635,6 +692,77 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
+	fn create_candidate_commitments(
+		&self,
+		para_id: ParaId,
+		head_data: HeadData,
+		scenario: &BackedCandidateScenario,
+	) -> CandidateCommitments {
+		let config = crate::configuration::Pallet::<T>::config();
+		let upward_messages = {
+			let unbounded = create_messages(
+				scenario.ump,
+				config.max_upward_message_size,
+				config.max_upward_message_num_per_candidate,
+			)
+			.map(|m| m.collect())
+			.collect();
+			BoundedVec::truncate_from(unbounded)
+		};
+
+		let horizontal_messages = {
+			let unbounded: Vec<_> = create_messages(
+				scenario.hrmp,
+				config.hrmp_channel_max_message_size,
+				config.hrmp_max_message_num_per_candidate,
+			)
+			.collect();
+
+			for n in 0..unbounded.len() {
+				let channel_id =
+					HrmpChannelId { sender: para_id, recipient: para_id + n as u32 + 1 };
+				HrmpChannels::<T>::insert(
+					&channel_id,
+					HrmpChannel {
+						sender_deposit: 42,
+						recipient_deposit: 42,
+						max_capacity: 10_000_000,
+						max_total_size: 1_000_000_000,
+						max_message_size: 10_000_000,
+						msg_count: 0,
+						total_size: 0,
+						mqc_head: None,
+					},
+				);
+			}
+
+			let unbounded = unbounded
+				.into_iter()
+				.enumerate()
+				.map(|(n, m)| OutboundHrmpMessage {
+					recipient: para_id + n as u32 + 1,
+					data: m.collect(),
+				})
+				.collect();
+			BoundedVec::truncate_from(unbounded)
+		};
+
+		let new_validation_code = if scenario.code > 0 {
+			Some(ValidationCode(vec![42u8; scenario.code as usize]))
+		} else {
+			None
+		};
+
+		CandidateCommitments::<u32> {
+			upward_messages,
+			horizontal_messages,
+			new_validation_code,
+			head_data,
+			processed_downward_messages: 0,
+			hrmp_watermark: self.relay_parent_number(),
+		}
+	}
+
 	/// Build a scenario for testing or benchmarks.
 	///
 	/// Note that this API only allows building scenarios where the `backed_and_concluding_cores`
@@ -642,6 +770,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// `backed_and_concluding_cores.len() + dispute_sessions.len()` must be less than the max
 	/// number of cores.
 	pub(crate) fn build(self) -> Bench<T> {
+		// Necessary for benchmarks to succeed:
+		Self::adjust_config_benchmarking();
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
 		// running tests because it seems the storage is not cleared in between.
 		#[allow(deprecated)]
@@ -665,8 +795,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		let bitfields =
 			builder.create_availability_bitfields(&builder.backed_and_concluding_cores, used_cores);
-		let backed_candidates = builder
-			.create_backed_candidates(&builder.backed_and_concluding_cores, builder.code_upgrade);
+		let backed_candidates =
+			builder.create_backed_candidates(&builder.backed_and_concluding_cores);
 
 		let disputes = builder.create_disputes(
 			builder.backed_and_concluding_cores.len() as u32,
@@ -699,4 +829,30 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			_block_number: builder.block_number,
 		}
 	}
+}
+
+/// Create messages with a total number of `num_bytes`.
+fn create_messages(
+	num_bytes: u32,
+	max_message_size: u32,
+	max_messages: u32,
+) -> impl Iterator<Item = impl Iterator<Item = u8>> {
+	let max_message_size = if max_message_size == 0 { num_bytes } else { max_message_size };
+	let num_full_messages = if num_bytes == 0 { 0 } else { num_bytes / max_message_size };
+	let last_message_size = if num_bytes == 0 { 0 } else { num_bytes % max_message_size };
+	let last_message =
+		if last_message_size == 0 { vec![] } else { vec![(0..last_message_size).map(as_byte)] };
+
+	assert!(
+		max_messages == 0 || num_full_messages + last_message.len() as u32 <= max_messages,
+		"Too many messages generated. max_messages: {}, num_full_messages: {}, num_bytes: {}, max_message_size: {}, last_message_size: {}", max_messages, num_full_messages, num_bytes, max_message_size, last_message_size,
+	);
+
+	fn as_byte(u: u32) -> u8 {
+		u as u8
+	}
+
+	(0..num_full_messages)
+		.map(move |_| (0..max_message_size).map(as_byte))
+		.chain(last_message)
 }

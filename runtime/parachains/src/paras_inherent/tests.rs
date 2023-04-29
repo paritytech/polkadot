@@ -23,7 +23,7 @@ use super::*;
 mod enter {
 	use super::*;
 	use crate::{
-		builder::{Bench, BenchBuilder},
+		builder::{BackedCandidateScenario, Bench, BenchBuilder},
 		mock::{new_test_ext, MockGenesisConfig, Test},
 	};
 	use assert_matches::assert_matches;
@@ -33,35 +33,23 @@ mod enter {
 	struct TestConfig {
 		dispute_statements: BTreeMap<u32, u32>,
 		dispute_sessions: Vec<u32>,
-		backed_and_concluding: BTreeMap<u32, u32>,
-		num_validators_per_core: u32,
-		code_upgrade: Option<u32>,
+		backed_and_concluding: BTreeMap<u32, BackedCandidateScenario>,
 	}
 
 	fn make_inherent_data(
-		TestConfig {
-			dispute_statements,
-			dispute_sessions,
-			backed_and_concluding,
-			num_validators_per_core,
-			code_upgrade,
-		}: TestConfig,
+		TestConfig { dispute_statements, dispute_sessions, backed_and_concluding }: TestConfig,
 	) -> Bench<Test> {
 		let builder = BenchBuilder::<Test>::new()
 			.set_max_validators(
 				(dispute_sessions.len() + backed_and_concluding.len()) as u32 *
-					num_validators_per_core,
+					BenchBuilder::<Test>::fallback_max_validators_per_core(),
 			)
-			.set_max_validators_per_core(num_validators_per_core)
+			// .set_max_validators_per_core(num_validators_per_core)
 			.set_dispute_statements(dispute_statements)
 			.set_backed_and_concluding_cores(backed_and_concluding)
 			.set_dispute_sessions(&dispute_sessions[..]);
 
-		if let Some(code_size) = code_upgrade {
-			builder.set_code_upgrade(code_size).build()
-		} else {
-			builder.build()
-		}
+		builder.build()
 	}
 
 	#[test]
@@ -73,15 +61,14 @@ mod enter {
 			let dispute_statements = BTreeMap::new();
 
 			let mut backed_and_concluding = BTreeMap::new();
-			backed_and_concluding.insert(0, 1);
-			backed_and_concluding.insert(1, 1);
+			let scenario = BackedCandidateScenario { validity_votes: 1, ump: 0, hrmp: 0, code: 0 };
+			backed_and_concluding.insert(0, scenario);
+			backed_and_concluding.insert(1, scenario);
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
 				dispute_sessions: vec![], // No disputes
 				backed_and_concluding,
-				num_validators_per_core: 1,
-				code_upgrade: None,
 			});
 
 			// We expect the scenario to have cores 0 & 1 with pending availability. The backed
@@ -252,8 +239,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![1, 2, 3 /* Session 3 too new, will get filtered out */],
 				backed_and_concluding,
-				num_validators_per_core: 5,
-				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -326,8 +311,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 6,
-				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -396,8 +379,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 6,
-				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -438,15 +419,14 @@ mod enter {
 
 			let mut backed_and_concluding = BTreeMap::new();
 			// 2 backed candidates shall be scheduled
-			backed_and_concluding.insert(0, 2);
-			backed_and_concluding.insert(1, 2);
+			let scenario = BackedCandidateScenario { validity_votes: 2, ump: 0, hrmp: 0, code: 0 };
+			backed_and_concluding.insert(0, scenario);
+			backed_and_concluding.insert(1, scenario);
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 4,
-				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -518,16 +498,15 @@ mod enter {
 			let dispute_statements = BTreeMap::new();
 
 			let mut backed_and_concluding = BTreeMap::new();
+			let scenario = BackedCandidateScenario { validity_votes: 2, ump: 0, hrmp: 0, code: 0 };
 			// 2 backed candidates shall be scheduled
-			backed_and_concluding.insert(0, 2);
-			backed_and_concluding.insert(1, 2);
+			backed_and_concluding.insert(0, scenario);
+			backed_and_concluding.insert(1, scenario);
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 4,
-				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -575,15 +554,14 @@ mod enter {
 
 			let mut backed_and_concluding = BTreeMap::new();
 			// Schedule 2 backed candidates
-			backed_and_concluding.insert(0, 2);
-			backed_and_concluding.insert(1, 2);
+			let scenario = BackedCandidateScenario { validity_votes: 2, ump: 0, hrmp: 0, code: 0 };
+			backed_and_concluding.insert(0, scenario);
+			backed_and_concluding.insert(1, scenario);
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 5,
-				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -661,15 +639,14 @@ mod enter {
 
 			let mut backed_and_concluding = BTreeMap::new();
 			// 2 backed candidates shall be scheduled
-			backed_and_concluding.insert(0, 2);
-			backed_and_concluding.insert(1, 2);
+			let scenario = BackedCandidateScenario { validity_votes: 2, ump: 0, hrmp: 0, code: 0 };
+			backed_and_concluding.insert(0, scenario);
+			backed_and_concluding.insert(1, scenario);
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 5,
-				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -746,15 +723,15 @@ mod enter {
 
 			let mut backed_and_concluding = BTreeMap::new();
 			// 2 backed candidates shall be scheduled
-			backed_and_concluding.insert(0, 16);
-			backed_and_concluding.insert(1, 25);
+			let scenario = BackedCandidateScenario { validity_votes: 16, ump: 0, hrmp: 0, code: 0 };
+			backed_and_concluding.insert(0, scenario);
+			let scenario = BackedCandidateScenario { validity_votes: 25, ump: 0, hrmp: 0, code: 0 };
+			backed_and_concluding.insert(1, scenario);
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 5,
-				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -826,16 +803,16 @@ mod enter {
 			dispute_statements.insert(4, 17);
 
 			let mut backed_and_concluding = BTreeMap::new();
+			let scenario = BackedCandidateScenario { validity_votes: 16, ump: 0, hrmp: 0, code: 0 };
 			// 2 backed candidates shall be scheduled
-			backed_and_concluding.insert(0, 16);
-			backed_and_concluding.insert(1, 25);
+			backed_and_concluding.insert(0, scenario);
+			let scenario = BackedCandidateScenario { validity_votes: 25, ump: 0, hrmp: 0, code: 0 };
+			backed_and_concluding.insert(1, scenario);
 
 			let scenario = make_inherent_data(TestConfig {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 5,
-				code_upgrade: None,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
