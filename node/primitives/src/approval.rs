@@ -16,7 +16,7 @@
 
 //! Types relevant for approval.
 
-pub use sp_consensus_babe::{Randomness, Slot, VrfInput, VrfPreOutput, VrfProof, VrfSignature};
+pub use sp_consensus_babe::{Randomness, Slot, VrfOutput, VrfProof, VrfSignature, VrfTranscript};
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::{
@@ -143,7 +143,7 @@ pub enum ApprovalError {
 
 /// An unsafe VRF output. Provide BABE Epoch info to create a `RelayVRFStory`.
 pub struct UnsafeVRFOutput {
-	vrf_output: VrfPreOutput,
+	vrf_output: VrfOutput,
 	slot: Slot,
 	authority_index: u32,
 }
@@ -169,12 +169,12 @@ impl UnsafeVRFOutput {
 		let pubkey = schnorrkel::PublicKey::from_bytes(author.as_slice())
 			.map_err(ApprovalError::SchnorrkelSignature)?;
 
-		let input = sp_consensus_babe::make_vrf_input(randomness, self.slot, epoch_index);
+		let transcript = sp_consensus_babe::make_vrf_transcript(randomness, self.slot, epoch_index);
 
 		let inout = self
 			.vrf_output
 			.0
-			.attach_input_hash(&pubkey, input.data)
+			.attach_input_hash(&pubkey, transcript.0)
 			.map_err(ApprovalError::SchnorrkelSignature)?;
 		Ok(RelayVRFStory(inout.make_bytes(RELAY_VRF_STORY_CONTEXT)))
 	}
@@ -194,7 +194,7 @@ pub fn babe_unsafe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
 			let authority_index = pre.authority_index();
 
 			return pre.vrf_signature().map(|sig| UnsafeVRFOutput {
-				vrf_output: sig.preout.clone(),
+				vrf_output: sig.output.clone(),
 				slot,
 				authority_index,
 			})
