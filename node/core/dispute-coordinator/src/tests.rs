@@ -3284,8 +3284,8 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				)
 				.await;
 
-			let supermajority_threshold =
-				polkadot_primitives::supermajority_threshold(test_state.validators.len());
+			let byzantine_threshold =
+				polkadot_primitives::byzantine_threshold(test_state.validators.len());
 
 			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
 				&test_state,
@@ -3326,8 +3326,8 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 			.await;
 
 			let mut statements = Vec::new();
-			// minus 2, because of local vote and one previously imported invalid vote.
-			for i in (0_u32..supermajority_threshold as u32 - 2).map(|i| i + 3) {
+			// own vote + `byzantine_threshold` more votes should be enough to issue `RevertBlocks`
+			for i in (0_u32..byzantine_threshold as u32).map(|i| i + 3) {
 				let vote = test_state.issue_explicit_statement_with_index(
 					ValidatorIndex(i),
 					candidate_hash,
@@ -3348,8 +3348,6 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 					},
 				})
 				.await;
-			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
-				.await;
 
 			// Checking that concluded dispute has signaled the reversion of all parent blocks.
 			assert_matches!(
@@ -3362,6 +3360,9 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				},
 				"Overseer did not receive `ChainSelectionMessage::RevertBlocks` message"
 			);
+
+			// handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+			// 	.await;
 
 			// Wrap up
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;

@@ -477,6 +477,35 @@ impl ImportResult {
 		self.is_freshly_concluded_against() || self.is_freshly_concluded_for()
 	}
 
+	// Returns the number of invalid own votes from the state provided. This function is a helper for
+	// `has_fresh_byzantine_threshold_against`
+	fn get_own_invalid_votes<T>(state: &CandidateVoteState<T>) -> usize {
+		state
+			.own_votes()
+			.map(|votes| {
+				votes.iter().fold(0, |acc, (_, (vote, _))| match vote {
+					DisputeStatement::Invalid(_) => acc + 1,
+					_ => acc,
+				})
+			})
+			.unwrap_or(0)
+	}
+
+	/// Whether or not the invalid vote count for the dispute went beyond the byzantine threshold
+	/// after the last import
+	pub fn has_fresh_byzantine_threshold_against(&self, byzantine_threshold: usize) -> bool {
+		// Total number of imported invalid votes + our own invalid votes
+		let imported_invalid_votes =
+			self.imported_invalid_votes() as usize + Self::get_own_invalid_votes(self.new_state());
+		// The number of invalid votes + our own invalid votes before the import
+		let old_invalid_votes = (self.imported_invalid_votes() as usize)
+			.saturating_sub(self.new_invalid_voters().len()) +
+			Self::get_own_invalid_votes(self.old_state());
+
+		old_invalid_votes as usize <= byzantine_threshold &&
+			imported_invalid_votes as usize > byzantine_threshold
+	}
+
 	/// Modify this `ImportResult`s, by importing additional approval votes.
 	///
 	/// Both results and `new_state` will be changed as if those approval votes had been in the
