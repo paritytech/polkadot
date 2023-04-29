@@ -121,9 +121,7 @@ async fn generate_opposing_votes_pair(
 ) -> (SignedDisputeStatement, SignedDisputeStatement) {
 	let valid_vote = match valid_vote_type {
 		VoteType::Backing =>
-			test_state
-				.issue_backing_statement_with_index(valid_voter_idx, candidate_hash, session)
-				.await,
+			test_state.issue_backing_statement_with_index(valid_voter_idx, candidate_hash, session),
 		VoteType::Explicit => test_state.issue_explicit_statement_with_index(
 			valid_voter_idx,
 			candidate_hash,
@@ -487,7 +485,7 @@ impl TestState {
 			.unwrap()
 	}
 
-	async fn issue_backing_statement_with_index(
+	fn issue_backing_statement_with_index(
 		&self,
 		index: ValidatorIndex,
 		candidate_hash: CandidateHash,
@@ -1208,13 +1206,17 @@ fn backing_statements_import_works_and_no_spam() {
 				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
-			let valid_vote1 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
-				.await;
+			let valid_vote1 = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(3),
+				candidate_hash,
+				session,
+			);
 
-			let valid_vote2 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(4), candidate_hash, session)
-				.await;
+			let valid_vote2 = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(4),
+				candidate_hash,
+				session,
+			);
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
@@ -1261,13 +1263,17 @@ fn backing_statements_import_works_and_no_spam() {
 			let candidate_receipt = make_invalid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			let valid_vote1 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
-				.await;
+			let valid_vote1 = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(3),
+				candidate_hash,
+				session,
+			);
 
-			let valid_vote2 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(4), candidate_hash, session)
-				.await;
+			let valid_vote2 = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(4),
+				candidate_hash,
+				session,
+			);
 
 			test_state
 				.activate_leaf_at_session(
@@ -2674,13 +2680,17 @@ fn redundant_votes_ignored() {
 				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
-			let valid_vote = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(1), candidate_hash, session)
-				.await;
+			let valid_vote = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(1),
+				candidate_hash,
+				session,
+			);
 
-			let valid_vote_2 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(1), candidate_hash, session)
-				.await;
+			let valid_vote_2 = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(1),
+				candidate_hash,
+				session,
+			);
 
 			assert!(valid_vote.validator_signature() != valid_vote_2.validator_signature());
 
@@ -2749,13 +2759,11 @@ fn no_onesided_disputes() {
 			let mut statements = Vec::new();
 			for index in 1..10 {
 				statements.push((
-					test_state
-						.issue_backing_statement_with_index(
-							ValidatorIndex(index),
-							candidate_hash,
-							session,
-						)
-						.await,
+					test_state.issue_backing_statement_with_index(
+						ValidatorIndex(index),
+						candidate_hash,
+						session,
+					),
 					ValidatorIndex(index),
 				));
 			}
@@ -3031,9 +3039,11 @@ fn local_participation_in_dispute_for_backed_candidate() {
 				)
 				.await;
 
-			let backing_valid = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
-				.await;
+			let backing_valid = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(3),
+				candidate_hash,
+				session,
+			);
 
 			virtual_overseer
 				.send(FromOrchestra::Communication {
