@@ -27,13 +27,13 @@ use primitives::metric_definitions::{
 pub struct Metrics {
 	/// Samples inherent data weight.
 	inherent_data_weight: CounterVec,
-	/// Counts how many inherent bitfields processed in `enter_inner`.
+	/// Counts how many inherent bitfields processed in `process_inherent_data`.
 	bitfields_processed: Counter,
-	/// Counts how many parachain candidates processed in `enter_inner`.
+	/// Counts how many parachain candidates processed in `process_inherent_data`.
 	candidates_processed: CounterVec,
-	/// Counts dispute statements sets processed in `enter_inner`.
+	/// Counts dispute statements sets processed in `process_inherent_data`.
 	dispute_sets_processed: CounterVec,
-	/// Counts bitfield signature checks in `enter_inner`.
+	/// Counts bitfield signature checks in `process_inherent_data`.
 	bitfields_signature_checks: CounterVec,
 
 	/// Histogram with the time spent checking a validator signature of a dispute statement
@@ -66,13 +66,13 @@ impl Metrics {
 		self.candidates_processed.with_label_values(&["sanitized"]).inc_by(value);
 	}
 
-	/// Increment the total number of parachain candidates received in `enter_inner`.
+	/// Increment the total number of parachain candidates received in `process_inherent_data`.
 	pub fn on_candidates_processed_total(&self, value: u64) {
 		self.candidates_processed.with_label_values(&["total"]).inc_by(value);
 	}
 
 	/// Sample the relay chain freeze events causing runtime to not process candidates in
-	/// `enter_inner`.
+	/// `process_inherent_data`.
 	pub fn on_relay_chain_freeze(&self) {
 		self.dispute_sets_processed.with_label_values(&["frozen"]).inc();
 	}

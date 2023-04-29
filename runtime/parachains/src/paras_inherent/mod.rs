@@ -269,16 +269,8 @@ pub mod pallet {
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 			Included::<T>::set(Some(()));
 
-			Self::enter_inner(data)
+			Self::process_inherent_data(data).map(|(_processed, post_info)| post_info)
 		}
-	}
-}
-
-impl<T: Config> Pallet<T> {
-	pub(crate) fn enter_inner(
-		data: ParachainsInherentData<T::Header>,
-	) -> DispatchResultWithPostInfo {
-		Self::process_inherent_data(data).map(|(_processed, post_info)| post_info)
 	}
 }
 
