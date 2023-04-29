@@ -38,10 +38,7 @@ use primitives::{
 use sc_keystore::LocalKeystore;
 use sp_keystore::{Keystore, KeystorePtr};
 use std::sync::Arc;
-use test_helpers::{
-	dummy_candidate_receipt, dummy_collator, dummy_collator_signature, dummy_hash,
-	dummy_validation_code,
-};
+use test_helpers::{dummy_collator, dummy_collator_signature, dummy_validation_code};
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
