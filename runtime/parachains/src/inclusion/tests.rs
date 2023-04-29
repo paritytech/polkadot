@@ -442,26 +442,6 @@ fn bitfield_checks() {
 			_ => panic!("out of bounds for testing"),
 		};
 
-		// mark all candidates as pending availability
-		let set_pending_av = || {
-			for (p_id, _) in paras {
-				let receipt = dummy_candidate_receipt(dummy_hash());
-				PendingAvailability::<Test>::insert(
-					p_id,
-					CandidatePendingAvailability {
-						availability_votes: default_availability_votes(),
-						core: CoreIndex(0),
-						hash: receipt.hash(),
-						descriptor: receipt.descriptor,
-						backers: BitVec::default(),
-						relay_parent_number: BlockNumber::from(0_u32),
-						backed_in_number: BlockNumber::from(0_u32),
-						backing_group: GroupIndex(0),
-					},
-				)
-			}
-		};
-
 		// too many bits in bitfield
 		{
 			let mut bare_bitfield = default_bitfield();
