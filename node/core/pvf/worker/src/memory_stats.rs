@@ -33,7 +33,7 @@
 /// NOTE: Requires jemalloc enabled.
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub mod memory_tracker {
-	use crate::LOG_TARGET;
+	use crate::{common::stringify_panic_payload, LOG_TARGET};
 	use polkadot_node_core_pvf::MemoryAllocationStats;
 	use std::{
 		sync::mpsc::{Receiver, RecvTimeoutError, Sender},
@@ -156,7 +156,7 @@ pub mod memory_tracker {
 					gum::warn!(
 						target: LOG_TARGET,
 						%worker_pid,
-						"worker: error joining on memory tracker thread: {}", err
+						"worker: error joining on memory tracker thread: {}", stringify_panic_payload(err)
 					);
 					None
 				},
