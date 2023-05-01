@@ -28,7 +28,7 @@ use polkadot_node_core_pvf::{
 	framed_recv, framed_send, CompiledArtifact, MemoryStats, PrepareError, PrepareResult,
 	PrepareStats, PvfPrepData,
 };
-use std::{panic, path::PathBuf, sync::mpsc::channel, thread, time::Duration};
+use std::{path::PathBuf, sync::mpsc::channel, thread, time::Duration};
 use tokio::{io, net::UnixStream};
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
@@ -202,18 +202,13 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 }
 
 fn prepare_artifact(pvf: PvfPrepData) -> Result<CompiledArtifact, PrepareError> {
-	// TODO: Is this necessary? Panics are already caught by `std::thread::join`.
-	panic::catch_unwind(|| {
-		let blob = match prevalidate(&pvf.code()) {
-			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
-			Ok(b) => b,
-		};
+	let blob = match prevalidate(&pvf.code()) {
+		Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
+		Ok(b) => b,
+	};
 
-		match prepare(blob, &pvf.executor_params()) {
-			Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
-			Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
-		}
-	})
-	.map_err(|panic_payload| PrepareError::Panic(stringify_panic_payload(panic_payload)))
-	.and_then(|inner_result| inner_result)
+	match prepare(blob, &pvf.executor_params()) {
+		Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
+		Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
+	}
 }

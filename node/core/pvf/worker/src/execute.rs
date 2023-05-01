@@ -26,7 +26,6 @@ use polkadot_node_core_pvf::{
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
-	panic,
 	path::{Path, PathBuf},
 	sync::mpsc::channel,
 	thread,
@@ -115,11 +114,10 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				if execute_thread.is_finished() {
 					let _ = finished_tx.send(());
 					break execute_thread.join().unwrap_or_else(|e| {
-						// TODO: Use `Panic` error once that is implemented.
-						Response::format_internal(
-							"execute thread error",
-							&stringify_panic_payload(e),
-						)
+						Response::Panic(format!(
+							"execute thread error: {}",
+							&stringify_panic_payload(e)
+						))
 					})
 				}
 				// If this thread is not selected, the join handle is dropped and the thread will
