@@ -1475,6 +1475,8 @@ pub type Migrations = (
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	// Unreleased - add new migrations here:
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	pallet_offences::migration::v1::MigrateToV1<Runtime>,
+	runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
 	scheduler::migration::v1::MigrateToV1<Runtime>,
 );
 
