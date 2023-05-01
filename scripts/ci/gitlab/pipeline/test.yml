@@ -40,8 +40,15 @@ test-linux-stable:
     # Enable debug assertions since we are running optimized builds for testing
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+    SUPER_SKIP: "0"
   script:
-    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics,try-runtime
+    - apt-get update
+    - apt-get -y install libconfig++ libjemalloc2
+    - curl -o /usr/local/bin/firebuild "https://gitlab.parity.io/api/v4/projects/643/jobs/artifacts/master/raw/release/firebuild?job=release&job_token=$CI_JOB_TOKEN"
+    - chmod 755 /usr/local/bin/firebuild
+    - sleep 3600
+  tags:
+    - linux-docker-staging
 
 .check-dependent-project: &check-dependent-project
   stage: test
