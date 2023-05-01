@@ -926,6 +926,7 @@ pub enum ProxyType {
 	CancelProxy = 6,
 	Auction = 7,
 	NominationPools = 8,
+	OnDemandBidding = 9,
 }
 
 #[cfg(test)]
@@ -1054,6 +1055,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					RuntimeCall::Registrar(..) |
 					RuntimeCall::Slots(..)
 			),
+			ProxyType::OnDemandBidding => matches!(c, RuntimeCall::Scheduler(..)),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
