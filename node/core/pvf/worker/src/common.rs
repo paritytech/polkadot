@@ -23,11 +23,7 @@ use std::{
 	sync::mpsc::{Receiver, RecvTimeoutError},
 	time::Duration,
 };
-use tokio::{
-	io,
-	net::UnixStream,
-	runtime::{Handle, Runtime},
-};
+use tokio::{io, net::UnixStream, runtime::Runtime};
 
 /// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
 /// child process.
@@ -45,7 +41,7 @@ pub fn worker_event_loop<F, Fut>(
 	node_version: Option<&str>,
 	mut event_loop: F,
 ) where
-	F: FnMut(Handle, UnixStream) -> Fut,
+	F: FnMut(UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
 	let worker_pid = std::process::id();
@@ -69,13 +65,12 @@ pub fn worker_event_loop<F, Fut>(
 
 	// Run the main worker loop.
 	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
-	let handle = rt.handle();
 	let err = rt
 		.block_on(async move {
 			let stream = UnixStream::connect(socket_path).await?;
 			let _ = tokio::fs::remove_file(socket_path).await;
 
-			let result = event_loop(handle.clone(), stream).await;
+			let result = event_loop(stream).await;
 
 			result
 		})
