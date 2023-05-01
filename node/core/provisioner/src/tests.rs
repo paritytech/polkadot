@@ -19,6 +19,8 @@ use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use bitvec::bitvec;
 use polkadot_primitives::{OccupiedCore, ScheduledCore};
 
+const MOCK_GROUP_SIZE: usize = 5;
+
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
 		group_responsible: para_id.into(),
@@ -46,8 +48,8 @@ where
 	CoreState::Occupied(core)
 }
 
-pub fn default_bitvec(n_cores: usize) -> CoreAvailability {
-	bitvec![u8, bitvec::order::Lsb0; 0; n_cores]
+pub fn default_bitvec(size: usize) -> CoreAvailability {
+	bitvec![u8, bitvec::order::Lsb0; 0; size]
 }
 
 pub fn scheduled_core(id: u32) -> ScheduledCore {
@@ -236,7 +238,7 @@ pub(crate) mod common {
 mod select_candidates {
 	use super::{
 		super::*, build_occupied_core, common::test_harness, default_bitvec, occupied_core,
-		scheduled_core,
+		scheduled_core, MOCK_GROUP_SIZE,
 	};
 	use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 	use futures::channel::mpsc;
@@ -400,7 +402,6 @@ mod select_candidates {
 	#[test]
 	fn selects_correct_candidates() {
 		let mock_cores = mock_availability_cores();
-		let n_cores = mock_cores.len();
 
 		let empty_hash = PersistedValidationData::<Hash, BlockNumber>::default().hash();
 
@@ -450,12 +451,12 @@ mod select_candidates {
 					commitments: Default::default(),
 				},
 				validity_votes: Vec::new(),
-				validator_indices: default_bitvec(n_cores),
+				validator_indices: default_bitvec(MOCK_GROUP_SIZE),
 			})
 			.collect();
 
 		test_harness(
-			|r| mock_overseer(r, expected_backed, ProspectiveParachainsMode::Disabled),
+			|r| mock_overseer(r, expected_backed, prospective_parachains_mode),
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,
@@ -482,7 +483,6 @@ mod select_candidates {
 	#[test]
 	fn selects_max_one_code_upgrade() {
 		let mock_cores = mock_availability_cores();
-		let n_cores = mock_cores.len();
 
 		let empty_hash = PersistedValidationData::<Hash, BlockNumber>::default().hash();
 
@@ -512,13 +512,15 @@ mod select_candidates {
 			})
 			.collect();
 
+		// Input to select_candidates
 		let candidates: Vec<_> = committed_receipts.iter().map(|r| r.to_plain()).collect();
+		// Build possible outputs from select_candidates
 		let backed_candidates: Vec<_> = committed_receipts
 			.iter()
 			.map(|committed_receipt| BackedCandidate {
 				candidate: committed_receipt.clone(),
 				validity_votes: Vec::new(),
-				validator_indices: default_bitvec(n_cores),
+				validator_indices: default_bitvec(MOCK_GROUP_SIZE),
 			})
 			.collect();
 
@@ -532,7 +534,7 @@ mod select_candidates {
 		let prospective_parachains_mode = ProspectiveParachainsMode::Disabled;
 
 		test_harness(
-			|r| mock_overseer(r, expected_backed, ProspectiveParachainsMode::Disabled),
+			|r| mock_overseer(r, expected_backed, prospective_parachains_mode),
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,
@@ -561,8 +563,6 @@ mod select_candidates {
 	#[test]
 	fn request_from_prospective_parachains() {
 		let mock_cores = mock_availability_cores();
-		let n_cores = mock_cores.len();
-
 		let empty_hash = PersistedValidationData::<Hash, BlockNumber>::default().hash();
 
 		let mut descriptor_template = dummy_candidate_descriptor(dummy_hash());
@@ -596,21 +596,12 @@ mod select_candidates {
 					commitments: Default::default(),
 				},
 				validity_votes: Vec::new(),
-				validator_indices: default_bitvec(n_cores),
+				validator_indices: default_bitvec(MOCK_GROUP_SIZE),
 			})
 			.collect();
 
 		test_harness(
-			|r| {
-				mock_overseer(
-					r,
-					expected_backed,
-					ProspectiveParachainsMode::Enabled {
-						max_candidate_depth: 0,
-						allowed_ancestry_len: 0,
-					},
-				)
-			},
+			|r| mock_overseer(r, expected_backed, prospective_parachains_mode),
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,
