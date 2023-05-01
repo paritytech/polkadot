@@ -45,11 +45,14 @@ test-linux-stable:
     - apt-get update
     - apt-get -y install libconfig++ libjemalloc2
     - curl -o /usr/local/bin/firebuild "https://gitlab.parity.io/api/v4/projects/643/jobs/artifacts/master/raw/release/firebuild?job=release&job_token=$CI_JOB_TOKEN"
-    - curl -o /usr/lib/libfirebuild.so "https://gitlab.parity.io/api/v4/projects/643/jobs/artifacts/master/raw/release/libfirebuild.so?job=release&job_token=$CI_JOB_TOKEN"
-    - curl -o /etc/firebuild.conf "https://raw.githubusercontent.com/firebuild/firebuild/master/etc/firebuild.conf"
+    - curl -o /usr/lib/x86_64-linux-gnu/libfirebuild.so.0.0.0 "https://gitlab.parity.io/api/v4/projects/643/jobs/artifacts/master/raw/release/libfirebuild.so?job=release&job_token=$CI_JOB_TOKEN"
+    - curl -o /etc/firebuild.conf "https://raw.githubusercontent.com/firebuild/firebuild/v0.8.0/etc/firebuild.conf"
     - chmod 755 /usr/local/bin/firebuild
-    - chmod 644 /usr/lib/libfirebuild.so
-    - sleep 3600
+    - chmod 644 /usr/lib/x86_64-linux-gnu/libfirebuild.so.0.0.0
+    - ln -s /usr/lib/x86_64-linux-gnu/libfirebuild.so.0.0.0 /usr/lib/x86_64-linux-gnu/libfirebuild.so.0
+    - ln -s /usr/lib/x86_64-linux-gnu/libfirebuild.so.0.0.0 /usr/lib/x86_64-linux-gnu/libfirebuild.so
+    - ln -s /usr/local/rustup/ /root/.rustup
+    - firebuild cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics,try-runtime
   tags:
     - linux-docker-staging
 
