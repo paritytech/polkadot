@@ -17,6 +17,7 @@
 //! Old governance configurations for the Polkadot runtime.
 
 use crate::*;
+use frame_election_provider_support::{weights::SubstrateWeight, SequentialPhragmen};
 use frame_support::{parameter_types, traits::EitherOfDiverse};
 
 parameter_types! {
@@ -130,14 +131,17 @@ parameter_types! {
 	pub const MaxVoters: u32 = 10 * 1000;
 	pub const MaxVotesPerVoter: u32 = 16;
 	pub const MaxCandidates: u32 = 1000;
-	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
+	// The ElectionsPalletId parameter name was changed along with the renaming of the elections
+	// pallet, but we keep the same lock ID to prevent runtime migrations. Related to
+	// https://github.com/paritytech/substrate/issues/8250
+	pub const ElectionsPalletId: LockIdentifier = *b"phrelect";
 }
 // Make sure that there are no more than `MaxMembers` members elected via phragmen.
 const_assert!(DesiredMembers::get() <= CouncilMaxMembers::get());
 
-impl pallet_elections_phragmen::Config for Runtime {
+impl pallet_elections::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type PalletId = PhragmenElectionPalletId;
+	type PalletId = ElectionsPalletId;
 	type Currency = Balances;
 	type ChangeMembers = Council;
 	type InitializeMembers = Council;
@@ -151,9 +155,11 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
 	type MaxVoters = MaxVoters;
-	type MaxVotesPerVoter = MaxVotesPerVoter;
 	type MaxCandidates = MaxCandidates;
-	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
+	type MaxVotesPerVoter = MaxVotesPerVoter;
+	type WeightInfo = weights::pallet_elections::WeightInfo<Runtime>;
+	type ElectionSolver = SequentialPhragmen<Self::AccountId, Perbill>;
+	type SolverWeightInfo = SubstrateWeight<Self>;
 }
 
 parameter_types! {

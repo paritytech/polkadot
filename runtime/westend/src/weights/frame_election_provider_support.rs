@@ -22,16 +22,18 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("westend-dev"), DB CACHE: 1024
 
 // Executed Command:
-// ./target/production/polkadot
+// target/production/polkadot
 // benchmark
 // pallet
-// --chain=westend-dev
 // --steps=50
 // --repeat=20
-// --pallet=frame_election_provider_support
 // --extrinsic=*
 // --execution=wasm
 // --wasm-execution=compiled
+// --heap-pages=4096
+// --json-file=/builds/parity/mirrors/polkadot/.git/.artifacts/bench.json
+// --pallet=frame_election_provider_support
+// --chain=westend-dev
 // --header=./file_header.txt
 // --output=./runtime/westend/src/weights/
 
@@ -74,5 +76,20 @@ impl<T: frame_system::Config> frame_election_provider_support::WeightInfo for We
 			.saturating_add(Weight::from_parts(5_671_403, 0).saturating_mul(v.into()))
 			// Standard Error: 15_177_501
 			.saturating_add(Weight::from_parts(1_768_408_399, 0).saturating_mul(d.into()))
+	}
+	/// The range of component `v` is `[1000, 2000]`.
+	/// The range of component `t` is `[500, 1000]`.
+	/// The range of component `d` is `[5, 16]`.
+	fn approval_voting(v: u32, _t: u32, d: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_854_559 nanoseconds.
+		Weight::from_parts(1_899_414_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
+			// Standard Error: 34_895
+			.saturating_add(Weight::from_parts(1_567_497, 0).saturating_mul(v.into()))
+			// Standard Error: 3_567_569
+			.saturating_add(Weight::from_parts(231_049_436, 0).saturating_mul(d.into()))
 	}
 }

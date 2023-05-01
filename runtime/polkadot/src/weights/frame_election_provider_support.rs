@@ -18,20 +18,22 @@
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
 //! DATE: 2023-03-15, STEPS: `50`, REPEAT: `20`, LOW RANGE: `[]`, HIGH RANGE: `[]`
 //! WORST CASE MAP SIZE: `1000000`
-//! HOSTNAME: `bm4`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
+//! HOSTNAME: `runner-ehxwxxsd-project-163-concurrent-0`, CPU: `Intel(R) Xeon(R) CPU @ 2.60GHz`
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("polkadot-dev"), DB CACHE: 1024
 
 // Executed Command:
-// ./target/production/polkadot
+// target/production/polkadot
 // benchmark
 // pallet
-// --chain=polkadot-dev
 // --steps=50
 // --repeat=20
-// --pallet=frame_election_provider_support
 // --extrinsic=*
 // --execution=wasm
 // --wasm-execution=compiled
+// --heap-pages=4096
+// --json-file=/builds/parity/mirrors/polkadot/.git/.artifacts/bench.json
+// --pallet=frame_election_provider_support
+// --chain=polkadot-dev
 // --header=./file_header.txt
 // --output=./runtime/polkadot/src/weights/
 
@@ -74,5 +76,20 @@ impl<T: frame_system::Config> frame_election_provider_support::WeightInfo for We
 			.saturating_add(Weight::from_parts(5_826_469, 0).saturating_mul(v.into()))
 			// Standard Error: 15_564_500
 			.saturating_add(Weight::from_parts(1_803_039_187, 0).saturating_mul(d.into()))
+	}
+	/// The range of component `v` is `[1000, 2000]`.
+	/// The range of component `t` is `[500, 1000]`.
+	/// The range of component `d` is `[5, 16]`.
+	fn approval_voting(v: u32, _t: u32, d: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_866_533 nanoseconds.
+		Weight::from_parts(1_914_528_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
+			// Standard Error: 35_694
+			.saturating_add(Weight::from_parts(1_599_519, 0).saturating_mul(v.into()))
+			// Standard Error: 3_649_300
+			.saturating_add(Weight::from_parts(263_137_026, 0).saturating_mul(d.into()))
 	}
 }

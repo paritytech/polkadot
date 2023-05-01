@@ -47,7 +47,7 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-conviction-voting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-elections = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-fast-unstake = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -84,7 +84,6 @@ pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-pallet-election-provider-support-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-nomination-pools-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -145,7 +144,7 @@ std = [
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-collective/std",
-	"pallet-elections-phragmen/std",
+	"pallet-elections/std",
 	"pallet-election-provider-multi-phase/std",
 	"pallet-democracy/std",
 	"pallet-fast-unstake/std",
@@ -205,9 +204,8 @@ runtime-benchmarks = [
 	"pallet-collective/runtime-benchmarks",
 	"pallet-conviction-voting/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
-	"pallet-elections-phragmen/runtime-benchmarks",
+	"pallet-elections/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
-	"pallet-election-provider-support-benchmarking/runtime-benchmarks",
 	"pallet-fast-unstake/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-identity/runtime-benchmarks",
@@ -253,7 +251,7 @@ try-runtime = [
 	"pallet-conviction-voting/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-collective/try-runtime",
-	"pallet-elections-phragmen/try-runtime",
+	"pallet-elections/try-runtime",
 	"pallet-election-provider-multi-phase/try-runtime",
 	"pallet-fast-unstake/try-runtime",
 	"pallet-democracy/try-runtime",

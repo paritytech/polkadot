@@ -1310,10 +1310,12 @@ construct_runtime! {
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 13,
 
 		// Old governance stuff.
+		// `PhragmenElection` uses the elections pallet configured to use the sequential phragmen
+		// election solver.
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 14,
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 16,
-		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
+		PhragmenElection: pallet_elections::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 18,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 19,
 
@@ -1478,7 +1480,7 @@ mod benches {
 		[pallet_collective, Council]
 		[pallet_collective, TechnicalCommittee]
 		[pallet_democracy, Democracy]
-		[pallet_elections_phragmen, PhragmenElection]
+		[pallet_elections, PhragmenElection]
 		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
 		[frame_election_provider_support, ElectionProviderBench::<Runtime>]
 		[pallet_fast_unstake, FastUnstake]
@@ -1942,7 +1944,7 @@ sp_api::impl_runtime_apis! {
 
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
-			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
+			use frame_election_provider_support::benchmarking::Pallet as ElectionProviderBench;
 			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
@@ -1965,14 +1967,14 @@ sp_api::impl_runtime_apis! {
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
-			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
+			use frame_election_provider_support::benchmarking::Pallet as ElectionProviderBench;
 			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
-			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
+			impl frame_election_provider_support::benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl frame_benchmarking::baseline::Config for Runtime {}
 			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
@@ -2006,6 +2008,7 @@ sp_api::impl_runtime_apis! {
 mod test_fees {
 	use super::*;
 	use crate::governance::old::*;
+	use frame_election_provider_support::NposSolver;
 	use frame_support::{dispatch::GetDispatchInfo, weights::WeightToFee as WeightToFeeT};
 	use keyring::Sr25519Keyring::{Alice, Charlie};
 	use pallet_transaction_payment::Multiplier;
@@ -2110,7 +2113,7 @@ mod test_fees {
 	fn full_block_council_election_cost() {
 		// the number of voters needed to consume almost a full block in council election, and how
 		// much it is going to cost.
-		use pallet_elections_phragmen::WeightInfo;
+		use pallet_elections::WeightInfo;
 
 		// Loser candidate lose a lot of money; sybil attack by candidates is even more expensive,
 		// and we don't care about it here. For now, we assume no extra candidates, and only
@@ -2118,11 +2121,18 @@ mod test_fees {
 		let candidates = DesiredMembers::get() + DesiredRunnersUp::get();
 		let mut voters = 1u32;
 		let weight_with = |v| {
-			<Runtime as pallet_elections_phragmen::Config>::WeightInfo::election_phragmen(
+			<Runtime as pallet_elections::Config>::WeightInfo::pre_solve_election(
 				candidates,
 				v,
 				v * 16,
-			)
+			) + <Runtime as pallet_elections::Config>::ElectionSolver::weight::<
+				<Runtime as pallet_elections::Config>::SolverWeightInfo,
+			>(candidates, v, v * 16) +
+				<Runtime as pallet_elections::Config>::WeightInfo::post_solve_election(
+					candidates,
+					v,
+					v * 16,
+				)
 		};
 
 		while weight_with(voters).all_lte(BlockWeights::get().max_block) {
