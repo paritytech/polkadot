@@ -45,7 +45,10 @@ test-linux-stable:
     - apt-get update
     - apt-get -y install libconfig++ libjemalloc2
     - curl -o /usr/local/bin/firebuild "https://gitlab.parity.io/api/v4/projects/643/jobs/artifacts/master/raw/release/firebuild?job=release&job_token=$CI_JOB_TOKEN"
+    - curl -o /usr/lib/libfirebuild.so "https://gitlab.parity.io/api/v4/projects/643/jobs/artifacts/master/raw/release/libfirebuild.so?job=release&job_token=$CI_JOB_TOKEN"
+    - curl -o /etc/firebuild.conf "https://raw.githubusercontent.com/firebuild/firebuild/master/etc/firebuild.conf"
     - chmod 755 /usr/local/bin/firebuild
+    - chmod 644 /usr/lib/libfirebuild.so
     - sleep 3600
   tags:
     - linux-docker-staging
