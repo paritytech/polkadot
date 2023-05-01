@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -163,8 +163,8 @@ impl generic::Config for Test {
 		Ok(Default::default())
 	}
 
-	fn universal_alias() -> Result<Junction, BenchmarkError> {
-		Ok(GlobalConsensus(ByGenesis([0; 32])))
+	fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError> {
+		Ok((Here.into(), GlobalConsensus(ByGenesis([0; 32]))))
 	}
 
 	fn transact_origin_and_runtime_call(
