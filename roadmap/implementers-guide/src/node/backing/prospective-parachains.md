@@ -54,6 +54,10 @@ depth 1:                             head_1_a              head_1_b
 depth 2:                 head_2_a1   head_2_a2  head_2_a3
 ```
 
+### Example, Building Fragment Trees
+
+In this example we will step through the creation of two fragment trees with parachain block candidates in common. The appearance of the same candidate in more than one fragment tree motivates the use of a single `CandidateStorage` instance which all trees reference. The trees built in this example also demonstrate 
+
 ### The Relay-Chain Being Forkful
 
 We account for the same candidate possibly appearing in different forks. While
