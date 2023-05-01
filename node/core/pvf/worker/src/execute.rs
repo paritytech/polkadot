@@ -15,12 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	common::{bytes_to_path, cpu_time_monitor_loop, worker_event_loop},
-	executor_intf::Executor,
+	common::{bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload, worker_event_loop},
+	executor_intf::{Executor, EXECUTE_THREAD_STACK_SIZE},
 	LOG_TARGET,
 };
 use cpu_time::ProcessTime;
-use futures::{pin_mut, select_biased, FutureExt};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_core_pvf::{
 	framed_recv, framed_send, ExecuteHandshake as Handshake, ExecuteResponse as Response,
@@ -28,7 +27,8 @@ use polkadot_node_core_pvf::{
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
 	path::{Path, PathBuf},
-	sync::{mpsc::channel, Arc},
+	sync::mpsc::channel,
+	thread,
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
@@ -72,13 +72,13 @@ async fn send_response(stream: &mut UnixStream, response: Response) -> io::Resul
 /// is checked against the worker version. A mismatch results in immediate worker termination.
 /// `None` is used for tests and in other situations when version check is not necessary.
 pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
-	worker_event_loop("execute", socket_path, node_version, |rt_handle, mut stream| async move {
+	worker_event_loop("execute", socket_path, node_version, |mut stream| async move {
 		let worker_pid = std::process::id();
 
 		let handshake = recv_handshake(&mut stream).await?;
-		let executor = Arc::new(Executor::new(handshake.executor_params).map_err(|e| {
+		let executor = Executor::new(handshake.executor_params).map_err(|e| {
 			io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
-		})?);
+		})?;
 
 		loop {
 			let (artifact_path, params, execution_timeout) = recv_request(&mut stream).await?;
@@ -94,26 +94,37 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor.
-			let cpu_time_monitor_fut = rt_handle
-				.spawn_blocking(move || {
-					cpu_time_monitor_loop(cpu_time_start, execution_timeout, finished_rx)
-				})
-				.fuse();
+			let cpu_time_monitor_thread = thread::spawn(move || {
+				cpu_time_monitor_loop(cpu_time_start, execution_timeout, finished_rx)
+			});
 			let executor_2 = executor.clone();
-			let execute_fut = rt_handle
-				.spawn_blocking(move || {
+			let execute_thread =
+				thread::Builder::new().stack_size(EXECUTE_THREAD_STACK_SIZE).spawn(move || {
 					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
-				})
-				.fuse();
+				})?;
 
-			pin_mut!(cpu_time_monitor_fut);
-			pin_mut!(execute_fut);
-
-			let response = select_biased! {
-				// If this future is not selected, the join handle is dropped and the thread will
+			// "Select" the first thread that finishes by checking all threads in a naive loop.
+			let response = loop {
+				// NOTE: The order in which we poll threads is important! This loop sleeps between
+				// polling, so it is possible to go over the timeout even when the worker thread
+				// finishes on time. So we want to prioritize selecting the worker thread and not
+				// the CPU thread. If the measured CPU time is over the timeout, we will reject the
+				// candidate later on the host-side. This avoids a source of indeterminism, where a
+				// job can trigger timeouts on some validators and not others.
+				if execute_thread.is_finished() {
+					let _ = finished_tx.send(());
+					break execute_thread.join().unwrap_or_else(|e| {
+						// TODO: Use `Panic` error once that is implemented.
+						Response::format_internal(
+							"execute thread error",
+							&stringify_panic_payload(e),
+						)
+					})
+				}
+				// If this thread is not selected, the join handle is dropped and the thread will
 				// finish in the background.
-				cpu_time_monitor_res = cpu_time_monitor_fut => {
-					match cpu_time_monitor_res {
+				if cpu_time_monitor_thread.is_finished() {
+					break match cpu_time_monitor_thread.join() {
 						Ok(Some(cpu_time_elapsed)) => {
 							// Log if we exceed the timeout and the other thread hasn't finished.
 							gum::warn!(
@@ -125,14 +136,19 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							);
 							Response::TimedOut
 						},
-						Ok(None) => Response::InternalError("error communicating over finished channel".into()),
-						Err(e) => Response::format_internal("cpu time monitor thread error", &e.to_string()),
+						Ok(None) => Response::InternalError(
+							"error communicating over finished channel".into(),
+						),
+						// We can use an internal error here because errors in this thread are
+						// independent of the candidate.
+						Err(e) => Response::format_internal(
+							"cpu time monitor thread error",
+							&stringify_panic_payload(e),
+						),
 					}
-				},
-				execute_res = execute_fut => {
-					let _ = finished_tx.send(());
-					execute_res.unwrap_or_else(|e| Response::format_internal("execute thread error", &e.to_string()))
-				},
+				}
+
+				thread::sleep(Duration::from_millis(10));
 			};
 
 			send_response(&mut stream, response).await?;
@@ -143,7 +159,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 fn validate_using_artifact(
 	artifact_path: &Path,
 	params: &[u8],
-	executor: Arc<Executor>,
+	executor: Executor,
 	cpu_time_start: ProcessTime,
 ) -> Response {
 	// Check here if the file exists, because the error from Substrate is not match-able.
