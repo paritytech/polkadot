@@ -96,7 +96,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 			let (memory_tracker_tx, memory_tracker_rx) = channel::<()>();
 			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-			let memory_tracker_fut = rt_handle.spawn_blocking(move || memory_tracker_loop(memory_tracker_rx));
+			let memory_tracker_fut = thread::spawn(move || memory_tracker_loop(memory_tracker_rx));
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
