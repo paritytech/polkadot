@@ -27,6 +27,7 @@ use polkadot_node_core_pvf::{
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
+	panic,
 	path::{Path, PathBuf},
 	sync::{mpsc::channel, Arc},
 	time::Duration,

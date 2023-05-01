@@ -18,6 +18,7 @@ use crate::LOG_TARGET;
 use cpu_time::ProcessTime;
 use futures::never::Never;
 use std::{
+	any::Any,
 	path::PathBuf,
 	sync::mpsc::{Receiver, RecvTimeoutError},
 	time::Duration,
@@ -121,6 +122,20 @@ pub fn cpu_time_monitor_loop(
 		}
 
 		return Some(cpu_time_elapsed)
+	}
+}
+
+/// Attempt to convert an opaque panic payload to a string.
+///
+/// This is a best effort, and is not guaranteed to provide the most accurate value.
+pub fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String {
+	match payload.downcast::<&'static str>() {
+		Ok(msg) => msg.to_string(),
+		Err(payload) => match payload.downcast::<String>() {
+			Ok(msg) => *msg,
+			// At least we tried...
+			Err(_) => "unknown panic payload".to_string(),
+		},
 	}
 }
 

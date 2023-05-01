@@ -64,6 +64,8 @@ pub async fn spawn(
 }
 
 /// Outcome of PVF execution.
+///
+/// If the idle worker token is not returned, it means the worker must be terminated.
 pub enum Outcome {
 	/// PVF execution completed successfully and the result is returned. The worker is ready for
 	/// another job.
@@ -73,18 +75,23 @@ pub enum Outcome {
 	InvalidCandidate { err: String, idle_worker: IdleWorker },
 	/// An internal error happened during the validation. Such an error is most likely related to
 	/// some transient glitch.
-	InternalError { err: String, idle_worker: IdleWorker },
+	///
+	/// Should only ever be used for errors independent of the candidate. Therefore it may be a problem with the worker,
+	/// so we terminate it.
+	InternalError { err: String },
 	/// The execution time exceeded the hard limit. The worker is terminated.
 	HardTimeout,
 	/// An I/O error happened during communication with the worker. This may mean that the worker
 	/// process already died. The token is not returned in any case.
 	IoErr,
+	/// An unexpected panic has occurred in the execution worker.
+	Panic { err: String },
 }
 
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
 /// returns the outcome.
 ///
-/// NOTE: Returning the `HardTimeout` or `IoErr` errors will trigger the child process being killed.
+/// NOTE: Not returning the idle worker token in `Outcome` will trigger the child process being killed.
 pub async fn start_work(
 	worker: IdleWorker,
 	artifact: ArtifactPathId,
@@ -171,8 +178,8 @@ pub async fn start_work(
 		Response::InvalidCandidate(err) =>
 			Outcome::InvalidCandidate { err, idle_worker: IdleWorker { stream, pid } },
 		Response::TimedOut => Outcome::HardTimeout,
-		Response::InternalError(err) =>
-			Outcome::InternalError { err, idle_worker: IdleWorker { stream, pid } },
+		Response::Panic(err) => Outcome::Panic { err },
+		Response::InternalError(err) => Outcome::InternalError { err },
 	}
 }
 
@@ -223,7 +230,11 @@ pub enum Response {
 	InvalidCandidate(String),
 	/// The job timed out.
 	TimedOut,
-	/// Some internal error occurred. Should only be used for errors independent of the candidate.
+	/// An unexpected panic has occurred in the execution worker.
+	Panic(String),
+	/// Some internal error occurred.
+	///
+	/// Should only ever be used for errors independent of the candidate.
 	InternalError(String),
 }
 

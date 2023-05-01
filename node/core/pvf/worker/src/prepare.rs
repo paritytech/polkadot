@@ -19,7 +19,7 @@ use crate::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 use crate::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
 use crate::{
-	common::{bytes_to_path, cpu_time_monitor_loop, worker_event_loop},
+	common::{bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload, worker_event_loop},
 	prepare, prevalidate, LOG_TARGET,
 };
 use cpu_time::ProcessTime;
@@ -29,7 +29,7 @@ use polkadot_node_core_pvf::{
 	framed_recv, framed_send, CompiledArtifact, MemoryStats, PrepareError, PrepareResult,
 	PrepareStats, PvfPrepData,
 };
-use std::{any::Any, panic, path::PathBuf, sync::mpsc::channel};
+use std::{panic, path::PathBuf, sync::mpsc::channel};
 use tokio::{io, net::UnixStream};
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
@@ -205,18 +205,4 @@ fn prepare_artifact(pvf: PvfPrepData) -> Result<CompiledArtifact, PrepareError> 
 	})
 	.map_err(|panic_payload| PrepareError::Panic(stringify_panic_payload(panic_payload)))
 	.and_then(|inner_result| inner_result)
-}
-
-/// Attempt to convert an opaque panic payload to a string.
-///
-/// This is a best effort, and is not guaranteed to provide the most accurate value.
-fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String {
-	match payload.downcast::<&'static str>() {
-		Ok(msg) => msg.to_string(),
-		Err(payload) => match payload.downcast::<String>() {
-			Ok(msg) => *msg,
-			// At least we tried...
-			Err(_) => "unknown panic payload".to_string(),
-		},
-	}
 }

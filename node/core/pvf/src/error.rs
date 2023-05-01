@@ -103,7 +103,7 @@ pub enum InvalidCandidate {
 	///     an `rlimit` (if set) or, again, invited OOM killer. Another possibility is a bug in
 	///     wasmtime allowed the PVF to gain control over the execution worker.
 	///
-	/// We attribute such an event to an invalid candidate in either case.
+	/// We attribute such an event to an *invalid candidate* in either case.
 	///
 	/// The rationale for this is that a glitch may lead to unfair rejecting candidate by a single
 	/// validator. If the glitch is somewhat more persistent the validator will reject all candidate
@@ -113,6 +113,11 @@ pub enum InvalidCandidate {
 	AmbiguousWorkerDeath,
 	/// PVF execution (compilation is not included) took more time than was allotted.
 	HardTimeout,
+	/// A panic occurred and we can't be sure whether the candidate is really invalid or some internal glitch occurred.
+	/// Whenever we are unsure, we can never treat an error as internal as we would abstain from voting. This is bad
+	/// because if the issue was due to the candidate, then all validators would abstain, stalling finality on the
+	/// chain. So we will first retry the candidate, and if the issue persists we are forced to vote invalid.
+	Panic(String),
 }
 
 impl From<PrepareError> for ValidationError {

@@ -636,6 +636,8 @@ where
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
 				"ambiguous worker death".to_string(),
 			))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Panic(err))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(err))),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) => {
 			// In principle if preparation of the `WASM` fails, the current candidate can not be the
 			// reason for that. So we can't say whether it is invalid or not. In addition, with
@@ -709,13 +711,20 @@ trait ValidationBackend {
 			self.validate_candidate(pvf.clone(), exec_timeout, params.encode()).await;
 
 		// Allow limited retries for each kind of error.
+		//
+		// TODO: Should we stop retrying after some time has passed?
+		//       We would need to know if we came from backing or approval.
 		let mut num_internal_retries_left = 1;
 		let mut num_awd_retries_left = 1;
+		let mut num_panic_retries_left = 1;
 		loop {
 			match validation_result {
 				Err(ValidationError::InvalidCandidate(
 					WasmInvalidCandidate::AmbiguousWorkerDeath,
 				)) if num_awd_retries_left > 0 => num_awd_retries_left -= 1,
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Panic(_)))
+					if num_panic_retries_left > 0 =>
+					num_panic_retries_left -= 1,
 				Err(ValidationError::InternalError(_)) if num_internal_retries_left > 0 =>
 					num_internal_retries_left -= 1,
 				_ => break,
