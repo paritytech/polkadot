@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -326,6 +326,7 @@ fn setting_pending_config_members() {
 			pvf_checking_enabled: true,
 			pvf_voting_ttl: 3,
 			minimum_validation_upgrade_delay: 20,
+			executor_params: Default::default(),
 		};
 
 		Configuration::set_validation_upgrade_cooldown(

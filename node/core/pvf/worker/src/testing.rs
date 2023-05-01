@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,10 +20,6 @@
 //!      artifact even for production builds.
 
 use polkadot_primitives::ExecutorParams;
-
-pub mod worker_common {
-	pub use crate::worker_common::{spawn_with_program_path, SpawnErr};
-}
 
 /// A function that emulates the stitches together behaviors of the preparation and the execution
 /// worker in a single synchronous function.
@@ -61,22 +57,34 @@ macro_rules! decl_puppet_worker_main {
 			$crate::sp_tracing::try_init_simple();
 
 			let args = std::env::args().collect::<Vec<_>>();
-			if args.len() < 2 {
+			if args.len() < 3 {
 				panic!("wrong number of arguments");
+			}
+
+			let mut version = None;
+			let mut socket_path: &str = "";
+
+			for i in 2..args.len() {
+				match args[i].as_ref() {
+					"--socket-path" => socket_path = args[i + 1].as_str(),
+					"--node-version" => version = Some(args[i + 1].as_str()),
+					_ => (),
+				}
 			}
 
 			let subcommand = &args[1];
 			match subcommand.as_ref() {
+				"exit" => {
+					std::process::exit(1);
+				},
 				"sleep" => {
 					std::thread::sleep(std::time::Duration::from_secs(5));
 				},
 				"prepare-worker" => {
-					let socket_path = &args[2];
-					$crate::prepare_worker_entrypoint(socket_path);
+					$crate::prepare_worker_entrypoint(&socket_path, version);
 				},
 				"execute-worker" => {
-					let socket_path = &args[2];
-					$crate::execute_worker_entrypoint(socket_path);
+					$crate::execute_worker_entrypoint(&socket_path, version);
 				},
 				other => panic!("unknown subcommand: {}", other),
 			}
