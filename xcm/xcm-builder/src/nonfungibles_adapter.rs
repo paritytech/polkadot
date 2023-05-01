@@ -42,7 +42,7 @@ impl<
 		context: &XcmContext,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		log::trace!(
-			target: "xcm::non_fungibles_adapter",
+			target: "xcm::nonfungibles_adapter",
 			"transfer_asset what: {:?}, from: {:?}, to: {:?}, context: {:?}",
 			what, from, to, context,
 		);
@@ -126,7 +126,7 @@ impl<
 {
 	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset, context: &XcmContext) -> XcmResult {
 		log::trace!(
-			target: "xcm::non_fungibles_adapter",
+			target: "xcm::nonfungibles_adapter",
 			"can_check_in origin: {:?}, what: {:?}, context: {:?}",
 			_origin, what, context,
 		);
@@ -143,7 +143,7 @@ impl<
 
 	fn check_in(_origin: &MultiLocation, what: &MultiAsset, context: &XcmContext) {
 		log::trace!(
-			target: "xcm::non_fungibles_adapter",
+			target: "xcm::nonfungibles_adapter",
 			"check_in origin: {:?}, what: {:?}, context: {:?}",
 			_origin, what, context,
 		);
@@ -160,7 +160,7 @@ impl<
 
 	fn can_check_out(_dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) -> XcmResult {
 		log::trace!(
-			target: "xcm::non_fungibles_adapter",
+			target: "xcm::nonfungibles_adapter",
 			"can_check_out dest: {:?}, what: {:?}, context: {:?}",
 			_dest, what, context,
 		);
@@ -177,7 +177,7 @@ impl<
 
 	fn check_out(_dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) {
 		log::trace!(
-			target: "xcm::non_fungibles_adapter",
+			target: "xcm::nonfungibles_adapter",
 			"check_out dest: {:?}, what: {:?}, context: {:?}",
 			_dest, what, context,
 		);
@@ -194,7 +194,7 @@ impl<
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation, context: &XcmContext) -> XcmResult {
 		log::trace!(
-			target: "xcm::non_fungibles_adapter",
+			target: "xcm::nonfungibles_adapter",
 			"deposit_asset what: {:?}, who: {:?}, context: {:?}",
 			what, who, context,
 		);
@@ -212,7 +212,7 @@ impl<
 		maybe_context: Option<&XcmContext>,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		log::trace!(
-			target: "xcm::non_fungibles_adapter",
+			target: "xcm::nonfungibles_adapter",
 			"withdraw_asset what: {:?}, who: {:?}, maybe_context: {:?}",
 			what, who, maybe_context,
 		);
