@@ -37,10 +37,10 @@ pub mod memory_tracker {
 	use polkadot_node_core_pvf::MemoryAllocationStats;
 	use std::{
 		sync::mpsc::{Receiver, RecvTimeoutError, Sender},
+		thread::JoinHandle,
 		time::Duration,
 	};
 	use tikv_jemalloc_ctl::{epoch, stats, Error};
-	use tokio::task::JoinHandle;
 
 	#[derive(Clone)]
 	struct MemoryAllocationTracker {
@@ -127,7 +127,7 @@ pub mod memory_tracker {
 	/// Helper function to terminate the memory tracker thread and get the stats. Helps isolate all this
 	/// error handling.
 	pub async fn get_memory_tracker_loop_stats(
-		fut: JoinHandle<Result<MemoryAllocationStats, String>>,
+		thread: JoinHandle<Result<MemoryAllocationStats, String>>,
 		tx: Sender<()>,
 		worker_pid: u32,
 	) -> Option<MemoryAllocationStats> {
@@ -142,7 +142,7 @@ pub mod memory_tracker {
 			None
 		} else {
 			// Join on the thread handle.
-			match fut.await {
+			match thread.join() {
 				Ok(Ok(stats)) => Some(stats),
 				Ok(Err(err)) => {
 					gum::warn!(
