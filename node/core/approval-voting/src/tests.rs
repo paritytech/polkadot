@@ -901,6 +901,7 @@ async fn import_block(
 		);
 	} else {
 		if !fork {
+			// SessionInfo won't be called for forks - it's already cached
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::RuntimeApi(

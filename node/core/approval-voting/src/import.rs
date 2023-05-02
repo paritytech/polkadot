@@ -159,7 +159,7 @@ async fn imported_block_info<Context>(
 				return Err(ImportedBlockInfoError::FutureCancelled("SessionIndexForChild", error)),
 		};
 
-		// If we can't determine if the block is finalized or not - try processing it
+		// We can't determine if the block is finalized or not - try processing it
 		if last_finalized_height.map_or(false, |finalized| block_header.number < finalized) {
 			gum::debug!(
 				target: LOG_TARGET,
@@ -657,13 +657,14 @@ pub(crate) mod tests {
 	}
 
 	fn single_session_state() -> (State, RuntimeInfo) {
-		let runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
-			keystore: None,
-			session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-				.expect("DISPUTE_WINDOW can't be 0; qed."),
-		});
-
-		(blank_state(), runtime_info)
+		(
+			blank_state(),
+			RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+					.expect("DISPUTE_WINDOW can't be 0; qed."),
+			}),
+		)
 	}
 
 	struct MockAssignmentCriteria;
@@ -771,7 +772,7 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let mut session_info_provider = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
 				keystore: None,
 				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
 					.expect("DISPUTE_WINDOW can't be 0; qed."),
@@ -780,7 +781,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					runtime_info: &mut session_info_provider,
+					runtime_info: &mut runtime_info,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -895,7 +896,7 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let mut session_info_provider = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
 				keystore: None,
 				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
 					.expect("DISPUTE_WINDOW can't be 0; qed."),
@@ -904,7 +905,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					runtime_info: &mut session_info_provider,
+					runtime_info: &mut runtime_info,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -1111,7 +1112,7 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let mut session_info_provider = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
 				keystore: None,
 				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
 					.expect("DISPUTE_WINDOW can't be 0; qed."),
@@ -1120,7 +1121,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					runtime_info: &mut session_info_provider,
+					runtime_info: &mut runtime_info,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
