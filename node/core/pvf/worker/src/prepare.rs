@@ -202,8 +202,8 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 						},
 					}
 				},
-				// If this thread is not selected, we signal it to end, the join handle is dropped
-				// and the thread will finish in the background.
+				// If the CPU thread is not selected, we signal it to end, the join handle is
+				// dropped and the thread will finish in the background.
 				WaitOutcome::CpuTimedOut => {
 					match cpu_time_monitor_thread.join() {
 						Ok(Some(cpu_time_elapsed)) => {
@@ -224,9 +224,8 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 						Err(err) => Err(PrepareError::IoErr(stringify_panic_payload(err))),
 					}
 				},
-				WaitOutcome::Pending => Err(PrepareError::IoErr(
-					"we run wait_while until the outcome is no longer pending; qed".into(),
-				)),
+				WaitOutcome::Pending =>
+					unreachable!("we run wait_while until the outcome is no longer pending; qed"),
 			};
 
 			send_response(&mut stream, result).await?;

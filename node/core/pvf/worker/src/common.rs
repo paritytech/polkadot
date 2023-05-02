@@ -174,6 +174,10 @@ where
 fn cond_notify_one(cond: Cond, outcome: WaitOutcome) {
 	let (lock, cvar) = &*cond;
 	let mut flag = lock.lock().unwrap();
+	if !matches!(*flag, WaitOutcome::Pending) {
+		// Someone else already triggered the condvar.
+		return
+	}
 	*flag = outcome;
 	cvar.notify_one();
 }
