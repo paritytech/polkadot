@@ -122,7 +122,7 @@ frame_benchmarking::benchmarks! {
 		queue_upward_msg::<T>(&host_conf, para, msg.clone());
 		Ump::<T>::process_pending_upward_messages();
 		assert_last_event_type::<T>(
-			Event::OverweightEnqueued(para, upward_message_id(&msg), 0, Weight::zero()).into()
+			Event::OverweightEnqueued(para, message_id(&msg), 0, Weight::zero()).into()
 			);
 	}: _(RawOrigin::Root, 0, Weight::MAX)
 	verify {
