@@ -907,7 +907,7 @@ async fn import_block(
 				AllMessages::RuntimeApi(
 					RuntimeApiMessage::Request(
 						req_block_hash,
-						RuntimeApiRequest::SessionInfo(idx, si_tx),
+						RuntimeApiRequest::SessionInfo(_, si_tx),
 					)
 				) => {
 					// Make sure all SessionInfo calls are not made for the leaf (but for its relay parent)
