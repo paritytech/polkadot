@@ -138,37 +138,51 @@ pub fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String
 	}
 }
 
+/// Contains the outcome of waiting on threads, or `Pending` if none are ready.
+#[derive(Clone, Copy)]
+pub enum WaitOutcome {
+	JobFinished,
+	CpuTimedOut,
+	Pending,
+}
+
+impl WaitOutcome {
+	pub fn is_pending(&self) -> bool {
+		matches!(self, Self::Pending)
+	}
+}
+
 /// Helper type.
-type Cond = Arc<(Mutex<bool>, Condvar)>;
+type Cond = Arc<(Mutex<WaitOutcome>, Condvar)>;
 
 /// Runs a thread, afterwards notifying the thread waiting on the condvar. Catches panics and
 /// resumes them after triggering the condvar, so that the waiting thread is notified on panics.
-pub fn cond_notify_on_done<F, R>(f: F, cond: Cond) -> R
+pub fn cond_notify_on_done<F, R>(f: F, cond: Cond, outcome: WaitOutcome) -> R
 where
 	F: FnOnce() -> R,
 	F: panic::UnwindSafe,
 {
 	let result = panic::catch_unwind(|| f());
-	cond_notify_one(cond);
+	cond_notify_one(cond, outcome);
 	match result {
 		Ok(inner) => return inner,
 		Err(err) => panic::resume_unwind(err),
 	}
 }
 
-/// Helper function to notify the thread waiting on this condvar. This follows the conventions in
-/// the std docs, including the use of a `pending` flag.
-fn cond_notify_one(cond: Cond) {
+/// Helper function to notify the thread waiting on this condvar.
+fn cond_notify_one(cond: Cond, outcome: WaitOutcome) {
 	let (lock, cvar) = &*cond;
-	let mut pending = lock.lock().unwrap();
-	*pending = false;
+	let mut flag = lock.lock().unwrap();
+	*flag = outcome;
 	cvar.notify_one();
 }
 
 /// Helper function to block the thread while it waits on the condvar.
-pub fn cond_wait_while(cond: Cond) {
+pub fn cond_wait_while(cond: Cond) -> WaitOutcome {
 	let (lock, cvar) = &*cond;
-	let _guard = cvar.wait_while(lock.lock().unwrap(), |pending| *pending).unwrap();
+	let guard = cvar.wait_while(lock.lock().unwrap(), |flag| flag.is_pending()).unwrap();
+	*guard
 }
 
 /// In case of node and worker version mismatch (as a result of in-place upgrade), send `SIGTERM`

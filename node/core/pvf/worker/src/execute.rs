@@ -17,7 +17,7 @@
 use crate::{
 	common::{
 		bytes_to_path, cond_notify_on_done, cond_wait_while, cpu_time_monitor_loop,
-		stringify_panic_payload, worker_event_loop,
+		stringify_panic_payload, worker_event_loop, WaitOutcome,
 	},
 	executor_intf::{Executor, EXECUTE_THREAD_STACK_SIZE},
 	LOG_TARGET,
@@ -97,7 +97,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			);
 
 			// Conditional variable to notify us when a thread is done.
-			let cond_main = Arc::new((Mutex::new(true), Condvar::new()));
+			let cond_main = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
 			let cond_cpu = Arc::clone(&cond_main);
 			let cond_job = Arc::clone(&cond_main);
 
@@ -115,6 +115,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 						)
 					},
 					cond_cpu,
+					WaitOutcome::CpuTimedOut,
 				)
 			});
 			let executor_2 = executor.clone();
@@ -130,32 +131,28 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							)
 						},
 						cond_job,
+						WaitOutcome::JobFinished,
 					)
 				})?;
 
 			// Wait for one of the threads to finish.
-			cond_wait_while(cond_main);
+			let outcome = cond_wait_while(cond_main);
 
-			// A thread has signaled completion but it may not be "joinable" yet, so loop for a bit.
-			let response = loop {
-				// NOTE: We check the worker thread first to give it priority. This is for the rare
-				// case where it barely finishes in time, so we don't discard its result. On the
-				// other hand, if its measured CPU time is over the timeout, we will reject the
-				// candidate later on the host-side.
-				if execute_thread.is_finished() {
+			let response = match outcome {
+				WaitOutcome::JobFinished => {
 					let _ = cpu_time_monitor_tx.send(());
-					break execute_thread.join().unwrap_or_else(|e| {
+					execute_thread.join().unwrap_or_else(|e| {
 						// TODO: Use `Panic` error once that is implemented.
 						Response::format_internal(
 							"execute thread error",
 							&stringify_panic_payload(e),
 						)
 					})
-				}
+				},
 				// If this thread is not selected, we signal it to end, the join handle is dropped
 				// and the thread will finish in the background.
-				if cpu_time_monitor_thread.is_finished() {
-					break match cpu_time_monitor_thread.join() {
+				WaitOutcome::CpuTimedOut => {
+					match cpu_time_monitor_thread.join() {
 						Ok(Some(cpu_time_elapsed)) => {
 							// Log if we exceed the timeout and the other thread hasn't finished.
 							gum::warn!(
@@ -167,7 +164,8 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							);
 							Response::TimedOut
 						},
-						Ok(None) => Response::InternalError(
+						Ok(None) => Response::format_internal(
+							"cpu time monitor thread error",
 							"error communicating over finished channel".into(),
 						),
 						// We can use an internal error here because errors in this thread are
@@ -177,7 +175,10 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							&stringify_panic_payload(e),
 						),
 					}
-				}
+				},
+				WaitOutcome::Pending => Response::InternalError(
+					"we run wait_while until the outcome is no longer pending; qed".into(),
+				),
 			};
 
 			send_response(&mut stream, response).await?;
