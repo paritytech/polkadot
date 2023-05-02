@@ -20,6 +20,7 @@ use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{
+	collections::btree_set::BTreeSet,
 	marker::PhantomData,
 	prelude::*,
 	slice::{Iter, IterMut},
@@ -28,7 +29,7 @@ use sp_std::{
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
-use primitives::RuntimeDebug;
+use primitives::{OpaquePeerId, RuntimeDebug};
 use runtime_primitives::traits::{AppVerify, Header as HeaderT};
 use sp_arithmetic::traits::{BaseArithmetic, Saturating};
 
@@ -796,15 +797,91 @@ pub struct ParathreadEntry {
 	pub retries: u32,
 }
 
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct Assignment {
+	pub para_id: Id,
+	pub collator_restrictions: CollatorRestrictions,
+}
+
+impl Assignment {
+	pub fn new(para_id: Id, collator_restrictions: CollatorRestrictions) -> Self {
+		Assignment { para_id, collator_restrictions }
+	}
+}
+
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct CollatorRestrictions {
+	/// Collators to prefer/allow.
+	/// Empty set means no restrictions.
+	collator_peer_ids: BTreeSet<OpaquePeerId>, // TODO: Better have CollatorIds here as we can have them in the runtime. And transform to PeerId on the node side?
+	restriction_kind: CollatorRestrictionKind,
+}
+
+impl CollatorRestrictions {
+	/// Specialised new function for parachains.
+	pub fn none() -> Self {
+		CollatorRestrictions {
+			collator_peer_ids: BTreeSet::new(),
+			restriction_kind: CollatorRestrictionKind::Preferred,
+		}
+	}
+
+	/// Create a new `CollatorRestrictions`.
+	pub fn new(
+		collator_peer_ids: BTreeSet<OpaquePeerId>,
+		restriction_kind: CollatorRestrictionKind,
+	) -> Self {
+		CollatorRestrictions { collator_peer_ids, restriction_kind }
+	}
+
+	/// Is peer_id allowed to collate?
+	pub fn can_collate(&self, peer_id: &OpaquePeerId) -> bool {
+		match self.restriction_kind {
+			CollatorRestrictionKind::Preferred => true,
+			CollatorRestrictionKind::Required => self.collator_peer_ids.contains(peer_id),
+		}
+	}
+}
+
+/// How to apply the collator restrictions.
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub enum CollatorRestrictionKind {
+	/// peer ids mentioned will be preferred in connections, but others are still allowed.
+	Preferred,
+	/// Any collator with a `PeerId` not in the set of `CollatorRestrictions` will be rejected.
+	Required,
+}
+
 /// An entry tracking a paras
 #[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
 pub struct ParasEntry {
-	/// The ID.
-	pub para_id: Id,
-	/// The collator.
-	pub collator: Option<CollatorId>,
+	/// The `Assignment`
+	pub assignment: Assignment,
 	/// Number of times this has been retried.
 	pub retries: u32,
+}
+
+impl From<Assignment> for ParasEntry {
+	fn from(assignment: Assignment) -> Self {
+		ParasEntry { assignment, retries: 0 }
+	}
+}
+
+impl ParasEntry {
+	pub fn new(assignment: Assignment) -> Self {
+		ParasEntry { assignment, retries: 0 }
+	}
+
+	pub fn para_id(&self) -> Id {
+		self.assignment.para_id
+	}
+
+	pub fn collator_restrictions(&self) -> &CollatorRestrictions {
+		&self.assignment.collator_restrictions
+	}
 }
 
 /// What is occupying a specific availability core.
@@ -954,10 +1031,11 @@ impl<H, N> OccupiedCore<H, N> {
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct ScheduledCore {
+	// TODO: Is the same as Assignment
 	/// The ID of a para scheduled.
 	pub para_id: Id,
-	/// The collator required to author the block, if any.
-	pub collator: Option<CollatorId>,
+	/// The collator restrictions.
+	pub collator_restrictions: CollatorRestrictions,
 }
 
 /// The state of a particular availability core.

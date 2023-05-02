@@ -21,6 +21,7 @@ use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_primitives::Id as ParaId;
 use sc_cli::{Error as SubstrateCliError, SubstrateCli};
+use sc_network::service::traits::NetworkStateInfo;
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_adder_collator::Collator;
 
@@ -90,6 +91,7 @@ fn main() -> Result<()> {
 					collator: collator
 						.create_collation_function(full_node.task_manager.spawn_handle()),
 					para_id,
+					peer_id: full_node.network.local_peer_id(),
 				};
 				overseer_handle
 					.send_msg(CollationGenerationMessage::Initialize(config), "Collator")

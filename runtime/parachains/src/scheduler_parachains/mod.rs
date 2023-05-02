@@ -14,14 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use primitives::{CoreIndex, Id as ParaId};
-
-use crate::{configuration, paras};
-
+use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 pub use pallet::*;
-use primitives::v4::ParasEntry;
-
-use crate::scheduler_common::AssignmentProvider;
+use primitives::{
+	v4::{Assignment, CollatorRestrictions},
+	CoreIndex, Id as ParaId,
+};
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -49,14 +47,14 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		_concluded_para: Option<ParaId>,
-	) -> Option<ParasEntry> {
+	) -> Option<Assignment> {
 		<paras::Pallet<T>>::parachains()
 			.get(core_idx.0 as usize)
 			.copied()
-			.map(|para_id| ParasEntry { para_id, collator: None, retries: 0 })
+			.map(|para_id| Assignment::new(para_id, CollatorRestrictions::none()))
 	}
 
-	fn push_parasentry_for_core(_: CoreIndex, _: ParasEntry) {}
+	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
 
 	fn get_availability_period(_: CoreIndex) -> T::BlockNumber {
 		<configuration::Pallet<T>>::config().chain_availability_period

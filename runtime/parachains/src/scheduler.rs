@@ -69,6 +69,7 @@ pub mod migration;
 pub mod pallet {
 	use super::*;
 	use crate::scheduler_common::AssignmentProvider;
+	use primitives::v4::ParasEntry;
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
@@ -219,7 +220,7 @@ impl<T: Config> Pallet<T> {
 						CoreOccupied::Paras(entry) => {
 							match freed_reason {
 								FreedReason::Concluded => {
-									concluded_paras.insert(freed_index, entry.para_id);
+									concluded_paras.insert(freed_index, entry.para_id());
 								},
 								FreedReason::TimedOut => {
 									timedout_paras.insert(freed_index, entry.clone());
@@ -276,7 +277,7 @@ impl<T: Config> Pallet<T> {
 		let cores = AvailabilityCores::<T>::get();
 		match cores.get(core_index.0 as usize) {
 			None | Some(CoreOccupied::Free) => None,
-			Some(CoreOccupied::Paras(entry)) => Some(entry.para_id),
+			Some(CoreOccupied::Paras(entry)) => Some(entry.para_id()),
 		}
 	}
 
@@ -358,7 +359,10 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn paras_entry_to_scheduled_core(pe: &ParasEntry) -> ScheduledCore {
-		ScheduledCore { para_id: pe.para_id, collator: pe.collator.clone() }
+		ScheduledCore {
+			para_id: pe.para_id(),
+			collator_restrictions: pe.collator_restrictions().clone(),
+		}
 	}
 
 	/// Return the next thing that will be scheduled on this core assuming it is currently
@@ -387,25 +391,12 @@ impl<T: Config> Pallet<T> {
 				match core {
 					CoreOccupied::Free => continue,
 					CoreOccupied::Paras(entry) =>
-					// We do not push back on session change if paras have already been tried to run before
-						if entry.retries == 0 {
-							T::AssignmentProvider::push_parasentry_for_core(
-								CoreIndex::from(core_idx as u32),
-								entry.clone(),
-							);
-						},
+						Self::push_assignment(CoreIndex::from(core_idx as u32), entry.clone()),
 				}
 
 				*core = CoreOccupied::Free;
 			}
 		});
-	}
-
-	//
-	//  ClaimQueue related functions
-	//
-	fn claimqueue_lookahead() -> u32 {
-		<configuration::Pallet<T>>::config().scheduling_lookahead
 	}
 
 	// on new session
@@ -414,9 +405,23 @@ impl<T: Config> Pallet<T> {
 			// Push back in reverse order so that when we pop from the provider again,
 			// the entries in the claimqueue are in the same order as they are right now.
 			for pe in cqv.into_iter().flatten().rev() {
-				T::AssignmentProvider::push_parasentry_for_core(core_idx, pe);
+				Self::push_assignment(core_idx, pe);
 			}
 		}
+	}
+
+	fn push_assignment(core_idx: CoreIndex, pe: ParasEntry) {
+		// We do not push back on session change if paras have already been tried to run before
+		if pe.retries == 0 {
+			T::AssignmentProvider::push_assignment_for_core(core_idx, pe.assignment);
+		}
+	}
+
+	//
+	//  ClaimQueue related functions
+	//
+	fn claimqueue_lookahead() -> u32 {
+		<configuration::Pallet<T>>::config().scheduling_lookahead
 	}
 
 	/// Updates the claimqueue by moving it to the next paras and filling empty spots with new paras.
@@ -469,7 +474,7 @@ impl<T: Config> Pallet<T> {
 						Self::add_to_claimqueue(core_idx, entry);
 					} else {
 						// Consider max retried parathreads as concluded for the assignment provider
-						debug_assert!(concluded_paras.insert(core_idx, entry.para_id).is_none());
+						debug_assert!(concluded_paras.insert(core_idx, entry.para_id()).is_none());
 					}
 				}
 
@@ -478,10 +483,10 @@ impl<T: Config> Pallet<T> {
 					if Self::is_core_occupied(core_idx) { 1 } else { 0 };
 				for _ in n_lookahead_used..n_lookahead {
 					let concluded_para = concluded_paras.remove(&core_idx);
-					if let Some(pe) =
+					if let Some(assignment) =
 						T::AssignmentProvider::pop_assignment_for_core(core_idx, concluded_para)
 					{
-						Self::add_to_claimqueue(core_idx, pe);
+						Self::add_to_claimqueue(core_idx, ParasEntry::from(assignment));
 					}
 				}
 			}
@@ -517,7 +522,7 @@ impl<T: Config> Pallet<T> {
 
 		let pos = la_vec
 			.iter()
-			.position(|a| a.as_ref().map_or(false, |pe| pe.para_id == para_id))
+			.position(|a| a.as_ref().map_or(false, |pe| pe.para_id() == para_id))
 			.ok_or("para id not found at core_idx lookahead")?;
 
 		let pe = la_vec
@@ -587,7 +592,7 @@ impl<T: Config> Pallet<T> {
 			.flat_map(|(_, assignments)| {
 				assignments
 					.into_iter()
-					.filter_map(|assignment| assignment.and_then(|pe| Some(pe.para_id)))
+					.filter_map(|assignment| assignment.and_then(|pe| Some(pe.para_id())))
 			})
 			.collect();
 

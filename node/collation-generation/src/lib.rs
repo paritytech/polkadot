@@ -365,6 +365,9 @@ async fn handle_new_activations<Context>(
 							para_id: scheduled_core.para_id,
 							relay_parent,
 							collator: task_config.key.public(),
+							//peer_id: OpaquePeerId::new(Encode::encode(
+							//	&task_config.peer_id.to_bytes(),
+							//)),
 							persisted_validation_data_hash,
 							pov_hash,
 							erasure_root,

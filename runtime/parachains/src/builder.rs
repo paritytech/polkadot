@@ -23,13 +23,14 @@ use crate::{
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use primitives::{
-	collator_signature_payload, v4::ParasEntry, AvailabilityBitfield, BackedCandidate,
-	CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature,
-	CommittedCandidateReceipt, CompactStatement, CoreIndex, CoreOccupied, DisputeStatement,
-	DisputeStatementSet, GroupIndex, HeadData, Id as ParaId, IndexedVec,
-	InherentData as ParachainsInherentData, InvalidDisputeStatementKind, PersistedValidationData,
-	SessionIndex, SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode,
-	ValidatorId, ValidatorIndex, ValidityAttestation,
+	collator_signature_payload,
+	v4::{Assignment, CollatorRestrictions, ParasEntry},
+	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
+	CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt, CompactStatement,
+	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
+	Id as ParaId, IndexedVec, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
+	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
+	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -686,11 +687,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let cores = (0..used_cores)
 			.into_iter()
 			.map(|i| {
-				CoreOccupied::Paras(ParasEntry {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-					retries: 0,
-				})
+				CoreOccupied::Paras(ParasEntry::new(Assignment::new(
+					ParaId::from(i as u32),
+					CollatorRestrictions::none(),
+				)))
 			})
 			.collect();
 		scheduler::AvailabilityCores::<T>::set(cores);

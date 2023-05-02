@@ -7,7 +7,7 @@ pub mod v1 {
 	use frame_support::{
 		pallet_prelude::ValueQuery, storage_alias, traits::OnRuntimeUpgrade, weights::Weight,
 	};
-	use primitives::CollatorId;
+	use primitives::{v4::CollatorRestrictions, vstaging::Assignment, CollatorId};
 
 	#[storage_alias]
 	pub(super) type Scheduled<T: Config> = StorageValue<Pallet<T>, Vec<CoreAssignment>, ValueQuery>;
@@ -141,11 +141,8 @@ pub mod v1 {
 		let sched_len = scheduled.len() as u64;
 		for core_assignment in scheduled {
 			let core_idx = core_assignment.core;
-			let pe = ParasEntry {
-				para_id: core_assignment.para_id,
-				collator: core_assignment.required_collator(),
-				retries: 0,
-			};
+			let assignment = Assignment::new(core_assignment.para_id, CollatorRestrictions::none());
+			let pe = ParasEntry::new(assignment);
 			Pallet::<T>::add_to_claimqueue(core_idx, pe);
 		}
 

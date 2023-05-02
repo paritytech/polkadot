@@ -18,7 +18,11 @@ use super::*;
 
 use frame_support::assert_ok;
 use keyring::Sr25519Keyring;
-use primitives::{BlockNumber, CollatorId, SessionIndex, ValidatorId};
+use primitives::{
+	v4::{Assignment, CollatorRestrictionKind, CollatorRestrictions},
+	BlockNumber, CollatorId, SessionIndex, ValidatorId,
+};
+use sp_core::{ByteArray, OpaquePeerId};
 
 use crate::{
 	configuration::HostConfiguration,
@@ -147,7 +151,13 @@ fn add_parathread_claim_works() {
 
 		assert!(Paras::is_parathread(thread_id));
 
-		let pe = ParasEntry { para_id: thread_id, collator: Some(collator), retries: 0 };
+		let pe = ParasEntry::new(Assignment::new(
+			thread_id,
+			CollatorRestrictions::new(
+				[OpaquePeerId::new(collator.to_raw_vec())].into_iter().collect(),
+				CollatorRestrictionKind::Preferred,
+			),
+		));
 		Scheduler::add_to_claimqueue(core_index, pe.clone());
 
 		let cq = Scheduler::claimqueue();
@@ -772,11 +782,11 @@ fn schedule_clears_availability_cores() {
 			assert_eq!(claimqueue_2.len(), 1);
 			assert_eq!(
 				claimqueue_0,
-				vec![Some(ParasEntry { para_id: chain_a, collator: None, retries: 0 })]
+				vec![Some(ParasEntry::new(Assignment::new(chain_a, CollatorRestrictions::none())))],
 			);
 			assert_eq!(
 				claimqueue_2,
-				vec![Some(ParasEntry { para_id: chain_c, collator: None, retries: 0 })]
+				vec![Some(ParasEntry::new(Assignment::new(chain_c, CollatorRestrictions::none())))],
 			);
 
 			// The freed cores should be `Free` in `AvailabilityCores`.
@@ -968,11 +978,10 @@ fn availability_predicate_works() {
 		// assign some availability cores.
 		{
 			AvailabilityCores::<Test>::mutate(|cores| {
-				cores[0] = CoreOccupied::Paras(ParasEntry {
-					para_id: chain_a,
-					collator: None,
-					retries: 0,
-				});
+				cores[0] = CoreOccupied::Paras(ParasEntry::new(Assignment::new(
+					chain_a,
+					CollatorRestrictions::none(),
+				)));
 				//	cores[1] = CoreOccupied::Parathread(ParathreadEntry {
 				//		claim: ParathreadClaim(thread_a, Some(collator)),
 				//		retries: 0,
@@ -1215,15 +1224,18 @@ fn next_up_on_available_is_parachain_always() {
 			Scheduler::occupied(vec![(CoreIndex(0), chain_a)].into_iter().collect());
 
 			let cores = Scheduler::availability_cores();
-			match cores[0] {
-				CoreOccupied::Paras(ParasEntry { para_id, .. }) if para_id == chain_a => {},
+			match &cores[0] {
+				CoreOccupied::Paras(pe) if pe.para_id() == chain_a => {},
 				_ => panic!("with no threads, only core should be a chain core"),
 			}
 
 			// Now that there is an earlier next-up, we use that.
 			assert_eq!(
 				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-				ScheduledCore { para_id: chain_a, collator: None }
+				ScheduledCore {
+					para_id: chain_a,
+					collator_restrictions: CollatorRestrictions::none()
+				}
 			);
 		}
 	});
@@ -1269,15 +1281,18 @@ fn next_up_on_time_out_is_parachain_always() {
 			Scheduler::occupied(vec![(CoreIndex(0), chain_a)].into_iter().collect());
 
 			let cores = Scheduler::availability_cores();
-			match cores[0] {
-				CoreOccupied::Paras(ParasEntry { para_id, .. }) if para_id == chain_a => {},
+			match &cores[0] {
+				CoreOccupied::Paras(pe) if pe.para_id() == chain_a => {},
 				_ => panic!("with no threads, only core should be a chain core"),
 			}
 
 			// Now that there is an earlier next-up, we use that.
 			assert_eq!(
 				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-				ScheduledCore { para_id: chain_a, collator: None }
+				ScheduledCore {
+					para_id: chain_a,
+					collator_restrictions: CollatorRestrictions::none()
+				}
 			);
 		}
 	});
@@ -1351,7 +1366,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			Scheduler::claimqueue(),
 			vec![(
 				CoreIndex(0),
-				vec![Some(ParasEntry { para_id: chain_a, collator: None, retries: 0 })]
+				vec![Some(ParasEntry::new(Assignment::new(chain_a, CollatorRestrictions::none())))]
 					.into_iter()
 					.collect()
 			)]
@@ -1394,15 +1409,21 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			vec![
 				(
 					CoreIndex(0),
-					vec![Some(ParasEntry { para_id: chain_a, collator: None, retries: 0 })]
-						.into_iter()
-						.collect()
+					vec![Some(ParasEntry::new(Assignment::new(
+						chain_a,
+						CollatorRestrictions::none()
+					)))]
+					.into_iter()
+					.collect()
 				),
 				(
 					CoreIndex(1),
-					vec![Some(ParasEntry { para_id: chain_b, collator: None, retries: 0 })]
-						.into_iter()
-						.collect()
+					vec![Some(ParasEntry::new(Assignment::new(
+						chain_b,
+						CollatorRestrictions::none()
+					)))]
+					.into_iter()
+					.collect()
 				),
 			]
 			.into_iter()

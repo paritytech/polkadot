@@ -39,7 +39,7 @@ use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
-	multiaddr, NetworkStateInfo,
+	multiaddr, NetworkStateInfo, PeerId,
 };
 use sc_service::{
 	config::{
@@ -327,8 +327,9 @@ impl PolkadotTestNode {
 		collator_key: CollatorPair,
 		para_id: ParaId,
 		collator: CollatorFn,
+		peer_id: PeerId,
 	) {
-		let config = CollationGenerationConfig { key: collator_key, collator, para_id };
+		let config = CollationGenerationConfig { key: collator_key, collator, para_id, peer_id };
 
 		self.overseer_handle
 			.send_msg(CollationGenerationMessage::Initialize(config), "Collator")

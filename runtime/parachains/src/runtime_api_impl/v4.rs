@@ -97,7 +97,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		.map(|(i, core)| match core {
 			CoreOccupied::Paras(entry) => {
 				let pending_availability =
-					<inclusion::Pallet<T>>::pending_availability(entry.para_id)
+					<inclusion::Pallet<T>>::pending_availability(entry.para_id())
 						.expect("Occupied core always has pending availability; qed");
 
 				let backed_in_number = *pending_availability.backed_in_number();
@@ -126,8 +126,8 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
 	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue(now) {
 		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(primitives::ScheduledCore {
-			para_id: scheduled.paras_entry.para_id,
-			collator: scheduled.required_collator().map(|c| c.clone()),
+			para_id: scheduled.paras_entry.para_id(),
+			collator_restrictions: scheduled.paras_entry.collator_restrictions().clone(),
 		});
 	}
 

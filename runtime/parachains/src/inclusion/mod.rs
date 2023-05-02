@@ -237,8 +237,6 @@ pub mod pallet {
 		UnscheduledCandidate,
 		/// Candidate scheduled despite pending candidate already existing for the para.
 		CandidateScheduledBeforeParaFree,
-		/// Candidate included with the wrong collator.
-		WrongCollator,
 		/// Scheduled cores out of order.
 		ScheduledOutOfOrder,
 		/// Head data exceeds the configured maximum.
@@ -548,16 +546,15 @@ impl<T: Config> Pallet<T> {
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
-				for (i, assignment) in scheduled[skip..].iter().enumerate() {
-					check_assignment_in_order(assignment)?;
+				for (i, core_assignment) in scheduled[skip..].iter().enumerate() {
+					check_assignment_in_order(core_assignment)?;
 
-					if para_id == assignment.paras_entry.para_id {
-						if let Some(required_collator) = assignment.required_collator() {
-							ensure!(
-								required_collator == backed_candidate.descriptor().collator,
-								Error::<T>::WrongCollator,
-							);
-						}
+					if para_id == core_assignment.para_id() {
+                        // TODO: Move to top-level
+						//ensure!(
+						//	core_assignment.can_collate(&backed_candidate.descriptor().peer_id),
+						//	Error::<T>::WrongPeerId,
+						//);
 
 						ensure!(
 							<PendingAvailability<T>>::get(&para_id).is_none() &&
@@ -568,7 +565,7 @@ impl<T: Config> Pallet<T> {
 						// account for already skipped, and then skip this one.
 						skip = i + skip + 1;
 
-						let group_vals = group_validators(assignment.group_idx)
+						let group_vals = group_validators(core_assignment.group_idx)
 							.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
 
 						// check the signatures in the backing and that it is a majority.
@@ -620,9 +617,9 @@ impl<T: Config> Pallet<T> {
 						}
 
 						core_indices_and_backers.push((
-							(assignment.core, assignment.paras_entry.para_id),
+							(core_assignment.core, core_assignment.para_id()),
 							backers,
-							assignment.group_idx,
+							core_assignment.group_idx,
 						));
 						continue 'next_backed_candidate
 					}

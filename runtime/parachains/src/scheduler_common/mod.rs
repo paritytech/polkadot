@@ -37,9 +37,11 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	v4::ParasEntry, CollatorId, CoreIndex, GroupIndex, Id as ParaId, ParathreadEntry,
+	v4::{Assignment, CollatorRestrictions, ParasEntry},
+	CoreIndex, GroupIndex, Id as ParaId,
 };
 use scale_info::TypeInfo;
+use sp_core::OpaquePeerId;
 use sp_std::prelude::*;
 
 /// Reasons a core might be freed
@@ -51,23 +53,16 @@ pub enum FreedReason {
 	TimedOut,
 }
 
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub enum Assignment {
-	Parachain(ParaId),
-	ParathreadA(ParathreadEntry),
-}
-
 pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 	fn session_core_count() -> u32;
 
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		concluded_para: Option<ParaId>,
-	) -> Option<ParasEntry>;
+	) -> Option<Assignment>;
 
 	// on session change
-	fn push_parasentry_for_core(core_idx: CoreIndex, entry: ParasEntry);
+	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
 	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber;
 
@@ -87,12 +82,20 @@ pub struct CoreAssignment {
 }
 
 impl CoreAssignment {
+	pub fn para_id(&self) -> ParaId {
+		self.paras_entry.assignment.para_id
+	}
 	pub fn to_paras_entry(self) -> ParasEntry {
 		self.paras_entry
 	}
 
-	/// Get the ID of a collator who is required to collate this block.
-	pub fn required_collator(&self) -> Option<CollatorId> {
-		self.paras_entry.collator.clone()
+	/// Get the collator restrctions for collating this block.
+	pub fn collator_restrictions(&self) -> &CollatorRestrictions {
+		self.paras_entry.collator_restrictions()
+	}
+
+	/// Can `peer_id` collate for this `CoreAssignment`?
+	pub fn can_collate(&self, peer_id: &OpaquePeerId) -> bool {
+		self.paras_entry.collator_restrictions().can_collate(peer_id)
 	}
 }
