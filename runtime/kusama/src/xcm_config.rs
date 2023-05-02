@@ -28,6 +28,7 @@ use frame_support::{
 };
 use frame_system::EnsureRoot;
 use kusama_runtime_constants::currency::CENTS;
+use parity_scale_codec::{Decode, Encode};
 use runtime_common::{
 	crowdloan, paras_registrar,
 	xcm_sender::{ChildParachainRouter, ExponentialPrice},
@@ -44,7 +45,7 @@ use xcm_builder::{
 	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WeightInfoBounds,
 	WithComputedOrigin,
 };
-use xcm_executor::traits::WithOriginFilter;
+use xcm_executor::traits::{Convert, ConvertOrigin, WithOriginFilter};
 
 parameter_types! {
 	/// The location of the KSM token, from the context of this chain. Since this token is native to this
@@ -70,6 +71,8 @@ pub type SovereignAccountOf = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	// We can directly alias an `AccountId32` into a local account.
 	AccountId32Aliases<ThisNetwork, AccountId>,
+	// We can derive a local account from a Tinkernet XCMultisig MultiLocation.
+	ConvertTinkernetMultisig,
 );
 
 /// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
@@ -99,6 +102,8 @@ type LocalOriginConverter = (
 	SignedAccountId32AsNative<ThisNetwork, RuntimeOrigin>,
 	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
 	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
+	// Converts a Tinkernet XCMultisig MultiLocation into a `Signed` origin.
+	ConvertTinkernetMultisig,
 );
 
 parameter_types! {
@@ -174,152 +179,152 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 		#[cfg(feature = "runtime-benchmarks")]
 		{
 			if matches!(call, RuntimeCall::System(frame_system::Call::remark_with_event { .. })) {
-				return true
+				return true;
 			}
 		}
 
 		match call {
 			RuntimeCall::System(
 				frame_system::Call::kill_prefix { .. } | frame_system::Call::set_heap_pages { .. },
-			) |
-			RuntimeCall::Babe(..) |
-			RuntimeCall::Timestamp(..) |
-			RuntimeCall::Indices(..) |
-			RuntimeCall::Balances(..) |
-			RuntimeCall::Crowdloan(
-				crowdloan::Call::create { .. } |
-				crowdloan::Call::contribute { .. } |
-				crowdloan::Call::withdraw { .. } |
-				crowdloan::Call::refund { .. } |
-				crowdloan::Call::dissolve { .. } |
-				crowdloan::Call::edit { .. } |
-				crowdloan::Call::poke { .. } |
-				crowdloan::Call::contribute_all { .. },
-			) |
-			RuntimeCall::Staking(
-				pallet_staking::Call::bond { .. } |
-				pallet_staking::Call::bond_extra { .. } |
-				pallet_staking::Call::unbond { .. } |
-				pallet_staking::Call::withdraw_unbonded { .. } |
-				pallet_staking::Call::validate { .. } |
-				pallet_staking::Call::nominate { .. } |
-				pallet_staking::Call::chill { .. } |
-				pallet_staking::Call::set_payee { .. } |
-				pallet_staking::Call::set_controller { .. } |
-				pallet_staking::Call::set_validator_count { .. } |
-				pallet_staking::Call::increase_validator_count { .. } |
-				pallet_staking::Call::scale_validator_count { .. } |
-				pallet_staking::Call::force_no_eras { .. } |
-				pallet_staking::Call::force_new_era { .. } |
-				pallet_staking::Call::set_invulnerables { .. } |
-				pallet_staking::Call::force_unstake { .. } |
-				pallet_staking::Call::force_new_era_always { .. } |
-				pallet_staking::Call::payout_stakers { .. } |
-				pallet_staking::Call::rebond { .. } |
-				pallet_staking::Call::reap_stash { .. } |
-				pallet_staking::Call::set_staking_configs { .. } |
-				pallet_staking::Call::chill_other { .. } |
-				pallet_staking::Call::force_apply_min_commission { .. },
-			) |
-			RuntimeCall::Session(pallet_session::Call::purge_keys { .. }) |
-			RuntimeCall::Grandpa(..) |
-			RuntimeCall::ImOnline(..) |
-			RuntimeCall::Treasury(..) |
-			RuntimeCall::ConvictionVoting(..) |
-			RuntimeCall::Referenda(
-				pallet_referenda::Call::place_decision_deposit { .. } |
-				pallet_referenda::Call::refund_decision_deposit { .. } |
-				pallet_referenda::Call::cancel { .. } |
-				pallet_referenda::Call::kill { .. } |
-				pallet_referenda::Call::nudge_referendum { .. } |
-				pallet_referenda::Call::one_fewer_deciding { .. },
-			) |
-			RuntimeCall::FellowshipCollective(..) |
-			RuntimeCall::FellowshipReferenda(
-				pallet_referenda::Call::place_decision_deposit { .. } |
-				pallet_referenda::Call::refund_decision_deposit { .. } |
-				pallet_referenda::Call::cancel { .. } |
-				pallet_referenda::Call::kill { .. } |
-				pallet_referenda::Call::nudge_referendum { .. } |
-				pallet_referenda::Call::one_fewer_deciding { .. },
-			) |
-			RuntimeCall::Claims(
-				super::claims::Call::claim { .. } |
-				super::claims::Call::mint_claim { .. } |
-				super::claims::Call::move_claim { .. },
-			) |
-			RuntimeCall::Utility(pallet_utility::Call::as_derivative { .. }) |
-			RuntimeCall::Identity(
-				pallet_identity::Call::add_registrar { .. } |
-				pallet_identity::Call::set_identity { .. } |
-				pallet_identity::Call::clear_identity { .. } |
-				pallet_identity::Call::request_judgement { .. } |
-				pallet_identity::Call::cancel_request { .. } |
-				pallet_identity::Call::set_fee { .. } |
-				pallet_identity::Call::set_account_id { .. } |
-				pallet_identity::Call::set_fields { .. } |
-				pallet_identity::Call::provide_judgement { .. } |
-				pallet_identity::Call::kill_identity { .. } |
-				pallet_identity::Call::add_sub { .. } |
-				pallet_identity::Call::rename_sub { .. } |
-				pallet_identity::Call::remove_sub { .. } |
-				pallet_identity::Call::quit_sub { .. },
-			) |
-			RuntimeCall::Society(
-				pallet_society::Call::bid { .. } |
-				pallet_society::Call::unbid { .. } |
-				pallet_society::Call::vouch { .. } |
-				pallet_society::Call::unvouch { .. } |
-				pallet_society::Call::vote { .. } |
-				pallet_society::Call::defender_vote { .. } |
-				pallet_society::Call::payout { .. } |
-				pallet_society::Call::unfound { .. } |
-				pallet_society::Call::judge_suspended_member { .. } |
-				pallet_society::Call::judge_suspended_candidate { .. } |
-				pallet_society::Call::set_max_members { .. },
-			) |
-			RuntimeCall::Recovery(..) |
-			RuntimeCall::Vesting(..) |
-			RuntimeCall::Bounties(
-				pallet_bounties::Call::propose_bounty { .. } |
-				pallet_bounties::Call::approve_bounty { .. } |
-				pallet_bounties::Call::propose_curator { .. } |
-				pallet_bounties::Call::unassign_curator { .. } |
-				pallet_bounties::Call::accept_curator { .. } |
-				pallet_bounties::Call::award_bounty { .. } |
-				pallet_bounties::Call::claim_bounty { .. } |
-				pallet_bounties::Call::close_bounty { .. },
-			) |
-			RuntimeCall::ChildBounties(..) |
-			RuntimeCall::ElectionProviderMultiPhase(..) |
-			RuntimeCall::VoterList(..) |
-			RuntimeCall::NominationPools(
-				pallet_nomination_pools::Call::join { .. } |
-				pallet_nomination_pools::Call::bond_extra { .. } |
-				pallet_nomination_pools::Call::claim_payout { .. } |
-				pallet_nomination_pools::Call::unbond { .. } |
-				pallet_nomination_pools::Call::pool_withdraw_unbonded { .. } |
-				pallet_nomination_pools::Call::withdraw_unbonded { .. } |
-				pallet_nomination_pools::Call::create { .. } |
-				pallet_nomination_pools::Call::create_with_pool_id { .. } |
-				pallet_nomination_pools::Call::set_state { .. } |
-				pallet_nomination_pools::Call::set_configs { .. } |
-				pallet_nomination_pools::Call::update_roles { .. } |
-				pallet_nomination_pools::Call::chill { .. },
-			) |
-			RuntimeCall::Hrmp(..) |
-			RuntimeCall::Registrar(
-				paras_registrar::Call::deregister { .. } |
-				paras_registrar::Call::swap { .. } |
-				paras_registrar::Call::remove_lock { .. } |
-				paras_registrar::Call::reserve { .. } |
-				paras_registrar::Call::add_lock { .. },
-			) |
-			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
+			)
+			| RuntimeCall::Babe(..)
+			| RuntimeCall::Timestamp(..)
+			| RuntimeCall::Indices(..)
+			| RuntimeCall::Balances(..)
+			| RuntimeCall::Crowdloan(
+				crowdloan::Call::create { .. }
+				| crowdloan::Call::contribute { .. }
+				| crowdloan::Call::withdraw { .. }
+				| crowdloan::Call::refund { .. }
+				| crowdloan::Call::dissolve { .. }
+				| crowdloan::Call::edit { .. }
+				| crowdloan::Call::poke { .. }
+				| crowdloan::Call::contribute_all { .. },
+			)
+			| RuntimeCall::Staking(
+				pallet_staking::Call::bond { .. }
+				| pallet_staking::Call::bond_extra { .. }
+				| pallet_staking::Call::unbond { .. }
+				| pallet_staking::Call::withdraw_unbonded { .. }
+				| pallet_staking::Call::validate { .. }
+				| pallet_staking::Call::nominate { .. }
+				| pallet_staking::Call::chill { .. }
+				| pallet_staking::Call::set_payee { .. }
+				| pallet_staking::Call::set_controller { .. }
+				| pallet_staking::Call::set_validator_count { .. }
+				| pallet_staking::Call::increase_validator_count { .. }
+				| pallet_staking::Call::scale_validator_count { .. }
+				| pallet_staking::Call::force_no_eras { .. }
+				| pallet_staking::Call::force_new_era { .. }
+				| pallet_staking::Call::set_invulnerables { .. }
+				| pallet_staking::Call::force_unstake { .. }
+				| pallet_staking::Call::force_new_era_always { .. }
+				| pallet_staking::Call::payout_stakers { .. }
+				| pallet_staking::Call::rebond { .. }
+				| pallet_staking::Call::reap_stash { .. }
+				| pallet_staking::Call::set_staking_configs { .. }
+				| pallet_staking::Call::chill_other { .. }
+				| pallet_staking::Call::force_apply_min_commission { .. },
+			)
+			| RuntimeCall::Session(pallet_session::Call::purge_keys { .. })
+			| RuntimeCall::Grandpa(..)
+			| RuntimeCall::ImOnline(..)
+			| RuntimeCall::Treasury(..)
+			| RuntimeCall::ConvictionVoting(..)
+			| RuntimeCall::Referenda(
+				pallet_referenda::Call::place_decision_deposit { .. }
+				| pallet_referenda::Call::refund_decision_deposit { .. }
+				| pallet_referenda::Call::cancel { .. }
+				| pallet_referenda::Call::kill { .. }
+				| pallet_referenda::Call::nudge_referendum { .. }
+				| pallet_referenda::Call::one_fewer_deciding { .. },
+			)
+			| RuntimeCall::FellowshipCollective(..)
+			| RuntimeCall::FellowshipReferenda(
+				pallet_referenda::Call::place_decision_deposit { .. }
+				| pallet_referenda::Call::refund_decision_deposit { .. }
+				| pallet_referenda::Call::cancel { .. }
+				| pallet_referenda::Call::kill { .. }
+				| pallet_referenda::Call::nudge_referendum { .. }
+				| pallet_referenda::Call::one_fewer_deciding { .. },
+			)
+			| RuntimeCall::Claims(
+				super::claims::Call::claim { .. }
+				| super::claims::Call::mint_claim { .. }
+				| super::claims::Call::move_claim { .. },
+			)
+			| RuntimeCall::Utility(pallet_utility::Call::as_derivative { .. })
+			| RuntimeCall::Identity(
+				pallet_identity::Call::add_registrar { .. }
+				| pallet_identity::Call::set_identity { .. }
+				| pallet_identity::Call::clear_identity { .. }
+				| pallet_identity::Call::request_judgement { .. }
+				| pallet_identity::Call::cancel_request { .. }
+				| pallet_identity::Call::set_fee { .. }
+				| pallet_identity::Call::set_account_id { .. }
+				| pallet_identity::Call::set_fields { .. }
+				| pallet_identity::Call::provide_judgement { .. }
+				| pallet_identity::Call::kill_identity { .. }
+				| pallet_identity::Call::add_sub { .. }
+				| pallet_identity::Call::rename_sub { .. }
+				| pallet_identity::Call::remove_sub { .. }
+				| pallet_identity::Call::quit_sub { .. },
+			)
+			| RuntimeCall::Society(
+				pallet_society::Call::bid { .. }
+				| pallet_society::Call::unbid { .. }
+				| pallet_society::Call::vouch { .. }
+				| pallet_society::Call::unvouch { .. }
+				| pallet_society::Call::vote { .. }
+				| pallet_society::Call::defender_vote { .. }
+				| pallet_society::Call::payout { .. }
+				| pallet_society::Call::unfound { .. }
+				| pallet_society::Call::judge_suspended_member { .. }
+				| pallet_society::Call::judge_suspended_candidate { .. }
+				| pallet_society::Call::set_max_members { .. },
+			)
+			| RuntimeCall::Recovery(..)
+			| RuntimeCall::Vesting(..)
+			| RuntimeCall::Bounties(
+				pallet_bounties::Call::propose_bounty { .. }
+				| pallet_bounties::Call::approve_bounty { .. }
+				| pallet_bounties::Call::propose_curator { .. }
+				| pallet_bounties::Call::unassign_curator { .. }
+				| pallet_bounties::Call::accept_curator { .. }
+				| pallet_bounties::Call::award_bounty { .. }
+				| pallet_bounties::Call::claim_bounty { .. }
+				| pallet_bounties::Call::close_bounty { .. },
+			)
+			| RuntimeCall::ChildBounties(..)
+			| RuntimeCall::ElectionProviderMultiPhase(..)
+			| RuntimeCall::VoterList(..)
+			| RuntimeCall::NominationPools(
+				pallet_nomination_pools::Call::join { .. }
+				| pallet_nomination_pools::Call::bond_extra { .. }
+				| pallet_nomination_pools::Call::claim_payout { .. }
+				| pallet_nomination_pools::Call::unbond { .. }
+				| pallet_nomination_pools::Call::pool_withdraw_unbonded { .. }
+				| pallet_nomination_pools::Call::withdraw_unbonded { .. }
+				| pallet_nomination_pools::Call::create { .. }
+				| pallet_nomination_pools::Call::create_with_pool_id { .. }
+				| pallet_nomination_pools::Call::set_state { .. }
+				| pallet_nomination_pools::Call::set_configs { .. }
+				| pallet_nomination_pools::Call::update_roles { .. }
+				| pallet_nomination_pools::Call::chill { .. },
+			)
+			| RuntimeCall::Hrmp(..)
+			| RuntimeCall::Registrar(
+				paras_registrar::Call::deregister { .. }
+				| paras_registrar::Call::swap { .. }
+				| paras_registrar::Call::remove_lock { .. }
+				| paras_registrar::Call::reserve { .. }
+				| paras_registrar::Call::add_lock { .. },
+			)
+			| RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
-			}) |
-			RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. }) |
-			RuntimeCall::Proxy(..) => true,
+			})
+			| RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. })
+			| RuntimeCall::Proxy(..) => true,
 			_ => false,
 		}
 	}
@@ -426,6 +431,63 @@ impl pallet_xcm::Config for Runtime {
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
 	type AdminOrigin = EnsureRoot<AccountId>;
+}
+
+fn derive_tinkernet_multisig(id: u128) -> AccountId {
+	AccountId::decode(&mut sp_runtime::traits::TrailingZeroInput::new(
+		&(
+			sp_core::H256([
+				212, 46, 150, 6, 169, 149, 223, 228, 51, 220, 121, 85, 220, 42, 112, 244, 149, 243,
+				80, 243, 115, 218, 162, 0, 9, 138, 232, 68, 55, 129, 106, 210,
+			]),
+			id as u32,
+		)
+			.using_encoded(sp_io::hashing::blake2_256),
+	))
+	.expect("infinite length input; no invalid inputs for type; qed")
+}
+
+pub struct ConvertTinkernetMultisig;
+
+impl Convert<MultiLocation, AccountId> for ConvertTinkernetMultisig {
+	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
+		match location.clone() {
+			MultiLocation {
+				parents: _,
+				interior:
+					Junctions::X3(
+						Junction::Parachain(2125),
+						Junction::PalletInstance(71),
+						Junction::GeneralIndex(id),
+					),
+			} => Ok(derive_tinkernet_multisig(id)),
+			_ => return Err(location),
+		}
+	}
+}
+
+impl ConvertOrigin<RuntimeOrigin> for ConvertTinkernetMultisig {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<RuntimeOrigin, MultiLocation> {
+		let origin = origin.into();
+		match (kind, origin.clone()) {
+			(
+				OriginKind::Native,
+				MultiLocation {
+					parents: _,
+					interior:
+						Junctions::X3(
+							Junction::Parachain(2125),
+							Junction::PalletInstance(71),
+							Junction::GeneralIndex(id),
+						),
+				},
+			) => Ok(RuntimeOrigin::signed(derive_tinkernet_multisig(id))),
+			(_, origin) => Err(origin),
+		}
+	}
 }
 
 #[test]
