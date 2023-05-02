@@ -39,8 +39,8 @@
 
 ### Node
 {#- We show the result #}
-{{ m_p::high_priority(p=global_prio_node, changes=changes) }}
+{{ m_p::high_priority(p=global_prio_node, name="node", changes=changes) }}
 
 ### Runtime
 {#- We show the result #}
-{{ m_p::high_priority(p=global_prio_runtime, changes=changes) }}
+{{ m_p::high_priority(p=global_prio_runtime, name="runtime", changes=changes) }}
