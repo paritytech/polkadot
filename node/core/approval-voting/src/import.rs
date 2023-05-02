@@ -613,10 +613,7 @@ pub(crate) mod tests {
 	};
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_node_subsystem_util::{
-		database::Database,
-		runtime::{ExtendedSessionInfo, ValidatorInfo},
-	};
+	use polkadot_node_subsystem_util::database::Database;
 	use polkadot_primitives::{Id as ParaId, IndexedVec, SessionInfo, ValidatorId, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
@@ -659,26 +656,12 @@ pub(crate) mod tests {
 		}
 	}
 
-	fn single_session_state(
-		index: SessionIndex,
-		info: SessionInfo,
-		relay_parent: Hash,
-	) -> (State, RuntimeInfo) {
-		let runtime_info = RuntimeInfo::new_with_cache(
-			RuntimeInfoConfig {
-				keystore: None,
-				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-					.expect("DISPUTE_WINDOW can't be 0; qed."),
-			},
-			vec![(
-				index,
-				relay_parent,
-				ExtendedSessionInfo {
-					session_info: info,
-					validator_info: ValidatorInfo { our_group: None, our_index: None },
-				},
-			)],
-		);
+	fn single_session_state() -> (State, RuntimeInfo) {
+		let runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+			keystore: None,
+			session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+				.expect("DISPUTE_WINDOW can't be 0; qed."),
+		});
 
 		(blank_state(), runtime_info)
 	}
@@ -788,21 +771,11 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let mut session_info_provider = RuntimeInfo::new_with_cache(
-				RuntimeInfoConfig {
-					keystore: None,
-					session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-						.expect("DISPUTE_WINDOW can't be 0; qed."),
-				},
-				vec![(
-					session,
-					hash,
-					ExtendedSessionInfo {
-						session_info,
-						validator_info: ValidatorInfo { our_index: None, our_group: None },
-					},
-				)],
-			);
+			let mut session_info_provider = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+					.expect("DISPUTE_WINDOW can't be 0; qed."),
+			});
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -867,6 +840,20 @@ pub(crate) mod tests {
 					}));
 				}
 			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionInfo(idx, si_tx),
+					)
+				) => {
+					assert_eq!(session, idx);
+					assert_eq!(req_block_hash, hash);
+					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
+				}
+			);
 		});
 
 		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
@@ -908,21 +895,11 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let mut session_info_provider = RuntimeInfo::new_with_cache(
-				RuntimeInfoConfig {
-					keystore: None,
-					session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-						.expect("DISPUTE_WINDOW can't be 0; qed."),
-				},
-				vec![(
-					session,
-					hash,
-					ExtendedSessionInfo {
-						session_info,
-						validator_info: ValidatorInfo { our_index: None, our_group: None },
-					},
-				)],
-			);
+			let mut session_info_provider = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+					.expect("DISPUTE_WINDOW can't be 0; qed."),
+			});
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -979,6 +956,20 @@ pub(crate) mod tests {
 							allowed_slots: AllowedSlots::PrimarySlots,
 						},
 					}));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionInfo(idx, si_tx),
+					)
+				) => {
+					assert_eq!(session, idx);
+					assert_eq!(req_block_hash, hash);
+					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
 				}
 			);
 		});
@@ -1120,21 +1111,11 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let mut session_info_provider = RuntimeInfo::new_with_cache(
-				RuntimeInfoConfig {
-					keystore: None,
-					session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-						.expect("DISPUTE_WINDOW can't be 0; qed."),
-				},
-				vec![(
-					session,
-					hash,
-					ExtendedSessionInfo {
-						session_info,
-						validator_info: ValidatorInfo { our_index: None, our_group: None },
-					},
-				)],
-			);
+			let mut session_info_provider = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+					.expect("DISPUTE_WINDOW can't be 0; qed."),
+			});
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1197,6 +1178,20 @@ pub(crate) mod tests {
 							allowed_slots: AllowedSlots::PrimarySlots,
 						},
 					}));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionInfo(idx, si_tx),
+					)
+				) => {
+					assert_eq!(session, idx);
+					assert_eq!(req_block_hash, hash);
+					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
 				}
 			);
 		});
@@ -1277,8 +1272,7 @@ pub(crate) mod tests {
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
-		let (state, mut session_info_provider) =
-			single_session_state(session, session_info.clone(), parent_hash);
+		let (state, mut session_info_provider) = single_session_state();
 		overlay_db.write_block_entry(
 			v1::BlockEntry {
 				block_hash: parent_hash,
@@ -1343,17 +1337,6 @@ pub(crate) mod tests {
 				}
 			);
 
-			assert_matches!(
-				handle.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					h,
-					RuntimeApiRequest::SessionIndexForChild(c_tx),
-				)) => {
-					assert_eq!(h, hash);
-					let _ = c_tx.send(Ok(session));
-				}
-			);
-
 			// determine_new_blocks exits early as the parent_hash is in the DB
 
 			assert_matches!(
@@ -1396,6 +1379,20 @@ pub(crate) mod tests {
 							allowed_slots: AllowedSlots::PrimarySlots,
 						},
 					}));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionInfo(idx, si_tx),
+					)
+				) => {
+					assert_eq!(session, idx);
+					assert_eq!(req_block_hash, hash);
+					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
 				}
 			);
 

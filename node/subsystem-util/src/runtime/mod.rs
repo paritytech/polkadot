@@ -118,19 +118,6 @@ impl RuntimeInfo {
 		}
 	}
 
-	/// Create an instance with pre-populated cache. Used only for testing
-	pub fn new_with_cache(
-		cfg: Config,
-		data: Vec<(SessionIndex, Hash, ExtendedSessionInfo)>,
-	) -> Self {
-		let mut r = Self::new_with_config(cfg);
-		for (idx, parent, session) in data {
-			r.session_index_cache.put(parent, idx);
-			r.session_info_cache.put(idx, session);
-		}
-		r
-	}
-
 	/// Returns the session index expected at any child of the `parent` block.
 	/// This does not return the session index for the `parent` block.
 	pub async fn get_session_index_for_child<Sender>(

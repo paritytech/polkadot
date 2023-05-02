@@ -799,36 +799,7 @@ async fn import_block(
 			h_tx.send(Ok(Some(new_header.clone()))).unwrap();
 		}
 	);
-
-	assert_matches!(
-		overseer_recv(overseer).await,
-		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(
-				req_block_hash,
-				RuntimeApiRequest::SessionIndexForChild(s_tx)
-			)
-		) => {
-			let hash = &hashes[number as usize];
-			assert_eq!(req_block_hash, hash.0);
-			s_tx.send(Ok(number.into())).unwrap();
-		}
-	);
-
 	if !fork {
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					req_block_hash,
-					RuntimeApiRequest::SessionInfo(idx, si_tx),
-				)
-			) => {
-				assert_eq!(number, idx);
-				assert_eq!(req_block_hash, *new_head);
-				si_tx.send(Ok(Some(session_info.clone()))).unwrap();
-			}
-		);
-
 		let mut _ancestry_step = 0;
 		if gap {
 			assert_matches!(
@@ -929,6 +900,20 @@ async fn import_block(
 			}
 		);
 	} else {
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(
+					req_block_hash,
+					RuntimeApiRequest::SessionInfo(idx, si_tx),
+				)
+			) => {
+				// assert_eq!(session, idx);
+				// assert_eq!(req_block_hash, hashes[(number-1) as usize].0);
+				si_tx.send(Ok(Some(session_info.clone()))).unwrap();
+			}
+		);
+
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalDistribution(
