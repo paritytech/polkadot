@@ -136,19 +136,6 @@ impl<BlockNumber> SlashingHandler<BlockNumber> for () {
 	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
-/// Binary discriminator to determine if the expensive signature
-/// checks are necessary.
-#[derive(Clone, Copy)]
-pub enum VerifyDisputeSignatures {
-	/// Yes, verify the signatures.
-	Yes,
-	/// No, skip the signature verification.
-	///
-	/// Only done if there exists an invariant that
-	/// can guaranteed the signature was checked before.
-	Skip,
-}
-
 /// Provide a `Ordering` for the two provided dispute statement sets according to the
 /// following prioritization:
 ///  1. Prioritize local disputes over remote disputes
@@ -222,23 +209,6 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 	/// Whether the chain is frozen, if the chain is frozen it will not accept
 	/// any new parachain blocks for backing or inclusion.
 	fn is_frozen() -> bool;
-
-	/// Assure sanity
-	fn assure_deduplicated_and_sorted(statement_sets: &MultiDisputeStatementSet) -> Result<(), ()> {
-		if !IsSortedBy::is_sorted_by(
-			statement_sets.as_slice(),
-			dispute_ordering_compare::<Self, BlockNumber>,
-		) {
-			return Err(())
-		}
-		// Sorted, so according to session and candidate hash, this will detect duplicates.
-		if contains_duplicates_in_sorted_iter(statement_sets, |previous, current| {
-			current.session == previous.session && current.candidate_hash == previous.candidate_hash
-		}) {
-			return Err(())
-		}
-		Ok(())
-	}
 
 	/// Remove dispute statement duplicates and sort the non-duplicates based on
 	/// local (lower indicies) vs remotes (higher indices) and age (older with lower indices).
