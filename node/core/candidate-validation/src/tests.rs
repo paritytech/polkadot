@@ -782,7 +782,7 @@ fn candidate_validation_retry_panic_errors() {
 		)
 	});
 
-	assert_matches!(v, Err(ValidationFailed(s)) if s == "bar".to_string());
+	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(s))) if s == "bar".to_string());
 }
 
 #[test]
