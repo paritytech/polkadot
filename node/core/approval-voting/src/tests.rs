@@ -900,19 +900,21 @@ async fn import_block(
 			}
 		);
 	} else {
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					req_block_hash,
-					RuntimeApiRequest::SessionInfo(idx, si_tx),
-				)
-			) => {
-				// assert_eq!(session, idx);
-				// assert_eq!(req_block_hash, hashes[(number-1) as usize].0);
-				si_tx.send(Ok(Some(session_info.clone()))).unwrap();
-			}
-		);
+		if !fork {
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionInfo(idx, si_tx),
+					)
+				) => {
+					// assert_eq!(session, idx);
+					// assert_eq!(req_block_hash, hashes[(number-1) as usize].0);
+					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
+				}
+			);
+		}
 
 		assert_matches!(
 			overseer_recv(overseer).await,
