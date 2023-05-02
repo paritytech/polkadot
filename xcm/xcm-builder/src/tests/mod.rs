@@ -18,7 +18,7 @@ use super::{test_utils::*, *};
 use core::convert::TryInto;
 use frame_support::{
 	assert_err,
-	traits::{ConstU32, ContainsPair},
+	traits::{ConstU32, ContainsPair, ProcessMessageError},
 	weights::constants::{WEIGHT_PROOF_SIZE_PER_MB, WEIGHT_REF_TIME_PER_SECOND},
 };
 use xcm_executor::{traits::prelude::*, Config, XcmExecutor};

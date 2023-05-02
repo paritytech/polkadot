@@ -17,7 +17,6 @@
 //! A Polkadot performance tests utilities.
 
 use polkadot_erasure_coding::{obtain_chunks, reconstruct};
-use polkadot_node_core_pvf::{sc_executor_common, sp_maybe_compressed_blob};
 use polkadot_primitives::ExecutorParams;
 use std::time::{Duration, Instant};
 
@@ -66,8 +65,9 @@ pub fn measure_pvf_prepare(wasm_code: &[u8]) -> Result<Duration, PerfCheckError>
 		.or(Err(PerfCheckError::CodeDecompressionFailed))?;
 
 	// Recreate the pipeline from the pvf prepare worker.
-	let blob = polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
-	polkadot_node_core_pvf::prepare(blob, &ExecutorParams::default())
+	let blob =
+		polkadot_node_core_pvf_worker::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
+	polkadot_node_core_pvf_worker::prepare(blob, &ExecutorParams::default())
 		.map_err(PerfCheckError::from)?;
 
 	Ok(start.elapsed())
