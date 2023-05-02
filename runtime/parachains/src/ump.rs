@@ -85,17 +85,17 @@ impl UmpSink for () {
 /// if the message content is unique.
 pub type MessageId = [u8; 32];
 
+/// Returns a [`MessageId`] for the given message payload.
+pub fn message_id(data: &[u8]) -> MessageId {
+	sp_io::hashing::blake2_256(data)
+}
+
 /// Index used to identify overweight messages.
 pub type OverweightIndex = u64;
 
 /// A specific implementation of a `UmpSink` where messages are in the XCM format
 /// and will be forwarded to the XCM Executor.
 pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
-
-/// Returns a [`MessageId`] for the given upward message payload.
-fn upward_message_id(data: &[u8]) -> MessageId {
-	sp_io::hashing::blake2_256(data)
-}
 
 impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 	for XcmSink<XcmExecutor, C>
@@ -111,7 +111,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 			VersionedXcm,
 		};
 
-		let id = upward_message_id(data);
+		let id = message_id(data);
 		let maybe_msg_and_weight = VersionedXcm::<C::RuntimeCall>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut data,

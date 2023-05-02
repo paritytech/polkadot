@@ -65,6 +65,15 @@ const THRESHOLD_FACTOR: u32 = 2;
 const EXPONENTIAL_FEE_BASE: FixedU128 = FixedU128::from_rational(105, 100); // 1.05
 const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1, 1000); // 0.001
 
+/// Simple type used to identify messages for the purpose of reporting events. Secure if and only
+/// if the message content is unique.
+pub type MessageId = [u8; 32];
+
+/// Returns a [`MessageId`] for the given message payload.
+pub fn message_id(data: &[u8]) -> MessageId {
+	sp_io::hashing::blake2_256(data)
+}
+
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
 pub enum QueueDownwardMessageError {
@@ -113,7 +122,10 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + configuration::Config {}
+	pub trait Config: frame_system::Config + configuration::Config {
+		/// The aggregate event.
+		type RuntimeEvent: From<Event> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+	}
 
 	/// The downward messages addressed for a certain para.
 	#[pallet::storage]
@@ -146,7 +158,16 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(crate) type DeliveryFeeFactor<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, FixedU128, ValueQuery, InitialFactor>;
+
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event {
+		/// Downward message was sent to para.
+		/// \[para, id \]
+		DownwardMessageSent(ParaId, MessageId),
+	}
 }
+
 /// Routines and getters related to downward message passing.
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
@@ -223,6 +244,7 @@ impl<T: Config> Pallet<T> {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
+		let id = message_id(&msg);
 		let inbound =
 			InboundDownwardMessage { msg, sent_at: <frame_system::Pallet<T>>::block_number() };
 
@@ -247,6 +269,7 @@ impl<T: Config> Pallet<T> {
 			Self::increment_fee_factor(para, message_size_factor);
 		}
 
+		Self::deposit_event(Event::DownwardMessageSent(para, id));
 		Ok(())
 	}
 

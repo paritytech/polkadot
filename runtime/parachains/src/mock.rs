@@ -215,7 +215,9 @@ impl crate::paras::Config for Test {
 	type NextSessionRotation = TestNextSessionRotation;
 }
 
-impl crate::dmp::Config for Test {}
+impl crate::dmp::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;
