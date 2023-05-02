@@ -179,13 +179,15 @@ fn validate_using_artifact(
 		Ok(d) => d,
 	};
 
-	let duration = cpu_time_start.elapsed();
-
 	let result_descriptor = match ValidationResult::decode(&mut &descriptor_bytes[..]) {
 		Err(err) =>
 			return Response::format_invalid("validation result decoding failed", &err.to_string()),
 		Ok(r) => r,
 	};
+
+	// Include the decoding in the measured time, to prevent any potential attacks exploiting some
+	// bug in decoding.
+	let duration = cpu_time_start.elapsed();
 
 	Response::Ok { result_descriptor, duration }
 }

@@ -205,7 +205,7 @@ impl Executor {
 	///
 	/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
 	pub unsafe fn execute(
-		self,
+		&self,
 		compiled_artifact_path: &Path,
 		params: &[u8],
 	) -> Result<Vec<u8>, String> {
@@ -218,13 +218,12 @@ impl Executor {
 		match sc_executor::with_externalities_safe(&mut ext, || {
 			let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
 				compiled_artifact_path,
-				self.config,
+				self.config.clone(),
 			)?;
 			runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
 		}) {
 			Ok(Ok(ok)) => Ok(ok),
-			Ok(Err(err)) => Err(err),
-			Err(err) => Err(err),
+			Ok(Err(err)) | Err(err) => Err(err),
 		}
 		.map_err(|err| format!("execute error: {:?}", err))
 	}

@@ -105,7 +105,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			});
 			// Spawn another thread for preparation.
 			let prepare_thread = thread::spawn(move || {
-				let result = prepare_artifact(pvf);
+				let result = prepare_artifact(pvf, cpu_time_start);
 
 				// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
 				#[cfg(target_os = "linux")]
@@ -123,7 +123,6 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				// candidate later on the host-side. This avoids a source of indeterminism, where a
 				// job can trigger timeouts on some validators and not others.
 				if prepare_thread.is_finished() {
-					let cpu_time_elapsed = cpu_time_start.elapsed();
 					let _ = cpu_time_monitor_tx.send(());
 
 					break match prepare_thread.join().unwrap_or_else(|err| {
@@ -133,7 +132,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							// Serialized error will be written into the socket.
 							Err(err)
 						},
-						Ok(ok) => {
+						Ok((ok, cpu_time_elapsed)) => {
 							// Stop the memory stats worker and get its observed memory stats.
 							#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 							let memory_tracker_stats = get_memory_tracker_loop_stats(
@@ -201,19 +200,18 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	});
 }
 
-fn prepare_artifact(pvf: PvfPrepData) -> Result<CompiledArtifact, PrepareError> {
-	// TODO: Is this necessary? Panics are already caught by `std::thread::join`.
-	panic::catch_unwind(|| {
-		let blob = match prevalidate(&pvf.code()) {
-			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
-			Ok(b) => b,
-		};
+fn prepare_artifact(
+	pvf: PvfPrepData,
+	cpu_time_start: ProcessTime,
+) -> Result<(CompiledArtifact, Duration), PrepareError> {
+	let blob = match prevalidate(&pvf.code()) {
+		Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
+		Ok(b) => b,
+	};
 
-		match prepare(blob, &pvf.executor_params()) {
-			Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
-			Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
-		}
-	})
-	.map_err(|panic_payload| PrepareError::Panic(stringify_panic_payload(panic_payload)))
-	.and_then(|inner_result| inner_result)
+	match prepare(blob, &pvf.executor_params()) {
+		Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
+		Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
+	}
+	.map(|artifact| (artifact, cpu_time_start.elapsed()))
 }
