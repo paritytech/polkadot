@@ -107,7 +107,7 @@ more than the CPU time.
 
 #### Internal errors
 
-In general, for errors not raising a dispute we have to very careful. This is
+In general, for errors not raising a dispute we have to be very careful. This is
 only sound, if we either:
 
 1. Ruled out that error in pre-checking. If something is not checked in
