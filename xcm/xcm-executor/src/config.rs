@@ -107,6 +107,9 @@ pub trait Config {
 	/// temporary measure until we properly account for proof size weights for XCM instructions.
 	type SafeCallFilter: Contains<Self::RuntimeCall>;
 
-	/// The pre-processor implementation that process XCM instructions
+	/// A pre-processor that can execute custom logic before each instruction, and that can decide
+	/// to cancel/reverse the instruction.
+	/// Be careful: If you decide to implement your own pre-processor, you have to create your own
+	/// xcm benchmarks, benchmarks prodived by pallet-xcm-benchmarks will not work!
 	type InstructionPreprocessor: PreprocessInstruction<Self::RuntimeCall>;
 }
