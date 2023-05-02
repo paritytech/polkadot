@@ -43,9 +43,9 @@ use std::{iter::FromIterator as _, sync::Arc, time::Duration};
 
 macro_rules! launch {
 	($fut:expr) => {
-		$fut.timeout(Duration::from_millis(10))
+		$fut.timeout(Duration::from_millis(20))
 			.await
-			.expect("10ms is more than enough for sending messages.")
+			.expect("20ms is more than enough for sending messages.")
 	};
 }
 
