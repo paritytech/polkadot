@@ -20,7 +20,7 @@ use crate::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread
 use crate::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
 use crate::{
 	common::{
-		bytes_to_path, cond_notify_all, cond_wait_while, cpu_time_monitor_loop,
+		bytes_to_path, cond_notify_on_done, cond_wait_while, cpu_time_monitor_loop,
 		stringify_panic_payload, worker_event_loop,
 	},
 	prepare, prevalidate, LOG_TARGET,
@@ -118,21 +118,32 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			// Spawn a new thread that runs the CPU time monitor.
 			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
 			let cpu_time_monitor_thread = thread::spawn(move || {
-				let result =
-					cpu_time_monitor_loop(cpu_time_start, preparation_timeout, cpu_time_monitor_rx);
-				cond_notify_all(cond_cpu);
-				result
+				cond_notify_on_done(
+					|| {
+						cpu_time_monitor_loop(
+							cpu_time_start,
+							preparation_timeout,
+							cpu_time_monitor_rx,
+						)
+					},
+					cond_cpu,
+				)
 			});
 			// Spawn another thread for preparation.
 			let prepare_thread = thread::spawn(move || {
-				let result = prepare_artifact(pvf, cpu_time_start);
+				cond_notify_on_done(
+					|| {
+						let result = prepare_artifact(pvf, cpu_time_start);
 
-				// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
-				#[cfg(target_os = "linux")]
-				let result = result.map(|artifact| (artifact, get_max_rss_thread()));
+						// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
+						#[cfg(target_os = "linux")]
+						let result = result
+							.map(|(artifact, elapsed)| (artifact, elapsed, get_max_rss_thread()));
 
-				cond_notify_all(cond_job);
-				result
+						result
+					},
+					cond_job,
+				)
 			});
 
 			// Wait for one of the threads to finish.
@@ -154,7 +165,12 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							// Serialized error will be written into the socket.
 							Err(err)
 						},
-						Ok((ok, cpu_time_elapsed)) => {
+						Ok(ok) => {
+							#[cfg(not(target_os = "linux"))]
+							let (artifact, cpu_time_elapsed) = ok;
+							#[cfg(target_os = "linux")]
+							let (artifact, cpu_time_elapsed, max_rss) = ok;
+
 							// Stop the memory stats worker and get its observed memory stats.
 							#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 							let memory_tracker_stats = get_memory_tracker_loop_stats(
@@ -163,8 +179,6 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 								worker_pid,
 							)
 							.await;
-							#[cfg(target_os = "linux")]
-							let (ok, max_rss) = ok;
 							let memory_stats = MemoryStats {
 								#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 								memory_tracker_stats,
@@ -185,7 +199,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 								"worker: writing artifact to {}",
 								dest.display(),
 							);
-							tokio::fs::write(&dest, &ok).await?;
+							tokio::fs::write(&dest, &artifact).await?;
 
 							Ok(PrepareStats { cpu_time_elapsed, memory_stats })
 						},

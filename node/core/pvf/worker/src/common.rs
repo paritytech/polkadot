@@ -19,6 +19,7 @@ use cpu_time::ProcessTime;
 use futures::never::Never;
 use std::{
 	any::Any,
+	panic,
 	path::PathBuf,
 	sync::{
 		mpsc::{Receiver, RecvTimeoutError},
@@ -137,17 +138,35 @@ pub fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String
 	}
 }
 
+/// Helper type.
+type Cond = Arc<(Mutex<bool>, Condvar)>;
+
+/// Runs a thread, afterwards notifying the thread waiting on the condvar. Catches panics and
+/// resumes them after triggering the condvar, so that the waiting thread is notified on panics.
+pub fn cond_notify_on_done<F, R>(f: F, cond: Cond) -> R
+where
+	F: FnOnce() -> R,
+	F: panic::UnwindSafe,
+{
+	let result = panic::catch_unwind(|| f());
+	cond_notify_one(cond);
+	match result {
+		Ok(inner) => return inner,
+		Err(err) => panic::resume_unwind(err),
+	}
+}
+
 /// Helper function to notify the thread waiting on this condvar. This follows the conventions in
 /// the std docs, including the use of a `pending` flag.
-pub fn cond_notify_all(cond: Arc<(Mutex<bool>, Condvar)>) {
+fn cond_notify_one(cond: Cond) {
 	let (lock, cvar) = &*cond;
 	let mut pending = lock.lock().unwrap();
 	*pending = false;
-	cvar.notify_all();
+	cvar.notify_one();
 }
 
 /// Helper function to block the thread while it waits on the condvar.
-pub fn cond_wait_while(cond: Arc<(Mutex<bool>, Condvar)>) {
+pub fn cond_wait_while(cond: Cond) {
 	let (lock, cvar) = &*cond;
 	let _guard = cvar.wait_while(lock.lock().unwrap(), |pending| *pending).unwrap();
 }

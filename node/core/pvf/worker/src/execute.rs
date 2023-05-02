@@ -16,7 +16,7 @@
 
 use crate::{
 	common::{
-		bytes_to_path, cond_notify_all, cond_wait_while, cpu_time_monitor_loop,
+		bytes_to_path, cond_notify_on_done, cond_wait_while, cpu_time_monitor_loop,
 		stringify_panic_payload, worker_event_loop,
 	},
 	executor_intf::{Executor, EXECUTE_THREAD_STACK_SIZE},
@@ -106,22 +106,31 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			// Spawn a new thread that runs the CPU time monitor.
 			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
 			let cpu_time_monitor_thread = thread::spawn(move || {
-				let result =
-					cpu_time_monitor_loop(cpu_time_start, execution_timeout, cpu_time_monitor_rx);
-				cond_notify_all(cond_cpu);
-				result
+				cond_notify_on_done(
+					|| {
+						cpu_time_monitor_loop(
+							cpu_time_start,
+							execution_timeout,
+							cpu_time_monitor_rx,
+						)
+					},
+					cond_cpu,
+				)
 			});
 			let executor_2 = executor.clone();
 			let execute_thread =
 				thread::Builder::new().stack_size(EXECUTE_THREAD_STACK_SIZE).spawn(move || {
-					let result = validate_using_artifact(
-						&artifact_path,
-						&params,
-						executor_2,
-						cpu_time_start,
-					);
-					cond_notify_all(cond_job);
-					result
+					cond_notify_on_done(
+						|| {
+							validate_using_artifact(
+								&artifact_path,
+								&params,
+								executor_2,
+								cpu_time_start,
+							)
+						},
+						cond_job,
+					)
 				})?;
 
 			// Wait for one of the threads to finish.
