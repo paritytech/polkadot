@@ -192,7 +192,7 @@ jobs:
         uses: s3krit/matrix-message-action@70ad3fb812ee0e45ff8999d6af11cafad11a6ecf # v0.0.3
         with:
           room_id: ${{ matrix.channel.room }}
-          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
+          access_token: ${{ secrets.MATRIX_V2_ACCESS_TOKEN }}
           server: m.parity.io
           message: |
             **New version of polkadot tagged**: ${{ github.ref }}<br/>
