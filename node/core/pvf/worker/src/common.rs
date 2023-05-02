@@ -20,7 +20,10 @@ use futures::never::Never;
 use std::{
 	any::Any,
 	path::PathBuf,
-	sync::mpsc::{Receiver, RecvTimeoutError},
+	sync::{
+		mpsc::{Receiver, RecvTimeoutError},
+		Arc, Condvar, Mutex,
+	},
 	time::Duration,
 };
 use tokio::{io, net::UnixStream, runtime::Runtime};
@@ -132,6 +135,21 @@ pub fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String
 			Err(_) => "unknown panic payload".to_string(),
 		},
 	}
+}
+
+/// Helper function to notify the thread waiting on this condvar. This follows the conventions in
+/// the std docs, including the use of a `pending` flag.
+pub fn cond_notify_all(cond: Arc<(Mutex<bool>, Condvar)>) {
+	let (lock, cvar) = &*cond;
+	let mut pending = lock.lock().unwrap();
+	*pending = false;
+	cvar.notify_all();
+}
+
+/// Helper function to block the thread while it waits on the condvar.
+pub fn cond_wait_while(cond: Arc<(Mutex<bool>, Condvar)>) {
+	let (lock, cvar) = &*cond;
+	let _guard = cvar.wait_while(lock.lock().unwrap(), |pending| *pending).unwrap();
 }
 
 /// In case of node and worker version mismatch (as a result of in-place upgrade), send `SIGTERM`

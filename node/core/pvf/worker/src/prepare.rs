@@ -19,7 +19,10 @@ use crate::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 use crate::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
 use crate::{
-	common::{bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload, worker_event_loop},
+	common::{
+		bytes_to_path, cond_notify_all, cond_wait_while, cpu_time_monitor_loop,
+		stringify_panic_payload, worker_event_loop,
+	},
 	prepare, prevalidate, LOG_TARGET,
 };
 use cpu_time::ProcessTime;
@@ -28,7 +31,12 @@ use polkadot_node_core_pvf::{
 	framed_recv, framed_send, CompiledArtifact, MemoryStats, PrepareError, PrepareResult,
 	PrepareStats, PvfPrepData,
 };
-use std::{panic, path::PathBuf, sync::mpsc::channel, thread, time::Duration};
+use std::{
+	path::PathBuf,
+	sync::{mpsc::channel, Arc, Condvar, Mutex},
+	thread,
+	time::Duration,
+};
 use tokio::{io, net::UnixStream};
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
@@ -53,10 +61,14 @@ async fn send_response(stream: &mut UnixStream, result: PrepareResult) -> io::Re
 	framed_send(stream, &result.encode()).await
 }
 
-/// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host. The `node_version`, if `Some`,
-/// is checked against the worker version. A mismatch results in immediate worker termination.
-/// `None` is used for tests and in other situations when version check is not necessary.
+/// The entrypoint that the spawned prepare worker should start with.
+///
+/// # Parameters
+///
+/// The `socket_path` specifies the path to the socket used to communicate with the host. The
+/// `node_version`, if `Some`, is checked against the worker version. A mismatch results in
+/// immediate worker termination. `None` is used for tests and in other situations when version
+/// check is not necessary.
 ///
 /// # Flow
 ///
@@ -68,8 +80,7 @@ async fn send_response(stream: &mut UnixStream, result: PrepareResult) -> io::Re
 ///
 /// 3. Start the CPU time monitor loop and the actual preparation in two separate threads.
 ///
-/// 4. Select on the two threads created in step 3. If the CPU timeout was hit, the CPU time monitor
-///    thread will trigger first.
+/// 4. Wait on the two threads created in step 3.
 ///
 /// 5. Stop the memory tracker and get the stats.
 ///
@@ -89,7 +100,6 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				"worker: preparing artifact",
 			);
 
-			let cpu_time_start = ProcessTime::now();
 			let preparation_timeout = pvf.prep_timeout();
 
 			// Run the memory tracker.
@@ -98,10 +108,20 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 			let memory_tracker_thread = thread::spawn(move || memory_tracker_loop(memory_tracker_rx));
 
+			// Conditional variable to notify us when a thread is done.
+			let cond_main = Arc::new((Mutex::new(true), Condvar::new()));
+			let cond_cpu = Arc::clone(&cond_main);
+			let cond_job = Arc::clone(&cond_main);
+
+			let cpu_time_start = ProcessTime::now();
+
 			// Spawn a new thread that runs the CPU time monitor.
 			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
 			let cpu_time_monitor_thread = thread::spawn(move || {
-				cpu_time_monitor_loop(cpu_time_start, preparation_timeout, cpu_time_monitor_rx)
+				let result =
+					cpu_time_monitor_loop(cpu_time_start, preparation_timeout, cpu_time_monitor_rx);
+				cond_notify_all(cond_cpu);
+				result
 			});
 			// Spawn another thread for preparation.
 			let prepare_thread = thread::spawn(move || {
@@ -111,17 +131,19 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				#[cfg(target_os = "linux")]
 				let result = result.map(|artifact| (artifact, get_max_rss_thread()));
 
+				cond_notify_all(cond_job);
 				result
 			});
 
-			// "Select" the first thread that finishes by checking all threads in a naive loop.
+			// Wait for one of the threads to finish.
+			cond_wait_while(cond_main);
+
+			// A thread has signaled completion but it may not be "joinable" yet, so loop for a bit.
 			let result = loop {
-				// NOTE: The order in which we poll threads is important! This loop sleeps between
-				// polling, so it is possible to go over the timeout even when the worker thread
-				// finishes on time. So we want to prioritize selecting the worker thread and not
-				// the CPU thread. If the measured CPU time is over the timeout, we will reject the
-				// candidate later on the host-side. This avoids a source of indeterminism, where a
-				// job can trigger timeouts on some validators and not others.
+				// NOTE: We check the worker thread first to give it priority. This is for the rare
+				// case where it barely finishes in time, so we don't discard its result. On the
+				// other hand, if its measured CPU time is over the timeout, we will reject the
+				// candidate later on the host-side.
 				if prepare_thread.is_finished() {
 					let _ = cpu_time_monitor_tx.send(());
 
@@ -169,8 +191,8 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 						},
 					}
 				}
-				// If this thread is not selected, the join handle is dropped and the thread will
-				// finish in the background.
+				// If this thread is not selected, we signal it to end, the join handle is dropped
+				// and the thread will finish in the background.
 				if cpu_time_monitor_thread.is_finished() {
 					break match cpu_time_monitor_thread.join() {
 						Ok(Some(cpu_time_elapsed)) => {
@@ -191,8 +213,6 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 						Err(err) => Err(PrepareError::IoErr(stringify_panic_payload(err))),
 					}
 				}
-
-				thread::sleep(Duration::from_millis(10));
 			};
 
 			send_response(&mut stream, result).await?;
