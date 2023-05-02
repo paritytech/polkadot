@@ -909,8 +909,8 @@ async fn import_block(
 						RuntimeApiRequest::SessionInfo(idx, si_tx),
 					)
 				) => {
-					// assert_eq!(session, idx);
-					// assert_eq!(req_block_hash, hashes[(number-1) as usize].0);
+					// Make sure all SessionInfo calls are not made for the leaf (but for its relay parent)
+					assert_ne!(req_block_hash, hashes[(number-1) as usize].0);
 					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
 				}
 			);
