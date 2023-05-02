@@ -74,7 +74,6 @@ async fn collating_using_adder_collator() {
 			collator.collator_key(),
 			para_id,
 			collator.create_collation_function(charlie.task_manager.spawn_handle()),
-			charlie.addr.peer_id,
 		)
 		.await;
 
