@@ -20,8 +20,9 @@ use crate::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread
 use crate::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
 use crate::{
 	common::{
-		bytes_to_path, cond_notify_on_done, cond_wait_while, cpu_time_monitor_loop,
-		stringify_panic_payload, worker_event_loop, WaitOutcome,
+		bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload,
+		thread::{self, WaitOutcome},
+		worker_event_loop,
 	},
 	prepare, prevalidate, LOG_TARGET,
 };
@@ -33,8 +34,7 @@ use polkadot_node_core_pvf::{
 };
 use std::{
 	path::PathBuf,
-	sync::{mpsc::channel, Arc, Condvar, Mutex},
-	thread,
+	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
@@ -109,47 +109,37 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let memory_tracker_thread = thread::spawn(move || memory_tracker_loop(memory_tracker_rx));
 
 			// Conditional variable to notify us when a thread is done.
-			let cond_main = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
-			let cond_cpu = Arc::clone(&cond_main);
-			let cond_job = Arc::clone(&cond_main);
+			let condvar = thread::get_condvar();
 
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
-			let cpu_time_monitor_thread = thread::spawn(move || {
-				cond_notify_on_done(
-					|| {
-						cpu_time_monitor_loop(
-							cpu_time_start,
-							preparation_timeout,
-							cpu_time_monitor_rx,
-						)
-					},
-					cond_cpu,
-					WaitOutcome::CpuTimedOut,
-				)
-			});
+			let cpu_time_monitor_thread = thread::spawn_worker_thread(
+				"cpu time monitor thread",
+				move || {
+					cpu_time_monitor_loop(cpu_time_start, preparation_timeout, cpu_time_monitor_rx)
+				},
+				Arc::clone(&condvar),
+				WaitOutcome::CpuTimedOut,
+			)?;
 			// Spawn another thread for preparation.
-			let prepare_thread = thread::spawn(move || {
-				cond_notify_on_done(
-					|| {
-						let result = prepare_artifact(pvf, cpu_time_start);
+			let prepare_thread = thread::spawn_worker_thread(
+				"prepare thread",
+				move || {
+					let result = prepare_artifact(pvf, cpu_time_start);
 
-						// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
-						#[cfg(target_os = "linux")]
-						let result = result
-							.map(|(artifact, elapsed)| (artifact, elapsed, get_max_rss_thread()));
+					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
+					#[cfg(target_os = "linux")]
+					let result = result.map(|(artifact, elapsed)| (artifact, elapsed, get_max_rss_thread()));
 
-						result
-					},
-					cond_job,
-					WaitOutcome::JobFinished,
-				)
-			});
+					result
+				},
+				Arc::clone(&condvar),
+				WaitOutcome::JobFinished,
+			)?;
 
-			// Wait for one of the threads to finish.
-			let outcome = cond_wait_while(cond_main);
+			let outcome = thread::wait_for_threads(condvar);
 
 			let result = match outcome {
 				WaitOutcome::JobFinished => {
