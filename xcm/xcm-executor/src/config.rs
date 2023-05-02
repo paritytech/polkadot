@@ -107,5 +107,6 @@ pub trait Config {
 	/// temporary measure until we properly account for proof size weights for XCM instructions.
 	type SafeCallFilter: Contains<Self::RuntimeCall>;
 
+	/// Transactional processor for XCM instructions.
 	type TransactionalProcessor: ProcessTransaction;
 }
