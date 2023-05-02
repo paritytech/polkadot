@@ -400,58 +400,71 @@ impl pallet_xcm::Config for Runtime {
 	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
-fn derive_tinkernet_multisig(id: u128) -> AccountId {
-	AccountId::decode(&mut sp_runtime::traits::TrailingZeroInput::new(
+/// Constant derivation function for Tinkernet Multisigs.
+/// Uses the Tinkernet genesis hash as a salt.
+fn derive_tinkernet_multisig(id: u128) -> Result<AccountId, <u32 as TryFrom<u128>>::Error> {
+	Ok(AccountId::decode(&mut sp_runtime::traits::TrailingZeroInput::new(
 		&(
+			// The constant salt used to derive Tinkernet Multisigs, this is Tinkernet's genesis hash.
 			sp_core::H256([
 				212, 46, 150, 6, 169, 149, 223, 228, 51, 220, 121, 85, 220, 42, 112, 244, 149, 243,
 				80, 243, 115, 218, 162, 0, 9, 138, 232, 68, 55, 129, 106, 210,
 			]),
-			id as u32,
+			// The actual multisig integer id.
+			u32::try_from(id)?,
 		)
 			.using_encoded(sp_io::hashing::blake2_256),
 	))
-	.expect("infinite length input; no invalid inputs for type; qed")
+	.expect("infinite length input; no invalid inputs for type; qed"))
 }
 
+/// Type to convert a Tinkernet Multisig `MultiLocation` value into a local `AccountId` or a local `RuntimeOrigin`.
 pub struct ConvertTinkernetMultisig;
 
+/// Convert a Tinkernet Multisig `MultiLocation` value into a local `AccountId`.
 impl Convert<MultiLocation, AccountId> for ConvertTinkernetMultisig {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		match location.clone() {
+		match location {
 			MultiLocation {
 				parents: _,
 				interior:
 					Junctions::X3(
+						// Tinkernet ParaId.
 						Junction::Parachain(2125),
+						// Pallet INV4, from which the multisigs originate.
 						Junction::PalletInstance(71),
+						// Index from which the multisig account is derived.
 						Junction::GeneralIndex(id),
 					),
-			} => Ok(derive_tinkernet_multisig(id)),
+			} => derive_tinkernet_multisig(id).map_err(|_| location),
 			_ => return Err(location),
 		}
 	}
 }
 
+/// Convert a Tinkernet Multisig `MultiLocation` value into a `Signed` origin.
 impl ConvertOrigin<RuntimeOrigin> for ConvertTinkernetMultisig {
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
-		match (kind, origin.clone()) {
+		match (kind, origin) {
 			(
 				OriginKind::Native,
 				MultiLocation {
 					parents: _,
 					interior:
 						Junctions::X3(
+							// Tinkernet ParaId.
 							Junction::Parachain(2125),
+							// Pallet INV4, from which the multisigs originate.
 							Junction::PalletInstance(71),
+							// Index from which the multisig account is derived.
 							Junction::GeneralIndex(id),
 						),
 				},
-			) => Ok(RuntimeOrigin::signed(derive_tinkernet_multisig(id))),
+			) => Ok(RuntimeOrigin::signed(derive_tinkernet_multisig(id).map_err(|_| origin)?)),
 			(_, origin) => Err(origin),
 		}
 	}
