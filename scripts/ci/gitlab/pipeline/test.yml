@@ -52,6 +52,7 @@ test-linux-stable:
     - ln -s /usr/lib/x86_64-linux-gnu/libfirebuild.so.0.0.0 /usr/lib/x86_64-linux-gnu/libfirebuild.so.0
     - ln -s /usr/lib/x86_64-linux-gnu/libfirebuild.so.0.0.0 /usr/lib/x86_64-linux-gnu/libfirebuild.so
     - ln -s /usr/local/rustup/ /root/.rustup
+    - file /usr/local/bin/firebuild
     - firebuild --version
     - firebuild cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics,try-runtime
   tags:
