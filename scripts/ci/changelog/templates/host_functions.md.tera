@@ -10,20 +10,19 @@
     {%- if pr.meta.E and pr.meta.E.E3 -%}
         {%- set_global host_fn_count = host_fn_count + 1 -%}
             - {{ m_c::change(c=pr) }}
-        {% endif -%}
     {% endif -%}
     {%- if pr.meta.E and pr.meta.E.E4 -%}
         {%- set_global upgrade_first = upgrade_first + 1 -%}
             - {{ m_c::change(c=pr) }}
-        {% endif -%}
     {% endif -%}
+{% endif -%}
 {%- endfor -%}
 
 <!-- {{ upgrade_first }} changes require node upgrade -->
 
 {%- if upgrade_first != 0 %}
 ## Node upgrade required
-⚠️ There is a runtime change that will require nodes to be upgraded BEFORE the runtime upgrade.  
+⚠️ There is a runtime change that will require nodes to be upgraded BEFORE the runtime upgrade.
 
 ⚠️ It is critical that you update your client before the chain switches to the new runtime.
 {%- endif %}

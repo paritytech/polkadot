@@ -1,6 +1,6 @@
 {%- import "change.md.tera" as m_c -%}
 
-{# This macro convert a priority level into readable output #}
+{#- This macro convert a priority level into readable output #}
 {%- macro high_priority(p, changes) -%}
 
 {%- if p >= 7 -%}
