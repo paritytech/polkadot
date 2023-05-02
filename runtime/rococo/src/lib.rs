@@ -890,6 +890,7 @@ pub enum ProxyType {
 	CancelProxy,
 	Auction,
 	Society,
+	OnDemandOrdering,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -976,6 +977,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					RuntimeCall::Slots { .. }
 			),
 			ProxyType::Society => matches!(c, RuntimeCall::Society(..)),
+			ProxyType::OnDemandOrdering => matches!(c, RuntimeCall::OnDemandAssignmentProvider(..)),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
