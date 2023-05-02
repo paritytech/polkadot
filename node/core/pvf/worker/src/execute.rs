@@ -15,7 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	common::{bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload, worker_event_loop},
+	common::{
+		bytes_to_path, cond_notify_on_done, cond_wait_while, cpu_time_monitor_loop,
+		stringify_panic_payload, worker_event_loop, WaitOutcome,
+	},
 	executor_intf::{Executor, EXECUTE_THREAD_STACK_SIZE},
 	LOG_TARGET,
 };
@@ -27,7 +30,7 @@ use polkadot_node_core_pvf::{
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
 	path::{Path, PathBuf},
-	sync::mpsc::channel,
+	sync::{mpsc::channel, Arc, Condvar, Mutex},
 	thread,
 	time::Duration,
 };
@@ -67,10 +70,14 @@ async fn send_response(stream: &mut UnixStream, response: Response) -> io::Resul
 	framed_send(stream, &response.encode()).await
 }
 
-/// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host. The `node_version`, if `Some`,
-/// is checked against the worker version. A mismatch results in immediate worker termination.
-/// `None` is used for tests and in other situations when version check is not necessary.
+/// The entrypoint that the spawned execute worker should start with.
+///
+/// # Parameters
+///
+/// The `socket_path` specifies the path to the socket used to communicate with the host. The
+/// `node_version`, if `Some`, is checked against the worker version. A mismatch results in
+/// immediate worker termination. `None` is used for tests and in other situations when version
+/// check is not necessary.
 pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	worker_event_loop("execute", socket_path, node_version, |mut stream| async move {
 		let worker_pid = std::process::id();
@@ -89,41 +96,62 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				artifact_path.display(),
 			);
 
-			// Used to signal to the cpu time monitor thread that it can finish.
-			let (finished_tx, finished_rx) = channel::<()>();
+			// Conditional variable to notify us when a thread is done.
+			let cond_main = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+			let cond_cpu = Arc::clone(&cond_main);
+			let cond_job = Arc::clone(&cond_main);
+
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor.
+			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
 			let cpu_time_monitor_thread = thread::spawn(move || {
-				cpu_time_monitor_loop(cpu_time_start, execution_timeout, finished_rx)
+				cond_notify_on_done(
+					|| {
+						cpu_time_monitor_loop(
+							cpu_time_start,
+							execution_timeout,
+							cpu_time_monitor_rx,
+						)
+					},
+					cond_cpu,
+					WaitOutcome::CpuTimedOut,
+				)
 			});
 			let executor_2 = executor.clone();
 			let execute_thread =
 				thread::Builder::new().stack_size(EXECUTE_THREAD_STACK_SIZE).spawn(move || {
-					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
+					cond_notify_on_done(
+						|| {
+							validate_using_artifact(
+								&artifact_path,
+								&params,
+								executor_2,
+								cpu_time_start,
+							)
+						},
+						cond_job,
+						WaitOutcome::JobFinished,
+					)
 				})?;
 
-			// "Select" the first thread that finishes by checking all threads in a naive loop.
-			let response = loop {
-				// NOTE: The order in which we poll threads is important! This loop sleeps between
-				// polling, so it is possible to go over the timeout even when the worker thread
-				// finishes on time. So we want to prioritize selecting the worker thread and not
-				// the CPU thread. If the measured CPU time is over the timeout, we will reject the
-				// candidate later on the host-side. This avoids a source of indeterminism, where a
-				// job can trigger timeouts on some validators and not others.
-				if execute_thread.is_finished() {
-					let _ = finished_tx.send(());
-					break execute_thread.join().unwrap_or_else(|e| {
+			// Wait for one of the threads to finish.
+			let outcome = cond_wait_while(cond_main);
+
+			let response = match outcome {
+				WaitOutcome::JobFinished => {
+					let _ = cpu_time_monitor_tx.send(());
+					execute_thread.join().unwrap_or_else(|e| {
 						Response::Panic(format!(
 							"execute thread error: {}",
 							&stringify_panic_payload(e)
 						))
 					})
-				}
-				// If this thread is not selected, the join handle is dropped and the thread will
-				// finish in the background.
-				if cpu_time_monitor_thread.is_finished() {
-					break match cpu_time_monitor_thread.join() {
+				},
+				// If this thread is not selected, we signal it to end, the join handle is dropped
+				// and the thread will finish in the background.
+				WaitOutcome::CpuTimedOut => {
+					match cpu_time_monitor_thread.join() {
 						Ok(Some(cpu_time_elapsed)) => {
 							// Log if we exceed the timeout and the other thread hasn't finished.
 							gum::warn!(
@@ -135,7 +163,8 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							);
 							Response::TimedOut
 						},
-						Ok(None) => Response::InternalError(
+						Ok(None) => Response::format_internal(
+							"cpu time monitor thread error",
 							"error communicating over finished channel".into(),
 						),
 						// We can use an internal error here because errors in this thread are
@@ -145,9 +174,10 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							&stringify_panic_payload(e),
 						),
 					}
-				}
-
-				thread::sleep(Duration::from_millis(10));
+				},
+				WaitOutcome::Pending => Response::InternalError(
+					"we run wait_while until the outcome is no longer pending; qed".into(),
+				),
 			};
 
 			send_response(&mut stream, response).await?;
@@ -178,13 +208,15 @@ fn validate_using_artifact(
 		Ok(d) => d,
 	};
 
-	let duration = cpu_time_start.elapsed();
-
 	let result_descriptor = match ValidationResult::decode(&mut &descriptor_bytes[..]) {
 		Err(err) =>
 			return Response::format_invalid("validation result decoding failed", &err.to_string()),
 		Ok(r) => r,
 	};
+
+	// Include the decoding in the measured time, to prevent any potential attacks exploiting some
+	// bug in decoding.
+	let duration = cpu_time_start.elapsed();
 
 	Response::Ok { result_descriptor, duration }
 }

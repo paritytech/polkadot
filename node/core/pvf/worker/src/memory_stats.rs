@@ -33,14 +33,14 @@
 /// NOTE: Requires jemalloc enabled.
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub mod memory_tracker {
-	use crate::LOG_TARGET;
+	use crate::{common::stringify_panic_payload, LOG_TARGET};
 	use polkadot_node_core_pvf::MemoryAllocationStats;
 	use std::{
 		sync::mpsc::{Receiver, RecvTimeoutError, Sender},
+		thread::JoinHandle,
 		time::Duration,
 	};
 	use tikv_jemalloc_ctl::{epoch, stats, Error};
-	use tokio::task::JoinHandle;
 
 	#[derive(Clone)]
 	struct MemoryAllocationTracker {
@@ -127,7 +127,7 @@ pub mod memory_tracker {
 	/// Helper function to terminate the memory tracker thread and get the stats. Helps isolate all this
 	/// error handling.
 	pub async fn get_memory_tracker_loop_stats(
-		fut: JoinHandle<Result<MemoryAllocationStats, String>>,
+		thread: JoinHandle<Result<MemoryAllocationStats, String>>,
 		tx: Sender<()>,
 		worker_pid: u32,
 	) -> Option<MemoryAllocationStats> {
@@ -142,7 +142,7 @@ pub mod memory_tracker {
 			None
 		} else {
 			// Join on the thread handle.
-			match fut.await {
+			match thread.join() {
 				Ok(Ok(stats)) => Some(stats),
 				Ok(Err(err)) => {
 					gum::warn!(
@@ -156,7 +156,7 @@ pub mod memory_tracker {
 					gum::warn!(
 						target: LOG_TARGET,
 						%worker_pid,
-						"worker: error joining on memory tracker thread: {}", err
+						"worker: error joining on memory tracker thread: {}", stringify_panic_payload(err)
 					);
 					None
 				},
