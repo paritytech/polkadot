@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -42,7 +42,7 @@ pub use on_response::{OnResponse, VersionChangeNotifier};
 mod process_transaction;
 pub use process_transaction::ProcessTransaction;
 mod should_execute;
-pub use should_execute::ShouldExecute;
+pub use should_execute::{CheckSuspension, ShouldExecute};
 mod transact_asset;
 pub use transact_asset::TransactAsset;
 mod weight;

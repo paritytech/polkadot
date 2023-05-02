@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -226,7 +226,7 @@ async fn handle_enqueue(
 		target: LOG_TARGET,
 		validation_code_hash = ?pvf.code_hash(),
 		?priority,
-		preparation_timeout = ?pvf.prep_timeout,
+		preparation_timeout = ?pvf.prep_timeout(),
 		"PVF is enqueued for preparation.",
 	);
 	queue.metrics.prepare_enqueued();

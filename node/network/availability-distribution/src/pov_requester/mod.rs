@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -52,7 +52,18 @@ pub async fn fetch_pov<Context>(
 	pov_hash: Hash,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
+	span: &jaeger::Span,
 ) -> Result<()> {
+	let _span = span
+		.child("fetch-pov")
+		.with_trace_id(candidate_hash)
+		.with_validator_index(from_validator)
+		.with_candidate(candidate_hash)
+		.with_para_id(para_id)
+		.with_relay_parent(parent)
+		.with_string_tag("pov-hash", format!("{:?}", pov_hash))
+		.with_stage(jaeger::Stage::AvailabilityDistribution);
+
 	let info = &runtime.get_session_info(ctx.sender(), parent).await?.session_info;
 	let authority_id = info
 		.discovery_keys
@@ -71,13 +82,9 @@ pub async fn fetch_pov<Context>(
 	))
 	.await;
 
-	let span = jaeger::Span::new(candidate_hash, "fetch-pov")
-		.with_validator_index(from_validator)
-		.with_relay_parent(parent)
-		.with_para_id(para_id);
 	ctx.spawn(
 		"pov-fetcher",
-		fetch_pov_job(para_id, pov_hash, authority_id, pending_response.boxed(), span, tx, metrics)
+		fetch_pov_job(para_id, pov_hash, authority_id, pending_response.boxed(), tx, metrics)
 			.boxed(),
 	)
 	.map_err(|e| FatalError::SpawnTask(e))?;
@@ -90,11 +97,10 @@ async fn fetch_pov_job(
 	pov_hash: Hash,
 	authority_id: AuthorityDiscoveryId,
 	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
-	span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
 ) {
-	if let Err(err) = do_fetch_pov(pov_hash, pending_response, span, tx, metrics).await {
+	if let Err(err) = do_fetch_pov(pov_hash, pending_response, tx, metrics).await {
 		gum::warn!(target: LOG_TARGET, ?err, ?para_id, ?pov_hash, ?authority_id, "fetch_pov_job");
 	}
 }
@@ -103,7 +109,6 @@ async fn fetch_pov_job(
 async fn do_fetch_pov(
 	pov_hash: Hash,
 	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
-	_span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
 ) -> Result<()> {
@@ -182,6 +187,7 @@ mod tests {
 				pov_hash,
 				tx,
 				Metrics::new_dummy(),
+				&jaeger::Span::Disabled,
 			)
 			.await
 			.expect("Should succeed");
