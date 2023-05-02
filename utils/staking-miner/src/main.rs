@@ -50,7 +50,7 @@ use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
 use futures_util::StreamExt;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
-use remote_externalities::{Builder, Mode, OnlineConfig};
+use remote_externalities::{Builder, Mode, OnlineConfig, Transport};
 use rpc::{RpcApiClient, SharedRpcClient};
 use runtime_versions::RuntimeVersions;
 use signal_hook::consts::signal::*;
@@ -314,7 +314,7 @@ where
 	pallets.extend(additional);
 	Builder::<B>::new()
 		.mode(Mode::Online(OnlineConfig {
-			transport: client.into_inner().into(),
+			transport: Transport::Uri(client.uri().to_owned()),
 			at,
 			pallets,
 			hashed_prefixes: vec![<frame_system::BlockHash<T>>::prefix_hash()],

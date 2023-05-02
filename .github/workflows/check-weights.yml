@@ -1,0 +1,49 @@
+name: Check updated weights
+
+on:
+  pull_request:
+    paths:
+      - 'runtime/*/src/weights/**'
+
+jobs:
+  check_weights_files:
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [westend, kusama, polkadot, rococo]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+      - name: Check weights files
+        shell: bash
+        run: |
+          scripts/ci/github/verify_updated_weights.sh ${{ matrix.runtime }}
+
+  # This job uses https://github.com/ggwpez/substrate-weight-compare to compare the weights of the current
+  # release with the last release, then adds them as a comment to the PR.
+  check_weight_changes:
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [westend, kusama, polkadot, rococo]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get latest release
+        run: |
+          LAST_RELEASE=$(curl -s https://api.github.com/repos/paritytech/polkadot/releases/latest | jq -r .tag_name)
+          echo "LAST_RELEASE=$LAST_RELEASE" >> $GITHUB_ENV
+      - name: Checkout current sources
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Check weight changes
+        shell: bash
+        run: |
+          cargo install --git https://github.com/ggwpez/substrate-weight-compare swc
+          ./scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} "$LAST_RELEASE" | tee swc_output_${{ matrix.runtime }}.md
+      - name: Add comment
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          filePath: ./swc_output_${{ matrix.runtime }}.md
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
