@@ -1472,6 +1472,7 @@ pub type Migrations = (
 	// Unreleased - add new migrations here:
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 	pallet_offences::migration::v1::MigrateToV1<Runtime>,
+	runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
