@@ -152,6 +152,9 @@ fn kill_parent_node_in_emergency() {
 }
 
 /// Functionality related to threads spawned by the workers.
+///
+/// The motivation for this module is to coordinate worker threads without using async Rust. This
+/// lets us pull in less dependencies, making the worker binaries smaller and easier to secure.
 pub mod thread {
 	use std::{
 		panic,
