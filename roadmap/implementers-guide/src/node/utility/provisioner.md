@@ -179,7 +179,7 @@ The response is a vector of `BackedCandidate`s, sorted in order of their core in
   - Often referred to simply as "cores", availability cores are an abstraction used for resource management. For the provisioner, availability cores are most relevant in that core states determine which `para_id`s to provision backable candidates for.
   - For more on availability cores see [Scheduler Module: Availability Cores](../../runtime/scheduler.md#availability-cores)
 - **Availability Bitfield:**
-  - Often referred to simply as a "bitfield", an availability bitfield represents the view of parablock candidate availability from a particular validator's perspective. Each bit in the bitfield corresponds to a single [availability core](../runtime-api/availability-cores.md).
+  - Often referred to simply as a "bitfield", an availability bitfield represents the view of parablock candidate availability from a particular validator's perspective. Each bit in the bitfield corresponds to a single [availability core](../../runtime-api/availability-cores.md).
   - For more on availability bitfields see [availability](../../types/availability.md)
 - **Backable vs. Backed:**
   - Note that we sometimes use "backed" to refer to candidates that are "backable", but not yet backed on chain.
