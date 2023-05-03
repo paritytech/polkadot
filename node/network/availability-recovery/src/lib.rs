@@ -99,9 +99,20 @@ const TIMEOUT_START_NEW_REQUESTS: Duration = CHUNK_REQUEST_TIMEOUT;
 #[cfg(test)]
 const TIMEOUT_START_NEW_REQUESTS: Duration = Duration::from_millis(100);
 
+/// PoV size limit in bytes for which prefer fetching from backers.
+const SMALL_POV_LIMIT: usize = 128 * 1024;
+
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem {
+	/// Do not request data from the availability store.
+	/// This is the useful for nodes where the
+	/// availability-store subsystem is not expected to run,
+	/// such as collators.
+	bypass_availability_store: bool,
+	/// If true, we first try backers.
 	fast_path: bool,
+	/// Large PoV threshold. Only used when `fast_path` is `false.
+	small_pov_limit: Option<usize>,
 	/// Receiver for available data requests.
 	req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 	/// Metrics for this subsystem.
@@ -147,6 +158,9 @@ struct RecoveryParams {
 
 	/// Metrics to report
 	metrics: Metrics,
+
+	/// Do not request data from availability-store
+	bypass_availability_store: bool,
 }
 
 /// Source the availability data either by means
@@ -467,7 +481,7 @@ impl RequestChunksFromValidators {
 		let metrics = &params.metrics;
 
 		// First query the store for any chunks we've got.
-		{
+		if !params.bypass_availability_store {
 			let (tx, rx) = oneshot::channel();
 			sender
 				.send_message(AvailabilityStoreMessage::QueryAllChunks(params.candidate_hash, tx))
@@ -668,7 +682,7 @@ where
 {
 	async fn run(mut self) -> Result<AvailableData, RecoveryError> {
 		// First just see if we have the data available locally.
-		{
+		if !self.params.bypass_availability_store {
 			let (tx, rx) = oneshot::channel();
 			self.sender
 				.send_message(AvailabilityStoreMessage::QueryAvailableData(
@@ -854,9 +868,11 @@ async fn launch_recovery_task<Context>(
 	ctx: &mut Context,
 	session_info: SessionInfo,
 	receipt: CandidateReceipt,
-	backing_group: Option<GroupIndex>,
+	mut backing_group: Option<GroupIndex>,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
+	bypass_availability_store: bool,
 	metrics: &Metrics,
+	small_pov_limit: Option<usize>,
 ) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
 
@@ -867,7 +883,31 @@ async fn launch_recovery_task<Context>(
 		candidate_hash,
 		erasure_root: receipt.descriptor.erasure_root,
 		metrics: metrics.clone(),
+		bypass_availability_store,
 	};
+
+	if let Some(small_pov_limit) = small_pov_limit {
+		// Get our own chunk size to get an estimate of the PoV size.
+		let chunk_size: Result<Option<usize>, error::Error> =
+			query_chunk_size(ctx, candidate_hash).await;
+		if let Ok(Some(chunk_size)) = chunk_size {
+			let pov_size_estimate = chunk_size.saturating_mul(session_info.validators.len() / 3);
+			let prefer_backing_group = pov_size_estimate < small_pov_limit;
+
+			gum::debug!(
+				target: LOG_TARGET,
+				pov_size_estimate,
+				small_pov_limit,
+				enabled = prefer_backing_group,
+				"Prefer fetch from backing group",
+			);
+
+			backing_group = backing_group.filter(|_| {
+				// We keep the backing group only if `1/3` of chunks sum up to less than `small_pov_limit`.
+				prefer_backing_group
+			});
+		}
+	}
 
 	let phase = backing_group
 		.and_then(|g| session_info.validator_groups.get(g))
@@ -906,7 +946,9 @@ async fn handle_recover<Context>(
 	session_index: SessionIndex,
 	backing_group: Option<GroupIndex>,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
+	bypass_availability_store: bool,
 	metrics: &Metrics,
+	small_pov_limit: Option<usize>,
 ) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
 
@@ -949,7 +991,9 @@ async fn handle_recover<Context>(
 				receipt,
 				backing_group,
 				response_sender,
+				bypass_availability_store,
 				metrics,
+				small_pov_limit,
 			)
 			.await,
 		None => {
@@ -975,15 +1019,48 @@ async fn query_full_data<Context>(
 	rx.await.map_err(error::Error::CanceledQueryFullData)
 }
 
+/// Queries a chunk from av-store.
+#[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]
+async fn query_chunk_size<Context>(
+	ctx: &mut Context,
+	candidate_hash: CandidateHash,
+) -> error::Result<Option<usize>> {
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(AvailabilityStoreMessage::QueryChunkSize(candidate_hash, tx))
+		.await;
+
+	rx.await.map_err(error::Error::CanceledQueryFullData)
+}
 #[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]
 impl AvailabilityRecoverySubsystem {
+	/// Create a new instance of `AvailabilityRecoverySubsystem` which never requests the  
+	/// `AvailabilityStoreSubsystem` subsystem.
+	pub fn with_availability_store_skip(
+		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+		metrics: Metrics,
+	) -> Self {
+		Self {
+			fast_path: false,
+			small_pov_limit: None,
+			bypass_availability_store: true,
+			req_receiver,
+			metrics,
+		}
+	}
+
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which starts with a fast path to
 	/// request data from backers.
 	pub fn with_fast_path(
 		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 		metrics: Metrics,
 	) -> Self {
-		Self { fast_path: true, req_receiver, metrics }
+		Self {
+			fast_path: true,
+			small_pov_limit: None,
+			bypass_availability_store: false,
+			req_receiver,
+			metrics,
+		}
 	}
 
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which requests only chunks
@@ -991,12 +1068,39 @@ impl AvailabilityRecoverySubsystem {
 		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 		metrics: Metrics,
 	) -> Self {
-		Self { fast_path: false, req_receiver, metrics }
+		Self {
+			fast_path: false,
+			small_pov_limit: None,
+			bypass_availability_store: false,
+			req_receiver,
+			metrics,
+		}
+	}
+
+	/// Create a new instance of `AvailabilityRecoverySubsystem` which requests chunks if PoV is
+	/// above a threshold.
+	pub fn with_chunks_if_pov_large(
+		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+		metrics: Metrics,
+	) -> Self {
+		Self {
+			fast_path: false,
+			small_pov_limit: Some(SMALL_POV_LIMIT),
+			bypass_availability_store: false,
+			req_receiver,
+			metrics,
+		}
 	}
 
 	async fn run<Context>(self, mut ctx: Context) -> SubsystemResult<()> {
 		let mut state = State::default();
-		let Self { fast_path, mut req_receiver, metrics } = self;
+		let Self {
+			fast_path,
+			small_pov_limit,
+			mut req_receiver,
+			metrics,
+			bypass_availability_store,
+		} = self;
 
 		loop {
 			let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
@@ -1023,9 +1127,11 @@ impl AvailabilityRecoverySubsystem {
 										&mut ctx,
 										receipt,
 										session_index,
-										maybe_backing_group.filter(|_| fast_path),
+										maybe_backing_group.filter(|_| fast_path || small_pov_limit.is_some()),
 										response_sender,
+										bypass_availability_store,
 										&metrics,
+										small_pov_limit,
 									).await {
 										gum::warn!(
 											target: LOG_TARGET,
@@ -1041,6 +1147,14 @@ impl AvailabilityRecoverySubsystem {
 				in_req = recv_req => {
 					match in_req.into_nested().map_err(|fatal| SubsystemError::with_origin("availability-recovery", fatal))? {
 						Ok(req) => {
+							if bypass_availability_store {
+								gum::debug!(
+									target: LOG_TARGET,
+									"Skipping request to availability-store.",
+								);
+								let _ = req.send_response(None.into());
+								continue
+							}
 							match query_full_data(&mut ctx, req.payload.candidate_hash).await {
 								Ok(res) => {
 									let _ = req.send_response(res.into());
