@@ -1486,7 +1486,7 @@ pub mod migrations {
 	use super::*;
 
 	pub type V0940 = ();
-	pub type V0941 = (); // node only
+	pub type V0941 = (); // Node only release - no migrations.
 	pub type V0942 = (
 		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 		pallet_offences::migration::v1::MigrateToV1<Runtime>,

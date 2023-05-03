@@ -1475,7 +1475,7 @@ pub mod migrations {
 		>,
 		pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	);
-	pub type V0941 = (); // node only
+	pub type V0941 = (); // Node only release - no migrations.
 	pub type V0942 = (
 		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 		pallet_offences::migration::v1::MigrateToV1<Runtime>,
