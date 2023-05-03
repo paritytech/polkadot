@@ -1213,7 +1213,7 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so.
-pub type Migrations = migrations::SinceV0940;
+pub type Migrations = (V0940, V0941, V0942, Unreleased);
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
@@ -1236,9 +1236,6 @@ pub mod migrations {
 
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = ();
-
-	/// All migrations that should run since (including) `0.9.40`.
-	pub type SinceV0940 = (V0940, V0941, V0942, Unreleased);
 }
 
 /// Unchecked extrinsic type as expected by this runtime.
