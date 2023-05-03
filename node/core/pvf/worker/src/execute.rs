@@ -16,8 +16,9 @@
 
 use crate::{
 	common::{
-		bytes_to_path, cond_notify_on_done, cond_wait_while, cpu_time_monitor_loop,
-		stringify_panic_payload, worker_event_loop, WaitOutcome,
+		bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload,
+		thread::{self, WaitOutcome},
+		worker_event_loop,
 	},
 	executor_intf::{Executor, EXECUTE_THREAD_STACK_SIZE},
 	LOG_TARGET,
@@ -30,8 +31,7 @@ use polkadot_node_core_pvf::{
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
 	path::{Path, PathBuf},
-	sync::{mpsc::channel, Arc, Condvar, Mutex},
-	thread,
+	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
@@ -97,46 +97,32 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			);
 
 			// Conditional variable to notify us when a thread is done.
-			let cond_main = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
-			let cond_cpu = Arc::clone(&cond_main);
-			let cond_job = Arc::clone(&cond_main);
+			let condvar = thread::get_condvar();
 
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
-			let cpu_time_monitor_thread = thread::spawn(move || {
-				cond_notify_on_done(
-					|| {
-						cpu_time_monitor_loop(
-							cpu_time_start,
-							execution_timeout,
-							cpu_time_monitor_rx,
-						)
-					},
-					cond_cpu,
-					WaitOutcome::CpuTimedOut,
-				)
-			});
+			let cpu_time_monitor_thread = thread::spawn_worker_thread(
+				"cpu time monitor thread",
+				move || {
+					cpu_time_monitor_loop(cpu_time_start, execution_timeout, cpu_time_monitor_rx)
+				},
+				Arc::clone(&condvar),
+				WaitOutcome::CpuTimedOut,
+			)?;
 			let executor_2 = executor.clone();
-			let execute_thread =
-				thread::Builder::new().stack_size(EXECUTE_THREAD_STACK_SIZE).spawn(move || {
-					cond_notify_on_done(
-						|| {
-							validate_using_artifact(
-								&artifact_path,
-								&params,
-								executor_2,
-								cpu_time_start,
-							)
-						},
-						cond_job,
-						WaitOutcome::JobFinished,
-					)
-				})?;
+			let execute_thread = thread::spawn_worker_thread_with_stack_size(
+				"execute thread",
+				move || {
+					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
+				},
+				Arc::clone(&condvar),
+				WaitOutcome::JobFinished,
+				EXECUTE_THREAD_STACK_SIZE,
+			)?;
 
-			// Wait for one of the threads to finish.
-			let outcome = cond_wait_while(cond_main);
+			let outcome = thread::wait_for_threads(condvar);
 
 			let response = match outcome {
 				WaitOutcome::JobFinished => {
@@ -148,8 +134,8 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 						))
 					})
 				},
-				// If this thread is not selected, we signal it to end, the join handle is dropped
-				// and the thread will finish in the background.
+				// If the CPU thread is not selected, we signal it to end, the join handle is
+				// dropped and the thread will finish in the background.
 				WaitOutcome::CpuTimedOut => {
 					match cpu_time_monitor_thread.join() {
 						Ok(Some(cpu_time_elapsed)) => {
@@ -175,9 +161,8 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 						),
 					}
 				},
-				WaitOutcome::Pending => Response::InternalError(
-					"we run wait_while until the outcome is no longer pending; qed".into(),
-				),
+				WaitOutcome::Pending =>
+					unreachable!("we run wait_while until the outcome is no longer pending; qed"),
 			};
 
 			send_response(&mut stream, response).await?;
