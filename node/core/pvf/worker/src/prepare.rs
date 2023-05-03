@@ -205,7 +205,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 						Ok(None) => Err(PrepareError::IoErr(
 							"error communicating over finished channel".into(),
 						)),
-						// Errors in this thread are independent of the candidate/PVF.
+						// Errors in this thread are independent of the PVF.
 						Err(err) => Err(PrepareError::IoErr(stringify_panic_payload(err))),
 					}
 				},
