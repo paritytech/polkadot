@@ -3361,9 +3361,6 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				"Overseer did not receive `ChainSelectionMessage::RevertBlocks` message"
 			);
 
-			// handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
-			// 	.await;
-
 			// Wrap up
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert_matches!(
