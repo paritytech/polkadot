@@ -1213,19 +1213,33 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so.
-#[allow(deprecated)]
-pub type Migrations = (
-	// 0.9.40
-	clean_state_migration::CleanMigrate,
-	pallet_nomination_pools::migration::v4::MigrateToV4<
-		Runtime,
-		NominationPoolsMigrationV4OldPallet,
-	>,
-	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
-	// Unreleased - add new migrations here:
-	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-	pallet_offences::migration::v1::MigrateToV1<Runtime>,
-);
+pub type Migrations = migrations::SinceV0940;
+
+/// The runtime migrations per release.
+#[allow(deprecated, missing_docs)]
+pub mod migrations {
+	use super::*;
+
+	pub type V0940 = (
+		clean_state_migration::CleanMigrate,
+		pallet_nomination_pools::migration::v4::MigrateToV4<
+			Runtime,
+			NominationPoolsMigrationV4OldPallet,
+		>,
+		pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
+	);
+	pub type V0941 = (); // node only
+	pub type V0942 = (
+		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+		pallet_offences::migration::v1::MigrateToV1<Runtime>,
+	);
+
+	/// Unreleased migrations. Add new ones here:
+	pub type Unreleased = ();
+
+	/// All migrations that should run since (including) `0.9.40`.
+	pub type SinceV0940 = (V0940, V0941, V0942, Unreleased);
+}
 
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

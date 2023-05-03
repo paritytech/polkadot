@@ -1478,11 +1478,26 @@ pub type UncheckedExtrinsic =
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so.
-pub type Migrations = (
-	// Unreleased - add new migrations here:
-	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-	pallet_offences::migration::v1::MigrateToV1<Runtime>,
-);
+pub type Migrations = migrations::SinceV0940;
+
+/// The runtime migrations per release.
+#[allow(deprecated, missing_docs)]
+pub mod migrations {
+	use super::*;
+
+	pub type V0940 = ();
+	pub type V0941 = (); // node only
+	pub type V0942 = (
+		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+		pallet_offences::migration::v1::MigrateToV1<Runtime>,
+	);
+
+	/// Unreleased migrations. Add new ones here:
+	pub type Unreleased = ();
+
+	/// All migrations that should run since (including) `0.9.40`.
+	pub type SinceV0940 = (V0940, V0941, V0942, Unreleased);
+}
 
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
