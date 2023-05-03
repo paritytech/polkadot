@@ -86,8 +86,8 @@ pub mod memory_tracker {
 	/// For simplicity, any errors are returned as a string. As this is not a critical component, errors
 	/// are used for informational purposes (logging) only.
 	pub fn memory_tracker_loop(condvar: thread::Cond) -> Result<MemoryAllocationStats, String> {
-		// This doesn't need to be too fine-grained since preparation currently takes 3-10s or more.
-		// Apart from that, there is not really a science to this number.
+		// NOTE: This doesn't need to be too fine-grained since preparation currently takes 3-10s or
+		// more. Apart from that, there is not really a science to this number.
 		const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 		let tracker = MemoryAllocationTracker::new().map_err(|err| err.to_string())?;
@@ -112,20 +112,12 @@ pub mod memory_tracker {
 			// Sleep for the poll interval, or wake up if the condvar is triggered. Note that
 			// `wait_timeout_while` is documented as not being very precise or reliable, which is
 			// fine here -- see note above.
-			let result = cvar
-				.wait_timeout_while(
-					lock.lock().expect(
-						"only panics if the lock is already held by the current thread; qed",
-					),
-					POLL_INTERVAL,
-					|flag| flag.is_pending(),
-				)
-				.unwrap();
-			if result.1.timed_out() {
-				continue
-			} else {
-				update_stats()?;
-				return Ok(max_stats)
+			match thread::wait_for_threads_with_timeout(lock, cvar, POLL_INTERVAL) {
+				Some(_outcome) => {
+					update_stats()?;
+					return Ok(max_stats)
+				},
+				None => continue,
 			}
 		}
 	}

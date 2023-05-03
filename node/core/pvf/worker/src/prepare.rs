@@ -107,9 +107,9 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 
 			// Run the memory tracker in a regular, non-worker thread.
 			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-			let memory_tracker_condvar = Arc::clone(&condvar);
+			let condvar_memory = Arc::clone(&condvar);
 			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-			let memory_tracker_thread = std::thread::spawn(|| memory_tracker_loop(memory_tracker_condvar));
+			let memory_tracker_thread = std::thread::spawn(|| memory_tracker_loop(condvar_memory));
 
 			let cpu_time_start = ProcessTime::now();
 

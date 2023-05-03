@@ -104,8 +104,10 @@ pub fn cpu_time_monitor_loop(
 
 		// Treat the timeout as CPU time, which is less subject to variance due to load.
 		if cpu_time_elapsed <= timeout {
-			// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
-			// is wall clock time. The CPU clock may be slower than the wall clock.
+			// Sleep for the remaining CPU time, plus a bit to account for overhead. (And we don't
+			// want to wake up too often -- so, since we just want to halt the worker thread if it
+			// stalled, we can sleep longer than necessary.) Note that the sleep is wall clock time.
+			// The CPU clock may be slower than the wall clock.
 			let sleep_interval = timeout.saturating_sub(cpu_time_elapsed) + JOB_TIMEOUT_OVERHEAD;
 			match finished_rx.recv_timeout(sleep_interval) {
 				// Received finish signal.
@@ -160,6 +162,7 @@ pub mod thread {
 		panic,
 		sync::{Arc, Condvar, Mutex},
 		thread,
+		time::Duration,
 	};
 
 	/// Contains the outcome of waiting on threads, or `Pending` if none are ready.
@@ -261,5 +264,29 @@ pub mod thread {
 			)
 			.unwrap();
 		*guard
+	}
+
+	/// Block the thread while it waits on the condvar or on a timeout. If the timeout is hit,
+	/// returns `None`. The signature is different than [`wait_for_threads`] because this is
+	/// expected to be called in a loop, where we can't take ownership of a `Cond`.
+	#[cfg_attr(not(any(target_os = "linux", feature = "jemalloc-allocator")), allow(dead_code))]
+	pub fn wait_for_threads_with_timeout(
+		lock: &Mutex<WaitOutcome>,
+		cvar: &Condvar,
+		dur: Duration,
+	) -> Option<WaitOutcome> {
+		let result = cvar
+			.wait_timeout_while(
+				lock.lock()
+					.expect("only panics if the lock is already held by the current thread; qed"),
+				dur,
+				|flag| flag.is_pending(),
+			)
+			.unwrap();
+		if result.1.timed_out() {
+			None
+		} else {
+			Some(*result.0)
+		}
 	}
 }
