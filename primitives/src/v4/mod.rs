@@ -815,7 +815,7 @@ impl Assignment {
 pub struct CollatorRestrictions {
 	/// Collators to prefer/allow.
 	/// Empty set means no restrictions.
-	collator_peer_ids: BTreeSet<OpaquePeerId>, // TODO: Better have CollatorIds here as we can have them in the runtime. And transform to PeerId on the node side?
+	collator_peer_ids: BTreeSet<OpaquePeerId>,
 	restriction_kind: CollatorRestrictionKind,
 }
 

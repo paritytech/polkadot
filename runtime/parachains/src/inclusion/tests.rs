@@ -1139,8 +1139,8 @@ fn candidate_checks() {
 			);
 		}
 
-        // TODO: Will be tested at a higher level
-        //
+		// TODO: Will be tested at a higher level
+		//
 		// candidate has wrong collator.
 		//{
 		//	let mut candidate = TestCandidateBuilder {

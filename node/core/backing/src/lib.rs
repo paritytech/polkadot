@@ -917,8 +917,8 @@ impl<Context> CandidateBackingJob<Context> {
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
-        // TODO: move to top-level
-        //
+		// TODO: move to top-level
+		//
 		// Check that candidate is collated by the right collator.
 		//if !self.collator_restrictions.can_collate(&candidate.descriptor.peer_id) {
 		//	// Break cycle - bounded as there is only one candidate to
@@ -1173,7 +1173,6 @@ impl<Context> CandidateBackingJob<Context> {
 			return Ok(())
 		}
 
-
 		gum::debug!(
 			target: LOG_TARGET,
 			candidate_hash = ?candidate_hash,
@@ -1181,8 +1180,8 @@ impl<Context> CandidateBackingJob<Context> {
 			"Kicking off validation",
 		);
 
-        // TODO: move to top-level
-        //
+		// TODO: move to top-level
+		//
 		// Check that candidate is collated by the right collator.
 		//let descriptor = attesting.candidate.descriptor().clone();
 		//if !self.collator_restrictions.can_collate(&descriptor.peer_id) {
