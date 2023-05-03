@@ -41,9 +41,9 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
-	byzantine_threshold, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement,
-	DisputeStatement, DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
+	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
+	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex,
 };
 
 use crate::{
@@ -1094,9 +1094,7 @@ impl Initialized {
 
 		// Notify ChainSelection if a dispute has concluded against a candidate. ChainSelection
 		// will need to mark the candidate's relay parent as reverted.
-		if import_result
-			.has_fresh_byzantine_threshold_against(byzantine_threshold(env.validators().len()))
-		{
+		if import_result.has_fresh_byzantine_threshold_against() {
 			let blocks_including = self.scraper.get_blocks_including_candidate(&candidate_hash);
 			for (parent_block_number, parent_block_hash) in &blocks_including {
 				gum::trace!(
