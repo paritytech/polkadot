@@ -23,7 +23,7 @@ Upon receiving a validation request, the first thing the candidate validation su
   * The [`CandidateDescriptor`](../../types/candidate.md#candidatedescriptor).
   * The [`ValidationData`](../../types/candidate.md#validationdata).
   * The [`PoV`](../../types/availability.md#proofofvalidity).
-  
+
 The second category is for PVF pre-checking. This is primarly used by the [PVF pre-checker](pvf-prechecker.md) subsystem.
 
 ### Determining Parameters
@@ -67,8 +67,20 @@ or time out). We will only retry preparation if another request comes in after
 resolved. We will retry up to 5 times.
 
 If the actual **execution** of the artifact fails, we will retry once if it was
-an ambiguous error after a brief delay, to allow any potential transient
-conditions to clear.
+a possibly transient error, to allow the conditions that led to the error to
+hopefully resolve. We use a more brief delay here (1 second as opposed to 15
+minutes for preparation (see above)), because a successful execution must happen
+in a short amount of time.
+
+We currently know of at least two specific cases that will lead to a retried
+execution request:
+
+1. **OOM:** The host might have been temporarily low on memory due to other
+   processes running on the same machine. **NOTE:** This case will lead to
+   voting against the candidate (and possibly a dispute) if the retry is still
+   not successful.
+2. **Artifact missing:** The prepared artifact might have been deleted due to
+   operator error or some bug in the system. We will re-create it on retry.
 
 #### Preparation timeouts
 

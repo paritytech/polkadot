@@ -209,7 +209,7 @@ impl RollingSessionWindow {
 			}?
 		} else {
 			// There are no new sessions to be fetched from chain state.
-			Vec::new()
+			stored_sessions
 		};
 
 		Ok(Self {
@@ -940,6 +940,174 @@ mod tests {
 		let actual_window_size = window.session_info.len() as u32;
 
 		cache_session_info_test(0, 3, Some(window), actual_window_size, None);
+	}
+
+	#[test]
+	fn db_load_works() {
+		// Session index of the tip of our fake test chain.
+		let session: SessionIndex = 100;
+		let genesis_session: SessionIndex = 0;
+
+		let header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let finalized_header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 0,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let finalized_header_clone = finalized_header.clone();
+
+		let hash: sp_core::H256 = header.hash();
+		let db_params = dummy_db_params();
+		let db_params_clone = db_params.clone();
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let test_fut = {
+			let sender = ctx.sender().clone();
+			Box::pin(async move {
+				let mut rsw =
+					RollingSessionWindow::new(sender.clone(), hash, db_params_clone).await.unwrap();
+
+				let session_info = rsw.session_info.clone();
+				let earliest_session = rsw.earliest_session();
+
+				assert_eq!(earliest_session, 0);
+				assert_eq!(session_info.len(), 101);
+
+				rsw.db_save(StoredWindow { earliest_session, session_info });
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+					s_tx,
+				)) => {
+					let _ = s_tx.send(Ok(finalized_header.number));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+					block_number,
+					s_tx,
+				)) => {
+					assert_eq!(block_number, finalized_header.number);
+					let _ = s_tx.send(Ok(Some(finalized_header.hash())));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, finalized_header.hash());
+					let _ = s_tx.send(Ok(0));
+				}
+			);
+
+			// Unfinalized chain starts at geneisis block, so session 0 is how far we stretch.
+			for i in genesis_session..=session {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						h,
+						RuntimeApiRequest::SessionInfo(j, s_tx),
+					)) => {
+						assert_eq!(h, hash);
+						assert_eq!(i, j);
+						let _ = s_tx.send(Ok(Some(dummy_session_info(i))));
+					}
+				);
+			}
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let test_fut = {
+			Box::pin(async move {
+				let sender = ctx.sender().clone();
+				let res = RollingSessionWindow::new(sender, hash, db_params).await;
+				let rsw = res.unwrap();
+				assert_eq!(rsw.earliest_session, 0);
+				assert_eq!(rsw.session_info.len(), 101);
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+					s_tx,
+				)) => {
+					let _ = s_tx.send(Ok(finalized_header_clone.number));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+					block_number,
+					s_tx,
+				)) => {
+					assert_eq!(block_number, finalized_header_clone.number);
+					let _ = s_tx.send(Ok(Some(finalized_header_clone.hash())));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, finalized_header_clone.hash());
+					let _ = s_tx.send(Ok(0));
+				}
+			);
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]

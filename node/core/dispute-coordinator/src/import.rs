@@ -31,9 +31,10 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use polkadot_node_primitives::{
 	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
 };
-use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
+use polkadot_node_subsystem::overseer;
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
-	CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, SessionInfo,
+	CandidateReceipt, DisputeStatement, Hash, IndexedVec, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
@@ -50,18 +51,29 @@ pub struct CandidateEnvironment<'a> {
 	controlled_indices: HashSet<ValidatorIndex>,
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 impl<'a> CandidateEnvironment<'a> {
 	/// Create `CandidateEnvironment`.
 	///
 	/// Return: `None` in case session is outside of session window.
-	pub fn new(
+	pub async fn new<Context>(
 		keystore: &LocalKeystore,
-		session_window: &'a RollingSessionWindow,
+		ctx: &mut Context,
+		runtime_info: &'a mut RuntimeInfo,
 		session_index: SessionIndex,
-	) -> Option<Self> {
-		let session = session_window.session_info(session_index)?;
-		let controlled_indices = find_controlled_validator_indices(keystore, &session.validators);
-		Some(Self { session_index, session, controlled_indices })
+		relay_parent: Hash,
+	) -> Option<CandidateEnvironment<'a>> {
+		let session_info = match runtime_info
+			.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
+			.await
+		{
+			Ok(extended_session_info) => &extended_session_info.session_info,
+			Err(_) => return None,
+		};
+
+		let controlled_indices =
+			find_controlled_validator_indices(keystore, &session_info.validators);
+		Some(Self { session_index, session: session_info, controlled_indices })
 	}
 
 	/// Validators in the candidate's session.
