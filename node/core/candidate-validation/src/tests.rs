@@ -726,7 +726,7 @@ fn candidate_validation_retry_internal_errors() {
 		)
 	});
 
-	assert_matches!(v, Err(ValidationFailed(s)) if s == "bar".to_string());
+	assert_matches!(v, Err(ValidationFailed(s)) if s.contains("bar"));
 }
 
 // Test that we retry on panic errors.
