@@ -258,14 +258,10 @@ pub mod thread {
 	}
 
 	/// Block the thread while it waits on the condvar or on a timeout. If the timeout is hit,
-	/// returns `None`. The signature is different than [`wait_for_threads`] because this is
-	/// expected to be called in a loop, where we can't take ownership of a `Cond`.
+	/// returns `None`.
 	#[cfg_attr(not(any(target_os = "linux", feature = "jemalloc-allocator")), allow(dead_code))]
-	pub fn wait_for_threads_with_timeout(
-		lock: &Mutex<WaitOutcome>,
-		cvar: &Condvar,
-		dur: Duration,
-	) -> Option<WaitOutcome> {
+	pub fn wait_for_threads_with_timeout(cond: &Cond, dur: Duration) -> Option<WaitOutcome> {
+		let (lock, cvar) = &**cond;
 		let result = cvar
 			.wait_timeout_while(lock.lock().unwrap(), dur, |flag| flag.is_pending())
 			.unwrap();
