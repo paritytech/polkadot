@@ -102,14 +102,14 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 
 			let preparation_timeout = pvf.prep_timeout();
 
-			// Run the memory tracker.
-			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-			let (memory_tracker_tx, memory_tracker_rx) = channel::<()>();
-			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-			let memory_tracker_thread = thread::spawn(move || memory_tracker_loop(memory_tracker_rx));
-
 			// Conditional variable to notify us when a thread is done.
 			let condvar = thread::get_condvar();
+
+			// Run the memory tracker in a regular, non-worker thread.
+			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+			let memory_tracker_condvar = Arc::clone(&condvar);
+			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+			let memory_tracker_thread = std::thread::spawn(|| memory_tracker_loop(memory_tracker_condvar));
 
 			let cpu_time_start = ProcessTime::now();
 
@@ -160,12 +160,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 
 							// Stop the memory stats worker and get its observed memory stats.
 							#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-							let memory_tracker_stats = get_memory_tracker_loop_stats(
-								memory_tracker_thread,
-								memory_tracker_tx,
-								worker_pid,
-							)
-							.await;
+							let memory_tracker_stats = get_memory_tracker_loop_stats(memory_tracker_thread, worker_pid).await;
 							let memory_stats = MemoryStats {
 								#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 								memory_tracker_stats,

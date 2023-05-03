@@ -177,14 +177,14 @@ pub mod thread {
 	}
 
 	/// Helper type.
-	type Cond = Arc<(Mutex<WaitOutcome>, Condvar)>;
+	pub type Cond = Arc<(Mutex<WaitOutcome>, Condvar)>;
 
 	/// Gets a condvar initialized to `Pending`.
 	pub fn get_condvar() -> Cond {
 		Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()))
 	}
 
-	/// Runs a thread, afterwards notifying the thread waiting on the condvar. Catches panics and
+	/// Runs a thread, afterwards notifying the threads waiting on the condvar. Catches panics and
 	/// resumes them after triggering the condvar, so that the waiting thread is notified on panics.
 	pub fn spawn_worker_thread<F, R>(
 		name: &str,
@@ -221,7 +221,7 @@ pub mod thread {
 			.spawn(move || cond_notify_on_done(f, cond, outcome))
 	}
 
-	/// Runs a function, afterwards notifying the thread waiting on the condvar. Catches panics and
+	/// Runs a function, afterwards notifying the threads waiting on the condvar. Catches panics and
 	/// resumes them after triggering the condvar, so that the waiting thread is notified on panics.
 	fn cond_notify_on_done<F, R>(f: F, cond: Cond, outcome: WaitOutcome) -> R
 	where
@@ -229,29 +229,37 @@ pub mod thread {
 		F: panic::UnwindSafe,
 	{
 		let result = panic::catch_unwind(|| f());
-		cond_notify_one(cond, outcome);
+		cond_notify_all(cond, outcome);
 		match result {
 			Ok(inner) => return inner,
 			Err(err) => panic::resume_unwind(err),
 		}
 	}
 
-	/// Helper function to notify the thread waiting on this condvar.
-	fn cond_notify_one(cond: Cond, outcome: WaitOutcome) {
+	/// Helper function to notify all threads waiting on this condvar.
+	fn cond_notify_all(cond: Cond, outcome: WaitOutcome) {
 		let (lock, cvar) = &*cond;
-		let mut flag = lock.lock().unwrap();
+		let mut flag = lock
+			.lock()
+			.expect("only panics if the lock is already held by the current thread; qed");
 		if !flag.is_pending() {
 			// Someone else already triggered the condvar.
 			return
 		}
 		*flag = outcome;
-		cvar.notify_one();
+		cvar.notify_all();
 	}
 
 	/// Block the thread while it waits on the condvar.
 	pub fn wait_for_threads(cond: Cond) -> WaitOutcome {
 		let (lock, cvar) = &*cond;
-		let guard = cvar.wait_while(lock.lock().unwrap(), |flag| flag.is_pending()).unwrap();
+		let guard = cvar
+			.wait_while(
+				lock.lock()
+					.expect("only panics if the lock is already held by the current thread; qed"),
+				|flag| flag.is_pending(),
+			)
+			.unwrap();
 		*guard
 	}
 }
