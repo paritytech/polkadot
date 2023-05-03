@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -158,13 +158,11 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		// We then send a normal message to the bridge asking it to export the prepended
 		// message to the remote chain. This will only work if the bridge will do the message
 		// export for free. Common-good chains will typically be afforded this.
-		let message =
-			Xcm(vec![ExportMessage { network: remote_network, destination: remote_location, xcm }]);
-		let (v, mut cost) = validate_send::<Router>(bridge, message)?;
-		if let Some(payment) = maybe_payment {
-			cost.push(payment);
-		}
-		Ok((v, cost))
+		let message = Xcm(vec![
+			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			ExportMessage { network: remote_network, destination: remote_location, xcm },
+		]);
+		validate_send::<Router>(bridge, message)
 	}
 
 	fn deliver(validation: Router::Ticket) -> Result<XcmHash, SendError> {
