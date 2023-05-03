@@ -640,7 +640,15 @@ where
 	}
 
 	match result {
-		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e.to_string())),
+		Err(ValidationError::InternalError(e)) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				?para_id,
+				?e,
+				"An internal error occurred during validation, will abstain from voting",
+			);
+			Err(ValidationFailed(e.to_string()))
+		},
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
