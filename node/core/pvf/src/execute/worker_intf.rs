@@ -18,6 +18,7 @@
 
 use crate::{
 	artifacts::ArtifactPathId,
+	error::InternalValidationError,
 	worker_common::{
 		framed_recv, framed_send, path_to_bytes, spawn_with_program_path, IdleWorker, SpawnErr,
 		WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
@@ -76,9 +77,9 @@ pub enum Outcome {
 	/// An internal error happened during the validation. Such an error is most likely related to
 	/// some transient glitch.
 	///
-	/// Should only ever be used for errors independent of the candidate. Therefore it may be a problem with the worker,
-	/// so we terminate it.
-	InternalError { err: String },
+	/// Should only ever be used for errors independent of the candidate and PVF. Therefore it may
+	/// be a problem with the worker, so we terminate it.
+	InternalError { err: InternalValidationError },
 	/// The execution time exceeded the hard limit. The worker is terminated.
 	HardTimeout,
 	/// An I/O error happened during communication with the worker. This may mean that the worker
@@ -233,9 +234,7 @@ pub enum Response {
 	/// An unexpected panic has occurred in the execution worker.
 	Panic(String),
 	/// Some internal error occurred.
-	///
-	/// Should only ever be used for errors independent of the candidate.
-	InternalError(String),
+	InternalError(InternalValidationError),
 }
 
 impl Response {
@@ -245,14 +244,6 @@ impl Response {
 			Self::InvalidCandidate(ctx.to_string())
 		} else {
 			Self::InvalidCandidate(format!("{}: {}", ctx, msg))
-		}
-	}
-	/// Creates an internal response from a context `ctx` and a message `msg` (which can be empty).
-	pub fn format_internal(ctx: &'static str, msg: &str) -> Self {
-		if msg.is_empty() {
-			Self::InternalError(ctx.to_string())
-		} else {
-			Self::InternalError(format!("{}: {}", ctx, msg))
 		}
 	}
 }

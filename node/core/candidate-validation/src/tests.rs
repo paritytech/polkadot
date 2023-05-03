@@ -711,11 +711,11 @@ fn candidate_validation_retry_internal_errors() {
 		validate_candidate_exhaustive(
 			ctx.sender(),
 			MockValidateCandidateBackend::with_hardcoded_result_list(vec![
-				Err(ValidationError::InternalError("foo".into())),
+				Err(InternalValidationError::HostCommunication("foo".into()).into()),
 				// Throw an AWD error, we should still retry again.
 				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
 				// Throw another internal error.
-				Err(ValidationError::InternalError("bar".into())),
+				Err(InternalValidationError::HostCommunication("bar".into()).into()),
 			]),
 			validation_data,
 			validation_code,

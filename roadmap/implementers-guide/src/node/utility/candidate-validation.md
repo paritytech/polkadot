@@ -82,7 +82,7 @@ execution request:
 2. **Artifact missing:** The prepared artifact might have been deleted due to
    operator error or some bug in the system.
 3. **Panic:** The worker thread panicked for some indeterminate reason, which
-   may or may not be independent of the candidate.
+   may or may not be independent of the candidate or PVF.
 
 #### Preparation timeouts
 
@@ -111,7 +111,8 @@ In general, for errors not raising a dispute we have to be very careful. This is
 only sound, if we either:
 
 1. Ruled out that error in pre-checking. If something is not checked in
-   pre-checking, even if independent of the candidate we must raise a dispute.
+   pre-checking, even if independent of the candidate and PVF, we must raise a
+   dispute.
 2. We are 100% confident that it is a hardware/local issue: Like corrupted file,
    etc.
 

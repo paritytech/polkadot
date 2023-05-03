@@ -78,9 +78,11 @@ impl fmt::Display for PrepareError {
 #[derive(Debug, Clone)]
 pub enum ValidationError {
 	/// The error was raised because the candidate is invalid.
+	///
+	/// Whenever we are unsure if the error was due to the candidate or not, we must vote invalid.
 	InvalidCandidate(InvalidCandidate),
-	/// This error is raised due to inability to serve the request.
-	InternalError(String),
+	/// Some internal error occurred.
+	InternalError(InternalValidationError),
 }
 
 /// A description of an error raised during executing a PVF and can be attributed to the combination
@@ -120,14 +122,51 @@ pub enum InvalidCandidate {
 	Panic(String),
 }
 
+/// Some internal error occurred.
+///
+/// Should only ever be used for validation errors independent of the candidate and PVF, or for errors we ruled out
+/// during pre-checking (so preparation errors are fine).
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum InternalValidationError {
+	/// Some communication error occurred with the host.
+	HostCommunication(String),
+	/// Could not find or open compiled artifact file.
+	CouldNotOpenFile(String),
+	/// An error occurred in the CPU time monitor thread. Should be totally unrelated to validation.
+	CpuTimeMonitorThread(String),
+	/// Some non-deterministic preparation error occurred.
+	PrepareError(PrepareError),
+}
+
+impl fmt::Display for InternalValidationError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		use InternalValidationError::*;
+		match self {
+			HostCommunication(err) =>
+				write!(f, "validation: some communication error occurred with the host: {}", err),
+			CouldNotOpenFile(err) =>
+				write!(f, "validation: could not find or open compiled artifact file: {}", err),
+			CpuTimeMonitorThread(err) =>
+				write!(f, "validation: an error occurred in the CPU time monitor thread: {}", err),
+			PrepareError(err) => write!(f, "validation: prepare: {}", err),
+		}
+	}
+}
+
+impl From<InternalValidationError> for ValidationError {
+	fn from(error: InternalValidationError) -> Self {
+		Self::InternalError(error)
+	}
+}
+
 impl From<PrepareError> for ValidationError {
 	fn from(error: PrepareError) -> Self {
 		// Here we need to classify the errors into two errors: deterministic and non-deterministic.
 		// See [`PrepareError::is_deterministic`].
 		if error.is_deterministic() {
-			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
+			Self::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
 		} else {
-			ValidationError::InternalError(error.to_string())
+			Self::InternalError(InternalValidationError::PrepareError(error))
 		}
 	}
 }

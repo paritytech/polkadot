@@ -27,6 +27,7 @@ use cpu_time::ProcessTime;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_core_pvf::{
 	framed_recv, framed_send, ExecuteHandshake as Handshake, ExecuteResponse as Response,
+	InternalValidationError,
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
@@ -149,16 +150,14 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							);
 							Response::TimedOut
 						},
-						Ok(None) => Response::format_internal(
-							"cpu time monitor thread error",
-							"error communicating over finished channel".into(),
-						),
-						// We can use an internal error here because errors in this thread are
-						// independent of the candidate.
-						Err(e) => Response::format_internal(
-							"cpu time monitor thread error",
-							&stringify_panic_payload(e),
-						),
+						Ok(None) =>
+							Response::InternalError(InternalValidationError::CpuTimeMonitorThread(
+								"error communicating over finished channel".into(),
+							)),
+						Err(e) =>
+							Response::InternalError(InternalValidationError::CpuTimeMonitorThread(
+								stringify_panic_payload(e),
+							)),
 					}
 				},
 				WaitOutcome::Pending =>
@@ -180,7 +179,7 @@ fn validate_using_artifact(
 	// TODO: Re-evaluate after <https://github.com/paritytech/substrate/issues/13860>.
 	let file_metadata = std::fs::metadata(artifact_path);
 	if let Err(err) = file_metadata {
-		return Response::format_internal("execute: could not find or open file", &err.to_string())
+		return Response::InternalError(InternalValidationError::CouldNotOpenFile(err.to_string()))
 	}
 
 	let descriptor_bytes = match unsafe {

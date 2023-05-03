@@ -24,8 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats, PvfPrepData,
-	ValidationError, ValidationHost,
+	InternalValidationError, InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats,
+	PvfPrepData, ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -640,7 +640,7 @@ where
 	}
 
 	match result {
-		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e)),
+		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e.to_string())),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
@@ -798,14 +798,18 @@ impl ValidationBackend for ValidationHost {
 
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self.execute_pvf(pvf, exec_timeout, encoded_params, priority, tx).await {
-			return Err(ValidationError::InternalError(format!(
-				"cannot send pvf to the validation host: {:?}",
+			return Err(InternalValidationError::HostCommunication(format!(
+				"cannot send pvf to the validation host, it might have shut down: {:?}",
 				err
-			)))
+			))
+			.into())
 		}
 
-		rx.await
-			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
+		rx.await.map_err(|_| {
+			ValidationError::from(InternalValidationError::HostCommunication(
+				"validation was cancelled".into(),
+			))
+		})?
 	}
 
 	async fn precheck_pvf(&mut self, pvf: PvfPrepData) -> Result<PrepareStats, PrepareError> {
