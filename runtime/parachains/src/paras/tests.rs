@@ -55,6 +55,22 @@ fn sign_and_include_pvf_check_statement(stmt: PvfCheckStatement) {
 	Paras::include_pvf_check_statement(None.into(), stmt, signature.into()).unwrap();
 }
 
+fn submit_super_majority_pvf_votes(
+	validation_code: &ValidationCode,
+	session_index: SessionIndex,
+	accept: bool,
+) {
+	[0, 1, 2, 3]
+		.into_iter()
+		.map(|i| PvfCheckStatement {
+			accept,
+			subject: validation_code.hash(),
+			session_index,
+			validator_index: i.into(),
+		})
+		.for_each(sign_and_include_pvf_check_statement);
+}
+
 fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in VALIDATORS.iter() {
@@ -431,14 +447,7 @@ fn code_upgrade_applied_after_delay() {
 			let next_possible_upgrade_at = 1 + validation_upgrade_cooldown;
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
 			// Include votes for super-majority.
-			IntoIterator::into_iter([0, 1, 2, 3])
-				.map(|i| PvfCheckStatement {
-					accept: true,
-					subject: new_code.hash(),
-					session_index: EXPECTED_SESSION,
-					validator_index: i.into(),
-				})
-				.for_each(sign_and_include_pvf_check_statement);
+			submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
 
 			Paras::note_new_head(para_id, Default::default(), 1);
 
@@ -538,14 +547,7 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 			let next_possible_upgrade_at = 1 + validation_upgrade_cooldown;
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
 			// Include votes for super-majority.
-			IntoIterator::into_iter([0, 1, 2, 3])
-				.map(|i| PvfCheckStatement {
-					accept: true,
-					subject: new_code.hash(),
-					session_index: EXPECTED_SESSION,
-					validator_index: i.into(),
-				})
-				.for_each(sign_and_include_pvf_check_statement);
+			submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
 
 			Paras::note_new_head(para_id, Default::default(), 1);
 
@@ -625,14 +627,7 @@ fn submit_code_change_when_not_allowed_is_err() {
 
 		Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
 		// Include votes for super-majority.
-		IntoIterator::into_iter([0, 1, 2, 3])
-			.map(|i| PvfCheckStatement {
-				accept: true,
-				subject: new_code.hash(),
-				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
-			})
-			.for_each(sign_and_include_pvf_check_statement);
+		submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
 
 		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(1 + validation_upgrade_delay));
 		assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
@@ -703,14 +698,7 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 
 		Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
 		// Include votes for super-majority.
-		IntoIterator::into_iter([0, 1, 2, 3])
-			.map(|i| PvfCheckStatement {
-				accept: true,
-				subject: new_code.hash(),
-				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
-			})
-			.for_each(sign_and_include_pvf_check_statement);
+		submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
 
 		Paras::note_new_head(para_id, dummy_head_data(), 0);
 		assert_eq!(
@@ -784,14 +772,7 @@ fn full_parachain_cleanup_storage() {
 			let expected_at = 1 + validation_upgrade_delay;
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
 			// Include votes for super-majority.
-			IntoIterator::into_iter([0, 1, 2, 3])
-				.map(|i| PvfCheckStatement {
-					accept: true,
-					subject: new_code.hash(),
-					session_index: EXPECTED_SESSION,
-					validator_index: i.into(),
-				})
-				.for_each(sign_and_include_pvf_check_statement);
+			submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
 
 			Paras::note_new_head(para_id, Default::default(), 1);
 
@@ -895,14 +876,7 @@ fn cannot_offboard_ongoing_pvf_check() {
 		assert_err!(Paras::schedule_para_cleanup(para_id), Error::<Test>::CannotOffboard);
 
 		// Include votes for super-majority.
-		IntoIterator::into_iter([0, 1, 2, 3])
-			.map(|i| PvfCheckStatement {
-				accept: true,
-				subject: new_code.hash(),
-				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
-			})
-			.for_each(sign_and_include_pvf_check_statement);
+		submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
 
 		// Voting concluded, can offboard even though an upgrade is in progress.
 		assert_ok!(Paras::schedule_para_cleanup(para_id));
@@ -1057,14 +1031,7 @@ fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 		let new_code: ValidationCode = vec![4, 5, 6].into();
 		Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
 		// Include votes for super-majority.
-		IntoIterator::into_iter([0, 1, 2, 3])
-			.map(|i| PvfCheckStatement {
-				accept: true,
-				subject: new_code.hash(),
-				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
-			})
-			.for_each(sign_and_include_pvf_check_statement);
+		submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
 
 		// The new validation code can be applied but a new parablock hasn't gotten in yet,
 		// so the old code should still be current.
@@ -1179,14 +1146,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 		assert!(!Paras::pvfs_require_precheck().is_empty());
 
 		// Supermajority of validators vote for `validation_code`. It should be approved.
-		IntoIterator::into_iter([0, 1, 2, 3])
-			.map(|i| PvfCheckStatement {
-				accept: true,
-				subject: validation_code.hash(),
-				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
-			})
-			.for_each(sign_and_include_pvf_check_statement);
+		submit_super_majority_pvf_votes(&validation_code, EXPECTED_SESSION, true);
 
 		// Check that `b` actually onboards.
 		assert_eq!(ActionsQueue::<Test>::get(EXPECTED_SESSION + 2), vec![b]);
