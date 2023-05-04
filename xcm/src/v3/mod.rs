@@ -34,14 +34,12 @@ use scale_info::TypeInfo;
 
 mod junction;
 pub(crate) mod junctions;
-mod matcher;
 mod multiasset;
 mod multilocation;
 mod traits;
 
 pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use junctions::Junctions;
-pub use matcher::Matcher;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
