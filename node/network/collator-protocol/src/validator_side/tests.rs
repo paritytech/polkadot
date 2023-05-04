@@ -33,8 +33,8 @@ use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeA
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{
-	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
-	ValidatorId, ValidatorIndex,
+	vstaging::CollatorRestrictions, CollatorPair, CoreState, GroupIndex, GroupRotationInfo,
+	OccupiedCore, ScheduledCore, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,
@@ -82,7 +82,10 @@ impl Default for TestState {
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 1, now: 0 };
 
 		let cores = vec![
-			CoreState::Scheduled(ScheduledCore { para_id: chain_ids[0], collator: None }),
+			CoreState::Scheduled(ScheduledCore {
+				para_id: chain_ids[0],
+				collator_restrictions: CollatorRestrictions::none(),
+			}),
 			CoreState::Free,
 			CoreState::Occupied(OccupiedCore {
 				next_up_on_available: None,

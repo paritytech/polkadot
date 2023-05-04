@@ -97,7 +97,7 @@ impl Default for TestState {
 		let group_rotation_info =
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
 
-		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
+		let _thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 		let availability_cores = vec![
 			CoreState::Scheduled(ScheduledCore {
 				para_id: chain_a,
