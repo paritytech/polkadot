@@ -364,7 +364,7 @@ async fn handle_active_leaves_update<Context>(
 
 	let table_context = TableContext { groups, validators, validator };
 
-	let (assignment, collator_restrictions) = match assignment {
+	let (assignment, _collator_restrictions) = match assignment {
 		None => {
 			assignments_span.add_string_tag("assigned", "false");
 			// Is CollatorRestrictions::none() here correct?
@@ -383,7 +383,7 @@ async fn handle_active_leaves_update<Context>(
 	let job = CandidateBackingJob {
 		parent,
 		assignment,
-		collator_restrictions,
+		//collator_restrictions,
 		issued_statements: HashSet::new(),
 		awaiting_validation: HashSet::new(),
 		fallbacks: HashMap::new(),
@@ -414,8 +414,8 @@ struct CandidateBackingJob<Context> {
 	parent: Hash,
 	/// The `ParaId` assigned to this validator
 	assignment: Option<ParaId>,
-	/// The collator restrictions for authoring the candidate.
-	collator_restrictions: CollatorRestrictions,
+	// /// The collator restrictions for authoring the candidate.
+	// collator_restrictions: CollatorRestrictions,
 	/// Spans for all candidates that are not yet backable.
 	unbacked_candidates: HashMap<CandidateHash, jaeger::Span>,
 	/// We issued `Seconded`, `Valid` or `Invalid` statements on about these candidates.
