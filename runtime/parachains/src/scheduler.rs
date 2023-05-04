@@ -42,7 +42,7 @@ use primitives::{
 };
 use sp_runtime::traits::{One, Saturating};
 use sp_std::{
-	collections::{btree_map::BTreeMap, vec_deque::VecDeque},
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet, vec_deque::VecDeque},
 	prelude::*,
 };
 
@@ -243,27 +243,33 @@ impl<T: Config> Pallet<T> {
 		let mut availability_cores = AvailabilityCores::<T>::get();
 
 		let pos_mapping: BTreeMap<CoreIndex, PositionInClaimqueue> = now_occupied
-			.into_iter()
-			.flat_map(|(core_idx, para_id)| match Self::remove_from_claimqueue(core_idx, para_id) {
-				Err(e) => {
-					log::debug!(
-						target: LOG_TARGET,
-						"[occupied] error on remove_from_claimqueue {}",
-						e
-					);
-					None
-				},
-				Ok((pos_in_claimqueue, pe)) => {
-					// is this correct?
-					availability_cores[core_idx.0 as usize] = CoreOccupied::Paras(pe);
+			.iter()
+			.flat_map(|(core_idx, para_id)| {
+				match Self::remove_from_claimqueue(*core_idx, *para_id) {
+					Err(e) => {
+						log::debug!(
+							target: LOG_TARGET,
+							"[occupied] error on remove_from_claimqueue {}",
+							e
+						);
+						None
+					},
+					Ok((pos_in_claimqueue, pe)) => {
+						// is this correct?
+						availability_cores[core_idx.0 as usize] = CoreOccupied::Paras(pe);
 
-					Some((core_idx, pos_in_claimqueue))
-				},
+						Some((*core_idx, pos_in_claimqueue))
+					},
+				}
 			})
 			.collect();
 
 		// For now, we drop the first entry of the claimqueue for each CoreIndex that did not get occupied
-		for core_idx in pos_mapping.iter().map(|(core_idx, _)| core_idx) {
+		let occupied_cores = now_occupied.into_keys().collect();
+		let all_cores: BTreeSet<CoreIndex> =
+			(0..availability_cores.len() as u32).map(CoreIndex::from).collect();
+		let cores_not_occupied = all_cores.difference(&occupied_cores);
+		for core_idx in cores_not_occupied {
 			Self::drop_claimqueue_front_for_unoccupied_core(core_idx);
 		}
 
