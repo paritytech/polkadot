@@ -210,7 +210,8 @@ pub fn node_config(
 		max_runtime_instances: 8,
 		runtime_cache_size: 2,
 		announce_block: true,
-		base_path: Some(base_path),
+		data_path: root,
+		base_path,
 		informant_output_format: Default::default(),
 	}
 }
