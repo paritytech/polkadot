@@ -149,6 +149,8 @@ zombienet-test-parachains-upgrade-smoke-test:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
       --github-remote-dir="${GH_DIR}"
       --test="0002-parachains-upgrade-smoke-test.zndsl"
+  # TODO: This is a temporarily fix to allow this job to fail
+  # https://github.com/paritytech/polkadot/issues/7177
   allow_failure: true
   retry: 2
   tags:
