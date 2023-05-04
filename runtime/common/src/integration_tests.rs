@@ -1074,6 +1074,13 @@ fn parachain_swap_works() {
 			ParaId::from(2001),
 			ParaId::from(2000)
 		));
+		assert!(contains_event(
+			paras_registrar::Event::<Test>::Swapped {
+				para_id: ParaId::from(2001),
+				other_id: ParaId::from(2000)
+			}
+			.into()
+		));
 
 		// Crowdloan Swapped
 		let fund_2000 = Crowdloan::funds(ParaId::from(2000)).unwrap();
