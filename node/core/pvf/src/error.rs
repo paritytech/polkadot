@@ -135,7 +135,7 @@ pub enum InternalValidationError {
 	/// An error occurred in the CPU time monitor thread. Should be totally unrelated to validation.
 	CpuTimeMonitorThread(String),
 	/// Some non-deterministic preparation error occurred.
-	PrepareError(PrepareError),
+	NonDeterministicPrepareError(PrepareError),
 }
 
 impl fmt::Display for InternalValidationError {
@@ -148,7 +148,7 @@ impl fmt::Display for InternalValidationError {
 				write!(f, "validation: could not find or open compiled artifact file: {}", err),
 			CpuTimeMonitorThread(err) =>
 				write!(f, "validation: an error occurred in the CPU time monitor thread: {}", err),
-			PrepareError(err) => write!(f, "validation: prepare: {}", err),
+			NonDeterministicPrepareError(err) => write!(f, "validation: prepare: {}", err),
 		}
 	}
 }
@@ -166,7 +166,7 @@ impl From<PrepareError> for ValidationError {
 		if error.is_deterministic() {
 			Self::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
 		} else {
-			Self::InternalError(InternalValidationError::PrepareError(error))
+			Self::InternalError(InternalValidationError::NonDeterministicPrepareError(error))
 		}
 	}
 }
