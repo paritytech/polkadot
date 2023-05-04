@@ -1498,7 +1498,7 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (scheduler::migration::v1::MigrateToV1<Runtime>);
+	pub type Unreleased = scheduler::migration::v1::MigrateToV1<Runtime>;
 }
 
 /// Executive: handles dispatch to the various modules.

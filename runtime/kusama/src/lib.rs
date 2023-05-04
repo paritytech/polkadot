@@ -1488,7 +1488,7 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (scheduler::migration::v1::MigrateToV1<Runtime>);
+	pub type Unreleased = scheduler::migration::v1::MigrateToV1<Runtime>;
 }
 
 /// Unchecked extrinsic type as expected by this runtime.
