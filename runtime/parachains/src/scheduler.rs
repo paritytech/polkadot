@@ -605,8 +605,6 @@ impl<T: Config> Pallet<T> {
 
 	#[cfg(test)]
 	pub(crate) fn claimqueue_contains_para_ids(pids: Vec<ParaId>) -> bool {
-		use sp_std::collections::btree_set::BTreeSet;
-
 		let set: BTreeSet<ParaId> = ClaimQueue::<T>::get()
 			.into_iter()
 			.flat_map(|(_, assignments)| {
