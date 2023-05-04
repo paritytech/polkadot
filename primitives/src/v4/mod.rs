@@ -797,19 +797,24 @@ pub struct ParathreadEntry {
 	pub retries: u32,
 }
 
+/// An Assignemnt for a paras going to produce a paras block.
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct Assignment {
+	/// Assignment's ParaId
 	pub para_id: Id,
+	/// Assignment's CollatorRestrictions
 	pub collator_restrictions: CollatorRestrictions,
 }
 
 impl Assignment {
+	/// Create a new `Assignment`.
 	pub fn new(para_id: Id, collator_restrictions: CollatorRestrictions) -> Self {
 		Assignment { para_id, collator_restrictions }
 	}
 }
 
+/// Restrictions on collators for a specific paras block.
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct CollatorRestrictions {
@@ -871,14 +876,17 @@ impl From<Assignment> for ParasEntry {
 }
 
 impl ParasEntry {
+	/// Create a new `ParasEntry`.
 	pub fn new(assignment: Assignment) -> Self {
 		ParasEntry { assignment, retries: 0 }
 	}
 
+	/// Return `Id` from the underlying `Assignment`.
 	pub fn para_id(&self) -> Id {
 		self.assignment.para_id
 	}
 
+	/// Return `CollatorRestrictions` from the underlying `Assignment`.
 	pub fn collator_restrictions(&self) -> &CollatorRestrictions {
 		&self.assignment.collator_restrictions
 	}
