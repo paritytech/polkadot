@@ -17,7 +17,7 @@
 use super::*;
 use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use bitvec::bitvec;
-use polkadot_primitives::{CollatorRestrictions, OccupiedCore, ScheduledCore};
+use polkadot_primitives::{vstaging::CollatorRestrictions, OccupiedCore, ScheduledCore};
 
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
@@ -57,7 +57,7 @@ pub fn scheduled_core(id: u32) -> ScheduledCore {
 mod select_availability_bitfields {
 	use super::{super::*, default_bitvec, occupied_core};
 	use polkadot_primitives::{
-		CollatorRestrictions, ScheduledCore, SigningContext, ValidatorId, ValidatorIndex,
+		vstaging::CollatorRestrictions, ScheduledCore, SigningContext, ValidatorId, ValidatorIndex,
 	};
 	use sp_application_crypto::AppCrypto;
 	use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};

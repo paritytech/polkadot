@@ -31,7 +31,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::{
-	CandidateDescriptor, CollatorId, CollatorRestrictions, GroupRotationInfo, HeadData,
+	vstaging::CollatorRestrictions, CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData,
 	PersistedValidationData, PvfExecTimeoutKind, ScheduledCore,
 };
 use sp_application_crypto::AppCrypto;
