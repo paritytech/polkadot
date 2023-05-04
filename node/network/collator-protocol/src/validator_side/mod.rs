@@ -23,7 +23,6 @@ use futures::{
 	FutureExt, StreamExt,
 };
 use futures_timer::Delay;
-use sp_core::OpaquePeerId;
 use std::{
 	collections::{hash_map::Entry, HashMap, HashSet},
 	sync::Arc,
@@ -659,11 +658,8 @@ async fn can_collate(
 
 	for core in cores {
 		match core {
-			CoreState::Scheduled(sc) if sc.para_id == *para_id => {
-				let op_peer_id = OpaquePeerId::new(peer_id.to_bytes());
-
-				return sc.collator_restrictions.can_collate(&op_peer_id)
-			},
+			CoreState::Scheduled(sc) if sc.para_id == *para_id =>
+				return sc.collator_restrictions.can_collate(peer_id),
 			CoreState::Scheduled(_) | CoreState::Occupied(_) | CoreState::Free => continue,
 		}
 	}

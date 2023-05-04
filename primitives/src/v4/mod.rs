@@ -51,6 +51,9 @@ pub use polkadot_parachain::primitives::{
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "std")]
+use sc_network::PeerId;
+
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 pub use sp_consensus_slots::Slot;
 pub use sp_staking::SessionIndex;
@@ -842,10 +845,14 @@ impl CollatorRestrictions {
 	}
 
 	/// Is peer_id allowed to collate?
-	pub fn can_collate(&self, peer_id: &OpaquePeerId) -> bool {
+	#[cfg(feature = "std")]
+	pub fn can_collate(&self, peer_id: &PeerId) -> bool {
 		match self.restriction_kind {
 			CollatorRestrictionKind::Preferred => true,
-			CollatorRestrictionKind::Required => self.collator_peer_ids.contains(peer_id),
+			CollatorRestrictionKind::Required => {
+				let peer_id = OpaquePeerId(peer_id.to_bytes());
+				self.collator_peer_ids.contains(&peer_id)
+			},
 		}
 	}
 }
