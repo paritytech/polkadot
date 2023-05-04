@@ -44,8 +44,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{
-	AuthorityDiscoveryId, CollatorPair, GroupIndex, GroupRotationInfo, IndexedVec, ScheduledCore,
-	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, CollatorPair, CollatorRestrictions, GroupIndex, GroupRotationInfo,
+	IndexedVec, ScheduledCore, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
 
@@ -95,8 +95,13 @@ impl Default for TestState {
 		let group_rotation_info =
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
 
-		let availability_cores =
-			vec![CoreState::Scheduled(ScheduledCore { para_id, collator: None }), CoreState::Free];
+		let availability_cores = vec![
+			CoreState::Scheduled(ScheduledCore {
+				para_id,
+				collator_restrictions: CollatorRestrictions::none(),
+			}),
+			CoreState::Free,
+		];
 
 		let relay_parent = Hash::random();
 

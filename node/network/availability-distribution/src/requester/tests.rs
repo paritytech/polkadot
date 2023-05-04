@@ -24,8 +24,8 @@ use polkadot_node_network_protocol::jaeger;
 use polkadot_node_primitives::{BlockData, ErasureChunk, PoV};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
-	BlockNumber, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionIndex,
-	SessionInfo,
+	BlockNumber, CollatorRestrictions, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore,
+	SessionIndex, SessionInfo,
 };
 use sp_core::traits::SpawnNamed;
 
@@ -129,7 +129,7 @@ fn spawn_virtual_overseer(
 										let core = if block_num == 0 {
 											CoreState::Scheduled(ScheduledCore {
 												para_id,
-												collator: None,
+												collator_restrictions: CollatorRestrictions::none(),
 											})
 										} else {
 											CoreState::Occupied(
