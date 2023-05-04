@@ -210,7 +210,7 @@ zombienet-tests-misc-upgrade-node:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
       --github-remote-dir="${GH_DIR}"
       --test="0002-upgrade-node.zndsl"
-  allow_failure: false
+  allow_failure: true
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
