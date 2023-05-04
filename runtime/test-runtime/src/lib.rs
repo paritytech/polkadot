@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -542,7 +542,7 @@ impl pallet_test_notifier::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 }
 
-#[frame_support::pallet]
+#[frame_support::pallet(dev_mode)]
 pub mod pallet_test_notifier {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
@@ -671,7 +671,7 @@ construct_runtime! {
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
-		Dmp: parachains_dmp::{Pallet, Call, Storage},
+		Dmp: parachains_dmp::{Pallet, Storage},
 		Xcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 

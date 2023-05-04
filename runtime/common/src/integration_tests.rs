@@ -1,4 +1,4 @@
-// Copyright 2019-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -1073,6 +1073,13 @@ fn parachain_swap_works() {
 			para_origin(2001).into(),
 			ParaId::from(2001),
 			ParaId::from(2000)
+		));
+		assert!(contains_event(
+			paras_registrar::Event::<Test>::Swapped {
+				para_id: ParaId::from(2001),
+				other_id: ParaId::from(2000)
+			}
+			.into()
 		));
 
 		// Crowdloan Swapped

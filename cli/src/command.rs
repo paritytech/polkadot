@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -495,7 +495,7 @@ pub fn run() -> Result<()> {
 
 			#[cfg(not(target_os = "android"))]
 			{
-				polkadot_node_core_pvf::prepare_worker_entrypoint(
+				polkadot_node_core_pvf_worker::prepare_worker_entrypoint(
 					&cmd.socket_path,
 					Some(&cmd.node_impl_version),
 				);
@@ -517,7 +517,7 @@ pub fn run() -> Result<()> {
 
 			#[cfg(not(target_os = "android"))]
 			{
-				polkadot_node_core_pvf::execute_worker_entrypoint(
+				polkadot_node_core_pvf_worker::execute_worker_entrypoint(
 					&cmd.socket_path,
 					Some(&cmd.node_impl_version),
 				);

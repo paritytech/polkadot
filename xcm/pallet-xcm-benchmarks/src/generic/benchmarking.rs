@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -482,9 +482,9 @@ benchmarks! {
 	}
 
 	universal_origin {
-		let alias = T::universal_alias().map_err(|_| BenchmarkError::Skip)?;
+		let (origin, alias) = T::universal_alias().map_err(|_| BenchmarkError::Skip)?;
 
-		let mut executor = new_executor::<T>(Here.into_location());
+		let mut executor = new_executor::<T>(origin);
 
 		let instruction = Instruction::UniversalOrigin(alias.clone());
 		let xcm = Xcm(vec![instruction]);
