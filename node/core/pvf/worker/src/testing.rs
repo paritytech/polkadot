@@ -21,10 +21,6 @@
 
 use polkadot_primitives::ExecutorParams;
 
-pub mod worker_common {
-	pub use crate::worker_common::{spawn_with_program_path, SpawnErr};
-}
-
 /// A function that emulates the stitches together behaviors of the preparation and the execution
 /// worker in a single synchronous function.
 pub fn validate_candidate(

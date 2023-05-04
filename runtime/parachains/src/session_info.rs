@@ -27,9 +27,7 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
-use primitives::{
-	AssignmentId, AuthorityDiscoveryId, ExecutorParam, ExecutorParams, SessionIndex, SessionInfo,
-};
+use primitives::{AssignmentId, AuthorityDiscoveryId, ExecutorParams, SessionIndex, SessionInfo};
 use sp_std::vec::Vec;
 
 pub use pallet::*;
@@ -38,10 +36,6 @@ pub mod migration;
 
 #[cfg(test)]
 mod tests;
-
-// The order of parameters should be deterministic, that is, one should not reorder them when
-// changing the array contents to avoid creating excessive pressure to PVF execution subsys.
-const EXECUTOR_PARAMS: [ExecutorParam; 0] = [];
 
 /// A type for representing the validator account id in a session.
 pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<
@@ -196,10 +190,8 @@ impl<T: Config> Pallet<T> {
 			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
-		SessionExecutorParams::<T>::insert(
-			&new_session_index,
-			ExecutorParams::from(&EXECUTOR_PARAMS[..]),
-		);
+
+		SessionExecutorParams::<T>::insert(&new_session_index, config.executor_params);
 	}
 
 	/// Called by the initializer to initialize the session info pallet.

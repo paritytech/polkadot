@@ -33,7 +33,7 @@ const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 const TEST_PREPARATION_TIMEOUT: Duration = Duration::from_secs(3);
 
 struct TestHost {
-	_cache_dir: tempfile::TempDir,
+	cache_dir: tempfile::TempDir,
 	host: Mutex<ValidationHost>,
 }
 
@@ -52,7 +52,7 @@ impl TestHost {
 		f(&mut config);
 		let (host, task) = start(config, Metrics::default());
 		let _ = tokio::task::spawn(task);
-		Self { _cache_dir: cache_dir, host: Mutex::new(host) }
+		Self { cache_dir, host: Mutex::new(host) }
 	}
 
 	async fn validate_candidate(
@@ -239,4 +239,59 @@ async fn execute_queue_doesnt_stall_with_varying_executor_params() {
 		duration.as_millis(),
 		max_duration.as_millis()
 	);
+}
+
+// Test that deleting a prepared artifact does not lead to a dispute when we try to execute it.
+#[tokio::test]
+async fn deleting_prepared_artifact_does_not_dispute() {
+	let host = TestHost::new();
+	let cache_dir = host.cache_dir.path().clone();
+
+	let result = host
+		.validate_candidate(
+			halt::wasm_binary_unwrap(),
+			ValidationParams {
+				block_data: BlockData(Vec::new()),
+				parent_head: Default::default(),
+				relay_parent_number: 1,
+				relay_parent_storage_root: Default::default(),
+			},
+			Default::default(),
+		)
+		.await;
+
+	match result {
+		Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)) => {},
+		r => panic!("{:?}", r),
+	}
+
+	// Delete the prepared artifact.
+	{
+		// Get the artifact path (asserting it exists).
+		let mut cache_dir: Vec<_> = std::fs::read_dir(cache_dir).unwrap().collect();
+		assert_eq!(cache_dir.len(), 1);
+		let artifact_path = cache_dir.pop().unwrap().unwrap();
+
+		// Delete the artifact.
+		std::fs::remove_file(artifact_path.path()).unwrap();
+	}
+
+	// Try to validate again, artifact should get recreated.
+	let result = host
+		.validate_candidate(
+			halt::wasm_binary_unwrap(),
+			ValidationParams {
+				block_data: BlockData(Vec::new()),
+				parent_head: Default::default(),
+				relay_parent_number: 1,
+				relay_parent_storage_root: Default::default(),
+			},
+			Default::default(),
+		)
+		.await;
+
+	match result {
+		Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)) => {},
+		r => panic!("{:?}", r),
+	}
 }
