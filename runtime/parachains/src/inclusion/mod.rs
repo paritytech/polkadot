@@ -550,12 +550,6 @@ impl<T: Config> Pallet<T> {
 					check_assignment_in_order(core_assignment)?;
 
 					if para_id == core_assignment.para_id() {
-						// TODO: Move to top-level
-						//ensure!(
-						//	core_assignment.can_collate(&backed_candidate.descriptor().peer_id),
-						//	Error::<T>::WrongPeerId,
-						//);
-
 						ensure!(
 							<PendingAvailability<T>>::get(&para_id).is_none() &&
 								<PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),

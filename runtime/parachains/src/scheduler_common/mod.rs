@@ -37,11 +37,10 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	v4::{Assignment, CollatorRestrictions, ParasEntry},
+	v4::{Assignment, ParasEntry},
 	CoreIndex, GroupIndex, Id as ParaId,
 };
 use scale_info::TypeInfo;
-use sp_core::OpaquePeerId;
 use sp_std::prelude::*;
 
 /// Reasons a core might be freed
@@ -87,15 +86,5 @@ impl CoreAssignment {
 	}
 	pub fn to_paras_entry(self) -> ParasEntry {
 		self.paras_entry
-	}
-
-	/// Get the collator restrctions for collating this block.
-	pub fn collator_restrictions(&self) -> &CollatorRestrictions {
-		self.paras_entry.collator_restrictions()
-	}
-
-	/// Can `peer_id` collate for this `CoreAssignment`?
-	pub fn can_collate(&self, peer_id: &OpaquePeerId) -> bool {
-		self.paras_entry.collator_restrictions().can_collate(peer_id)
 	}
 }

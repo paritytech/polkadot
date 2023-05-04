@@ -917,19 +917,6 @@ impl<Context> CandidateBackingJob<Context> {
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
-		// TODO: move to top-level
-		//
-		// Check that candidate is collated by the right collator.
-		//if !self.collator_restrictions.can_collate(&candidate.descriptor.peer_id) {
-		//	// Break cycle - bounded as there is only one candidate to
-		//	// second per block.
-		//	ctx.send_unbounded_message(CollatorProtocolMessage::Invalid(
-		//		self.parent,
-		//		candidate.clone(),
-		//	));
-		//	return Ok(())
-		//}
-
 		let candidate_hash = candidate.hash();
 		let mut span = self.get_unbacked_validation_child(
 			root_span,
@@ -1179,19 +1166,6 @@ impl<Context> CandidateBackingJob<Context> {
 			candidate_receipt = ?attesting.candidate,
 			"Kicking off validation",
 		);
-
-		// TODO: move to top-level
-		//
-		// Check that candidate is collated by the right collator.
-		//let descriptor = attesting.candidate.descriptor().clone();
-		//if !self.collator_restrictions.can_collate(&descriptor.peer_id) {
-		//	// If not, we've got the statement in the table but we will
-		//	// not issue validation work for it.
-		//	//
-		//	// Act as though we've issued a statement.
-		//	self.issued_statements.insert(candidate_hash);
-		//	return Ok(())
-		//}
 
 		let bg_sender = ctx.sender().clone();
 		let pov = PoVData::FetchFromValidator {
