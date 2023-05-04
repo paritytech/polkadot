@@ -3327,7 +3327,7 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 
 			let mut statements = Vec::new();
 			// own vote + `byzantine_threshold` more votes should be enough to issue `RevertBlocks`
-			for i in (0_u32..byzantine_threshold as u32).map(|i| i + 3) {
+			for i in 3_u32..byzantine_threshold as u32 + 3 {
 				let vote = test_state.issue_explicit_statement_with_index(
 					ValidatorIndex(i),
 					candidate_hash,
@@ -3335,7 +3335,7 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 					false,
 				);
 
-				statements.push((vote, ValidatorIndex(i as _)));
+				statements.push((vote, ValidatorIndex(i)));
 			}
 
 			virtual_overseer
@@ -3360,6 +3360,27 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				},
 				"Overseer did not receive `ChainSelectionMessage::RevertBlocks` message"
 			);
+
+			// One more import which should not trigger reversion
+			// Validator index is `byzantine_threshold + 4`
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![(
+							test_state.issue_explicit_statement_with_index(
+								ValidatorIndex(byzantine_threshold as u32 + 4),
+								candidate_hash,
+								session,
+								false,
+							),
+							ValidatorIndex(byzantine_threshold as u32 + 4),
+						)],
+						pending_confirmation: None,
+					},
+				})
+				.await;
 
 			// Wrap up
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
