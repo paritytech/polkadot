@@ -236,17 +236,13 @@ impl<T: Config> Pallet<T> {
 		(concluded_paras, timedout_paras)
 	}
 
-	/// Note that the given cores have become occupied. Behavior undefined if any of the given cores were not scheduled
-	/// or the slice is not sorted ascending by core index.
-	///
-	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
-	/// This is efficient in the case that most scheduled cores are occupied.
+	/// Note that the given cores have become occupied. Update the claimqueue accordingly.
 	pub(crate) fn occupied(
 		now_occupied: BTreeMap<CoreIndex, ParaId>,
 	) -> BTreeMap<CoreIndex, PositionInClaimqueue> {
 		let mut availability_cores = AvailabilityCores::<T>::get();
 
-		let pos_mapping = now_occupied
+		let pos_mapping: BTreeMap<CoreIndex, PositionInClaimqueue> = now_occupied
 			.into_iter()
 			.flat_map(|(core_idx, para_id)| match Self::remove_from_claimqueue(core_idx, para_id) {
 				Err(e) => {
@@ -266,9 +262,27 @@ impl<T: Config> Pallet<T> {
 			})
 			.collect();
 
+		// For now, we drop the first entry of the claimqueue for each CoreIndex that did not get occupied
+		for core_idx in pos_mapping.iter().map(|(core_idx, _)| core_idx) {
+			Self::drop_claimqueue_front_for_unoccupied_core(core_idx);
+		}
+
 		AvailabilityCores::<T>::set(availability_cores);
 
 		pos_mapping
+	}
+
+	// TODO: tests
+	fn drop_claimqueue_front_for_unoccupied_core(core_idx: &CoreIndex) {
+		let popped = ClaimQueue::<T>::mutate(|cq| {
+			let la_vec = cq.get_mut(&core_idx)?;
+			la_vec.pop_front()?.map(|pe| pe.para_id())
+		});
+
+		if let Some(assignment) = T::AssignmentProvider::pop_assignment_for_core(*core_idx, popped)
+		{
+			Self::add_to_claimqueue(*core_idx, ParasEntry::from(assignment));
+		}
 	}
 
 	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
