@@ -102,6 +102,37 @@ const TIMEOUT_START_NEW_REQUESTS: Duration = Duration::from_millis(100);
 /// PoV size limit in bytes for which prefer fetching from backers.
 const SMALL_POV_LIMIT: usize = 128 * 1024;
 
+#[derive(Clone)]
+/// The strategy we use to recover the PoV.
+pub enum RecoveryStrategy {
+	/// We always try the backing group first, then fallback to validator chunks.
+	BackersFirstAlways,
+	/// We try the backing group first if PoV size is lower than specified, then fallback to validator chunks.
+	BackersFirstIfSizeLower(usize),
+	/// We always recover using validator chunks.
+	ChunksAlways,
+	/// No strategy, no work to be done.
+	None,
+}
+
+impl RecoveryStrategy {
+	/// Returns true if the strategy needs backing group index.
+	pub fn needs_backing_group(&self) -> bool {
+		match self {
+			RecoveryStrategy::BackersFirstAlways | RecoveryStrategy::BackersFirstIfSizeLower(_) =>
+				true,
+			_ => false,
+		}
+	}
+
+	/// Returns the PoV size limit in bytes for `BackersFirstIfSizeLower` strategy, otherwise `None`.
+	pub fn pov_size_limit(&self) -> Option<usize> {
+		match *self {
+			RecoveryStrategy::BackersFirstIfSizeLower(limit) => Some(limit),
+			_ => None,
+		}
+	}
+}
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem {
 	/// Do not request data from the availability store.
@@ -109,10 +140,8 @@ pub struct AvailabilityRecoverySubsystem {
 	/// availability-store subsystem is not expected to run,
 	/// such as collators.
 	bypass_availability_store: bool,
-	/// If true, we first try backers.
-	fast_path: bool,
-	/// Large PoV threshold. Only used when `fast_path` is `false.
-	small_pov_limit: Option<usize>,
+	/// PoV recovery strategy to use.
+	recovery_strategy: RecoveryStrategy,
 	/// Receiver for available data requests.
 	req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 	/// Metrics for this subsystem.
@@ -872,7 +901,7 @@ async fn launch_recovery_task<Context>(
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
 	bypass_availability_store: bool,
 	metrics: &Metrics,
-	small_pov_limit: Option<usize>,
+	recovery_strategy: &RecoveryStrategy,
 ) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
 
@@ -886,16 +915,17 @@ async fn launch_recovery_task<Context>(
 		bypass_availability_store,
 	};
 
-	if let Some(small_pov_limit) = small_pov_limit {
+	if let Some(small_pov_limit) = recovery_strategy.pov_size_limit() {
 		// Get our own chunk size to get an estimate of the PoV size.
 		let chunk_size: Result<Option<usize>, error::Error> =
 			query_chunk_size(ctx, candidate_hash).await;
 		if let Ok(Some(chunk_size)) = chunk_size {
-			let pov_size_estimate = chunk_size.saturating_mul(session_info.validators.len() / 3);
+			let pov_size_estimate = chunk_size.saturating_mul(session_info.validators.len()) / 3;
 			let prefer_backing_group = pov_size_estimate < small_pov_limit;
 
-			gum::debug!(
+			gum::trace!(
 				target: LOG_TARGET,
+				?candidate_hash,
 				pov_size_estimate,
 				small_pov_limit,
 				enabled = prefer_backing_group,
@@ -948,7 +978,7 @@ async fn handle_recover<Context>(
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
 	bypass_availability_store: bool,
 	metrics: &Metrics,
-	small_pov_limit: Option<usize>,
+	recovery_strategy: &RecoveryStrategy,
 ) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
 
@@ -993,7 +1023,7 @@ async fn handle_recover<Context>(
 				response_sender,
 				bypass_availability_store,
 				metrics,
-				small_pov_limit,
+				recovery_strategy,
 			)
 			.await,
 		None => {
@@ -1040,8 +1070,7 @@ impl AvailabilityRecoverySubsystem {
 		metrics: Metrics,
 	) -> Self {
 		Self {
-			fast_path: false,
-			small_pov_limit: None,
+			recovery_strategy: RecoveryStrategy::None,
 			bypass_availability_store: true,
 			req_receiver,
 			metrics,
@@ -1055,8 +1084,7 @@ impl AvailabilityRecoverySubsystem {
 		metrics: Metrics,
 	) -> Self {
 		Self {
-			fast_path: true,
-			small_pov_limit: None,
+			recovery_strategy: RecoveryStrategy::BackersFirstAlways,
 			bypass_availability_store: false,
 			req_receiver,
 			metrics,
@@ -1069,8 +1097,7 @@ impl AvailabilityRecoverySubsystem {
 		metrics: Metrics,
 	) -> Self {
 		Self {
-			fast_path: false,
-			small_pov_limit: None,
+			recovery_strategy: RecoveryStrategy::ChunksAlways,
 			bypass_availability_store: false,
 			req_receiver,
 			metrics,
@@ -1084,8 +1111,7 @@ impl AvailabilityRecoverySubsystem {
 		metrics: Metrics,
 	) -> Self {
 		Self {
-			fast_path: false,
-			small_pov_limit: Some(SMALL_POV_LIMIT),
+			recovery_strategy: RecoveryStrategy::BackersFirstIfSizeLower(SMALL_POV_LIMIT),
 			bypass_availability_store: false,
 			req_receiver,
 			metrics,
@@ -1094,13 +1120,7 @@ impl AvailabilityRecoverySubsystem {
 
 	async fn run<Context>(self, mut ctx: Context) -> SubsystemResult<()> {
 		let mut state = State::default();
-		let Self {
-			fast_path,
-			small_pov_limit,
-			mut req_receiver,
-			metrics,
-			bypass_availability_store,
-		} = self;
+		let Self { recovery_strategy, mut req_receiver, metrics, bypass_availability_store } = self;
 
 		loop {
 			let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
@@ -1127,11 +1147,11 @@ impl AvailabilityRecoverySubsystem {
 										&mut ctx,
 										receipt,
 										session_index,
-										maybe_backing_group.filter(|_| fast_path || small_pov_limit.is_some()),
+										maybe_backing_group.filter(|_| recovery_strategy.needs_backing_group()),
 										response_sender,
 										bypass_availability_store,
 										&metrics,
-										small_pov_limit,
+										&recovery_strategy,
 									).await {
 										gum::warn!(
 											target: LOG_TARGET,

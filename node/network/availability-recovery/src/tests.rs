@@ -287,6 +287,7 @@ impl TestState {
 				let _ = tx.send(if with_data {
 					Some(self.available_data.clone())
 				} else {
+					gum::debug!("Sending None");
 					None
 				});
 			}
