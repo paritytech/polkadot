@@ -917,8 +917,8 @@ impl<T: Config> Pallet<T> {
 
 		// Second, check where the watermark CAN land. It's one of the following:
 		//
-		// (a) The relay parent block number.
-		// (b) A relay-chain block in which this para received at least one message.
+		// (a) The relay parent block number (checked above).
+		// (b) A relay-chain block in which this para received at least one message (checked here)
 		let digest = HrmpChannelDigests::<T>::get(&recipient);
 		if !digest
 			.binary_search_by_key(&new_hrmp_watermark, |(block_no, _)| *block_no)
