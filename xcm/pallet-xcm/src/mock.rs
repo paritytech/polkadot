@@ -34,7 +34,7 @@ use xcm_builder::{
 	FixedWeightBounds, IsConcrete, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit,
 };
-use xcm_executor::{traits::XcmQueryHandler, XcmExecutor};
+use xcm_executor::XcmExecutor;
 
 use crate::{self as pallet_xcm, TestWeightInfo};
 
@@ -85,7 +85,7 @@ pub mod pallet_test_notifier {
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
-			let qid = <crate::Pallet<T> as XcmQueryHandler>::new_query(
+			let qid = <crate::Pallet<T> as xcm_executor::traits::XcmQueryHandler>::new_query(
 				Junction::AccountId32 { network: None, id },
 				100u32.into(),
 				querier,
