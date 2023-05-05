@@ -163,8 +163,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event {
 		/// Downward message was sent to para.
-		/// \[para, id \]
-		DownwardMessageSent(ParaId, MessageId),
+		DownwardMessageSent { para_id: ParaId, message_id: MessageId },
 	}
 }
 
@@ -269,7 +268,7 @@ impl<T: Config> Pallet<T> {
 			Self::increment_fee_factor(para, message_size_factor);
 		}
 
-		Self::deposit_event(Event::DownwardMessageSent(para, id));
+		Self::deposit_event(Event::DownwardMessageSent { para_id: para, message_id: id });
 		Ok(())
 	}
 
