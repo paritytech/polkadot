@@ -59,17 +59,6 @@ where
 	}
 }
 
-#[cfg(feature = "runtime-benchmarks")]
-pub struct JunctionsBenchmarkHelper;
-#[cfg(feature = "runtime-benchmarks")]
-impl<AssetKind: From<xcm::latest::MultiLocation>> pallet_treasury::BenchmarkHelper<AssetKind>
-	for JunctionsBenchmarkHelper
-{
-	fn create_asset_kind(_id: u32) -> AssetKind {
-		xcm::latest::Junctions::Here.into_location().into()
-	}
-}
-
 pub fn era_payout(
 	total_staked: Balance,
 	total_stakable: Balance,
@@ -206,12 +195,12 @@ mod tests {
 	parameter_types! {
 		pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 		pub const MaxApprovals: u32 = 100;
-		pub TreasuryAccount: u128 = Treasury::account_id();
+		pub TreasuryAccount: AccountId = Treasury::account_id();
 	}
 
 	impl pallet_treasury::Config for Test {
 		type PalletId = TreasuryPalletId;
-		type AssetKind = xcm::latest::AssetId;
+		type AssetKind = ();
 		type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
 		type BalanceConverter = ();
 		type Currency = pallet_balances::Pallet<Test>;
@@ -225,13 +214,12 @@ mod tests {
 		type SpendPeriod = ();
 		type Burn = ();
 		type BurnDestination = ();
-		type PalletId = TreasuryPalletId;
 		type SpendFunds = ();
 		type MaxApprovals = MaxApprovals;
 		type WeightInfo = ();
 		type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u64>;
 		#[cfg(feature = "runtime-benchmarks")]
-		type BenchmarkHelper = JunctionsBenchmarkHelper;
+		type BenchmarkHelper = pallet_treasury::NilBenchmarkHelper;
 	}
 
 	pub struct OneAuthor;
