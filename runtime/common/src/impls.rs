@@ -20,7 +20,6 @@ use crate::NegativeImbalance;
 use frame_support::traits::{Currency, Imbalance, OnUnbalanced};
 use primitives::Balance;
 use sp_runtime::Perquintill;
-use xcm::latest::Junctions;
 
 /// Logic for the author to get a portion of fees.
 pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
@@ -67,7 +66,7 @@ impl<AssetKind: From<xcm::latest::MultiLocation>> pallet_treasury::BenchmarkHelp
 	for JunctionsBenchmarkHelper
 {
 	fn create_asset_kind(_id: u32) -> AssetKind {
-		Junctions::Here.into_location().into()
+		xcm::latest::Junctions::Here.into_location().into()
 	}
 }
 
