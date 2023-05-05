@@ -47,7 +47,7 @@ std = [
 	"sp-arithmetic/std",
 	"sp-io/std",
 	"sp-runtime/std",
-  "sp-core/std",
+	"sp-core/std",
 	"frame-support/std",
 	"frame-system/std",
 	"polkadot-parachain/std",
