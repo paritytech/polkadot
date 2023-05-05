@@ -28,7 +28,6 @@ use frame_support::{
 };
 use frame_system::EnsureRoot;
 use kusama_runtime_constants::currency::CENTS;
-use parity_scale_codec::{Decode, Encode};
 use runtime_common::{
 	crowdloan, paras_registrar,
 	xcm_sender::{ChildParachainRouter, ExponentialPrice},
@@ -42,10 +41,10 @@ use xcm_builder::{
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WeightInfoBounds,
-	WithComputedOrigin,
+	SovereignSignedViaLocation, TakeWeightCredit, TinkernetMultisigAsAccountId,
+	TinkernetMultisigAsNative, UsingComponents, WeightInfoBounds, WithComputedOrigin,
 };
-use xcm_executor::traits::{Convert, ConvertOrigin, WithOriginFilter};
+use xcm_executor::traits::WithOriginFilter;
 
 parameter_types! {
 	/// The location of the KSM token, from the context of this chain. Since this token is native to this
@@ -72,7 +71,7 @@ pub type SovereignAccountOf = (
 	// We can directly alias an `AccountId32` into a local account.
 	AccountId32Aliases<ThisNetwork, AccountId>,
 	// We can derive a local account from a Tinkernet XCMultisig MultiLocation.
-	ConvertTinkernetMultisig,
+	TinkernetMultisigAsAccountId<AccountId>,
 );
 
 /// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
@@ -103,7 +102,7 @@ type LocalOriginConverter = (
 	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
 	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 	// Converts a Tinkernet XCMultisig MultiLocation into a `Signed` origin.
-	ConvertTinkernetMultisig,
+	TinkernetMultisigAsNative<RuntimeOrigin>,
 );
 
 parameter_types! {
@@ -431,76 +430,6 @@ impl pallet_xcm::Config for Runtime {
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
 	type AdminOrigin = EnsureRoot<AccountId>;
-}
-
-/// Constant derivation function for Tinkernet Multisigs.
-/// Uses the Tinkernet genesis hash as a salt.
-fn derive_tinkernet_multisig(id: u128) -> Result<AccountId, <u32 as TryFrom<u128>>::Error> {
-	Ok(AccountId::decode(&mut sp_runtime::traits::TrailingZeroInput::new(
-		&(
-			// The constant salt used to derive Tinkernet Multisigs, this is Tinkernet's genesis hash.
-			sp_core::H256([
-				212, 46, 150, 6, 169, 149, 223, 228, 51, 220, 121, 85, 220, 42, 112, 244, 149, 243,
-				80, 243, 115, 218, 162, 0, 9, 138, 232, 68, 55, 129, 106, 210,
-			]),
-			// The actual multisig integer id.
-			u32::try_from(id)?,
-		)
-			.using_encoded(sp_io::hashing::blake2_256),
-	))
-	.expect("infinite length input; no invalid inputs for type; qed"))
-}
-
-/// Type to convert a Tinkernet Multisig `MultiLocation` value into a local `AccountId` or a local `RuntimeOrigin`.
-pub struct ConvertTinkernetMultisig;
-
-/// Convert a Tinkernet Multisig `MultiLocation` value into a local `AccountId`.
-impl Convert<MultiLocation, AccountId> for ConvertTinkernetMultisig {
-	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		match location {
-			MultiLocation {
-				parents: _,
-				interior:
-					Junctions::X3(
-						// Tinkernet ParaId.
-						Junction::Parachain(2125),
-						// Pallet INV4, from which the multisigs originate.
-						Junction::PalletInstance(71),
-						// Index from which the multisig account is derived.
-						Junction::GeneralIndex(id),
-					),
-			} => derive_tinkernet_multisig(id).map_err(|_| location),
-			_ => return Err(location),
-		}
-	}
-}
-
-/// Convert a Tinkernet Multisig `MultiLocation` value into a `Signed` origin.
-impl ConvertOrigin<RuntimeOrigin> for ConvertTinkernetMultisig {
-	fn convert_origin(
-		origin: impl Into<MultiLocation>,
-		kind: OriginKind,
-	) -> Result<RuntimeOrigin, MultiLocation> {
-		let origin = origin.into();
-		match (kind, origin) {
-			(
-				OriginKind::Native,
-				MultiLocation {
-					parents: _,
-					interior:
-						Junctions::X3(
-							// Tinkernet ParaId.
-							Junction::Parachain(2125),
-							// Pallet INV4, from which the multisigs originate.
-							Junction::PalletInstance(71),
-							// Index from which the multisig account is derived.
-							Junction::GeneralIndex(id),
-						),
-				},
-			) => Ok(RuntimeOrigin::signed(derive_tinkernet_multisig(id).map_err(|_| origin)?)),
-			(_, origin) => Err(origin),
-		}
-	}
 }
 
 #[test]

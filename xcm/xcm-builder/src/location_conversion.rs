@@ -22,15 +22,15 @@ use sp_std::{borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::Convert;
 
-/// Prefix for generating alias account for accounts coming  
+/// Prefix for generating alias account for accounts coming
 /// from chains that use 32 byte long representations.
 pub const FOREIGN_CHAIN_PREFIX_PARA_32: [u8; 37] = *b"ForeignChainAliasAccountPrefix_Para32";
 
-/// Prefix for generating alias account for accounts coming  
+/// Prefix for generating alias account for accounts coming
 /// from chains that use 20 byte long representations.
 pub const FOREIGN_CHAIN_PREFIX_PARA_20: [u8; 37] = *b"ForeignChainAliasAccountPrefix_Para20";
 
-/// Prefix for generating alias account for accounts coming  
+/// Prefix for generating alias account for accounts coming
 /// from the relay chain using 32 byte long representations.
 pub const FOREIGN_CHAIN_PREFIX_RELAY: [u8; 36] = *b"ForeignChainAliasAccountPrefix_Relay";
 
@@ -48,7 +48,7 @@ pub const FOREIGN_CHAIN_PREFIX_RELAY: [u8; 36] = *b"ForeignChainAliasAccountPref
 /// ```notrust
 ///              R
 ///           /    \
-///          /      \   
+///          /      \
 ///        P1       P2
 ///        / \       / \
 ///       /   \     /   \
@@ -249,6 +249,34 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
 		let j = AccountKey20 { key: who.into(), network: Network::get() };
 		Ok(j.into())
+	}
+}
+
+/// Convert a Tinkernet Multisig `MultiLocation` value into a local `AccountId`.
+pub struct TinkernetMultisigAsAccountId<AccountId>(PhantomData<AccountId>);
+impl<AccountId: Decode + Clone> Convert<MultiLocation, AccountId>
+	for TinkernetMultisigAsAccountId<AccountId>
+{
+	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
+		match location {
+			MultiLocation {
+				parents: _,
+				interior:
+					X3(
+						// Tinkernet ParaId.
+						Parachain(2125),
+						// Pallet INV4, from which the multisigs originate.
+						PalletInstance(71),
+						// Index from which the multisig account is derived.
+						GeneralIndex(id),
+					),
+			} => crate::derivation::derive_tinkernet_multisig(id).map_err(|_| location),
+			_ => return Err(location),
+		}
+	}
+
+	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
+		Err(who)
 	}
 }
 
@@ -540,5 +568,21 @@ mod tests {
 			interior: X1(AccountKey20 { network: None, key: [0u8; 20] }),
 		};
 		assert!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).is_err());
+	}
+
+	#[test]
+	fn remote_tinkernet_multisig_convert_to_account() {
+		let mul = MultiLocation {
+			parents: 0,
+			interior: X3(Parachain(2125), PalletInstance(71), GeneralIndex(0)),
+		};
+
+		assert_eq!(
+			[
+				97, 160, 244, 60, 133, 145, 170, 26, 202, 108, 203, 156, 114, 116, 175, 30, 156,
+				195, 43, 101, 243, 51, 193, 162, 152, 188, 30, 165, 244, 81, 70, 90
+			],
+			TinkernetMultisigAsAccountId::<[u8; 32]>::convert(mul).unwrap()
+		);
 	}
 }

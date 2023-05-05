@@ -29,7 +29,7 @@ pub mod test_utils;
 mod location_conversion;
 pub use location_conversion::{
 	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
-	ParentIsPreset, SiblingParachainConvertsVia,
+	ParentIsPreset, SiblingParachainConvertsVia, TinkernetMultisigAsAccountId,
 };
 
 mod origin_conversion;
@@ -37,7 +37,7 @@ pub use origin_conversion::{
 	BackingToPlurality, ChildParachainAsNative, ChildSystemParachainAsSuperuser, EnsureXcmOrigin,
 	OriginToPluralityVoice, ParentAsSuperuser, RelayChainAsNative, SiblingParachainAsNative,
 	SiblingSystemParachainAsSuperuser, SignedAccountId32AsNative, SignedAccountKey20AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation,
+	SignedToAccountId32, SovereignSignedViaLocation, TinkernetMultisigAsNative,
 };
 
 mod asset_conversion;
@@ -88,3 +88,5 @@ pub use universal_exports::{
 	HaulBlobError, HaulBlobExporter, NetworkExportTable, SovereignPaidRemoteExporter,
 	UnpaidLocalExporter, UnpaidRemoteExporter,
 };
+
+mod derivation;
