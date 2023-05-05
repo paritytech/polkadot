@@ -1228,7 +1228,7 @@ pub mod migrations {
 	use super::*;
 
 	pub type V0938 = (
-		init_state_migration::InitMigrate,
+		// `init_state_migration::InitMigrate` got deleted
 		// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 		parachains_ump::migration::v1::MigrateToV1<Runtime>,
@@ -1239,7 +1239,7 @@ pub mod migrations {
 	);
 	pub type V0939 = ();
 	pub type V0940 = (
-		// `clean_state_migration::CleanMigrate` got deleted
+		// clean_state_migration::CleanMigrate,
 		pallet_nomination_pools::migration::v4::MigrateToV4<
 			Runtime,
 			NominationPoolsMigrationV4OldPallet,
