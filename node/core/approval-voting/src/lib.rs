@@ -782,8 +782,7 @@ where
 	// `None` on start-up. Gets initialized/updated on leaf update
 	let mut session_info_provider = RuntimeInfo::new_with_config(RuntimeInfoConfig {
 		keystore: None,
-		session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-			.expect("DISPUTE_WINDOW can't be 0; qed."),
+		session_cache_lru_size: DISPUTE_WINDOW.into(),
 	});
 	let mut wakeups = Wakeups::default();
 	let mut currently_checking_set = CurrentlyCheckingSet::default();

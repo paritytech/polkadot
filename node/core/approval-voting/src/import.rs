@@ -622,7 +622,7 @@ pub(crate) mod tests {
 	use sp_core::{crypto::VrfSigner, testing::TaskExecutor};
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	pub(crate) use sp_runtime::{Digest, DigestItem};
-	use std::{num::NonZeroUsize, pin::Pin, sync::Arc};
+	use std::{pin::Pin, sync::Arc};
 
 	use crate::{approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry};
 
@@ -661,8 +661,7 @@ pub(crate) mod tests {
 			blank_state(),
 			RuntimeInfo::new_with_config(RuntimeInfoConfig {
 				keystore: None,
-				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-					.expect("DISPUTE_WINDOW can't be 0; qed."),
+				session_cache_lru_size: DISPUTE_WINDOW.into(),
 			}),
 		)
 	}
@@ -774,8 +773,7 @@ pub(crate) mod tests {
 
 			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
 				keystore: None,
-				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-					.expect("DISPUTE_WINDOW can't be 0; qed."),
+				session_cache_lru_size: DISPUTE_WINDOW.into(),
 			});
 
 			let header = header.clone();
@@ -898,8 +896,7 @@ pub(crate) mod tests {
 		let test_fut = {
 			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
 				keystore: None,
-				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-					.expect("DISPUTE_WINDOW can't be 0; qed."),
+				session_cache_lru_size: DISPUTE_WINDOW.into(),
 			});
 
 			let header = header.clone();
@@ -1015,8 +1012,7 @@ pub(crate) mod tests {
 		let test_fut = {
 			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
 				keystore: None,
-				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-					.expect("DISPUTE_WINDOW can't be 0; qed."),
+				session_cache_lru_size: DISPUTE_WINDOW.into(),
 			});
 
 			let header = header.clone();
@@ -1114,8 +1110,7 @@ pub(crate) mod tests {
 
 			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
 				keystore: None,
-				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
-					.expect("DISPUTE_WINDOW can't be 0; qed."),
+				session_cache_lru_size: DISPUTE_WINDOW.into(),
 			});
 
 			let header = header.clone();
