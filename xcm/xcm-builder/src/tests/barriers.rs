@@ -36,7 +36,7 @@ fn take_weight_credit_barrier_should_work() {
 		Weight::from_parts(10, 10),
 		&mut weight_credit,
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(10, 10))));
 	assert_eq!(weight_credit, Weight::zero());
 }
 
@@ -69,7 +69,7 @@ fn computed_origin_should_work() {
 		Weight::from_parts(100, 100),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
 	let r = WithComputedOrigin::<
 		AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
@@ -81,7 +81,7 @@ fn computed_origin_should_work() {
 		Weight::from_parts(100, 100),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
 	let r = WithComputedOrigin::<
 		AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
@@ -109,7 +109,7 @@ fn allow_unpaid_should_work() {
 		Weight::from_parts(10, 10),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&Parent.into(),
@@ -149,7 +149,7 @@ fn allow_explicit_unpaid_should_work() {
 		Weight::from_parts(20, 20),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
 	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
 		&Parent.into(),
@@ -157,7 +157,7 @@ fn allow_explicit_unpaid_should_work() {
 		Weight::from_parts(20, 20),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(20, 20))));
 
 	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
 		&Parent.into(),
@@ -165,7 +165,7 @@ fn allow_explicit_unpaid_should_work() {
 		Weight::from_parts(20, 20),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(20, 20))));
 
 	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
 		&Parent.into(),
@@ -189,7 +189,7 @@ fn allow_explicit_unpaid_should_work() {
 		Weight::from_parts(20, 20),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(20, 20))));
 
 	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
 		&Parent.into(),
@@ -213,7 +213,7 @@ fn allow_paid_should_work() {
 		Weight::from_parts(10, 10),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
 	let fees = (Parent, 1).into();
 	let mut underpaying_message = Xcm::<()>(vec![
@@ -228,7 +228,7 @@ fn allow_paid_should_work() {
 		Weight::from_parts(30, 30),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(30, 30))));
 
 	let fees = (Parent, 1).into();
 	let mut paying_message = Xcm::<()>(vec![
@@ -243,7 +243,7 @@ fn allow_paid_should_work() {
 		Weight::from_parts(30, 30),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
@@ -266,7 +266,7 @@ fn allow_paid_should_work() {
 		Weight::from_parts(20, 20),
 		&mut Weight::zero(),
 	);
-	assert_eq!(r, Err(()));
+	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(20, 20))));
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
@@ -275,4 +275,31 @@ fn allow_paid_should_work() {
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Ok(()))
+}
+
+#[test]
+fn suspension_should_work() {
+	TestSuspender::set_suspended(true);
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+
+	let mut message =
+		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
+	let r = RespectSuspension::<AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>, TestSuspender>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		Weight::from_parts(10, 10),
+		&mut Weight::zero(),
+	);
+	assert_eq!(r, Err(ProcessMessageError::Yield));
+
+	TestSuspender::set_suspended(false);
+	let mut message =
+		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
+	let r = RespectSuspension::<AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>, TestSuspender>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		Weight::from_parts(10, 10),
+		&mut Weight::zero(),
+	);
+	assert_eq!(r, Ok(()));
 }
