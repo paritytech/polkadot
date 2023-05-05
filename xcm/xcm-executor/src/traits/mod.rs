@@ -42,7 +42,7 @@ pub use on_response::{
 	FinishedQuery, OnResponse, QueryResponseStatus, VersionChangeNotifier, XcmQueryHandler,
 };
 mod should_execute;
-pub use should_execute::ShouldExecute;
+pub use should_execute::{CheckSuspension, ShouldExecute};
 mod transact_asset;
 pub use transact_asset::TransactAsset;
 mod weight;

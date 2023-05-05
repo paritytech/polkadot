@@ -1320,9 +1320,9 @@ impl paras_sudo_wrapper::Config for Runtime {}
 
 parameter_types! {
 	pub const PermanentSlotLeasePeriodLength: u32 = 365;
-	pub const TemporarySlotLeasePeriodLength: u32 = 3;
-	pub const MaxPermanentSlots: u32 = 40;
-	pub const MaxTemporarySlots: u32 = 40;
+	pub const TemporarySlotLeasePeriodLength: u32 = 5;
+	pub const MaxPermanentSlots: u32 = 100;
+	pub const MaxTemporarySlots: u32 = 100;
 	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
 }
 
@@ -1502,11 +1502,25 @@ pub type UncheckedExtrinsic =
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
-/// upgrades in case governance decides to do so.
-pub type Migrations = (
-	// Unreleased - add new migrations here:
-	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-);
+/// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
+pub type Migrations =
+	(migrations::V0940, migrations::V0941, migrations::V0942, migrations::Unreleased);
+
+/// The runtime migrations per release.
+#[allow(deprecated, missing_docs)]
+pub mod migrations {
+	use super::*;
+
+	pub type V0940 = ();
+	pub type V0941 = (); // Node only release - no migrations.
+	pub type V0942 = (
+		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+		pallet_offences::migration::v1::MigrateToV1<Runtime>,
+	);
+
+	/// Unreleased migrations. Add new ones here:
+	pub type Unreleased = ();
+}
 
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
