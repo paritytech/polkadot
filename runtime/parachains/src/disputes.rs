@@ -446,8 +446,12 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 	}
 
+	/// The current storage version.
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	/// The last pruned session, if any. All data stored by this module

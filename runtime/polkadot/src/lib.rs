@@ -1444,6 +1444,7 @@ pub type Migrations =
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
+	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
 
 	pub type V0940 = (
 		pallet_nomination_pools::migration::v4::MigrateToV4<
@@ -1460,7 +1461,27 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = ();
+	pub type Unreleased = (
+		SetStorageVersions,
+	);
+
+	pub struct SetStorageVersions;
+
+	impl OnRuntimeUpgrade for SetStorageVersions {
+		fn on_runtime_upgrade() -> Weight {
+			let storage_version = Referenda::current_storage_version();
+			if storage_version < 1 {
+				StorageVersion::new(1).put::<Referenda>();
+			}
+
+			let storage_version = Historical::current_storage_version();
+			if storage_version < 1 {
+				StorageVersion::new(1).put::<Historical>();
+			}
+
+			RocksDbWeight::get().writes(1)
+		}
+	}
 }
 
 /// Unchecked extrinsic type as expected by this runtime.
