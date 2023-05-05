@@ -34,7 +34,7 @@ use xcm_builder::{
 	FixedWeightBounds, IsConcrete, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit,
 };
-use xcm_executor::XcmExecutor;
+use xcm_executor::{traits::XcmQueryHandler, XcmExecutor};
 
 use crate::{self as pallet_xcm, TestWeightInfo};
 
