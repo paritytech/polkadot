@@ -63,11 +63,11 @@ where
 #[cfg(feature = "runtime-benchmarks")]
 pub struct JunctionsBenchmarkHelper;
 #[cfg(feature = "runtime-benchmarks")]
-impl<AssetKind: From<MultiLocation>> pallet_treasury::BenchmarkHelper<AssetKind>
+impl<AssetKind: From<xcm::latest::MultiLocation>> pallet_treasury::BenchmarkHelper<AssetKind>
 	for JunctionsBenchmarkHelper
 {
 	fn create_asset_kind(_id: u32) -> AssetKind {
-		Junctions::Here.into()
+		Junctions::Here.into_location().into()
 	}
 }
 
