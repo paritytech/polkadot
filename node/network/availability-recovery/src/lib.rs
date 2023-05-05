@@ -111,10 +111,11 @@ pub enum RecoveryStrategy {
 	BackersFirstIfSizeLower(usize),
 	/// We always recover using validator chunks.
 	ChunksAlways,
-	/// No strategy, no work to be done.
-	/// This is the useful for nodes where the availability-store subsystem is not expected to run,
+	/// Do not request data from the availability store.
+	/// This is the useful for nodes where the
+	/// availability-store subsystem is not expected to run,
 	/// such as collators.
-	None,
+	BypassAvailabilityStore,
 }
 
 impl RecoveryStrategy {
@@ -908,7 +909,7 @@ async fn launch_recovery_task<Context>(
 		candidate_hash,
 		erasure_root: receipt.descriptor.erasure_root,
 		metrics: metrics.clone(),
-		bypass_availability_store: recovery_strategy == &RecoveryStrategy::None,
+		bypass_availability_store: recovery_strategy == &RecoveryStrategy::BypassAvailabilityStore,
 	};
 
 	if let Some(small_pov_limit) = recovery_strategy.pov_size_limit() {
@@ -1063,7 +1064,7 @@ impl AvailabilityRecoverySubsystem {
 		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 		metrics: Metrics,
 	) -> Self {
-		Self { recovery_strategy: RecoveryStrategy::None, req_receiver, metrics }
+		Self { recovery_strategy: RecoveryStrategy::BypassAvailabilityStore, req_receiver, metrics }
 	}
 
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which starts with a fast path to
@@ -1144,7 +1145,7 @@ impl AvailabilityRecoverySubsystem {
 				in_req = recv_req => {
 					match in_req.into_nested().map_err(|fatal| SubsystemError::with_origin("availability-recovery", fatal))? {
 						Ok(req) => {
-							if recovery_strategy == RecoveryStrategy::None {
+							if recovery_strategy == RecoveryStrategy::BypassAvailabilityStore {
 								gum::debug!(
 									target: LOG_TARGET,
 									"Skipping request to availability-store.",
