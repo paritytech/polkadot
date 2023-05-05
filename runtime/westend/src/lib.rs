@@ -1239,7 +1239,7 @@ pub mod migrations {
 	);
 	pub type V0939 = ();
 	pub type V0940 = (
-		clean_state_migration::CleanMigrate, // got back-ported and de-duplicated from .39
+		// `clean_state_migration::CleanMigrate` got deleted
 		pallet_nomination_pools::migration::v4::MigrateToV4<
 			Runtime,
 			NominationPoolsMigrationV4OldPallet,
