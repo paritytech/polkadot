@@ -1478,14 +1478,29 @@ pub type UncheckedExtrinsic =
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
-pub type Migrations =
-	(migrations::V0940, migrations::V0941, migrations::V0942, migrations::Unreleased);
+pub type Migrations = (
+	migrations::V0938,
+	migrations::V0939,
+	migrations::V0940,
+	migrations::V0941,
+	migrations::V0942,
+	migrations::Unreleased,
+);
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
 
+	pub type V0938 = (
+		// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
+		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
+		parachains_ump::migration::v1::MigrateToV1<Runtime>,
+		// Remove stale entries in the set id -> session index storage map
+		// (after this release they will be properly pruned after the bonding duration has elapsed)
+		pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
+	);
+	pub type V0939 = ();
 	pub type V0940 = ();
 	pub type V0941 = (); // Node only release - no migrations.
 	pub type V0942 = (
