@@ -23,6 +23,7 @@ use primitives::{
 	BlockNumber, CollatorId, SessionIndex, ValidatorId,
 };
 use sp_core::{ByteArray, OpaquePeerId};
+use sp_std::collections::btree_map::BTreeMap;
 
 use crate::{
 	configuration::HostConfiguration,
@@ -71,7 +72,7 @@ fn run_to_block(
 			if notification_with_session_index.session_index == SessionIndex::default() {
 				notification_with_session_index.session_index = ParasShared::scheduled_session();
 			}
-			Scheduler::pre_new_session();
+			Scheduler::pre_new_session(BTreeMap::new());
 
 			Paras::initializer_on_new_session(&notification_with_session_index);
 			Scheduler::initializer_on_new_session(&notification_with_session_index);
@@ -100,7 +101,7 @@ fn run_to_end_of_block(
 	Paras::initializer_finalize(to);
 
 	if let Some(notification) = new_session(to + 1) {
-		Scheduler::pre_new_session();
+		Scheduler::pre_new_session(BTreeMap::new());
 
 		Paras::initializer_on_new_session(&notification);
 		Scheduler::initializer_on_new_session(&notification);

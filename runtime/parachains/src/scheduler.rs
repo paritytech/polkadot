@@ -50,10 +50,9 @@ use crate::{
 	configuration,
 	initializer::SessionChangeNotification,
 	paras,
-	scheduler_common::{CoreAssignment, FreedReason},
+	scheduler_common::{AssignmentProvider, CoreAssignment, FreedReason},
 };
 
-use crate::scheduler_common::AssignmentProvider;
 pub use pallet::*;
 use primitives::v4::ParasEntry;
 
@@ -138,9 +137,10 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_finalize() {}
 
 	/// Called before the initializer notifies of a new session.
-	pub(crate) fn pre_new_session() {
+	/// `pending_cores` is a map from `CoreIndex` to `T::BlockNumber` which depicts when the `CoreIndex` was occupied.
+	pub(crate) fn pre_new_session(pending_cores: BTreeMap<CoreIndex, T::BlockNumber>) {
 		Self::push_claimqueue_items_to_assignment_provider();
-		Self::push_occupied_cores_to_assignment_provider();
+		Self::push_occupied_cores_to_assignment_provider(pending_cores);
 	}
 
 	/// Called by the initializer to note that a new session has started.
@@ -404,14 +404,41 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
+	/// Checks if `core_idx` occupied since `pending_since` will timeout after `after`.
+	fn timesout_after(
+		core_idx: CoreIndex,
+		pending_since: T::BlockNumber,
+		after: T::BlockNumber,
+	) -> bool {
+		let availability_period = T::AssignmentProvider::get_availability_period(core_idx);
+		after.saturating_sub(pending_since) >= availability_period
+	}
+
 	// on new session
-	fn push_occupied_cores_to_assignment_provider() {
+	/// `pending_cores` is a map from `CoreIndex` to `T::BlockNumber` which depicts when the `CoreIndex` was occupied.
+	fn push_occupied_cores_to_assignment_provider(
+		pending_cores: BTreeMap<CoreIndex, T::BlockNumber>,
+	) {
+		let new_session_start = <frame_system::Pallet<T>>::block_number() + One::one();
 		AvailabilityCores::<T>::mutate(|cores| {
 			for (core_idx, core) in cores.iter_mut().enumerate() {
 				match core {
 					CoreOccupied::Free => continue,
-					CoreOccupied::Paras(entry) =>
-						Self::push_assignment(CoreIndex::from(core_idx as u32), entry.clone()),
+					CoreOccupied::Paras(entry) => {
+						let core_idx = CoreIndex::from(core_idx as u32);
+						match pending_cores.get(&core_idx) {
+							Some(pending_since)
+								if Self::timesout_after(
+									core_idx,
+									*pending_since,
+									new_session_start,
+								) =>
+							{
+								todo!("We do need to tell the provider about this, right?")
+							},
+							None | Some(_) => Self::push_assignment(core_idx, entry.clone()),
+						}
+					},
 				}
 
 				*core = CoreOccupied::Free;
