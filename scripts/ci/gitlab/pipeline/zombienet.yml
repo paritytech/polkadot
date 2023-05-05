@@ -183,7 +183,7 @@ zombienet-tests-misc-paritydb:
   tags:
     - zombienet-polkadot-integration-test
 
- zombienet-tests-misc-upgrade-node:
+zombienet-tests-misc-upgrade-node:
    stage: zombienet
    image: "${ZOMBIENET_IMAGE}"
    extends:
