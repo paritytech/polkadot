@@ -271,7 +271,7 @@ where
 						),
 				},
 			) => Ok(RuntimeOrigin::signed(
-				crate::derivation::derive_tinkernet_multisig(id).map_err(|_| origin)?,
+				crate::location_conversion::derive_tinkernet_multisig(id).map_err(|_| origin)?,
 			)),
 			(_, origin) => Err(origin),
 		}

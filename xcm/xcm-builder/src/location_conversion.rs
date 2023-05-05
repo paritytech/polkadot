@@ -16,6 +16,7 @@
 
 use frame_support::traits::Get;
 use parity_scale_codec::{Decode, Encode};
+use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
 use sp_std::{borrow::Borrow, marker::PhantomData};
@@ -252,6 +253,26 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 	}
 }
 
+/// Constant derivation function for Tinkernet Multisigs.
+/// Uses the Tinkernet genesis hash as a salt.
+pub fn derive_tinkernet_multisig<AccountId: Decode>(
+	id: u128,
+) -> Result<AccountId, <u32 as TryFrom<u128>>::Error> {
+	Ok(AccountId::decode(&mut TrailingZeroInput::new(
+		&(
+			// The constant salt used to derive Tinkernet Multisigs, this is Tinkernet's genesis hash.
+			H256([
+				212, 46, 150, 6, 169, 149, 223, 228, 51, 220, 121, 85, 220, 42, 112, 244, 149, 243,
+				80, 243, 115, 218, 162, 0, 9, 138, 232, 68, 55, 129, 106, 210,
+			]),
+			// The actual multisig integer id.
+			u32::try_from(id)?,
+		)
+			.using_encoded(blake2_256),
+	))
+	.expect("infinite length input; no invalid inputs for type; qed"))
+}
+
 /// Convert a Tinkernet Multisig `MultiLocation` value into a local `AccountId`.
 pub struct TinkernetMultisigAsAccountId<AccountId>(PhantomData<AccountId>);
 impl<AccountId: Decode + Clone> Convert<MultiLocation, AccountId>
@@ -270,7 +291,7 @@ impl<AccountId: Decode + Clone> Convert<MultiLocation, AccountId>
 						// Index from which the multisig account is derived.
 						GeneralIndex(id),
 					),
-			} => crate::derivation::derive_tinkernet_multisig(id).map_err(|_| location),
+			} => derive_tinkernet_multisig(id).map_err(|_| location),
 			_ => return Err(location),
 		}
 	}
