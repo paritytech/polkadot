@@ -1926,14 +1926,50 @@ impl<T: Config> OnResponse for Pallet<T> {
 		query_id: QueryId,
 		querier: Option<&MultiLocation>,
 	) -> bool {
+		log::trace!(
+			target: "xcm::barriers",
+			"🔥 expecting_response query_id: {:?}\n  origin: {:?}\n querier: {:?} ",
+			query_id.clone(),
+			origin.clone(),
+			querier.clone()
+		);
+		log::trace!(target: "xcm::barriers", "🔥 Queries::get response {:?}" , Queries::<T>::get(query_id));
+
+		// Some(QueryStatus::Pending { responder: V3(MultiLocation { parents: 0, interior: X1(Parachain(1000)) }),
+		//             maybe_match_querier: Some(V3(MultiLocation { parents: 0, interior: Here })),
+		//             maybe_notify: None, timeout: 259200 })
+
 		match Queries::<T>::get(query_id) {
-			Some(QueryStatus::Pending { responder, maybe_match_querier, .. }) =>
+			Some(QueryStatus::Pending { responder, maybe_match_querier, .. }) => {
+				log::trace!(
+					target: "xcm::barriers",
+					"🔥🔥👋  expecting_response() responder: {:?}    maybe_match_querier: {:?}\n",
+					responder,
+					maybe_match_querier
+				);
+				let x1 = MultiLocation::try_from(responder.clone()).map_or(false, |r| {
+					log::trace!(target: "xcm::barriers","🔥 origin vs responder {:?} {:?}\n", origin, &r.clone());
+					origin == &r
+				});
+				let x2 = maybe_match_querier.clone().map_or(true, |match_querier| {
+					MultiLocation::try_from(match_querier).map_or(false, |match_querier| {
+						log::trace!(
+							target: "xcm::barriers",
+							"🔥 match_querier {:?} {:?}",
+							querier.clone(),
+							match_querier.clone()
+						);
+						querier.map_or(false, |q| q == &match_querier)
+					})
+				});
+				log::trace!(target: "xcm::barriers","🔥 try_from respomder  xq: {:?} x2={:?}", x1, x2);
 				MultiLocation::try_from(responder).map_or(false, |r| origin == &r) &&
 					maybe_match_querier.map_or(true, |match_querier| {
 						MultiLocation::try_from(match_querier).map_or(false, |match_querier| {
 							querier.map_or(false, |q| q == &match_querier)
 						})
-					}),
+					})
+			},
 			Some(QueryStatus::VersionNotifier { origin: r, .. }) =>
 				MultiLocation::try_from(r).map_or(false, |r| origin == &r),
 			_ => false,
