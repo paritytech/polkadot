@@ -59,6 +59,17 @@ where
 	}
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+pub struct JunctionsBenchmarkHelper;
+#[cfg(feature = "runtime-benchmarks")]
+impl<AssetKind: From<xcm::latest::MultiLocation>> pallet_treasury::BenchmarkHelper<AssetKind>
+	for JunctionsBenchmarkHelper
+{
+	fn create_asset_kind(_id: u32) -> AssetKind {
+		xcm::latest::Junctions::Here.into_location().into()
+	}
+}
+
 pub fn era_payout(
 	total_staked: Balance,
 	total_stakable: Balance,
