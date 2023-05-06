@@ -652,7 +652,7 @@ where
 	{
 		Ok(extended_info) => Some(&extended_info.session_info),
 		Err(_) => {
-			gum::error!(
+			gum::debug!(
 				target: LOG_TARGET,
 				session = session_index,
 				?relay_parent,
@@ -695,14 +695,7 @@ impl State {
 		.await
 		{
 			Some(s) => s,
-			None => {
-				gum::warn!(
-					target: LOG_TARGET,
-					"Unknown session info for {}",
-					block_entry.session()
-				);
-				return None
-			},
+			None => return None,
 		};
 		let block_hash = block_entry.block_hash();
 
@@ -2318,16 +2311,7 @@ async fn process_wakeup<Context>(
 	.await
 	{
 		Some(i) => i,
-		None => {
-			gum::warn!(
-				target: LOG_TARGET,
-				"Missing session info for live block {} in session {}",
-				relay_block,
-				block_entry.session(),
-			);
-
-			return Ok(Vec::new())
-		},
+		None => return Ok(Vec::new()),
 	};
 
 	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
@@ -2701,13 +2685,6 @@ async fn issue_approval<Context>(
 	{
 		Some(s) => s,
 		None => {
-			gum::warn!(
-				target: LOG_TARGET,
-				"Missing session info for live block {} in session {}",
-				block_hash,
-				block_entry.session(),
-			);
-
 			metrics.on_approval_error();
 			return Ok(Vec::new())
 		},

@@ -212,15 +212,7 @@ async fn imported_block_info<Context>(
 	let session_info =
 		match get_session_info(env.runtime_info, ctx.sender(), block_hash, session_index).await {
 			Some(session_info) => session_info,
-			None => {
-				gum::error!(
-					target: LOG_TARGET,
-					relay_parent = ?block_hash,
-					session = session_index,
-					"Session info unavailable"
-				);
-				return Err(ImportedBlockInfoError::SessionInfoUnavailable)
-			},
+			None => return Err(ImportedBlockInfoError::SessionInfoUnavailable),
 		};
 
 	let (assignments, slot, relay_vrf_story) = {
@@ -451,15 +443,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		.await
 		{
 			Some(session_info) => session_info,
-			None => {
-				gum::error!(
-					target: LOG_TARGET,
-					session = session_index,
-					?head,
-					"Can't get session info for the new head"
-				);
-				return Ok(Vec::new())
-			},
+			None => return Ok(Vec::new()),
 		};
 
 		let (block_tick, no_show_duration) = {
