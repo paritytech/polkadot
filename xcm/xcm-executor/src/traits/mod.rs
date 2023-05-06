@@ -40,7 +40,7 @@ pub use token_matching::{
 mod on_response;
 pub use on_response::{OnResponse, VersionChangeNotifier};
 mod should_execute;
-pub use should_execute::ShouldExecute;
+pub use should_execute::{CheckSuspension, ShouldExecute};
 mod transact_asset;
 pub use transact_asset::TransactAsset;
 mod weight;
