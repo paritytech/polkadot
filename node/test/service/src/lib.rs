@@ -190,7 +190,7 @@ pub fn node_config(
 			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 		},
-		rpc_addr: None,
+		rpc_addr: Default::default(),
 		rpc_max_request_size: Default::default(),
 		rpc_max_response_size: Default::default(),
 		rpc_max_connections: Default::default(),
