@@ -35,6 +35,12 @@ pub const FOREIGN_CHAIN_PREFIX_PARA_20: [u8; 37] = *b"ForeignChainAliasAccountPr
 /// from the relay chain using 32 byte long representations.
 pub const FOREIGN_CHAIN_PREFIX_RELAY: [u8; 36] = *b"ForeignChainAliasAccountPrefix_Relay";
 
+/// Tinkernet ParaId used when matching Multisig MultiLocations.
+pub const TINKERNET_PARA_ID: u32 = 2125;
+
+/// Tinkernet Multisig pallet instance used when matching Multisig MultiLocations.
+pub const TINKERNET_MULTISIG_PALLET: u8 = 71;
+
 /// This converter will for a given `AccountId32`/`AccountKey20`
 /// always generate the same "remote" account for a specific
 /// sending chain.
@@ -284,10 +290,8 @@ impl<AccountId: Decode + Clone> Convert<MultiLocation, AccountId>
 				parents: _,
 				interior:
 					X3(
-						// Tinkernet ParaId.
-						Parachain(2125),
-						// Pallet INV4, from which the multisigs originate.
-						PalletInstance(71),
+						Parachain(TINKERNET_PARA_ID),
+						PalletInstance(TINKERNET_MULTISIG_PALLET),
 						// Index from which the multisig account is derived.
 						GeneralIndex(id),
 					),
