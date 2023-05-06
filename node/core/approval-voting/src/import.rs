@@ -621,7 +621,7 @@ pub(crate) mod tests {
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 	};
-	use sp_core::{crypto::VrfSigner, testing::TaskExecutor};
+	use sp_core::{crypto::VrfSecret, testing::TaskExecutor};
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	pub(crate) use sp_runtime::{Digest, DigestItem};
 	use std::{pin::Pin, sync::Arc};
@@ -704,7 +704,7 @@ pub(crate) mod tests {
 	// used for generating assignments where the validity of the VRF doesn't matter.
 	pub(crate) fn garbage_vrf_signature() -> VrfSignature {
 		let transcript = VrfTranscript::new(b"test-garbage", &[]);
-		Sr25519Keyring::Alice.pair().vrf_sign(&transcript)
+		Sr25519Keyring::Alice.pair().vrf_sign(&transcript.into())
 	}
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
