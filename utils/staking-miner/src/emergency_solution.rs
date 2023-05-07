@@ -53,7 +53,10 @@ macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 			supports_file.write_all(&encoded_support)?;
 
 			log::info!(target: LOG_TARGET, "ReadySolution: size {:?} / score = {:?}", encoded_size, score);
-			log::trace!(target: LOG_TARGET, "Supports: {}", sp_core::hexdisplay::HexDisplay::from(&encoded_support));
+
+			let encoded_call = RuntimeCall::ElectionProviderMultiPhase(EPM::Call::set_emergency_election_result { supports: supports.clone() });
+			// this will output a huge amount of data.
+            log::trace!(target: LOG_TARGET, "Encoded Call: {:?}", sp_core::hexdisplay::HexDisplay::from(&encoded_call.encode()));
 
 			Ok(())
 		})
