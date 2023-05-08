@@ -57,6 +57,10 @@ pub mod v1 {
 				"SpamSlots before migration: {}",
 				SpamSlots::<T>::iter().count()
 			);
+			ensure!(
+				StorageVersion::get::<Pallet<T>>() == 0,
+				"Storage version should be less than `1` before the migration",
+			);
 			Ok(Vec::new())
 		}
 
