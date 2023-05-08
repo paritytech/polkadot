@@ -1204,15 +1204,17 @@ mod tests {
 
 			// Parachain to parachain swap
 			let para_3 = LOWEST_PUBLIC_ID + 2;
+			let validation_code = test_validation_code(max_code_size() as usize);
 			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(3)));
 			assert_ok!(Registrar::register(
 				RuntimeOrigin::signed(3),
 				para_3,
 				test_genesis_head(max_head_size() as usize),
-				test_validation_code(max_code_size() as usize),
+				validation_code.clone(),
 			));
+			conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX + 6);
 
-			run_to_session(8);
+			run_to_session(START_SESSION_INDEX + 8);
 
 			// Upgrade para 3 into a parachain
 			assert_ok!(Registrar::make_parachain(para_3));
@@ -1222,7 +1224,7 @@ mod tests {
 			swap_data.insert(para_3, 777);
 			SwapData::set(swap_data);
 
-			run_to_session(10);
+			run_to_session(START_SESSION_INDEX + 10);
 
 			// Both are parachains
 			assert!(Parachains::is_parachain(para_3));
