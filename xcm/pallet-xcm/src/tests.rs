@@ -28,7 +28,7 @@ use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash};
 use xcm::{latest::QueryResponseInfo, prelude::*};
 use xcm_builder::AllowKnownQueryResponses;
 use xcm_executor::{
-	traits::{FinishedQuery, QueryResponseStatus, ShouldExecute, XcmQueryHandler},
+	traits::{QueryHandler, QueryStatus as ReportQueryStatus, ShouldExecute},
 	XcmExecutor,
 };
 
@@ -166,10 +166,8 @@ fn report_outcome_works() {
 			))
 		);
 
-		let response = QueryResponseStatus::Finished(FinishedQuery::Response {
-			response: Response::ExecutionResult(None),
-			at: 1,
-		});
+		let response =
+			ReportQueryStatus::Ready { response: Response::ExecutionResult(None), at: 1 };
 		assert_eq!(XcmPallet::take_response(0), response);
 	});
 }
@@ -269,10 +267,8 @@ fn custom_querier_works() {
 			))
 		);
 
-		let response = QueryResponseStatus::Finished(FinishedQuery::Response {
-			response: Response::ExecutionResult(None),
-			at: 1,
-		});
+		let response =
+			ReportQueryStatus::Ready { response: Response::ExecutionResult(None), at: 1 };
 		assert_eq!(XcmPallet::take_response(0), response);
 	});
 }

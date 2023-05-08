@@ -23,7 +23,7 @@ use frame_support::traits::{
 use polkadot_core_primitives::AccountId;
 use sp_std::{marker::PhantomData, vec};
 use xcm::{opaque::lts::Weight, prelude::*};
-use xcm_executor::traits::{FinishedQuery, QueryResponseStatus, XcmQueryHandler};
+use xcm_executor::traits::{QueryHandler, QueryStatus};
 
 /// Implementation of the `frame_support_traits::tokens::Pay` trait, to allow
 /// for generic payments of a given `AssetKind` and `Balance` from an implied origin, to a
@@ -55,7 +55,7 @@ impl<
 		DestinationChain: Get<MultiLocation>,
 		SenderAccount: Get<AccountId>,
 		Router: SendXcm,
-		Querier: XcmQueryHandler,
+		Querier: QueryHandler,
 		Timeout: Get<Querier::BlockNumber>,
 		Beneficiary: Into<[u8; 32]> + Clone,
 		AssetKind: Into<AssetId>,
@@ -107,23 +107,22 @@ impl<
 	}
 
 	fn check_payment(id: Self::Id) -> PaymentStatus {
+		use QueryStatus::*;
 		match Querier::take_response(id) {
-			QueryResponseStatus::Finished(FinishedQuery::Response { response, at: _ }) =>
-				match response {
-					Response::ExecutionResult(Some(_)) => PaymentStatus::Failure,
-					Response::ExecutionResult(None) => PaymentStatus::Success,
-					_ => PaymentStatus::Unknown,
-				},
-			QueryResponseStatus::Pending => PaymentStatus::InProgress,
-			QueryResponseStatus::NotFound |
-			QueryResponseStatus::UnexpectedVersion |
-			QueryResponseStatus::Finished(FinishedQuery::VersionNotification { .. }) =>
-				PaymentStatus::Unknown,
+			Ready { response, .. } => match response {
+				Response::ExecutionResult(None) => PaymentStatus::Success,
+				Response::ExecutionResult(Some(_)) => PaymentStatus::Failure,
+				_ => PaymentStatus::Unknown,
+			},
+			Pending { .. } => PaymentStatus::InProgress,
+			NotFound | UnexpectedVersion => PaymentStatus::Unknown,
 		}
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn ensure_successful(_: &Self::Beneficiary, _: Self::Balance) {}
+	fn ensure_successful(_: &Self::Beneficiary, _: Self::Balance) {
+		Querier::expect_response(id);
+	}
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn ensure_concluded(id: Self::Id) {
