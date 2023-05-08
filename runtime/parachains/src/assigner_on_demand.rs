@@ -271,6 +271,13 @@ where
 		None
 	}
 
+	/// Adds an entry to the on demand queue.
+	///
+	/// Paramenters:
+	/// - `entry`: The on demand entry to add to the queue.
+	/// - `location`: Whether to push this entry to the back or the front of the queue.
+	///               Pushing an entry to the front of the queue is only used when the scheduler
+	///               wants to push back an entry it has already popped.
 	pub fn add_parathread_entry(
 		entry: ParathreadEntry,
 		location: QueuePushDirection,
