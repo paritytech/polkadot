@@ -294,10 +294,13 @@ where
 	}
 
 	/// Get the size of the on demand queue.
+	/// Returns:
+	/// - The size of the on demand queue, or failing to do so, the max size of the queue.
 	fn queue_size() -> u32 {
+		let config = <configuration::Pallet<T>>::config();
 		match OnDemandQueue::<T>::get().len().try_into() {
 			Ok(size) => return size,
-			Err(_) => return 0,
+			Err(_) => return config.on_demand_queue_max_size,
 		}
 	}
 
