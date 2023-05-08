@@ -1453,7 +1453,6 @@ construct_runtime! {
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned} = 63,
-		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 64,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,
@@ -1463,6 +1462,9 @@ construct_runtime! {
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
+
+		// Generalized message queue
+		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 100,
 	}
 }
 
@@ -1498,22 +1500,35 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
-/// upgrades in case governance decides to do so.
-#[allow(deprecated)]
-pub type Migrations = (
-	// 0.9.40
-	pallet_nomination_pools::migration::v4::MigrateToV4<
-		Runtime,
-		NominationPoolsMigrationV4OldPallet,
-	>,
-	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
-	// Unreleased - add new migrations here:
-	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-	pallet_offences::migration::v1::MigrateToV1<Runtime>,
-	runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
-	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-	migrations::UpdateUmpLimits,
-);
+/// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
+pub type Migrations =
+	(migrations::V0940, migrations::V0941, migrations::V0942, migrations::Unreleased);
+
+/// The runtime migrations per release.
+#[allow(deprecated, missing_docs)]
+pub mod migrations {
+	use super::*;
+
+	pub type V0940 = (
+		pallet_nomination_pools::migration::v4::MigrateToV4<
+			Runtime,
+			NominationPoolsMigrationV4OldPallet,
+		>,
+		pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
+	);
+	pub type V0941 = (); // Node only release - no migrations.
+	pub type V0942 = (
+		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+		pallet_offences::migration::v1::MigrateToV1<Runtime>,
+		runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
+	);
+
+	/// Unreleased migrations. Add new ones here:
+	pub type Unreleased = (
+		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
+		migrations::UpdateUmpLimits,
+	);
+}
 
 /// Helpers to configure all migrations.
 pub mod migrations {

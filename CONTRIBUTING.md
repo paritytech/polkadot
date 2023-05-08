@@ -8,7 +8,7 @@ There are a few basic ground-rules for contributors (including the maintainer(s)
 - **Non-master branches**, prefixed with a short name moniker (e.g. `gav-my-feature`) must be used for ongoing work.
 - **All modifications** must be made in a **pull-request** to solicit feedback from other contributors.
 - A pull-request _must not be merged until CI_ has finished successfully.
-- Contributors should adhere to the [house coding style](https://github.com/paritytech/polkadot/wiki/Style-Guide).
+- Contributors should adhere to the [house coding style](https://github.com/paritytech/substrate/blob/master/docs/STYLE_GUIDE.md).
 
 ### Merging pull requests once CI is successful
 
