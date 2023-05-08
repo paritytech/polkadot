@@ -1282,12 +1282,12 @@ pub mod migrations {
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-		migrations::UpdateUmpLimits,
+		ump_migrations::UpdateUmpLimits,
 	);
 }
 
 /// Helpers to configure all migrations.
-pub mod migrations {
+pub mod ump_migrations {
 	use runtime_parachains::configuration::migration_ump;
 
 	pub const MAX_UPWARD_QUEUE_SIZE: u32 = 8 * 1024 * 1024;
@@ -1969,7 +1969,7 @@ mod test {
 	#[test]
 	fn max_upward_message_size() {
 		assert_eq!(
-			migrations::MAX_UPWARD_MESSAGE_SIZE,
+			ump_migrations::MAX_UPWARD_MESSAGE_SIZE,
 			pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
 		);
 	}

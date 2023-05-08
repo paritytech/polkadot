@@ -28,14 +28,9 @@ use runtime_common::{
 
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
-<<<<<<< HEAD
-	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
-	inclusion::AggregateMessageOrigin, initializer as parachains_initializer,
-=======
 	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
-	inclusion as parachains_inclusion, initializer as parachains_initializer,
->>>>>>> origin/master
-	origin as parachains_origin, paras as parachains_paras,
+	inclusion as parachains_inclusion, inclusion::AggregateMessageOrigin,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared,
@@ -1508,12 +1503,12 @@ pub mod migrations {
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-		migrations::UpdateUmpLimits,
+		ump_migrations::UpdateUmpLimits,
 	);
 }
 
 /// Helpers to configure all migrations.
-pub mod migrations {
+pub mod ump_migrations {
 	use runtime_parachains::configuration::migration_ump;
 
 	pub const MAX_UPWARD_QUEUE_SIZE: u32 = 1 * 1024 * 1024;
@@ -2293,7 +2288,7 @@ mod test {
 	#[test]
 	fn max_upward_message_size() {
 		assert_eq!(
-			migrations::MAX_UPWARD_MESSAGE_SIZE,
+			ump_migrations::MAX_UPWARD_MESSAGE_SIZE,
 			pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
 		);
 	}

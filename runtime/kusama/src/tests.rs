@@ -150,7 +150,7 @@ fn call_size() {
 #[test]
 fn max_upward_message_size() {
 	assert_eq!(
-		migrations::MAX_UPWARD_MESSAGE_SIZE,
+		ump_migrations::MAX_UPWARD_MESSAGE_SIZE,
 		pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
 	);
 }
