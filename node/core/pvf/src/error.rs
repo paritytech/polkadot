@@ -16,7 +16,7 @@
 
 use crate::prepare::PrepareStats;
 use parity_scale_codec::{Decode, Encode};
-use std::{any::Any, fmt};
+use std::fmt;
 
 /// Result of PVF preparation performed by the validation host. Contains stats about the preparation if
 /// successful
@@ -124,19 +124,5 @@ impl From<PrepareError> for ValidationError {
 		} else {
 			ValidationError::InternalError(error.to_string())
 		}
-	}
-}
-
-/// Attempt to convert an opaque panic payload to a string.
-///
-/// This is a best effort, and is not guaranteed to provide the most accurate value.
-pub(crate) fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String {
-	match payload.downcast::<&'static str>() {
-		Ok(msg) => msg.to_string(),
-		Err(payload) => match payload.downcast::<String>() {
-			Ok(msg) => *msg,
-			// At least we tried...
-			Err(_) => "unknown panic payload".to_string(),
-		},
 	}
 }
