@@ -779,16 +779,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(0)]
-		#[pallet::weight({
-			let maybe_msg: Result<Xcm<()>, ()> = (*message.clone()).try_into();
-			match maybe_msg {
-				Ok(msg) => {
-					T::Weigher::weight(&mut msg.into())
-						.map_or(Weight::MAX, |w| T::WeightInfo::send().saturating_add(w))
-				}
-				_ => Weight::MAX,
-			}
-		})]
+		#[pallet::weight(T::WeightInfo::send())]
 		pub fn send(
 			origin: OriginFor<T>,
 			dest: Box<VersionedMultiLocation>,
