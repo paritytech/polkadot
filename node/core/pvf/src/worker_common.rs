@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,8 +17,7 @@
 //! Common logic for implementation of worker processes.
 
 use crate::LOG_TARGET;
-use cpu_time::ProcessTime;
-use futures::{never::Never, FutureExt as _};
+use futures::FutureExt as _;
 use futures_timer::Delay;
 use pin_project::pin_project;
 use rand::Rng;
@@ -26,7 +25,6 @@ use std::{
 	fmt, mem,
 	path::{Path, PathBuf},
 	pin::Pin,
-	sync::mpsc::{Receiver, RecvTimeoutError},
 	task::{Context, Poll},
 	time::Duration,
 };
@@ -34,16 +32,11 @@ use tokio::{
 	io::{self, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf},
 	net::{UnixListener, UnixStream},
 	process,
-	runtime::{Handle, Runtime},
 };
 
 /// A multiple of the job timeout (in CPU time) for which we are willing to wait on the host (in
 /// wall clock time). This is lenient because CPU time may go slower than wall clock time.
 pub const JOB_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
-
-/// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
-/// child process.
-pub const JOB_TIMEOUT_OVERHEAD: Duration = Duration::from_millis(50);
 
 /// This is publicly exposed only for integration tests.
 #[doc(hidden)]
@@ -61,6 +54,8 @@ pub async fn spawn_with_program_path(
 				gum::warn!(
 					target: LOG_TARGET,
 					%debug_id,
+					?program_path,
+					?extra_args,
 					"cannot bind unix socket: {:?}",
 					err,
 				);
@@ -68,10 +63,12 @@ pub async fn spawn_with_program_path(
 			})?;
 
 			let handle =
-				WorkerHandle::spawn(program_path, extra_args, socket_path).map_err(|err| {
+				WorkerHandle::spawn(&program_path, extra_args, socket_path).map_err(|err| {
 					gum::warn!(
 						target: LOG_TARGET,
 						%debug_id,
+						?program_path,
+						?extra_args,
 						"cannot spawn a worker: {:?}",
 						err,
 					);
@@ -84,6 +81,8 @@ pub async fn spawn_with_program_path(
 						gum::warn!(
 							target: LOG_TARGET,
 							%debug_id,
+							?program_path,
+							?extra_args,
 							"cannot accept a worker: {:?}",
 							err,
 						);
@@ -92,6 +91,14 @@ pub async fn spawn_with_program_path(
 					Ok((IdleWorker { stream, pid: handle.id() }, handle))
 				}
 				_ = Delay::new(spawn_timeout).fuse() => {
+					gum::warn!(
+						target: LOG_TARGET,
+						%debug_id,
+						?program_path,
+						?extra_args,
+						?spawn_timeout,
+						"spawning and connecting to socket timed out",
+					);
 					Err(SpawnErr::AcceptTimeout)
 				}
 			}
@@ -157,74 +164,6 @@ pub async fn tmpfile(prefix: &str) -> io::Result<PathBuf> {
 	tmpfile_in(prefix, &temp_dir).await
 }
 
-pub fn worker_event_loop<F, Fut>(debug_id: &'static str, socket_path: &str, mut event_loop: F)
-where
-	F: FnMut(Handle, UnixStream) -> Fut,
-	Fut: futures::Future<Output = io::Result<Never>>,
-{
-	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
-	let handle = rt.handle();
-	let err = rt
-		.block_on(async move {
-			let stream = UnixStream::connect(socket_path).await?;
-			let _ = tokio::fs::remove_file(socket_path).await;
-
-			let result = event_loop(handle.clone(), stream).await;
-
-			result
-		})
-		// It's never `Ok` because it's `Ok(Never)`.
-		.unwrap_err();
-
-	gum::debug!(
-		target: LOG_TARGET,
-		worker_pid = %std::process::id(),
-		"pvf worker ({}): {:?}",
-		debug_id,
-		err,
-	);
-
-	// We don't want tokio to wait for the tasks to finish. We want to bring down the worker as fast
-	// as possible and not wait for stalled validation to finish. This isn't strictly necessary now,
-	// but may be in the future.
-	rt.shutdown_background();
-}
-
-/// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
-/// and then either blocks for the remaining CPU time, or returns if we exceed the CPU timeout.
-///
-/// Returning `Some` indicates that we should send a `TimedOut` error to the host. Will return
-/// `None` if the other thread finishes first, without us timing out.
-///
-/// NOTE: Sending a `TimedOut` error to the host will cause the worker, whether preparation or
-/// execution, to be killed by the host. We do not kill the process here because it would interfere
-/// with the proper handling of this error.
-pub fn cpu_time_monitor_loop(
-	cpu_time_start: ProcessTime,
-	timeout: Duration,
-	finished_rx: Receiver<()>,
-) -> Option<Duration> {
-	loop {
-		let cpu_time_elapsed = cpu_time_start.elapsed();
-
-		// Treat the timeout as CPU time, which is less subject to variance due to load.
-		if cpu_time_elapsed <= timeout {
-			// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
-			// is wall clock time. The CPU clock may be slower than the wall clock.
-			let sleep_interval = timeout.saturating_sub(cpu_time_elapsed) + JOB_TIMEOUT_OVERHEAD;
-			match finished_rx.recv_timeout(sleep_interval) {
-				// Received finish signal.
-				Ok(()) => return None,
-				// Timed out, restart loop.
-				Err(RecvTimeoutError::Timeout) => continue,
-				Err(RecvTimeoutError::Disconnected) => return None,
-			}
-		}
-
-		return Some(cpu_time_elapsed)
-	}
-}
-
 /// A struct that represents an idle worker.
 ///
 /// This struct is supposed to be used as a token that is passed by move into a subroutine that
@@ -280,6 +219,7 @@ impl WorkerHandle {
 	) -> io::Result<Self> {
 		let mut child = process::Command::new(program.as_ref())
 			.args(extra_args)
+			.arg("--socket-path")
 			.arg(socket_path.as_ref().as_os_str())
 			.stdout(std::process::Stdio::piped())
 			.kill_on_drop(true)
@@ -372,12 +312,7 @@ pub fn path_to_bytes(path: &Path) -> &[u8] {
 	path.to_str().expect("non-UTF-8 path").as_bytes()
 }
 
-/// Interprets the given bytes as a path. Returns `None` if the given bytes do not constitute a
-/// a proper utf-8 string.
-pub fn bytes_to_path(bytes: &[u8]) -> Option<PathBuf> {
-	std::str::from_utf8(bytes).ok().map(PathBuf::from)
-}
-
+/// Write some data prefixed by its length into `w`.
 pub async fn framed_send(w: &mut (impl AsyncWrite + Unpin), buf: &[u8]) -> io::Result<()> {
 	let len_buf = buf.len().to_le_bytes();
 	w.write_all(&len_buf).await?;
@@ -385,6 +320,7 @@ pub async fn framed_send(w: &mut (impl AsyncWrite + Unpin), buf: &[u8]) -> io::R
 	Ok(())
 }
 
+/// Read some data prefixed by its length from `r`.
 pub async fn framed_recv(r: &mut (impl AsyncRead + Unpin)) -> io::Result<Vec<u8>> {
 	let mut len_buf = [0u8; mem::size_of::<usize>()];
 	r.read_exact(&mut len_buf).await?;

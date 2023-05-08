@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -335,18 +335,7 @@ impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime 
 	// - the FellowshipAdmin origin (i.e. token holder referendum);
 	// - a vote by the rank *above* the new rank.
 	type PromoteOrigin = EitherOf<
-		EitherOf<
-			frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
-			MapSuccess<
-				pallet_collective::EnsureProportionAtLeast<
-					Self::AccountId,
-					super::old::TechnicalCollective,
-					2,
-					3,
-				>,
-				Replace<ConstU16<6>>,
-			>,
-		>,
+		frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
 		EitherOf<
 			MapSuccess<FellowshipAdmin, Replace<ConstU16<9>>>,
 			TryMapSuccess<origins::EnsureFellowship, CheckedReduceBy<ConstU16<1>>>,

@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,15 +17,21 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, ParaId, Runtime,
-	RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
+	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, Dmp, ParaId, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	parameter_types,
 	traits::{Contains, Everything, Nothing},
 };
-use runtime_common::{paras_registrar, xcm_sender, ToAuthor};
+use frame_system::EnsureRoot;
+use runtime_common::{
+	crowdloan, paras_registrar,
+	xcm_sender::{ChildParachainRouter, ExponentialPrice},
+	ToAuthor,
+};
 use sp_core::ConstU32;
+use westend_runtime_constants::currency::CENTS;
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
@@ -43,6 +49,10 @@ parameter_types! {
 	pub UniversalLocation: InteriorMultiLocation = ThisNetwork::get().into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
+	/// The asset ID for the asset that we use to pay for message delivery fees.
+	pub FeeAssetId: AssetId = Concrete(TokenLocation::get());
+	/// The base fee for the message delivery fees.
+	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 }
 
 pub type LocationConverter =
@@ -72,7 +82,11 @@ type LocalOriginConverter = (
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet, ()>,
+	ChildParachainRouter<
+		Runtime,
+		XcmPallet,
+		ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, Dmp>,
+	>,
 );
 
 parameter_types! {
@@ -138,6 +152,16 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			RuntimeCall::Timestamp(..) |
 			RuntimeCall::Indices(..) |
 			RuntimeCall::Balances(..) |
+			RuntimeCall::Crowdloan(
+				crowdloan::Call::create { .. } |
+				crowdloan::Call::contribute { .. } |
+				crowdloan::Call::withdraw { .. } |
+				crowdloan::Call::refund { .. } |
+				crowdloan::Call::dissolve { .. } |
+				crowdloan::Call::edit { .. } |
+				crowdloan::Call::poke { .. } |
+				crowdloan::Call::contribute_all { .. },
+			) |
 			RuntimeCall::Staking(
 				pallet_staking::Call::bond { .. } |
 				pallet_staking::Call::bond_extra { .. } |
@@ -276,7 +300,10 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = LocationConverter;
 	type MaxLockers = ConstU32<8>;
+	type MaxRemoteLockConsumers = ConstU32<0>;
+	type RemoteLockConsumerIdentifier = ();
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }

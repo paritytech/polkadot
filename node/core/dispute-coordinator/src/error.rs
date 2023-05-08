@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@ use fatality::Nested;
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem::{errors::ChainApiError, SubsystemError};
-use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
+use polkadot_node_subsystem_util::runtime;
 
 use crate::{db, participation, LOG_TARGET};
 use parity_scale_codec::Error as CodecError;
@@ -96,8 +96,8 @@ pub enum Error {
 	Codec(#[from] CodecError),
 
 	/// `RollingSessionWindow` was not able to retrieve `SessionInfo`s.
-	#[error("Sessions unavailable in `RollingSessionWindow`: {0}")]
-	RollingSessionWindow(#[from] SessionsUnavailable),
+	#[error("Session can't be fetched via `RuntimeInfo`")]
+	SessionInfo,
 
 	#[error(transparent)]
 	QueueError(#[from] participation::QueueError),

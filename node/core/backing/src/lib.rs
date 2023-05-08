@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -52,7 +52,7 @@ use polkadot_primitives::{
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PvfExecTimeoutKind,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
 	v2::{
@@ -118,13 +118,13 @@ impl ValidatedCandidateCommand {
 
 /// The candidate backing subsystem.
 pub struct CandidateBackingSubsystem {
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 }
 
 impl CandidateBackingSubsystem {
 	/// Create a new instance of the `CandidateBackingSubsystem`.
-	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+	pub fn new(keystore: KeystorePtr, metrics: Metrics) -> Self {
 		Self { keystore, metrics }
 	}
 }
@@ -149,7 +149,7 @@ where
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 ) -> FatalResult<()> {
 	let (background_validation_tx, mut background_validation_rx) = mpsc::channel(16);
@@ -178,7 +178,7 @@ async fn run<Context>(
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn run_iteration<Context>(
 	ctx: &mut Context,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: &Metrics,
 	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
 	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
@@ -199,7 +199,8 @@ async fn run_iteration<Context>(
 				}
 			}
 			from_overseer = ctx.recv().fuse() => {
-				match from_overseer? {
+				// Map the error to ensure that the subsystem exits when the overseer is gone.
+				match from_overseer.map_err(Error::OverseerExited)? {
 					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => handle_active_leaves_update(
 						&mut *ctx,
 						update,
@@ -265,7 +266,7 @@ async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
 	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
@@ -323,7 +324,7 @@ async fn handle_active_leaves_update<Context>(
 
 	let signing_context = SigningContext { parent_hash: parent, session_index };
 	let validator =
-		match Validator::construct(&validators, signing_context.clone(), keystore.clone()).await {
+		match Validator::construct(&validators, signing_context.clone(), keystore.clone()) {
 			Ok(v) => Some(v),
 			Err(util::Error::NotAValidator) => None,
 			Err(e) => {
@@ -426,7 +427,7 @@ struct CandidateBackingJob<Context> {
 	/// The candidates that are includable, by hash. Each entry here indicates
 	/// that we've sent the provisioner the backed candidate.
 	backed: HashSet<CandidateHash>,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	table: Table<TableContext>,
 	table_context: TableContext,
 	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
@@ -814,8 +815,7 @@ impl<Context> CandidateBackingJob<Context> {
 								commitments,
 							});
 							if let Some(stmt) = self
-								.sign_import_and_distribute_statement(ctx, statement, root_span)
-								.await?
+								.sign_import_and_distribute_statement(ctx, statement, root_span)?
 							{
 								// Break cycle - bounded as there is only one candidate to
 								// second per block.
@@ -843,8 +843,7 @@ impl<Context> CandidateBackingJob<Context> {
 				if !self.issued_statements.contains(&candidate_hash) {
 					if res.is_ok() {
 						let statement = Statement::Valid(candidate_hash);
-						self.sign_import_and_distribute_statement(ctx, statement, &root_span)
-							.await?;
+						self.sign_import_and_distribute_statement(ctx, statement, &root_span)?;
 					}
 					self.issued_statements.insert(candidate_hash);
 				}
@@ -966,14 +965,14 @@ impl<Context> CandidateBackingJob<Context> {
 		Ok(())
 	}
 
-	async fn sign_import_and_distribute_statement(
+	fn sign_import_and_distribute_statement(
 		&mut self,
 		ctx: &mut Context,
 		statement: Statement,
 		root_span: &jaeger::Span,
 	) -> Result<Option<SignedFullStatement>, Error> {
-		if let Some(signed_statement) = self.sign_statement(statement).await {
-			self.import_statement(ctx, &signed_statement, root_span).await?;
+		if let Some(signed_statement) = self.sign_statement(statement) {
+			self.import_statement(ctx, &signed_statement, root_span)?;
 			let smsg = StatementDistributionMessage::Share(self.parent, signed_statement.clone());
 			ctx.send_unbounded_message(smsg);
 
@@ -1001,7 +1000,7 @@ impl<Context> CandidateBackingJob<Context> {
 	}
 
 	/// Import a statement into the statement table and return the summary of the import.
-	async fn import_statement(
+	fn import_statement(
 		&mut self,
 		ctx: &mut Context,
 		statement: &SignedFullStatement,
@@ -1222,7 +1221,7 @@ impl<Context> CandidateBackingJob<Context> {
 		ctx: &mut Context,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
-		if let Some(summary) = self.import_statement(ctx, &statement, root_span).await? {
+		if let Some(summary) = self.import_statement(ctx, &statement, root_span)? {
 			if Some(summary.group_id) != self.assignment {
 				return Ok(())
 			}
@@ -1277,13 +1276,12 @@ impl<Context> CandidateBackingJob<Context> {
 		Ok(())
 	}
 
-	async fn sign_statement(&mut self, statement: Statement) -> Option<SignedFullStatement> {
+	fn sign_statement(&mut self, statement: Statement) -> Option<SignedFullStatement> {
 		let signed = self
 			.table_context
 			.validator
 			.as_ref()?
 			.sign(self.keystore.clone(), statement)
-			.await
 			.ok()
 			.flatten()?;
 		self.metrics.on_statement_signed();

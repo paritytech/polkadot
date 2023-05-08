@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -39,9 +39,9 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::{
-	vstaging::ExecutorParams, AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent,
-	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
+	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
+	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
+	DisputeState, ExecutorParams, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
 	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, PvfExecTimeoutKind,
 	SessionIndex, SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields,
@@ -428,6 +428,9 @@ pub enum AvailabilityStoreMessage {
 
 	/// Query an `ErasureChunk` from the AV store by the candidate hash and validator index.
 	QueryChunk(CandidateHash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
+
+	/// Get the size of an `ErasureChunk` from the AV store by the candidate hash.
+	QueryChunkSize(CandidateHash, oneshot::Sender<Option<usize>>),
 
 	/// Query all chunks that we have for the given candidate hash.
 	QueryAllChunks(CandidateHash, oneshot::Sender<Vec<ErasureChunk>>),
@@ -824,6 +827,8 @@ pub enum ApprovalDistributionMessage {
 		HashSet<(Hash, CandidateIndex)>,
 		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
 	),
+	/// Approval checking lag update measured in blocks.
+	ApprovalCheckingLagUpdate(BlockNumber),
 }
 
 /// Message to the Gossip Support subsystem.

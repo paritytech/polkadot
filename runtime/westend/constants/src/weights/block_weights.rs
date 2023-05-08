@@ -1,4 +1,4 @@
-// Copyright 2017-2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -13,8 +13,9 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2023-02-27 (Y/M/D)
+//! DATE: 2023-04-28 (Y/M/D)
 //! HOSTNAME: `bm6`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //!
 //! SHORT-NAME: `block`, LONG-NAME: `BlockExecution`, RUNTIME: `Development`
@@ -42,17 +43,17 @@ parameter_types! {
 	/// Calculated by multiplying the *Average* with `1.0` and adding `0`.
 	///
 	/// Stats nanoseconds:
-	///   Min, Max: 442_587, 493_725
-	///   Average:  449_258
-	///   Median:   445_282
-	///   Std-Dev:  10752.88
+	///   Min, Max: 397_060, 447_262
+	///   Average:  401_599
+	///   Median:   399_367
+	///   Std-Dev:  7259.52
 	///
 	/// Percentiles nanoseconds:
-	///   99th: 481_096
-	///   95th: 477_043
-	///   75th: 447_140
+	///   99th: 433_225
+	///   95th: 413_788
+	///   75th: 400_912
 	pub const BlockExecutionWeight: Weight =
-		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(449_258), 0);
+		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(401_599), 0);
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 use crate::artifacts::ArtifactId;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationCodeHash;
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::ExecutorParams;
 use sp_core::blake2_256;
 use std::{
 	cmp::{Eq, PartialEq},
@@ -36,13 +36,13 @@ use crate::host::tests::TEST_PREPARATION_TIMEOUT;
 #[derive(Clone, Encode, Decode)]
 pub struct PvfPrepData {
 	/// Wasm code (uncompressed)
-	pub(crate) code: Arc<Vec<u8>>,
+	code: Arc<Vec<u8>>,
 	/// Wasm code hash
-	pub(crate) code_hash: ValidationCodeHash,
+	code_hash: ValidationCodeHash,
 	/// Executor environment parameters for the session for which artifact is prepared
-	pub(crate) executor_params: Arc<ExecutorParams>,
+	executor_params: Arc<ExecutorParams>,
 	/// Preparation timeout
-	pub(crate) prep_timeout: Duration,
+	prep_timeout: Duration,
 }
 
 impl PvfPrepData {
@@ -69,13 +69,18 @@ impl PvfPrepData {
 	}
 
 	/// Returns PVF code
-	pub(crate) fn code(&self) -> Arc<Vec<u8>> {
+	pub fn code(&self) -> Arc<Vec<u8>> {
 		self.code.clone()
 	}
 
 	/// Returns executor params
-	pub(crate) fn executor_params(&self) -> Arc<ExecutorParams> {
+	pub fn executor_params(&self) -> Arc<ExecutorParams> {
 		self.executor_params.clone()
+	}
+
+	/// Returns preparation timeout.
+	pub fn prep_timeout(&self) -> Duration {
+		self.prep_timeout
 	}
 
 	/// Creates a structure for tests

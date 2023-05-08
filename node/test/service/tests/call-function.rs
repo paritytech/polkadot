@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -24,10 +24,11 @@ async fn call_function_actually_work() {
 
 	let alice = run_validator_node(alice_config, None);
 
-	let function = polkadot_test_runtime::RuntimeCall::Balances(pallet_balances::Call::transfer {
-		dest: Charlie.to_account_id().into(),
-		value: 1,
-	});
+	let function =
+		polkadot_test_runtime::RuntimeCall::Balances(pallet_balances::Call::transfer_allow_death {
+			dest: Charlie.to_account_id().into(),
+			value: 1,
+		});
 	let output = alice.send_extrinsic(function, Bob).await.unwrap();
 
 	let res = output.result;
