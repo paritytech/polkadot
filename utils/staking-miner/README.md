@@ -62,7 +62,5 @@ docker run --rm -it \
 
 ### Test locally
 
-1. Modify `EPOCH_DURATION_IN_SLOTS` and `SessionsPerEra` to force an election
-   more often than once per day.
-2. $ `polkadot --chain polkadot-dev --tmp --alice --execution Native -lruntime=debug --offchain-worker=Always --ws-port 9999`
-3. $ `staking-miner --uri ws://localhost:9999 monitor --seed-or-path //Alice phrag-mms`
+1. `cargo run -p polkadot --features fast-runtime -- --dev --tmp`
+2. `cargo run -p staking-miner -- --uri ws://localhost:9999 monitor --seed-or-path //Alice phrag-mms`
