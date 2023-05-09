@@ -25,7 +25,6 @@ use crate::{
 	paras::{ParaGenesisArgs, ParaKind},
 };
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
-use keyring::Sr25519Keyring;
 use primitives::{v4::Assignment, Balance, BlockNumber, SessionIndex};
 use sp_std::collections::btree_map::BTreeMap;
 
