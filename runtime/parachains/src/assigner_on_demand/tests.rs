@@ -26,7 +26,7 @@ use crate::{
 };
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use keyring::Sr25519Keyring;
-use primitives::{Balance, BlockNumber, CollatorId, SessionIndex};
+use primitives::{v4::Assignment, Balance, BlockNumber, SessionIndex};
 use sp_std::collections::btree_map::BTreeMap;
 
 fn default_genesis_config() -> MockGenesisConfig {
@@ -198,7 +198,7 @@ fn place_order_works() {
 		let alice = 1u64;
 		let amt = 10_000_000u128;
 		let para_a = ParaId::from(111);
-		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+		let collator = OpaquePeerId::new(vec![0u8]);
 
 		// Initialize the parathread and wait for it to be ready.
 		schedule_blank_para(para_a, ParaKind::Parathread);
@@ -252,25 +252,28 @@ fn spotqueue_push_directions() {
 
 		run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
 
-		let entry_a = ParathreadEntry { claim: ParathreadClaim(para_a, None), retries: 0 };
-		let entry_b = ParathreadEntry { claim: ParathreadClaim(para_b, None), retries: 0 };
-		let entry_c = ParathreadEntry { claim: ParathreadClaim(para_c, None), retries: 0 };
+		let assignment_a =
+			Assignment { para_id: para_a, collator_restrictions: CollatorRestrictions::none() };
+		let assignment_b =
+			Assignment { para_id: para_b, collator_restrictions: CollatorRestrictions::none() };
+		let assignment_c =
+			Assignment { para_id: para_c, collator_restrictions: CollatorRestrictions::none() };
 
-		assert_ok!(OnDemandAssigner::add_parathread_entry(
-			entry_a.clone(),
+		assert_ok!(OnDemandAssigner::add_parathread_assignment(
+			assignment_a.clone(),
 			QueuePushDirection::Front
 		));
-		assert_ok!(OnDemandAssigner::add_parathread_entry(
-			entry_b.clone(),
+		assert_ok!(OnDemandAssigner::add_parathread_assignment(
+			assignment_b.clone(),
 			QueuePushDirection::Front
 		));
 
-		assert_ok!(OnDemandAssigner::add_parathread_entry(
-			entry_c.clone(),
+		assert_ok!(OnDemandAssigner::add_parathread_assignment(
+			assignment_c.clone(),
 			QueuePushDirection::Back
 		));
 
 		assert_eq!(OnDemandAssigner::queue_size(), 3);
-		assert_eq!(OnDemandAssigner::get_queue(), vec![entry_b, entry_a, entry_c])
+		assert_eq!(OnDemandAssigner::get_queue(), vec![assignment_b, assignment_a, assignment_c])
 	});
 }
