@@ -947,30 +947,30 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Auctions(..) // Specifically omitting the entire XCM Pallet
 			),
 			ProxyType::Governance =>
-			 matches!(
-				c,
-				RuntimeCall::Democracy(..) | 
-					RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) | 
-					RuntimeCall::PhragmenElection(..) | 
-					RuntimeCall::Treasury(..) | 
-					RuntimeCall::Bounties(..) | 
-					RuntimeCall::Tips(..) | RuntimeCall::Utility(..) | 
-					RuntimeCall::ChildBounties(..)
-			),
+				matches!(
+					c,
+					RuntimeCall::Democracy(..) |
+						RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
+						RuntimeCall::PhragmenElection(..) |
+						RuntimeCall::Treasury(..) |
+						RuntimeCall::Bounties(..) |
+						RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
+						RuntimeCall::ChildBounties(..)
+				),
 			ProxyType::IdentityJudgement => matches!(
 				c,
-				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. }) | 
-				RuntimeCall::Utility(..)
+				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. }) |
+					RuntimeCall::Utility(..)
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. }))
 			},
 			ProxyType::Auction => matches!(
 				c,
-				RuntimeCall::Auctions { .. } | 
-					RuntimeCall::Crowdloan { .. } | 
-					RuntimeCall::Registrar { .. } | 
-					RuntimeCall::Multisig(..) | 
+				RuntimeCall::Auctions { .. } |
+					RuntimeCall::Crowdloan { .. } |
+					RuntimeCall::Registrar { .. } |
+					RuntimeCall::Multisig(..) |
 					RuntimeCall::Slots { .. }
 			),
 			ProxyType::Society => matches!(c, RuntimeCall::Society(..)),
