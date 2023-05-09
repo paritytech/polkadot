@@ -63,4 +63,4 @@ docker run --rm -it \
 ### Test locally
 
 1. `cargo run -p polkadot --features fast-runtime -- --dev --tmp`
-2. `cargo run -p staking-miner -- --uri ws://localhost:9999 monitor --seed-or-path //Alice phrag-mms`
+2. `cargo run -p staking-miner -- --uri ws://localhost:9944 monitor --seed-or-path //Alice phrag-mms`
