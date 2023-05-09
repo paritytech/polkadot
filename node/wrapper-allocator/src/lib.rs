@@ -18,7 +18,6 @@ use core::sync::atomic::{ Ordering::SeqCst, AtomicUsize };
 use core::alloc::{GlobalAlloc, Layout};
 use tikv_jemallocator::Jemalloc;
 
-/// 
 pub struct WrapperAllocatorData {
     allocated: AtomicUsize,
     checkpoint: AtomicUsize,
@@ -29,9 +28,9 @@ pub struct WrapperAllocatorData {
 impl WrapperAllocatorData {
     /// Marks a new checkpoint. Returns peak allocation, in bytes, since the last checkpoint.
     pub fn checkpoint(&self) -> usize {
-        let alloc = ALLOCATOR_DATA.allocated.load(SeqCst);
-        let old_cp = ALLOCATOR_DATA.checkpoint.swap(alloc, SeqCst);
-        ALLOCATOR_DATA.peak.swap(alloc, SeqCst).saturating_sub(old_cp)
+        let allocated = ALLOCATOR_DATA.allocated.load(SeqCst);
+        let old_cp = ALLOCATOR_DATA.checkpoint.swap(allocated, SeqCst);
+        ALLOCATOR_DATA.peak.swap(allocated, SeqCst).saturating_sub(old_cp)
     }
 }
 
