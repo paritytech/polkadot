@@ -53,7 +53,7 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
+use polkadot_primitives::{CandidateReceipt, CollatorId, CoreState, Hash, Id as ParaId};
 
 use crate::error::Result;
 
@@ -631,6 +631,42 @@ async fn disconnect_peer(sender: &mut impl overseer::CollatorProtocolSenderTrait
 		.await
 }
 
+/// Check if `PendingCollation` can be collated.
+async fn can_collate(
+	pc: &PendingCollation,
+	sender: &mut impl overseer::CollatorProtocolSenderTrait,
+) -> bool {
+	let PendingCollation { relay_parent, para_id, peer_id, .. } = pc;
+	let mc = polkadot_node_subsystem_util::request_availability_cores(*relay_parent, sender)
+		.await
+		.await
+		.ok()
+		.and_then(|x| x.ok());
+
+	let cores = match mc {
+		Some(c) => c,
+		None => {
+			gum::debug!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"Failed to query runtime API for relay-parent",
+			);
+
+			return false
+		},
+	};
+
+	for core in cores {
+		match core {
+			CoreState::Scheduled(sc) if sc.para_id == *para_id =>
+				return sc.collator_restrictions.can_collate(peer_id),
+			CoreState::Scheduled(_) | CoreState::Occupied(_) | CoreState::Free => continue,
+		}
+	}
+
+	return false
+}
+
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
 async fn fetch_collation(
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
@@ -641,6 +677,10 @@ async fn fetch_collation(
 	let (tx, rx) = oneshot::channel();
 
 	let PendingCollation { relay_parent, para_id, peer_id, .. } = pc;
+
+	if !can_collate(&pc, sender).await {
+		return
+	}
 
 	let timeout = |collator_id, relay_parent| async move {
 		Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;

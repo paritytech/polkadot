@@ -259,11 +259,7 @@ pub mod pallet {
 	{
 		// Handle timeouts for any availability core work.
 		let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
-		let freed_timeout = if let Some(pred) = availability_pred {
-			<inclusion::Pallet<T>>::collect_pending(pred)
-		} else {
-			Vec::new()
-		};
+		let freed_timeout = <inclusion::Pallet<T>>::collect_pending(availability_pred);
 
 		// Schedule paras again, given freed cores, and reasons for freeing.
 		let freed = freed_concluded
@@ -484,8 +480,12 @@ impl<T: Config> Pallet<T> {
 
 		METRICS.on_candidates_included(freed_concluded.len() as u64);
 		let mut freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
-		// As a core is only occupied by a single work item, freed and freed_disputed are disjoint by design
-		// and can thus be appended without worrying about overwriting (key, value) pairs in freed.
+		// Values in freed might be overwritten by values in free_disputed.
+		// That's fine though as disputed cores are always marked as concluded
+		// whereas freed cores might have concluded or timedout.
+		// If the core in freed concluded, overwriting is a no-op.
+		// If is timedout, overwriting it as concluded is fine since timeouts
+		// are only relevant for retries but disputed cores should not be retried
 		freed.append(&mut freed_disputed.into_iter().collect());
 		log::debug!(target: LOG_TARGET, "update_claimqueue() at {:?} in enter_inner", now);
 		let scheduled = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
@@ -1108,7 +1108,7 @@ fn sanitize_backed_candidates<
 
 	let scheduled_paras_to_core_idx = scheduled
 		.into_iter()
-		.map(|core_assignment| (core_assignment.kind.para_id(), core_assignment.core))
+		.map(|core_assignment| (core_assignment.para_id(), core_assignment.core))
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
 
 	// Assure the backed candidate's `ParaId`'s core is free.
@@ -1162,7 +1162,7 @@ pub(crate) fn assure_sanity_backed_candidates<
 
 	let scheduled_paras_to_core_idx = scheduled
 		.into_iter()
-		.map(|core_assignment| (core_assignment.kind.para_id(), core_assignment.core))
+		.map(|core_assignment| (core_assignment.para_id(), core_assignment.core))
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
 
 	if !IsSortedBy::is_sorted_by(backed_candidates, |x, y| {

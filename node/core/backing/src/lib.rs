@@ -48,9 +48,10 @@ use polkadot_node_subsystem_util::{
 	request_validators, Validator,
 };
 use polkadot_primitives::{
-	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PvfExecTimeoutKind,
-	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	vstaging::CollatorRestrictions, BackedCandidate, CandidateCommitments, CandidateHash,
+	CandidateReceipt, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
+	PvfExecTimeoutKind, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature,
+	ValidityAttestation,
 };
 use sp_keystore::KeystorePtr;
 use statement_table::{
@@ -354,7 +355,7 @@ async fn handle_active_leaves_update<Context>(
 			let group_index = group_rotation_info.group_for_core(core_index, n_cores);
 			if let Some(g) = validator_groups.get(group_index.0 as usize) {
 				if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
-					assignment = Some((scheduled.para_id, scheduled.collator));
+					assignment = Some((scheduled.para_id, scheduled.collator_restrictions));
 				}
 				groups.insert(scheduled.para_id, g.clone());
 			}
@@ -363,15 +364,16 @@ async fn handle_active_leaves_update<Context>(
 
 	let table_context = TableContext { groups, validators, validator };
 
-	let (assignment, required_collator) = match assignment {
+	let (assignment, _collator_restrictions) = match assignment {
 		None => {
 			assignments_span.add_string_tag("assigned", "false");
-			(None, None)
+			// Is CollatorRestrictions::none() here correct?
+			(None, CollatorRestrictions::none())
 		},
-		Some((assignment, required_collator)) => {
+		Some((assignment, collator_restrictions)) => {
 			assignments_span.add_string_tag("assigned", "true");
 			assignments_span.add_para_id(assignment);
-			(Some(assignment), required_collator)
+			(Some(assignment), collator_restrictions)
 		},
 	};
 
@@ -381,7 +383,7 @@ async fn handle_active_leaves_update<Context>(
 	let job = CandidateBackingJob {
 		parent,
 		assignment,
-		required_collator,
+		//collator_restrictions,
 		issued_statements: HashSet::new(),
 		awaiting_validation: HashSet::new(),
 		fallbacks: HashMap::new(),
@@ -412,8 +414,8 @@ struct CandidateBackingJob<Context> {
 	parent: Hash,
 	/// The `ParaId` assigned to this validator
 	assignment: Option<ParaId>,
-	/// The collator required to author the candidate, if any.
-	required_collator: Option<CollatorId>,
+	// /// The collator restrictions for authoring the candidate.
+	// collator_restrictions: CollatorRestrictions,
 	/// Spans for all candidates that are not yet backable.
 	unbacked_candidates: HashMap<CandidateHash, jaeger::Span>,
 	/// We issued `Seconded`, `Valid` or `Invalid` statements on about these candidates.
@@ -915,21 +917,6 @@ impl<Context> CandidateBackingJob<Context> {
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
-		// Check that candidate is collated by the right collator.
-		if self
-			.required_collator
-			.as_ref()
-			.map_or(false, |c| c != &candidate.descriptor().collator)
-		{
-			// Break cycle - bounded as there is only one candidate to
-			// second per block.
-			ctx.send_unbounded_message(CollatorProtocolMessage::Invalid(
-				self.parent,
-				candidate.clone(),
-			));
-			return Ok(())
-		}
-
 		let candidate_hash = candidate.hash();
 		let mut span = self.get_unbacked_validation_child(
 			root_span,
@@ -1173,24 +1160,12 @@ impl<Context> CandidateBackingJob<Context> {
 			return Ok(())
 		}
 
-		let descriptor = attesting.candidate.descriptor().clone();
-
 		gum::debug!(
 			target: LOG_TARGET,
 			candidate_hash = ?candidate_hash,
 			candidate_receipt = ?attesting.candidate,
 			"Kicking off validation",
 		);
-
-		// Check that candidate is collated by the right collator.
-		if self.required_collator.as_ref().map_or(false, |c| c != &descriptor.collator) {
-			// If not, we've got the statement in the table but we will
-			// not issue validation work for it.
-			//
-			// Act as though we've issued a statement.
-			self.issued_statements.insert(candidate_hash);
-			return Ok(())
-		}
 
 		let bg_sender = ctx.sender().clone();
 		let pov = PoVData::FetchFromValidator {
