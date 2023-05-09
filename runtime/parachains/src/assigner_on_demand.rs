@@ -20,10 +20,8 @@
 //! parachain (previously parathreads) assignments. This module is not handled by the
 //! initializer but is instead instantiated in the `construct_runtime` macro.
 
-use crate::{
-	configuration, paras,
-	scheduler_common::{Assignment, AssignmentProvider},
-};
+use crate::{configuration, paras, scheduler_common::AssignmentProvider};
+
 use frame_support::{
 	pallet_prelude::*,
 	traits::{
@@ -32,13 +30,20 @@ use frame_support::{
 	},
 };
 use frame_system::pallet_prelude::*;
-use primitives::{CollatorId, CoreIndex, Id as ParaId, ParathreadClaim, ParathreadEntry};
+use primitives::{
+	v4::{Assignment, CollatorRestrictionKind, CollatorRestrictions},
+	CoreIndex, Id as ParaId,
+};
+use sp_core::OpaquePeerId;
 use sp_runtime::{
 	traits::{CheckedAdd, CheckedSub, SaturatedConversion},
 	FixedPointNumber, FixedPointOperand, FixedU128, Perbill,
 };
 
-use sp_std::{collections::vec_deque::VecDeque, prelude::*};
+use sp_std::{
+	collections::{btree_set::BTreeSet, vec_deque::VecDeque},
+	prelude::*,
+};
 
 pub use pallet::*;
 
@@ -94,7 +99,7 @@ pub mod pallet {
 	}
 
 	#[pallet::type_value]
-	pub fn OnDemandQueueOnEmpty<T: Config>() -> VecDeque<ParathreadEntry> {
+	pub fn OnDemandQueueOnEmpty<T: Config>() -> VecDeque<Assignment> {
 		VecDeque::new()
 	}
 
@@ -107,7 +112,7 @@ pub mod pallet {
 	/// queue from the scheduler on session boundaries.
 	#[pallet::storage]
 	pub type OnDemandQueue<T: Config> =
-		StorageValue<_, VecDeque<ParathreadEntry>, ValueQuery, OnDemandQueueOnEmpty<T>>;
+		StorageValue<_, VecDeque<Assignment>, ValueQuery, OnDemandQueueOnEmpty<T>>;
 
 	/// Maps a `ParaId` to `CoreIndex` and keeps track of how many assignments the scheduler has in it's
 	/// lookahead. Keeping track of this affinity prevents parallel execution of two or more `ParaId`s on different
@@ -181,7 +186,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_amount: BalanceOf<T>,
 			para_id: ParaId,
-			scheduled_collator: Option<CollatorId>,
+			scheduled_collator: Option<OpaquePeerId>,
 			keep_alive: bool,
 		) -> DispatchResult {
 			// Is tx signed
@@ -212,10 +217,19 @@ pub mod pallet {
 				existence_requirement,
 			)?;
 
-			let entry =
-				ParathreadEntry { claim: ParathreadClaim(para_id, scheduled_collator), retries: 0 };
+			// TODO All of this needs reworking
+			let mut collator_peer_ids = BTreeSet::new();
+			let mut collator_restriction_kind = CollatorRestrictionKind::Preferred;
+			if let Some(collator) = scheduled_collator {
+				collator_peer_ids.insert(collator);
+				collator_restriction_kind = CollatorRestrictionKind::Required;
+			};
+			let collator_restrictions =
+				CollatorRestrictions::new(collator_peer_ids, collator_restriction_kind);
 
-			let res = Pallet::<T>::add_parathread_entry(entry, QueuePushDirection::Back);
+			let assignment = Assignment::new(para_id, collator_restrictions);
+
+			let res = Pallet::<T>::add_parathread_assignment(assignment, QueuePushDirection::Back);
 
 			match res {
 				Ok(_) => {
@@ -275,19 +289,19 @@ where
 		None
 	}
 
-	/// Adds an entry to the on demand queue.
+	/// Adds an assignment to the on demand queue.
 	///
 	/// Paramenters:
-	/// - `entry`: The on demand entry to add to the queue.
+	/// - `assignment`: The on demand assignment to add to the queue.
 	/// - `location`: Whether to push this entry to the back or the front of the queue.
 	///               Pushing an entry to the front of the queue is only used when the scheduler
 	///               wants to push back an entry it has already popped.
-	pub fn add_parathread_entry(
-		entry: ParathreadEntry,
+	pub fn add_parathread_assignment(
+		assignment: Assignment,
 		location: QueuePushDirection,
 	) -> Result<(), DispatchError> {
 		// Only parathreads are valid paraids for on the go parachains.
-		ensure!(<paras::Pallet<T>>::is_parathread(entry.claim.0), Error::<T>::InvalidParaId);
+		ensure!(<paras::Pallet<T>>::is_parathread(assignment.para_id), Error::<T>::InvalidParaId);
 
 		let config = <configuration::Pallet<T>>::config();
 
@@ -296,8 +310,8 @@ where
 			// Abort transaction if queue is too large
 			ensure!(Self::queue_size() < config.on_demand_queue_max_size, Error::<T>::QueueFull);
 			match location {
-				QueuePushDirection::Back => queue.push_back(entry),
-				QueuePushDirection::Front => queue.push_front(entry),
+				QueuePushDirection::Back => queue.push_back(assignment),
+				QueuePushDirection::Front => queue.push_front(assignment),
 			};
 			Ok(())
 		});
@@ -316,7 +330,7 @@ where
 	}
 
 	/// Getter for the order queue.
-	pub fn get_queue() -> Vec<ParathreadEntry> {
+	pub fn get_queue() -> Vec<Assignment> {
 		OnDemandQueue::<T>::get().into()
 	}
 
@@ -372,8 +386,6 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 		config.parathread_cores
 	}
 
-	fn new_session() {}
-
 	/// Take the next queued entry that is available for a given core index.
 	/// Parameters:
 	/// - `core_idx`: The core index
@@ -390,21 +402,23 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 			Pallet::<T>::decrease_affinity(previous_para_id, core_idx)
 		}
 
-		let mut queue: VecDeque<ParathreadEntry> = OnDemandQueue::<T>::get();
+		let mut queue: VecDeque<Assignment> = OnDemandQueue::<T>::get();
 
 		// Get the position of the next `ParaId`. Select either a `ParaId` that has an affinity
 		// to the same `CoreIndex` as the scheduler asks for or a `ParaId` with no affinity at all.
-		let pos = queue.iter().position(|entry| match ParaIdAffinity::<T>::get(&entry.claim.0) {
-			Some(affinity) => return affinity.core_idx == core_idx,
-			None => return true,
+		let pos = queue.iter().position(|assignment| {
+			match ParaIdAffinity::<T>::get(&assignment.para_id) {
+				Some(affinity) => return affinity.core_idx == core_idx,
+				None => return true,
+			}
 		});
 
 		pos.and_then(|p: usize| {
-			if let Some(entry) = queue.remove(p) {
-				Pallet::<T>::increase_affinity(entry.claim.0, core_idx);
+			if let Some(assignment) = queue.remove(p) {
+				Pallet::<T>::increase_affinity(assignment.para_id, core_idx);
 				// Write changes to storage.
 				OnDemandQueue::<T>::set(queue);
-				return Some(Assignment::ParathreadA(entry))
+				return Some(assignment)
 			};
 			return None
 		})
@@ -416,18 +430,11 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 	/// - `core_idx`: The core index
 	/// - `assignment`: The on demand assignment.
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
-		match assignment {
-			Assignment::ParathreadA(entry) => {
-				Pallet::<T>::decrease_affinity(entry.claim.0, core_idx);
-				// Skip the queue on push backs from scheduler
-				match Pallet::<T>::add_parathread_entry(entry, QueuePushDirection::Front) {
-					Ok(_) => {},
-					Err(_) => {},
-				}
-			},
-			Assignment::Parachain(_para_id) => {
-				// We should never end up here
-			},
+		Pallet::<T>::decrease_affinity(assignment.para_id, core_idx);
+		// Skip the queue on push backs from scheduler
+		match Pallet::<T>::add_parathread_assignment(assignment, QueuePushDirection::Front) {
+			Ok(_) => {},
+			Err(_) => {},
 		}
 	}
 

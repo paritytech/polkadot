@@ -15,13 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::pallet_prelude::*;
-use primitives::{CoreIndex, Id as ParaId};
+use primitives::{v4::Assignment, CoreIndex, Id as ParaId};
 
 use crate::{
 	configuration,
 	//initializer::SessionChangeNotification,
 	paras,
-	scheduler_common::{Assignment, AssignmentProvider},
+	scheduler_common::AssignmentProvider,
 };
 
 pub use pallet::*;
@@ -59,12 +59,6 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 			<OnDemandAssigner<T> as AssignmentProvider<T::BlockNumber>>::session_core_count();
 
 		parachain_cores.saturating_add(on_demand_cores)
-	}
-
-	fn new_session() {
-		let n_parachains =
-			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::session_core_count();
-		NumParachains::<T>::mutate(|val| *val = Some(n_parachains));
 	}
 
 	fn pop_assignment_for_core(
