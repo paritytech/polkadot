@@ -664,6 +664,12 @@ async fn can_collate(
 		}
 	}
 
+	gum::warn!(
+		target: LOG_TARGET,
+		?para_id,
+		"[can_collate] PendingCollation para_id not found on availability core.",
+	);
+
 	return false
 }
 
