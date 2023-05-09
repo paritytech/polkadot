@@ -103,7 +103,7 @@ cargo-clippy:
     - .docker-env
     - .test-refs
   variables:
-    CI_DISABLE_TIMESTAMP: true
+    CI_DISABLE_TIMESTAMP: "true"
   script:
     - rustup show
     - cargo --version
@@ -122,7 +122,7 @@ cargo-clippy-all-features:
     - .docker-env
     - .test-refs
   variables:
-    CI_DISABLE_TIMESTAMP: true
+    CI_DISABLE_TIMESTAMP: "true"
   script:
     - rustup show
     - cargo --version
