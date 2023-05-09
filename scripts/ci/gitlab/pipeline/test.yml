@@ -102,7 +102,13 @@ cargo-clippy:
   extends:
     - .docker-env
     - .test-refs
+  variables:
+    CI_DISABLE_TIMESTAMP: true
   script:
+    - rustup show
+    - cargo --version
+    - rustup +nightly show
+    - cargo +nightly --version
     - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo clippy --locked --all-targets
 
 cargo-clippy-all-features:
@@ -115,5 +121,11 @@ cargo-clippy-all-features:
   extends:
     - .docker-env
     - .test-refs
+  variables:
+    CI_DISABLE_TIMESTAMP: true
   script:
+    - rustup show
+    - cargo --version
+    - rustup +nightly show
+    - cargo +nightly --version
     - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo clippy --locked --all-targets --all-features
