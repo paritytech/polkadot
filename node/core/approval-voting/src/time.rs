@@ -24,7 +24,7 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
-const TICK_DURATION_MILLIS: u64 = 500;
+const TICK_DURATION_MILLIS: u64 = 1000;
 
 /// A base unit of time, starting from the Unix epoch, split into half-second intervals.
 pub(crate) type Tick = u64;
