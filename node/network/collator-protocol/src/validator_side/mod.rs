@@ -684,7 +684,7 @@ async fn fetch_collation(
 
 	let PendingCollation { relay_parent, para_id, peer_id, .. } = pc;
 
-	if !can_collate(&pc, sender).await {
+	if !can_collate(&pc, sender).await && false {
 		gum::warn!(
 			target: LOG_TARGET,
 			?peer_id,
