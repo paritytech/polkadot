@@ -209,11 +209,9 @@ async fn imported_block_info<Context>(
 		}
 	};
 
-	let session_info =
-		match get_session_info(env.runtime_info, ctx.sender(), block_hash, session_index).await {
-			Some(session_info) => session_info,
-			None => return Err(ImportedBlockInfoError::SessionInfoUnavailable),
-		};
+	let session_info = get_session_info(env.runtime_info, ctx.sender(), block_hash, session_index)
+		.await
+		.ok_or(ImportedBlockInfoError::SessionInfoUnavailable)?;
 
 	let (assignments, slot, relay_vrf_story) = {
 		let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
