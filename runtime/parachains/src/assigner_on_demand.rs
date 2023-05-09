@@ -15,6 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The parachain on demand assignment module.
+//!
+//! Implements a mechanism for taking in orders for pay as you go (PAYG) or on demand
+//! parachain (previously parathreads) assignments. This module is not handled by the
+//! initializer but is instead instantiated in the `construct_runtime` macro.
 
 use crate::{
 	configuration, paras,
