@@ -429,6 +429,9 @@ pub enum AvailabilityStoreMessage {
 	/// Query an `ErasureChunk` from the AV store by the candidate hash and validator index.
 	QueryChunk(CandidateHash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
+	/// Get the size of an `ErasureChunk` from the AV store by the candidate hash.
+	QueryChunkSize(CandidateHash, oneshot::Sender<Option<usize>>),
+
 	/// Query all chunks that we have for the given candidate hash.
 	QueryAllChunks(CandidateHash, oneshot::Sender<Vec<ErasureChunk>>),
 

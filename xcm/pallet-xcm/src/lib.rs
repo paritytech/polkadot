@@ -52,7 +52,8 @@ use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use xcm_executor::{
 	traits::{
-		ClaimAssets, DropAssets, MatchesFungible, OnResponse, VersionChangeNotifier, WeightBounds,
+		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse,
+		VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -66,6 +67,7 @@ pub trait WeightInfo {
 	fn force_default_xcm_version() -> Weight;
 	fn force_subscribe_version_notify() -> Weight;
 	fn force_unsubscribe_version_notify() -> Weight;
+	fn force_suspension() -> Weight;
 	fn migrate_supported_version() -> Weight;
 	fn migrate_version_notifiers() -> Weight;
 	fn already_notified_target() -> Weight;
@@ -107,6 +109,10 @@ impl WeightInfo for TestWeightInfo {
 	}
 
 	fn force_unsubscribe_version_notify() -> Weight {
+		Weight::from_parts(100_000_000, 0)
+	}
+
+	fn force_suspension() -> Weight {
 		Weight::from_parts(100_000_000, 0)
 	}
 
@@ -243,6 +249,12 @@ pub mod pallet {
 
 		/// The maximum number of local XCM locks that a single account may have.
 		type MaxLockers: Get<u32>;
+
+		/// The maximum number of consumers a single remote lock may have.
+		type MaxRemoteLockConsumers: Get<u32>;
+
+		/// The ID type for local consumers of remote locks.
+		type RemoteLockConsumerIdentifier: Parameter + Member + MaxEncodedLen + Ord + Copy;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -439,7 +451,7 @@ pub mod pallet {
 		FeesNotMet,
 		/// A remote lock with the corresponding data could not be found.
 		LockNotFound,
-		/// The unlock operation cannot succeed because there are still users of the lock.
+		/// The unlock operation cannot succeed because there are still consumers of the lock.
 		InUse,
 	}
 
@@ -582,11 +594,26 @@ pub mod pallet {
 		StorageValue<_, VersionMigrationStage, OptionQuery>;
 
 	#[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, TypeInfo, MaxEncodedLen)]
-	pub struct RemoteLockedFungibleRecord {
+	#[scale_info(skip_type_params(MaxConsumers))]
+	pub struct RemoteLockedFungibleRecord<ConsumerIdentifier, MaxConsumers: Get<u32>> {
+		/// Total amount of the asset held by the remote lock.
 		pub amount: u128,
+		/// The owner of the locked asset.
 		pub owner: VersionedMultiLocation,
+		/// The location which holds the original lock.
 		pub locker: VersionedMultiLocation,
-		pub users: u32,
+		/// Local consumers of the remote lock with a consumer identifier and the amount
+		/// of fungible asset every consumer holds.
+		/// Every consumer can hold up to total amount of the remote lock.
+		pub consumers: BoundedVec<(ConsumerIdentifier, u128), MaxConsumers>,
+	}
+
+	impl<LockId, MaxConsumers: Get<u32>> RemoteLockedFungibleRecord<LockId, MaxConsumers> {
+		/// Amount of the remote lock in use by consumers.
+		/// Returns `None` if the remote lock has no consumers.
+		pub fn amount_held(&self) -> Option<u128> {
+			self.consumers.iter().max_by(|x, y| x.1.cmp(&y.1)).map(|max| max.1)
+		}
 	}
 
 	/// Fungible assets which we know are locked on a remote chain.
@@ -598,7 +625,7 @@ pub mod pallet {
 			NMapKey<Blake2_128Concat, T::AccountId>,
 			NMapKey<Blake2_128Concat, VersionedAssetId>,
 		),
-		RemoteLockedFungibleRecord,
+		RemoteLockedFungibleRecord<T::RemoteLockConsumerIdentifier, T::MaxRemoteLockConsumers>,
 		OptionQuery,
 	>;
 
@@ -611,6 +638,10 @@ pub mod pallet {
 		BoundedVec<(BalanceOf<T>, VersionedMultiLocation), T::MaxLockers>,
 		OptionQuery,
 	>;
+
+	/// Global suspension state of the XCM executor.
+	#[pallet::storage]
+	pub(super) type XcmExecutionSuspended<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
@@ -908,7 +939,7 @@ pub mod pallet {
 		/// Extoll that a particular destination can be communicated with through a particular
 		/// version of XCM.
 		///
-		/// - `origin`: Must be Root.
+		/// - `origin`: Must be an origin specified by AdminOrigin.
 		/// - `location`: The destination that is being described.
 		/// - `xcm_version`: The latest version of XCM that `location` supports.
 		#[pallet::call_index(4)]
@@ -932,7 +963,7 @@ pub mod pallet {
 		/// Set a safe XCM version (the version that XCM should be encoded with if the most recent
 		/// version a destination can accept is unknown).
 		///
-		/// - `origin`: Must be Root.
+		/// - `origin`: Must be an origin specified by AdminOrigin.
 		/// - `maybe_xcm_version`: The default XCM encoding version, or `None` to disable.
 		#[pallet::call_index(5)]
 		#[pallet::weight(T::WeightInfo::force_default_xcm_version())]
@@ -947,7 +978,7 @@ pub mod pallet {
 
 		/// Ask a location to notify us regarding their XCM version and any changes to it.
 		///
-		/// - `origin`: Must be Root.
+		/// - `origin`: Must be an origin specified by AdminOrigin.
 		/// - `location`: The location to which we should subscribe for XCM version notifications.
 		#[pallet::call_index(6)]
 		#[pallet::weight(T::WeightInfo::force_subscribe_version_notify())]
@@ -970,7 +1001,7 @@ pub mod pallet {
 		/// Require that a particular destination should no longer notify us regarding any XCM
 		/// version changes.
 		///
-		/// - `origin`: Must be Root.
+		/// - `origin`: Must be an origin specified by AdminOrigin.
 		/// - `location`: The location to which we are currently subscribed for XCM version
 		///   notifications which we no longer desire.
 		#[pallet::call_index(7)]
@@ -1091,6 +1122,18 @@ pub mod pallet {
 				fee_asset_item,
 				Some(weight_limit),
 			)
+		}
+
+		/// Set or unset the global suspension state of the XCM executor.
+		///
+		/// - `origin`: Must be an origin specified by AdminOrigin.
+		/// - `suspended`: `true` to suspend, `false` to resume.
+		#[pallet::call_index(10)]
+		#[pallet::weight(T::WeightInfo::force_suspension())]
+		pub fn force_suspension(origin: OriginFor<T>, suspended: bool) -> DispatchResult {
+			T::AdminOrigin::ensure_origin(origin)?;
+			XcmExecutionSuspended::<T>::set(suspended);
+			Ok(())
 		}
 	}
 }
@@ -1671,11 +1714,12 @@ impl<T: Config> xcm_executor::traits::Enact for ReduceTicket<T> {
 		use xcm_executor::traits::LockError::UnexpectedState;
 		let mut record = RemoteLockedFungibles::<T>::get(&self.key).ok_or(UnexpectedState)?;
 		ensure!(self.locker == record.locker && self.owner == record.owner, UnexpectedState);
-		ensure!(record.users == 0, UnexpectedState);
-		record.amount = record.amount.checked_sub(self.amount).ok_or(UnexpectedState)?;
-		if record.amount == 0 {
+		let new_amount = record.amount.checked_sub(self.amount).ok_or(UnexpectedState)?;
+		ensure!(record.amount_held().map_or(true, |h| new_amount >= h), UnexpectedState);
+		if new_amount == 0 {
 			RemoteLockedFungibles::<T>::remove(&self.key);
 		} else {
+			record.amount = new_amount;
 			RemoteLockedFungibles::<T>::insert(&self.key, &record);
 		}
 		Ok(())
@@ -1735,11 +1779,12 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		let owner = owner.into();
 		let id: VersionedAssetId = asset.id.into();
 		let key = (XCM_VERSION, account, id);
-		let mut record = RemoteLockedFungibleRecord { amount, owner, locker, users: 0 };
+		let mut record =
+			RemoteLockedFungibleRecord { amount, owner, locker, consumers: BoundedVec::default() };
 		if let Some(old) = RemoteLockedFungibles::<T>::get(&key) {
 			// Make sure that the new record wouldn't clobber any old data.
 			ensure!(old.locker == record.locker && old.owner == record.owner, WouldClobber);
-			record.users = old.users;
+			record.consumers = old.consumers;
 			record.amount = record.amount.max(old.amount);
 		}
 		RemoteLockedFungibles::<T>::insert(&key, record);
@@ -1766,8 +1811,11 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		let record = RemoteLockedFungibles::<T>::get(&key).ok_or(NotLocked)?;
 		// Make sure that the record contains what we expect and there's enough to unlock.
 		ensure!(locker == record.locker && owner == record.owner, WouldClobber);
-		ensure!(record.users == 0, InUse);
 		ensure!(record.amount >= amount, NotEnoughLocked);
+		ensure!(
+			record.amount_held().map_or(true, |h| record.amount.saturating_sub(amount) >= h),
+			InUse
+		);
 		Ok(ReduceTicket { key, amount, locker, owner })
 	}
 }
@@ -2041,6 +2089,17 @@ impl<T: Config> OnResponse for Pallet<T> {
 				Weight::zero()
 			},
 		}
+	}
+}
+
+impl<T: Config> CheckSuspension for Pallet<T> {
+	fn is_suspended<Call>(
+		_origin: &MultiLocation,
+		_instructions: &mut [Instruction<Call>],
+		_max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> bool {
+		XcmExecutionSuspended::<T>::get()
 	}
 }
 
