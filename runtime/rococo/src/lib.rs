@@ -191,7 +191,7 @@ pub struct OriginPrivilegeCmp;
 impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
 	fn cmp_privilege(left: &OriginCaller, right: &OriginCaller) -> Option<Ordering> {
 		if left == right {
-			return Some(Ordering::Equal);
+			return Some(Ordering::Equal)
 		}
 
 		match (left, right) {
@@ -946,33 +946,32 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Slots(..) |
 				RuntimeCall::Auctions(..) // Specifically omitting the entire XCM Pallet
 			),
-			ProxyType::Governance => matches!(
+			ProxyType::Governance =>
+			 matches!(
 				c,
-				RuntimeCall::Democracy(..)
-					| RuntimeCall::Council(..)
-					| RuntimeCall::TechnicalCommittee(..)
-					| RuntimeCall::PhragmenElection(..)
-					| RuntimeCall::Treasury(..)
-					| RuntimeCall::Bounties(..)
-					| RuntimeCall::Tips(..)
-					| RuntimeCall::Utility(..)
-					| RuntimeCall::ChildBounties(..)
+				RuntimeCall::Democracy(..) | 
+					RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) | 
+					RuntimeCall::PhragmenElection(..) | 
+					RuntimeCall::Treasury(..) | 
+					RuntimeCall::Bounties(..) | 
+					RuntimeCall::Tips(..) | RuntimeCall::Utility(..) | 
+					RuntimeCall::ChildBounties(..)
 			),
 			ProxyType::IdentityJudgement => matches!(
 				c,
-				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. })
-					| RuntimeCall::Utility(..)
+				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. }) | 
+				RuntimeCall::Utility(..)
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. }))
 			},
 			ProxyType::Auction => matches!(
 				c,
-				RuntimeCall::Auctions { .. }
-					| RuntimeCall::Crowdloan { .. }
-					| RuntimeCall::Registrar { .. }
-					| RuntimeCall::Multisig(..)
-					| RuntimeCall::Slots { .. }
+				RuntimeCall::Auctions { .. } | 
+					RuntimeCall::Crowdloan { .. } | 
+					RuntimeCall::Registrar { .. } | 
+					RuntimeCall::Multisig(..) | 
+					RuntimeCall::Slots { .. }
 			),
 			ProxyType::Society => matches!(c, RuntimeCall::Society(..)),
 		}
@@ -2163,7 +2162,7 @@ mod remote_tests {
 	#[tokio::test]
 	async fn run_migrations() {
 		if var("RUN_MIGRATION_TESTS").is_err() {
-			return;
+			return
 		}
 
 		sp_tracing::try_init_simple();
