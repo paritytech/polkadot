@@ -2,8 +2,8 @@ Description: Smoke / Upgrade Node
 Network: ./0002-upgrade-node.toml
 Creds: config
 
-alice: parachain 2000 block height is at least 10 within 200 seconds
-bob: parachain 2001 block height is at least 10 within 200 seconds
+charlie: parachain 2000 block height is at least 10 within 200 seconds
+dave: parachain 2001 block height is at least 10 within 200 seconds
 
 # upgrade both nodes
 # For testing using native provider you should set this env var
