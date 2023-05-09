@@ -116,8 +116,6 @@ const LOG_TARGET: &str = "parachain::approval-voting";
 pub struct Config {
 	/// The column family in the DB where approval-voting data is stored.
 	pub col_approval_data: u32,
-	/// The of the DB where rolling session info is stored.
-	pub col_session_data: u32,
 	/// The slot duration of the consensus algorithm, in milliseconds. Should be evenly
 	/// divisible by 500.
 	pub slot_duration_millis: u64,
@@ -357,10 +355,7 @@ impl ApprovalVotingSubsystem {
 			keystore,
 			slot_duration_millis: config.slot_duration_millis,
 			db,
-			db_config: DatabaseConfig {
-				col_approval_data: config.col_approval_data,
-				col_session_data: config.col_session_data,
-			},
+			db_config: DatabaseConfig { col_approval_data: config.col_approval_data },
 			mode: Mode::Syncing(sync_oracle),
 			metrics,
 		}

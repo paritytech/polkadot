@@ -28,7 +28,7 @@ type Version = u32;
 const VERSION_FILE_NAME: &'static str = "parachain_db_version";
 
 /// Current db version.
-const CURRENT_VERSION: Version = 2;
+const CURRENT_VERSION: Version = 3;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -58,6 +58,8 @@ pub(crate) fn try_upgrade_db(db_path: &Path, db_kind: DatabaseKind) -> Result<()
 			Some(0) => migrate_from_version_0_to_1(db_path, db_kind)?,
 			// 1 -> 2 migration
 			Some(1) => migrate_from_version_1_to_2(db_path, db_kind)?,
+			// 2 -> 3 migration
+			Some(2) => migrate_from_version_2_to_3(db_path, db_kind)?,
 			// Already at current version, do nothing.
 			Some(CURRENT_VERSION) => (),
 			// This is an arbitrary future version, we don't handle it.
@@ -127,6 +129,18 @@ fn migrate_from_version_1_to_2(path: &Path, db_kind: DatabaseKind) -> Result<(),
 	})
 }
 
+fn migrate_from_version_2_to_3(path: &Path, db_kind: DatabaseKind) -> Result<(), Error> {
+	gum::info!(target: LOG_TARGET, "Migrating parachains db from version 2 to version 3 ...");
+	match db_kind {
+		DatabaseKind::ParityDB => paritydb_migrate_from_version_2_to_3(path),
+		DatabaseKind::RocksDB => rocksdb_migrate_from_version_2_to_3(path),
+	}
+	.and_then(|result| {
+		gum::info!(target: LOG_TARGET, "Migration complete! ");
+		Ok(result)
+	})
+}
+
 /// Migration from version 0 to version 1:
 /// * the number of columns has changed from 3 to 5;
 fn rocksdb_migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
@@ -156,6 +170,22 @@ fn rocksdb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
 	let mut db = Database::open(&db_cfg, db_path)?;
 
 	db.add_column()?;
+
+	Ok(())
+}
+
+fn rocksdb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
+	use kvdb_rocksdb::{Database, DatabaseConfig};
+
+	let db_path = path
+		.to_str()
+		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
+	let db_cfg = DatabaseConfig::with_columns(super::columns::v1::NUM_COLUMNS);
+	let mut db = Database::open(&db_cfg, db_path)?;
+
+	// TODO: how to remove the column??
+	db.remove_last_column()
+		.map_err(|e| other_io_error(format!("Error removing column {:?}", e)))?;
 
 	Ok(())
 }
@@ -239,6 +269,17 @@ pub(crate) fn paritydb_version_2_config(path: &Path) -> parity_db::Options {
 	options
 }
 
+/// Database configuration for version 3.
+pub(crate) fn paritydb_version_3_config(path: &Path) -> parity_db::Options {
+	let mut options =
+		parity_db::Options::with_columns(&path, super::columns::v3::NUM_COLUMNS as u8);
+	for i in columns::v3::ORDERED_COL {
+		options.columns[*i as usize].btree_index = true;
+	}
+
+	options
+}
+
 /// Database configuration for version 0. This is useful just for testing.
 #[cfg(test)]
 pub(crate) fn paritydb_version_0_config(path: &Path) -> parity_db::Options {
@@ -274,6 +315,15 @@ fn paritydb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
 	// Adds the session info column.
 	parity_db::Db::add_column(&mut options, Default::default())
 		.map_err(|e| other_io_error(format!("Error adding column {:?}", e)))?;
+
+	Ok(())
+}
+
+/// Migration from version 2 to version 3:
+/// - clear any columns used by `RollingSessionWindow`
+fn paritydb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
+	parity_db::clear_column(path, super::columns::v2::COL_SESSION_WINDOW_DATA as u8)
+		.map_err(|e| other_io_error(format!("Error clearing COL_SESSION_WINDOW_DATA {:?}", e)))?;
 
 	Ok(())
 }

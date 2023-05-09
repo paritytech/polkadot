@@ -46,6 +46,18 @@ pub(crate) mod columns {
 		pub const ORDERED_COL: &[u32] =
 			&[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA, COL_DISPUTE_COORDINATOR_DATA];
 	}
+
+	pub mod v3 {
+		pub const NUM_COLUMNS: u32 = 5;
+		pub const COL_AVAILABILITY_DATA: u32 = 0;
+		pub const COL_AVAILABILITY_META: u32 = 1;
+		pub const COL_APPROVAL_DATA: u32 = 2;
+		pub const COL_CHAIN_SELECTION_DATA: u32 = 3;
+		pub const COL_DISPUTE_COORDINATOR_DATA: u32 = 4;
+
+		pub const ORDERED_COL: &[u32] =
+			&[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA, COL_DISPUTE_COORDINATOR_DATA];
+	}
 }
 
 /// Columns used by different subsystems.
@@ -62,19 +74,16 @@ pub struct ColumnsConfig {
 	pub col_chain_selection_data: u32,
 	/// The column used by dispute coordinator for data.
 	pub col_dispute_coordinator_data: u32,
-	/// The column used for session window data.
-	pub col_session_window_data: u32,
 }
 
 /// The real columns used by the parachains DB.
 #[cfg(any(test, feature = "full-node"))]
 pub const REAL_COLUMNS: ColumnsConfig = ColumnsConfig {
-	col_availability_data: columns::v2::COL_AVAILABILITY_DATA,
-	col_availability_meta: columns::v2::COL_AVAILABILITY_META,
-	col_approval_data: columns::v2::COL_APPROVAL_DATA,
-	col_chain_selection_data: columns::v2::COL_CHAIN_SELECTION_DATA,
-	col_dispute_coordinator_data: columns::v2::COL_DISPUTE_COORDINATOR_DATA,
-	col_session_window_data: columns::v2::COL_SESSION_WINDOW_DATA,
+	col_availability_data: columns::v3::COL_AVAILABILITY_DATA,
+	col_availability_meta: columns::v3::COL_AVAILABILITY_META,
+	col_approval_data: columns::v3::COL_APPROVAL_DATA,
+	col_chain_selection_data: columns::v3::COL_CHAIN_SELECTION_DATA,
+	col_dispute_coordinator_data: columns::v3::COL_DISPUTE_COORDINATOR_DATA,
 };
 
 #[derive(PartialEq)]
@@ -126,16 +135,13 @@ pub fn open_creating_rocksdb(
 
 	let _ = db_config
 		.memory_budget
-		.insert(columns::v2::COL_AVAILABILITY_DATA, cache_sizes.availability_data);
+		.insert(columns::v3::COL_AVAILABILITY_DATA, cache_sizes.availability_data);
 	let _ = db_config
 		.memory_budget
-		.insert(columns::v2::COL_AVAILABILITY_META, cache_sizes.availability_meta);
+		.insert(columns::v3::COL_AVAILABILITY_META, cache_sizes.availability_meta);
 	let _ = db_config
 		.memory_budget
-		.insert(columns::v2::COL_APPROVAL_DATA, cache_sizes.approval_data);
-	let _ = db_config
-		.memory_budget
-		.insert(columns::v2::COL_SESSION_WINDOW_DATA, cache_sizes.session_data);
+		.insert(columns::v3::COL_APPROVAL_DATA, cache_sizes.approval_data);
 
 	let path_str = path
 		.to_str()
@@ -146,7 +152,7 @@ pub fn open_creating_rocksdb(
 	let db = Database::open(&db_config, &path_str)?;
 	let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(
 		db,
-		columns::v2::ORDERED_COL,
+		columns::v3::ORDERED_COL,
 	);
 
 	Ok(Arc::new(db))
@@ -166,12 +172,12 @@ pub fn open_creating_paritydb(
 	std::fs::create_dir_all(&path_str)?;
 	upgrade::try_upgrade_db(&path, DatabaseKind::ParityDB)?;
 
-	let db = parity_db::Db::open_or_create(&upgrade::paritydb_version_2_config(&path))
+	let db = parity_db::Db::open_or_create(&upgrade::paritydb_version_3_config(&path))
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
 
 	let db = polkadot_node_subsystem_util::database::paritydb_impl::DbAdapter::new(
 		db,
-		columns::v2::ORDERED_COL,
+		columns::v3::ORDERED_COL,
 	);
 	Ok(Arc::new(db))
 }
