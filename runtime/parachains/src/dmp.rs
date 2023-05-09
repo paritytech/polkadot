@@ -47,7 +47,7 @@ use crate::{
 	initializer, FeeTracker,
 };
 use frame_support::pallet_prelude::*;
-use primitives::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
+use primitives::{message_id, DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_runtime::{
 	traits::{BlakeTwo256, Hash as HashT, SaturatedConversion},
@@ -64,15 +64,6 @@ mod tests;
 const THRESHOLD_FACTOR: u32 = 2;
 const EXPONENTIAL_FEE_BASE: FixedU128 = FixedU128::from_rational(105, 100); // 1.05
 const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1, 1000); // 0.001
-
-/// Simple type used to identify messages for the purpose of reporting events. Secure if and only
-/// if the message content is unique.
-pub type MessageId = [u8; 32];
-
-/// Returns a [`MessageId`] for the given message payload.
-pub fn message_id(data: &[u8]) -> MessageId {
-	sp_io::hashing::blake2_256(data)
-}
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
@@ -116,6 +107,7 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use primitives::MessageId;
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]

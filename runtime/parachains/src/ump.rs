@@ -21,7 +21,7 @@ use crate::{
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
 use polkadot_parachain::primitives::UpwardMessages;
-use primitives::{Id as ParaId, UpwardMessage};
+use primitives::{message_id, Id as ParaId, MessageId, UpwardMessage};
 use sp_std::{collections::btree_map::BTreeMap, fmt, marker::PhantomData, mem, prelude::*};
 use xcm::latest::Outcome;
 
@@ -79,15 +79,6 @@ impl UmpSink for () {
 	) -> Result<Weight, (MessageId, Weight)> {
 		Ok(Weight::zero())
 	}
-}
-
-/// Simple type used to identify messages for the purpose of reporting events. Secure if and only
-/// if the message content is unique.
-pub type MessageId = [u8; 32];
-
-/// Returns a [`MessageId`] for the given message payload.
-pub fn message_id(data: &[u8]) -> MessageId {
-	sp_io::hashing::blake2_256(data)
 }
 
 /// Index used to identify overweight messages.

@@ -1738,6 +1738,15 @@ pub enum PvfExecTimeoutKind {
 pub mod executor_params;
 pub use executor_params::{ExecutorParam, ExecutorParams, ExecutorParamsHash};
 
+/// Simple type used to identify messages for the purpose of reporting events. Secure if and only
+/// if the message content is unique.
+pub type MessageId = [u8; 32];
+
+/// Returns a [`MessageId`] for the given message payload.
+pub fn message_id(data: &[u8]) -> MessageId {
+	sp_io::hashing::blake2_256(data)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
