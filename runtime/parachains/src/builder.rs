@@ -340,14 +340,20 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		// make sure parachains exist prior to session change.
 		for i in 0..cores {
 			let para_id = ParaId::from(i as u32);
+			let validation_code = mock_validation_code();
 
 			paras::Pallet::<T>::schedule_para_initialize(
 				para_id,
 				paras::ParaGenesisArgs {
 					genesis_head: Self::mock_head_data(),
-					validation_code: mock_validation_code(),
+					validation_code: validation_code.clone(),
 					para_kind: ParaKind::Parachain,
 				},
+			)
+			.unwrap();
+			paras::Pallet::<T>::add_trusted_validation_code(
+				frame_system::Origin::<T>::Root.into(),
+				validation_code,
 			)
 			.unwrap();
 		}
