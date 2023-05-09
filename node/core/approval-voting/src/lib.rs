@@ -364,10 +364,8 @@ impl ApprovalVotingSubsystem {
 	/// Revert to the block corresponding to the specified `hash`.
 	/// The operation is not allowed for blocks older than the last finalized one.
 	pub fn revert_to(&self, hash: Hash) -> Result<(), SubsystemError> {
-		let config = approval_db::v1::Config {
-			col_approval_data: self.db_config.col_approval_data,
-			col_session_data: self.db_config.col_session_data,
-		};
+		let config =
+			approval_db::v1::Config { col_approval_data: self.db_config.col_approval_data };
 		let mut backend = approval_db::v1::DbBackend::new(self.db.clone(), config);
 		let mut overlay = OverlayedBackend::new(&backend);
 

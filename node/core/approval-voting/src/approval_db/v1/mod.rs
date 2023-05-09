@@ -154,8 +154,6 @@ pub type Bitfield = BitVec<u8, BitOrderLsb0>;
 pub struct Config {
 	/// The column family in the database where data is stored.
 	pub col_approval_data: u32,
-	/// The column of the database where rolling session window data is stored.
-	pub col_session_data: u32,
 }
 
 /// Details pertaining to our assignment on a block.
