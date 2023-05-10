@@ -847,13 +847,14 @@ impl CollatorRestrictions {
 	/// Is peer_id allowed to collate?
 	#[cfg(feature = "std")]
 	pub fn can_collate(&self, peer_id: &PeerId) -> bool {
-		match self.restriction_kind {
-			CollatorRestrictionKind::Preferred => true,
-			CollatorRestrictionKind::Required => {
-				let peer_id = OpaquePeerId(peer_id.to_bytes());
-				self.collator_peer_ids.contains(&peer_id)
-			},
-		}
+		self.collator_peer_ids.is_empty() ||
+			match self.restriction_kind {
+				CollatorRestrictionKind::Preferred => true,
+				CollatorRestrictionKind::Required => {
+					let peer_id = OpaquePeerId(peer_id.to_bytes());
+					self.collator_peer_ids.contains(&peer_id)
+				},
+			}
 	}
 }
 
