@@ -633,10 +633,11 @@ async fn disconnect_peer(sender: &mut impl overseer::CollatorProtocolSenderTrait
 
 /// Check if `PendingCollation` can be collated.
 async fn can_collate(
-	pc: &PendingCollation,
+	relay_parent: &Hash,
+	peer_id: &PeerId,
+	para_id: &ParaId,
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
 ) -> bool {
-	let PendingCollation { relay_parent, para_id, peer_id, .. } = pc;
 	let mc = polkadot_node_subsystem_util::request_availability_cores(*relay_parent, sender)
 		.await
 		.await
@@ -683,17 +684,6 @@ async fn fetch_collation(
 	let (tx, rx) = oneshot::channel();
 
 	let PendingCollation { relay_parent, para_id, peer_id, .. } = pc;
-
-	//if !can_collate(&pc, sender).await {
-	//	gum::warn!(
-	//		target: LOG_TARGET,
-	//		?peer_id,
-	//		?para_id,
-	//		?relay_parent,
-	//		"Peer is not allowed to collate",
-	//	);
-	//	return
-	//}
 
 	let timeout = |collator_id, relay_parent| async move {
 		Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
@@ -935,17 +925,6 @@ async fn process_incoming_peer_message<Context>(
 				.span_per_relay_parent
 				.get(&relay_parent)
 				.map(|s| s.child("advertise-collation"));
-			if !state.view.contains(&relay_parent) {
-				gum::debug!(
-					target: LOG_TARGET,
-					peer_id = ?origin,
-					?relay_parent,
-					"Advertise collation out of view",
-				);
-
-				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
-				return
-			}
 
 			let peer_data = match state.peer_data.get_mut(&origin) {
 				None => {
@@ -960,6 +939,43 @@ async fn process_incoming_peer_message<Context>(
 				},
 				Some(p) => p,
 			};
+
+			let para_id = match peer_data.collating_para() {
+				None => {
+					gum::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?relay_parent,
+					"collating_para() returned None");
+
+					return
+				},
+				Some(p) => p,
+			};
+
+			if !can_collate(&relay_parent, &origin, &para_id, ctx.sender()).await {
+				gum::warn!(
+					target: LOG_TARGET,
+					?origin,
+					?para_id,
+					?relay_parent,
+					"Peer is not allowed to collate",
+				);
+				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+				return
+			}
+
+			if !state.view.contains(&relay_parent) {
+				gum::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?relay_parent,
+					"Advertise collation out of view",
+				);
+
+				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+				return
+			}
 
 			match peer_data.insert_advertisement(relay_parent, &state.view) {
 				Ok((id, para_id)) => {
