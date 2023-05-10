@@ -18,7 +18,7 @@
 
 use super::*;
 use jsonrpsee::{
-	core::{Error as RpcError, RpcResult},
+	core::{Error as RpcError},
 	proc_macros::rpc,
 };
 use pallet_transaction_payment::RuntimeDispatchInfo;
@@ -84,7 +84,7 @@ pub trait RpcApi {
 		unsubscribe = "author_unwatchExtrinsic",
 		item = TransactionStatus<Hash, Hash>
 	)]
-	fn watch_extrinsic(&self, bytes: &Bytes);
+	async fn watch_extrinsic(&self, bytes: &Bytes);
 
 	/// New head subscription.
 	#[subscription(
@@ -92,7 +92,7 @@ pub trait RpcApi {
 		unsubscribe = "chain_unsubscribeNewHeads",
 		item = Header
 	)]
-	fn subscribe_new_heads(&self);
+	async fn subscribe_new_heads(&self);
 
 	/// Finalized head subscription.
 	#[subscription(
@@ -100,7 +100,7 @@ pub trait RpcApi {
 		unsubscribe = "chain_unsubscribeFinalizedHeads",
 		item = Header
 	)]
-	fn subscribe_finalized_heads(&self);
+	async fn subscribe_finalized_heads(&self);
 }
 
 type Uri = String;
@@ -131,7 +131,8 @@ impl SharedRpcClient {
 	) -> Result<Self, RpcError> {
 		let client = WsClientBuilder::default()
 			.connection_timeout(connection_timeout)
-			.max_request_body_size(u32::MAX)
+			.max_request_size(u32::MAX)
+			.max_response_size(u32::MAX)
 			.request_timeout(request_timeout)
 			.max_concurrent_requests(u32::MAX as usize)
 			.build(uri)
