@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -123,8 +123,8 @@ impl<T: Config> Pallet<T> {
 		CurrentSessionIndex::<T>::set(index);
 	}
 
-	#[cfg(any(feature = "runtime-benchmarks", test))]
-	pub(crate) fn set_active_validators_ascending(active: Vec<ValidatorId>) {
+	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
+	pub fn set_active_validators_ascending(active: Vec<ValidatorId>) {
 		ActiveValidatorIndices::<T>::set(
 			(0..active.len()).map(|i| ValidatorIndex(i as _)).collect(),
 		);

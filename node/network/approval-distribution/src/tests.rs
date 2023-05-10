@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -24,7 +24,7 @@ use polkadot_node_network_protocol::{
 	view, ObservedRole,
 };
 use polkadot_node_primitives::approval::{
-	AssignmentCertKind, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
+	AssignmentCertKind, VrfOutput, VrfProof, VrfSignature, RELAY_VRF_MODULO_CONTEXT,
 };
 use polkadot_node_subsystem::messages::{network_bridge_event, AllMessages, ApprovalCheckError};
 use polkadot_node_subsystem_test_helpers as test_helpers;
@@ -265,7 +265,7 @@ fn fake_assignment_cert(block_hash: Hash, validator: ValidatorIndex) -> Indirect
 		validator,
 		cert: AssignmentCert {
 			kind: AssignmentCertKind::RelayVRFModulo { sample: 1 },
-			vrf: (VRFOutput(out), VRFProof(proof)),
+			vrf: VrfSignature { output: VrfOutput(out), proof: VrfProof(proof) },
 		},
 	}
 }
@@ -1817,6 +1817,9 @@ fn originator_aggression_l1() {
 					session: 1,
 				};
 
+				let msg = ApprovalDistributionMessage::ApprovalCheckingLagUpdate(level + 1);
+				overseer_send(overseer, msg).await;
+
 				let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 				overseer_send(overseer, msg).await;
 
@@ -2071,6 +2074,9 @@ fn non_originator_aggression_l2() {
 					session: 1,
 				};
 
+				let msg = ApprovalDistributionMessage::ApprovalCheckingLagUpdate(level + 1);
+				overseer_send(overseer, msg).await;
+
 				let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 				overseer_send(overseer, msg).await;
 
@@ -2097,6 +2103,10 @@ fn non_originator_aggression_l2() {
 					session: 1,
 				};
 
+				let msg = ApprovalDistributionMessage::ApprovalCheckingLagUpdate(
+					aggression_l1_threshold + level + 1,
+				);
+				overseer_send(overseer, msg).await;
 				let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 				overseer_send(overseer, msg).await;
 
@@ -2241,6 +2251,8 @@ fn resends_messages_periodically() {
 						session: 1,
 					};
 
+					let msg = ApprovalDistributionMessage::ApprovalCheckingLagUpdate(2);
+					overseer_send(overseer, msg).await;
 					let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 					overseer_send(overseer, msg).await;
 

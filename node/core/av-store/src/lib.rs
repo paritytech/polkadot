@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -1051,6 +1051,25 @@ fn process_message(
 			let _timer = subsystem.metrics.time_get_chunk();
 			let _ =
 				tx.send(load_chunk(&subsystem.db, &subsystem.config, &candidate, validator_index)?);
+		},
+		AvailabilityStoreMessage::QueryChunkSize(candidate, tx) => {
+			let meta = load_meta(&subsystem.db, &subsystem.config, &candidate)?;
+
+			let validator_index = meta.map_or(None, |meta| meta.chunks_stored.first_one());
+
+			let maybe_chunk_size = if let Some(validator_index) = validator_index {
+				load_chunk(
+					&subsystem.db,
+					&subsystem.config,
+					&candidate,
+					ValidatorIndex(validator_index as u32),
+				)?
+				.map(|erasure_chunk| erasure_chunk.chunk.len())
+			} else {
+				None
+			};
+
+			let _ = tx.send(maybe_chunk_size);
 		},
 		AvailabilityStoreMessage::QueryAllChunks(candidate, tx) => {
 			match load_meta(&subsystem.db, &subsystem.config, &candidate)? {

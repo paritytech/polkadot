@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -137,6 +137,8 @@ benchmarks! {
 	add_trusted_validation_code {
 		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
+
+		pvf_check::prepare_bypassing_bench::<T>(new_code.clone());
 	}: _(RawOrigin::Root, new_code)
 
 	poke_unused_validation_code {
