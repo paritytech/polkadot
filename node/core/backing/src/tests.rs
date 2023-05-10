@@ -1233,6 +1233,16 @@ fn backing_doesnt_second_wrong_collator() {
 		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			_,
+			RuntimeApiRequest::AvailabilityCores(tx),
+		)) => {
+			let _ = tx.send(Ok(test_state.availability_cores.clone()));
+		}
+		);
+
+		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::CollatorProtocol(
 				CollatorProtocolMessage::Invalid(parent, c)
