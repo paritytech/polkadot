@@ -360,7 +360,7 @@ impl pallet_staking::Config for Runtime {
 
 parameter_types! {
 	pub MaxSetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
-	pub const MaxSessionReportAge: u32 = BondingDuration::get() * SessionsPerEra::get();
+	pub MaxSessionReportAge: u32 = BondingDuration::get() * SessionsPerEra::get();
 }
 
 impl pallet_grandpa::Config for Runtime {
