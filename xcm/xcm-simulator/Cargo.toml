@@ -18,4 +18,4 @@ xcm-executor = { path = "../xcm-executor" }
 polkadot-core-primitives = { path = "../../core-primitives"}
 polkadot-parachain = { path = "../../parachain" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
-primitives = { package = "polkadot-primitives", path = "../../primitives" }
+polkadot-primitives = { path = "../../primitives" }
