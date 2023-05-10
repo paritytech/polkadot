@@ -51,7 +51,7 @@ mod barriers;
 pub use barriers::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, IsChildSystemParachain,
-	TakeWeightCredit, WithComputedOrigin,
+	RespectSuspension, TakeWeightCredit, WithComputedOrigin,
 };
 
 mod currency_adapter;
@@ -75,6 +75,9 @@ pub use weight::{
 
 mod matches_token;
 pub use matches_token::{IsAbstract, IsConcrete};
+
+mod matcher;
+pub use matcher::{CreateMatcher, MatchXcm, Matcher};
 
 mod filter_asset_location;
 pub use filter_asset_location::{Case, NativeAsset};

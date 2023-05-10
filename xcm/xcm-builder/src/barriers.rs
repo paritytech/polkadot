@@ -16,23 +16,21 @@
 
 //! Various implementations for `ShouldExecute`.
 
+use crate::{CreateMatcher, MatchXcm};
 use frame_support::{
 	ensure,
-	traits::{Contains, Get},
+	traits::{Contains, Get, ProcessMessageError},
 };
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{cell::Cell, marker::PhantomData, ops::ControlFlow, result::Result};
-use xcm::{
-	latest::{
-		Instruction::{self, *},
-		InteriorMultiLocation, Junction, Junctions,
-		Junctions::X1,
-		MultiLocation, Weight,
-		WeightLimit::*,
-	},
-	CreateMatcher, MatchXcm,
+use xcm::latest::{
+	Instruction::{self, *},
+	InteriorMultiLocation, Junction, Junctions,
+	Junctions::X1,
+	MultiLocation, Weight,
+	WeightLimit::*,
 };
-use xcm_executor::traits::{OnResponse, ShouldExecute};
+use xcm_executor::traits::{CheckSuspension, OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `max_weight` from `weight_credit`.
 ///
@@ -46,13 +44,15 @@ impl ShouldExecute for TakeWeightCredit {
 		_instructions: &mut [Instruction<RuntimeCall>],
 		max_weight: Weight,
 		weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
 			"TakeWeightCredit origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			_origin, _instructions, max_weight, weight_credit,
 		);
-		*weight_credit = weight_credit.checked_sub(&max_weight).ok_or(())?;
+		*weight_credit = weight_credit
+			.checked_sub(&max_weight)
+			.ok_or(ProcessMessageError::Overweight(max_weight))?;
 		Ok(())
 	}
 }
@@ -69,14 +69,14 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		instructions: &mut [Instruction<RuntimeCall>],
 		max_weight: Weight,
 		_weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
 			"AllowTopLevelPaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, max_weight, _weight_credit,
 		);
 
-		ensure!(T::contains(origin), ());
+		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
 		// We will read up to 5 instructions. This allows up to 3 `ClearOrigin` instructions. We
 		// allow for more than one since anything beyond the first is a no-op and it's conceivable
 		// that composition of operations might result in more than one being appended.
@@ -88,7 +88,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 				WithdrawAsset(..) |
 				ReserveAssetDeposited(..) |
 				ClaimAsset { .. } => Ok(()),
-				_ => Err(()),
+				_ => Err(ProcessMessageError::BadFormat),
 			})?
 			.skip_inst_while(|inst| matches!(inst, ClearOrigin))?
 			.match_next_inst(|inst| match inst {
@@ -102,7 +102,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 					*weight_limit = Limited(max_weight);
 					Ok(())
 				},
-				_ => Err(()),
+				_ => Err(ProcessMessageError::Overweight(max_weight)),
 			})?;
 		Ok(())
 	}
@@ -167,7 +167,7 @@ impl<
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
 		weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
 			"WithComputedOrigin origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
@@ -191,7 +191,9 @@ impl<
 						actual_origin = X1(*new_global).relative_to(&LocalUniversal::get());
 					},
 					DescendOrigin(j) => {
-						let Ok(_) = actual_origin.append_with(*j) else { return Err(()) };
+						let Ok(_) = actual_origin.append_with(*j) else {
+							return Err(ProcessMessageError::Unsupported)
+						};
 					},
 					_ => return Ok(ControlFlow::Break(())),
 				};
@@ -208,6 +210,28 @@ impl<
 	}
 }
 
+/// Barrier condition that allows for a `SuspensionChecker` that controls whether or not the XCM
+/// executor will be suspended from executing the given XCM.
+pub struct RespectSuspension<Inner, SuspensionChecker>(PhantomData<(Inner, SuspensionChecker)>);
+impl<Inner, SuspensionChecker> ShouldExecute for RespectSuspension<Inner, SuspensionChecker>
+where
+	Inner: ShouldExecute,
+	SuspensionChecker: CheckSuspension,
+{
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		instructions: &mut [Instruction<Call>],
+		max_weight: Weight,
+		weight_credit: &mut Weight,
+	) -> Result<(), ProcessMessageError> {
+		if SuspensionChecker::is_suspended(origin, instructions, max_weight, weight_credit) {
+			Err(ProcessMessageError::Yield)
+		} else {
+			Inner::should_execute(origin, instructions, max_weight, weight_credit)
+		}
+	}
+}
+
 /// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`).
 ///
 /// Use only for executions from completely trusted origins, from which no unpermissioned messages
@@ -219,13 +243,13 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 		instructions: &mut [Instruction<RuntimeCall>],
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
 			"AllowUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, _max_weight, _weight_credit,
 		);
-		ensure!(T::contains(origin), ());
+		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
 		Ok(())
 	}
 }
@@ -241,17 +265,17 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
 		_weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
 			"AllowExplicitUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, max_weight, _weight_credit,
 		);
-		ensure!(T::contains(origin), ());
+		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
 		instructions.matcher().match_next_inst(|inst| match inst {
 			UnpaidExecution { weight_limit: Limited(m), .. } if m.all_gte(max_weight) => Ok(()),
 			UnpaidExecution { weight_limit: Unlimited, .. } => Ok(()),
-			_ => Err(()),
+			_ => Err(ProcessMessageError::Overweight(max_weight)),
 		})?;
 		Ok(())
 	}
@@ -277,7 +301,7 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 		instructions: &mut [Instruction<RuntimeCall>],
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
 			"AllowKnownQueryResponses origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
@@ -290,7 +314,7 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 				QueryResponse { query_id, querier, .. }
 					if ResponseHandler::expecting_response(origin, *query_id, querier.as_ref()) =>
 					Ok(()),
-				_ => Err(()),
+				_ => Err(ProcessMessageError::BadFormat),
 			})?;
 		Ok(())
 	}
@@ -305,19 +329,19 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 		instructions: &mut [Instruction<RuntimeCall>],
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
 			"AllowSubscriptionsFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, _max_weight, _weight_credit,
 		);
-		ensure!(T::contains(origin), ());
+		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
 		instructions
 			.matcher()
 			.assert_remaining_insts(1)?
 			.match_next_inst(|inst| match inst {
 				SubscribeVersion { .. } | UnsubscribeVersion => Ok(()),
-				_ => Err(()),
+				_ => Err(ProcessMessageError::BadFormat),
 			})?;
 		Ok(())
 	}
