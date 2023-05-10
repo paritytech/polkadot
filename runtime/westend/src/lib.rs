@@ -1214,11 +1214,6 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
 pub type Migrations = (
-	migrations::V0938,
-	migrations::V0939,
-	migrations::V0940,
-	migrations::V0941,
-	migrations::V0942,
 	migrations::Unreleased,
 );
 
@@ -1226,31 +1221,6 @@ pub type Migrations = (
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
-
-	pub type V0938 = (
-		// `init_state_migration::InitMigrate` got deleted
-		// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
-		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
-		parachains_ump::migration::v1::MigrateToV1<Runtime>,
-		// Remove stale entries in the set id -> session index storage map (after
-		// this release they will be properly pruned after the bonding duration has
-		// elapsed)
-		pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
-	);
-	pub type V0939 = ();
-	pub type V0940 = (
-		// clean_state_migration::CleanMigrate,
-		pallet_nomination_pools::migration::v4::MigrateToV4<
-			Runtime,
-			NominationPoolsMigrationV4OldPallet,
-		>,
-		pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
-	);
-	pub type V0941 = (); // Node only release - no migrations.
-	pub type V0942 = (
-		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-		pallet_offences::migration::v1::MigrateToV1<Runtime>,
-	);
 
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = ();
