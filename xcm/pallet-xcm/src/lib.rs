@@ -1165,7 +1165,8 @@ impl<T: Config> QueryHandler for Pallet<T> {
 				Err(_) => QueryResponseStatus::UnexpectedVersion,
 			},
 			Some(QueryStatus::Pending { timeout, .. }) => QueryResponseStatus::Pending { timeout },
-			Some(_) | None => QueryResponseStatus::NotFound,
+			Some(_) => QueryResponseStatus::UnexpectedVersion,
+			None => QueryResponseStatus::NotFound,
 		}
 	}
 
