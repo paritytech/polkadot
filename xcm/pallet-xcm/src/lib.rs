@@ -52,8 +52,8 @@ use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use xcm_executor::{
 	traits::{
-		CheckSuspension, ClaimAssets, DropAssets, FinishedQuery, MatchesFungible, OnResponse, QueryResponseStatus,
-		VersionChangeNotifier, WeightBounds, XcmQueryHandler,
+		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse, QueryHandler,
+		QueryResponseStatus, VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -1120,7 +1120,7 @@ pub mod pallet {
 /// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
 const MAX_ASSETS_FOR_TRANSFER: usize = 2;
 
-impl<T: Config> XcmQueryHandler for Pallet<T> {
+impl<T: Config> QueryHandler for Pallet<T> {
 	type QueryId = u64;
 	type BlockNumber = T::BlockNumber;
 	type Error = XcmError;
@@ -1153,41 +1153,26 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 		Ok(query_id)
 	}
 
+	/// Removes response when ready and emits [Event::ResponseTaken] event.
 	fn take_response(query_id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber> {
 		match Queries::<T>::get(query_id) {
-			Some(QueryStatus::Ready { response, at }) => {
-				let response = response.try_into();
-				match response {
-					Ok(response) => {
-						Queries::<T>::remove(query_id);
-						Self::deposit_event(Event::ResponseTaken(query_id));
-						QueryResponseStatus::Finished(FinishedQuery::Response { response, at })
-					},
-					Err(_) => QueryResponseStatus::UnexpectedVersion,
-				}
+			Some(QueryStatus::Ready { response, at }) => match response.try_into() {
+				Ok(response) => {
+					Queries::<T>::remove(query_id);
+					Self::deposit_event(Event::ResponseTaken(query_id));
+					QueryResponseStatus::Ready { response, at }
+				},
+				Err(_) => QueryResponseStatus::UnexpectedVersion,
 			},
-			Some(QueryStatus::VersionNotifier { origin, is_active }) => {
-				let origin = origin.try_into();
-				match origin {
-					Ok(origin) =>
-						QueryResponseStatus::Finished(FinishedQuery::VersionNotification {
-							origin,
-							is_active,
-						}),
-					Err(_) => QueryResponseStatus::UnexpectedVersion,
-				}
-			},
-			Some(QueryStatus::Pending { .. }) => QueryResponseStatus::Pending,
+			Some(QueryStatus::Pending { timeout, .. }) => QueryResponseStatus::Pending { timeout },
+			Some(_) => QueryResponseStatus::UnexpectedVersion,
 			None => QueryResponseStatus::NotFound,
 		}
 	}
 
-	fn expect_response(id: Self::QueryId) {
-		let query_status = QueryStatus::Ready {
-			response: VersionedResponse::V3(Response::Null),
-			at: Self::BlockNumber::default(),
-		};
-		Queries::<T>::insert(id, query_status);
+	#[cfg(feature = "runtime-benchmarks")]
+	fn expect_response(id: Self::QueryId, status: QueryStatus) {
+		Queries::<T>::insert(id, status);
 	}
 }
 
