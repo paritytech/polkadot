@@ -20,8 +20,8 @@ use crate::mock::{
 	Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared, RuntimeEvent as MockEvent,
 	RuntimeOrigin, System, Test,
 };
-use frame_support::assert_noop;
-use primitives::BlockNumber;
+use frame_support::{assert_noop, assert_ok, traits::Currency as _};
+use primitives::{BlockNumber, ValidationCode};
 use std::collections::BTreeMap;
 
 pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {

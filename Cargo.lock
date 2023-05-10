@@ -7917,6 +7917,7 @@ dependencies = [
  "sp-core",
  "sp-inherents",
  "sp-io",
+ "sp-keyring",
  "sp-keystore",
  "sp-npos-elections",
  "sp-runtime",

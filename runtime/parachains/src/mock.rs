@@ -527,19 +527,19 @@ where
 use frame_support::traits::Currency;
 use sp_runtime::traits::AccountIdConversion;
 
-pub(crate) fn register_parachain_with_balance(id: ParaId, balance: Balance) {
+fn register_parachain_with_balance(id: ParaId, balance: Balance) {
+	let validation_code: ValidationCode = vec![1].into();
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		crate::paras::ParaGenesisArgs {
 			para_kind: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
-			validation_code: vec![1].into(),
+			validation_code: validation_code.clone(),
 		},
 	));
-	<Test as crate::hrmp::Config>::Currency::make_free_balance_be(
-		&id.into_account_truncating(),
-		balance,
-	);
+
+	assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), validation_code));
+	<Test as Config>::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
 }
 
 pub(crate) fn register_parachain(id: ParaId) {
