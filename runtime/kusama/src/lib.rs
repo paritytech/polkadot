@@ -1475,14 +1475,6 @@ pub type Migrations = (
 pub mod migrations {
 	use super::*;
 
-	pub type V0938 = (
-		// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
-		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
-		parachains_ump::migration::v1::MigrateToV1<Runtime>,
-		// Remove stale entries in the set id -> session index storage map
-		// (after this release they will be properly pruned after the bonding duration has elapsed)
-		pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
-	);
 	pub type V0939 = ();
 	pub type V0940 = (
 		pallet_nomination_pools::migration::v4::MigrateToV4<
