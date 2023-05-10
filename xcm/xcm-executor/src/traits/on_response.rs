@@ -105,7 +105,7 @@ impl VersionChangeNotifier for () {
 
 /// The possible state of an XCM query response.
 #[derive(Debug, PartialEq, Eq)]
-pub enum QueryStatus<BlockNumber> {
+pub enum QueryResponseStatus<BlockNumber> {
 	/// The response has arrived, and includes the inner Response and the block number it arrived at.
 	Ready { response: Response, at: BlockNumber },
 	/// The response has not yet arrived, the XCM might still be executing or the response might be in transit.
@@ -156,7 +156,7 @@ pub trait QueryHandler {
 	) -> result::Result<Self::QueryId, Self::Error>;
 
 	/// Attempt to remove and return the response of query with ID `query_id`.
-	fn take_response(id: Self::QueryId) -> QueryStatus<Self::BlockNumber>;
+	fn take_response(id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber>;
 
 	/// Makes sure to expect a response with the given id.
 	#[cfg(feature = "runtime-benchmarks")]

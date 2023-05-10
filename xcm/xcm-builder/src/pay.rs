@@ -23,7 +23,7 @@ use frame_support::traits::{
 use polkadot_core_primitives::AccountId;
 use sp_std::{marker::PhantomData, vec};
 use xcm::{opaque::lts::Weight, prelude::*};
-use xcm_executor::traits::{QueryHandler, QueryStatus};
+use xcm_executor::traits::{QueryHandler, QueryResponseStatus};
 
 /// Implementation of the `frame_support_traits::tokens::Pay` trait, to allow
 /// for generic payments of a given `AssetKind` and `Balance` from an implied origin, to a
@@ -107,7 +107,7 @@ impl<
 	}
 
 	fn check_payment(id: Self::Id) -> PaymentStatus {
-		use QueryStatus::*;
+		use QueryResponseStatus::*;
 		match Querier::take_response(id) {
 			Ready { response, .. } => match response {
 				Response::ExecutionResult(None) => PaymentStatus::Success,

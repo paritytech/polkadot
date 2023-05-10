@@ -53,7 +53,7 @@ pub use pallet::*;
 use xcm_executor::{
 	traits::{
 		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse, QueryHandler,
-		QueryStatus as OuterQueryStatus, VersionChangeNotifier, WeightBounds,
+		QueryResponseStatus, VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -1154,18 +1154,18 @@ impl<T: Config> QueryHandler for Pallet<T> {
 	}
 
 	/// Removes response when ready and emits [Event::ResponseTaken] event.
-	fn take_response(query_id: Self::QueryId) -> OuterQueryStatus<Self::BlockNumber> {
+	fn take_response(query_id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber> {
 		match Queries::<T>::get(query_id) {
 			Some(QueryStatus::Ready { response, at }) => match response.try_into() {
 				Ok(response) => {
 					Queries::<T>::remove(query_id);
 					Self::deposit_event(Event::ResponseTaken(query_id));
-					OuterQueryStatus::Ready { response, at }
+					QueryResponseStatus::Ready { response, at }
 				},
-				Err(_) => OuterQueryStatus::UnexpectedVersion,
+				Err(_) => QueryResponseStatus::UnexpectedVersion,
 			},
-			Some(QueryStatus::Pending { timeout, .. }) => OuterQueryStatus::Pending { timeout },
-			Some(_) | None => OuterQueryStatus::NotFound,
+			Some(QueryStatus::Pending { timeout, .. }) => QueryResponseStatus::Pending { timeout },
+			Some(_) | None => QueryResponseStatus::NotFound,
 		}
 	}
 
