@@ -19,7 +19,7 @@
 use crate::{
 	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
 	scheduler, session_info, shared,
-	ump::{self, MessageId, UmpSink},
+	ump::{self, UmpSink},
 	ParaId,
 };
 
@@ -31,8 +31,8 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::{
-	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
-	UpwardMessage, ValidatorIndex,
+	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, MessageId, Moment,
+	SessionIndex, UpwardMessage, ValidatorIndex,
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
