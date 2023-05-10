@@ -242,27 +242,22 @@ impl<T: Config> Pallet<T> {
 	) -> BTreeMap<CoreIndex, PositionInClaimqueue> {
 		let mut availability_cores = AvailabilityCores::<T>::get();
 
-		let pos_mapping: BTreeMap<CoreIndex, PositionInClaimqueue> = now_occupied
-			.iter()
-			.flat_map(|(core_idx, para_id)| {
-				match Self::remove_from_claimqueue(*core_idx, *para_id) {
-					Err(e) => {
-						log::debug!(
-							target: LOG_TARGET,
-							"[occupied] error on remove_from_claimqueue {}",
-							e
-						);
-						None
-					},
-					Ok((pos_in_claimqueue, pe)) => {
-						// is this correct?
-						availability_cores[core_idx.0 as usize] = CoreOccupied::Paras(pe);
-
-						Some((*core_idx, pos_in_claimqueue))
-					},
-				}
-			})
-			.collect();
+		let mut pos_mapping = BTreeMap::new();
+		for (core_idx, para_id) in now_occupied.iter() {
+			match Self::remove_from_claimqueue(*core_idx, *para_id) {
+				Err(e) => {
+					log::debug!(
+						target: LOG_TARGET,
+						"[occupied] error on remove_from_claimqueue {}",
+						e
+					);
+				},
+				Ok((pos_in_claimqueue, pe)) => {
+					availability_cores[core_idx.0 as usize] = CoreOccupied::Paras(pe);
+					pos_mapping.insert(*core_idx, pos_in_claimqueue);
+				},
+			}
+		}
 
 		// For now, we drop the first entry of the claimqueue for each CoreIndex that did not get occupied
 		let occupied_cores = now_occupied.into_keys().collect();
