@@ -28,9 +28,10 @@ pub use polkadot_parachain::primitives::{
 	DmpMessageHandler as DmpMessageHandlerT, Id as ParaId, XcmpMessageFormat,
 	XcmpMessageHandler as XcmpMessageHandlerT,
 };
+pub use polkadot_primitives::MessageId;
 pub use polkadot_runtime_parachains::{
 	dmp,
-	ump::{self, MessageId, UmpSink, XcmSink},
+	ump::{self, UmpSink, XcmSink},
 };
 pub use xcm::{latest::prelude::*, VersionedXcm};
 pub use xcm_executor::XcmExecutor;

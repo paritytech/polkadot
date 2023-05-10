@@ -14466,6 +14466,7 @@ dependencies = [
  "paste",
  "polkadot-core-primitives",
  "polkadot-parachain",
+ "polkadot-primitives",
  "polkadot-runtime-parachains",
  "sp-io",
  "sp-std",
