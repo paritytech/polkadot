@@ -61,4 +61,26 @@ impl<T: frame_system::Config> pallet_sudo::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(1_u64))
 			.saturating_add(T::DbWeight::get().writes(1_u64))
 	}
+
+	/// Storage: Sudo Key (r:1 w:0)
+	/// Proof: Sudo Key (max_values: Some(1), max_size: Some(32), added: 527, mode: MaxEncodedLen)
+	fn sudo() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `165`
+		//  Estimated: `1517`
+		// Minimum execution time: 14_009_000 picoseconds.
+		Weight::from_parts(14_400_000, 1517)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+	}
+
+	/// Storage: Sudo Key (r:1 w:0)
+	/// Proof: Sudo Key (max_values: Some(1), max_size: Some(32), added: 527, mode: MaxEncodedLen)
+	fn sudo_as() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `165`
+		//  Estimated: `1517`
+		// Minimum execution time: 13_954_000 picoseconds.
+		Weight::from_parts(14_248_000, 1517)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+	}
 }
