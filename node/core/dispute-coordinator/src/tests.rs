@@ -213,7 +213,7 @@ impl Default for TestState {
 		let db = kvdb_memorydb::create(1);
 		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
 		let db = Arc::new(db);
-		let config = Config { col_dispute_data: 0, col_session_data: 1 };
+		let config = Config { col_dispute_data: 0 };
 
 		let genesis_header = Header {
 			parent_hash: Hash::zero(),
