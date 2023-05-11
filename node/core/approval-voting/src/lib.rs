@@ -25,8 +25,8 @@ use jaeger::{hash_to_trace_identifier, PerLeafSpan};
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
-		v2::{BitfieldError, CandidateBitfield, CoreBitfield},
-		BlockApprovalMeta, DelayTranche, IndirectAssignmentCertV2, IndirectSignedApprovalVote,
+		v1::{BlockApprovalMeta, DelayTranche, IndirectSignedApprovalVote},
+		v2::{BitfieldError, CandidateBitfield, CoreBitfield, IndirectAssignmentCertV2},
 	},
 	ValidationResult,
 };

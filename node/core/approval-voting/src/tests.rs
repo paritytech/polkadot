@@ -19,8 +19,11 @@ use crate::tests::test_constants::TEST_CONFIG;
 use super::*;
 use polkadot_node_primitives::{
 	approval::{
-		v1::RELAY_VRF_MODULO_CONTEXT, AssignmentCert, AssignmentCertKind, AssignmentCertKindV2,
-		AssignmentCertV2, DelayTranche, VrfOutput, VrfProof, VrfSignature,
+		v1::{
+			AssignmentCert, AssignmentCertKind, DelayTranche, VrfOutput, VrfProof, VrfSignature,
+			RELAY_VRF_MODULO_CONTEXT,
+		},
+		v2::{AssignmentCertKindV2, AssignmentCertV2},
 	},
 	AvailableData, BlockData, PoV,
 };
@@ -235,7 +238,7 @@ where
 	fn compute_assignments(
 		&self,
 		_keystore: &LocalKeystore,
-		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
+		_relay_vrf_story: polkadot_node_primitives::approval::v1::RelayVRFStory,
 		_config: &criteria::Config,
 		_leaving_cores: Vec<(
 			CandidateHash,
@@ -251,10 +254,10 @@ where
 		_claimed_core_bitfield: polkadot_node_primitives::approval::v2::CoreBitfield,
 		validator_index: ValidatorIndex,
 		_config: &criteria::Config,
-		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
-		_assignment: &polkadot_node_primitives::approval::AssignmentCertV2,
+		_relay_vrf_story: polkadot_node_primitives::approval::v1::RelayVRFStory,
+		_assignment: &polkadot_node_primitives::approval::v2::AssignmentCertV2,
 		_backing_groups: Vec<polkadot_primitives::GroupIndex>,
-	) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
+	) -> Result<polkadot_node_primitives::approval::v1::DelayTranche, criteria::InvalidAssignment> {
 		self.1(validator_index)
 	}
 }

@@ -30,7 +30,10 @@
 
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
-	approval::{self as approval_types, BlockApprovalMeta, RelayVRFStory},
+	approval::{
+		self as approval_types,
+		v1::{BlockApprovalMeta, RelayVRFStory},
+	},
 	MAX_FINALITY_LAG,
 };
 use polkadot_node_subsystem::{
@@ -94,7 +97,7 @@ enum ImportedBlockInfoError {
 	FutureCancelled(&'static str, futures::channel::oneshot::Canceled),
 
 	#[error(transparent)]
-	ApprovalError(approval_types::ApprovalError),
+	ApprovalError(approval_types::v1::ApprovalError),
 
 	#[error("block is from an ancient session")]
 	BlockFromAncientSession,
@@ -223,7 +226,7 @@ async fn imported_block_info<Context>(
 	};
 
 	let (assignments, slot, relay_vrf_story) = {
-		let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
+		let unsafe_vrf = approval_types::v1::babe_unsafe_vrf_info(&block_header);
 
 		match unsafe_vrf {
 			Some(unsafe_vrf) => {
@@ -612,7 +615,7 @@ pub(crate) mod tests {
 	use crate::approval_db::v1::DbBackend;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
-	use polkadot_node_primitives::approval::{VrfSignature, VrfTranscript};
+	use polkadot_node_primitives::approval::v1::{VrfSignature, VrfTranscript};
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
@@ -677,7 +680,7 @@ pub(crate) mod tests {
 		fn compute_assignments(
 			&self,
 			_keystore: &LocalKeystore,
-			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
+			_relay_vrf_story: polkadot_node_primitives::approval::v1::RelayVRFStory,
 			_config: &criteria::Config,
 			_leaving_cores: Vec<(
 				CandidateHash,
@@ -693,10 +696,11 @@ pub(crate) mod tests {
 			_claimed_core_bitfield: polkadot_node_primitives::approval::v2::CoreBitfield,
 			_validator_index: polkadot_primitives::ValidatorIndex,
 			_config: &criteria::Config,
-			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
-			_assignment: &polkadot_node_primitives::approval::AssignmentCertV2,
+			_relay_vrf_story: polkadot_node_primitives::approval::v1::RelayVRFStory,
+			_assignment: &polkadot_node_primitives::approval::v2::AssignmentCertV2,
 			_backing_groups: Vec<polkadot_primitives::GroupIndex>,
-		) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
+		) -> Result<polkadot_node_primitives::approval::v1::DelayTranche, criteria::InvalidAssignment>
+		{
 			Ok(0)
 		}
 	}

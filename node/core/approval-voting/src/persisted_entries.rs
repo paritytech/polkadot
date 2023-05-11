@@ -21,7 +21,8 @@
 //! data and logic are intertwined.
 
 use polkadot_node_primitives::approval::{
-	v2::CoreBitfield, AssignmentCertV2, DelayTranche, RelayVRFStory,
+	v1::{DelayTranche, RelayVRFStory},
+	v2::{AssignmentCertV2, CoreBitfield},
 };
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,

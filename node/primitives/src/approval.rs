@@ -16,22 +16,24 @@
 
 //! Types relevant for approval.
 
-pub use sp_consensus_babe::{Randomness, Slot, VrfOutput, VrfProof, VrfSignature, VrfTranscript};
-
-use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::{
-	BlockNumber, CandidateHash, CandidateIndex, CoreIndex, Hash, Header, SessionIndex,
-	ValidatorIndex, ValidatorSignature,
-};
-use sp_application_crypto::ByteArray;
-use sp_consensus_babe as babe_primitives;
-
-/// Validators assigning to check a particular candidate are split up into tranches.
-/// Earlier tranches of validators check first, with later tranches serving as backup.
-pub type DelayTranche = u32;
-
-/// Static contexts use to generate randomness for v1 assignments.
+/// A list of primitives introduced in v1.
 pub mod v1 {
+	use sp_consensus_babe as babe_primitives;
+	pub use sp_consensus_babe::{
+		Randomness, Slot, VrfOutput, VrfProof, VrfSignature, VrfTranscript,
+	};
+
+	use parity_scale_codec::{Decode, Encode};
+	use polkadot_primitives::{
+		BlockNumber, CandidateHash, CandidateIndex, CoreIndex, Hash, Header, SessionIndex,
+		ValidatorIndex, ValidatorSignature,
+	};
+	use sp_application_crypto::ByteArray;
+
+	/// Validators assigning to check a particular candidate are split up into tranches.
+	/// Earlier tranches of validators check first, with later tranches serving as backup.
+	pub type DelayTranche = u32;
+
 	/// A static context used to compute the Relay VRF story based on the
 	/// VRF output included in the header-chain.
 	pub const RELAY_VRF_STORY_CONTEXT: &[u8] = b"A&V RC-VRF";
@@ -50,15 +52,173 @@ pub mod v1 {
 
 	/// A static context associated with producing randomness for a tranche.
 	pub const TRANCHE_RANDOMNESS_CONTEXT: &[u8] = b"A&V TRANCHE";
+
+	/// random bytes derived from the VRF submitted within the block by the
+	/// block author as a credential and used as input to approval assignment criteria.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	pub struct RelayVRFStory(pub [u8; 32]);
+
+	/// Different kinds of input data or criteria that can prove a validator's assignment
+	/// to check a particular parachain.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub enum AssignmentCertKind {
+		/// An assignment story based on the VRF that authorized the relay-chain block where the
+		/// candidate was included combined with a sample number.
+		///
+		/// The context used to produce bytes is [`RELAY_VRF_MODULO_CONTEXT`]
+		RelayVRFModulo {
+			/// The sample number used in this cert.
+			sample: u32,
+		},
+		/// An assignment story based on the VRF that authorized the relay-chain block where the
+		/// candidate was included combined with the index of a particular core.
+		///
+		/// The context is [`RELAY_VRF_DELAY_CONTEXT`]
+		RelayVRFDelay {
+			/// The core index chosen in this cert.
+			core_index: CoreIndex,
+		},
+	}
+
+	/// A certification of assignment.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct AssignmentCert {
+		/// The criterion which is claimed to be met by this cert.
+		pub kind: AssignmentCertKind,
+		/// The VRF signature showing the criterion is met.
+		pub vrf: VrfSignature,
+	}
+
+	/// An assignment criterion which refers to the candidate under which the assignment is
+	/// relevant by block hash.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct IndirectAssignmentCert {
+		/// A block hash where the candidate appears.
+		pub block_hash: Hash,
+		/// The validator index.
+		pub validator: ValidatorIndex,
+		/// The cert itself.
+		pub cert: AssignmentCert,
+	}
+
+	/// A signed approval vote which references the candidate indirectly via the block.
+	///
+	/// In practice, we have a look-up from block hash and candidate index to candidate hash,
+	/// so this can be transformed into a `SignedApprovalVote`.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct IndirectSignedApprovalVote {
+		/// A block hash where the candidate appears.
+		pub block_hash: Hash,
+		/// The index of the candidate in the list of candidates fully included as-of the block.
+		pub candidate_index: CandidateIndex,
+		/// The validator index.
+		pub validator: ValidatorIndex,
+		/// The signature by the validator.
+		pub signature: ValidatorSignature,
+	}
+
+	/// Metadata about a block which is now live in the approval protocol.
+	#[derive(Debug)]
+	pub struct BlockApprovalMeta {
+		/// The hash of the block.
+		pub hash: Hash,
+		/// The number of the block.
+		pub number: BlockNumber,
+		/// The hash of the parent block.
+		pub parent_hash: Hash,
+		/// The candidates included by the block.
+		/// Note that these are not the same as the candidates that appear within the block body.
+		pub candidates: Vec<CandidateHash>,
+		/// The consensus slot of the block.
+		pub slot: Slot,
+		/// The session of the block.
+		pub session: SessionIndex,
+	}
+
+	/// Errors that can occur during the approvals protocol.
+	#[derive(Debug, thiserror::Error)]
+	#[allow(missing_docs)]
+	pub enum ApprovalError {
+		#[error("Schnorrkel signature error")]
+		SchnorrkelSignature(schnorrkel::errors::SignatureError),
+		#[error("Authority index {0} out of bounds")]
+		AuthorityOutOfBounds(usize),
+	}
+
+	/// An unsafe VRF output. Provide BABE Epoch info to create a `RelayVRFStory`.
+	pub struct UnsafeVRFOutput {
+		vrf_output: VrfOutput,
+		slot: Slot,
+		authority_index: u32,
+	}
+
+	impl UnsafeVRFOutput {
+		/// Get the slot.
+		pub fn slot(&self) -> Slot {
+			self.slot
+		}
+
+		/// Compute the randomness associated with this VRF output.
+		pub fn compute_randomness(
+			self,
+			authorities: &[(babe_primitives::AuthorityId, babe_primitives::BabeAuthorityWeight)],
+			randomness: &babe_primitives::Randomness,
+			epoch_index: u64,
+		) -> Result<RelayVRFStory, ApprovalError> {
+			let author = match authorities.get(self.authority_index as usize) {
+				None => return Err(ApprovalError::AuthorityOutOfBounds(self.authority_index as _)),
+				Some(x) => &x.0,
+			};
+
+			let pubkey = schnorrkel::PublicKey::from_bytes(author.as_slice())
+				.map_err(ApprovalError::SchnorrkelSignature)?;
+
+			let transcript = sp_consensus_babe::make_transcript(randomness, self.slot, epoch_index);
+
+			let inout = self
+				.vrf_output
+				.0
+				.attach_input_hash(&pubkey, transcript.0)
+				.map_err(ApprovalError::SchnorrkelSignature)?;
+			Ok(RelayVRFStory(inout.make_bytes(super::v1::RELAY_VRF_STORY_CONTEXT)))
+		}
+	}
+
+	/// Extract the slot number and relay VRF from a header.
+	///
+	/// This fails if either there is no BABE `PreRuntime` digest or
+	/// the digest has type `SecondaryPlain`, which Substrate nodes do
+	/// not produce or accept anymore.
+	pub fn babe_unsafe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
+		use babe_primitives::digests::CompatibleDigestItem;
+
+		for digest in &header.digest.logs {
+			if let Some(pre) = digest.as_babe_pre_digest() {
+				let slot = pre.slot();
+				let authority_index = pre.authority_index();
+
+				return pre.vrf_signature().map(|sig| UnsafeVRFOutput {
+					vrf_output: sig.output.clone(),
+					slot,
+					authority_index,
+				})
+			}
+		}
+
+		None
+	}
 }
 
 /// A list of primitives introduced by v2.
 pub mod v2 {
 	use parity_scale_codec::{Decode, Encode};
+	pub use sp_consensus_babe::{
+		Randomness, Slot, VrfOutput, VrfProof, VrfSignature, VrfTranscript,
+	};
 	use std::ops::BitOr;
 
-	use super::{CandidateIndex, CoreIndex};
 	use bitvec::{prelude::Lsb0, vec::BitVec};
+	use polkadot_primitives::{CandidateIndex, CoreIndex, Hash, ValidatorIndex};
 
 	/// A static context associated with producing randomness for a core.
 	pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE v2";
@@ -191,271 +351,118 @@ pub mod v2 {
 			))
 		}
 	}
-}
 
-/// random bytes derived from the VRF submitted within the block by the
-/// block author as a credential and used as input to approval assignment criteria.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub struct RelayVRFStory(pub [u8; 32]);
+	/// Certificate is changed compared to `AssignmentCertKind`:
+	/// - introduced RelayVRFModuloCompact
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub enum AssignmentCertKindV2 {
+		/// An assignment story based on the VRF that authorized the relay-chain block where the
+		/// candidate was included combined with a sample number.
+		///
+		/// The context used to produce bytes is [`v2::RELAY_VRF_MODULO_CONTEXT`]
+		RelayVRFModulo {
+			/// The sample number used in this cert.
+			sample: u32,
+		},
+		/// Multiple assignment stories based on the VRF that authorized the relay-chain block where the
+		/// candidates were included.
+		///
+		/// The context is [`v2::RELAY_VRF_MODULO_CONTEXT`]
+		RelayVRFModuloCompact {
+			/// A bitfield representing the core indices claimed by this assignment.
+			core_bitfield: CoreBitfield,
+		},
+		/// An assignment story based on the VRF that authorized the relay-chain block where the
+		/// candidate was included combined with the index of a particular core.
+		///
+		/// The context is [`v2::RELAY_VRF_DELAY_CONTEXT`]
+		RelayVRFDelay {
+			/// The core index chosen in this cert.
+			core_index: CoreIndex,
+		},
+	}
 
-/// Different kinds of input data or criteria that can prove a validator's assignment
-/// to check a particular parachain.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub enum AssignmentCertKind {
-	/// An assignment story based on the VRF that authorized the relay-chain block where the
-	/// candidate was included combined with a sample number.
-	///
-	/// The context used to produce bytes is [`RELAY_VRF_MODULO_CONTEXT`]
-	RelayVRFModulo {
-		/// The sample number used in this cert.
-		sample: u32,
-	},
-	/// An assignment story based on the VRF that authorized the relay-chain block where the
-	/// candidate was included combined with the index of a particular core.
-	///
-	/// The context is [`RELAY_VRF_DELAY_CONTEXT`]
-	RelayVRFDelay {
-		/// The core index chosen in this cert.
-		core_index: CoreIndex,
-	},
-}
+	/// A certification of assignment.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct AssignmentCertV2 {
+		/// The criterion which is claimed to be met by this cert.
+		pub kind: AssignmentCertKindV2,
+		/// The VRF showing the criterion is met.
+		pub vrf: (VrfOutput, VrfProof),
+	}
 
-/// Certificate is changed compared to `AssignmentCertKind`:
-/// - introduced RelayVRFModuloCompact
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub enum AssignmentCertKindV2 {
-	/// An assignment story based on the VRF that authorized the relay-chain block where the
-	/// candidate was included combined with a sample number.
-	///
-	/// The context used to produce bytes is [`v2::RELAY_VRF_MODULO_CONTEXT`]
-	RelayVRFModulo {
-		/// The sample number used in this cert.
-		sample: u32,
-	},
-	/// Multiple assignment stories based on the VRF that authorized the relay-chain block where the
-	/// candidates were included.
-	///
-	/// The context is [`v2::RELAY_VRF_MODULO_CONTEXT`]
-	RelayVRFModuloCompact {
-		/// A bitfield representing the core indices claimed by this assignment.
-		core_bitfield: super::approval::v2::CoreBitfield,
-	},
-	/// An assignment story based on the VRF that authorized the relay-chain block where the
-	/// candidate was included combined with the index of a particular core.
-	///
-	/// The context is [`v2::RELAY_VRF_DELAY_CONTEXT`]
-	RelayVRFDelay {
-		/// The core index chosen in this cert.
-		core_index: CoreIndex,
-	},
-}
-
-/// A certification of assignment.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct AssignmentCert {
-	/// The criterion which is claimed to be met by this cert.
-	pub kind: AssignmentCertKind,
-	/// The VRF signature showing the criterion is met.
-	pub vrf: VrfSignature,
-}
-
-/// A certification of assignment.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct AssignmentCertV2 {
-	/// The criterion which is claimed to be met by this cert.
-	pub kind: AssignmentCertKindV2,
-	/// The VRF showing the criterion is met.
-	pub vrf: (VrfOutput, VrfProof),
-}
-
-impl From<AssignmentCert> for AssignmentCertV2 {
-	fn from(cert: AssignmentCert) -> Self {
-		Self {
-			kind: match cert.kind {
-				AssignmentCertKind::RelayVRFDelay { core_index } =>
-					AssignmentCertKindV2::RelayVRFDelay { core_index },
-				AssignmentCertKind::RelayVRFModulo { sample } =>
-					AssignmentCertKindV2::RelayVRFModulo { sample },
-			},
-			vrf: (cert.vrf.output, cert.vrf.proof),
+	impl From<super::v1::AssignmentCert> for AssignmentCertV2 {
+		fn from(cert: super::v1::AssignmentCert) -> Self {
+			Self {
+				kind: match cert.kind {
+					super::v1::AssignmentCertKind::RelayVRFDelay { core_index } =>
+						AssignmentCertKindV2::RelayVRFDelay { core_index },
+					super::v1::AssignmentCertKind::RelayVRFModulo { sample } =>
+						AssignmentCertKindV2::RelayVRFModulo { sample },
+				},
+				vrf: (cert.vrf.output, cert.vrf.proof),
+			}
 		}
 	}
-}
 
-/// Errors that can occur when trying to convert to/from assignment v1/v2
-#[derive(Debug)]
-pub enum AssignmentConversionError {
-	/// Assignment certificate is not supported in v1.
-	CertificateNotSupported,
-}
-
-impl TryFrom<AssignmentCertV2> for AssignmentCert {
-	type Error = AssignmentConversionError;
-	fn try_from(cert: AssignmentCertV2) -> Result<Self, AssignmentConversionError> {
-		Ok(Self {
-			kind: match cert.kind {
-				AssignmentCertKindV2::RelayVRFDelay { core_index } =>
-					AssignmentCertKind::RelayVRFDelay { core_index },
-				AssignmentCertKindV2::RelayVRFModulo { sample } =>
-					AssignmentCertKind::RelayVRFModulo { sample },
-				// Not supported
-				_ => return Err(AssignmentConversionError::CertificateNotSupported),
-			},
-			vrf: VrfSignature { output: cert.vrf.0, proof: cert.vrf.1 },
-		})
-	}
-}
-/// An assignment criterion which refers to the candidate under which the assignment is
-/// relevant by block hash.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct IndirectAssignmentCert {
-	/// A block hash where the candidate appears.
-	pub block_hash: Hash,
-	/// The validator index.
-	pub validator: ValidatorIndex,
-	/// The cert itself.
-	pub cert: AssignmentCert,
-}
-/// An assignment criterion which refers to the candidate under which the assignment is
-/// relevant by block hash.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct IndirectAssignmentCertV2 {
-	/// A block hash where the candidate appears.
-	pub block_hash: Hash,
-	/// The validator index.
-	pub validator: ValidatorIndex,
-	/// The cert itself.
-	pub cert: AssignmentCertV2,
-}
-
-impl From<IndirectAssignmentCert> for IndirectAssignmentCertV2 {
-	fn from(indirect_cert: IndirectAssignmentCert) -> Self {
-		Self {
-			block_hash: indirect_cert.block_hash,
-			validator: indirect_cert.validator,
-			cert: indirect_cert.cert.into(),
-		}
-	}
-}
-
-impl TryFrom<IndirectAssignmentCertV2> for IndirectAssignmentCert {
-	type Error = AssignmentConversionError;
-	fn try_from(
-		indirect_cert: IndirectAssignmentCertV2,
-	) -> Result<Self, AssignmentConversionError> {
-		Ok(Self {
-			block_hash: indirect_cert.block_hash,
-			validator: indirect_cert.validator,
-			cert: indirect_cert.cert.try_into()?,
-		})
-	}
-}
-
-/// A signed approval vote which references the candidate indirectly via the block.
-///
-/// In practice, we have a look-up from block hash and candidate index to candidate hash,
-/// so this can be transformed into a `SignedApprovalVote`.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct IndirectSignedApprovalVote {
-	/// A block hash where the candidate appears.
-	pub block_hash: Hash,
-	/// The index of the candidate in the list of candidates fully included as-of the block.
-	pub candidate_index: CandidateIndex,
-	/// The validator index.
-	pub validator: ValidatorIndex,
-	/// The signature by the validator.
-	pub signature: ValidatorSignature,
-}
-
-/// Metadata about a block which is now live in the approval protocol.
-#[derive(Debug)]
-pub struct BlockApprovalMeta {
-	/// The hash of the block.
-	pub hash: Hash,
-	/// The number of the block.
-	pub number: BlockNumber,
-	/// The hash of the parent block.
-	pub parent_hash: Hash,
-	/// The candidates included by the block.
-	/// Note that these are not the same as the candidates that appear within the block body.
-	pub candidates: Vec<CandidateHash>,
-	/// The consensus slot of the block.
-	pub slot: Slot,
-	/// The session of the block.
-	pub session: SessionIndex,
-}
-
-/// Errors that can occur during the approvals protocol.
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum ApprovalError {
-	#[error("Schnorrkel signature error")]
-	SchnorrkelSignature(schnorrkel::errors::SignatureError),
-	#[error("Authority index {0} out of bounds")]
-	AuthorityOutOfBounds(usize),
-}
-
-/// An unsafe VRF output. Provide BABE Epoch info to create a `RelayVRFStory`.
-pub struct UnsafeVRFOutput {
-	vrf_output: VrfOutput,
-	slot: Slot,
-	authority_index: u32,
-}
-
-impl UnsafeVRFOutput {
-	/// Get the slot.
-	pub fn slot(&self) -> Slot {
-		self.slot
+	/// Errors that can occur when trying to convert to/from assignment v1/v2
+	#[derive(Debug)]
+	pub enum AssignmentConversionError {
+		/// Assignment certificate is not supported in v1.
+		CertificateNotSupported,
 	}
 
-	/// Compute the randomness associated with this VRF output.
-	pub fn compute_randomness(
-		self,
-		authorities: &[(babe_primitives::AuthorityId, babe_primitives::BabeAuthorityWeight)],
-		randomness: &babe_primitives::Randomness,
-		epoch_index: u64,
-	) -> Result<RelayVRFStory, ApprovalError> {
-		let author = match authorities.get(self.authority_index as usize) {
-			None => return Err(ApprovalError::AuthorityOutOfBounds(self.authority_index as _)),
-			Some(x) => &x.0,
-		};
-
-		let pubkey = schnorrkel::PublicKey::from_bytes(author.as_slice())
-			.map_err(ApprovalError::SchnorrkelSignature)?;
-
-		let transcript = sp_consensus_babe::make_transcript(randomness, self.slot, epoch_index);
-
-		let inout = self
-			.vrf_output
-			.0
-			.attach_input_hash(&pubkey, transcript.0)
-			.map_err(ApprovalError::SchnorrkelSignature)?;
-		Ok(RelayVRFStory(inout.make_bytes(v1::RELAY_VRF_STORY_CONTEXT)))
-	}
-}
-
-/// Extract the slot number and relay VRF from a header.
-///
-/// This fails if either there is no BABE `PreRuntime` digest or
-/// the digest has type `SecondaryPlain`, which Substrate nodes do
-/// not produce or accept anymore.
-pub fn babe_unsafe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
-	use babe_primitives::digests::CompatibleDigestItem;
-
-	for digest in &header.digest.logs {
-		if let Some(pre) = digest.as_babe_pre_digest() {
-			let slot = pre.slot();
-			let authority_index = pre.authority_index();
-
-			return pre.vrf_signature().map(|sig| UnsafeVRFOutput {
-				vrf_output: sig.output.clone(),
-				slot,
-				authority_index,
+	impl TryFrom<AssignmentCertV2> for super::v1::AssignmentCert {
+		type Error = AssignmentConversionError;
+		fn try_from(cert: AssignmentCertV2) -> Result<Self, AssignmentConversionError> {
+			Ok(Self {
+				kind: match cert.kind {
+					AssignmentCertKindV2::RelayVRFDelay { core_index } =>
+						super::v1::AssignmentCertKind::RelayVRFDelay { core_index },
+					AssignmentCertKindV2::RelayVRFModulo { sample } =>
+						super::v1::AssignmentCertKind::RelayVRFModulo { sample },
+					// Not supported
+					_ => return Err(AssignmentConversionError::CertificateNotSupported),
+				},
+				vrf: VrfSignature { output: cert.vrf.0, proof: cert.vrf.1 },
 			})
 		}
 	}
 
-	None
+	/// An assignment criterion which refers to the candidate under which the assignment is
+	/// relevant by block hash.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct IndirectAssignmentCertV2 {
+		/// A block hash where the candidate appears.
+		pub block_hash: Hash,
+		/// The validator index.
+		pub validator: ValidatorIndex,
+		/// The cert itself.
+		pub cert: AssignmentCertV2,
+	}
+
+	impl From<super::v1::IndirectAssignmentCert> for IndirectAssignmentCertV2 {
+		fn from(indirect_cert: super::v1::IndirectAssignmentCert) -> Self {
+			Self {
+				block_hash: indirect_cert.block_hash,
+				validator: indirect_cert.validator,
+				cert: indirect_cert.cert.into(),
+			}
+		}
+	}
+
+	impl TryFrom<IndirectAssignmentCertV2> for super::v1::IndirectAssignmentCert {
+		type Error = AssignmentConversionError;
+		fn try_from(
+			indirect_cert: IndirectAssignmentCertV2,
+		) -> Result<Self, AssignmentConversionError> {
+			Ok(Self {
+				block_hash: indirect_cert.block_hash,
+				validator: indirect_cert.validator,
+				cert: indirect_cert.cert.try_into()?,
+			})
+		}
+	}
 }
 
 #[cfg(test)]

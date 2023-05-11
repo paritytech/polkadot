@@ -33,8 +33,8 @@ use polkadot_node_network_protocol::{
 	Versioned, View,
 };
 use polkadot_node_primitives::approval::{
-	v2::{AsBitIndex, CandidateBitfield},
-	BlockApprovalMeta, IndirectAssignmentCertV2, IndirectSignedApprovalVote,
+	v1::{BlockApprovalMeta, IndirectSignedApprovalVote},
+	v2::{AsBitIndex, CandidateBitfield, IndirectAssignmentCertV2},
 };
 use polkadot_node_subsystem::{
 	messages::{

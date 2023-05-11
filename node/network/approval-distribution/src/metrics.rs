@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_metrics::metrics::{prometheus, Metrics as MetricsTrait};
-use polkadot_node_primitives::approval::AssignmentCertKindV2;
+use polkadot_node_primitives::approval::v2::AssignmentCertKindV2;
 
 /// Approval Distribution metrics.
 #[derive(Default, Clone)]

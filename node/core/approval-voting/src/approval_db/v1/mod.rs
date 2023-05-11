@@ -17,7 +17,10 @@
 //! Version 1 of the DB schema.
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_node_primitives::approval::{v2::CoreBitfield, AssignmentCertV2, DelayTranche};
+use polkadot_node_primitives::approval::{
+	v1::DelayTranche,
+	v2::{AssignmentCertV2, CoreBitfield},
+};
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::{

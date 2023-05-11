@@ -18,8 +18,9 @@
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
-	self as approval_types, v2::CoreBitfield, AssignmentCert, AssignmentCertKind,
-	AssignmentCertKindV2, AssignmentCertV2, DelayTranche, RelayVRFStory,
+	self as approval_types,
+	v1::{AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory},
+	v2::{AssignmentCertKindV2, AssignmentCertV2, CoreBitfield, VrfOutput, VrfProof, VrfSignature},
 };
 use polkadot_primitives::{
 	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, IndexedVec, SessionInfo,
@@ -448,9 +449,9 @@ fn compute_relay_vrf_modulo_assignments(
 			// has been executed.
 			let cert = AssignmentCert {
 				kind: AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
-				vrf: approval_types::VrfSignature {
-					output: approval_types::VrfOutput(vrf_in_out.to_output()),
-					proof: approval_types::VrfProof(vrf_proof),
+				vrf: VrfSignature {
+					output: VrfOutput(vrf_in_out.to_output()),
+					proof: VrfProof(vrf_proof),
 				},
 			};
 
@@ -530,10 +531,7 @@ fn compute_relay_vrf_modulo_assignments_v2(
 			kind: AssignmentCertKindV2::RelayVRFModuloCompact {
 				core_bitfield: assignment_bitfield.clone(),
 			},
-			vrf: (
-				approval_types::VrfOutput(vrf_in_out.to_output()),
-				approval_types::VrfProof(vrf_proof),
-			),
+			vrf: (VrfOutput(vrf_in_out.to_output()), VrfProof(vrf_proof)),
 		};
 
 		// All assignments of type RelayVRFModulo have tranche 0.
@@ -565,10 +563,7 @@ fn compute_relay_vrf_delay_assignments(
 
 		let cert = AssignmentCertV2 {
 			kind: AssignmentCertKindV2::RelayVRFDelay { core_index: core },
-			vrf: (
-				approval_types::VrfOutput(vrf_in_out.to_output()),
-				approval_types::VrfProof(vrf_proof),
-			),
+			vrf: (VrfOutput(vrf_in_out.to_output()), VrfProof(vrf_proof)),
 		};
 
 		let our_assignment = OurAssignment {

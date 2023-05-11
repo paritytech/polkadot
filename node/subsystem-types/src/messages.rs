@@ -34,8 +34,8 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::{
 	approval::{
-		v2::CandidateBitfield, BlockApprovalMeta, IndirectAssignmentCertV2,
-		IndirectSignedApprovalVote,
+		v1::{BlockApprovalMeta, IndirectSignedApprovalVote},
+		v2::{CandidateBitfield, IndirectAssignmentCertV2},
 	},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
 	CollationSecondedSignal, DisputeMessage, DisputeStatus, ErasureChunk, PoV,

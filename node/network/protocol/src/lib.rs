@@ -428,7 +428,8 @@ impl_versioned_try_from!(
 pub mod vstaging {
 	use parity_scale_codec::{Decode, Encode};
 	use polkadot_node_primitives::approval::{
-		v2::CandidateBitfield, IndirectAssignmentCertV2, IndirectSignedApprovalVote,
+		v1::IndirectSignedApprovalVote,
+		v2::{CandidateBitfield, IndirectAssignmentCertV2},
 	};
 
 	// Re-export stuff that has not changed since v1.
@@ -481,7 +482,7 @@ pub mod v1 {
 	};
 
 	use polkadot_node_primitives::{
-		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
+		approval::v1::{IndirectAssignmentCert, IndirectSignedApprovalVote},
 		UncheckedSignedFullStatement,
 	};
 
