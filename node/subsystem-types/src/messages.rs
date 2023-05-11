@@ -23,14 +23,13 @@
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
 use futures::channel::oneshot;
-use sc_network::Multiaddr;
+use sc_network::{Multiaddr, ReputationChange};
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol, peer_set::PeerSet, request_response::Requests, PeerId,
-	UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
@@ -309,7 +308,7 @@ pub enum NetworkBridgeRxMessage {
 #[derive(Debug)]
 pub enum NetworkBridgeTxMessage {
 	/// Report a peer for their actions.
-	ReportPeer(PeerId, UnifiedReputationChange),
+	ReportPeer(PeerId, ReputationChange),
 
 	/// Disconnect a peer from the given peer-set without affecting their reputation.
 	DisconnectPeer(PeerId, PeerSet),
