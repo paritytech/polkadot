@@ -10,15 +10,15 @@ impl-trait-for-tuples = "0.2.2"
 environmental = { version = "1.1.4", default-features = false }
 parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
 log = { version = "0.4.17", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.42" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "westmint-9425" }
 
 [features]
 default = ["std"]

@@ -15,33 +15,33 @@ serde = { version = "1.0.139", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
 
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-pallet-fast-unstake = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-pallet-staking-reward-fn = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+pallet-fast-unstake = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+pallet-staking-reward-fn = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.42" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.42" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "westmint-9425" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "westmint-9425" }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.7.0", default-features = false }
@@ -52,10 +52,10 @@ xcm = { path = "../../xcm", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.4.1"
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "westmint-9425" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "westmint-9425" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "westmint-9425" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "westmint-9425" }
 serde_json = "1.0.96"
 libsecp256k1 = "0.7.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }

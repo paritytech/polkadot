@@ -5,9 +5,9 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.42" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "polkadot-v0.9.42" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "westmint-9425" }
+sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "westmint-9425" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "westmint-9425" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "westmint-9425" }
 polkadot-primitives = { path = "../" }
 rand = "0.8.5"
