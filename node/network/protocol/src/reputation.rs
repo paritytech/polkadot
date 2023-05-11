@@ -42,7 +42,7 @@ impl UnifiedReputationChange {
 	///
 	/// The whole range of an `i32` should be used, so order of magnitude of
 	/// something malicious should be `1<<20` (give or take).
-	const fn cost_or_benefit(&self) -> i32 {
+	pub const fn cost_or_benefit(&self) -> i32 {
 		match self {
 			Self::CostMinor(_) => -100_000,
 			Self::CostMajor(_) => -300_000,
