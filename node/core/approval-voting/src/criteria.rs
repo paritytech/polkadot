@@ -977,7 +977,7 @@ mod tests {
 		};
 
 		let relay_vrf_story = RelayVRFStory([42u8; 32]);
-		let assignments = compute_assignments(
+		let mut assignments = compute_assignments(
 			&keystore,
 			relay_vrf_story.clone(),
 			&config,
@@ -992,6 +992,23 @@ mod tests {
 				.collect::<Vec<_>>(),
 			false,
 		);
+
+		// Extend with v2 assignments as well
+		assignments.extend(compute_assignments(
+			&keystore,
+			relay_vrf_story.clone(),
+			&config,
+			(0..n_cores)
+				.map(|i| {
+					(
+						CandidateHash(Hash::repeat_byte(i as u8)),
+						CoreIndex(i as u32),
+						group_for_core(i),
+					)
+				})
+				.collect::<Vec<_>>(),
+			true,
+		));
 
 		let mut counted = 0;
 		for (core, assignment) in assignments {
@@ -1101,7 +1118,7 @@ mod tests {
 					m.config.relay_vrf_modulo_samples = sample;
 					Some(false)
 				},
-				AssignmentCertKindV2::RelayVRFModuloCompact { core_bitfield: _ } => Some(false),
+				AssignmentCertKindV2::RelayVRFModuloCompact { core_bitfield: _ } => Some(true),
 				_ => None, // skip everything else.
 			}
 		});

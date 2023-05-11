@@ -467,10 +467,9 @@ pub mod v2 {
 
 #[cfg(test)]
 mod test {
-	use super::{
-		v2::{BitIndex, Bitfield},
-		*,
-	};
+	use super::v2::{BitIndex, Bitfield};
+
+	use polkadot_primitives::{CandidateIndex, CoreIndex};
 
 	#[test]
 	fn test_assignment_bitfield_from_vec() {
