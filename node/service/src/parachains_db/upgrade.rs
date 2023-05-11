@@ -175,17 +175,22 @@ fn rocksdb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
 }
 
 fn rocksdb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
+	use kvdb::{DBOp, DBTransaction};
 	use kvdb_rocksdb::{Database, DatabaseConfig};
 
 	let db_path = path
 		.to_str()
 		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
-	let db_cfg = DatabaseConfig::with_columns(super::columns::v1::NUM_COLUMNS);
-	let mut db = Database::open(&db_cfg, db_path)?;
+	let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
+	let db = Database::open(&db_cfg, db_path)?;
 
-	// TODO: how to remove the column??
-	db.remove_last_column()
-		.map_err(|e| other_io_error(format!("Error removing column {:?}", e)))?;
+	// Wipe all entries in one operation.
+	let ops = vec![DBOp::DeletePrefix {
+		col: super::columns::v2::COL_SESSION_WINDOW_DATA,
+		prefix: kvdb::DBKey::from_slice(b""),
+	}];
+
+	db.write(DBTransaction { ops })?;
 
 	Ok(())
 }
@@ -259,6 +264,7 @@ pub(crate) fn paritydb_version_1_config(path: &Path) -> parity_db::Options {
 }
 
 /// Database configuration for version 2.
+#[cfg(test)]
 pub(crate) fn paritydb_version_2_config(path: &Path) -> parity_db::Options {
 	let mut options =
 		parity_db::Options::with_columns(&path, super::columns::v2::NUM_COLUMNS as u8);
@@ -465,5 +471,79 @@ mod tests {
 			db.get(COL_SESSION_WINDOW_DATA, b"1337").unwrap(),
 			Some("0xdeadb00b".as_bytes().to_vec())
 		);
+	}
+
+	#[test]
+	fn test_paritydb_migrate_2_to_3() {
+		use parity_db::Db;
+
+		let db_dir = tempfile::tempdir().unwrap();
+		let path = db_dir.path();
+		let test_key = b"1337";
+
+		// We need to properly set db version for upgrade to work.
+		fs::write(version_file_path(path), "2").expect("Failed to write DB version");
+
+		{
+			let db = Db::open_or_create(&paritydb_version_2_config(&path)).unwrap();
+
+			// Write some dummy data
+			db.commit(vec![(
+				COL_SESSION_WINDOW_DATA as u8,
+				test_key.to_vec(),
+				Some(b"0xdeadb00b".to_vec()),
+			)])
+			.unwrap();
+
+			assert_eq!(db.num_columns(), columns::v2::NUM_COLUMNS as u8);
+		}
+
+		try_upgrade_db(&path, DatabaseKind::ParityDB).unwrap();
+
+		let db = Db::open(&paritydb_version_3_config(&path)).unwrap();
+
+		assert_eq!(db.num_columns(), columns::v3::NUM_COLUMNS as u8);
+
+		// ensure column is empty
+		assert!(db.get(COL_SESSION_WINDOW_DATA as u8, &test_key.to_vec()).unwrap().is_none());
+	}
+
+	#[test]
+	fn test_rocksdb_migrate_2_to_3() {
+		use kvdb::{DBKey, DBOp};
+		use kvdb_rocksdb::{Database, DatabaseConfig};
+		use polkadot_node_subsystem_util::database::{
+			kvdb_impl::DbAdapter, DBTransaction, KeyValueDB,
+		};
+
+		let db_dir = tempfile::tempdir().unwrap();
+		let db_path = db_dir.path().to_str().unwrap();
+		let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
+		let db = Database::open(&db_cfg, db_path).unwrap();
+		assert_eq!(db.num_columns(), super::columns::v2::NUM_COLUMNS as u32);
+
+		// We need to properly set db version for upgrade to work.
+		fs::write(version_file_path(db_dir.path()), "2").expect("Failed to write DB version");
+		{
+			let db = DbAdapter::new(db, columns::v2::ORDERED_COL);
+			db.write(DBTransaction {
+				ops: vec![DBOp::Insert {
+					col: COL_DISPUTE_COORDINATOR_DATA,
+					key: DBKey::from_slice(b"1234"),
+					value: b"0xdeadb00b".to_vec(),
+				}],
+			})
+			.unwrap();
+		}
+
+		try_upgrade_db(&db_dir.path(), DatabaseKind::RocksDB).unwrap();
+
+		let db_cfg = DatabaseConfig::with_columns(super::columns::v3::NUM_COLUMNS);
+		let db = Database::open(&db_cfg, db_path).unwrap();
+
+		assert_eq!(db.num_columns(), super::columns::v3::NUM_COLUMNS);
+
+		// Ensure data is actually removed
+		assert!(db.get(COL_SESSION_WINDOW_DATA, b"1337").unwrap().is_none());
 	}
 }
