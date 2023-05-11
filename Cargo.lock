@@ -2157,6 +2157,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "erasure_coding_fuzzer"
+version = "0.9.41"
+dependencies = [
+ "honggfuzz",
+ "polkadot-erasure-coding",
+ "polkadot-node-primitives",
+ "polkadot-primitives",
+]
+
+[[package]]
 name = "errno"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
