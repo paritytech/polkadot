@@ -42,7 +42,6 @@ test-linux-stable:
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
     - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics,try-runtime
-    - sleep 1
 
 .check-dependent-project: &check-dependent-project
   stage: test
