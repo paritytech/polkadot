@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -32,8 +32,8 @@ use polkadot_service::{
 	ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull, PrometheusConfig,
 };
 use polkadot_test_runtime::{
-	ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall, UncheckedExtrinsic,
-	VERSION,
+	ParasCall, ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall,
+	UncheckedExtrinsic, VERSION,
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
@@ -190,18 +190,15 @@ pub fn node_config(
 			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 		},
-		rpc_http: None,
-		rpc_ws: None,
-		rpc_ipc: None,
-		rpc_max_payload: None,
-		rpc_max_request_size: None,
-		rpc_max_response_size: None,
-		rpc_ws_max_connections: None,
+		rpc_addr: Default::default(),
+		rpc_max_request_size: Default::default(),
+		rpc_max_response_size: Default::default(),
+		rpc_max_connections: Default::default(),
 		rpc_cors: None,
 		rpc_methods: Default::default(),
 		rpc_id_provider: None,
-		rpc_max_subs_per_conn: None,
-		ws_max_out_buffer_capacity: None,
+		rpc_max_subs_per_conn: Default::default(),
+		rpc_port: 9944,
 		prometheus_config: None,
 		telemetry_endpoints: None,
 		default_heap_pages: None,
@@ -214,7 +211,8 @@ pub fn node_config(
 		max_runtime_instances: 8,
 		runtime_cache_size: 2,
 		announce_block: true,
-		base_path: Some(base_path),
+		data_path: root,
+		base_path,
 		informant_output_format: Default::default(),
 	}
 }
@@ -283,6 +281,19 @@ pub struct PolkadotTestNode {
 }
 
 impl PolkadotTestNode {
+	/// Send a sudo call to this node.
+	async fn send_sudo(
+		&self,
+		call: impl Into<polkadot_test_runtime::RuntimeCall>,
+		caller: Sr25519Keyring,
+		nonce: u32,
+	) -> Result<(), RpcTransactionError> {
+		let sudo = SudoCall::sudo { call: Box::new(call.into()) };
+
+		let extrinsic = construct_extrinsic(&*self.client, sudo, caller, nonce);
+		self.rpc_handlers.send_transaction(extrinsic.into()).await.map(drop)
+	}
+
 	/// Send an extrinsic to this node.
 	pub async fn send_extrinsic(
 		&self,
@@ -301,18 +312,21 @@ impl PolkadotTestNode {
 		validation_code: impl Into<ValidationCode>,
 		genesis_head: impl Into<HeadData>,
 	) -> Result<(), RpcTransactionError> {
+		let validation_code: ValidationCode = validation_code.into();
 		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize {
 			id,
 			genesis: ParaGenesisArgs {
 				genesis_head: genesis_head.into(),
-				validation_code: validation_code.into(),
+				validation_code: validation_code.clone(),
 				para_kind: ParaKind::Parachain,
 			},
 		};
 
-		self.send_extrinsic(SudoCall::sudo { call: Box::new(call.into()) }, Sr25519Keyring::Alice)
-			.await
-			.map(drop)
+		self.send_sudo(call, Sr25519Keyring::Alice, 0).await?;
+
+		// Bypass pvf-checking.
+		let call = ParasCall::add_trusted_validation_code { validation_code };
+		self.send_sudo(call, Sr25519Keyring::Alice, 1).await
 	}
 
 	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks

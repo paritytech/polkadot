@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -86,6 +86,14 @@ const DEFAULT_CONFIG: Config = Config {
 		// On the one hand, it simplifies the code, on the other, however, slows down compile times
 		// for execute requests. This behavior may change in future.
 		parallel_compilation: false,
+
+		// WASM extensions. Only those that are meaningful to us may be controlled here. By default,
+		// we're using WASM MVP, which means all the extensions are disabled. Nevertheless, some
+		// extensions (e.g., sign extension ops) are enabled by Wasmtime and cannot be disabled.
+		wasm_reference_types: false,
+		wasm_simd: false,
+		wasm_bulk_memory: false,
+		wasm_multi_value: false,
 	},
 };
 
@@ -125,6 +133,7 @@ fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, Strin
 					HeapAllocStrategy::Dynamic { maximum_pages: Some(*max_pages) },
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
+			ExecutorParam::WasmExtBulkMemory => sem.wasm_bulk_memory = true,
 			ExecutorParam::PrecheckingMaxMemory(_) => (), // TODO: Not implemented yet
 			ExecutorParam::PvfPrepTimeout(_, _) | ExecutorParam::PvfExecTimeout(_, _) => (), // Not used here
 		}

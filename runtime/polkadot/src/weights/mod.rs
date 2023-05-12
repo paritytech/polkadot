@@ -1,4 +1,4 @@
-// Copyright (C) 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,6 +54,7 @@ pub mod runtime_common_paras_registrar;
 pub mod runtime_common_slots;
 pub mod runtime_parachains_configuration;
 pub mod runtime_parachains_disputes;
+pub mod runtime_parachains_disputes_slashing;
 pub mod runtime_parachains_hrmp;
 pub mod runtime_parachains_initializer;
 pub mod runtime_parachains_paras;

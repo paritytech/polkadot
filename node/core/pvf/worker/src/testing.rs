@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,10 +20,6 @@
 //!      artifact even for production builds.
 
 use polkadot_primitives::ExecutorParams;
-
-pub mod worker_common {
-	pub use crate::worker_common::{spawn_with_program_path, SpawnErr};
-}
 
 /// A function that emulates the stitches together behaviors of the preparation and the execution
 /// worker in a single synchronous function.
