@@ -305,13 +305,12 @@ impl Initialized {
 				Ok(session_idx)
 					if self.gaps_in_cache || session_idx > self.highest_session_seen =>
 				{
-					// If error has occurred during last session caching - fetch the whole window
-					// Otherwise - cache only the new sessions
-					let lower_bound = if self.gaps_in_cache {
-						session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)
-					} else {
-						self.highest_session_seen + 1
-					};
+					// Fetch the last `DISPUTE_WINDOW` number of sessions unless there are no gaps in
+					// cache and we are not missing too many `SessionInfo`s
+					let mut lower_bound = session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1);
+					if !self.gaps_in_cache && self.highest_session_seen > lower_bound {
+						lower_bound = self.highest_session_seen + 1
+					}
 
 					// There is a new session. Perform a dummy fetch to cache it.
 					for idx in lower_bound..=session_idx {
