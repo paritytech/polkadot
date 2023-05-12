@@ -121,12 +121,15 @@ macro_rules! decl_test_relay_chain {
 				para: Self::Origin,
 				meter: &mut $crate::WeightMeter,
 			) -> Result<bool, $crate::ProcessMessageError> {
-				use $crate::{ProcessMessage, Weight, AggregateMessageOrigin, ServiceQueues, EnqueueMessage, Junction, TestExt};
+				use $crate::{Weight, AggregateMessageOrigin, ServiceQueues, EnqueueMessage};
 				use $mq as message_queue;
 				use $runtime_event as runtime_event;
 
 				Self::execute_with(|| {
-					<$mq as EnqueueMessage<AggregateMessageOrigin>>::enqueue_message(msg.try_into().expect("Message too long"), AggregateMessageOrigin::Ump(para.clone()));
+					<$mq as EnqueueMessage<AggregateMessageOrigin>>::enqueue_message(
+						msg.try_into().expect("Message too long"),
+						AggregateMessageOrigin::Ump(para.clone())
+					);
 
 					<$system>::reset_events();
 					<$mq as ServiceQueues>::service_queues(Weight::MAX);
@@ -134,7 +137,8 @@ macro_rules! decl_test_relay_chain {
 					let event = events.last().expect("There must be at least one event");
 
 					match &event.event {
-						runtime_event::MessageQueue(pallet_message_queue::Event::Processed {origin, ..}) => {
+						runtime_event::MessageQueue(
+								pallet_message_queue::Event::Processed {origin, ..}) => {
 							assert_eq!(origin, &AggregateMessageOrigin::Ump(para));
 						},
 						event => panic!("Unexpected event: {:#?}", event),
