@@ -20,7 +20,7 @@ pub use codec::Encode;
 pub use paste;
 
 pub use frame_support::{
-	traits::{Get, ProcessMessage, ProcessMessageError},
+	traits::{EnqueueMessage, Get, ProcessMessage, ProcessMessageError, ServiceQueues},
 	weights::{Weight, WeightMeter},
 };
 pub use sp_io::{hashing::blake2_256, TestExternalities};
@@ -31,7 +31,7 @@ pub use polkadot_parachain::primitives::{
 	DmpMessageHandler as DmpMessageHandlerT, Id as ParaId, XcmpMessageFormat,
 	XcmpMessageHandler as XcmpMessageHandlerT,
 };
-pub use polkadot_runtime_parachains::dmp;
+pub use polkadot_runtime_parachains::{dmp, inclusion::AggregateMessageOrigin};
 pub use xcm::{latest::prelude::*, VersionedXcm};
 pub use xcm_builder::ProcessXcmMessage;
 pub use xcm_executor::XcmExecutor;
@@ -102,7 +102,10 @@ macro_rules! decl_test_relay_chain {
 		pub struct $name:ident {
 			Runtime = $runtime:path,
 			RuntimeCall = $runtime_call:path,
+			RuntimeEvent = $runtime_event:path,
 			XcmConfig = $xcm_config:path,
+			MessageQueue = $mq:path,
+			System = $system:path,
 			new_ext = $new_ext:expr,
 		}
 	) => {
@@ -115,16 +118,28 @@ macro_rules! decl_test_relay_chain {
 
 			fn process_message(
 				msg: &[u8],
-				origin: Self::Origin,
+				para: Self::Origin,
 				meter: &mut $crate::WeightMeter,
 			) -> Result<bool, $crate::ProcessMessageError> {
-				use $crate::{ProcessMessage, Junction, TestExt};
+				use $crate::{ProcessMessage, Weight, AggregateMessageOrigin, ServiceQueues, EnqueueMessage, Junction, TestExt};
+				use $mq as message_queue;
+				use $runtime_event as runtime_event;
 
 				Self::execute_with(|| {
-					$crate::ProcessXcmMessage::<$crate::Junction,
-						$crate::XcmExecutor<$xcm_config>, $runtime_call>::process_message(
-						msg, $crate::Junction::Parachain(origin.into()), meter,
-					)
+					<$mq as EnqueueMessage<AggregateMessageOrigin>>::enqueue_message(msg.try_into().expect("Message too long"), AggregateMessageOrigin::Ump(para.clone()));
+
+					<$system>::reset_events();
+					<$mq as ServiceQueues>::service_queues(Weight::MAX);
+					let events = <$system>::events();
+					let event = events.last().expect("There must be at least one event");
+
+					match &event.event {
+						runtime_event::MessageQueue(pallet_message_queue::Event::Processed {origin, ..}) => {
+							assert_eq!(origin, &AggregateMessageOrigin::Ump(para));
+						},
+						event => panic!("Unexpected event: {:#?}", event),
+					}
+					Ok(true)
 				})
 			}
 		}

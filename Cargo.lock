@@ -14558,6 +14558,7 @@ dependencies = [
  "frame-system",
  "honggfuzz",
  "pallet-balances",
+ "pallet-message-queue",
  "pallet-xcm",
  "parity-scale-codec",
  "polkadot-core-primitives",
