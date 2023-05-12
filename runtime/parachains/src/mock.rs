@@ -36,12 +36,12 @@ use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::{
 	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
-	UpwardMessage, ValidatorIndex,
+	UpwardMessage, ValidationCode, ValidatorIndex,
 };
 use sp_core::{ConstU32, H256};
 use sp_io::TestExternalities;
 use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup},
+	traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
 	Permill,
 };
@@ -524,10 +524,7 @@ where
 	}
 }
 
-use frame_support::traits::Currency;
-use sp_runtime::traits::AccountIdConversion;
-
-fn register_parachain_with_balance(id: ParaId, balance: Balance) {
+pub(crate) fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 	let validation_code: ValidationCode = vec![1].into();
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
@@ -539,7 +536,7 @@ fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 	));
 
 	assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), validation_code));
-	<Test as Config>::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
+	<Test as crate::hrmp::Config>::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
 }
 
 pub(crate) fn register_parachain(id: ParaId) {
