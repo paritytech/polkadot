@@ -31,16 +31,15 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::{
-	v4::CollatorRestrictionKind, vstaging::CollatorRestrictions, CandidateDescriptor, CollatorId,
-	GroupRotationInfo, HeadData, PersistedValidationData, PvfExecTimeoutKind, ScheduledCore,
+	vstaging::CollatorRestrictions, CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData,
+	PersistedValidationData, PvfExecTimeoutKind, ScheduledCore,
 };
 use sp_application_crypto::AppCrypto;
-use sp_core::OpaquePeerId;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::Keystore;
 use sp_tracing as _;
 use statement_table::v2::Misbehavior;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
