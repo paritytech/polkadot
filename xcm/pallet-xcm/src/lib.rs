@@ -1692,7 +1692,10 @@ impl<T: Config> xcm_executor::traits::Enact for UnlockTicket<T> {
 		}
 		LockedFungibles::<T>::insert(&self.sovereign_account, locks);
 		let reasons = WithdrawReasons::all();
-		
+
+		// A locked value of zero means we do not have any outstanding locks anymore
+		// in the LockedFungibles storage for this sovereign account.
+		// We can then remove the `xcmlk` lock from this account.
 		if locked.is_zero() {
 			T::Currency::remove_lock(*b"py/xcmlk", &self.sovereign_account);
 		} else {
