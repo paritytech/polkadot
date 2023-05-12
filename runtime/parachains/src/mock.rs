@@ -27,7 +27,7 @@ use crate::{
 use frame_support::{
 	assert_ok, parameter_types,
 	traits::{
-		GenesisBuild, ProcessMessage, ProcessMessageError, ValidatorSet,
+		Currency, GenesisBuild, ProcessMessage, ProcessMessageError, ValidatorSet,
 		ValidatorSetWithIdentification,
 	},
 	weights::{Weight, WeightMeter},
@@ -536,7 +536,6 @@ pub(crate) fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 	));
 
 	assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), validation_code));
-	use frame_support::traits::Currency;
 	<Test as crate::hrmp::Config>::Currency::make_free_balance_be(
 		&id.into_account_truncating(),
 		balance,
