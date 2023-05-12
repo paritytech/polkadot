@@ -536,11 +536,9 @@ pub(crate) fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 	));
 
 	assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), validation_code));
-	<Test as crate::hrmp::Config>::Currency::make_free_balance_be(
-		&id.into_account_truncating(),
-		balance,
-	);
+	<Test as crate::hrmp::Config>::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
 }
+
 
 pub(crate) fn register_parachain(id: ParaId) {
 	register_parachain_with_balance(id, 1000);
