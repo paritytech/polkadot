@@ -779,16 +779,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(0)]
-		#[pallet::weight({
-			let maybe_msg: Result<Xcm<()>, ()> = (*message.clone()).try_into();
-			match maybe_msg {
-				Ok(msg) => {
-					T::Weigher::weight(&mut msg.into())
-						.map_or(Weight::MAX, |w| T::WeightInfo::send().saturating_add(w))
-				}
-				_ => Weight::MAX,
-			}
-		})]
+		#[pallet::weight(T::WeightInfo::send())]
 		pub fn send(
 			origin: OriginFor<T>,
 			dest: Box<VersionedMultiLocation>,
@@ -830,6 +821,7 @@ pub mod pallet {
 					let count = assets.len() as u32;
 					let mut message = Xcm(vec![
 						WithdrawAsset(assets),
+						SetFeesMode { jit_withdraw: true },
 						InitiateTeleport {
 							assets: Wild(AllCounted(count)),
 							dest,
@@ -875,6 +867,7 @@ pub mod pallet {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
 					let mut message = Xcm(vec![
+						SetFeesMode { jit_withdraw: true },
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
 					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::reserve_transfer_assets().saturating_add(w))
@@ -1048,6 +1041,7 @@ pub mod pallet {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
 					let mut message = Xcm(vec![
+						SetFeesMode { jit_withdraw: true },
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
 					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::reserve_transfer_assets().saturating_add(w))
@@ -1099,6 +1093,7 @@ pub mod pallet {
 					use sp_std::vec;
 					let mut message = Xcm(vec![
 						WithdrawAsset(assets),
+						SetFeesMode { jit_withdraw: true },
 						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
 					]);
 					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::teleport_assets().saturating_add(w))
