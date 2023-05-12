@@ -17,10 +17,10 @@
 use super::*;
 use assert_matches::assert_matches;
 use futures::{executor, future, Future};
-use sp_core::{crypto::Pair, Encode};
+use sp_core::{crypto::Pair, Encode, OpaquePeerId};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{testing::MemoryKeystore, Keystore};
-use std::{iter, sync::Arc, task::Poll, time::Duration};
+use std::{collections::BTreeSet, iter, sync::Arc, task::Poll, time::Duration};
 
 use polkadot_node_network_protocol::{
 	our_view,
@@ -33,8 +33,8 @@ use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeA
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{
-	vstaging::CollatorRestrictions, CollatorPair, CoreState, GroupIndex, GroupRotationInfo,
-	OccupiedCore, ScheduledCore, ValidatorId, ValidatorIndex,
+	v4::CollatorRestrictionKind, vstaging::CollatorRestrictions, CollatorPair, CoreState,
+	GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,
@@ -747,6 +747,64 @@ fn reject_connection_to_next_group() {
 
 		virtual_overseer
 	})
+}
+
+// Ensure that collations from a peer not in the restriction set is rejected when set membership is required.
+#[test]
+fn collation_not_in_preferred_rejected() {
+	let mut peer_set = BTreeSet::new();
+	peer_set.insert(OpaquePeerId::new(vec![0, 0, 0, 0])); // not even a correct encoding of a PeerId
+	let mut test_state = TestState::default();
+	test_state.cores[0] = CoreState::Scheduled(ScheduledCore {
+		para_id: ParaId::from(1),
+		collator_restrictions: CollatorRestrictions::new(
+			peer_set,
+			CollatorRestrictionKind::Required,
+		),
+	});
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		let second = Hash::random();
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
+				our_view![test_state.relay_parent, second],
+			)),
+		)
+		.await;
+
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+
+		let peer_b = PeerId::random();
+
+		connect_and_declare_collator(
+			&mut virtual_overseer,
+			peer_b.clone(),
+			test_state.collators[0].clone(),
+			test_state.chain_ids[0].clone(),
+		)
+		.await;
+
+		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
+				peer,
+				rep,
+			)) => {
+				assert_eq!(peer, peer_b);
+				assert_eq!(rep, COST_REPORT_BAD);
+			}
+		);
+
+		virtual_overseer
+	});
 }
 
 // Ensure that we fetch a second collation, after the first checked collation was found to be invalid.

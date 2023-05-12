@@ -962,6 +962,7 @@ async fn process_incoming_peer_message<Context>(
 					"Peer is not allowed to collate",
 				);
 				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+
 				return
 			}
 
