@@ -23,6 +23,8 @@
 //! This pallet should not be used on a production relay chain,
 //! only on a test relay chain (e.g. Rococo).
 
+mod migration;
+
 use crate::{
 	slots::{self, Pallet as Slots, WeightInfo},
 	traits::{LeaseError, Leaser, Registrar},
@@ -77,7 +79,11 @@ type LeasePeriodOf<T> =
 pub mod pallet {
 	use super::*;
 
+	/// The current storage version.
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+
 	#[pallet::pallet]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -198,6 +204,9 @@ pub mod pallet {
 
 			// We didn't return early above, so we didn't do anything.
 			Weight::zero()
+		}
+		fn on_runtime_upgrade() -> frame_support::weights::Weight {
+			migration::migrate_to_v2::<T>()
 		}
 	}
 
