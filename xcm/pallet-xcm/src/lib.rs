@@ -1692,7 +1692,12 @@ impl<T: Config> xcm_executor::traits::Enact for UnlockTicket<T> {
 		}
 		LockedFungibles::<T>::insert(&self.sovereign_account, locks);
 		let reasons = WithdrawReasons::all();
-		T::Currency::set_lock(*b"py/xcmlk", &self.sovereign_account, locked, reasons);
+		
+		if locked.is_zero() {
+			T::Currency::remove_lock(*b"py/xcmlk", &self.sovereign_account);
+		} else {
+			T::Currency::set_lock(*b"py/xcmlk", &self.sovereign_account, locked, reasons);
+		}
 		Ok(())
 	}
 }
