@@ -1485,8 +1485,7 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
 pub type Migrations =
-		(migrations::V0940, migrations::V0941,
-	migrations::V0942, migrations::Unreleased);
+	(migrations::V0940, migrations::V0941, migrations::V0942, migrations::Unreleased);
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
@@ -1508,9 +1507,7 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (
-		init_state_migration::InitMigrate,
-	);
+	pub type Unreleased = (init_state_migration::InitMigrate,);
 }
 
 /// Unchecked extrinsic type as expected by this runtime.
