@@ -1489,7 +1489,6 @@ pub type Migrations = (
 	migrations::V0941,
 	migrations::V0942,
 	migrations::Unreleased,
-	init_state_migration::InitMigrate,
 );
 
 /// The runtime migrations per release.
@@ -1512,7 +1511,9 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = ();
+	pub type Unreleased = (
+		init_state_migration::InitMigrate,
+	);
 }
 
 /// Unchecked extrinsic type as expected by this runtime.
