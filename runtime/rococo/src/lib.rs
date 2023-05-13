@@ -40,7 +40,7 @@ use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
-	inclusion as parachains_inclusion, inclusion::AggregateMessageOrigin,
+	inclusion as parachains_inclusion, inclusion::{UmpQueueId, AggregateMessageOrigin},
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
 	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
@@ -1064,7 +1064,7 @@ impl ProcessMessage for MessageProcessor {
 		meter: &mut WeightMeter,
 	) -> Result<bool, ProcessMessageError> {
 		let para = match origin {
-			AggregateMessageOrigin::Ump(para) => para,
+			AggregateMessageOrigin::Ump(UmpQueueId::Para(para)) => para,
 		};
 		xcm_builder::ProcessXcmMessage::<
 			Junction,
