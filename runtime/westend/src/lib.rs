@@ -25,7 +25,7 @@ use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignatu
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{ConstU32, InstanceFilter, KeyOwnerProofSystem, WithdrawReasons},
+	traits::{ConstU32, Everything, InstanceFilter, KeyOwnerProofSystem, WithdrawReasons},
 	weights::ConstantMultiplier,
 	PalletId,
 };
@@ -183,6 +183,7 @@ impl pallet_scheduler::Config for Runtime {
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 	type OriginPrivilegeCmp = frame_support::traits::EqualPrivilegeOnly;
 	type Preimages = Preimage;
+	type CallFilter = Everything;
 }
 
 parameter_types! {
