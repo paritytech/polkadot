@@ -661,12 +661,6 @@ fn cancel_pending_open_channel_request() {
 	});
 }
 
-// TODO [now]
-// Test that `check_hrmp_watermark` passes when the new watermark is equal to
-// the relay-parent number and the old one is too.
-//
-// Also test that `prune_hrmp` where the new watermark is equal to the relay-parent
-// number and the previous one is the same is a no-op.
 #[test]
 fn watermark_maxed_out_at_relay_parent() {
 	let para_a = 32.into();
