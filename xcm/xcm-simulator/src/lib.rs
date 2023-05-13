@@ -31,7 +31,10 @@ pub use polkadot_parachain::primitives::{
 	DmpMessageHandler as DmpMessageHandlerT, Id as ParaId, XcmpMessageFormat,
 	XcmpMessageHandler as XcmpMessageHandlerT,
 };
-pub use polkadot_runtime_parachains::{dmp, inclusion::AggregateMessageOrigin};
+pub use polkadot_runtime_parachains::{
+	dmp,
+	inclusion::{AggregateMessageOrigin, UmpQueueId},
+};
 pub use xcm::{latest::prelude::*, VersionedXcm};
 pub use xcm_builder::ProcessXcmMessage;
 pub use xcm_executor::XcmExecutor;
@@ -121,14 +124,14 @@ macro_rules! decl_test_relay_chain {
 				para: Self::Origin,
 				meter: &mut $crate::WeightMeter,
 			) -> Result<bool, $crate::ProcessMessageError> {
-				use $crate::{Weight, AggregateMessageOrigin, ServiceQueues, EnqueueMessage};
+				use $crate::{Weight, AggregateMessageOrigin, UmpQueueId, ServiceQueues, EnqueueMessage};
 				use $mq as message_queue;
 				use $runtime_event as runtime_event;
 
 				Self::execute_with(|| {
 					<$mq as EnqueueMessage<AggregateMessageOrigin>>::enqueue_message(
 						msg.try_into().expect("Message too long"),
-						AggregateMessageOrigin::Ump(para.clone())
+						AggregateMessageOrigin::Ump(UmpQueueId::Para(para.clone()))
 					);
 
 					<$system>::reset_events();
@@ -139,7 +142,7 @@ macro_rules! decl_test_relay_chain {
 					match &event.event {
 						runtime_event::MessageQueue(
 								pallet_message_queue::Event::Processed {origin, ..}) => {
-							assert_eq!(origin, &AggregateMessageOrigin::Ump(para));
+							assert_eq!(origin, &AggregateMessageOrigin::Ump(UmpQueueId::Para(para)));
 						},
 						event => panic!("Unexpected event: {:#?}", event),
 					}
