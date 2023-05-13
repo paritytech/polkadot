@@ -889,11 +889,23 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(), HrmpWatermarkAcceptanceErr<T::BlockNumber>> {
 		// First, check where the watermark CANNOT legally land.
 		//
-		// (a) For ensuring that messages are eventually, a rule requires each parablock new
-		//     watermark should be greater than the last one.
+		// (a) For ensuring that messages are eventually processed, we require each parablock's
+		//     watermark to be greater than the last one. The exception to this is if the previous
+		//     watermark was already equal to the current relay-parent number.
 		//
 		// (b) However, a parachain cannot read into "the future", therefore the watermark should
 		//     not be greater than the relay-chain context block which the parablock refers to.
+		if new_hrmp_watermark == relay_chain_parent_number {
+			return Ok(())
+		}
+
+		if new_hrmp_watermark > relay_chain_parent_number {
+			return Err(HrmpWatermarkAcceptanceErr::AheadRelayParent {
+				new_watermark: new_hrmp_watermark,
+				relay_chain_parent_number,
+			})
+		}
+
 		if let Some(last_watermark) = HrmpWatermarks::<T>::get(&recipient) {
 			if new_hrmp_watermark <= last_watermark {
 				return Err(HrmpWatermarkAcceptanceErr::AdvancementRule {
@@ -902,31 +914,21 @@ impl<T: Config> Pallet<T> {
 				})
 			}
 		}
-		if new_hrmp_watermark > relay_chain_parent_number {
-			return Err(HrmpWatermarkAcceptanceErr::AheadRelayParent {
-				new_watermark: new_hrmp_watermark,
-				relay_chain_parent_number,
-			})
-		}
 
 		// Second, check where the watermark CAN land. It's one of the following:
 		//
-		// (a) The relay parent block number.
-		// (b) A relay-chain block in which this para received at least one message.
-		if new_hrmp_watermark == relay_chain_parent_number {
-			Ok(())
-		} else {
-			let digest = HrmpChannelDigests::<T>::get(&recipient);
-			if !digest
-				.binary_search_by_key(&new_hrmp_watermark, |(block_no, _)| *block_no)
-				.is_ok()
-			{
-				return Err(HrmpWatermarkAcceptanceErr::LandsOnBlockWithNoMessages {
-					new_watermark: new_hrmp_watermark,
-				})
-			}
-			Ok(())
+		// (a) The relay parent block number (checked above).
+		// (b) A relay-chain block in which this para received at least one message (checked here)
+		let digest = HrmpChannelDigests::<T>::get(&recipient);
+		if !digest
+			.binary_search_by_key(&new_hrmp_watermark, |(block_no, _)| *block_no)
+			.is_ok()
+		{
+			return Err(HrmpWatermarkAcceptanceErr::LandsOnBlockWithNoMessages {
+				new_watermark: new_hrmp_watermark,
+			})
 		}
+		Ok(())
 	}
 
 	pub(crate) fn check_outbound_hrmp(
