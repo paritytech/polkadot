@@ -258,7 +258,7 @@ pub enum UmpQueueId {
 impl From<u32> for AggregateMessageOrigin {
 	fn from(n: u32) -> Self {
 		// Some dummy for the benchmarks.
-		Self::Ump(n.into())
+		Self::Ump(UmpQueueId::Para(n.into()))
 	}
 }
 
