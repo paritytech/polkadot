@@ -17,7 +17,7 @@
 use crate::{
 	inclusion::{
 		tests::run_to_block_default_notifications as run_to_block, AggregateMessageOrigin,
-		AggregateMessageOrigin::Ump, UmpAcceptanceCheckErr,
+		AggregateMessageOrigin::Ump, UmpAcceptanceCheckErr, UmpQueueId,
 	},
 	mock::{
 		assert_last_event, assert_last_events, new_test_ext, Configuration, MessageQueue,
@@ -381,23 +381,24 @@ fn relay_dispatch_queue_size_is_updated() {
 
 		// The messages of Q0…Q98 are overweight, so `service_queues` wont help.
 		for p in 0..98 {
+			let para = UmpQueueId::Para(p.into());
 			MessageQueue::service_queues(Weight::from_all(u64::MAX));
 
-			let fp = MessageQueue::footprint(AggregateMessageOrigin::Ump(p.into()));
+			let fp = MessageQueue::footprint(AggregateMessageOrigin::Ump(para));
 			let (para_queue_count, para_queue_size) = (fp.count, fp.size);
 			assert_eq!(para_queue_count, 1, "count wrong for para: {}", p);
 			assert_eq!(para_queue_size, 8, "size wrong for para: {}", p);
 		}
 		// All queues are empty after processing overweight messages.
 		for p in 0..100 {
-			let para = p.into();
+			let para = UmpQueueId::Para(p.into());
 			let _ = <MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::from_all(u64::MAX),
-				(AggregateMessageOrigin::Ump(para), 0, 1),
+				(AggregateMessageOrigin::Ump(para.clone()), 0, 1),
 			);
 
-			assert_queue_remaining(para, cfg.max_upward_queue_count, cfg.max_upward_queue_size);
-			let fp = MessageQueue::footprint(AggregateMessageOrigin::Ump(p.into()));
+			assert_queue_remaining(p.into(), cfg.max_upward_queue_count, cfg.max_upward_queue_size);
+			let fp = MessageQueue::footprint(AggregateMessageOrigin::Ump(para));
 			let (para_queue_count, para_queue_size) = (fp.count, fp.size);
 			assert_eq!(para_queue_count, 0, "count wrong for para: {}", p);
 			assert_eq!(para_queue_size, 0, "size wrong for para: {}", p);
@@ -488,7 +489,7 @@ fn service_overweight_unknown() {
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::MAX,
-				(Ump(0u32.into()), 0, 0)
+				(Ump(UmpQueueId::Para(0u32.into())), 0, 0)
 			),
 			ExecuteOverweightError::NotFound,
 		);
@@ -522,21 +523,21 @@ fn overweight_queue_works() {
 			[
 				pallet_message_queue::Event::<Test>::Processed {
 					hash: hash_1.clone(),
-					origin: Ump(para_a),
+					origin: Ump(UmpQueueId::Para(para_a)),
 					weight_used: Weight::from_parts(301, 301),
 					success: true,
 				}
 				.into(),
 				pallet_message_queue::Event::<Test>::OverweightEnqueued {
 					hash: hash_2.clone(),
-					origin: Ump(para_a),
+					origin: Ump(UmpQueueId::Para(para_a)),
 					page_index: 0,
 					message_index: 1,
 				}
 				.into(),
 				pallet_message_queue::Event::<Test>::OverweightEnqueued {
 					hash: hash_3.clone(),
-					origin: Ump(para_a),
+					origin: Ump(UmpQueueId::Para(para_a)),
 					page_index: 0,
 					message_index: 2,
 				}
@@ -551,7 +552,7 @@ fn overweight_queue_works() {
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::from_parts(500, 500),
-				(Ump(para_a), 0, 2)
+				(Ump(UmpQueueId::Para(para_a)), 0, 2)
 			),
 			ExecuteOverweightError::InsufficientWeight,
 		);
@@ -559,12 +560,12 @@ fn overweight_queue_works() {
 		// ... and if we try to service it with just enough weight it will succeed as well.
 		assert_ok!(<MessageQueue as ServiceQueues>::execute_overweight(
 			Weight::from_parts(501, 501),
-			(Ump(para_a), 0, 2)
+			(Ump(UmpQueueId::Para(para_a)), 0, 2)
 		));
 		assert_last_event(
 			pallet_message_queue::Event::<Test>::Processed {
 				hash: hash_3,
-				origin: Ump(para_a),
+				origin: Ump(UmpQueueId::Para(para_a)),
 				weight_used: Weight::from_parts(501, 501),
 				success: true,
 			}
@@ -576,7 +577,7 @@ fn overweight_queue_works() {
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::from_parts(501, 501),
-				(Ump(para_a), 0, 2)
+				(Ump(UmpQueueId::Para(para_a)), 0, 2)
 			),
 			ExecuteOverweightError::NotFound,
 		);

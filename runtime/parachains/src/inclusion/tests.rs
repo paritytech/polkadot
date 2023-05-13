@@ -28,7 +28,6 @@ use crate::{
 };
 use assert_matches::assert_matches;
 use frame_support::assert_noop;
-use hex_literal::hex;
 use keyring::Sr25519Keyring;
 use parity_scale_codec::DecodeAll;
 use primitives::{
@@ -1989,8 +1988,8 @@ fn session_change_wipes() {
 /// Assert that the encoding of a known `AggregateMessageOrigin` did not change.
 #[test]
 fn aggregate_origin_decode_regression_check() {
-	let ump = AggregateMessageOrigin::Ump(u32::MAX.into());
-	let raw = hex!("00ffffffff");
+	let ump = AggregateMessageOrigin::Ump(UmpQueueId::Para(u32::MAX.into()));
+	let raw = (0u8, 0u8, u32::MAX).encode();
 	let decoded = AggregateMessageOrigin::decode_all(&mut &raw[..]);
 	assert_eq!(decoded, Ok(ump), "Migration needed for AggregateMessageOrigin");
 }

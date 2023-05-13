@@ -217,13 +217,17 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	sp_std::cmp::min(n_validators, 2)
 }
 
-/// Provides introspection into the UMP dispatch queue of a parachain.
-pub trait UmpQueueTracker {
-	fn message_count(para: ParaId) -> u64;
+/// Reads the footprint of queues for a specific origin type.
+pub trait QueueFootprinter {
+	type Origin;
+
+	fn message_count(origin: Self::Origin) -> u64;
 }
 
-impl UmpQueueTracker for () {
-	fn message_count(_: ParaId) -> u64 {
+impl QueueFootprinter for () {
+	type Origin = UmpQueueId;
+
+	fn message_count(_: Self::Origin) -> u64 {
 		0
 	}
 }
@@ -234,9 +238,20 @@ impl UmpQueueTracker for () {
 /// to existing values will require a migration.
 #[derive(Encode, Decode, Clone, MaxEncodedLen, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum AggregateMessageOrigin {
-	/// Incoming upwards message from a parachain.
+	/// Inbound upward message.
 	#[codec(index = 0)]
-	Ump(ParaId),
+	Ump(UmpQueueId),
+}
+
+/// Identifies a UMP queue inside the `MessageQueue` pallet.
+///
+/// It is written in verbose form since future variants like `Loopback` and `Bridged` are already
+/// forseeable.
+#[derive(Encode, Decode, Clone, MaxEncodedLen, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum UmpQueueId {
+	/// The message originated from this parachain.
+	#[codec(index = 0)]
+	Para(ParaId),
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -268,7 +283,6 @@ pub mod pallet {
 		+ hrmp::Config
 		+ configuration::Config
 	{
-		type WeightInfo: WeightInfo;
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
 		type RewardValidators: RewardValidators;
@@ -279,6 +293,9 @@ pub mod pallet {
 		/// replaces the old `UMP` dispatch queue. Other use-cases can be implemented as well by
 		/// adding new variants to `AggregateMessageOrigin`.
 		type MessageQueue: EnqueueMessage<AggregateMessageOrigin>;
+
+		/// Weight info for the calls of this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -475,7 +492,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn cleanup_outgoing_dmp_dispatch_queue(para: ParaId) {
-		T::MessageQueue::sweep_queue(AggregateMessageOrigin::Ump(para));
+		T::MessageQueue::sweep_queue(AggregateMessageOrigin::Ump(UmpQueueId::Para(para)));
 	}
 
 	/// Extract the freed cores based on cores that became available.
@@ -911,31 +928,31 @@ impl<T: Config> Pallet<T> {
 		// initial weight is config read.
 		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 		if let Some(new_code) = commitments.new_validation_code {
-			weight += <paras::Pallet<T>>::schedule_code_upgrade(
+			weight.saturating_add(<paras::Pallet<T>>::schedule_code_upgrade(
 				receipt.descriptor.para_id,
 				new_code,
 				relay_parent_number,
 				&config,
-			);
+			));
 		}
 
 		// enact the messaging facet of the candidate.
-		weight += <dmp::Pallet<T>>::prune_dmq(
+		weight.saturating_accrue(<dmp::Pallet<T>>::prune_dmq(
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
-		);
-		weight += Self::receive_upward_messages(
+		));
+		weight.saturating_accrue(Self::receive_upward_messages(
 			receipt.descriptor.para_id,
 			commitments.upward_messages.as_slice(),
-		);
-		weight += <hrmp::Pallet<T>>::prune_hrmp(
+		));
+		weight.saturating_accrue(<hrmp::Pallet<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
 			T::BlockNumber::from(commitments.hrmp_watermark),
-		);
-		weight += <hrmp::Pallet<T>>::queue_outbound_hrmp(
+		));
+		weight.saturating_accrue(<hrmp::Pallet<T>>::queue_outbound_hrmp(
 			receipt.descriptor.para_id,
 			commitments.horizontal_messages,
-		);
+		));
 
 		Self::deposit_event(Event::<T>::CandidateIncluded(
 			plain,
@@ -944,16 +961,15 @@ impl<T: Config> Pallet<T> {
 			backing_group,
 		));
 
-		weight +
+		weight.saturating_add(
 			<paras::Pallet<T>>::note_new_head(
 				receipt.descriptor.para_id,
 				commitments.head_data,
 				relay_parent_number,
-			)
+			))
 	}
 
-	/// Check that all the upward messages sent by a candidate pass the acceptance criteria. Returns
-	/// false, if any of the messages doesn't pass.
+	/// Check that all the upward messages sent by a candidate pass the acceptance criteria.
 	pub(crate) fn check_upward_messages(
 		config: &HostConfiguration<T::BlockNumber>,
 		para: ParaId,
@@ -972,7 +988,7 @@ impl<T: Config> Pallet<T> {
 			})
 		}
 
-		let fp = T::MessageQueue::footprint(AggregateMessageOrigin::Ump(para));
+		let fp = T::MessageQueue::footprint(AggregateMessageOrigin::Ump(UmpQueueId::Para(para)));
 		let (para_queue_count, mut para_queue_size) = (fp.count, fp.size);
 
 		if para_queue_count.saturating_add(additional_msgs as u64) >
@@ -1020,7 +1036,7 @@ impl<T: Config> Pallet<T> {
 				.filter_map(|d| {
 					BoundedSlice::try_from(&d[..])
 						.map_err(|e| {
-							defensive!("Too long inbound upward message in accepted candidate. Ignoring. L=", d.len());
+							defensive!("Accepted candidate contains too long msg, len=", d.len());
 							e
 						})
 						.ok()
@@ -1039,7 +1055,10 @@ impl<T: Config> Pallet<T> {
 			return Weight::zero()
 		}
 
-		T::MessageQueue::enqueue_messages(messages.into_iter(), AggregateMessageOrigin::Ump(para));
+		T::MessageQueue::enqueue_messages(
+			messages.into_iter(),
+			AggregateMessageOrigin::Ump(UmpQueueId::Para(para)),
+		);
 		let weight = <T as Config>::WeightInfo::receive_upward_messages(count);
 		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
 		weight
@@ -1177,7 +1196,7 @@ impl<T: Config> OnQueueChanged<AggregateMessageOrigin> for Pallet<T> {
 	// Write back the remaining queue capacity into `relay_dispatch_queue_remaining_capacity`.
 	fn on_queue_changed(origin: AggregateMessageOrigin, count: u64, size: u64) {
 		let para = match origin {
-			AggregateMessageOrigin::Ump(p) => p,
+			AggregateMessageOrigin::Ump(UmpQueueId::Para(p)) => p,
 		};
 		// TODO maybe migrate this to u64
 		let (count, size) = (count.saturated_into(), size.saturated_into());
@@ -1330,8 +1349,10 @@ impl<T: Config> CandidateCheckContext<T> {
 	}
 }
 
-impl<T: Config> UmpQueueTracker for Pallet<T> {
-	fn message_count(para: ParaId) -> u64 {
-		T::MessageQueue::footprint(AggregateMessageOrigin::Ump(para)).count
+impl<T: Config> QueueFootprinter for Pallet<T> {
+	type Origin = UmpQueueId;
+
+	fn message_count(origin: Self::Origin) -> u64 {
+		T::MessageQueue::footprint(AggregateMessageOrigin::Ump(origin)).count
 	}
 }

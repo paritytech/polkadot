@@ -18,7 +18,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp,
-	inclusion::{self, AggregateMessageOrigin},
+	inclusion::{self, AggregateMessageOrigin, UmpQueueId},
 	initializer, origin, paras,
 	paras::ParaKind,
 	paras_inherent, scheduler, session_info, shared, ParaId,
@@ -211,7 +211,7 @@ impl crate::paras::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = crate::paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
-	type UmpQueueTracker = ParaInclusion;
+	type QueueFootprinter = ParaInclusion;
 	type NextSessionRotation = TestNextSessionRotation;
 }
 
@@ -433,8 +433,8 @@ impl ProcessMessage for TestProcessMessage {
 		origin: AggregateMessageOrigin,
 		meter: &mut WeightMeter,
 	) -> Result<bool, ProcessMessageError> {
-		let origin = match origin {
-			AggregateMessageOrigin::Ump(o) => o,
+		let para = match origin {
+			AggregateMessageOrigin::Ump(UmpQueueId::Para(p)) => p,
 		};
 
 		let required = match u32::decode(&mut &message[..]) {
@@ -446,7 +446,7 @@ impl ProcessMessage for TestProcessMessage {
 		}
 
 		let mut processed = Processed::get();
-		processed.push((origin, message.to_vec()));
+		processed.push((para, message.to_vec()));
 		Processed::set(processed);
 		Ok(true)
 	}

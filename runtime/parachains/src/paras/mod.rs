@@ -108,7 +108,10 @@
 //!
 
 use crate::{
-	configuration, inclusion::UmpQueueTracker, initializer::SessionChangeNotification, shared,
+	configuration,
+	inclusion::{QueueFootprinter, UmpQueueId},
+	initializer::SessionChangeNotification,
+	shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
@@ -557,7 +560,7 @@ pub mod pallet {
 		///
 		/// This is used to judge whether or not a para-chain can offboard. Per default this should
 		/// be set to the `ParaInclusion` pallet.
-		type UmpQueueTracker: UmpQueueTracker;
+		type QueueFootprinter: QueueFootprinter<Origin = UmpQueueId>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -1702,7 +1705,7 @@ impl<T: Config> Pallet<T> {
 			}
 		});
 
-		if <T as Config>::UmpQueueTracker::message_count(id) != 0 {
+		if <T as Config>::QueueFootprinter::message_count(UmpQueueId::Para(id)) != 0 {
 			return Err(Error::<T>::CannotOffboard.into())
 		}
 
