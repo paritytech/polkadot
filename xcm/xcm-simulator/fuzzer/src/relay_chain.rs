@@ -28,7 +28,9 @@ use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{
-	configuration, inclusion::{UmpQueueId, AggregateMessageOrigin}, origin, shared,
+	configuration,
+	inclusion::{AggregateMessageOrigin, UmpQueueId},
+	origin, shared,
 };
 use xcm::latest::prelude::*;
 use xcm_builder::{
