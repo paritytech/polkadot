@@ -1569,11 +1569,4 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 	}
-
-	// TODO [now]
-	// Test that `check_hrmp_watermark` passes when the new watermark is equal to
-	// the relay-parent number and the old one is too.
-	//
-	// Also test that `prune_hrmp` where the new watermark is equal to the relay-parent
-	// number and the previous one is the same is a no-op.
 }
