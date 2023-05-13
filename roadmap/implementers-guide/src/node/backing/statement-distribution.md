@@ -59,7 +59,7 @@ This system implies a certain level of duplication of messages--we received X's 
 
 And respect this data-dependency order from our peers. This subsystem is responsible for checking message signatures.
 
-No jobs. We follow view changes from the [`NetworkBridge`](../utility/network-bridge.md), which in turn is updated by the overseer.
+We follow view changes from the [`NetworkBridge`](../utility/network-bridge.md), which in turn is updated by the overseer.
 
 ## Equivocations and Flood Protection
 
