@@ -336,6 +336,7 @@ impl onchain::Config for OnChainSeqPhragmen {
 }
 
 impl pallet_staking::Config for Runtime {
+	type EventListeners = ();
 	type MaxNominations = frame_support::pallet_prelude::ConstU32<16>;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;

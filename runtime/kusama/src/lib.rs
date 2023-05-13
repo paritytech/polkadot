@@ -570,6 +570,7 @@ parameter_types! {
 }
 
 impl pallet_staking::Config for Runtime {
+	type EventListeners = ();
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;

@@ -587,6 +587,7 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 }
 
 impl pallet_staking::Config for Runtime {
+	type EventListeners = ();
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
