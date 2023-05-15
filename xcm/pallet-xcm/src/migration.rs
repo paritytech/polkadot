@@ -26,6 +26,8 @@ pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 pub mod v1 {
+	use crate::{CurrentMigration, VersionMigrationStage};
+
 	use super::*;
 
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
@@ -38,8 +40,11 @@ pub mod v1 {
 		}
 
 		fn on_runtime_upgrade() -> Weight {
+			CurrentMigration::<T>::put(VersionMigrationStage::default());
+			let mut weight = T::DbWeight::get().writes(1);
+
 			if StorageVersion::get::<Pallet<T>>() == 0 {
-				let mut weight = T::DbWeight::get().reads(1);
+				weight.saturating_accrue(T::DbWeight::get().reads(1));
 
 				let translate = |pre: (u64, u64, u32)| -> Option<(u64, Weight, u32)> {
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -52,12 +57,13 @@ pub mod v1 {
 
 				log::info!("v1 applied successfully");
 				STORAGE_VERSION.put::<Pallet<T>>();
-
-				weight.saturating_add(T::DbWeight::get().writes(1))
+				weight.saturating_add(T::DbWeight::get().writes(1));
 			} else {
 				log::warn!("skipping v1, should be removed");
-				T::DbWeight::get().reads(1)
+				weight.saturating_accrue(T::DbWeight::get().reads(1));
 			}
+
+			weight
 		}
 	}
 }
