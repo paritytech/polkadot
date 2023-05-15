@@ -32,8 +32,8 @@ use polkadot_service::{
 	ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull, PrometheusConfig,
 };
 use polkadot_test_runtime::{
-	ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall, UncheckedExtrinsic,
-	VERSION,
+	ParasCall, ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall,
+	UncheckedExtrinsic, VERSION,
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
@@ -281,6 +281,19 @@ pub struct PolkadotTestNode {
 }
 
 impl PolkadotTestNode {
+	/// Send a sudo call to this node.
+	async fn send_sudo(
+		&self,
+		call: impl Into<polkadot_test_runtime::RuntimeCall>,
+		caller: Sr25519Keyring,
+		nonce: u32,
+	) -> Result<(), RpcTransactionError> {
+		let sudo = SudoCall::sudo { call: Box::new(call.into()) };
+
+		let extrinsic = construct_extrinsic(&*self.client, sudo, caller, nonce);
+		self.rpc_handlers.send_transaction(extrinsic.into()).await.map(drop)
+	}
+
 	/// Send an extrinsic to this node.
 	pub async fn send_extrinsic(
 		&self,
@@ -299,18 +312,21 @@ impl PolkadotTestNode {
 		validation_code: impl Into<ValidationCode>,
 		genesis_head: impl Into<HeadData>,
 	) -> Result<(), RpcTransactionError> {
+		let validation_code: ValidationCode = validation_code.into();
 		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize {
 			id,
 			genesis: ParaGenesisArgs {
 				genesis_head: genesis_head.into(),
-				validation_code: validation_code.into(),
+				validation_code: validation_code.clone(),
 				para_kind: ParaKind::Parachain,
 			},
 		};
 
-		self.send_extrinsic(SudoCall::sudo { call: Box::new(call.into()) }, Sr25519Keyring::Alice)
-			.await
-			.map(drop)
+		self.send_sudo(call, Sr25519Keyring::Alice, 0).await?;
+
+		// Bypass pvf-checking.
+		let call = ParasCall::add_trusted_validation_code { validation_code };
+		self.send_sudo(call, Sr25519Keyring::Alice, 1).await
 	}
 
 	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks

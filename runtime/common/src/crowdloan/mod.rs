@@ -1953,6 +1953,7 @@ mod benchmarking {
 	use super::{Pallet as Crowdloan, *};
 	use frame_support::{assert_ok, traits::OnInitialize};
 	use frame_system::RawOrigin;
+	use runtime_parachains::paras;
 	use sp_core::crypto::UncheckedFrom;
 	use sp_runtime::traits::{Bounded, CheckedSub};
 	use sp_std::prelude::*;
@@ -1967,7 +1968,7 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn create_fund<T: Config>(id: u32, end: T::BlockNumber) -> ParaId {
+	fn create_fund<T: Config + paras::Config>(id: u32, end: T::BlockNumber) -> ParaId {
 		let cap = BalanceOf::<T>::max_value();
 		let (_, offset) = T::Auctioneer::lease_period_length();
 		// Set to the very beginning of lease period index 0.
@@ -1987,7 +1988,16 @@ mod benchmarking {
 
 		let head_data = T::Registrar::worst_head_data();
 		let validation_code = T::Registrar::worst_validation_code();
-		assert_ok!(T::Registrar::register(caller.clone(), para_id, head_data, validation_code));
+		assert_ok!(T::Registrar::register(
+			caller.clone(),
+			para_id,
+			head_data,
+			validation_code.clone()
+		));
+		assert_ok!(paras::Pallet::<T>::add_trusted_validation_code(
+			frame_system::Origin::<T>::Root.into(),
+			validation_code,
+		));
 		T::Registrar::execute_pending_transitions();
 
 		assert_ok!(Crowdloan::<T>::create(
@@ -2020,6 +2030,8 @@ mod benchmarking {
 	}
 
 	benchmarks! {
+		where_clause { where T: paras::Config }
+
 		create {
 			let para_id = ParaId::from(1_u32);
 			let cap = BalanceOf::<T>::max_value();
@@ -2035,7 +2047,12 @@ mod benchmarking {
 			let verifier = MultiSigner::unchecked_from(account::<[u8; 32]>("verifier", 0, 0));
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
+			T::Registrar::register(caller.clone(), para_id, head_data, validation_code.clone())?;
+			assert_ok!(paras::Pallet::<T>::add_trusted_validation_code(
+				frame_system::Origin::<T>::Root.into(),
+				validation_code,
+			));
+
 			T::Registrar::execute_pending_transitions();
 
 		}: _(RawOrigin::Signed(caller), para_id, cap, first_period, last_period, end, Some(verifier))
@@ -2123,7 +2140,12 @@ mod benchmarking {
 			let verifier = MultiSigner::unchecked_from(account::<[u8; 32]>("verifier", 0, 0));
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
+			T::Registrar::register(caller.clone(), para_id, head_data, validation_code.clone())?;
+			assert_ok!(paras::Pallet::<T>::add_trusted_validation_code(
+				frame_system::Origin::<T>::Root.into(),
+				validation_code,
+			));
+
 			T::Registrar::execute_pending_transitions();
 
 			Crowdloan::<T>::create(
