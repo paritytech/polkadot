@@ -287,10 +287,7 @@ impl<UniversalLocation: Get<InteriorMultiLocation>, AccountId: From<[u8; 32]> + 
 
 		match remote_location {
 			X1(Parachain(remote_network_para_id)) =>
-				Ok(AccountId::from(GlobalConsensusParachainConvertsFor::<
-					UniversalLocation,
-					AccountId,
-				>::from_params(&remote_network, &remote_network_para_id))),
+				Ok(AccountId::from(Self::from_params(&remote_network, &remote_network_para_id))),
 			_ => Err(()),
 		}
 	}
