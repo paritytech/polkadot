@@ -240,8 +240,6 @@ pub mod pallet {
 		UnscheduledCandidate,
 		/// Candidate scheduled despite pending candidate already existing for the para.
 		CandidateScheduledBeforeParaFree,
-		/// Candidate included with the wrong collator.
-		WrongCollator,
 		/// Scheduled cores out of order.
 		ScheduledOutOfOrder,
 		/// Head data exceeds the configured maximum.
@@ -541,16 +539,9 @@ impl<T: Config> Pallet<T> {
 
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
-				let assignment = para_assignment_map
+				let core_assignment = para_assignment_map
 					.get(&para_id)
 					.expect("is_subset guarantees this element exists.");
-
-				if let Some(required_collator) = assignment.required_collator() {
-					ensure!(
-						required_collator == backed_candidate.descriptor().collator,
-						Error::<T>::WrongCollator,
-					);
-				}
 
 				ensure!(
 					<PendingAvailability<T>>::get(&para_id).is_none() &&
@@ -558,7 +549,7 @@ impl<T: Config> Pallet<T> {
 					Error::<T>::CandidateScheduledBeforeParaFree,
 				);
 
-				let group_vals = group_validators(assignment.group_idx)
+				let group_vals = group_validators(core_assignment.group_idx)
 					.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
 
 				// check the signatures in the backing and that it is a majority.
@@ -609,9 +600,9 @@ impl<T: Config> Pallet<T> {
 				}
 
 				core_indices_and_backers.push((
-					(assignment.core, para_id),
+					(core_assignment.core, para_id),
 					backers,
-					assignment.group_idx,
+					core_assignment.group_idx,
 				));
 			}
 
@@ -663,6 +654,15 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
+	/// Collects a mapping between the `CoreIndex` and the block since that core has been occupied.
+	/// Used in the scheduler to determine how to handle occupied cores just before a new session starts.
+	pub(crate) fn collect_pending_pre_session(
+	) -> sp_std::collections::btree_map::BTreeMap<CoreIndex, T::BlockNumber> {
+		<PendingAvailability<T>>::iter()
+			.map(|(_, pending_record)| (pending_record.core, pending_record.backed_in_number))
+			.collect()
+	}
+
 	fn is_subset_of(
 		candidates: &[BackedCandidate<T::Hash>],
 		claimqueue: BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>>,
@@ -681,7 +681,7 @@ impl<T: Config> Pallet<T> {
 			.flat_map(|(idx, assignments)| {
 				assignments.into_iter().filter_map(move |core_assigment| {
 					core_assigment
-						.map(|ca| ((idx, ca.paras_entry.para_id), (ca.paras_entry.para_id, ca)))
+						.map(|ca| ((idx, ca.para_id()), (ca.para_id(), ca)))
 				})
 			})
 			.unzip();
