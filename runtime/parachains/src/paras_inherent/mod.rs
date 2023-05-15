@@ -1139,9 +1139,9 @@ fn claimqueue_to_paras_core_idx_map(
 		.into_iter()
 		.flat_map(|(_core_index, deque)| {
 			deque.into_iter().filter_map(|core_assignment| {
-				core_assignment.clone().map(|core_assignment| {
-					(core_assignment.para_id(), core_assignment.core)
-				})
+				core_assignment
+					.clone()
+					.map(|core_assignment| (core_assignment.para_id(), core_assignment.core))
 			})
 		})
 		.collect()

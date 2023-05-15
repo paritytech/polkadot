@@ -680,8 +680,7 @@ impl<T: Config> Pallet<T> {
 			.into_iter()
 			.flat_map(|(idx, assignments)| {
 				assignments.into_iter().filter_map(move |core_assigment| {
-					core_assigment
-						.map(|ca| ((idx, ca.para_id()), (ca.para_id(), ca)))
+					core_assigment.map(|ca| ((idx, ca.para_id()), (ca.para_id(), ca)))
 				})
 			})
 			.unzip();
