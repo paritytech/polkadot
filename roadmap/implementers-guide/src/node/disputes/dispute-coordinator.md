@@ -714,7 +714,7 @@ More concretely:
 
 ### On `MuxedMessage::Participation`
 
-This message is sent from `Participatuion` module and indicates a processed dispute participation. The subsystem issues a `DisputeMessage` with the result.
+This message is sent from `Participation` module and indicates a processed dispute participation. The subsystem issues a `DisputeMessage` with the result.
 
 ### On `OverseerSignal::Conclude`
 
