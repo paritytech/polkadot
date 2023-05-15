@@ -264,8 +264,8 @@ impl<InnerBarrier: ShouldExecute> ShouldExecute for RequireSetTopic<InnerBarrier
 /// This is designed to be at the top-level of any routers, since it will always mutate the
 /// passed `message` reference into a `None`. Don't try to combine it within a tuple except as the
 /// last element.
-pub struct UniqueTopic<Inner>(PhantomData<Inner>);
-impl<Inner: xcm::latest::SendXcm> xcm::latest::SendXcm for UniqueTopic<Inner> {
+pub struct WithUniqueTopic<Inner>(PhantomData<Inner>);
+impl<Inner: xcm::latest::SendXcm> xcm::latest::SendXcm for WithUniqueTopic<Inner> {
 	type Ticket = (Inner::Ticket, [u8; 32]);
 
 	fn validate(
