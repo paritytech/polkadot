@@ -2405,7 +2405,11 @@ mod init_state_migration {
 			if MigrationProcess::<Runtime>::get() == Default::default() &&
 				AutoLimits::<Runtime>::get().is_none()
 			{
-				AutoLimits::<Runtime>::put(Some(MigrationLimits { item: 160, size: 204800 }));
+				// We use limits to target 600ko proofs per block and
+				// avg 800_000_000_000 of weight per block.
+				// See spreadsheet 4800_400 in
+				// https://raw.githubusercontent.com/cheme/substrate/try-runtime-mig/ksm.ods
+				AutoLimits::<Runtime>::put(Some(MigrationLimits { item: 4_800, size: 204800 * 2 }));
 				log::info!("Automatic trie migration started.");
 				<Runtime as frame_system::Config>::DbWeight::get().reads_writes(2, 1)
 			} else {
