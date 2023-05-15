@@ -210,6 +210,92 @@ impl<
 	}
 }
 
+/// Allows the message to be prepended with a single `SetTopic` instruction, requiring some inner
+/// barrier to pass on the rest of the message.
+pub struct AllowSetTopic<InnerBarrier>(PhantomData<InnerBarrier>);
+impl<InnerBarrier: ShouldExecute> ShouldExecute for AllowSetTopic<InnerBarrier> {
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		instructions: &mut [Instruction<Call>],
+		max_weight: Weight,
+		weight_credit: &mut Weight,
+	) -> Result<(), ProcessMessageError> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, instructions, max_weight, weight_credit,
+		);
+		let skipped = if let Some(SetTopic(..)) = instructions.first() {
+			1
+		} else {
+			0
+		};
+		InnerBarrier::should_execute(
+			&origin,
+			&mut instructions[skipped..],
+			max_weight,
+			weight_credit,
+		)
+	}
+}
+
+/// Requires the message to be prepended with a single `SetTopic` instruction, as well as some inner
+/// barrier to pass on the rest of the message.
+pub struct RequireSetTopic<InnerBarrier>(PhantomData<InnerBarrier>);
+impl<InnerBarrier: ShouldExecute> ShouldExecute for RequireSetTopic<InnerBarrier> {
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		instructions: &mut [Instruction<Call>],
+		max_weight: Weight,
+		weight_credit: &mut Weight,
+	) -> Result<(), ProcessMessageError> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, instructions, max_weight, weight_credit,
+		);
+		if let Some(SetTopic(..)) = instructions.first() {
+			InnerBarrier::should_execute(
+				&origin,
+				&mut instructions[1..],
+				max_weight,
+				weight_credit,
+			)
+		} else {
+			Err(ProcessMessageError::Unsupported)
+		}
+	}
+}
+
+/// Wrapper router which prepends a `SetTopic` instruction to the message prior to sending with a
+/// universally unique topic, and returns this value from a successful `deliver`.
+///
+/// This is designed to be at the top-level of any routers, since it will always mutate the
+/// passed `message` reference into a `None`. Don't try to combine it within a tuple except as the
+/// last element.
+pub struct UniqueTopic<Inner>(PhantomData<Inner>);
+impl<Inner: xcm::latest::SendXcm> xcm::latest::SendXcm for UniqueTopic<Inner> {
+	type Ticket = (Inner::Ticket, [u8; 32]);
+
+	fn validate(
+		destination: &mut Option<MultiLocation>,
+		message: &mut Option<xcm::latest::Xcm<()>>,
+	) -> xcm::latest::SendResult<Self::Ticket> {
+		let mut message = message.take().ok_or(xcm::latest::SendError::MissingArgument)?;
+		let unique_id = frame_system::unique(&message);
+		message.0.insert(0, SetTopic(unique_id.clone()));
+		let (ticket, assets) = Inner::validate(destination, &mut Some(message))
+			.map_err(|_| xcm::latest::SendError::NotApplicable)?;
+		Ok(((ticket, unique_id), assets))
+	}
+
+	fn deliver(ticket: Self::Ticket) -> core::result::Result<xcm::latest::XcmHash, xcm::latest::SendError> {
+		let (ticket, unique_id) = ticket;
+		Inner::deliver(ticket)?;
+		Ok(unique_id)
+	}
+}
+
 /// Barrier condition that allows for a `SuspensionChecker` that controls whether or not the XCM
 /// executor will be suspended from executing the given XCM.
 pub struct RespectSuspension<Inner, SuspensionChecker>(PhantomData<(Inner, SuspensionChecker)>);
