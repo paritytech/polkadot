@@ -49,10 +49,10 @@ pub use asset_conversion::{ConvertedAbstractAssetId, ConvertedConcreteAssetId};
 
 mod barriers;
 pub use barriers::{
-	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, IsChildSystemParachain,
-	RespectSuspension, TakeWeightCredit, WithComputedOrigin, RequireSetTopic, AllowSetTopic,
-	UniqueTopic,
+	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSetTopic,
+	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
+	IsChildSystemParachain, RequireSetTopic, RespectSuspension, TakeWeightCredit, UniqueTopic,
+	WithComputedOrigin,
 };
 
 mod currency_adapter;

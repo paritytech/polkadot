@@ -225,11 +225,7 @@ impl<InnerBarrier: ShouldExecute> ShouldExecute for AllowSetTopic<InnerBarrier> 
 			"AllowSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, max_weight, weight_credit,
 		);
-		let skipped = if let Some(SetTopic(..)) = instructions.first() {
-			1
-		} else {
-			0
-		};
+		let skipped = if let Some(SetTopic(..)) = instructions.first() { 1 } else { 0 };
 		InnerBarrier::should_execute(
 			&origin,
 			&mut instructions[skipped..],
@@ -255,12 +251,7 @@ impl<InnerBarrier: ShouldExecute> ShouldExecute for RequireSetTopic<InnerBarrier
 			origin, instructions, max_weight, weight_credit,
 		);
 		if let Some(SetTopic(..)) = instructions.first() {
-			InnerBarrier::should_execute(
-				&origin,
-				&mut instructions[1..],
-				max_weight,
-				weight_credit,
-			)
+			InnerBarrier::should_execute(&origin, &mut instructions[1..], max_weight, weight_credit)
 		} else {
 			Err(ProcessMessageError::Unsupported)
 		}
@@ -289,7 +280,9 @@ impl<Inner: xcm::latest::SendXcm> xcm::latest::SendXcm for UniqueTopic<Inner> {
 		Ok(((ticket, unique_id), assets))
 	}
 
-	fn deliver(ticket: Self::Ticket) -> core::result::Result<xcm::latest::XcmHash, xcm::latest::SendError> {
+	fn deliver(
+		ticket: Self::Ticket,
+	) -> core::result::Result<xcm::latest::XcmHash, xcm::latest::SendError> {
 		let (ticket, unique_id) = ticket;
 		Inner::deliver(ticket)?;
 		Ok(unique_id)
