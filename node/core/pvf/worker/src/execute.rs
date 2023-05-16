@@ -128,13 +128,9 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let response = match outcome {
 				WaitOutcome::Finished => {
 					let _ = cpu_time_monitor_tx.send(());
-					execute_thread.join().unwrap_or_else(|e| {
-						// TODO: Use `Panic` error once that is implemented.
-						Response::format_internal(
-							"execute thread error",
-							&stringify_panic_payload(e),
-						)
-					})
+					execute_thread
+						.join()
+						.unwrap_or_else(|e| Response::Panic(stringify_panic_payload(e)))
 				},
 				// If the CPU thread is not selected, we signal it to end, the join handle is
 				// dropped and the thread will finish in the background.
