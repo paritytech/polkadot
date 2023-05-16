@@ -114,7 +114,7 @@ pub mod test_constants {
 	use crate::approval_db::v1::Config as DatabaseConfig;
 	const DATA_COL: u32 = 0;
 
-	pub(crate) const NUM_COLUMNS: u32 = 2;
+	pub(crate) const NUM_COLUMNS: u32 = 1;
 
 	pub(crate) const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_approval_data: DATA_COL };
 }

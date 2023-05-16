@@ -29,7 +29,7 @@ use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, d
 
 const DATA_COL: u32 = 0;
 
-const NUM_COLUMNS: u32 = 2;
+const NUM_COLUMNS: u32 = 1;
 
 const TEST_CONFIG: Config = Config { col_approval_data: DATA_COL };
 
