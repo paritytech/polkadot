@@ -41,6 +41,7 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::{prelude::*, Weight};
+use xcm_executor::traits::Properties;
 pub use xcm_executor::{
 	traits::{
 		AssetExchange, AssetLock, CheckSuspension, ConvertOrigin, Enact, ExportXcm, FeeManager,
@@ -429,7 +430,7 @@ impl CheckSuspension for TestSuspender {
 		_origin: &MultiLocation,
 		_instructions: &mut [Instruction<Call>],
 		_max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> bool {
 		SUSPENDED.with(|s| s.get())
 	}

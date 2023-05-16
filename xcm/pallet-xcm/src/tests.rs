@@ -27,7 +27,10 @@ use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash};
 use xcm::{latest::QueryResponseInfo, prelude::*};
 use xcm_builder::AllowKnownQueryResponses;
-use xcm_executor::{traits::ShouldExecute, XcmExecutor};
+use xcm_executor::{
+	traits::{Properties, ShouldExecute},
+	XcmExecutor,
+};
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -285,6 +288,7 @@ fn send_works() {
 			buy_execution((Parent, SEND_AMOUNT)),
 			DepositAsset { assets: AllCounted(1).into(), beneficiary: sender.clone() },
 		]);
+
 		let versioned_dest = Box::new(RelayLocation::get().into());
 		let versioned_message = Box::new(VersionedXcm::from(message.clone()));
 		assert_ok!(XcmPallet::send(
@@ -292,19 +296,20 @@ fn send_works() {
 			versioned_dest,
 			versioned_message
 		));
-		assert_eq!(
-			sent_xcm(),
-			vec![(
-				Here.into(),
-				Xcm(Some(DescendOrigin(sender.clone().try_into().unwrap()))
-					.into_iter()
-					.chain(message.0.clone().into_iter())
-					.collect())
-			)],
-		);
+		let sent_message = Xcm(Some(DescendOrigin(sender.clone().try_into().unwrap()))
+			.into_iter()
+			.chain(message.0.clone().into_iter())
+			.collect());
+		let id = fake_message_hash(&sent_message);
+		assert_eq!(sent_xcm(), vec![(Here.into(), sent_message)]);
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Sent(sender, RelayLocation::get(), message))
+			RuntimeEvent::XcmPallet(crate::Event::Sent {
+				origin: sender,
+				destination: RelayLocation::get(),
+				message,
+				id
+			})
 		);
 	});
 }
@@ -768,7 +773,7 @@ fn basic_subscription_works() {
 			&remote,
 			message.inner_mut(),
 			weight,
-			&mut Weight::zero(),
+			&mut Properties { weight_credit: Weight::zero(), message_id: None },
 		));
 	});
 }

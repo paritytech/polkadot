@@ -92,11 +92,6 @@ pub type OverweightIndex = u64;
 /// and will be forwarded to the XCM Executor.
 pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
 
-/// Returns a [`MessageId`] for the given upward message payload.
-fn upward_message_id(data: &[u8]) -> MessageId {
-	sp_io::hashing::blake2_256(data)
-}
-
 impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 	for XcmSink<XcmExecutor, C>
 {
@@ -111,7 +106,8 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 			VersionedXcm,
 		};
 
-		let id = upward_message_id(data);
+		// The fallback message id.
+		let hash = sp_io::hashing::blake2_256(data);
 		let maybe_msg_and_weight = VersionedXcm::<C::RuntimeCall>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut data,
@@ -128,16 +124,23 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 		});
 		match maybe_msg_and_weight {
 			Err(_) => {
-				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
+				Pallet::<C>::deposit_event(Event::InvalidFormat(hash));
 				Ok(Weight::zero())
 			},
 			Ok((Err(()), weight_used)) => {
-				Pallet::<C>::deposit_event(Event::UnsupportedVersion(id));
+				Pallet::<C>::deposit_event(Event::UnsupportedVersion(hash));
 				Ok(weight_used)
 			},
 			Ok((Ok(xcm_message), weight_used)) => {
 				let xcm_junction = Junction::Parachain(origin.into());
-				let outcome = XcmExecutor::execute_xcm(xcm_junction, xcm_message, id, max_weight);
+				let mut id = hash;
+				let outcome = XcmExecutor::prepare_and_execute(
+					xcm_junction,
+					xcm_message,
+					&mut id,
+					max_weight,
+					Weight::zero(),
+				);
 				match outcome {
 					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
 					outcome => {

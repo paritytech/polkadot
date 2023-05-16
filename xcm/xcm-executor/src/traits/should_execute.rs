@@ -16,7 +16,13 @@
 
 use frame_support::traits::ProcessMessageError;
 use sp_std::result::Result;
-use xcm::latest::{Instruction, MultiLocation, Weight};
+use xcm::latest::{Instruction, MultiLocation, Weight, XcmHash};
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct Properties {
+	pub weight_credit: Weight,
+	pub message_id: Option<XcmHash>,
+}
 
 /// Trait to determine whether the execution engine should actually execute a given XCM.
 ///
@@ -35,7 +41,7 @@ pub trait ShouldExecute {
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<RuntimeCall>],
 		max_weight: Weight,
-		weight_credit: &mut Weight,
+		properties: &mut Properties,
 	) -> Result<(), ProcessMessageError>;
 }
 
@@ -45,21 +51,21 @@ impl ShouldExecute for Tuple {
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<RuntimeCall>],
 		max_weight: Weight,
-		weight_credit: &mut Weight,
+		properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		for_tuples!( #(
-			match Tuple::should_execute(origin, instructions, max_weight, weight_credit) {
+			match Tuple::should_execute(origin, instructions, max_weight, properties) {
 				Ok(()) => return Ok(()),
 				_ => (),
 			}
 		)* );
 		log::trace!(
 			target: "xcm::should_execute",
-			"did not pass barrier: origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			"did not pass barrier: origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
 			origin,
 			instructions,
 			max_weight,
-			weight_credit,
+			properties,
 		);
 		Err(ProcessMessageError::Unsupported)
 	}
@@ -79,7 +85,7 @@ pub trait CheckSuspension {
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
-		weight_credit: &mut Weight,
+		properties: &mut Properties,
 	) -> bool;
 }
 
@@ -89,10 +95,10 @@ impl CheckSuspension for Tuple {
 		origin: &MultiLocation,
 		instruction: &mut [Instruction<Call>],
 		max_weight: Weight,
-		weight_credit: &mut Weight,
+		properties: &mut Properties,
 	) -> bool {
 		for_tuples!( #(
-			if Tuple::is_suspended(origin, instruction, max_weight, weight_credit) {
+			if Tuple::is_suspended(origin, instruction, max_weight, properties) {
 				return true
 			}
 		)* );

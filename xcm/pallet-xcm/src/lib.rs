@@ -40,7 +40,7 @@ use sp_runtime::{
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
 use xcm::{latest::QueryResponseInfo, prelude::*};
-use xcm_executor::traits::{Convert, ConvertOrigin};
+use xcm_executor::traits::{Convert, ConvertOrigin, Properties};
 
 use frame_support::{
 	dispatch::{Dispatchable, GetDispatchInfo},
@@ -274,9 +274,7 @@ pub mod pallet {
 		/// \[ outcome \]
 		Attempted(xcm::latest::Outcome),
 		/// A XCM message was sent.
-		///
-		/// \[ origin, destination, message \]
-		Sent(MultiLocation, MultiLocation, Xcm<()>),
+		Sent { origin: MultiLocation, destination: MultiLocation, message: Xcm<()>, id: XcmHash },
 		/// Query response received which does not match a registered query. This may be because a
 		/// matching query was never registered, it may be because it is a duplicate response, or
 		/// because the query timed out.
@@ -791,8 +789,9 @@ pub mod pallet {
 			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
 			let message: Xcm<()> = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
-			Self::send_xcm(interior, dest, message.clone()).map_err(Error::<T>::from)?;
-			Self::deposit_event(Event::Sent(origin_location, dest, message));
+			let id = Self::send_xcm(interior, dest, message.clone()).map_err(Error::<T>::from)?;
+			let e = Event::Sent { origin: origin_location, destination: dest, message, id };
+			Self::deposit_event(e);
 			Ok(())
 		}
 
@@ -2092,7 +2091,7 @@ impl<T: Config> CheckSuspension for Pallet<T> {
 		_origin: &MultiLocation,
 		_instructions: &mut [Instruction<Call>],
 		_max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> bool {
 		XcmExecutionSuspended::<T>::get()
 	}

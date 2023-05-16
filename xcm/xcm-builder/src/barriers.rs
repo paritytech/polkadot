@@ -30,9 +30,9 @@ use xcm::latest::{
 	MultiLocation, Weight,
 	WeightLimit::*,
 };
-use xcm_executor::traits::{CheckSuspension, OnResponse, ShouldExecute};
+use xcm_executor::traits::{CheckSuspension, OnResponse, Properties, ShouldExecute};
 
-/// Execution barrier that just takes `max_weight` from `weight_credit`.
+/// Execution barrier that just takes `max_weight` from `properties.weight_credit`.
 ///
 /// Useful to allow XCM execution by local chain users via extrinsics.
 /// E.g. `pallet_xcm::reserve_asset_transfer` to transfer a reserve asset
@@ -43,14 +43,15 @@ impl ShouldExecute for TakeWeightCredit {
 		_origin: &MultiLocation,
 		_instructions: &mut [Instruction<RuntimeCall>],
 		max_weight: Weight,
-		weight_credit: &mut Weight,
+		properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"TakeWeightCredit origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
-			_origin, _instructions, max_weight, weight_credit,
+			"TakeWeightCredit origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			_origin, _instructions, max_weight, properties,
 		);
-		*weight_credit = weight_credit
+		properties.weight_credit = properties
+			.weight_credit
 			.checked_sub(&max_weight)
 			.ok_or(ProcessMessageError::Overweight(max_weight))?;
 		Ok(())
@@ -68,12 +69,12 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<RuntimeCall>],
 		max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"AllowTopLevelPaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
-			origin, instructions, max_weight, _weight_credit,
+			"AllowTopLevelPaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			origin, instructions, max_weight, _properties,
 		);
 
 		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
@@ -166,12 +167,12 @@ impl<
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
-		weight_credit: &mut Weight,
+		properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"WithComputedOrigin origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
-			origin, instructions, max_weight, weight_credit,
+			"WithComputedOrigin origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			origin, instructions, max_weight, properties,
 		);
 		let mut actual_origin = *origin;
 		let skipped = Cell::new(0usize);
@@ -205,7 +206,7 @@ impl<
 			&actual_origin,
 			&mut instructions[skipped.get()..],
 			max_weight,
-			weight_credit,
+			properties,
 		)
 	}
 }
@@ -218,20 +219,20 @@ impl<InnerBarrier: ShouldExecute> ShouldExecute for AllowSetTopic<InnerBarrier> 
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
-		weight_credit: &mut Weight,
+		properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"AllowSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
-			origin, instructions, max_weight, weight_credit,
+			"AllowSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			origin, instructions, max_weight, properties,
 		);
-		let skipped = if let Some(SetTopic(..)) = instructions.first() { 1 } else { 0 };
-		InnerBarrier::should_execute(
-			&origin,
-			&mut instructions[skipped..],
-			max_weight,
-			weight_credit,
-		)
+		let skipped = if let Some(SetTopic(t)) = instructions.first() {
+			properties.message_id = Some(*t);
+			1
+		} else {
+			0
+		};
+		InnerBarrier::should_execute(&origin, &mut instructions[skipped..], max_weight, properties)
 	}
 }
 
@@ -243,49 +244,19 @@ impl<InnerBarrier: ShouldExecute> ShouldExecute for RequireSetTopic<InnerBarrier
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
-		weight_credit: &mut Weight,
+		properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"AllowSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
-			origin, instructions, max_weight, weight_credit,
+			"AllowSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			origin, instructions, max_weight, properties,
 		);
-		if let Some(SetTopic(..)) = instructions.first() {
-			InnerBarrier::should_execute(&origin, &mut instructions[1..], max_weight, weight_credit)
+		if let Some(SetTopic(t)) = instructions.first() {
+			properties.message_id = Some(*t);
+			InnerBarrier::should_execute(&origin, &mut instructions[1..], max_weight, properties)
 		} else {
 			Err(ProcessMessageError::Unsupported)
 		}
-	}
-}
-
-/// Wrapper router which prepends a `SetTopic` instruction to the message prior to sending with a
-/// universally unique topic, and returns this value from a successful `deliver`.
-///
-/// This is designed to be at the top-level of any routers, since it will always mutate the
-/// passed `message` reference into a `None`. Don't try to combine it within a tuple except as the
-/// last element.
-pub struct WithUniqueTopic<Inner>(PhantomData<Inner>);
-impl<Inner: xcm::latest::SendXcm> xcm::latest::SendXcm for WithUniqueTopic<Inner> {
-	type Ticket = (Inner::Ticket, [u8; 32]);
-
-	fn validate(
-		destination: &mut Option<MultiLocation>,
-		message: &mut Option<xcm::latest::Xcm<()>>,
-	) -> xcm::latest::SendResult<Self::Ticket> {
-		let mut message = message.take().ok_or(xcm::latest::SendError::MissingArgument)?;
-		let unique_id = frame_system::unique(&message);
-		message.0.insert(0, SetTopic(unique_id.clone()));
-		let (ticket, assets) = Inner::validate(destination, &mut Some(message))
-			.map_err(|_| xcm::latest::SendError::NotApplicable)?;
-		Ok(((ticket, unique_id), assets))
-	}
-
-	fn deliver(
-		ticket: Self::Ticket,
-	) -> core::result::Result<xcm::latest::XcmHash, xcm::latest::SendError> {
-		let (ticket, unique_id) = ticket;
-		Inner::deliver(ticket)?;
-		Ok(unique_id)
 	}
 }
 
@@ -301,12 +272,12 @@ where
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
-		weight_credit: &mut Weight,
+		properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
-		if SuspensionChecker::is_suspended(origin, instructions, max_weight, weight_credit) {
+		if SuspensionChecker::is_suspended(origin, instructions, max_weight, properties) {
 			Err(ProcessMessageError::Yield)
 		} else {
-			Inner::should_execute(origin, instructions, max_weight, weight_credit)
+			Inner::should_execute(origin, instructions, max_weight, properties)
 		}
 	}
 }
@@ -321,12 +292,12 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<RuntimeCall>],
 		_max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"AllowUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
-			origin, instructions, _max_weight, _weight_credit,
+			"AllowUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			origin, instructions, _max_weight, _properties,
 		);
 		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
 		Ok(())
@@ -343,12 +314,12 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<Call>],
 		max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"AllowExplicitUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
-			origin, instructions, max_weight, _weight_credit,
+			"AllowExplicitUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			origin, instructions, max_weight, _properties,
 		);
 		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
 		instructions.matcher().match_next_inst(|inst| match inst {
@@ -379,12 +350,12 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<RuntimeCall>],
 		_max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"AllowKnownQueryResponses origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
-			origin, instructions, _max_weight, _weight_credit,
+			"AllowKnownQueryResponses origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			origin, instructions, _max_weight, _properties,
 		);
 		instructions
 			.matcher()
@@ -407,12 +378,12 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<RuntimeCall>],
 		_max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"AllowSubscriptionsFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
-			origin, instructions, _max_weight, _weight_credit,
+			"AllowSubscriptionsFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			origin, instructions, _max_weight, _properties,
 		);
 		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
 		instructions

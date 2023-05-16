@@ -20,8 +20,9 @@ use frame_system::unique;
 use sp_std::{marker::PhantomData, result::Result};
 use xcm::prelude::*;
 
-/// Wrapper router which prepends a `SetTopic` instruction to the message prior to sending with a
-/// universally unique topic, and returns this value from a successful `deliver`.
+/// Wrapper router which, if the message does not already begin with a `SetTopic` instruction,
+/// prepends one to the message filled with a universally unique ID. This ID is returned from a
+/// successful `deliver`.
 ///
 /// This is designed to be at the top-level of any routers, since it will always mutate the
 /// passed `message` reference into a `None`. Don't try to combine it within a tuple except as the
@@ -35,16 +36,19 @@ impl<Inner: SendXcm> SendXcm for WithUniqueTopic<Inner> {
 		message: &mut Option<Xcm<()>>,
 	) -> SendResult<Self::Ticket> {
 		let mut message = message.take().ok_or(SendError::MissingArgument)?;
-		let unique_id = unique(&message);
-		message.0.insert(0, SetTopic(unique_id.clone()));
+		let unique_id = if let Some(SetTopic(id)) = message.first() {
+			*id
+		} else {
+			let unique_id = unique(&message);
+			message.0.insert(0, SetTopic(unique_id.clone()));
+			unique_id
+		};
 		let (ticket, assets) = Inner::validate(destination, &mut Some(message))
 			.map_err(|_| SendError::NotApplicable)?;
 		Ok(((ticket, unique_id), assets))
 	}
 
-	fn deliver(
-		ticket: Self::Ticket,
-	) -> Result<XcmHash, SendError> {
+	fn deliver(ticket: Self::Ticket) -> Result<XcmHash, SendError> {
 		let (ticket, unique_id) = ticket;
 		Inner::deliver(ticket)?;
 		Ok(unique_id)
