@@ -404,30 +404,30 @@ pub mod pallet {
 		/// Assign a max permanent slot number.
 		#[pallet::call_index(3)]
 		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
-		pub fn set_max_permanent_slots(origin: OriginFor<T>, slots: u32) -> DispatchResultWithPostInfo {
+		pub fn set_max_permanent_slots(origin: OriginFor<T>, slots: u32) -> DispatchResult {
 			ensure_root(origin)?;
 
 			<MaxPermanentSlots<T>>::put(slots);
 
 			// Emit an event.
 			Self::deposit_event(Event::<T>::MaxPermanentSlotsAssigned {slots});
-			// Return a successful DispatchResultWithPostInfo
-			Ok(().into())
+			// Return a successful DispatchResult
+			Ok(())
 		}
 
 		// TODO: Benchmark this
 		/// Assign a max temporary slot number.
 		#[pallet::call_index(4)]
 		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
-		pub fn set_max_temporary_slots(origin: OriginFor<T>, slots: u32) -> DispatchResultWithPostInfo {
+		pub fn set_max_temporary_slots(origin: OriginFor<T>, slots: u32) -> DispatchResult {
 			ensure_root(origin)?;
 
 			<MaxTemporarySlots<T>>::put(slots);
 
 			// Emit an event.
 			Self::deposit_event(Event::<T>::MaxTemporarySlotsAssigned {slots});
-			// Return a successful DispatchResultWithPostInfo
-			Ok(().into())
+			// Return a successful DispatchResult
+			Ok(())
 		}	
 	
 	}
