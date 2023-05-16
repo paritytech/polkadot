@@ -126,6 +126,10 @@ impl<T: Get<Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>>> ExporterFor
 	}
 }
 
+pub fn forward_id_for(original_id: &XcmHash) -> XcmHash {
+	(b"forward_id_for", original_id).using_encoded(sp_io::hashing::blake2_256)
+}
+
 /// Implementation of `SendXcm` which wraps the message inside an `ExportMessage` instruction
 /// and sends it to a destination known to be able to handle it.
 ///
@@ -135,6 +139,16 @@ impl<T: Get<Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>>> ExporterFor
 ///
 /// This is only useful if we have special dispensation by the remote bridges to have the
 /// `ExportMessage` instruction executed without payment.
+///
+/// The `XcmHash` value returned by `deliver` will always be the same as that returned by the
+/// message exporter (`Bridges`). Generally this should take notice of the message should it
+/// begin with the `SetTopic` instruction.
+///
+/// In the case that the message begins with a `SetTopic(T)` (as should be the case if the top-level
+/// router is `EnsureUniqueTopic`), then the forwarding message (i.e. the one carrying the
+/// export instruction *to* the bridge in local consensus) will begin with a `SetTopic` whose inner
+/// is `forward_id_for(T)`. If this is not the case then the onward message will not be given the
+/// `SetTopic` prelude.
 pub struct UnpaidRemoteExporter<Bridges, Router, UniversalLocation>(
 	PhantomData<(Bridges, Router, UniversalLocation)>,
 );
@@ -155,17 +169,27 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 			Bridges::exporter_for(&remote_network, &remote_location, &xcm).ok_or(NotApplicable)?;
 		ensure!(maybe_payment.is_none(), Unroutable);
 
+		// `xcm` should already begin with `SetTopic` - if it does, then extract and derive into
+		// an onward topic ID.
+		let maybe_forward_id = match xcm.first() {
+			Some(SetTopic(t)) => Some(forward_id_for(t)),
+			_ => None,
+		};
+
 		// We then send a normal message to the bridge asking it to export the prepended
 		// message to the remote chain. This will only work if the bridge will do the message
 		// export for free. Common-good chains will typically be afforded this.
-		let message = Xcm(vec![
+		let mut message = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			ExportMessage { network: remote_network, destination: remote_location, xcm },
 		]);
+		if let Some(forward_id) = maybe_forward_id {
+			message.0.insert(0, SetTopic(forward_id));
+		}
 		validate_send::<Router>(bridge, message)
 	}
 
-	fn deliver(validation: Router::Ticket) -> Result<XcmHash, SendError> {
+	fn deliver(validation: Self::Ticket) -> Result<XcmHash, SendError> {
 		Router::deliver(validation)
 	}
 }
@@ -175,6 +199,16 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 ///
 /// The `ExportMessage` instruction on the bridge is paid for from the local chain's sovereign
 /// account on the bridge. The amount paid is determined through the `ExporterFor` trait.
+///
+/// The `XcmHash` value returned by `deliver` will always be the same as that returned by the
+/// message exporter (`Bridges`). Generally this should take notice of the message should it
+/// begin with the `SetTopic` instruction.
+///
+/// In the case that the message begins with a `SetTopic(T)` (as should be the case if the top-level
+/// router is `EnsureUniqueTopic`), then the forwarding message (i.e. the one carrying the
+/// export instruction *to* the bridge in local consensus) will begin with a `SetTopic` whose inner
+/// is `forward_id_for(T)`. If this is not the case then the onward message will not be given the
+/// `SetTopic` prelude.
 pub struct SovereignPaidRemoteExporter<Bridges, Router, UniversalLocation>(
 	PhantomData<(Bridges, Router, UniversalLocation)>,
 );
@@ -192,6 +226,14 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		let (remote_network, remote_location) = devolved;
 
 		let xcm = xcm.take().ok_or(MissingArgument)?;
+
+		// `xcm` should already begin with `SetTopic` - if it does, then extract and derive into
+		// an onward topic ID.
+		let maybe_forward_id = match xcm.first() {
+			Some(SetTopic(t)) => Some(forward_id_for(t)),
+			_ => None,
+		};
+
 		let (bridge, maybe_payment) =
 			Bridges::exporter_for(&remote_network, &remote_location, &xcm).ok_or(NotApplicable)?;
 
@@ -200,7 +242,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		let export_instruction =
 			ExportMessage { network: remote_network, destination: remote_location, xcm };
 
-		let message = Xcm(if let Some(ref payment) = maybe_payment {
+		let mut message = Xcm(if let Some(ref payment) = maybe_payment {
 			let fees = payment
 				.clone()
 				.reanchored(&bridge, UniversalLocation::get())
@@ -215,6 +257,9 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		} else {
 			vec![export_instruction]
 		});
+		if let Some(forward_id) = maybe_forward_id {
+			message.0.insert(0, SetTopic(forward_id));
+		}
 
 		// We then send a normal message to the bridge asking it to export the prepended
 		// message to the remote chain.
@@ -340,22 +385,24 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> 
 			.ok_or(SendError::MissingArgument)?
 			.split_global()
 			.map_err(|()| SendError::Unroutable)?;
-		let mut inner: Xcm<()> = vec![UniversalOrigin(GlobalConsensus(local_net))].into();
+		let mut message = message.take().ok_or(SendError::MissingArgument)?;
+		let (start, maybe_id) = match message.first() {
+			Some(SetTopic(t)) => (1, Some(*t)),
+			_ => (0, None),
+		};
+		message.0.insert(start, UniversalOrigin(GlobalConsensus(local_net)));
 		if local_sub != Here {
-			inner.inner_mut().push(DescendOrigin(local_sub));
+			message.0.insert(start + 1, DescendOrigin(local_sub));
 		}
-		inner
-			.inner_mut()
-			.extend(message.take().ok_or(SendError::MissingArgument)?.into_iter());
-		let message = VersionedXcm::from(inner);
-		let hash = message.using_encoded(sp_io::hashing::blake2_256);
+		let message = VersionedXcm::from(message);
+		let id = maybe_id.unwrap_or_else(|| message.using_encoded(sp_io::hashing::blake2_256));
 		let blob = BridgeMessage { universal_dest, message }.encode();
-		Ok(((blob, hash), Price::get()))
+		Ok(((blob, id), Price::get()))
 	}
 
-	fn deliver((blob, hash): (Vec<u8>, XcmHash)) -> Result<XcmHash, SendError> {
+	fn deliver((blob, id): (Vec<u8>, XcmHash)) -> Result<XcmHash, SendError> {
 		Bridge::haul_blob(blob)?;
-		Ok(hash)
+		Ok(id)
 	}
 }
 
