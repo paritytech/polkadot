@@ -146,7 +146,7 @@ fn polkadot_testnet_genesis(
 			validator_count: 2,
 			stakers: initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, runtime::StakerStatus::Validator))
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, runtime::StakerStatus::Validator))
 				.collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::NotForcing,
