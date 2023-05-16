@@ -19,17 +19,24 @@ use crate::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 use crate::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
 use crate::{
-	common::{bytes_to_path, cpu_time_monitor_loop, worker_event_loop},
+	common::{
+		bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload,
+		thread::{self, WaitOutcome},
+		worker_event_loop,
+	},
 	prepare, prevalidate, LOG_TARGET,
 };
 use cpu_time::ProcessTime;
-use futures::{pin_mut, select_biased, FutureExt};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_core_pvf::{
 	framed_recv, framed_send, CompiledArtifact, MemoryStats, PrepareError, PrepareResult,
 	PrepareStats, PvfPrepData,
 };
-use std::{any::Any, panic, path::PathBuf, sync::mpsc::channel};
+use std::{
+	path::PathBuf,
+	sync::{mpsc::channel, Arc},
+	time::Duration,
+};
 use tokio::{io, net::UnixStream};
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
@@ -54,10 +61,14 @@ async fn send_response(stream: &mut UnixStream, result: PrepareResult) -> io::Re
 	framed_send(stream, &result.encode()).await
 }
 
-/// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host. The `node_version`, if `Some`,
-/// is checked against the worker version. A mismatch results in immediate worker termination.
-/// `None` is used for tests and in other situations when version check is not necessary.
+/// The entrypoint that the spawned prepare worker should start with.
+///
+/// # Parameters
+///
+/// The `socket_path` specifies the path to the socket used to communicate with the host. The
+/// `node_version`, if `Some`, is checked against the worker version. A mismatch results in
+/// immediate worker termination. `None` is used for tests and in other situations when version
+/// check is not necessary.
 ///
 /// # Flow
 ///
@@ -69,8 +80,7 @@ async fn send_response(stream: &mut UnixStream, result: PrepareResult) -> io::Re
 ///
 /// 3. Start the CPU time monitor loop and the actual preparation in two separate threads.
 ///
-/// 4. Select on the two threads created in step 3. If the CPU timeout was hit, the CPU time monitor
-///    thread will trigger first.
+/// 4. Wait on the two threads created in step 3.
 ///
 /// 5. Stop the memory tracker and get the stats.
 ///
@@ -79,7 +89,7 @@ async fn send_response(stream: &mut UnixStream, result: PrepareResult) -> io::Re
 /// 7. Send the result of preparation back to the host. If any error occurred in the above steps, we
 ///    send that in the `PrepareResult`.
 pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
-	worker_event_loop("prepare", socket_path, node_version, |rt_handle, mut stream| async move {
+	worker_event_loop("prepare", socket_path, node_version, |mut stream| async move {
 		let worker_pid = std::process::id();
 
 		loop {
@@ -90,74 +100,67 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				"worker: preparing artifact",
 			);
 
-			let cpu_time_start = ProcessTime::now();
 			let preparation_timeout = pvf.prep_timeout();
 
-			// Run the memory tracker.
+			// Conditional variable to notify us when a thread is done.
+			let condvar = thread::get_condvar();
+
+			// Run the memory tracker in a regular, non-worker thread.
 			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-			let (memory_tracker_tx, memory_tracker_rx) = channel::<()>();
+			let condvar_memory = Arc::clone(&condvar);
 			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-			let memory_tracker_fut = rt_handle.spawn_blocking(move || memory_tracker_loop(memory_tracker_rx));
+			let memory_tracker_thread = std::thread::spawn(|| memory_tracker_loop(condvar_memory));
+
+			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
-			let cpu_time_monitor_fut = rt_handle
-				.spawn_blocking(move || {
+			let cpu_time_monitor_thread = thread::spawn_worker_thread(
+				"cpu time monitor thread",
+				move || {
 					cpu_time_monitor_loop(cpu_time_start, preparation_timeout, cpu_time_monitor_rx)
-				})
-				.fuse();
+				},
+				Arc::clone(&condvar),
+				WaitOutcome::TimedOut,
+			)?;
 			// Spawn another thread for preparation.
-			let prepare_fut = rt_handle
-				.spawn_blocking(move || {
-					let result = prepare_artifact(pvf);
+			let prepare_thread = thread::spawn_worker_thread(
+				"prepare thread",
+				move || {
+					let result = prepare_artifact(pvf, cpu_time_start);
 
 					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
 					#[cfg(target_os = "linux")]
-					let result = result.map(|artifact| (artifact, get_max_rss_thread()));
+					let result = result.map(|(artifact, elapsed)| (artifact, elapsed, get_max_rss_thread()));
 
 					result
-				})
-				.fuse();
-
-			pin_mut!(cpu_time_monitor_fut);
-			pin_mut!(prepare_fut);
-
-			let result = select_biased! {
-				// If this future is not selected, the join handle is dropped and the thread will
-				// finish in the background.
-				join_res = cpu_time_monitor_fut => {
-					match join_res {
-						Ok(Some(cpu_time_elapsed)) => {
-							// Log if we exceed the timeout and the other thread hasn't finished.
-							gum::warn!(
-								target: LOG_TARGET,
-								%worker_pid,
-								"prepare job took {}ms cpu time, exceeded prepare timeout {}ms",
-								cpu_time_elapsed.as_millis(),
-								preparation_timeout.as_millis(),
-							);
-							Err(PrepareError::TimedOut)
-						},
-						Ok(None) => Err(PrepareError::IoErr("error communicating over finished channel".into())),
-						Err(err) => Err(PrepareError::IoErr(err.to_string())),
-					}
 				},
-				prepare_res = prepare_fut => {
-					let cpu_time_elapsed = cpu_time_start.elapsed();
+				Arc::clone(&condvar),
+				WaitOutcome::Finished,
+			)?;
+
+			let outcome = thread::wait_for_threads(condvar);
+
+			let result = match outcome {
+				WaitOutcome::Finished => {
 					let _ = cpu_time_monitor_tx.send(());
 
-					match prepare_res.unwrap_or_else(|err| Err(PrepareError::IoErr(err.to_string()))) {
+					match prepare_thread.join().unwrap_or_else(|err| {
+						Err(PrepareError::Panic(stringify_panic_payload(err)))
+					}) {
 						Err(err) => {
 							// Serialized error will be written into the socket.
 							Err(err)
 						},
 						Ok(ok) => {
+							#[cfg(not(target_os = "linux"))]
+							let (artifact, cpu_time_elapsed) = ok;
+							#[cfg(target_os = "linux")]
+							let (artifact, cpu_time_elapsed, max_rss) = ok;
+
 							// Stop the memory stats worker and get its observed memory stats.
 							#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-							let memory_tracker_stats =
-								get_memory_tracker_loop_stats(memory_tracker_fut, memory_tracker_tx, worker_pid).await;
-							#[cfg(target_os = "linux")]
-							let (ok, max_rss) = ok;
+							let memory_tracker_stats = get_memory_tracker_loop_stats(memory_tracker_thread, worker_pid).await;
 							let memory_stats = MemoryStats {
 								#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 								memory_tracker_stats,
@@ -178,12 +181,36 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 								"worker: writing artifact to {}",
 								dest.display(),
 							);
-							tokio::fs::write(&dest, &ok).await?;
+							tokio::fs::write(&dest, &artifact).await?;
 
-							Ok(PrepareStats{cpu_time_elapsed, memory_stats})
+							Ok(PrepareStats { cpu_time_elapsed, memory_stats })
 						},
 					}
 				},
+				// If the CPU thread is not selected, we signal it to end, the join handle is
+				// dropped and the thread will finish in the background.
+				WaitOutcome::TimedOut => {
+					match cpu_time_monitor_thread.join() {
+						Ok(Some(cpu_time_elapsed)) => {
+							// Log if we exceed the timeout and the other thread hasn't finished.
+							gum::warn!(
+								target: LOG_TARGET,
+								%worker_pid,
+								"prepare job took {}ms cpu time, exceeded prepare timeout {}ms",
+								cpu_time_elapsed.as_millis(),
+								preparation_timeout.as_millis(),
+							);
+							Err(PrepareError::TimedOut)
+						},
+						Ok(None) => Err(PrepareError::IoErr(
+							"error communicating over closed channel".into(),
+						)),
+						// Errors in this thread are independent of the candidate.
+						Err(err) => Err(PrepareError::IoErr(stringify_panic_payload(err))),
+					}
+				},
+				WaitOutcome::Pending =>
+					unreachable!("we run wait_while until the outcome is no longer pending; qed"),
 			};
 
 			send_response(&mut stream, result).await?;
@@ -191,32 +218,18 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	});
 }
 
-fn prepare_artifact(pvf: PvfPrepData) -> Result<CompiledArtifact, PrepareError> {
-	panic::catch_unwind(|| {
-		let blob = match prevalidate(&pvf.code()) {
-			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
-			Ok(b) => b,
-		};
+fn prepare_artifact(
+	pvf: PvfPrepData,
+	cpu_time_start: ProcessTime,
+) -> Result<(CompiledArtifact, Duration), PrepareError> {
+	let blob = match prevalidate(&pvf.code()) {
+		Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
+		Ok(b) => b,
+	};
 
-		match prepare(blob, &pvf.executor_params()) {
-			Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
-			Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
-		}
-	})
-	.map_err(|panic_payload| PrepareError::Panic(stringify_panic_payload(panic_payload)))
-	.and_then(|inner_result| inner_result)
-}
-
-/// Attempt to convert an opaque panic payload to a string.
-///
-/// This is a best effort, and is not guaranteed to provide the most accurate value.
-fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String {
-	match payload.downcast::<&'static str>() {
-		Ok(msg) => msg.to_string(),
-		Err(payload) => match payload.downcast::<String>() {
-			Ok(msg) => *msg,
-			// At least we tried...
-			Err(_) => "unknown panic payload".to_string(),
-		},
+	match prepare(blob, &pvf.executor_params()) {
+		Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
+		Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
 	}
+	.map(|artifact| (artifact, cpu_time_start.elapsed()))
 }
