@@ -52,7 +52,7 @@ pub use barriers::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSetTopic,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	IsChildSystemParachain, RequireSetTopic, RespectSuspension, TakeWeightCredit,
-	WithComputedOrigin, WithUniqueTopic,
+	WithComputedOrigin,
 };
 
 mod currency_adapter;
@@ -82,6 +82,9 @@ pub use matcher::{CreateMatcher, MatchXcm, Matcher};
 
 mod filter_asset_location;
 pub use filter_asset_location::{Case, NativeAsset};
+
+mod routing;
+pub use routing::WithUniqueTopic;
 
 mod universal_exports;
 pub use universal_exports::{
