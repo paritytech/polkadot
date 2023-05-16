@@ -121,7 +121,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 					cpu_time_monitor_loop(cpu_time_start, preparation_timeout, cpu_time_monitor_rx)
 				},
 				Arc::clone(&condvar),
-				WaitOutcome::CpuTimedOut,
+				WaitOutcome::TimedOut,
 			)?;
 			// Spawn another thread for preparation.
 			let prepare_thread = thread::spawn_worker_thread(
@@ -136,13 +136,13 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 					result
 				},
 				Arc::clone(&condvar),
-				WaitOutcome::JobFinished,
+				WaitOutcome::Finished,
 			)?;
 
 			let outcome = thread::wait_for_threads(condvar);
 
 			let result = match outcome {
-				WaitOutcome::JobFinished => {
+				WaitOutcome::Finished => {
 					let _ = cpu_time_monitor_tx.send(());
 
 					match prepare_thread.join().unwrap_or_else(|err| {
@@ -189,7 +189,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				},
 				// If the CPU thread is not selected, we signal it to end, the join handle is
 				// dropped and the thread will finish in the background.
-				WaitOutcome::CpuTimedOut => {
+				WaitOutcome::TimedOut => {
 					match cpu_time_monitor_thread.join() {
 						Ok(Some(cpu_time_elapsed)) => {
 							// Log if we exceed the timeout and the other thread hasn't finished.
@@ -203,7 +203,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							Err(PrepareError::TimedOut)
 						},
 						Ok(None) => Err(PrepareError::IoErr(
-							"error communicating over finished channel".into(),
+							"error communicating over closed channel".into(),
 						)),
 						// Errors in this thread are independent of the candidate.
 						Err(err) => Err(PrepareError::IoErr(stringify_panic_payload(err))),

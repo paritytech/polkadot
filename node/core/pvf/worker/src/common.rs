@@ -167,8 +167,8 @@ pub mod thread {
 	/// Contains the outcome of waiting on threads, or `Pending` if none are ready.
 	#[derive(Clone, Copy)]
 	pub enum WaitOutcome {
-		JobFinished,
-		CpuTimedOut,
+		Finished,
+		TimedOut,
 		Pending,
 	}
 

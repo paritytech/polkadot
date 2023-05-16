@@ -109,7 +109,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 					cpu_time_monitor_loop(cpu_time_start, execution_timeout, cpu_time_monitor_rx)
 				},
 				Arc::clone(&condvar),
-				WaitOutcome::CpuTimedOut,
+				WaitOutcome::TimedOut,
 			)?;
 			let executor_2 = executor.clone();
 			let execute_thread = thread::spawn_worker_thread_with_stack_size(
@@ -118,14 +118,14 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
 				},
 				Arc::clone(&condvar),
-				WaitOutcome::JobFinished,
+				WaitOutcome::Finished,
 				EXECUTE_THREAD_STACK_SIZE,
 			)?;
 
 			let outcome = thread::wait_for_threads(condvar);
 
 			let response = match outcome {
-				WaitOutcome::JobFinished => {
+				WaitOutcome::Finished => {
 					let _ = cpu_time_monitor_tx.send(());
 					execute_thread.join().unwrap_or_else(|e| {
 						// TODO: Use `Panic` error once that is implemented.
@@ -137,7 +137,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				},
 				// If the CPU thread is not selected, we signal it to end, the join handle is
 				// dropped and the thread will finish in the background.
-				WaitOutcome::CpuTimedOut => {
+				WaitOutcome::TimedOut => {
 					match cpu_time_monitor_thread.join() {
 						Ok(Some(cpu_time_elapsed)) => {
 							// Log if we exceed the timeout and the other thread hasn't finished.
@@ -152,7 +152,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 						},
 						Ok(None) => Response::format_internal(
 							"cpu time monitor thread error",
-							"error communicating over finished channel".into(),
+							"error communicating over closed channel".into(),
 						),
 						// We can use an internal error here because errors in this thread are
 						// independent of the candidate.

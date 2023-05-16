@@ -126,7 +126,6 @@ pub mod memory_tracker {
 		thread: JoinHandle<Result<MemoryAllocationStats, String>>,
 		worker_pid: u32,
 	) -> Option<MemoryAllocationStats> {
-		// Join on the thread handle.
 		match thread.join() {
 			Ok(Ok(stats)) => Some(stats),
 			Ok(Err(err)) => {
