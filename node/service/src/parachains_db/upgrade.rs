@@ -175,22 +175,15 @@ fn rocksdb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
 }
 
 fn rocksdb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
-	use kvdb::{DBOp, DBTransaction};
 	use kvdb_rocksdb::{Database, DatabaseConfig};
 
 	let db_path = path
 		.to_str()
 		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
 	let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
-	let db = Database::open(&db_cfg, db_path)?;
+	let mut db = Database::open(&db_cfg, db_path)?;
 
-	// Wipe all entries in one operation.
-	let ops = vec![DBOp::DeletePrefix {
-		col: super::columns::v2::COL_SESSION_WINDOW_DATA,
-		prefix: kvdb::DBKey::from_slice(b""),
-	}];
-
-	db.write(DBTransaction { ops })?;
+	db.remove_last_column()?;
 
 	Ok(())
 }
@@ -264,7 +257,6 @@ pub(crate) fn paritydb_version_1_config(path: &Path) -> parity_db::Options {
 }
 
 /// Database configuration for version 2.
-#[cfg(test)]
 pub(crate) fn paritydb_version_2_config(path: &Path) -> parity_db::Options {
 	let mut options =
 		parity_db::Options::with_columns(&path, super::columns::v2::NUM_COLUMNS as u8);
@@ -328,9 +320,8 @@ fn paritydb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
 /// Migration from version 2 to version 3:
 /// - clear any columns used by `RollingSessionWindow`
 fn paritydb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
-	parity_db::clear_column(path, super::columns::v2::COL_SESSION_WINDOW_DATA as u8)
-		.map_err(|e| other_io_error(format!("Error clearing COL_SESSION_WINDOW_DATA {:?}", e)))?;
-
+	parity_db::Db::drop_last_column(&mut paritydb_version_2_config(path))
+		.map_err(|e| other_io_error(format!("Error removing COL_SESSION_WINDOW_DATA {:?}", e)))?;
 	Ok(())
 }
 
@@ -503,9 +494,6 @@ mod tests {
 		let db = Db::open(&paritydb_version_3_config(&path)).unwrap();
 
 		assert_eq!(db.num_columns(), columns::v3::NUM_COLUMNS as u8);
-
-		// ensure column is empty
-		assert!(db.get(COL_SESSION_WINDOW_DATA as u8, &test_key.to_vec()).unwrap().is_none());
 	}
 
 	#[test]
@@ -542,8 +530,5 @@ mod tests {
 		let db = Database::open(&db_cfg, db_path).unwrap();
 
 		assert_eq!(db.num_columns(), super::columns::v3::NUM_COLUMNS);
-
-		// Ensure data is actually removed
-		assert!(db.get(COL_SESSION_WINDOW_DATA, b"1337").unwrap().is_none());
 	}
 }
