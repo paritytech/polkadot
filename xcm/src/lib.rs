@@ -433,3 +433,59 @@ fn conversion_works() {
 	use latest::prelude::*;
 	let _: VersionedMultiAssets = (Here, 1u128).into();
 }
+
+#[test]
+fn size_limits() {
+	extern crate std;
+
+	let mut test_failed = false;
+	macro_rules! check_sizes {
+        ($(($kind:ty, $expected:expr),)+) => {
+            $({
+                let s = core::mem::size_of::<$kind>();
+                // Since the types often affect the size of other types in which they're included
+                // it is more convenient to check multiple types at the same time and only fail
+                // the test at the end. For debugging it's also useful to print out all of the sizes,
+                // even if they're within the expected range.
+                if s > $expected {
+                    test_failed = true;
+                    std::eprintln!(
+                        "assertion failed: size of '{}' is {} (which is more than the expected {})",
+                        stringify!($kind),
+                        s,
+                        $expected
+                    );
+                } else {
+                    std::eprintln!(
+                        "type '{}' is of size {} which is within the expected {}",
+                        stringify!($kind),
+                        s,
+                        $expected
+                    );
+                }
+            })+
+        }
+    }
+
+	check_sizes! {
+		(crate::v2::Instruction<()>, 96),
+		(crate::v3::Instruction<()>, 112),
+		(crate::v2::MultiAsset, 72),
+		(crate::v3::MultiAsset, 80),
+		(crate::v2::MultiLocation, 24),
+		(crate::v3::MultiLocation, 24),
+		(crate::v2::AssetId, 32),
+		(crate::v3::AssetId, 40),
+		(crate::v2::Junctions, 16),
+		(crate::v3::Junctions, 16),
+
+		(crate::v2::Junction, 72),
+		(crate::v2::Response, 40),
+		(crate::v2::AssetInstance, 40),
+		(crate::v2::NetworkId, 32),
+		(crate::v2::BodyId, 32),
+		(crate::v2::MultiAssets, 24),
+		(crate::v2::BodyPart, 12),
+	}
+	assert!(!test_failed);
+}

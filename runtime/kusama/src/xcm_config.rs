@@ -22,7 +22,7 @@ use super::{
 	XcmPallet,
 };
 use frame_support::{
-	match_types, parameter_types,
+	parameter_types,
 	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
@@ -126,19 +126,20 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Ksm: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const Statemine: MultiLocation = Parachain(1000).into_location();
-	pub const Encointer: MultiLocation = Parachain(1001).into_location();
-	pub const KsmForStatemine: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Statemine::get());
-	pub const KsmForEncointer: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Encointer::get());
+	pub Statemine: MultiLocation = Parachain(1000).into_location();
+	pub Encointer: MultiLocation = Parachain(1001).into_location();
+	pub KsmForStatemine: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Statemine::get());
+	pub KsmForEncointer: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Encointer::get());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 pub type TrustedTeleporters =
 	(xcm_builder::Case<KsmForStatemine>, xcm_builder::Case<KsmForEncointer>);
 
-match_types! {
-	pub type OnlyParachains: impl Contains<MultiLocation> = {
-		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
-	};
+pub struct OnlyParachains;
+impl Contains<MultiLocation> for OnlyParachains {
+	fn contains(loc: &MultiLocation) -> bool {
+		matches!(loc.unpack(), (0, [Parachain(_)]))
+	}
 }
 
 /// The barriers one of which must be passed for an XCM message to be executed.

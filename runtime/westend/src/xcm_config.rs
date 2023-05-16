@@ -90,11 +90,11 @@ pub type XcmRouter = (
 );
 
 parameter_types! {
-	pub const Westmint: MultiLocation = Parachain(1000).into_location();
-	pub const Collectives: MultiLocation = Parachain(1001).into_location();
+	pub Westmint: MultiLocation = Parachain(1000).into_location();
+	pub Collectives: MultiLocation = Parachain(1001).into_location();
 	pub const Wnd: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const WndForWestmint: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Westmint::get());
-	pub const WndForCollectives: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Collectives::get());
+	pub WndForWestmint: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Westmint::get());
+	pub WndForCollectives: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Collectives::get());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }

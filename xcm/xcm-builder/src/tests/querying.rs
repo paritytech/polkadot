@@ -18,7 +18,7 @@ use super::*;
 
 #[test]
 fn pallet_query_should_work() {
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	AllowUnpaidFrom::set(vec![[(Parachain(1))].into()]);
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
 	let message = Xcm(vec![QueryPallet {
@@ -50,7 +50,7 @@ fn pallet_query_should_work() {
 
 #[test]
 fn pallet_query_with_results_should_work() {
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	AllowUnpaidFrom::set(vec![[(Parachain(1))].into()]);
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
 	let message = Xcm(vec![QueryPallet {

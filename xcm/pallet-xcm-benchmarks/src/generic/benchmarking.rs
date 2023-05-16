@@ -156,7 +156,7 @@ benchmarks! {
 
 	descend_origin {
 		let mut executor = new_executor::<T>(Default::default());
-		let who = X2(OnlyChild, OnlyChild);
+		let who = Junctions::from([OnlyChild, OnlyChild]);
 		let instruction = Instruction::DescendOrigin(who.clone());
 		let xcm = Xcm(vec![instruction]);
 	} : {
@@ -493,7 +493,7 @@ benchmarks! {
 	} verify {
 		use frame_support::traits::Get;
 		let universal_location = <T::XcmConfig as xcm_executor::Config>::UniversalLocation::get();
-		assert_eq!(executor.origin(), &Some(X1(alias).relative_to(&universal_location)));
+		assert_eq!(executor.origin(), &Some(Junctions::from([alias]).relative_to(&universal_location)));
 	}
 
 	export_message {

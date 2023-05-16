@@ -18,7 +18,7 @@ use super::*;
 
 #[test]
 fn universal_origin_should_work() {
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into(), X1(Parachain(2)).into()]);
+	AllowUnpaidFrom::set(vec![[(Parachain(1))].into(), [(Parachain(2))].into()]);
 	clear_universal_aliases();
 	// Parachain 1 may represent Kusama to us
 	add_universal_alias(Parachain(1), Kusama);
@@ -70,7 +70,7 @@ fn universal_origin_should_work() {
 #[test]
 fn export_message_should_work() {
 	// Bridge chain (assumed to be Relay) lets Parachain #1 have message execution for free.
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	AllowUnpaidFrom::set(vec![[(Parachain(1))].into()]);
 	// Local parachain #1 issues a transfer asset on Polkadot Relay-chain, transfering 100 Planck to
 	// Polkadot parachain #2.
 	let expected_message = Xcm(vec![TransferAsset {
@@ -101,10 +101,10 @@ fn export_message_should_work() {
 #[test]
 fn unpaid_execution_should_work() {
 	// Bridge chain (assumed to be Relay) lets Parachain #1 have message execution for free.
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	AllowUnpaidFrom::set(vec![[(Parachain(1))].into()]);
 	// Bridge chain (assumed to be Relay) lets Parachain #2 have message execution for free if it
 	// asks.
-	AllowExplicitUnpaidFrom::set(vec![X1(Parachain(2)).into()]);
+	AllowExplicitUnpaidFrom::set(vec![[(Parachain(2))].into()]);
 	// Asking for unpaid execution of up to 9 weight on the assumption it is origin of #2.
 	let message = Xcm(vec![UnpaidExecution {
 		weight_limit: Limited(Weight::from_parts(9, 9)),

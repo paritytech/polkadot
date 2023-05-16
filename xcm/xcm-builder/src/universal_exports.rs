@@ -35,7 +35,7 @@ fn ensure_is_remote(
 	};
 	let universal_destination: InteriorMultiLocation = universal_local
 		.into_location()
-		.appended_with(dest)
+		.appended_with(dest.clone())
 		.map_err(|x| x.1)?
 		.try_into()?;
 	let (remote_dest, remote_net) = match universal_destination.split_first() {
@@ -66,7 +66,7 @@ impl<Exporter: ExportXcm, UniversalLocation: Get<InteriorMultiLocation>> SendXcm
 	) -> SendResult<Exporter::Ticket> {
 		let d = dest.take().ok_or(MissingArgument)?;
 		let universal_source = UniversalLocation::get();
-		let devolved = match ensure_is_remote(universal_source, d) {
+		let devolved = match ensure_is_remote(universal_source.clone(), d) {
 			Ok(x) => x,
 			Err(d) => {
 				*dest = Some(d);
@@ -147,7 +147,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		dest: &mut Option<MultiLocation>,
 		xcm: &mut Option<Xcm<()>>,
 	) -> SendResult<Router::Ticket> {
-		let d = dest.ok_or(MissingArgument)?;
+		let d = dest.clone().ok_or(MissingArgument)?;
 		let devolved = ensure_is_remote(UniversalLocation::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location) = devolved;
 		let xcm = xcm.take().ok_or(MissingArgument)?;
@@ -187,7 +187,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		dest: &mut Option<MultiLocation>,
 		xcm: &mut Option<Xcm<()>>,
 	) -> SendResult<Router::Ticket> {
-		let d = *dest.as_ref().ok_or(MissingArgument)?;
+		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
 		let devolved = ensure_is_remote(UniversalLocation::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location) = devolved;
 
@@ -203,7 +203,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		let message = Xcm(if let Some(ref payment) = maybe_payment {
 			let fees = payment
 				.clone()
-				.reanchored(&bridge, UniversalLocation::get())
+				.reanchored(&bridge, &UniversalLocation::get())
 				.map_err(|_| Unroutable)?;
 			vec![
 				WithdrawAsset(fees.clone().into()),

@@ -45,14 +45,14 @@ impl VersionChangeNotifier for TestSubscriptionService {
 		_context: &XcmContext,
 	) -> XcmResult {
 		let mut r = SubscriptionRequests::get();
-		r.push((*location, Some((query_id, max_weight))));
+		r.push((location.clone(), Some((query_id, max_weight))));
 		SubscriptionRequests::set(r);
 		Ok(())
 	}
 	fn stop(location: &MultiLocation, _context: &XcmContext) -> XcmResult {
 		let mut r = SubscriptionRequests::get();
 		r.retain(|(l, _q)| l != location);
-		r.push((*location, None));
+		r.push((location.clone(), None));
 		SubscriptionRequests::set(r);
 		Ok(())
 	}
@@ -71,7 +71,7 @@ pub struct TestAssetTrap;
 impl DropAssets for TestAssetTrap {
 	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> Weight {
 		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
-		t.push((*origin, assets.into()));
+		t.push((origin.clone(), assets.into()));
 		TrappedAssets::set(t);
 		Weight::from_parts(5, 5)
 	}
@@ -85,7 +85,7 @@ impl ClaimAssets for TestAssetTrap {
 		_context: &XcmContext,
 	) -> bool {
 		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
-		if let (0, X1(GeneralIndex(i))) = (ticket.parents, &ticket.interior) {
+		if let (0, [GeneralIndex(i)]) = ticket.unpack() {
 			if let Some((l, a)) = t.get(*i as usize) {
 				if l == origin && a == what {
 					t.swap_remove(*i as usize);

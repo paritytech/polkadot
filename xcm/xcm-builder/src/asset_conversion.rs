@@ -233,13 +233,13 @@ mod tests {
 		>;
 		assert_eq!(
 			TrustBackedAssetsPalletLocation::get(),
-			MultiLocation { parents: 0, interior: X1(PalletInstance(50)) }
+			MultiLocation { parents: 0, interior: [PalletInstance(50)].into() }
 		);
 
 		// err - does not match
 		assert_eq!(
 			Converter::matches_fungibles(&MultiAsset {
-				id: Concrete(MultiLocation::new(1, X2(PalletInstance(50), GeneralIndex(1)))),
+				id: Concrete(MultiLocation::new(1, [PalletInstance(50), GeneralIndex(1)])),
 				fun: Fungible(12345),
 			}),
 			Err(MatchError::AssetNotHandled)
@@ -250,7 +250,7 @@ mod tests {
 			Converter::matches_fungibles(&MultiAsset {
 				id: Concrete(MultiLocation::new(
 					0,
-					X2(PalletInstance(50), GeneralKey { length: 1, data: [1; 32] })
+					[PalletInstance(50), GeneralKey { length: 1, data: [1; 32] }]
 				)),
 				fun: Fungible(12345),
 			}),
@@ -260,7 +260,7 @@ mod tests {
 		// err - matches, but NonFungible
 		assert_eq!(
 			Converter::matches_fungibles(&MultiAsset {
-				id: Concrete(MultiLocation::new(0, X2(PalletInstance(50), GeneralIndex(1)))),
+				id: Concrete(MultiLocation::new(0, [PalletInstance(50), GeneralIndex(1)])),
 				fun: NonFungible(Index(54321)),
 			}),
 			Err(MatchError::AssetNotHandled)
@@ -269,7 +269,7 @@ mod tests {
 		// ok
 		assert_eq!(
 			Converter::matches_fungibles(&MultiAsset {
-				id: Concrete(MultiLocation::new(0, X2(PalletInstance(50), GeneralIndex(1)))),
+				id: Concrete(MultiLocation::new(0, [PalletInstance(50), GeneralIndex(1)])),
 				fun: Fungible(12345),
 			}),
 			Ok((1, 12345))
@@ -305,13 +305,13 @@ mod tests {
 		>;
 		assert_eq!(
 			TrustBackedAssetsPalletLocation::get(),
-			MultiLocation { parents: 0, interior: X1(PalletInstance(50)) }
+			MultiLocation { parents: 0, interior: [PalletInstance(50)].into() }
 		);
 
 		// err - does not match
 		assert_eq!(
 			Converter::matches_nonfungibles(&MultiAsset {
-				id: Concrete(MultiLocation::new(1, X2(PalletInstance(50), GeneralIndex(1)))),
+				id: Concrete(MultiLocation::new(1, [PalletInstance(50), GeneralIndex(1)])),
 				fun: NonFungible(Index(54321)),
 			}),
 			Err(MatchError::AssetNotHandled)
@@ -322,7 +322,7 @@ mod tests {
 			Converter::matches_nonfungibles(&MultiAsset {
 				id: Concrete(MultiLocation::new(
 					0,
-					X2(PalletInstance(50), GeneralKey { length: 1, data: [1; 32] })
+					[PalletInstance(50), GeneralKey { length: 1, data: [1; 32] }]
 				)),
 				fun: NonFungible(Index(54321)),
 			}),
@@ -332,7 +332,7 @@ mod tests {
 		// err - matches, but Fungible vs NonFungible
 		assert_eq!(
 			Converter::matches_nonfungibles(&MultiAsset {
-				id: Concrete(MultiLocation::new(0, X2(PalletInstance(50), GeneralIndex(1)))),
+				id: Concrete(MultiLocation::new(0, [PalletInstance(50), GeneralIndex(1)])),
 				fun: Fungible(12345),
 			}),
 			Err(MatchError::AssetNotHandled)
@@ -341,7 +341,7 @@ mod tests {
 		// ok
 		assert_eq!(
 			Converter::matches_nonfungibles(&MultiAsset {
-				id: Concrete(MultiLocation::new(0, X2(PalletInstance(50), GeneralIndex(1)))),
+				id: Concrete(MultiLocation::new(0, [PalletInstance(50), GeneralIndex(1)])),
 				fun: NonFungible(Index(54321)),
 			}),
 			Ok((1, 54321))

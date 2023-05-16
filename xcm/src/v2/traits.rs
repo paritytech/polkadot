@@ -285,7 +285,8 @@ pub type SendResult = result::Result<(), SendError>;
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
 ///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-///         if let MultiLocation { parents: 0, interior: X2(j1, j2) } = destination.into() {
+///         let destination = destination.into();
+///         if destination.parents == 0 && destination.interior.len() == 2 {
 ///             Ok(())
 ///         } else {
 ///             Err(SendError::Unroutable)

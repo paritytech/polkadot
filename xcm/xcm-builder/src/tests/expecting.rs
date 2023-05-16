@@ -18,7 +18,7 @@ use super::*;
 
 #[test]
 fn expect_pallet_should_work() {
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	AllowUnpaidFrom::set(vec![[(Parachain(1))].into()]);
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
 	let message = Xcm(vec![ExpectPallet {
@@ -56,7 +56,7 @@ fn expect_pallet_should_work() {
 
 #[test]
 fn expect_pallet_should_fail_correctly() {
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	AllowUnpaidFrom::set(vec![[(Parachain(1))].into()]);
 	let message = Xcm(vec![ExpectPallet {
 		index: 1,
 		name: b"Balances".as_ref().into(),

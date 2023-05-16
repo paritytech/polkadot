@@ -16,7 +16,7 @@
 
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
-use super::{Junctions, MultiLocation};
+use super::MultiLocation;
 use crate::{
 	v2::{
 		BodyId as OldBodyId, BodyPart as OldBodyPart, Junction as OldJunction,
@@ -350,21 +350,21 @@ impl Junction {
 	/// Convert `self` into a `MultiLocation` containing 0 parents.
 	///
 	/// Similar to `Into::into`, except that this method can be used in a const evaluation context.
-	pub const fn into_location(self) -> MultiLocation {
-		MultiLocation { parents: 0, interior: Junctions::X1(self) }
+	pub fn into_location(self) -> MultiLocation {
+		MultiLocation { parents: 0, interior: [self].into() }
 	}
 
 	/// Convert `self` into a `MultiLocation` containing `n` parents.
 	///
 	/// Similar to `Self::into_location`, with the added ability to specify the number of parent junctions.
-	pub const fn into_exterior(self, n: u8) -> MultiLocation {
-		MultiLocation { parents: n, interior: Junctions::X1(self) }
+	pub fn into_exterior(self, n: u8) -> MultiLocation {
+		MultiLocation { parents: n, interior: [self].into() }
 	}
 
 	/// Convert `self` into a `VersionedMultiLocation` containing 0 parents.
 	///
 	/// Similar to `Into::into`, except that this method can be used in a const evaluation context.
-	pub const fn into_versioned(self) -> VersionedMultiLocation {
+	pub fn into_versioned(self) -> VersionedMultiLocation {
 		self.into_location().into_versioned()
 	}
 

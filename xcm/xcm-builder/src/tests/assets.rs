@@ -110,13 +110,13 @@ fn paying_reserve_deposit_should_work() {
 #[test]
 fn transfer_should_work() {
 	// we'll let them have message execution for free.
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	AllowUnpaidFrom::set(vec![[Parachain(1)].into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
 	add_asset(Parachain(1), (Here, 1000));
 	// They want to transfer 100 of them to their sibling parachain #2
 	let message = Xcm(vec![TransferAsset {
 		assets: (Here, 100u128).into(),
-		beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
+		beneficiary: [AccountIndex64 { index: 3, network: None }].into(),
 	}]);
 	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
@@ -136,11 +136,11 @@ fn transfer_should_work() {
 
 #[test]
 fn reserve_transfer_should_work() {
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	AllowUnpaidFrom::set(vec![[Parachain(1)].into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
 	add_asset(Parachain(1), (Here, 1000));
 	// The remote account owned by gav.
-	let three: MultiLocation = X1(AccountIndex64 { index: 3, network: None }).into();
+	let three: MultiLocation = [AccountIndex64 { index: 3, network: None }].into();
 
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
@@ -174,7 +174,7 @@ fn reserve_transfer_should_work() {
 #[test]
 fn burn_should_work() {
 	// we'll let them have message execution for free.
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	AllowUnpaidFrom::set(vec![[Parachain(1)].into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
 	add_asset(Parachain(1), (Here, 1000));
 	// They want to burn 100 of them
@@ -215,7 +215,7 @@ fn burn_should_work() {
 #[test]
 fn basic_asset_trap_should_work() {
 	// we'll let them have message execution for free.
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into(), X1(Parachain(2)).into()]);
+	AllowUnpaidFrom::set(vec![[Parachain(1)].into(), [Parachain(2)].into()]);
 
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
 	add_asset(Parachain(1), (Here, 1000));
@@ -343,7 +343,7 @@ fn basic_asset_trap_should_work() {
 #[test]
 fn max_assets_limit_should_work() {
 	// we'll let them have message execution for free.
-	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	AllowUnpaidFrom::set(vec![[Parachain(1)].into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
 	add_asset(Parachain(1), ([1u8; 32], 1000u128));
 	add_asset(Parachain(1), ([2u8; 32], 1000u128));

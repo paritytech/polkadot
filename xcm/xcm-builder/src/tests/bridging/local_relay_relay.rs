@@ -21,8 +21,8 @@
 use super::*;
 
 parameter_types! {
-	pub UniversalLocation: Junctions = X1(GlobalConsensus(Local::get()));
-	pub RemoteUniversalLocation: Junctions = X1(GlobalConsensus(Remote::get()));
+	pub UniversalLocation: Junctions = [GlobalConsensus(Local::get())].into();
+	pub RemoteUniversalLocation: Junctions = [GlobalConsensus(Remote::get())].into();
 }
 type TheBridge =
 	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;

@@ -51,9 +51,7 @@ use scale_info::TypeInfo;
 /// that a value is strictly an interior location, in those cases, `Junctions` may be used.
 ///
 /// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
-#[derive(
-	Copy, Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen,
-)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
@@ -107,7 +105,7 @@ impl MultiLocation {
 	}
 
 	/// Whether the `MultiLocation` has no parents and has a `Here` interior.
-	pub const fn is_here(&self) -> bool {
+	pub fn is_here(&self) -> bool {
 		self.parents == 0 && self.interior.len() == 0
 	}
 
@@ -131,6 +129,23 @@ impl MultiLocation {
 		self.parents
 	}
 
+	/// Returns the parent count and the interior `Junctions` as a tuple.
+	///
+	/// To be used when pattern matching, for example:
+	///
+	/// ```rust
+	/// # use xcm::v3::{Junctions::*, Junction::*, MultiLocation};
+	/// fn get_parachain_id(loc: &MultiLocation) -> Option<u32> {
+	///     match loc.unpack() {
+	///         (0, [Parachain(id)]) => Some(*id),
+	///         _ => None
+	///     }
+	/// }
+	/// ```
+	pub fn unpack(&self) -> (u8, &[Junction]) {
+		(self.parents, self.interior.as_slice())
+	}
+
 	/// Returns boolean indicating whether `self` contains only the specified amount of
 	/// parents and no interior junctions.
 	pub const fn contains_parents_only(&self, count: u8) -> bool {
@@ -138,7 +153,7 @@ impl MultiLocation {
 	}
 
 	/// Returns the number of parents and junctions in `self`.
-	pub const fn len(&self) -> usize {
+	pub fn len(&self) -> usize {
 		self.parent_count() as usize + self.interior.len()
 	}
 
@@ -256,9 +271,9 @@ impl MultiLocation {
 	/// ```rust
 	/// # use xcm::v3::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
-	/// let mut m = MultiLocation::new(1, X2(PalletInstance(3), OnlyChild));
+	/// let mut m = MultiLocation::new(1, [PalletInstance(3), OnlyChild]);
 	/// assert_eq!(
-	///     m.match_and_split(&MultiLocation::new(1, X1(PalletInstance(3)))),
+	///     m.match_and_split(&MultiLocation::new(1, [PalletInstance(3)])),
 	///     Some(&OnlyChild),
 	/// );
 	/// assert_eq!(m.match_and_split(&MultiLocation::new(1, Here)), None);
@@ -285,7 +300,7 @@ impl MultiLocation {
 	/// # fn main() {
 	/// let mut m: MultiLocation = (Parent, Parachain(21), 69u64).into();
 	/// assert_eq!(m.append_with((Parent, PalletInstance(3))), Ok(()));
-	/// assert_eq!(m, MultiLocation::new(1, X2(Parachain(21), PalletInstance(3))));
+	/// assert_eq!(m, MultiLocation::new(1, [Parachain(21), PalletInstance(3)]));
 	/// # }
 	/// ```
 	pub fn append_with(&mut self, suffix: impl Into<Self>) -> Result<(), Self> {
@@ -306,7 +321,7 @@ impl MultiLocation {
 	/// # fn main() {
 	/// let mut m: MultiLocation = (Parent, Parachain(21), 69u64).into();
 	/// let r = m.appended_with((Parent, PalletInstance(3))).unwrap();
-	/// assert_eq!(r, MultiLocation::new(1, X2(Parachain(21), PalletInstance(3))));
+	/// assert_eq!(r, MultiLocation::new(1, [Parachain(21), PalletInstance(3)]));
 	/// # }
 	/// ```
 	pub fn appended_with(mut self, suffix: impl Into<Self>) -> Result<Self, (Self, Self)> {
@@ -326,7 +341,7 @@ impl MultiLocation {
 	/// # fn main() {
 	/// let mut m: MultiLocation = (Parent, Parent, PalletInstance(3)).into();
 	/// assert_eq!(m.prepend_with((Parent, Parachain(21), OnlyChild)), Ok(()));
-	/// assert_eq!(m, MultiLocation::new(1, X1(PalletInstance(3))));
+	/// assert_eq!(m, MultiLocation::new(1, [PalletInstance(3)]));
 	/// # }
 	/// ```
 	pub fn prepend_with(&mut self, prefix: impl Into<Self>) -> Result<(), Self> {
@@ -375,7 +390,7 @@ impl MultiLocation {
 	/// # fn main() {
 	/// let m: MultiLocation = (Parent, Parent, PalletInstance(3)).into();
 	/// let r = m.prepended_with((Parent, Parachain(21), OnlyChild)).unwrap();
-	/// assert_eq!(r, MultiLocation::new(1, X1(PalletInstance(3))));
+	/// assert_eq!(r, MultiLocation::new(1, [PalletInstance(3)]));
 	/// # }
 	/// ```
 	pub fn prepended_with(mut self, prefix: impl Into<Self>) -> Result<Self, (Self, Self)> {
@@ -392,7 +407,7 @@ impl MultiLocation {
 	pub fn reanchor(
 		&mut self,
 		target: &MultiLocation,
-		context: InteriorMultiLocation,
+		context: &InteriorMultiLocation,
 	) -> Result<(), ()> {
 		// TODO: https://github.com/paritytech/polkadot/issues/4489 Optimize this.
 
@@ -417,7 +432,7 @@ impl MultiLocation {
 	pub fn reanchored(
 		mut self,
 		target: &MultiLocation,
-		context: InteriorMultiLocation,
+		context: &InteriorMultiLocation,
 	) -> Result<Self, Self> {
 		match self.reanchor(target, context) {
 			Ok(()) => Ok(self),
@@ -515,26 +530,26 @@ mod tests {
 	fn simplify_basic_works() {
 		let mut location: MultiLocation =
 			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
-		let context = X2(Parachain(1000), PalletInstance(42));
+		let context = [Parachain(1000), PalletInstance(42)].into();
 		let expected = GeneralIndex(69).into();
 		location.simplify(&context);
 		assert_eq!(location, expected);
 
 		let mut location: MultiLocation = (Parent, PalletInstance(42), GeneralIndex(69)).into();
-		let context = X1(PalletInstance(42));
+		let context = [PalletInstance(42)].into();
 		let expected = GeneralIndex(69).into();
 		location.simplify(&context);
 		assert_eq!(location, expected);
 
 		let mut location: MultiLocation = (Parent, PalletInstance(42), GeneralIndex(69)).into();
-		let context = X2(Parachain(1000), PalletInstance(42));
+		let context = [Parachain(1000), PalletInstance(42)].into();
 		let expected = GeneralIndex(69).into();
 		location.simplify(&context);
 		assert_eq!(location, expected);
 
 		let mut location: MultiLocation =
 			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
-		let context = X3(OnlyChild, Parachain(1000), PalletInstance(42));
+		let context = [OnlyChild, Parachain(1000), PalletInstance(42)].into();
 		let expected = GeneralIndex(69).into();
 		location.simplify(&context);
 		assert_eq!(location, expected);
@@ -544,7 +559,7 @@ mod tests {
 	fn simplify_incompatible_location_fails() {
 		let mut location: MultiLocation =
 			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
-		let context = X3(Parachain(1000), PalletInstance(42), GeneralIndex(42));
+		let context = [Parachain(1000), PalletInstance(42), GeneralIndex(42)].into();
 		let expected =
 			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
 		location.simplify(&context);
@@ -552,7 +567,7 @@ mod tests {
 
 		let mut location: MultiLocation =
 			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
-		let context = X1(Parachain(1000));
+		let context = [Parachain(1000)].into();
 		let expected =
 			(Parent, Parent, Parachain(1000), PalletInstance(42), GeneralIndex(69)).into();
 		location.simplify(&context);
@@ -565,7 +580,7 @@ mod tests {
 		let context = Parachain(2000).into();
 		let target = (Parent, Parachain(1000)).into();
 		let expected = GeneralIndex(42).into();
-		id.reanchor(&target, context).unwrap();
+		id.reanchor(&target, &context).unwrap();
 		assert_eq!(id, expected);
 	}
 
@@ -573,7 +588,7 @@ mod tests {
 	fn encode_and_decode_works() {
 		let m = MultiLocation {
 			parents: 1,
-			interior: X2(Parachain(42), AccountIndex64 { network: None, index: 23 }),
+			interior: [Parachain(42), AccountIndex64 { network: None, index: 23 }].into(),
 		};
 		let encoded = m.encode();
 		assert_eq!(encoded, [1, 2, 0, 168, 2, 0, 92].to_vec());
@@ -585,11 +600,11 @@ mod tests {
 	fn match_and_split_works() {
 		let m = MultiLocation {
 			parents: 1,
-			interior: X2(Parachain(42), AccountIndex64 { network: None, index: 23 }),
+			interior: [Parachain(42), AccountIndex64 { network: None, index: 23 }].into(),
 		};
 		assert_eq!(m.match_and_split(&MultiLocation { parents: 1, interior: Here }), None);
 		assert_eq!(
-			m.match_and_split(&MultiLocation { parents: 1, interior: X1(Parachain(42)) }),
+			m.match_and_split(&MultiLocation { parents: 1, interior: [Parachain(42)].into() }),
 			Some(&AccountIndex64 { network: None, index: 23 })
 		);
 		assert_eq!(m.match_and_split(&m), None);
@@ -598,51 +613,54 @@ mod tests {
 	#[test]
 	fn append_with_works() {
 		let acc = AccountIndex64 { network: None, index: 23 };
-		let mut m = MultiLocation { parents: 1, interior: X1(Parachain(42)) };
-		assert_eq!(m.append_with(X2(PalletInstance(3), acc)), Ok(()));
+		let mut m = MultiLocation { parents: 1, interior: [Parachain(42)].into() };
+		assert_eq!(m.append_with([PalletInstance(3), acc]), Ok(()));
 		assert_eq!(
 			m,
-			MultiLocation { parents: 1, interior: X3(Parachain(42), PalletInstance(3), acc) }
+			MultiLocation { parents: 1, interior: [Parachain(42), PalletInstance(3), acc].into() }
 		);
 
 		// cannot append to create overly long multilocation
 		let acc = AccountIndex64 { network: None, index: 23 };
 		let m = MultiLocation {
 			parents: 254,
-			interior: X5(Parachain(42), OnlyChild, OnlyChild, OnlyChild, OnlyChild),
+			interior: [Parachain(42), OnlyChild, OnlyChild, OnlyChild, OnlyChild].into(),
 		};
 		let suffix: MultiLocation = (PalletInstance(3), acc, OnlyChild, OnlyChild).into();
-		assert_eq!(m.clone().append_with(suffix), Err(suffix));
+		assert_eq!(m.clone().append_with(suffix.clone()), Err(suffix));
 	}
 
 	#[test]
 	fn prepend_with_works() {
 		let mut m = MultiLocation {
 			parents: 1,
-			interior: X2(Parachain(42), AccountIndex64 { network: None, index: 23 }),
+			interior: [Parachain(42), AccountIndex64 { network: None, index: 23 }].into(),
 		};
-		assert_eq!(m.prepend_with(MultiLocation { parents: 1, interior: X1(OnlyChild) }), Ok(()));
+		assert_eq!(
+			m.prepend_with(MultiLocation { parents: 1, interior: [OnlyChild].into() }),
+			Ok(())
+		);
 		assert_eq!(
 			m,
 			MultiLocation {
 				parents: 1,
-				interior: X2(Parachain(42), AccountIndex64 { network: None, index: 23 })
+				interior: [Parachain(42), AccountIndex64 { network: None, index: 23 }].into()
 			}
 		);
 
 		// cannot prepend to create overly long multilocation
-		let mut m = MultiLocation { parents: 254, interior: X1(Parachain(42)) };
+		let mut m = MultiLocation { parents: 254, interior: [Parachain(42)].into() };
 		let prefix = MultiLocation { parents: 2, interior: Here };
-		assert_eq!(m.prepend_with(prefix), Err(prefix));
+		assert_eq!(m.prepend_with(prefix.clone()), Err(prefix));
 
 		let prefix = MultiLocation { parents: 1, interior: Here };
 		assert_eq!(m.prepend_with(prefix), Ok(()));
-		assert_eq!(m, MultiLocation { parents: 255, interior: X1(Parachain(42)) });
+		assert_eq!(m, MultiLocation { parents: 255, interior: [Parachain(42)].into() });
 	}
 
 	#[test]
 	fn double_ended_ref_iteration_works() {
-		let m = X3(Parachain(1000), Parachain(3), PalletInstance(5));
+		let m: Junctions = [Parachain(1000), Parachain(3), PalletInstance(5)].into();
 		let mut iter = m.iter();
 
 		let first = iter.next().unwrap();
@@ -680,17 +698,17 @@ mod tests {
 
 		takes_multilocation(Parent);
 		takes_multilocation(Here);
-		takes_multilocation(X1(Parachain(42)));
+		takes_multilocation([Parachain(42)]);
 		takes_multilocation((Ancestor(255), PalletInstance(8)));
 		takes_multilocation((Ancestor(5), Parachain(1), PalletInstance(3)));
 		takes_multilocation((Ancestor(2), Here));
 		takes_multilocation(AncestorThen(
 			3,
-			X2(Parachain(43), AccountIndex64 { network: None, index: 155 }),
+			[Parachain(43), AccountIndex64 { network: None, index: 155 }],
 		));
 		takes_multilocation((Parent, AccountId32 { network: None, id: [0; 32] }));
 		takes_multilocation((Parent, Here));
-		takes_multilocation(ParentThen(X1(Parachain(75))));
+		takes_multilocation(ParentThen([Parachain(75)].into()));
 		takes_multilocation([Parachain(100), PalletInstance(3)]);
 
 		assert_eq!(
@@ -701,7 +719,7 @@ mod tests {
 		assert_eq!(
 			v2::MultiLocation::from((v2::Parent, v2::Parent, v2::Junction::GeneralIndex(42u128),))
 				.try_into(),
-			Ok(MultiLocation { parents: 2, interior: X1(GeneralIndex(42u128)) }),
+			Ok(MultiLocation { parents: 2, interior: [GeneralIndex(42u128)].into() }),
 		);
 	}
 }

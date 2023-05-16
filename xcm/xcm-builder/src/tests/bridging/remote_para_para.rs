@@ -21,9 +21,9 @@
 use super::*;
 
 parameter_types! {
-	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(1000));
-	pub ParaBridgeUniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(1));
-	pub RemoteParaBridgeUniversalLocation: Junctions = X2(GlobalConsensus(Remote::get()), Parachain(1));
+	pub UniversalLocation: Junctions = [GlobalConsensus(Local::get()), Parachain(1000)].into();
+	pub ParaBridgeUniversalLocation: Junctions = [GlobalConsensus(Local::get()), Parachain(1)].into();
+	pub RemoteParaBridgeUniversalLocation: Junctions = [GlobalConsensus(Remote::get()), Parachain(1)].into();
 	pub BridgeTable: Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>
 		= vec![(Remote::get(), (Parent, Parachain(1)).into(), None)];
 }

@@ -24,9 +24,9 @@
 use super::*;
 
 parameter_types! {
-	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(100));
-	pub RelayUniversalLocation: Junctions = X1(GlobalConsensus(Local::get()));
-	pub RemoteUniversalLocation: Junctions = X1(GlobalConsensus(Remote::get()));
+	pub UniversalLocation: Junctions = [GlobalConsensus(Local::get()), Parachain(100)].into();
+	pub RelayUniversalLocation: Junctions = [GlobalConsensus(Local::get())].into();
+	pub RemoteUniversalLocation: Junctions = [GlobalConsensus(Remote::get())].into();
 	pub static BridgeTable: Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>
 		= vec![(Remote::get(), MultiLocation::parent(), Some((Parent, 200u128).into()))];
 	// ^^^ 100 to use the bridge (export) and 100 for the remote execution weight (5 instructions
