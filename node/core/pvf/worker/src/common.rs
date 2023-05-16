@@ -155,8 +155,7 @@ fn kill_parent_node_in_emergency() {
 
 /// Functionality related to threads spawned by the workers.
 ///
-/// The motivation for this module is to coordinate worker threads without using async Rust. This
-/// lets us pull in less dependencies, making the worker binaries smaller and easier to secure.
+/// The motivation for this module is to coordinate worker threads without using async Rust.
 pub mod thread {
 	use std::{
 		panic,
@@ -168,8 +167,8 @@ pub mod thread {
 	/// Contains the outcome of waiting on threads, or `Pending` if none are ready.
 	#[derive(Clone, Copy)]
 	pub enum WaitOutcome {
-		JobFinished,
-		CpuTimedOut,
+		Finished,
+		TimedOut,
 		Pending,
 	}
 
@@ -242,9 +241,7 @@ pub mod thread {
 	/// Helper function to notify all threads waiting on this condvar.
 	fn cond_notify_all(cond: Cond, outcome: WaitOutcome) {
 		let (lock, cvar) = &*cond;
-		let mut flag = lock
-			.lock()
-			.expect("only panics if the lock is already held by the current thread; qed");
+		let mut flag = lock.lock().unwrap();
 		if !flag.is_pending() {
 			// Someone else already triggered the condvar.
 			return
@@ -256,32 +253,17 @@ pub mod thread {
 	/// Block the thread while it waits on the condvar.
 	pub fn wait_for_threads(cond: Cond) -> WaitOutcome {
 		let (lock, cvar) = &*cond;
-		let guard = cvar
-			.wait_while(
-				lock.lock()
-					.expect("only panics if the lock is already held by the current thread; qed"),
-				|flag| flag.is_pending(),
-			)
-			.unwrap();
+		let guard = cvar.wait_while(lock.lock().unwrap(), |flag| flag.is_pending()).unwrap();
 		*guard
 	}
 
 	/// Block the thread while it waits on the condvar or on a timeout. If the timeout is hit,
-	/// returns `None`. The signature is different than [`wait_for_threads`] because this is
-	/// expected to be called in a loop, where we can't take ownership of a `Cond`.
+	/// returns `None`.
 	#[cfg_attr(not(any(target_os = "linux", feature = "jemalloc-allocator")), allow(dead_code))]
-	pub fn wait_for_threads_with_timeout(
-		lock: &Mutex<WaitOutcome>,
-		cvar: &Condvar,
-		dur: Duration,
-	) -> Option<WaitOutcome> {
+	pub fn wait_for_threads_with_timeout(cond: &Cond, dur: Duration) -> Option<WaitOutcome> {
+		let (lock, cvar) = &**cond;
 		let result = cvar
-			.wait_timeout_while(
-				lock.lock()
-					.expect("only panics if the lock is already held by the current thread; qed"),
-				dur,
-				|flag| flag.is_pending(),
-			)
+			.wait_timeout_while(lock.lock().unwrap(), dur, |flag| flag.is_pending())
 			.unwrap();
 		if result.1.timed_out() {
 			None

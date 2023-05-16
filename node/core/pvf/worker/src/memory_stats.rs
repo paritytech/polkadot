@@ -104,7 +104,6 @@ pub mod memory_tracker {
 			Ok(())
 		};
 
-		let (lock, cvar) = &*condvar;
 		loop {
 			// Take a snapshot and update the max stats.
 			update_stats()?;
@@ -112,7 +111,7 @@ pub mod memory_tracker {
 			// Sleep for the poll interval, or wake up if the condvar is triggered. Note that
 			// `wait_timeout_while` is documented as not being very precise or reliable, which is
 			// fine here -- see note above.
-			match thread::wait_for_threads_with_timeout(lock, cvar, POLL_INTERVAL) {
+			match thread::wait_for_threads_with_timeout(&condvar, POLL_INTERVAL) {
 				Some(_outcome) => {
 					update_stats()?;
 					return Ok(max_stats)
@@ -127,7 +126,6 @@ pub mod memory_tracker {
 		thread: JoinHandle<Result<MemoryAllocationStats, String>>,
 		worker_pid: u32,
 	) -> Option<MemoryAllocationStats> {
-		// Join on the thread handle.
 		match thread.join() {
 			Ok(Ok(stats)) => Some(stats),
 			Ok(Err(err)) => {
