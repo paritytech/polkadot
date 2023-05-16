@@ -482,16 +482,16 @@ impl<T: Config> Pallet<T> {
 		for _ in <PendingAvailability<T>>::drain() {}
 		for _ in <AvailabilityBitfields<T>>::drain() {}
 
-		Self::cleanup_outgoing_dmp_dispatch_queues(outgoing_paras);
+		Self::cleanup_outgoing_ump_dispatch_queues(outgoing_paras);
 	}
 
-	pub(crate) fn cleanup_outgoing_dmp_dispatch_queues(outgoing: &[ParaId]) {
+	pub(crate) fn cleanup_outgoing_ump_dispatch_queues(outgoing: &[ParaId]) {
 		for outgoing_para in outgoing {
-			Self::cleanup_outgoing_dmp_dispatch_queue(*outgoing_para);
+			Self::cleanup_outgoing_ump_dispatch_queue(*outgoing_para);
 		}
 	}
 
-	pub(crate) fn cleanup_outgoing_dmp_dispatch_queue(para: ParaId) {
+	pub(crate) fn cleanup_outgoing_ump_dispatch_queue(para: ParaId) {
 		T::MessageQueue::sweep_queue(AggregateMessageOrigin::Ump(UmpQueueId::Para(para)));
 	}
 
