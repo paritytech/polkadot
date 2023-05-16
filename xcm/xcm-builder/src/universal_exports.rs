@@ -231,7 +231,15 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 }
 
 pub trait DispatchBlob {
-	/// Dispatches an incoming blob and returns the unexpectable weight consumed by the dispatch.
+	/// Takes an incoming blob from over some point-to-point link (usually from some sort of
+	/// inter-consensus bridge) and then does what needs to be done with it. Usually this means
+	/// forwarding it on into some other location sharing our consensus or possibly just enqueuing
+	/// it for execution locally if it is destined for the local chain.
+	///
+	/// NOTE: The API does not provide for any kind of weight or fee management; the size of the
+	/// `blob` is known to the caller and so the operation must have a linear weight relative to
+	/// `blob`'s length. This means that you will generally only want to **enqueue** the blob, not
+	/// enact it. Fees must be handled by the caller.
 	fn dispatch_blob(blob: Vec<u8>) -> Result<(), DispatchBlobError>;
 }
 
