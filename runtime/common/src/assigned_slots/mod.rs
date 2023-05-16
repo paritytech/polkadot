@@ -149,12 +149,10 @@ pub mod pallet {
 
 	/// Assigned max temporary slots storage.
 	#[pallet::storage]
-	#[pallet::getter(fn max_temporary_slots)]
 	pub type MaxTemporarySlots<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	/// Assigned max permanent slots storage.
 	#[pallet::storage]
-	#[pallet::getter(fn max_permanent_slots)]
 	pub type MaxPermanentSlots<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::event]
@@ -1388,14 +1386,14 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_eq!(AssignedSlots::max_permanent_slots(), 2);
+			assert_eq!(MaxPermanentSlots::<Test>::get(), 2);
 			assert_ok!(
 				AssignedSlots::set_max_permanent_slots(
 					RuntimeOrigin::root(),
 					10
 				),
 			);
-			assert_eq!(AssignedSlots::max_permanent_slots(), 10);
+			assert_eq!(MaxPermanentSlots::<Test>::get(), 10);
 		});
 	}
 
@@ -1418,14 +1416,14 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_eq!(AssignedSlots::max_temporary_slots(), 6);
+			assert_eq!(MaxTemporarySlots::<Test>::get(), 6);
 			assert_ok!(
 				AssignedSlots::set_max_temporary_slots(
 					RuntimeOrigin::root(),
 					12
 				),
 			);
-			assert_eq!(AssignedSlots::max_temporary_slots(), 12);
+			assert_eq!(MaxTemporarySlots::<Test>::get(), 12);
 		});
 	}
 }
