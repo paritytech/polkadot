@@ -34,7 +34,7 @@ use polkadot_primitives::{ExecutorParams, ExecutorParamsHash};
 use slotmap::HopSlotMap;
 use std::{
 	collections::VecDeque,
-	fmt,
+	fmt, mem,
 	path::PathBuf,
 	time::{Duration, Instant},
 };
@@ -72,10 +72,46 @@ struct ExecuteJob {
 	waiting_since: Instant,
 }
 
+enum WorkerState {
+	Idle(IdleWorker),
+	Assigned(ExecuteJob),
+	Busy,
+}
+
 struct WorkerData {
-	idle: Option<IdleWorker>,
+	state: WorkerState,
 	handle: WorkerHandle,
 	executor_params_hash: ExecutorParamsHash,
+}
+
+impl WorkerData {
+	/// Assigns a job to the worker. Returns the idle worker token. An attempt to assign a job to
+	/// a worker already busy with another job means there's a critical bug in code and shall
+	/// result in a panic.
+	fn assign(&mut self, job: ExecuteJob) -> IdleWorker {
+		debug_assert_eq!(self.executor_params_hash, job.executor_params.hash());
+		match mem::replace(&mut self.state, WorkerState::Assigned(job)) {
+			WorkerState::Idle(idle) => idle,
+			_ => unreachable!("Tried to assign a job to already busy worker"),
+		}
+	}
+
+	/// Runs the assigned job. Returns job data to pass to the worker.
+	fn run(&mut self) -> ExecuteJob {
+		match mem::replace(&mut self.state, WorkerState::Busy) {
+			WorkerState::Assigned(job) => job,
+			_ => unreachable!("Tried to run a job that hasn't been assigned"),
+		}
+	}
+
+	/// Idles the worker. An attempt to idle an already idle worker means there's a critical bug
+	/// in code and shall result in a panic.
+	fn idle(&mut self, idle: IdleWorker) {
+		match mem::replace(&mut self.state, WorkerState::Idle(idle)) {
+			WorkerState::Busy => (),
+			_ => unreachable!("Tried to idle an already idle worker"),
+		}
+	}
 }
 
 impl fmt::Debug for WorkerData {
@@ -102,7 +138,9 @@ impl Workers {
 
 	fn find_available(&self, executor_params_hash: ExecutorParamsHash) -> Option<Worker> {
 		self.running.iter().find_map(|d| {
-			if d.1.idle.is_some() && d.1.executor_params_hash == executor_params_hash {
+			if matches!(d.1.state, WorkerState::Idle(_)) &&
+				d.1.executor_params_hash == executor_params_hash
+			{
 				Some(d.0)
 			} else {
 				None
@@ -111,16 +149,13 @@ impl Workers {
 	}
 
 	fn find_idle(&self) -> Option<Worker> {
-		self.running
-			.iter()
-			.find_map(|d| if d.1.idle.is_some() { Some(d.0) } else { None })
-	}
-
-	/// Find the associated data by the worker token and extract it's [`IdleWorker`] token.
-	///
-	/// Returns `None` if either worker is not recognized or idle token is absent.
-	fn claim_idle(&mut self, worker: Worker) -> Option<IdleWorker> {
-		self.running.get_mut(worker)?.idle.take()
+		self.running.iter().find_map(|d| {
+			if matches!(d.1.state, WorkerState::Idle(_)) {
+				Some(d.0)
+			} else {
+				None
+			}
+		})
 	}
 }
 
@@ -174,15 +209,30 @@ impl Queue {
 			futures::select! {
 				to_queue = self.to_queue_rx.next() => {
 					if let Some(to_queue) = to_queue {
-						handle_to_queue(&mut self, to_queue);
+						self.handle_to_queue(to_queue);
 					} else {
 						break;
 					}
 				}
-				ev = self.mux.select_next_some() => handle_mux(&mut self, ev).await,
+				ev = self.mux.select_next_some() => self.handle_mux(ev).await,
 			}
 
-			purge_dead(&self.metrics, &mut self.workers).await;
+			self.purge_dead().await;
+		}
+	}
+
+	async fn purge_dead(&mut self) {
+		let mut to_remove = vec![];
+		for (worker, data) in self.workers.running.iter_mut() {
+			if futures::poll!(&mut data.handle).is_ready() {
+				// a resolved future means that the worker has terminated. Weed it out.
+				to_remove.push(worker);
+			}
+		}
+		for w in to_remove {
+			if self.workers.running.remove(w).is_some() {
+				self.metrics.execute_worker().on_retired();
+			}
 		}
 	}
 
@@ -240,166 +290,182 @@ impl Queue {
 		let job = self.queue.remove(job_index).expect("Job is just checked to be in queue; qed");
 
 		if let Some(worker) = worker {
-			assign(self, worker, job);
+			self.assign(worker, job);
 		} else {
-			spawn_extra_worker(self, job);
+			self.spawn_extra_worker(job);
 		}
 	}
-}
 
-async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
-	let mut to_remove = vec![];
-	for (worker, data) in workers.running.iter_mut() {
-		if futures::poll!(&mut data.handle).is_ready() {
-			// a resolved future means that the worker has terminated. Weed it out.
-			to_remove.push(worker);
-		}
-	}
-	for w in to_remove {
-		if workers.running.remove(w).is_some() {
-			metrics.execute_worker().on_retired();
-		}
-	}
-}
-
-fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
-	let ToQueue::Enqueue { artifact, pending_execution_request } = to_queue;
-	let PendingExecutionRequest { exec_timeout, params, executor_params, result_tx } =
-		pending_execution_request;
-	gum::debug!(
-		target: LOG_TARGET,
-		validation_code_hash = ?artifact.id.code_hash,
-		"enqueueing an artifact for execution",
-	);
-	queue.metrics.execute_enqueued();
-	let job = ExecuteJob {
-		artifact,
-		exec_timeout,
-		params,
-		executor_params,
-		result_tx,
-		waiting_since: Instant::now(),
-	};
-	queue.queue.push_back(job);
-	queue.try_assign_next_job(None);
-}
-
-async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
-	match event {
-		QueueEvent::Spawn(idle, handle, job) => {
-			handle_worker_spawned(queue, idle, handle, job);
-		},
-		QueueEvent::StartWork(worker, outcome, artifact_id, result_tx) => {
-			handle_job_finish(queue, worker, outcome, artifact_id, result_tx);
-		},
-	}
-}
-
-fn handle_worker_spawned(
-	queue: &mut Queue,
-	idle: IdleWorker,
-	handle: WorkerHandle,
-	job: ExecuteJob,
-) {
-	queue.metrics.execute_worker().on_spawned();
-	queue.workers.spawn_inflight -= 1;
-	let worker = queue.workers.running.insert(WorkerData {
-		idle: Some(idle),
-		handle,
-		executor_params_hash: job.executor_params.hash(),
-	});
-
-	gum::debug!(target: LOG_TARGET, ?worker, "execute worker spawned");
-
-	assign(queue, worker, job);
-}
-
-/// If there are pending jobs in the queue, schedules the next of them onto the just freed up
-/// worker. Otherwise, puts back into the available workers list.
-fn handle_job_finish(
-	queue: &mut Queue,
-	worker: Worker,
-	outcome: Outcome,
-	artifact_id: ArtifactId,
-	result_tx: ResultSender,
-) {
-	let (idle_worker, result, duration) = match outcome {
-		Outcome::Ok { result_descriptor, duration, idle_worker } => {
-			// TODO: propagate the soft timeout
-
-			(Some(idle_worker), Ok(result_descriptor), Some(duration))
-		},
-		Outcome::InvalidCandidate { err, idle_worker } => (
-			Some(idle_worker),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(err))),
-			None,
-		),
-		Outcome::InternalError { err, idle_worker } =>
-			(Some(idle_worker), Err(ValidationError::InternalError(err)), None),
-		Outcome::HardTimeout =>
-			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)), None),
-		Outcome::IoErr => (
-			None,
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)),
-			None,
-		),
-	};
-
-	queue.metrics.execute_finished();
-	if let Err(ref err) = result {
-		gum::warn!(
-			target: LOG_TARGET,
-			?artifact_id,
-			?worker,
-			worker_rip = idle_worker.is_none(),
-			"execution worker concluded, error occurred: {:?}",
-			err
-		);
-	} else {
+	fn handle_to_queue(&mut self, to_queue: ToQueue) {
+		let ToQueue::Enqueue { artifact, pending_execution_request } = to_queue;
+		let PendingExecutionRequest { exec_timeout, params, executor_params, result_tx } =
+			pending_execution_request;
 		gum::debug!(
 			target: LOG_TARGET,
-			?artifact_id,
+			validation_code_hash = ?artifact.id.code_hash,
+			"enqueueing an artifact for execution",
+		);
+		self.metrics.execute_enqueued();
+		let job = ExecuteJob {
+			artifact,
+			exec_timeout,
+			params,
+			executor_params,
+			result_tx,
+			waiting_since: Instant::now(),
+		};
+		self.queue.push_back(job);
+		self.try_assign_next_job(None);
+	}
+
+	async fn handle_mux(&mut self, event: QueueEvent) {
+		match event {
+			QueueEvent::Spawn(idle, handle, job) => {
+				self.handle_worker_spawned(idle, handle, job);
+			},
+			QueueEvent::StartWork(worker, outcome, artifact_id, result_tx) => {
+				self.handle_job_finish(worker, outcome, artifact_id, result_tx);
+			},
+		}
+	}
+
+	fn handle_worker_spawned(&mut self, idle: IdleWorker, handle: WorkerHandle, job: ExecuteJob) {
+		self.metrics.execute_worker().on_spawned();
+		self.workers.spawn_inflight -= 1;
+		let worker = self.workers.running.insert(WorkerData {
+			state: WorkerState::Idle(idle),
+			handle,
+			executor_params_hash: job.executor_params.hash(),
+		});
+
+		gum::debug!(target: LOG_TARGET, ?worker, "execute worker spawned");
+
+		self.assign(worker, job);
+	}
+
+	/// If there are pending jobs in the queue, schedules the next of them onto the just freed up
+	/// worker. Otherwise, puts back into the available workers list.
+	fn handle_job_finish(
+		&mut self,
+		worker: Worker,
+		outcome: Outcome,
+		artifact_id: ArtifactId,
+		result_tx: ResultSender,
+	) {
+		let (idle_worker, result, duration) = match outcome {
+			Outcome::Ok { result_descriptor, duration, idle_worker } => {
+				// TODO: propagate the soft timeout
+
+				(Some(idle_worker), Ok(result_descriptor), Some(duration))
+			},
+			Outcome::InvalidCandidate { err, idle_worker } => (
+				Some(idle_worker),
+				Err(ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(err))),
+				None,
+			),
+			Outcome::InternalError { err, idle_worker } =>
+				(Some(idle_worker), Err(ValidationError::InternalError(err)), None),
+			Outcome::HardTimeout =>
+				(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)), None),
+			Outcome::IoErr => (
+				None,
+				Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)),
+				None,
+			),
+		};
+
+		self.metrics.execute_finished();
+		if let Err(ref err) = result {
+			gum::warn!(
+				target: LOG_TARGET,
+				?artifact_id,
+				?worker,
+				worker_rip = idle_worker.is_none(),
+				"execution worker concluded, error occurred: {:?}",
+				err
+			);
+		} else {
+			gum::debug!(
+				target: LOG_TARGET,
+				?artifact_id,
+				?worker,
+				worker_rip = idle_worker.is_none(),
+				?duration,
+				"execute worker concluded successfully",
+			);
+		}
+
+		// First we send the result. It may fail due to the other end of the channel being dropped,
+		// that's legitimate and we don't treat that as an error.
+		let _ = result_tx.send(result);
+
+		// Then, we should deal with the worker:
+		//
+		// - if the `idle_worker` token was returned we should either schedule the next task or just put
+		//   it back so that the next incoming job will be able to claim it
+		//
+		// - if the `idle_worker` token was consumed, all the metadata pertaining to that worker should
+		//   be removed.
+		if let Some(idle_worker) = idle_worker {
+			if let Some(data) = self.workers.running.get_mut(worker) {
+				data.idle(idle_worker);
+				return self.try_assign_next_job(Some(worker))
+			}
+		} else {
+			// Note it's possible that the worker was purged already by `purge_dead`
+			if self.workers.running.remove(worker).is_some() {
+				self.metrics.execute_worker().on_retired();
+			}
+		}
+
+		self.try_assign_next_job(None);
+	}
+
+	fn spawn_extra_worker(&mut self, job: ExecuteJob) {
+		self.metrics.execute_worker().on_begin_spawn();
+		gum::debug!(target: LOG_TARGET, "spawning an extra worker");
+
+		self.mux
+			.push(spawn_worker_task(self.program_path.clone(), job, self.spawn_timeout).boxed());
+		self.workers.spawn_inflight += 1;
+	}
+
+	/// Ask the given worker to perform the given job.
+	///
+	/// The worker must be running and idle. The job and the worker must share the same execution
+	/// environment parameter set.
+	fn assign(&mut self, worker: Worker, job: ExecuteJob) {
+		gum::debug!(
+			target: LOG_TARGET,
+			validation_code_hash = ?job.artifact.id,
 			?worker,
-			worker_rip = idle_worker.is_none(),
-			?duration,
-			"execute worker concluded successfully",
+			"assigning the execute worker",
+		);
+
+		let wrkr = self
+			.workers
+			.running
+			.get_mut(worker)
+			.expect("The caller must supply a worker that is idle and running; qed");
+		let idle = wrkr.assign(job);
+		let job = wrkr.run();
+
+		let execution_timer = self.metrics.time_execution();
+		self.mux.push(
+			async move {
+				let _timer = execution_timer;
+				let outcome = super::worker_intf::start_work(
+					idle,
+					&job.artifact,
+					job.exec_timeout,
+					&job.params,
+				)
+				.await;
+				QueueEvent::StartWork(worker, outcome, job.artifact.id, job.result_tx)
+			}
+			.boxed(),
 		);
 	}
-
-	// First we send the result. It may fail due to the other end of the channel being dropped,
-	// that's legitimate and we don't treat that as an error.
-	let _ = result_tx.send(result);
-
-	// Then, we should deal with the worker:
-	//
-	// - if the `idle_worker` token was returned we should either schedule the next task or just put
-	//   it back so that the next incoming job will be able to claim it
-	//
-	// - if the `idle_worker` token was consumed, all the metadata pertaining to that worker should
-	//   be removed.
-	if let Some(idle_worker) = idle_worker {
-		if let Some(data) = queue.workers.running.get_mut(worker) {
-			data.idle = Some(idle_worker);
-			return queue.try_assign_next_job(Some(worker))
-		}
-	} else {
-		// Note it's possible that the worker was purged already by `purge_dead`
-		if queue.workers.running.remove(worker).is_some() {
-			queue.metrics.execute_worker().on_retired();
-		}
-	}
-
-	queue.try_assign_next_job(None);
-}
-
-fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
-	queue.metrics.execute_worker().on_begin_spawn();
-	gum::debug!(target: LOG_TARGET, "spawning an extra worker");
-
-	queue
-		.mux
-		.push(spawn_worker_task(queue.program_path.clone(), job, queue.spawn_timeout).boxed());
-	queue.workers.spawn_inflight += 1;
 }
 
 /// Spawns a new worker to execute a pre-assigned job.
@@ -407,7 +473,8 @@ fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
 /// beforehand. In such a way, a race condition is avoided: during the worker being spawned,
 /// another job in the queue, with an incompatible execution environment, may become stale, and
 /// the queue would have to kill a newly started worker and spawn another one.
-/// Nevertheless, if the worker finishes executing the job, it becomes idle and may be used to execute other jobs with a compatible execution environment.
+/// Nevertheless, if the worker finishes executing the job, it becomes idle and may be used to
+/// execute other jobs with a compatible execution environment.
 async fn spawn_worker_task(
 	program_path: PathBuf,
 	job: ExecuteJob,
@@ -428,50 +495,6 @@ async fn spawn_worker_task(
 			},
 		}
 	}
-}
-
-/// Ask the given worker to perform the given job.
-///
-/// The worker must be running and idle. The job and the worker must share the same execution
-/// environment parameter set.
-fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
-	gum::debug!(
-		target: LOG_TARGET,
-		validation_code_hash = ?job.artifact.id,
-		?worker,
-		"assigning the execute worker",
-	);
-
-	debug_assert_eq!(
-		queue
-			.workers
-			.running
-			.get(worker)
-			.expect("caller must provide existing worker; qed")
-			.executor_params_hash,
-		job.executor_params.hash()
-	);
-
-	let idle = queue.workers.claim_idle(worker).expect(
-		"this caller must supply a worker which is idle and running;
-			thus claim_idle cannot return None;
-			qed.",
-	);
-	let execution_timer = queue.metrics.time_execution();
-	queue.mux.push(
-		async move {
-			let _timer = execution_timer;
-			let outcome = super::worker_intf::start_work(
-				idle,
-				job.artifact.clone(),
-				job.exec_timeout,
-				job.params,
-			)
-			.await;
-			QueueEvent::StartWork(worker, outcome, job.artifact.id, job.result_tx)
-		}
-		.boxed(),
-	);
 }
 
 pub fn start(

@@ -87,9 +87,9 @@ pub enum Outcome {
 /// NOTE: Returning the `HardTimeout` or `IoErr` errors will trigger the child process being killed.
 pub async fn start_work(
 	worker: IdleWorker,
-	artifact: ArtifactPathId,
+	artifact: &ArtifactPathId,
 	execution_timeout: Duration,
-	validation_params: Vec<u8>,
+	validation_params: &Vec<u8>,
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
