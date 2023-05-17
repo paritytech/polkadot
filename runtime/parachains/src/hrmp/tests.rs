@@ -23,7 +23,7 @@ use crate::{
 	paras::ParaKind,
 };
 use frame_support::{assert_noop, assert_ok, traits::Currency as _};
-use primitives::BlockNumber;
+use primitives::{BlockNumber, ValidationCode};
 use std::collections::BTreeMap;
 
 fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
@@ -130,14 +130,17 @@ fn default_genesis_config() -> MockGenesisConfig {
 }
 
 fn register_parachain_with_balance(id: ParaId, balance: Balance) {
+	let validation_code: ValidationCode = vec![1].into();
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		crate::paras::ParaGenesisArgs {
 			para_kind: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
-			validation_code: vec![1].into(),
+			validation_code: validation_code.clone(),
 		},
 	));
+
+	assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), validation_code));
 	<Test as Config>::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
 }
 
@@ -654,6 +657,51 @@ fn cancel_pending_open_channel_request() {
 
 		run_to_block(10, Some(vec![10]));
 		assert!(!channel_exists(para_a, para_b));
+		Hrmp::assert_storage_consistency_exhaustive();
+	});
+}
+
+#[test]
+fn watermark_maxed_out_at_relay_parent() {
+	let para_a = 32.into();
+	let para_b = 64.into();
+
+	let mut genesis = GenesisConfigBuilder::default();
+	genesis.hrmp_channel_max_message_size = 20;
+	genesis.hrmp_channel_max_total_size = 20;
+	new_test_ext(genesis.build()).execute_with(|| {
+		register_parachain(para_a);
+		register_parachain(para_b);
+
+		run_to_block(5, Some(vec![4, 5]));
+		Hrmp::init_open_channel(para_a, para_b, 2, 20).unwrap();
+		Hrmp::accept_open_channel(para_b, para_a).unwrap();
+
+		// On Block 6:
+		// A sends a message to B
+		run_to_block(6, Some(vec![6]));
+		assert!(channel_exists(para_a, para_b));
+		let msgs: HorizontalMessages =
+			vec![OutboundHrmpMessage { recipient: para_b, data: b"this is an emergency".to_vec() }]
+				.try_into()
+				.unwrap();
+		let config = Configuration::config();
+		assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
+		let _ = Hrmp::queue_outbound_hrmp(para_a, msgs);
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// On block 8:
+		// B receives the message sent by A. B sets the watermark to 7.
+		run_to_block(8, None);
+		assert!(Hrmp::check_hrmp_watermark(para_b, 7, 7).is_ok());
+		let _ = Hrmp::prune_hrmp(para_b, 7);
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// On block 9:
+		// B includes a candidate with the same relay parent as before.
+		run_to_block(9, None);
+		assert!(Hrmp::check_hrmp_watermark(para_b, 7, 7).is_ok());
+		let _ = Hrmp::prune_hrmp(para_b, 7);
 		Hrmp::assert_storage_consistency_exhaustive();
 	});
 }

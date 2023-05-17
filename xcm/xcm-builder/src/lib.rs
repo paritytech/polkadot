@@ -29,7 +29,7 @@ pub mod test_utils;
 mod location_conversion;
 pub use location_conversion::{
 	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
-	ParentIsPreset, SiblingParachainConvertsVia,
+	GlobalConsensusParachainConvertsFor, ParentIsPreset, SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;
@@ -51,7 +51,7 @@ mod barriers;
 pub use barriers::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, IsChildSystemParachain,
-	TakeWeightCredit, WithComputedOrigin,
+	RespectSuspension, TakeWeightCredit, WithComputedOrigin,
 };
 
 mod currency_adapter;
@@ -76,12 +76,15 @@ pub use weight::{
 mod matches_token;
 pub use matches_token::{IsAbstract, IsConcrete};
 
+mod matcher;
+pub use matcher::{CreateMatcher, MatchXcm, Matcher};
+
 mod filter_asset_location;
 pub use filter_asset_location::{Case, NativeAsset};
 
 mod universal_exports;
 pub use universal_exports::{
-	BridgeBlobDispatcher, BridgeMessage, DispatchBlob, DispatchBlobError, ExporterFor, HaulBlob,
-	HaulBlobError, HaulBlobExporter, NetworkExportTable, SovereignPaidRemoteExporter,
-	UnpaidLocalExporter, UnpaidRemoteExporter,
+	ensure_is_remote, BridgeBlobDispatcher, BridgeMessage, DispatchBlob, DispatchBlobError,
+	ExporterFor, HaulBlob, HaulBlobError, HaulBlobExporter, NetworkExportTable,
+	SovereignPaidRemoteExporter, UnpaidLocalExporter, UnpaidRemoteExporter,
 };

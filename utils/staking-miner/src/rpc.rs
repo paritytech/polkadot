@@ -103,9 +103,11 @@ pub trait RpcApi {
 	fn subscribe_finalized_heads(&self);
 }
 
+type Uri = String;
+
 /// Wraps a shared web-socket JSON-RPC client that can be cloned.
 #[derive(Clone, Debug)]
-pub(crate) struct SharedRpcClient(Arc<WsClient>);
+pub(crate) struct SharedRpcClient(Arc<WsClient>, Uri);
 
 impl Deref for SharedRpcClient {
 	type Target = WsClient;
@@ -116,9 +118,9 @@ impl Deref for SharedRpcClient {
 }
 
 impl SharedRpcClient {
-	/// Consume and extract the inner client.
-	pub fn into_inner(self) -> Arc<WsClient> {
-		self.0
+	/// Get the URI of the client.
+	pub fn uri(&self) -> &str {
+		&self.1
 	}
 
 	/// Create a new shared JSON-RPC web-socket client.
@@ -134,7 +136,7 @@ impl SharedRpcClient {
 			.max_concurrent_requests(u32::MAX as usize)
 			.build(uri)
 			.await?;
-		Ok(Self(Arc::new(client)))
+		Ok(Self(Arc::new(client), uri.to_owned()))
 	}
 
 	/// Get a storage item and decode it as `T`.
