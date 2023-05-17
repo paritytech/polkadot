@@ -40,10 +40,7 @@ use polkadot_node_subsystem::{
 	},
 	overseer, RuntimeApiError, SubsystemError, SubsystemResult,
 };
-use polkadot_node_subsystem_util::{
-	determine_new_blocks,
-	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate},
-};
+use polkadot_node_subsystem_util::{determine_new_blocks, runtime::RuntimeInfo};
 use polkadot_primitives::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
 	GroupIndex, Hash, Header, SessionIndex,
@@ -60,6 +57,7 @@ use super::approval_db::v1;
 use crate::{
 	backend::{Backend, OverlayedBackend},
 	criteria::{AssignmentCriteria, OurAssignment},
+	get_session_info,
 	persisted_entries::CandidateEntry,
 	time::{slot_number_to_tick, Tick},
 };
@@ -78,7 +76,7 @@ struct ImportedBlockInfo {
 }
 
 struct ImportedBlockInfoEnv<'a> {
-	session_window: &'a Option<RollingSessionWindow>,
+	runtime_info: &'a mut RuntimeInfo,
 	assignment_criteria: &'a (dyn AssignmentCriteria + Send + Sync),
 	keystore: &'a LocalKeystore,
 }
@@ -96,8 +94,8 @@ enum ImportedBlockInfoError {
 	#[error(transparent)]
 	ApprovalError(approval_types::ApprovalError),
 
-	#[error("block is from an ancient session")]
-	BlockFromAncientSession,
+	#[error("block is already finalized")]
+	BlockAlreadyFinalized,
 
 	#[error("session info unavailable")]
 	SessionInfoUnavailable,
@@ -113,6 +111,7 @@ async fn imported_block_info<Context>(
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
+	last_finalized_height: &Option<BlockNumber>,
 ) -> Result<ImportedBlockInfo, ImportedBlockInfoError> {
 	// Ignore any runtime API errors - that means these blocks are old and finalized.
 	// Only unfinalized blocks factor into the approval voting process.
@@ -160,19 +159,17 @@ async fn imported_block_info<Context>(
 				return Err(ImportedBlockInfoError::FutureCancelled("SessionIndexForChild", error)),
 		};
 
-		if env
-			.session_window
-			.as_ref()
-			.map_or(true, |s| session_index < s.earliest_session())
-		{
+		// We can't determine if the block is finalized or not - try processing it
+		if last_finalized_height.map_or(false, |finalized| block_header.number < finalized) {
 			gum::debug!(
 				target: LOG_TARGET,
-				"Block {} is from ancient session {}. Skipping",
+				session = session_index,
+				finalized = ?last_finalized_height,
+				"Block {} is either finalized or last finalized height is unknown. Skipping",
 				block_hash,
-				session_index
 			);
 
-			return Err(ImportedBlockInfoError::BlockFromAncientSession)
+			return Err(ImportedBlockInfoError::BlockAlreadyFinalized)
 		}
 
 		session_index
@@ -212,15 +209,9 @@ async fn imported_block_info<Context>(
 		}
 	};
 
-	let session_info = match env.session_window.as_ref().and_then(|s| s.session_info(session_index))
-	{
-		Some(s) => s,
-		None => {
-			gum::debug!(target: LOG_TARGET, "Session info unavailable for block {}", block_hash,);
-
-			return Err(ImportedBlockInfoError::SessionInfoUnavailable)
-		},
-	};
+	let session_info = get_session_info(env.runtime_info, ctx.sender(), block_hash, session_index)
+		.await
+		.ok_or(ImportedBlockInfoError::SessionInfoUnavailable)?;
 
 	let (assignments, slot, relay_vrf_story) = {
 		let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
@@ -323,8 +314,9 @@ pub struct BlockImportedCandidates {
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 pub(crate) async fn handle_new_head<Context, B: Backend>(
 	ctx: &mut Context,
-	state: &mut State,
+	state: &State,
 	db: &mut OverlayedBackend<'_, B>,
+	session_info_provider: &mut RuntimeInfo,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
@@ -359,27 +351,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		}
 	};
 
-	// Update session info based on most recent head.
-	match state.cache_session_info_for_head(ctx, head).await {
-		Err(e) => {
-			gum::debug!(
-				target: LOG_TARGET,
-				?head,
-				?e,
-				"Could not cache session info when processing head.",
-			);
-			return Ok(Vec::new())
-		},
-		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
-			gum::info!(
-				target: LOG_TARGET,
-				update = ?a,
-				"Advanced session window for approvals",
-			);
-		},
-		Ok(_) => {},
-	}
-
 	// If we've just started the node and are far behind,
 	// import at most `MAX_HEADS_LOOK_BACK` blocks.
 	let lower_bound_number = header.number.saturating_sub(MAX_HEADS_LOOK_BACK);
@@ -407,12 +378,12 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
 			let env = ImportedBlockInfoEnv {
-				session_window: &state.session_window,
+				runtime_info: session_info_provider,
 				assignment_criteria: &*state.assignment_criteria,
 				keystore: &state.keystore,
 			};
 
-			match imported_block_info(ctx, env, block_hash, &block_header).await {
+			match imported_block_info(ctx, env, block_hash, &block_header, finalized_number).await {
 				Ok(i) => imported_blocks_and_info.push((block_hash, block_header, i)),
 				Err(error) => {
 					// It's possible that we've lost a race with finality.
@@ -461,11 +432,17 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			force_approve,
 		} = imported_block_info;
 
-		let session_info = state
-			.session_window
-			.as_ref()
-			.and_then(|s| s.session_info(session_index))
-			.expect("imported_block_info requires session info to be available; qed");
+		let session_info = match get_session_info(
+			session_info_provider,
+			ctx.sender(),
+			head,
+			session_index,
+		)
+		.await
+		{
+			Some(session_info) => session_info,
+			None => return Ok(Vec::new()),
+		};
 
 		let (block_tick, no_show_duration) = {
 			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
@@ -609,10 +586,13 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::*;
-	use crate::approval_db::v1::DbBackend;
+	use crate::{approval_db::v1::DbBackend, RuntimeInfo, RuntimeInfoConfig};
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
-	use polkadot_node_primitives::approval::{VrfSignature, VrfTranscript};
+	use polkadot_node_primitives::{
+		approval::{VrfSignature, VrfTranscript},
+		DISPUTE_WINDOW,
+	};
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
@@ -649,26 +629,23 @@ pub(crate) mod tests {
 	}
 
 	fn blank_state() -> State {
-		let db = kvdb_memorydb::create(NUM_COLUMNS);
-		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
-		let db: Arc<dyn Database> = Arc::new(db);
 		State {
-			session_window: None,
 			keystore: Arc::new(LocalKeystore::in_memory()),
 			slot_duration_millis: 6_000,
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
-			db,
-			db_config: TEST_CONFIG,
 			spans: HashMap::new(),
 		}
 	}
 
-	fn single_session_state(index: SessionIndex, info: SessionInfo) -> State {
-		State {
-			session_window: Some(RollingSessionWindow::with_session_info(index, vec![info])),
-			..blank_state()
-		}
+	fn single_session_state() -> (State, RuntimeInfo) {
+		(
+			blank_state(),
+			RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: DISPUTE_WINDOW.into(),
+			}),
+		)
 	}
 
 	struct MockAssignmentCriteria;
@@ -776,18 +753,21 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window =
-				RollingSessionWindow::with_session_info(session, vec![session_info]);
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: DISPUTE_WINDOW.into(),
+			});
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &Some(session_window),
+					runtime_info: &mut runtime_info,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(&mut ctx, env, hash, &header).await.unwrap();
+				let info =
+					imported_block_info(&mut ctx, env, hash, &header, &Some(4)).await.unwrap();
 
 				assert_eq!(info.included_candidates, included_candidates);
 				assert_eq!(info.session_index, session);
@@ -841,6 +821,20 @@ pub(crate) mod tests {
 					}));
 				}
 			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionInfo(idx, si_tx),
+					)
+				) => {
+					assert_eq!(session, idx);
+					assert_eq!(req_block_hash, hash);
+					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
+				}
+			);
 		});
 
 		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
@@ -882,18 +876,20 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_window =
-				RollingSessionWindow::with_session_info(session, vec![session_info]);
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: DISPUTE_WINDOW.into(),
+			});
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &Some(session_window),
+					runtime_info: &mut runtime_info,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(&mut ctx, env, hash, &header).await;
+				let info = imported_block_info(&mut ctx, env, hash, &header, &Some(4)).await;
 
 				assert_matches!(info, Err(ImportedBlockInfoError::VrfInfoUnavailable));
 			})
@@ -942,6 +938,20 @@ pub(crate) mod tests {
 					}));
 				}
 			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionInfo(idx, si_tx),
+					)
+				) => {
+					assert_eq!(session, idx);
+					assert_eq!(req_block_hash, hash);
+					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
+				}
+			);
 		});
 
 		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
@@ -982,19 +992,22 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_window = None;
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: DISPUTE_WINDOW.into(),
+			});
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &session_window,
+					runtime_info: &mut runtime_info,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(&mut ctx, env, hash, &header).await;
+				let info = imported_block_info(&mut ctx, env, hash, &header, &Some(6)).await;
 
-				assert_matches!(info, Err(ImportedBlockInfoError::BlockFromAncientSession));
+				assert_matches!(info, Err(ImportedBlockInfoError::BlockAlreadyFinalized));
 			})
 		};
 
@@ -1077,18 +1090,21 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window =
-				Some(RollingSessionWindow::with_session_info(session, vec![session_info]));
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: DISPUTE_WINDOW.into(),
+			});
 
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &session_window,
+					runtime_info: &mut runtime_info,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(&mut ctx, env, hash, &header).await.unwrap();
+				let info =
+					imported_block_info(&mut ctx, env, hash, &header, &Some(4)).await.unwrap();
 
 				assert_eq!(info.included_candidates, included_candidates);
 				assert_eq!(info.session_index, session);
@@ -1140,6 +1156,20 @@ pub(crate) mod tests {
 							allowed_slots: AllowedSlots::PrimarySlots,
 						},
 					}));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionInfo(idx, si_tx),
+					)
+				) => {
+					assert_eq!(session, idx);
+					assert_eq!(req_block_hash, hash);
+					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
 				}
 			);
 		});
@@ -1220,7 +1250,7 @@ pub(crate) mod tests {
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
-		let mut state = single_session_state(session, session_info);
+		let (state, mut session_info_provider) = single_session_state();
 		overlay_db.write_block_entry(
 			v1::BlockEntry {
 				block_hash: parent_hash,
@@ -1242,9 +1272,16 @@ pub(crate) mod tests {
 		let test_fut = {
 			Box::pin(async move {
 				let mut overlay_db = OverlayedBackend::new(&db);
-				let result = handle_new_head(&mut ctx, &mut state, &mut overlay_db, hash, &Some(1))
-					.await
-					.unwrap();
+				let result = handle_new_head(
+					&mut ctx,
+					&state,
+					&mut overlay_db,
+					&mut session_info_provider,
+					hash,
+					&Some(1),
+				)
+				.await
+				.unwrap();
 
 				let write_ops = overlay_db.into_write_ops();
 				db.write(write_ops).unwrap();
@@ -1275,17 +1312,6 @@ pub(crate) mod tests {
 				)) => {
 					assert_eq!(h, hash);
 					let _ = tx.send(Ok(Some(header.clone())));
-				}
-			);
-
-			assert_matches!(
-				handle.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					h,
-					RuntimeApiRequest::SessionIndexForChild(c_tx),
-				)) => {
-					assert_eq!(h, hash);
-					let _ = c_tx.send(Ok(session));
 				}
 			);
 
@@ -1331,6 +1357,20 @@ pub(crate) mod tests {
 							allowed_slots: AllowedSlots::PrimarySlots,
 						},
 					}));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionInfo(idx, si_tx),
+					)
+				) => {
+					assert_eq!(session, idx);
+					assert_eq!(req_block_hash, hash);
+					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
 				}
 			);
 
