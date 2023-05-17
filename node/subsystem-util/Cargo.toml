@@ -34,7 +34,7 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 kvdb = "0.13.0"
-parity-db = { version = "0.4.7"}
+parity-db = { version = "0.4.8"}
 
 [dev-dependencies]
 assert_matches = "1.4.0"
