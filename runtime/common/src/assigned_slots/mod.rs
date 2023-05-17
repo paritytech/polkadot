@@ -23,7 +23,7 @@
 //! This pallet should not be used on a production relay chain,
 //! only on a test relay chain (e.g. Rococo).
 
-mod migration;
+pub mod migration;
 
 use crate::{
 	slots::{self, Pallet as Slots, WeightInfo},
@@ -166,7 +166,7 @@ pub mod pallet {
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
 			<MaxPermanentSlots<T>>::put(&self.max_permanent_slots);
-        	<MaxTemporarySlots<T>>::put(&self.max_temporary_slots);
+			<MaxTemporarySlots<T>>::put(&self.max_temporary_slots);
 		}
 	}
 
@@ -178,9 +178,9 @@ pub mod pallet {
 		/// A para was assigned a temporary parachain slot
 		TemporarySlotAssigned(ParaId),
 		/// A maximum number of permanent slots has been assigned
-		MaxPermanentSlotsAssigned {slots: u32},
+		MaxPermanentSlotsAssigned { slots: u32 },
 		/// A maximum number of temporary slots has been assigned
-		MaxTemporarySlotsAssigned {slots: u32},
+		MaxTemporarySlotsAssigned { slots: u32 },
 	}
 
 	#[pallet::error]
@@ -217,9 +217,6 @@ pub mod pallet {
 
 			// We didn't return early above, so we didn't do anything.
 			Weight::zero()
-		}
-		fn on_runtime_upgrade() -> frame_support::weights::Weight {
-			migration::migrate_to_v2::<T>()
 		}
 	}
 
@@ -425,7 +422,7 @@ pub mod pallet {
 			<MaxPermanentSlots<T>>::put(slots);
 
 			// Emit an event.
-			Self::deposit_event(Event::<T>::MaxPermanentSlotsAssigned {slots});
+			Self::deposit_event(Event::<T>::MaxPermanentSlotsAssigned { slots });
 			// Return a successful DispatchResult
 			Ok(())
 		}
@@ -440,11 +437,10 @@ pub mod pallet {
 			<MaxTemporarySlots<T>>::put(slots);
 
 			// Emit an event.
-			Self::deposit_event(Event::<T>::MaxTemporarySlotsAssigned {slots});
+			Self::deposit_event(Event::<T>::MaxTemporarySlotsAssigned { slots });
 			// Return a successful DispatchResult
 			Ok(())
-		}	
-	
+		}
 	}
 }
 
@@ -753,11 +749,15 @@ mod tests {
 		}
 		.assimilate_storage(&mut t)
 		.unwrap();
-		
-		GenesisBuild::<Test>::assimilate_storage(&crate::assigned_slots::GenesisConfig {
-			max_temporary_slots: 6,
-			max_permanent_slots: 2,
-		}, &mut t).unwrap();
+
+		GenesisBuild::<Test>::assimilate_storage(
+			&crate::assigned_slots::GenesisConfig {
+				max_temporary_slots: 6,
+				max_permanent_slots: 2,
+			},
+			&mut t,
+		)
+		.unwrap();
 
 		t.into()
 	}
@@ -1391,10 +1391,7 @@ mod tests {
 			run_to_block(1);
 
 			assert_noop!(
-				AssignedSlots::set_max_permanent_slots(
-					RuntimeOrigin::signed(1),
-					5
-				),
+				AssignedSlots::set_max_permanent_slots(RuntimeOrigin::signed(1), 5),
 				BadOrigin
 			);
 		});
@@ -1405,12 +1402,7 @@ mod tests {
 			run_to_block(1);
 
 			assert_eq!(MaxPermanentSlots::<Test>::get(), 2);
-			assert_ok!(
-				AssignedSlots::set_max_permanent_slots(
-					RuntimeOrigin::root(),
-					10
-				),
-			);
+			assert_ok!(AssignedSlots::set_max_permanent_slots(RuntimeOrigin::root(), 10),);
 			assert_eq!(MaxPermanentSlots::<Test>::get(), 10);
 		});
 	}
@@ -1421,10 +1413,7 @@ mod tests {
 			run_to_block(1);
 
 			assert_noop!(
-				AssignedSlots::set_max_temporary_slots(
-					RuntimeOrigin::signed(1),
-					5
-				),
+				AssignedSlots::set_max_temporary_slots(RuntimeOrigin::signed(1), 5),
 				BadOrigin
 			);
 		});
@@ -1435,12 +1424,7 @@ mod tests {
 			run_to_block(1);
 
 			assert_eq!(MaxTemporarySlots::<Test>::get(), 6);
-			assert_ok!(
-				AssignedSlots::set_max_temporary_slots(
-					RuntimeOrigin::root(),
-					12
-				),
-			);
+			assert_ok!(AssignedSlots::set_max_temporary_slots(RuntimeOrigin::root(), 12),);
 			assert_eq!(MaxTemporarySlots::<Test>::get(), 12);
 		});
 	}

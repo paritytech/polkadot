@@ -16,24 +16,40 @@
 
 use super::*;
 use frame_support::{
-	traits::{Get, StorageVersion, GetStorageVersion},
+	traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
 	weights::Weight,
 };
-// simply add into the storage the MaxPermanentSlots and MaxTemporarySlots set on the old migration
-pub fn migrate_to_v2<T: Config>() -> Weight {
-    let onchain_version =  Pallet::<T>::on_chain_storage_version();
-    if onchain_version < 2 {
-        const MAX_PERMANENT_SLOTS: u32 = 100;
-        const MAX_TEMPORARY_SLOTS: u32 = 100;
 
-        <MaxPermanentSlots<T>>::put(MAX_PERMANENT_SLOTS);
-        <MaxTemporarySlots<T>>::put(MAX_TEMPORARY_SLOTS);
-        // Update storage version.
-		StorageVersion::new(2).put::<Pallet::<T>>();
-        // Return the weight consumed by the migration.
-		T::DbWeight::get().reads_writes(1, 3)
-    }
-    else{
-        Weight::zero()
-    }
+
+pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+		Ok(Default::default())
+	}
+
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		let onchain_version = Pallet::<T>::on_chain_storage_version();
+		if onchain_version < 1 {
+			const MAX_PERMANENT_SLOTS: u32 = 100;
+			const MAX_TEMPORARY_SLOTS: u32 = 100;
+
+			<MaxPermanentSlots<T>>::put(MAX_PERMANENT_SLOTS);
+			<MaxTemporarySlots<T>>::put(MAX_TEMPORARY_SLOTS);
+			// Update storage version.
+			StorageVersion::new(1).put::<Pallet<T>>();
+			// Return the weight consumed by the migration.
+			T::DbWeight::get().reads_writes(1, 3)
+		} else {
+			Weight::zero()
+		}
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+		let onchain_version = Pallet::<T>::on_chain_storage_version();
+		ensure!(onchain == 1, "assigned_slots::MigrateToV1 needs to be run");
+		Ok(())
+	}
 }
+
