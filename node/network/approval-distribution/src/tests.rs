@@ -418,9 +418,8 @@ fn try_import_the_same_assignment() {
 	});
 }
 
-/// import an assignment
-/// connect a new peer
-/// the new peer sends us the same assignment
+/// Just like `try_import_the_same_assignment` but use `VRFModuloCompact` assignments for multiple
+/// cores.
 #[test]
 fn try_import_the_same_assignment_v2() {
 	let peer_a = PeerId::random();
@@ -1265,6 +1264,111 @@ fn sends_assignments_even_when_state_is_approved() {
 					protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
 				))
 			)) => {
+				assert_eq!(peers, vec![peer.clone()]);
+				assert_eq!(sent_approvals, approvals);
+			}
+		);
+
+		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
+		virtual_overseer
+	});
+}
+
+/// Same as `sends_assignments_even_when_state_is_approved_v2` but with `VRFModuloCompact` assignemnts.
+#[test]
+fn sends_assignments_even_when_state_is_approved_v2() {
+	let peer_a = PeerId::random();
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
+	let peer = &peer_a;
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+
+		// new block `hash_a` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 4],
+			slot: 1.into(),
+			session: 1,
+		};
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		let validator_index = ValidatorIndex(0);
+		let cores = vec![0, 1, 2, 3];
+		let candidate_bitfield: CandidateBitfield = cores.clone().try_into().unwrap();
+
+		let core_bitfield: CoreBitfield = cores
+			.iter()
+			.map(|index| CoreIndex(*index))
+			.collect::<Vec<_>>()
+			.try_into()
+			.unwrap();
+
+		let cert = fake_assignment_cert_v2(hash, validator_index, core_bitfield.clone());
+
+		// Assumes candidate index == core index.
+		let approvals = cores
+			.iter()
+			.map(|core| IndirectSignedApprovalVote {
+				block_hash: hash,
+				candidate_index: *core,
+				validator: validator_index,
+				signature: dummy_signature(),
+			})
+			.collect::<Vec<_>>();
+
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeAssignment(
+				cert.clone().into(),
+				candidate_bitfield.clone(),
+			),
+		)
+		.await;
+
+		for approval in &approvals {
+			overseer_send(
+				overseer,
+				ApprovalDistributionMessage::DistributeApproval(approval.clone()),
+			)
+			.await;
+		}
+
+		// connect the peer.
+		setup_peer_with_view(overseer, peer, view![hash], ValidationVersion::VStaging).await;
+
+		let assignments = vec![(cert.clone(), candidate_bitfield.clone())];
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
+				peers,
+				Versioned::VStaging(protocol_vstaging::ValidationProtocol::ApprovalDistribution(
+					protocol_vstaging::ApprovalDistributionMessage::Assignments(sent_assignments)
+				))
+			)) => {
+				assert_eq!(peers, vec![peer.clone()]);
+				assert_eq!(sent_assignments, assignments);
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
+				peers,
+				Versioned::VStaging(protocol_vstaging::ValidationProtocol::ApprovalDistribution(
+					protocol_vstaging::ApprovalDistributionMessage::Approvals(sent_approvals)
+				))
+			)) => {
+				// Construct a hashmaps of approvals for comparison. Approval distribution reorders messages because they are kept in a
+				// hashmap as well.
+				let sent_approvals = sent_approvals.into_iter().map(|approval| (approval.candidate_index, approval)).collect::<HashMap<_,_>>();
+				let approvals = approvals.into_iter().map(|approval| (approval.candidate_index, approval)).collect::<HashMap<_,_>>();
+
 				assert_eq!(peers, vec![peer.clone()]);
 				assert_eq!(sent_approvals, approvals);
 			}
