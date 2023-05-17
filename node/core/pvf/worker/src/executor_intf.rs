@@ -29,6 +29,42 @@ use std::{
 	path::Path,
 };
 
+// Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
+// That native code does not create any stacks and just reuses the stack of the thread that
+// wasmtime was invoked from.
+//
+// Also, we configure the executor to provide the deterministic stack and that requires
+// supplying the amount of the native stack space that wasm is allowed to use. This is
+// realized by supplying the limit into `wasmtime::Config::max_wasm_stack`.
+//
+// There are quirks to that configuration knob:
+//
+// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check
+//    that the stack space is actually available.
+//
+//    That means, if the calling thread has 1 MiB of stack space left and the wasm code consumes
+//    more, then the wasmtime limit will **not** trigger. Instead, the wasm code will hit the
+//    guard page and the Rust stack overflow handler will be triggered. That leads to an
+//    **abort**.
+//
+// 2. It cannot and does not limit the stack space consumed by Rust code.
+//
+//    Meaning that if the wasm code leaves no stack space for Rust code, then the Rust code
+//    will abort and that will abort the process as well.
+//
+// Typically on Linux the main thread gets the stack size specified by the `ulimit` and
+// typically it's configured to 8 MiB. Rust's spawned threads are 2 MiB. OTOH, the
+// NATIVE_STACK_MAX is set to 256 MiB. Not nearly enough.
+//
+// Hence we need to increase it. The simplest way to fix that is to spawn a thread with the desired
+// stack limit.
+//
+// The reasoning why we pick this particular size is:
+//
+// The default Rust thread stack limit 2 MiB + 256 MiB wasm stack.
+/// The stack size for the execute thread.
+pub const EXECUTE_THREAD_STACK_SIZE: usize = 2 * 1024 * 1024 + NATIVE_STACK_MAX as usize;
+
 // Memory configuration
 //
 // When Substrate Runtime is instantiated, a number of WASM pages are allocated for the Substrate
@@ -142,60 +178,17 @@ fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, Strin
 	Ok(sem)
 }
 
+#[derive(Clone)]
 pub struct Executor {
-	thread_pool: rayon::ThreadPool,
 	config: Config,
 }
 
 impl Executor {
 	pub fn new(params: ExecutorParams) -> Result<Self, String> {
-		// Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
-		// That native code does not create any stacks and just reuses the stack of the thread that
-		// wasmtime was invoked from.
-		//
-		// Also, we configure the executor to provide the deterministic stack and that requires
-		// supplying the amount of the native stack space that wasm is allowed to use. This is
-		// realized by supplying the limit into `wasmtime::Config::max_wasm_stack`.
-		//
-		// There are quirks to that configuration knob:
-		//
-		// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check
-		//    that the stack space is actually available.
-		//
-		//    That means, if the calling thread has 1 MiB of stack space left and the wasm code consumes
-		//    more, then the wasmtime limit will **not** trigger. Instead, the wasm code will hit the
-		//    guard page and the Rust stack overflow handler will be triggered. That leads to an
-		//    **abort**.
-		//
-		// 2. It cannot and does not limit the stack space consumed by Rust code.
-		//
-		//    Meaning that if the wasm code leaves no stack space for Rust code, then the Rust code
-		//    will abort and that will abort the process as well.
-		//
-		// Typically on Linux the main thread gets the stack size specified by the `ulimit` and
-		// typically it's configured to 8 MiB. Rust's spawned threads are 2 MiB. OTOH, the
-		// NATIVE_STACK_MAX is set to 256 MiB. Not nearly enough.
-		//
-		// Hence we need to increase it.
-		//
-		// The simplest way to fix that is to spawn a thread with the desired stack limit. In order
-		// to avoid costs of creating a thread, we use a thread pool. The execution is
-		// single-threaded hence the thread pool has only one thread.
-		//
-		// The reasoning why we pick this particular size is:
-		//
-		// The default Rust thread stack limit 2 MiB + 256 MiB wasm stack.
-		let thread_stack_size = 2 * 1024 * 1024 + NATIVE_STACK_MAX as usize;
-		let thread_pool = rayon::ThreadPoolBuilder::new()
-			.num_threads(1)
-			.stack_size(thread_stack_size)
-			.build()
-			.map_err(|e| format!("Failed to create thread pool: {:?}", e))?;
-
 		let mut config = DEFAULT_CONFIG.clone();
 		config.semantics = params_to_wasmtime_semantics(&params)?;
 
-		Ok(Self { thread_pool, config })
+		Ok(Self { config })
 	}
 
 	/// Executes the given PVF in the form of a compiled artifact and returns the result of execution
@@ -216,41 +209,24 @@ impl Executor {
 		compiled_artifact_path: &Path,
 		params: &[u8],
 	) -> Result<Vec<u8>, String> {
-		let mut result = None;
-		self.thread_pool.scope({
-			let result = &mut result;
-			move |s| {
-				s.spawn(move |_| {
-					// spawn does not return a value, so we need to use a variable to pass the result.
-					*result = Some(
-						do_execute(compiled_artifact_path, self.config.clone(), params)
-							.map_err(|err| format!("execute error: {:?}", err)),
-					);
-				});
-			}
-		});
-		result.unwrap_or_else(|| Err("rayon thread pool spawn failed".to_string()))
+		let mut extensions = sp_externalities::Extensions::new();
+
+		extensions.register(sp_core::traits::ReadRuntimeVersionExt::new(ReadRuntimeVersion));
+
+		let mut ext = ValidationExternalities(extensions);
+
+		match sc_executor::with_externalities_safe(&mut ext, || {
+			let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
+				compiled_artifact_path,
+				self.config.clone(),
+			)?;
+			runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
+		}) {
+			Ok(Ok(ok)) => Ok(ok),
+			Ok(Err(err)) | Err(err) => Err(err),
+		}
+		.map_err(|err| format!("execute error: {:?}", err))
 	}
-}
-
-unsafe fn do_execute(
-	compiled_artifact_path: &Path,
-	config: Config,
-	params: &[u8],
-) -> Result<Vec<u8>, sc_executor_common::error::Error> {
-	let mut extensions = sp_externalities::Extensions::new();
-
-	extensions.register(sp_core::traits::ReadRuntimeVersionExt::new(ReadRuntimeVersion));
-
-	let mut ext = ValidationExternalities(extensions);
-
-	sc_executor::with_externalities_safe(&mut ext, || {
-		let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
-			compiled_artifact_path,
-			config,
-		)?;
-		runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
-	})?
 }
 
 type HostFunctions = (

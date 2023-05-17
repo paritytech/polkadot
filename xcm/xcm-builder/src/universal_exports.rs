@@ -23,7 +23,11 @@ use xcm::prelude::*;
 use xcm_executor::traits::{validate_export, ExportXcm};
 use SendError::*;
 
-fn ensure_is_remote(
+/// Returns the network ID and consensus location within that network of the remote
+/// location `dest` which is itself specified as a location relative to the local
+/// chain, itself situated at `universal_local` within the consensus universe. If
+/// `dest` is not a location in remote consensus, then an error is returned.
+pub fn ensure_is_remote(
 	universal_local: impl Into<InteriorMultiLocation>,
 	dest: impl Into<MultiLocation>,
 ) -> Result<(NetworkId, InteriorMultiLocation), MultiLocation> {
