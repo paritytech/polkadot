@@ -78,9 +78,11 @@ impl fmt::Display for PrepareError {
 #[derive(Debug, Clone)]
 pub enum ValidationError {
 	/// The error was raised because the candidate is invalid.
+	///
+	/// Whenever we are unsure if the error was due to the candidate or not, we must vote invalid.
 	InvalidCandidate(InvalidCandidate),
-	/// This error is raised due to inability to serve the request.
-	InternalError(String),
+	/// Some internal error occurred.
+	InternalError(InternalValidationError),
 }
 
 /// A description of an error raised during executing a PVF and can be attributed to the combination
@@ -103,7 +105,7 @@ pub enum InvalidCandidate {
 	///     an `rlimit` (if set) or, again, invited OOM killer. Another possibility is a bug in
 	///     wasmtime allowed the PVF to gain control over the execution worker.
 	///
-	/// We attribute such an event to an invalid candidate in either case.
+	/// We attribute such an event to an *invalid candidate* in either case.
 	///
 	/// The rationale for this is that a glitch may lead to unfair rejecting candidate by a single
 	/// validator. If the glitch is somewhat more persistent the validator will reject all candidate
@@ -113,6 +115,48 @@ pub enum InvalidCandidate {
 	AmbiguousWorkerDeath,
 	/// PVF execution (compilation is not included) took more time than was allotted.
 	HardTimeout,
+	/// A panic occurred and we can't be sure whether the candidate is really invalid or some internal glitch occurred.
+	/// Whenever we are unsure, we can never treat an error as internal as we would abstain from voting. This is bad
+	/// because if the issue was due to the candidate, then all validators would abstain, stalling finality on the
+	/// chain. So we will first retry the candidate, and if the issue persists we are forced to vote invalid.
+	Panic(String),
+}
+
+/// Some internal error occurred.
+///
+/// Should only ever be used for validation errors independent of the candidate and PVF, or for errors we ruled out
+/// during pre-checking (so preparation errors are fine).
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum InternalValidationError {
+	/// Some communication error occurred with the host.
+	HostCommunication(String),
+	/// Could not find or open compiled artifact file.
+	CouldNotOpenFile(String),
+	/// An error occurred in the CPU time monitor thread. Should be totally unrelated to validation.
+	CpuTimeMonitorThread(String),
+	/// Some non-deterministic preparation error occurred.
+	NonDeterministicPrepareError(PrepareError),
+}
+
+impl fmt::Display for InternalValidationError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		use InternalValidationError::*;
+		match self {
+			HostCommunication(err) =>
+				write!(f, "validation: some communication error occurred with the host: {}", err),
+			CouldNotOpenFile(err) =>
+				write!(f, "validation: could not find or open compiled artifact file: {}", err),
+			CpuTimeMonitorThread(err) =>
+				write!(f, "validation: an error occurred in the CPU time monitor thread: {}", err),
+			NonDeterministicPrepareError(err) => write!(f, "validation: prepare: {}", err),
+		}
+	}
+}
+
+impl From<InternalValidationError> for ValidationError {
+	fn from(error: InternalValidationError) -> Self {
+		Self::InternalError(error)
+	}
 }
 
 impl From<PrepareError> for ValidationError {
@@ -120,9 +164,9 @@ impl From<PrepareError> for ValidationError {
 		// Here we need to classify the errors into two errors: deterministic and non-deterministic.
 		// See [`PrepareError::is_deterministic`].
 		if error.is_deterministic() {
-			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
+			Self::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
 		} else {
-			ValidationError::InternalError(error.to_string())
+			Self::InternalError(InternalValidationError::NonDeterministicPrepareError(error))
 		}
 	}
 }
