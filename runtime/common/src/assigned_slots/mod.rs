@@ -155,6 +155,21 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type MaxPermanentSlots<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+	#[pallet::genesis_config]
+	#[derive(Default)]
+	pub struct GenesisConfig {
+		pub max_temporary_slots: u32,
+		pub max_permanent_slots: u32,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+		fn build(&self) {
+			<MaxPermanentSlots<T>>::put(&self.max_permanent_slots);
+        	<MaxTemporarySlots<T>>::put(&self.max_temporary_slots);
+		}
+	}
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -738,6 +753,12 @@ mod tests {
 		}
 		.assimilate_storage(&mut t)
 		.unwrap();
+		
+		GenesisBuild::<Test>::assimilate_storage(&crate::assigned_slots::GenesisConfig {
+			max_temporary_slots: 6,
+			max_permanent_slots: 2,
+		}, &mut t).unwrap();
+
 		t.into()
 	}
 
@@ -764,9 +785,6 @@ mod tests {
 			Slots::on_initialize(block);
 			AssignedSlots::on_initialize(block);
 		}
-		//Set the testing MaxTemporarySlots and MaxPermanentSlots values
-		AssignedSlots::set_max_temporary_slots(RuntimeOrigin::root(), 6).unwrap();
-		AssignedSlots::set_max_permanent_slots(RuntimeOrigin::root(), 2).unwrap();
 	}
 
 	#[test]
