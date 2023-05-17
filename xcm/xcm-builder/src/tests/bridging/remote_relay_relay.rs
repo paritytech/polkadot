@@ -120,5 +120,24 @@ fn sending_to_parachain_of_bridged_chain_works() {
 			),
 		)];
 		assert_eq!(take_received_remote_messages(), expected);
+		let entry = LogEntry {
+			local: UniversalLocation::get(),
+			remote: RelayUniversalLocation::get(),
+			id: maybe_forward_id_for(&[0; 32]),
+			message: xcm_with_topic(
+				maybe_forward_id_for(&[0; 32]),
+				vec![
+					UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+					ExportMessage {
+						network: ByGenesis([1; 32]),
+						destination: Parachain(1000).into(),
+						xcm: xcm_with_topic([0; 32], vec![Trap(1)]),
+					},
+				],
+			),
+			outcome: Outcome::Complete(test_weight(2)),
+			paid: false,
+		};
+		assert_eq!(RoutingLog::take(), vec![entry]);
 	})
 }
