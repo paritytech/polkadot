@@ -17,6 +17,7 @@
 //! Various implementations for `SendXcm`.
 
 use frame_system::unique;
+use parity_scale_codec::Encode;
 use sp_std::{marker::PhantomData, result::Result};
 use xcm::prelude::*;
 
@@ -40,6 +41,51 @@ impl<Inner: SendXcm> SendXcm for WithUniqueTopic<Inner> {
 			*id
 		} else {
 			let unique_id = unique(&message);
+			message.0.insert(0, SetTopic(unique_id.clone()));
+			unique_id
+		};
+		let (ticket, assets) = Inner::validate(destination, &mut Some(message))
+			.map_err(|_| SendError::NotApplicable)?;
+		Ok(((ticket, unique_id), assets))
+	}
+
+	fn deliver(ticket: Self::Ticket) -> Result<XcmHash, SendError> {
+		let (ticket, unique_id) = ticket;
+		Inner::deliver(ticket)?;
+		Ok(unique_id)
+	}
+}
+
+pub trait SourceTopic {
+	fn source_topic(entropy: impl Encode) -> XcmHash;
+}
+
+impl SourceTopic for () {
+	fn source_topic(_: impl Encode) -> XcmHash {
+		[0u8; 32]
+	}
+}
+
+/// Wrapper router which, if the message does not already begin with a `SetTopic` instruction,
+/// prepends one to the message filled with a universally unique ID. This ID is returned from a
+/// successful `deliver`.
+///
+/// This is designed to be at the top-level of any routers, since it will always mutate the
+/// passed `message` reference into a `None`. Don't try to combine it within a tuple except as the
+/// last element.
+pub struct WithTopicSource<Inner, TopicSource>(PhantomData<(Inner, TopicSource)>);
+impl<Inner: SendXcm, TopicSource: SourceTopic> SendXcm for WithTopicSource<Inner, TopicSource> {
+	type Ticket = (Inner::Ticket, [u8; 32]);
+
+	fn validate(
+		destination: &mut Option<MultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult<Self::Ticket> {
+		let mut message = message.take().ok_or(SendError::MissingArgument)?;
+		let unique_id = if let Some(SetTopic(id)) = message.first() {
+			*id
+		} else {
+			let unique_id = TopicSource::source_topic(&message);
 			message.0.insert(0, SetTopic(unique_id.clone()));
 			unique_id
 		};

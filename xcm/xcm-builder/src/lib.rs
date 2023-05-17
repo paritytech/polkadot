@@ -84,7 +84,7 @@ mod filter_asset_location;
 pub use filter_asset_location::{Case, NativeAsset};
 
 mod routing;
-pub use routing::WithUniqueTopic;
+pub use routing::{WithTopicSource, WithUniqueTopic};
 
 mod universal_exports;
 pub use universal_exports::{

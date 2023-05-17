@@ -17,6 +17,7 @@
 use crate::{
 	barriers::{AllowSubscriptionsFrom, RespectSuspension},
 	test_utils::*,
+	AllowSetTopic,
 };
 pub use crate::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
@@ -652,7 +653,7 @@ impl Config for TestConfig {
 	type IsReserve = TestIsReserve;
 	type IsTeleporter = TestIsTeleporter;
 	type UniversalLocation = ExecutorUniversalLocation;
-	type Barrier = RespectSuspension<TestBarrier, TestSuspender>;
+	type Barrier = AllowSetTopic<RespectSuspension<TestBarrier, TestSuspender>>;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;

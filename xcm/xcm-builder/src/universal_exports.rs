@@ -165,6 +165,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		let devolved = ensure_is_remote(UniversalLocation::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location) = devolved;
 		let xcm = xcm.take().ok_or(MissingArgument)?;
+
 		let (bridge, maybe_payment) =
 			Bridges::exporter_for(&remote_network, &remote_location, &xcm).ok_or(NotApplicable)?;
 		ensure!(maybe_payment.is_none(), Unroutable);
