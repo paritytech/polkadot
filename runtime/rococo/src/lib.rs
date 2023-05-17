@@ -1491,9 +1491,7 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (
-		assigned_slots::migration::MigrateToV1<Runtime>,
-	);
+	pub type Unreleased = (assigned_slots::migration::MigrateToV1<Runtime>,);
 }
 
 /// Executive: handles dispatch to the various modules.

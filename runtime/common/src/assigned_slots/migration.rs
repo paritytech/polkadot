@@ -20,7 +20,6 @@ use frame_support::{
 	weights::Weight,
 };
 
-
 pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 	#[cfg(feature = "try-runtime")]
@@ -52,4 +51,3 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 		Ok(())
 	}
 }
-
