@@ -143,7 +143,7 @@ pub mod v5 {
 	pub struct MigrateToV5<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV5<T> {
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+		fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
 			log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
 
 			ensure!(StorageVersion::get::<Pallet<T>>() == 4, "The migration requires version 4");
