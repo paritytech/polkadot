@@ -20,7 +20,7 @@ use frame_support::{ensure, traits::Get};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
 use xcm::prelude::*;
-use xcm_executor::traits::{validate_export, ExportXcm};
+use xcm_executor::traits::{validate_export, Channel, ExportXcm};
 use SendError::*;
 
 /// Returns the network ID and consensus location within that network of the remote
@@ -249,7 +249,7 @@ pub trait DispatchBlob {
 
 pub trait HaulBlob {
 	/// Sends a blob over some point-to-point link. This will generally be implemented by a bridge.
-	fn haul_blob(blob: Vec<u8>) -> Result<(), HaulBlobError>;
+	fn haul_blob(blob: Vec<u8>, channel: Channel) -> Result<(), HaulBlobError>;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -319,15 +319,15 @@ pub struct HaulBlobExporter<Bridge, BridgedNetwork, Price>(
 impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> ExportXcm
 	for HaulBlobExporter<Bridge, BridgedNetwork, Price>
 {
-	type Ticket = (Vec<u8>, XcmHash);
+	type Ticket = (Vec<u8>, XcmHash, Channel);
 
 	fn validate(
 		network: NetworkId,
-		_channel: u32,
+		channel: Channel,
 		universal_source: &mut Option<InteriorMultiLocation>,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
-	) -> Result<((Vec<u8>, XcmHash), MultiAssets), SendError> {
+	) -> Result<(Self::Ticket, MultiAssets), SendError> {
 		let bridged_network = BridgedNetwork::get();
 		ensure!(&network == &bridged_network, SendError::NotApplicable);
 		// We don't/can't use the `channel` for this adapter.
@@ -354,11 +354,11 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> 
 		let message = VersionedXcm::from(inner);
 		let hash = message.using_encoded(sp_io::hashing::blake2_256);
 		let blob = BridgeMessage { universal_dest, message }.encode();
-		Ok(((blob, hash), Price::get()))
+		Ok(((blob, hash, channel), Price::get()))
 	}
 
-	fn deliver((blob, hash): (Vec<u8>, XcmHash)) -> Result<XcmHash, SendError> {
-		Bridge::haul_blob(blob)?;
+	fn deliver((blob, hash, channel): Self::Ticket) -> Result<XcmHash, SendError> {
+		Bridge::haul_blob(blob, channel)?;
 		Ok(hash)
 	}
 }

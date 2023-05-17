@@ -94,7 +94,7 @@ fn export_message_should_work() {
 	let uni_src = (ByGenesis([0; 32]), Parachain(42), Parachain(1)).into();
 	assert_eq!(
 		exported_xcm(),
-		vec![(Polkadot, 403611790, uni_src, Here, expected_message, expected_hash)]
+		vec![(Polkadot, 470110423, uni_src, Here, expected_message, expected_hash)]
 	);
 }
 

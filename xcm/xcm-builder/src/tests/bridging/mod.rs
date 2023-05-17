@@ -21,7 +21,7 @@ use crate::universal_exports::*;
 use frame_support::{parameter_types, traits::Get};
 use std::{cell::RefCell, marker::PhantomData};
 use xcm_executor::{
-	traits::{export_xcm, validate_export},
+	traits::{export_xcm, validate_export, Channel},
 	XcmExecutor,
 };
 use SendError::*;
@@ -51,7 +51,7 @@ impl<D: DispatchBlob> TestBridge<D> {
 	}
 }
 impl<D: DispatchBlob> HaulBlob for TestBridge<D> {
-	fn haul_blob(blob: Vec<u8>) -> Result<(), HaulBlobError> {
+	fn haul_blob(blob: Vec<u8>, _channel: Channel) -> Result<(), HaulBlobError> {
 		BRIDGE_TRAFFIC.with(|t| t.borrow_mut().push(blob));
 		Ok(())
 	}
