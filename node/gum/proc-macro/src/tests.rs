@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![allow(clippy::dbg_macro)]
+
 use super::*;
 
 use assert_matches::assert_matches;
@@ -127,7 +129,6 @@ mod roundtrip {
 	}
 
 	#[test]
-
 	fn sample_w_candidate_hash_aliased_unnecessary() {
 		assert_matches!(impl_gum2(
 			quote! {
