@@ -353,7 +353,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 			minimum_validator_count: 4,
 			stakers: initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, polkadot::StakerStatus::Validator))
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, polkadot::StakerStatus::Validator))
 				.collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::ForceNone,
@@ -544,7 +544,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			minimum_validator_count: 4,
 			stakers: initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, westend::StakerStatus::Validator))
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, westend::StakerStatus::Validator))
 				.collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::ForceNone,
@@ -734,7 +734,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 			minimum_validator_count: 4,
 			stakers: initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, kusama::StakerStatus::Validator))
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, kusama::StakerStatus::Validator))
 				.collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::ForceNone,
@@ -1338,7 +1338,7 @@ pub fn polkadot_testnet_genesis(
 			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, polkadot::StakerStatus::Validator))
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, polkadot::StakerStatus::Validator))
 				.collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::NotForcing,
@@ -1425,7 +1425,7 @@ pub fn kusama_testnet_genesis(
 			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, kusama::StakerStatus::Validator))
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, kusama::StakerStatus::Validator))
 				.collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::NotForcing,
@@ -1505,7 +1505,7 @@ pub fn westend_testnet_genesis(
 			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, westend::StakerStatus::Validator))
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, westend::StakerStatus::Validator))
 				.collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::NotForcing,

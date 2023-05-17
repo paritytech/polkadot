@@ -1510,6 +1510,7 @@ pub type Migrations =
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
+	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
 
 	pub type V0940 = (
 		pallet_nomination_pools::migration::v4::MigrateToV4<
@@ -1527,13 +1528,36 @@ pub mod migrations {
 
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
+		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
 	);
+
+	/// Migrations that set `StorageVersion`s we missed to set.
+	pub struct SetStorageVersions;
+
+	impl OnRuntimeUpgrade for SetStorageVersions {
+		fn on_runtime_upgrade() -> Weight {
+			// The `NisCounterpartBalances` pallet was added to the chain after/with the migration.
+			// So, the migration never needed to be executed, but we also did not set the proper `StorageVersion`.
+			let storage_version = NisCounterpartBalances::on_chain_storage_version();
+			if storage_version < 1 {
+				StorageVersion::new(1).put::<NisCounterpartBalances>();
+			}
+
+			// Was missed as part of: `runtime_common::session::migration::ClearOldSessionStorage<Runtime>`.
+			let storage_version = Historical::on_chain_storage_version();
+			if storage_version < 1 {
+				StorageVersion::new(1).put::<Historical>();
+			}
+
+			RocksDbWeight::get().reads_writes(2, 2)
+		}
+	}
 }
 
-/// Helpers to configure all migrations.
+/// Helpers to configure the ump migrations.
 pub mod ump_migrations {
 	use runtime_parachains::configuration::migration_ump;
 
