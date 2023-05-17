@@ -388,7 +388,7 @@ pub mod v2 {
 		/// The criterion which is claimed to be met by this cert.
 		pub kind: AssignmentCertKindV2,
 		/// The VRF showing the criterion is met.
-		pub vrf: (VrfOutput, VrfProof),
+		pub vrf: VrfSignature,
 	}
 
 	impl From<super::v1::AssignmentCert> for AssignmentCertV2 {
@@ -400,7 +400,7 @@ pub mod v2 {
 					super::v1::AssignmentCertKind::RelayVRFModulo { sample } =>
 						AssignmentCertKindV2::RelayVRFModulo { sample },
 				},
-				vrf: (cert.vrf.output, cert.vrf.proof),
+				vrf: cert.vrf,
 			}
 		}
 	}
@@ -424,7 +424,7 @@ pub mod v2 {
 					// Not supported
 					_ => return Err(AssignmentConversionError::CertificateNotSupported),
 				},
-				vrf: VrfSignature { output: cert.vrf.0, proof: cert.vrf.1 },
+				vrf: cert.vrf,
 			})
 		}
 	}

@@ -531,7 +531,10 @@ fn compute_relay_vrf_modulo_assignments_v2(
 			kind: AssignmentCertKindV2::RelayVRFModuloCompact {
 				core_bitfield: assignment_bitfield.clone(),
 			},
-			vrf: (VrfOutput(vrf_in_out.to_output()), VrfProof(vrf_proof)),
+			vrf: VrfSignature {
+				output: VrfOutput(vrf_in_out.to_output()),
+				proof: VrfProof(vrf_proof),
+			},
 		};
 
 		// All assignments of type RelayVRFModulo have tranche 0.
@@ -563,7 +566,10 @@ fn compute_relay_vrf_delay_assignments(
 
 		let cert = AssignmentCertV2 {
 			kind: AssignmentCertKindV2::RelayVRFDelay { core_index: core },
-			vrf: (VrfOutput(vrf_in_out.to_output()), VrfProof(vrf_proof)),
+			vrf: VrfSignature {
+				output: VrfOutput(vrf_in_out.to_output()),
+				proof: VrfProof(vrf_proof),
+			},
 		};
 
 		let our_assignment = OurAssignment {
@@ -685,7 +691,9 @@ pub(crate) fn check_assignment_cert(
 		}
 	}
 
-	let (vrf_output, vrf_proof) = &assignment.vrf;
+	let vrf_output = &assignment.vrf.output;
+	let vrf_proof = &assignment.vrf.proof;
+
 	match &assignment.kind {
 		AssignmentCertKindV2::RelayVRFModuloCompact { core_bitfield } => {
 			// Check that claimed core bitfield match the one from certificate.
@@ -1084,7 +1092,7 @@ mod tests {
 			let vrf_signature = garbage_vrf_signature();
 			match m.cert.kind.clone() {
 				AssignmentCertKindV2::RelayVRFDelay { .. } => {
-					m.cert.vrf = (vrf_signature.output, vrf_signature.proof);
+					m.cert.vrf = vrf_signature;
 					Some(false)
 				},
 				_ => None, // skip everything else.
@@ -1098,11 +1106,11 @@ mod tests {
 			let vrf_signature = garbage_vrf_signature();
 			match m.cert.kind.clone() {
 				AssignmentCertKindV2::RelayVRFModulo { .. } => {
-					m.cert.vrf = (vrf_signature.output, vrf_signature.proof);
+					m.cert.vrf = vrf_signature;
 					Some(false)
 				},
 				AssignmentCertKindV2::RelayVRFModuloCompact { .. } => {
-					m.cert.vrf = (vrf_signature.output, vrf_signature.proof);
+					m.cert.vrf = vrf_signature;
 					Some(false)
 				},
 				_ => None, // skip everything else.
