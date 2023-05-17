@@ -18,6 +18,7 @@
 
 use crate::{
 	artifacts::ArtifactPathId,
+	error::InternalValidationError,
 	worker_common::{
 		framed_recv, framed_send, path_to_bytes, spawn_with_program_path, IdleWorker, SpawnErr,
 		WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
@@ -64,6 +65,8 @@ pub async fn spawn(
 }
 
 /// Outcome of PVF execution.
+///
+/// If the idle worker token is not returned, it means the worker must be terminated.
 pub enum Outcome {
 	/// PVF execution completed successfully and the result is returned. The worker is ready for
 	/// another job.
@@ -73,18 +76,23 @@ pub enum Outcome {
 	InvalidCandidate { err: String, idle_worker: IdleWorker },
 	/// An internal error happened during the validation. Such an error is most likely related to
 	/// some transient glitch.
-	InternalError { err: String, idle_worker: IdleWorker },
+	///
+	/// Should only ever be used for errors independent of the candidate and PVF. Therefore it may
+	/// be a problem with the worker, so we terminate it.
+	InternalError { err: InternalValidationError },
 	/// The execution time exceeded the hard limit. The worker is terminated.
 	HardTimeout,
 	/// An I/O error happened during communication with the worker. This may mean that the worker
 	/// process already died. The token is not returned in any case.
 	IoErr,
+	/// An unexpected panic has occurred in the execution worker.
+	Panic { err: String },
 }
 
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
 /// returns the outcome.
 ///
-/// NOTE: Returning the `HardTimeout` or `IoErr` errors will trigger the child process being killed.
+/// NOTE: Not returning the idle worker token in `Outcome` will trigger the child process being killed.
 pub async fn start_work(
 	worker: IdleWorker,
 	artifact: ArtifactPathId,
@@ -171,8 +179,8 @@ pub async fn start_work(
 		Response::InvalidCandidate(err) =>
 			Outcome::InvalidCandidate { err, idle_worker: IdleWorker { stream, pid } },
 		Response::TimedOut => Outcome::HardTimeout,
-		Response::InternalError(err) =>
-			Outcome::InternalError { err, idle_worker: IdleWorker { stream, pid } },
+		Response::Panic(err) => Outcome::Panic { err },
+		Response::InternalError(err) => Outcome::InternalError { err },
 	}
 }
 
@@ -223,8 +231,10 @@ pub enum Response {
 	InvalidCandidate(String),
 	/// The job timed out.
 	TimedOut,
-	/// Some internal error occurred. Should only be used for errors independent of the candidate.
-	InternalError(String),
+	/// An unexpected panic has occurred in the execution worker.
+	Panic(String),
+	/// Some internal error occurred.
+	InternalError(InternalValidationError),
 }
 
 impl Response {
@@ -234,14 +244,6 @@ impl Response {
 			Self::InvalidCandidate(ctx.to_string())
 		} else {
 			Self::InvalidCandidate(format!("{}: {}", ctx, msg))
-		}
-	}
-	/// Creates an internal response from a context `ctx` and a message `msg` (which can be empty).
-	pub fn format_internal(ctx: &'static str, msg: &str) -> Self {
-		if msg.is_empty() {
-			Self::InternalError(ctx.to_string())
-		} else {
-			Self::InternalError(format!("{}: {}", ctx, msg))
 		}
 	}
 }
