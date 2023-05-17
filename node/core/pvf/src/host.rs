@@ -1211,7 +1211,9 @@ pub(crate) mod tests {
 
 		// First, test a simple precheck request.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx)
+			.await
+			.unwrap();
 
 		// The queue received the prepare request.
 		assert_matches!(
@@ -1235,7 +1237,9 @@ pub(crate) mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(PvfPrepData::from_discriminator(2), result_tx).await.unwrap();
+			host.precheck_pvf(PvfPrepData::from_discriminator_precheck(2), result_tx)
+				.await
+				.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 		// Received prepare request.
@@ -1285,7 +1289,9 @@ pub(crate) mod tests {
 		);
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx)
+			.await
+			.unwrap();
 
 		// Suppose the preparation failed, the execution queue is empty and both
 		// "clients" receive their results.
@@ -1307,7 +1313,9 @@ pub(crate) mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(PvfPrepData::from_discriminator(2), result_tx).await.unwrap();
+			host.precheck_pvf(PvfPrepData::from_discriminator_precheck(2), result_tx)
+				.await
+				.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 
@@ -1353,7 +1361,9 @@ pub(crate) mod tests {
 
 		// Submit a precheck request that fails.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx)
+			.await
+			.unwrap();
 
 		// The queue received the prepare request.
 		assert_matches!(
@@ -1375,7 +1385,7 @@ pub(crate) mod tests {
 
 		// Submit another precheck request.
 		let (result_tx_2, result_rx_2) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx_2)
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx_2)
 			.await
 			.unwrap();
 
@@ -1391,7 +1401,7 @@ pub(crate) mod tests {
 
 		// Submit another precheck request.
 		let (result_tx_3, result_rx_3) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx_3)
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx_3)
 			.await
 			.unwrap();
 

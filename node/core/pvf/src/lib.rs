@@ -95,7 +95,6 @@ mod host;
 mod metrics;
 mod prepare;
 mod priority;
-mod pvf;
 mod worker_common;
 
 pub use artifacts::CompiledArtifact;
@@ -105,9 +104,8 @@ pub use error::{
 pub use execute::{ExecuteHandshake, ExecuteResponse};
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub use prepare::MemoryAllocationStats;
-pub use prepare::{MemoryStats, PrepareStats};
+pub use prepare::{MemoryStats, PrepareJobKind, PrepareStats, PvfPrepData};
 pub use priority::Priority;
-pub use pvf::PvfPrepData;
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;

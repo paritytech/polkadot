@@ -18,6 +18,7 @@
 
 use polkadot_primitives::{ExecutorParam, ExecutorParams};
 use sc_executor_common::{
+	error::WasmError,
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{HeapAllocStrategy, InvokeMethod, WasmModule as _},
 };
@@ -226,6 +227,22 @@ impl Executor {
 			Ok(Err(err)) | Err(err) => Err(err),
 		}
 		.map_err(|err| format!("execute error: {:?}", err))
+	}
+
+	/// Constructs the runtime for the given PVF.
+	///
+	/// # Safety
+	///
+	/// See `execute` for safety considerations.
+	pub unsafe fn try_create_runtime(
+		&self,
+		compiled_artifact_path: &Path,
+	) -> Result<(), WasmError> {
+		let _runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
+			compiled_artifact_path,
+			self.config.clone(),
+		)?;
+		Ok(())
 	}
 }
 

@@ -29,6 +29,8 @@ pub enum PrepareError {
 	Prevalidation(String),
 	/// Compilation failed for the given PVF.
 	Preparation(String),
+	/// Instantiation of the WASM module instance failed.
+	RuntimeConstruction(String),
 	/// An unexpected panic has occurred in the preparation worker.
 	Panic(String),
 	/// Failed to prepare the PVF due to the time limit.
@@ -55,6 +57,8 @@ impl PrepareError {
 		match self {
 			Prevalidation(_) | Preparation(_) | Panic(_) => true,
 			TimedOut | IoErr(_) | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
+			// Can occur due to issues with the PVF, but also due to local errors.
+			RuntimeConstruction(_) => false,
 		}
 	}
 }
@@ -65,6 +69,7 @@ impl fmt::Display for PrepareError {
 		match self {
 			Prevalidation(err) => write!(f, "prevalidation: {}", err),
 			Preparation(err) => write!(f, "preparation: {}", err),
+			RuntimeConstruction(err) => write!(f, "runtime construction: {}", err),
 			Panic(err) => write!(f, "panic: {}", err),
 			TimedOut => write!(f, "prepare: timeout"),
 			IoErr(err) => write!(f, "prepare: io error while receiving response: {}", err),

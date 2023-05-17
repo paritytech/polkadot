@@ -18,7 +18,7 @@ use super::worker_intf::{self, Outcome};
 use crate::{
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
-	pvf::PvfPrepData,
+	prepare::PvfPrepData,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
 };
