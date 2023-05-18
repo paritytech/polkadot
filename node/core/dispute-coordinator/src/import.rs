@@ -179,6 +179,9 @@ pub struct CandidateVoteState<Votes> {
 
 	/// Current dispute status, if there is any.
 	dispute_status: Option<DisputeStatus>,
+
+	/// Are there `byzantine threshold + 1` invalid votes
+	byzantine_threshold_against: bool,
 }
 
 impl CandidateVoteState<CandidateVotes> {
@@ -191,7 +194,12 @@ impl CandidateVoteState<CandidateVotes> {
 			valid: ValidCandidateVotes::new(),
 			invalid: BTreeMap::new(),
 		};
-		Self { votes, own_vote: OwnVoteState::CannotVote, dispute_status: None }
+		Self {
+			votes,
+			own_vote: OwnVoteState::CannotVote,
+			dispute_status: None,
+			byzantine_threshold_against: false,
+		}
 	}
 
 	/// Create a new `CandidateVoteState` from already existing votes.
@@ -205,7 +213,7 @@ impl CandidateVoteState<CandidateVotes> {
 		// We have a dispute, if we have votes on both sides:
 		let is_disputed = !votes.invalid.is_empty() && !votes.valid.raw().is_empty();
 
-		let dispute_status = if is_disputed {
+		let (dispute_status, byzantine_threshold_against) = if is_disputed {
 			let mut status = DisputeStatus::active();
 			let byzantine_threshold = polkadot_primitives::byzantine_threshold(n_validators);
 			let is_confirmed = votes.voted_indices().len() > byzantine_threshold;
@@ -221,12 +229,12 @@ impl CandidateVoteState<CandidateVotes> {
 			if concluded_against {
 				status = status.conclude_against(now);
 			};
-			Some(status)
+			(Some(status), votes.invalid.len() > byzantine_threshold)
 		} else {
-			None
+			(None, false)
 		};
 
-		Self { votes, own_vote, dispute_status }
+		Self { votes, own_vote, dispute_status, byzantine_threshold_against }
 	}
 
 	/// Import fresh statements.
@@ -328,8 +336,12 @@ impl CandidateVoteState<CandidateVotes> {
 
 	/// Extract `CandidateVotes` for handling import of new statements.
 	fn into_old_state(self) -> (CandidateVotes, CandidateVoteState<()>) {
-		let CandidateVoteState { votes, own_vote, dispute_status } = self;
-		(votes, CandidateVoteState { votes: (), own_vote, dispute_status })
+		let CandidateVoteState { votes, own_vote, dispute_status, byzantine_threshold_against } =
+			self;
+		(
+			votes,
+			CandidateVoteState { votes: (), own_vote, dispute_status, byzantine_threshold_against },
+		)
 	}
 }
 
@@ -475,6 +487,13 @@ impl ImportResult {
 	/// Whether or not any dispute just concluded either invalid or valid due to the import.
 	pub fn is_freshly_concluded(&self) -> bool {
 		self.is_freshly_concluded_against() || self.is_freshly_concluded_for()
+	}
+
+	/// Whether or not the invalid vote count for the dispute went beyond the byzantine threshold
+	/// after the last import
+	pub fn has_fresh_byzantine_threshold_against(&self) -> bool {
+		!self.old_state().byzantine_threshold_against &&
+			self.new_state().byzantine_threshold_against
 	}
 
 	/// Modify this `ImportResult`s, by importing additional approval votes.

@@ -1460,20 +1460,55 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
-/// upgrades in case governance decides to do so.
-#[allow(deprecated)]
-pub type Migrations = (
-	// 0.9.40
-	pallet_nomination_pools::migration::v4::MigrateToV4<
-		Runtime,
-		NominationPoolsMigrationV4OldPallet,
-	>,
-	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
-	// Unreleased - add new migrations here:
-	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-	pallet_offences::migration::v1::MigrateToV1<Runtime>,
-	runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
-);
+/// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
+pub type Migrations =
+	(migrations::V0940, migrations::V0941, migrations::V0942, migrations::Unreleased);
+
+/// The runtime migrations per release.
+#[allow(deprecated, missing_docs)]
+pub mod migrations {
+	use super::*;
+	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
+
+	pub type V0940 = (
+		pallet_nomination_pools::migration::v4::MigrateToV4<
+			Runtime,
+			NominationPoolsMigrationV4OldPallet,
+		>,
+		pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
+	);
+	pub type V0941 = (); // Node only release - no migrations.
+	pub type V0942 = (
+		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+		pallet_offences::migration::v1::MigrateToV1<Runtime>,
+		runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
+	);
+
+	/// Unreleased migrations. Add new ones here:
+	pub type Unreleased = SetStorageVersions;
+
+	/// Migrations that set `StorageVersion`s we missed to set.
+	pub struct SetStorageVersions;
+
+	impl OnRuntimeUpgrade for SetStorageVersions {
+		fn on_runtime_upgrade() -> Weight {
+			// The `NisCounterpartBalances` pallet was added to the chain after/with the migration.
+			// So, the migration never needed to be executed, but we also did not set the proper `StorageVersion`.
+			let storage_version = NisCounterpartBalances::on_chain_storage_version();
+			if storage_version < 1 {
+				StorageVersion::new(1).put::<NisCounterpartBalances>();
+			}
+
+			// Was missed as part of: `runtime_common::session::migration::ClearOldSessionStorage<Runtime>`.
+			let storage_version = Historical::on_chain_storage_version();
+			if storage_version < 1 {
+				StorageVersion::new(1).put::<Historical>();
+			}
+
+			RocksDbWeight::get().reads_writes(2, 2)
+		}
+	}
+}
 
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

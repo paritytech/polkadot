@@ -26,7 +26,7 @@ use sp_consensus_babe::{
 	digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 	VrfTranscript,
 };
-use sp_core::{crypto::VrfSigner, testing::TaskExecutor};
+use sp_core::{crypto::VrfSecret, testing::TaskExecutor};
 use sp_runtime::{testing::*, DigestItem};
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
@@ -132,7 +132,7 @@ const TIMEOUT: Duration = Duration::from_millis(2000);
 // used for generating assignments where the validity of the VRF doesn't matter.
 fn garbage_vrf_signature() -> VrfSignature {
 	let transcript = VrfTranscript::new(b"test-garbage", &[]);
-	Sr25519Keyring::Alice.pair().vrf_sign(&transcript)
+	Sr25519Keyring::Alice.pair().vrf_sign(&transcript.into())
 }
 
 /// Representation of a local representation
