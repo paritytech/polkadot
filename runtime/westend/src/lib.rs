@@ -1220,6 +1220,8 @@ pub type Migrations =
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
+	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
+
 	use super::*;
 
 	pub type V0940 = (
@@ -1237,7 +1239,21 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = ();
+	pub type Unreleased = SetStorageVersions;
+
+	/// Migrations that set `StorageVersion`s we missed to set.
+	pub struct SetStorageVersions;
+
+	impl OnRuntimeUpgrade for SetStorageVersions {
+		fn on_runtime_upgrade() -> Weight {
+			let storage_version = FastUnstake::on_chain_storage_version();
+			if storage_version < 1 {
+				StorageVersion::new(1).put::<FastUnstake>();
+			}
+
+			RocksDbWeight::get().reads_writes(1, 1)
+		}
+	}
 }
 
 /// Unchecked extrinsic type as expected by this runtime.
