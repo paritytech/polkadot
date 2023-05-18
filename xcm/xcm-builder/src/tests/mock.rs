@@ -243,6 +243,9 @@ pub fn asset_list(who: impl Into<MultiLocation>) -> Vec<MultiAsset> {
 pub fn add_asset(who: impl Into<MultiLocation>, what: impl Into<MultiAsset>) {
 	ASSETS.with(|a| a.borrow_mut().entry(who.into()).or_insert(Assets::new()).subsume(what.into()));
 }
+pub fn clear_assets(who: impl Into<MultiLocation>) {
+	ASSETS.with(|a| a.borrow_mut().remove(&who.into()));
+}
 
 pub struct TestAssetTransactor;
 impl TransactAsset for TestAssetTransactor {
