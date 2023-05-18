@@ -8076,7 +8076,6 @@ dependencies = [
  "static_assertions",
  "thousands",
  "xcm",
- "xcm-executor",
 ]
 
 [[package]]
@@ -14633,6 +14632,7 @@ dependencies = [
  "paste",
  "polkadot-core-primitives",
  "polkadot-parachain",
+ "polkadot-primitives",
  "polkadot-runtime-parachains",
  "sp-io",
  "sp-std",

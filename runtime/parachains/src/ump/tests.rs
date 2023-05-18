@@ -334,7 +334,7 @@ fn overweight_queue_works() {
 		assert_last_event(
 			Event::OverweightEnqueued(
 				para_a,
-				upward_message_id(&a_msg_3[..]),
+				message_id(&a_msg_3[..]),
 				0,
 				Weight::from_parts(500, 500),
 			)

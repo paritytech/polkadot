@@ -21,7 +21,7 @@ use crate::{
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
 use polkadot_parachain::primitives::UpwardMessages;
-use primitives::{Id as ParaId, UpwardMessage};
+use primitives::{message_id, Id as ParaId, MessageId, UpwardMessage};
 use sp_std::{collections::btree_map::BTreeMap, fmt, marker::PhantomData, mem, prelude::*};
 use xcm::latest::Outcome;
 
@@ -81,21 +81,12 @@ impl UmpSink for () {
 	}
 }
 
-/// Simple type used to identify messages for the purpose of reporting events. Secure if and only
-/// if the message content is unique.
-pub type MessageId = [u8; 32];
-
 /// Index used to identify overweight messages.
 pub type OverweightIndex = u64;
 
 /// A specific implementation of a `UmpSink` where messages are in the XCM format
 /// and will be forwarded to the XCM Executor.
 pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
-
-/// Returns a [`MessageId`] for the given upward message payload.
-fn upward_message_id(data: &[u8]) -> MessageId {
-	sp_io::hashing::blake2_256(data)
-}
 
 impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 	for XcmSink<XcmExecutor, C>
@@ -111,7 +102,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 			VersionedXcm,
 		};
 
-		let id = upward_message_id(data);
+		let id = message_id(data);
 		let maybe_msg_and_weight = VersionedXcm::<C::RuntimeCall>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut data,

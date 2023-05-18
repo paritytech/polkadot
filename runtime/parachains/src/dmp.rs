@@ -47,7 +47,7 @@ use crate::{
 	initializer, FeeTracker,
 };
 use frame_support::pallet_prelude::*;
-use primitives::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
+use primitives::{message_id, DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_runtime::{
 	traits::{BlakeTwo256, Hash as HashT, SaturatedConversion},
@@ -107,13 +107,17 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use primitives::MessageId;
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + configuration::Config {}
+	pub trait Config: frame_system::Config + configuration::Config {
+		/// The aggregate event.
+		type RuntimeEvent: From<Event> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+	}
 
 	/// The downward messages addressed for a certain para.
 	#[pallet::storage]
@@ -146,7 +150,15 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(crate) type DeliveryFeeFactor<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, FixedU128, ValueQuery, InitialFactor>;
+
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event {
+		/// Downward message was sent to para.
+		DownwardMessageSent { para_id: ParaId, message_id: MessageId },
+	}
 }
+
 /// Routines and getters related to downward message passing.
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
@@ -223,6 +235,7 @@ impl<T: Config> Pallet<T> {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
+		let id = message_id(&msg);
 		let inbound =
 			InboundDownwardMessage { msg, sent_at: <frame_system::Pallet<T>>::block_number() };
 
@@ -247,6 +260,7 @@ impl<T: Config> Pallet<T> {
 			Self::increment_fee_factor(para, message_size_factor);
 		}
 
+		Self::deposit_event(Event::DownwardMessageSent { para_id: para, message_id: id });
 		Ok(())
 	}
 
