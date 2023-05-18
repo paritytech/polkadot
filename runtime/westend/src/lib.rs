@@ -1246,12 +1246,12 @@ pub mod migrations {
 
 	impl OnRuntimeUpgrade for SetStorageVersions {
 		fn on_runtime_upgrade() -> Weight {
-			let storage_version = FastUnstake::on_chain_storage_version();
-			if storage_version < 1 {
+			if FastUnstake::on_chain_storage_version() < 1 {
 				StorageVersion::new(1).put::<FastUnstake>();
+				return RocksDbWeight::get().reads_writes(1, 1)
 			}
 
-			RocksDbWeight::get().reads_writes(1, 1)
+			RocksDbWeight::get().reads(1)
 		}
 	}
 }
