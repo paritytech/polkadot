@@ -31,7 +31,6 @@ use sp_std::vec::Vec;
 /// v4-v5: <https://github.com/paritytech/polkadot/pull/6937>
 ///        + <https://github.com/paritytech/polkadot/pull/6961>
 ///        + <https://github.com/paritytech/polkadot/pull/6934>
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 
 pub mod v5 {
 	use super::*;
@@ -144,9 +143,12 @@ pub mod v5 {
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV5<T> {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-			log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
+			log::trace!(target: configuration::LOG_TARGET, "Running pre_upgrade()");
 
-			ensure!(StorageVersion::get::<Pallet<T>>() == 4, "The migration requires version 4");
+			ensure!(
+				Pallet::<T>::current_storage_version() >= Pallet::<T>::on_chain_storage_version(),
+				"configuration::migration::v5: on_chain version is greater than current version"
+			);
 			Ok(Vec::new())
 		}
 
@@ -155,11 +157,11 @@ pub mod v5 {
 				let weight_consumed = migrate_to_v5::<T>();
 
 				log::info!(target: configuration::LOG_TARGET, "MigrateToV5 executed successfully");
-				STORAGE_VERSION.put::<Pallet<T>>();
+				StorageVersion::new(5).put::<Pallet<T>>();
 
 				weight_consumed
 			} else {
-				log::warn!(target: configuration::LOG_TARGET, "MigrateToV5 should be removed.");
+				log::warn!(target: configuration::LOG_TARGET, "MigrateToV5 can be removed.");
 				T::DbWeight::get().reads(1)
 			}
 		}
@@ -168,8 +170,8 @@ pub mod v5 {
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
 			log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
-				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
-				"Storage version should be 5 after the migration"
+				StorageVersion::get::<Pallet<T>>() == StorageVersion::new(5),
+				"Storage version must be 5 after the migration"
 			);
 
 			Ok(())

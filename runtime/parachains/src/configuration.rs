@@ -485,8 +485,10 @@ impl WeightInfo for TestWeightInfo {
 pub mod pallet {
 	use super::*;
 
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
+
 	#[pallet::pallet]
-	#[pallet::storage_version(migration::STORAGE_VERSION)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
