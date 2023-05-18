@@ -14,17 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Preparation part of pipeline
-//!
-//! The validation host spins up two processes: the queue (by running [`start_queue`]) and the pool
-//! (by running [`start_pool`]).
-//!
-//! The pool will spawn workers in new processes and those should execute pass control to
-//! `polkadot_node_core_pvf_worker::prepare_worker_entrypoint`.
-
-mod pool;
-mod queue;
-mod worker_intf;
-
-pub use pool::start as start_pool;
-pub use queue::{start as start_queue, FromQueue, ToQueue};
+fn main() {
+	// TODO?
+}

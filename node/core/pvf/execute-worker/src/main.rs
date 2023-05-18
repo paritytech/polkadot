@@ -14,4 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-polkadot_node_core_pvf_worker::decl_puppet_worker_main!();
+//! Execute worker.
+
+polkadot_node_core_pvf_common::decl_worker_main!(
+	"execute-worker",
+	polkadot_node_core_pvf_execute_worker::worker_entrypoint
+);

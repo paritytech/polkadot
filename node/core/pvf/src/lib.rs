@@ -95,27 +95,22 @@ mod host;
 mod metrics;
 mod prepare;
 mod priority;
-mod pvf;
-mod worker_common;
-
-pub use artifacts::CompiledArtifact;
-pub use error::{
-	InternalValidationError, InvalidCandidate, PrepareError, PrepareResult, ValidationError,
-};
-pub use execute::{ExecuteHandshake, ExecuteResponse};
-#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-pub use prepare::MemoryAllocationStats;
-pub use prepare::{MemoryStats, PrepareStats};
-pub use priority::Priority;
-pub use pvf::PvfPrepData;
-
-pub use host::{start, Config, ValidationHost};
-pub use metrics::Metrics;
-pub use worker_common::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
-
-const LOG_TARGET: &str = "parachain::pvf";
+mod worker_intf;
 
 #[doc(hidden)]
-pub mod testing {
-	pub use crate::worker_common::{spawn_with_program_path, SpawnErr};
-}
+pub mod testing;
+
+pub use error::{InvalidCandidate, ValidationError};
+pub use host::{start, Config, ValidationHost};
+pub use metrics::Metrics;
+pub use priority::Priority;
+pub use worker_intf::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
+
+pub use polkadot_node_core_pvf_common::{
+	error::{InternalValidationError, PrepareError},
+	prepare::PrepareStats,
+	pvf::PvfPrepData,
+};
+
+/// The log target for this crate.
+pub const LOG_TARGET: &str = "parachain::pvf";
