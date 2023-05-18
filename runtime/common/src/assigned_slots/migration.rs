@@ -24,6 +24,8 @@ pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+		let onchain_version = Pallet::<T>::on_chain_storage_version();
+		ensure!(onchain_version < 1, "assigned_slots::MigrateToV1 migration can be deleted");
 		Ok(Default::default())
 	}
 
