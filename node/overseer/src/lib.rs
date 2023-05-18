@@ -554,7 +554,6 @@ pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(CollatorProtocolMessage, sends: [
 		NetworkBridgeTxMessage,
-		RuntimeApiMessage,
 		CandidateBackingMessage,
 	])]
 	collator_protocol: CollatorProtocol,

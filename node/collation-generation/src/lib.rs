@@ -15,6 +15,19 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The collation generation subsystem is the interface between polkadot and the collators.
+//!
+//! # Protocol
+//!
+//! On every `ActiveLeavesUpdate`:
+//!
+//! * If there is no collation generation config, ignore.
+//! * Otherwise, for each `activated` head in the update:
+//!   * Determine if the para is scheduled on any core by fetching the `availability_cores` Runtime API.
+//!   * Determine an occupied core assumption to make about the para. Scheduled cores can make [`OccupiedCoreAssumption::Free`].
+//!     * TODO: What does this mean?
+//!   * Use the Runtime API subsystem to fetch the full validation data.
+//!   * Invoke the `collator`, and use its outputs to produce a [`CandidateReceipt`], signed with the configuration's `key`.
+//!   * Dispatch a [`CollatorProtocolMessage::DistributeCollation`](receipt, pov)`.
 
 #![deny(missing_docs)]
 
