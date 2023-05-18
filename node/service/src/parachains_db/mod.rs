@@ -132,7 +132,7 @@ pub fn open_creating_rocksdb(
 
 	let path = root.join("parachains").join("db");
 
-	let mut db_config = DatabaseConfig::with_columns(columns::v2::NUM_COLUMNS);
+	let mut db_config = DatabaseConfig::with_columns(columns::v3::NUM_COLUMNS);
 
 	let _ = db_config
 		.memory_budget
