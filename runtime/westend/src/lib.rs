@@ -328,10 +328,24 @@ impl pallet_session::historical::Config for Runtime {
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
+pub struct MaybeSignedPhase;
+
+impl Get<u32> for MaybeSignedPhase {
+	fn get() -> u32 {
+		// 1 day = 4 eras -> 1 week = 28 eras. We want to disable signed phase once a week to test the fallback unsigned
+		// phase is able to compute elections on Westend.
+		if Staking::current_era().unwrap_or(1) as u32 % 28 == 0 {
+			0
+		} else {
+			EPOCH_DURATION_IN_SLOTS / 4
+		}
+	}
+}
+
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
 	pub SignedPhase: u32 = prod_or_fast!(
-		EPOCH_DURATION_IN_SLOTS / 4,
+		MaybeSignedPhase::get(),
 		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2)
 	);
 	pub UnsignedPhase: u32 = prod_or_fast!(
