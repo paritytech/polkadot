@@ -225,6 +225,24 @@ struct PeerEntry {
 	pub version: ProtocolVersion,
 }
 
+// In case the original gtid topology mechanisms don't work on their own, we need to trade bandwidth
+// for protocol liveliness by introducing aggression.
+//
+// Aggression has 3 levels:
+//
+//  * Aggression Level 0: The basic behaviors described above.
+//  * Aggression Level 1: The originator of a message sends to all peers. Other peers follow the rules above.
+//  * Aggression Level 2: All peers send all messages to all their row and column neighbors.
+//    This means that each validator will, on average, receive each message approximately `2*sqrt(n)` times.
+// The aggression level of messages pertaining to a block increases when that block is unfinalized and
+// is a child of the finalized block.
+// This means that only one block at a time has its messages propagated with aggression > 0.
+//
+// A note on aggression thresholds: changes in propagation apply only to blocks which are the
+// _direct descendants_ of the finalized block which are older than the given threshold,
+// not to all blocks older than the threshold. Most likely, a few assignments struggle to
+// be propagated in a single block and this holds up all of its descendants blocks.
+// Accordingly, we only step on the gas for the block which is most obviously holding up finality.
 /// Aggression configuration representation
 #[derive(Clone)]
 struct AggressionConfig {
