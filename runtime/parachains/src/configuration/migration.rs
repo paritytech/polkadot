@@ -171,7 +171,7 @@ pub mod v5 {
 			log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() >= StorageVersion::new(5),
-				"Storage version must at least 5 after this migration"
+				"Storage version must be at least 5 after this migration"
 			);
 
 			Ok(())
