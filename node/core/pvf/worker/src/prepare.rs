@@ -18,8 +18,6 @@
 use crate::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread};
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 use crate::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
-#[cfg(feature = "wrapper-allocator")]
-use wrapper_allocator::ALLOCATOR_DATA;
 use crate::{
 	common::{bytes_to_path, cpu_time_monitor_loop, worker_event_loop},
 	prepare, prevalidate, LOG_TARGET,
@@ -33,6 +31,8 @@ use polkadot_node_core_pvf::{
 };
 use std::{any::Any, panic, path::PathBuf, sync::mpsc::channel};
 use tokio::{io, net::UnixStream};
+#[cfg(feature = "wrapper-allocator")]
+use wrapper_allocator::ALLOC;
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
 	let pvf = framed_recv(stream).await?;
@@ -112,18 +112,19 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let prepare_fut = rt_handle
 				.spawn_blocking(move || {
 					#[cfg(feature = "wrapper-allocator")]
-					ALLOCATOR_DATA.checkpoint();
+					ALLOC.start_tracking(100_000_000);
 
 					let result = prepare_artifact(pvf);
 
 					#[cfg(feature = "wrapper-allocator")]
 					{
-						let peak = ALLOCATOR_DATA.checkpoint();
+						let (events, peak) = ALLOC.end_tracking();
 						gum::debug!(
 							target: LOG_TARGET,
 							%worker_pid,
-							"prepare job peak allocation is {} bytes",
+							"prepare job peak allocation is {} bytes in {} events",
 							peak,
+							events,
 						);
 					}
 
