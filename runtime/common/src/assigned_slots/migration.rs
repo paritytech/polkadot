@@ -47,7 +47,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
 		let onchain_version = Pallet::<T>::on_chain_storage_version();
-		ensure!(onchain == 1, "assigned_slots::MigrateToV1 needs to be run");
+		ensure!(onchain_version == 1, "assigned_slots::MigrateToV1 needs to be run");
 		Ok(())
 	}
 }
