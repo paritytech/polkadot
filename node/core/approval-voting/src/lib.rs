@@ -2035,8 +2035,9 @@ where
 			check_and_import_assignment_span.add_uint_tag("tranche", tranche as u64);
 
 			// We've imported a new assignment, so we need to schedule a wake-up for when that might no-show.
-			if let Some((approval_entry, status)) =
-				state.approval_status(sender, &block_entry, session_info_provider, &candidate_entry)
+			if let Some((approval_entry, status)) = state
+				.approval_status(sender, session_info_provider, &block_entry, &candidate_entry)
+				.await
 			{
 				actions.extend(schedule_wakeup_action(
 					approval_entry,
