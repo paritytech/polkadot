@@ -1586,14 +1586,6 @@ pub mod migrations {
 			}
 			reads += 1;
 
-			// ChildBounties
-			let storage_version = ChildBounties::on_chain_storage_version();
-			if storage_version < 1 {
-				StorageVersion::new(1).put::<ChildBounties>();
-				writes += 1;
-			}
-			reads += 1;
-
 			RocksDbWeight::get().reads_writes(reads, writes)
 		}
 	}
