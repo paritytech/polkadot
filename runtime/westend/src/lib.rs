@@ -337,7 +337,7 @@ impl Get<u32> for MaybeSignedPhase {
 		if Staking::current_era().unwrap_or(1) as u32 % 28 == 0 {
 			0
 		} else {
-			EPOCH_DURATION_IN_SLOTS / 4
+			SignedPhase::get()
 		}
 	}
 }
@@ -345,7 +345,7 @@ impl Get<u32> for MaybeSignedPhase {
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
 	pub SignedPhase: u32 = prod_or_fast!(
-		MaybeSignedPhase::get(),
+		EPOCH_DURATION_IN_SLOTS / 4,
 		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2)
 	);
 	pub UnsignedPhase: u32 = prod_or_fast!(
@@ -423,7 +423,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type EstimateCallFee = TransactionPayment;
-	type SignedPhase = SignedPhase;
+	type SignedPhase = MaybeSignedPhase;
 	type UnsignedPhase = UnsignedPhase;
 	type SignedMaxSubmissions = SignedMaxSubmissions;
 	type SignedMaxRefunds = SignedMaxRefunds;
