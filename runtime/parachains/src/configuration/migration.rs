@@ -170,8 +170,8 @@ pub mod v5 {
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
 			log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
-				StorageVersion::get::<Pallet<T>>() == StorageVersion::new(5),
-				"Storage version must be 5 after the migration"
+				StorageVersion::get::<Pallet<T>>() >= StorageVersion::new(5),
+				"Storage version must at least 5 after this migration"
 			);
 
 			Ok(())
