@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Config, MaxPermanentSlots, MaxTemporarySlots, Pallet};
+use super::{Config, MaxPermanentSlots, MaxTemporarySlots, Pallet, LOG_TARGET};
 use frame_support::{
 	dispatch::GetStorageVersion,
 	traits::{Get, OnRuntimeUpgrade, StorageVersion},
@@ -46,6 +46,8 @@ pub mod v1 {
 				// Return the weight consumed by the migration.
 				T::DbWeight::get().reads_writes(1, 3)
 			} else {
+				log::info!(target: LOG_TARGET, "assigned_slots::MigrateToV1 should be removed");
+
 				Weight::zero()
 			}
 		}

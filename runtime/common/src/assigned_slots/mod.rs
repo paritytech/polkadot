@@ -43,6 +43,8 @@ use scale_info::TypeInfo;
 use sp_runtime::traits::{One, Saturating, Zero};
 use sp_std::prelude::*;
 
+const LOG_TARGET: &str = "runtime::assigned_slots";
+
 /// Lease period an assigned slot should start from (current, or next one).
 #[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum SlotLeasePeriodStart {
@@ -349,9 +351,12 @@ pub mod pallet {
 					Err(err) => {
 						// Treat failed lease creation as warning .. slot will be allocated a lease
 						// in a subsequent lease period by the `allocate_temporary_slot_leases` function.
-						log::warn!(target: "assigned_slots",
+						log::warn!(
+							target: LOG_TARGET,
 							"Failed to allocate a temp slot for para {:?} at period {:?}: {:?}",
-							id, current_lease_period, err
+							id,
+							current_lease_period,
+							err
 						);
 					},
 				}
@@ -402,9 +407,12 @@ pub mod pallet {
 					// Treat failed downgrade as warning .. slot lease has been cleared,
 					// so the parachain will be downgraded anyway by the slots pallet
 					// at the end of the lease period .
-					log::warn!(target: "assigned_slots",
+					log::warn!(
+						target: LOG_TARGET,
 						"Failed to downgrade parachain {:?} at period {:?}: {:?}",
-						id, Self::current_lease_period_index(), err
+						id,
+						Self::current_lease_period_index(),
+						err
 					);
 				}
 			}
@@ -583,9 +591,11 @@ impl<T: Config> Pallet<T> {
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) -> Weight {
 		// Note: leases that have ended in previous lease period, should have been cleaned in slots pallet.
 		if let Err(err) = Self::allocate_temporary_slot_leases(lease_period_index) {
-			log::error!(target: "assigned_slots",
+			log::error!(
+				target: LOG_TARGET,
 				"Allocating slots failed for lease period {:?}, with: {:?}",
-				lease_period_index, err
+				lease_period_index,
+				err
 			);
 		}
 		<T as slots::Config>::WeightInfo::force_lease() *
