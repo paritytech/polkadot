@@ -19,7 +19,7 @@ use crate::tests::test_constants::TEST_CONFIG;
 use super::*;
 use polkadot_node_primitives::{
 	approval::{
-		AssignmentCert, AssignmentCertKind, DelayTranche, VRFOutput, VRFProof,
+		AssignmentCert, AssignmentCertKind, DelayTranche, VrfOutput, VrfProof, VrfSignature,
 		RELAY_VRF_MODULO_CONTEXT,
 	},
 	AvailableData, BlockData, PoV,
@@ -56,8 +56,8 @@ use super::{
 	approval_db::v1::StoredBlockRange,
 	backend::BackendWriteOp,
 	import::tests::{
-		garbage_vrf, AllowedSlots, BabeEpoch, BabeEpochConfiguration, CompatibleDigestItem, Digest,
-		DigestItem, PreDigest, SecondaryVRFPreDigest,
+		garbage_vrf_signature, AllowedSlots, BabeEpoch, BabeEpochConfiguration,
+		CompatibleDigestItem, Digest, DigestItem, PreDigest, SecondaryVRFPreDigest,
 	},
 };
 
@@ -392,7 +392,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
 	let out = inout.to_output();
 
-	AssignmentCert { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
+	AssignmentCert { kind, vrf: VrfSignature { output: VrfOutput(out), proof: VrfProof(proof) } }
 }
 
 fn sign_approval(
@@ -721,9 +721,9 @@ impl ChainBuilder {
 	fn make_header(parent_hash: Hash, slot: Slot, number: u32) -> Header {
 		let digest = {
 			let mut digest = Digest::default();
-			let (vrf_output, vrf_proof) = garbage_vrf();
+			let vrf_signature = garbage_vrf_signature();
 			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
+				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_signature },
 			)));
 			digest
 		};
@@ -799,67 +799,7 @@ async fn import_block(
 			h_tx.send(Ok(Some(new_header.clone()))).unwrap();
 		}
 	);
-
-	assert_matches!(
-		overseer_recv(overseer).await,
-		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(
-				req_block_hash,
-				RuntimeApiRequest::SessionIndexForChild(s_tx)
-			)
-		) => {
-			let hash = &hashes[number as usize];
-			assert_eq!(req_block_hash, hash.0);
-			s_tx.send(Ok(number.into())).unwrap();
-		}
-	);
-
 	if !fork {
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
-				s_tx,
-			)) => {
-				let _ = s_tx.send(Ok(number));
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
-				block_number,
-				s_tx,
-			)) => {
-				assert_eq!(block_number, number);
-				let _ = s_tx.send(Ok(Some(hashes[number as usize].0)));
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				h,
-				RuntimeApiRequest::SessionIndexForChild(s_tx),
-			)) => {
-				assert_eq!(h, hashes[number as usize].0);
-				let _ = s_tx.send(Ok(number.into()));
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					req_block_hash,
-					RuntimeApiRequest::SessionInfo(idx, si_tx),
-				)
-			) => {
-				assert_eq!(number, idx);
-				assert_eq!(req_block_hash, *new_head);
-				si_tx.send(Ok(Some(session_info.clone()))).unwrap();
-			}
-		);
-
 		let mut _ancestry_step = 0;
 		if gap {
 			assert_matches!(
@@ -960,6 +900,23 @@ async fn import_block(
 			}
 		);
 	} else {
+		if !fork {
+			// SessionInfo won't be called for forks - it's already cached
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionInfo(_, si_tx),
+					)
+				) => {
+					// Make sure all SessionInfo calls are not made for the leaf (but for its relay parent)
+					assert_ne!(req_block_hash, hashes[(number-1) as usize].0);
+					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
+				}
+			);
+		}
+
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalDistribution(

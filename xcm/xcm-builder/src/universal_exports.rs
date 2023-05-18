@@ -23,7 +23,11 @@ use xcm::prelude::*;
 use xcm_executor::traits::{validate_export, ExportXcm};
 use SendError::*;
 
-fn ensure_is_remote(
+/// Returns the network ID and consensus location within that network of the remote
+/// location `dest` which is itself specified as a location relative to the local
+/// chain, itself situated at `universal_local` within the consensus universe. If
+/// `dest` is not a location in remote consensus, then an error is returned.
+pub fn ensure_is_remote(
 	universal_local: impl Into<InteriorMultiLocation>,
 	dest: impl Into<MultiLocation>,
 ) -> Result<(NetworkId, InteriorMultiLocation), MultiLocation> {
@@ -158,13 +162,11 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		// We then send a normal message to the bridge asking it to export the prepended
 		// message to the remote chain. This will only work if the bridge will do the message
 		// export for free. Common-good chains will typically be afforded this.
-		let message =
-			Xcm(vec![ExportMessage { network: remote_network, destination: remote_location, xcm }]);
-		let (v, mut cost) = validate_send::<Router>(bridge, message)?;
-		if let Some(payment) = maybe_payment {
-			cost.push(payment);
-		}
-		Ok((v, cost))
+		let message = Xcm(vec![
+			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			ExportMessage { network: remote_network, destination: remote_location, xcm },
+		]);
+		validate_send::<Router>(bridge, message)
 	}
 
 	fn deliver(validation: Router::Ticket) -> Result<XcmHash, SendError> {
@@ -233,7 +235,15 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 }
 
 pub trait DispatchBlob {
-	/// Dispatches an incoming blob and returns the unexpectable weight consumed by the dispatch.
+	/// Takes an incoming blob from over some point-to-point link (usually from some sort of
+	/// inter-consensus bridge) and then does what needs to be done with it. Usually this means
+	/// forwarding it on into some other location sharing our consensus or possibly just enqueuing
+	/// it for execution locally if it is destined for the local chain.
+	///
+	/// NOTE: The API does not provide for any kind of weight or fee management; the size of the
+	/// `blob` is known to the caller and so the operation must have a linear weight relative to
+	/// `blob`'s length. This means that you will generally only want to **enqueue** the blob, not
+	/// enact it. Fees must be handled by the caller.
 	fn dispatch_blob(blob: Vec<u8>) -> Result<(), DispatchBlobError>;
 }
 

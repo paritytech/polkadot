@@ -14,28 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Host interface to the execute worker.
+
 use crate::{
 	artifacts::ArtifactPathId,
-	executor_intf::Executor,
+	error::InternalValidationError,
 	worker_common::{
-		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
-		spawn_with_program_path, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
-		JOB_TIMEOUT_WALL_CLOCK_FACTOR,
+		framed_recv, framed_send, path_to_bytes, spawn_with_program_path, IdleWorker, SpawnErr,
+		WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 	},
 	LOG_TARGET,
 };
-use cpu_time::ProcessTime;
-use futures::{pin_mut, select_biased, FutureExt};
+use futures::FutureExt;
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 
 use polkadot_parachain::primitives::ValidationResult;
 use polkadot_primitives::ExecutorParams;
-use std::{
-	path::{Path, PathBuf},
-	sync::{mpsc::channel, Arc},
-	time::Duration,
-};
+use std::{path::Path, time::Duration};
 use tokio::{io, net::UnixStream};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
@@ -69,6 +65,8 @@ pub async fn spawn(
 }
 
 /// Outcome of PVF execution.
+///
+/// If the idle worker token is not returned, it means the worker must be terminated.
 pub enum Outcome {
 	/// PVF execution completed successfully and the result is returned. The worker is ready for
 	/// another job.
@@ -78,18 +76,23 @@ pub enum Outcome {
 	InvalidCandidate { err: String, idle_worker: IdleWorker },
 	/// An internal error happened during the validation. Such an error is most likely related to
 	/// some transient glitch.
-	InternalError { err: String, idle_worker: IdleWorker },
+	///
+	/// Should only ever be used for errors independent of the candidate and PVF. Therefore it may
+	/// be a problem with the worker, so we terminate it.
+	InternalError { err: InternalValidationError },
 	/// The execution time exceeded the hard limit. The worker is terminated.
 	HardTimeout,
 	/// An I/O error happened during communication with the worker. This may mean that the worker
 	/// process already died. The token is not returned in any case.
 	IoErr,
+	/// An unexpected panic has occurred in the execution worker.
+	Panic { err: String },
 }
 
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
 /// returns the outcome.
 ///
-/// NOTE: Returning the `HardTimeout` or `IoErr` errors will trigger the child process being killed.
+/// NOTE: Not returning the idle worker token in `Outcome` will trigger the child process being killed.
 pub async fn start_work(
 	worker: IdleWorker,
 	artifact: ArtifactPathId,
@@ -176,24 +179,13 @@ pub async fn start_work(
 		Response::InvalidCandidate(err) =>
 			Outcome::InvalidCandidate { err, idle_worker: IdleWorker { stream, pid } },
 		Response::TimedOut => Outcome::HardTimeout,
-		Response::InternalError(err) =>
-			Outcome::InternalError { err, idle_worker: IdleWorker { stream, pid } },
+		Response::Panic(err) => Outcome::Panic { err },
+		Response::InternalError(err) => Outcome::InternalError { err },
 	}
 }
 
 async fn send_handshake(stream: &mut UnixStream, handshake: Handshake) -> io::Result<()> {
 	framed_send(stream, &handshake.encode()).await
-}
-
-async fn recv_handshake(stream: &mut UnixStream) -> io::Result<Handshake> {
-	let handshake_enc = framed_recv(stream).await?;
-	let handshake = Handshake::decode(&mut &handshake_enc[..]).map_err(|_| {
-		io::Error::new(
-			io::ErrorKind::Other,
-			"execute pvf recv_handshake: failed to decode Handshake".to_owned(),
-		)
-	})?;
-	Ok(handshake)
 }
 
 async fn send_request(
@@ -207,29 +199,6 @@ async fn send_request(
 	framed_send(stream, &execution_timeout.encode()).await
 }
 
-async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>, Duration)> {
-	let artifact_path = framed_recv(stream).await?;
-	let artifact_path = bytes_to_path(&artifact_path).ok_or_else(|| {
-		io::Error::new(
-			io::ErrorKind::Other,
-			"execute pvf recv_request: non utf-8 artifact path".to_string(),
-		)
-	})?;
-	let params = framed_recv(stream).await?;
-	let execution_timeout = framed_recv(stream).await?;
-	let execution_timeout = Duration::decode(&mut &execution_timeout[..]).map_err(|_| {
-		io::Error::new(
-			io::ErrorKind::Other,
-			"execute pvf recv_request: failed to decode duration".to_string(),
-		)
-	})?;
-	Ok((artifact_path, params, execution_timeout))
-}
-
-async fn send_response(stream: &mut UnixStream, response: Response) -> io::Result<()> {
-	framed_send(stream, &response.encode()).await
-}
-
 async fn recv_response(stream: &mut UnixStream) -> io::Result<Response> {
 	let response_bytes = framed_recv(stream).await?;
 	Response::decode(&mut &response_bytes[..]).map_err(|e| {
@@ -240,132 +209,41 @@ async fn recv_response(stream: &mut UnixStream) -> io::Result<Response> {
 	})
 }
 
+/// The payload of the one-time handshake that is done when a worker process is created. Carries
+/// data from the host to the worker.
 #[derive(Encode, Decode)]
-struct Handshake {
-	executor_params: ExecutorParams,
+pub struct Handshake {
+	/// The executor parameters.
+	pub executor_params: ExecutorParams,
 }
 
+/// The response from an execution job on the worker.
 #[derive(Encode, Decode)]
 pub enum Response {
-	Ok { result_descriptor: ValidationResult, duration: Duration },
+	/// The job completed successfully.
+	Ok {
+		/// The result of parachain validation.
+		result_descriptor: ValidationResult,
+		/// The amount of CPU time taken by the job.
+		duration: Duration,
+	},
+	/// The candidate is invalid.
 	InvalidCandidate(String),
+	/// The job timed out.
 	TimedOut,
-	InternalError(String),
+	/// An unexpected panic has occurred in the execution worker.
+	Panic(String),
+	/// Some internal error occurred.
+	InternalError(InternalValidationError),
 }
 
 impl Response {
-	fn format_invalid(ctx: &'static str, msg: &str) -> Self {
+	/// Creates an invalid response from a context `ctx` and a message `msg` (which can be empty).
+	pub fn format_invalid(ctx: &'static str, msg: &str) -> Self {
 		if msg.is_empty() {
 			Self::InvalidCandidate(ctx.to_string())
 		} else {
 			Self::InvalidCandidate(format!("{}: {}", ctx, msg))
 		}
 	}
-	fn format_internal(ctx: &'static str, msg: &str) -> Self {
-		if msg.is_empty() {
-			Self::InternalError(ctx.to_string())
-		} else {
-			Self::InternalError(format!("{}: {}", ctx, msg))
-		}
-	}
-}
-
-/// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host. The `node_version`, if `Some`,
-/// is checked against the worker version. A mismatch results in immediate worker termination.
-/// `None` is used for tests and in other situations when version check is not necessary.
-pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
-	worker_event_loop("execute", socket_path, node_version, |rt_handle, mut stream| async move {
-		let worker_pid = std::process::id();
-
-		let handshake = recv_handshake(&mut stream).await?;
-		let executor = Arc::new(Executor::new(handshake.executor_params).map_err(|e| {
-			io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
-		})?);
-
-		loop {
-			let (artifact_path, params, execution_timeout) = recv_request(&mut stream).await?;
-			gum::debug!(
-				target: LOG_TARGET,
-				%worker_pid,
-				"worker: validating artifact {}",
-				artifact_path.display(),
-			);
-
-			// Used to signal to the cpu time monitor thread that it can finish.
-			let (finished_tx, finished_rx) = channel::<()>();
-			let cpu_time_start = ProcessTime::now();
-
-			// Spawn a new thread that runs the CPU time monitor.
-			let cpu_time_monitor_fut = rt_handle
-				.spawn_blocking(move || {
-					cpu_time_monitor_loop(cpu_time_start, execution_timeout, finished_rx)
-				})
-				.fuse();
-			let executor_2 = executor.clone();
-			let execute_fut = rt_handle
-				.spawn_blocking(move || {
-					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
-				})
-				.fuse();
-
-			pin_mut!(cpu_time_monitor_fut);
-			pin_mut!(execute_fut);
-
-			let response = select_biased! {
-				// If this future is not selected, the join handle is dropped and the thread will
-				// finish in the background.
-				cpu_time_monitor_res = cpu_time_monitor_fut => {
-					match cpu_time_monitor_res {
-						Ok(Some(cpu_time_elapsed)) => {
-							// Log if we exceed the timeout and the other thread hasn't finished.
-							gum::warn!(
-								target: LOG_TARGET,
-								%worker_pid,
-								"execute job took {}ms cpu time, exceeded execute timeout {}ms",
-								cpu_time_elapsed.as_millis(),
-								execution_timeout.as_millis(),
-							);
-							Response::TimedOut
-						},
-						Ok(None) => Response::InternalError("error communicating over finished channel".into()),
-						Err(e) => Response::format_internal("cpu time monitor thread error", &e.to_string()),
-					}
-				},
-				execute_res = execute_fut => {
-					let _ = finished_tx.send(());
-					execute_res.unwrap_or_else(|e| Response::format_internal("execute thread error", &e.to_string()))
-				},
-			};
-
-			send_response(&mut stream, response).await?;
-		}
-	});
-}
-
-fn validate_using_artifact(
-	artifact_path: &Path,
-	params: &[u8],
-	executor: Arc<Executor>,
-	cpu_time_start: ProcessTime,
-) -> Response {
-	let descriptor_bytes = match unsafe {
-		// SAFETY: this should be safe since the compiled artifact passed here comes from the
-		//         file created by the prepare workers. These files are obtained by calling
-		//         [`executor_intf::prepare`].
-		executor.execute(artifact_path.as_ref(), params)
-	} {
-		Err(err) => return Response::format_invalid("execute", &err),
-		Ok(d) => d,
-	};
-
-	let duration = cpu_time_start.elapsed();
-
-	let result_descriptor = match ValidationResult::decode(&mut &descriptor_bytes[..]) {
-		Err(err) =>
-			return Response::format_invalid("validation result decoding failed", &err.to_string()),
-		Ok(r) => r,
-	};
-
-	Response::Ok { result_descriptor, duration }
 }

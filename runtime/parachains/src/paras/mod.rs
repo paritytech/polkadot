@@ -501,7 +501,8 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn add_trusted_validation_code(_c: u32) -> Weight {
-		Weight::MAX
+		// Called during integration tests for para initialization.
+		Weight::zero()
 	}
 	fn poke_unused_validation_code() -> Weight {
 		Weight::MAX
@@ -602,9 +603,6 @@ pub mod pallet {
 		PvfCheckDoubleVote,
 		/// The given PVF does not exist at the moment of process a vote.
 		PvfCheckSubjectInvalid,
-		/// The PVF pre-checking statement cannot be included since the PVF pre-checking mechanism
-		/// is disabled.
-		PvfCheckDisabled,
 		/// Parachain cannot currently schedule a code upgrade.
 		CannotUpgradeCode,
 	}
@@ -970,12 +968,6 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 
-			// Make sure that PVF pre-checking is enabled.
-			ensure!(
-				configuration::Pallet::<T>::config().pvf_checking_enabled,
-				Error::<T>::PvfCheckDisabled,
-			);
-
 			let validators = shared::Pallet::<T>::active_validator_keys();
 			let current_session = shared::Pallet::<T>::session_index();
 			if stmt.session_index < current_session {
@@ -1062,10 +1054,6 @@ pub mod pallet {
 				_ => return InvalidTransaction::Call.into(),
 			};
 
-			if !configuration::Pallet::<T>::config().pvf_checking_enabled {
-				return InvalidTransaction::Custom(INVALID_TX_PVF_CHECK_DISABLED).into()
-			}
-
 			let current_session = shared::Pallet::<T>::session_index();
 			if stmt.session_index < current_session {
 				return InvalidTransaction::Stale.into()
@@ -1126,7 +1114,6 @@ pub mod pallet {
 const INVALID_TX_BAD_VALIDATOR_IDX: u8 = 1;
 const INVALID_TX_BAD_SUBJECT: u8 = 2;
 const INVALID_TX_DOUBLE_VOTE: u8 = 3;
-const INVALID_TX_PVF_CHECK_DISABLED: u8 = 4;
 
 impl<T: Config> Pallet<T> {
 	/// This is a call to schedule code upgrades for parachains which is safe to be called
@@ -1828,9 +1815,7 @@ impl<T: Config> Pallet<T> {
 	/// Makes sure that the given code hash has passed pre-checking.
 	///
 	/// If the given code hash has already passed pre-checking, then the approval happens
-	/// immediately. Similarly, if the pre-checking is turned off, the update is scheduled immediately
-	/// as well. In this case, the behavior is similar to the previous, i.e. the upgrade sequence
-	/// is purely time-based.
+	/// immediately.
 	///
 	/// If the code is unknown, but the pre-checking for that PVF is already running then we perform
 	/// "coalescing". We save the cause for this PVF pre-check request and just add it to the
@@ -1859,12 +1844,9 @@ impl<T: Config> Pallet<T> {
 				let known_code = CodeByHash::<T>::contains_key(&code_hash);
 				weight += T::DbWeight::get().reads(1);
 
-				if !cfg.pvf_checking_enabled || known_code {
-					// Either:
-					// - the code is known and there is no active PVF vote for it meaning it is
-					//   already checked, or
-					// - the PVF checking is diabled
-					// In any case: fast track the PVF checking into the accepted state
+				if known_code {
+					// The code is known and there is no active PVF vote for it meaning it is
+					// already checked -- fast track the PVF checking into the accepted state.
 					weight += T::DbWeight::get().reads(1);
 					let now = <frame_system::Pallet<T>>::block_number();
 					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, cfg);

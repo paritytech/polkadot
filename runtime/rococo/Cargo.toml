@@ -79,7 +79,7 @@ pallet-xcm-benchmarks = { path = "../../xcm/pallet-xcm-benchmarks", default-feat
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-hex-literal = { version = "0.3.4" }
+hex-literal = { version = "0.4.1" }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
@@ -96,7 +96,7 @@ keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substra
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-remote-externalities" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 separator = "0.4.1"
-serde_json = "1.0.81"
+serde_json = "1.0.96"
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 tokio = { version = "1.24.2", features = ["macros"] }
 
@@ -206,6 +206,7 @@ runtime-benchmarks = [
 	"pallet-society/runtime-benchmarks",
 	"pallet-recovery/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
+	"pallet-sudo/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-tips/runtime-benchmarks",
 	"pallet-treasury/runtime-benchmarks",

@@ -531,7 +531,7 @@ where
 		babe::block_import(babe_config.clone(), beefy_block_import, client.clone())?;
 
 	let slot_duration = babe_link.config().slot_duration();
-	let import_queue = babe::import_queue(
+	let (import_queue, babe_worker_handle) = babe::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
@@ -561,9 +561,6 @@ where
 		Some(shared_authority_set.clone()),
 	);
 
-	let shared_epoch_changes = babe_link.epoch_changes().clone();
-	let slot_duration = babe_config.slot_duration();
-
 	let import_setup = (block_import, grandpa_link, babe_link, beefy_voter_links);
 	let rpc_setup = shared_voter_state.clone();
 
@@ -585,8 +582,7 @@ where
 				chain_spec: chain_spec.cloned_box(),
 				deny_unsafe,
 				babe: polkadot_rpc::BabeDeps {
-					babe_config: babe_config.clone(),
-					shared_epoch_changes: shared_epoch_changes.clone(),
+					babe_worker_handle: babe_worker_handle.clone(),
 					keystore: keystore.clone(),
 				},
 				grandpa: polkadot_rpc::GrandpaDeps {
@@ -795,6 +791,7 @@ where
 
 	let shared_voter_state = rpc_setup;
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
+	let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
 
 	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
 
@@ -802,10 +799,9 @@ where
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
 	let grandpa_protocol_name = grandpa::protocol_standard_name(&genesis_hash, &config.chain_spec);
-	config
-		.network
-		.extra_sets
-		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
+	net_config.add_notification_protocol(grandpa::grandpa_peers_set_config(
+		grandpa_protocol_name.clone(),
+	));
 
 	let beefy_gossip_proto_name =
 		beefy::gossip_protocol_name(&genesis_hash, config.chain_spec.fork_id());
@@ -819,11 +815,10 @@ where
 			prometheus_registry.clone(),
 		);
 	if enable_beefy {
-		config
-			.network
-			.extra_sets
-			.push(beefy::communication::beefy_peers_set_config(beefy_gossip_proto_name.clone()));
-		config.network.request_response_protocols.push(beefy_req_resp_cfg);
+		net_config.add_notification_protocol(beefy::communication::beefy_peers_set_config(
+			beefy_gossip_proto_name.clone(),
+		));
+		net_config.add_request_response_protocol(beefy_req_resp_cfg);
 	}
 
 	let peerset_protocol_names =
@@ -832,27 +827,26 @@ where
 	{
 		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
 		let is_authority = if role.is_authority() { IsAuthority::Yes } else { IsAuthority::No };
-		config
-			.network
-			.extra_sets
-			.extend(peer_sets_info(is_authority, &peerset_protocol_names));
+		for config in peer_sets_info(is_authority, &peerset_protocol_names) {
+			net_config.add_notification_protocol(config);
+		}
 	}
 
 	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, config.chain_spec.fork_id());
 
 	let (pov_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (collation_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (available_data_req_receiver, cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (statement_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 
 	let grandpa_hard_forks = if config.chain_spec.is_kusama() {
 		grandpa_support::kusama_hard_forks()
@@ -869,6 +863,7 @@ where
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
+			net_config,
 			client: client.clone(),
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
