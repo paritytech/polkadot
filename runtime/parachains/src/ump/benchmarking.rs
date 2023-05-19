@@ -113,6 +113,7 @@ frame_benchmarking::benchmarks! {
 		// and take the decoding weight into account by adding it to the extrinsic execution weight
 		// in the process_upward_message function.
 		let msg = create_message_overweight::<T>();
+		let hash = msg.using_encoded(sp_io::hashing::blake2_256);
 
 		// This just makes sure that 0 is not a valid index and we can use it later on.
 		let _ = Ump::<T>::service_overweight(RawOrigin::Root.into(), 0, Weight::from_parts(1000, 1000));
@@ -122,8 +123,8 @@ frame_benchmarking::benchmarks! {
 		queue_upward_msg::<T>(&host_conf, para, msg.clone());
 		Ump::<T>::process_pending_upward_messages();
 		assert_last_event_type::<T>(
-			Event::OverweightEnqueued(para, upward_message_id(&msg), 0, Weight::zero()).into()
-			);
+			Event::OverweightEnqueued(para, hash, 0, Weight::zero()).into()
+		);
 	}: _(RawOrigin::Root, 0, Weight::MAX)
 	verify {
 		assert_last_event_type::<T>(Event::OverweightServiced(0, Weight::zero()).into());
