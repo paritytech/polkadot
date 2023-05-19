@@ -21,6 +21,9 @@ use frame_support::{
 	weights::Weight,
 };
 
+#[cfg(feature = "try-runtime")]
+use frame_support::ensure;
+
 pub mod v1 {
 
 	use super::*;
