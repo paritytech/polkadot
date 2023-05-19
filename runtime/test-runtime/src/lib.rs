@@ -809,7 +809,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
-			runtime_impl::availability_cores::<Runtime>()
+			polkadot_runtime_parachains::runtime_api_impl::vstaging::availability_cores::<Runtime>()
 		}
 
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)

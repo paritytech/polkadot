@@ -58,7 +58,10 @@ pub use v4::{
 	MAX_POV_SIZE, PARACHAINS_INHERENT_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
 };
 
-pub use vstaging::{CoreOccupied, CoreState, OccupiedCore, ScheduledCore};
+pub use vstaging::{
+	CollatorRestrictionKind, CollatorRestrictions, CoreOccupied, CoreState, OccupiedCore,
+	ScheduledCore,
+};
 
 #[cfg(feature = "std")]
 pub use v4::{AssignmentPair, CollatorPair, ValidatorPair};
