@@ -21,8 +21,6 @@ use frame_support::{
 	weights::Weight,
 };
 
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
-
 pub mod v1 {
 	use super::*;
 
