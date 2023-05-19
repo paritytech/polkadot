@@ -24,8 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats, PvfPrepData,
-	ValidationError, ValidationHost,
+	InternalValidationError, InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats,
+	PvfPrepData, ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -51,7 +51,11 @@ use parity_scale_codec::Encode;
 
 use futures::{channel::oneshot, prelude::*};
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+	path::PathBuf,
+	sync::Arc,
+	time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 
@@ -63,11 +67,19 @@ mod tests;
 
 const LOG_TARGET: &'static str = "parachain::candidate-validation";
 
-/// The amount of time to wait before retrying after an AmbiguousWorkerDeath validation error.
+/// The amount of time to wait before retrying after a retry-able backing validation error. We use a lower value for the
+/// backing case, to fit within the lower backing timeout.
 #[cfg(not(test))]
-const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(3);
+const PVF_BACKING_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(500);
 #[cfg(test)]
-const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
+const PVF_BACKING_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
+/// The amount of time to wait before retrying after a retry-able approval validation error. We use a higher value for
+/// the approval case since we have more time, and if we wait longer it is more likely that transient conditions will
+/// resolve.
+#[cfg(not(test))]
+const PVF_APPROVAL_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(3);
+#[cfg(test)]
+const PVF_APPROVAL_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
 
 // Default PVF timeouts. Must never be changed! Use executor environment parameters in
 // `session_info` pallet to adjust them. See also `PvfTimeoutKind` docs.
@@ -617,6 +629,7 @@ where
 		.validate_candidate_with_retry(
 			raw_validation_code.to_vec(),
 			pvf_exec_timeout(&executor_params, exec_timeout_kind),
+			exec_timeout_kind,
 			params,
 			executor_params,
 		)
@@ -627,7 +640,15 @@ where
 	}
 
 	match result {
-		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e)),
+		Err(ValidationError::InternalError(e)) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				?para_id,
+				?e,
+				"An internal error occurred during validation, will abstain from voting",
+			);
+			Err(ValidationFailed(e.to_string()))
+		},
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
@@ -636,6 +657,8 @@ where
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
 				"ambiguous worker death".to_string(),
 			))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Panic(err))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(err))),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) => {
 			// In principle if preparation of the `WASM` fails, the current candidate can not be the
 			// reason for that. So we can't say whether it is invalid or not. In addition, with
@@ -698,24 +721,44 @@ trait ValidationBackend {
 		&mut self,
 		raw_validation_code: Vec<u8>,
 		exec_timeout: Duration,
+		exec_timeout_kind: PvfExecTimeoutKind,
 		params: ValidationParams,
 		executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		let prep_timeout = pvf_prep_timeout(&executor_params, PvfPrepTimeoutKind::Lenient);
 		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
 		let pvf = PvfPrepData::from_code(raw_validation_code, executor_params, prep_timeout);
+		// We keep track of the total time that has passed and stop retrying if we are taking too long.
+		let total_time_start = Instant::now();
 
 		let mut validation_result =
 			self.validate_candidate(pvf.clone(), exec_timeout, params.encode()).await;
+		if validation_result.is_ok() {
+			return validation_result
+		}
+
+		let retry_delay = match exec_timeout_kind {
+			PvfExecTimeoutKind::Backing => PVF_BACKING_EXECUTION_RETRY_DELAY,
+			PvfExecTimeoutKind::Approval => PVF_APPROVAL_EXECUTION_RETRY_DELAY,
+		};
 
 		// Allow limited retries for each kind of error.
 		let mut num_internal_retries_left = 1;
 		let mut num_awd_retries_left = 1;
+		let mut num_panic_retries_left = 1;
 		loop {
+			// Stop retrying if we exceeded the timeout.
+			if total_time_start.elapsed() + retry_delay > exec_timeout {
+				break
+			}
+
 			match validation_result {
 				Err(ValidationError::InvalidCandidate(
 					WasmInvalidCandidate::AmbiguousWorkerDeath,
 				)) if num_awd_retries_left > 0 => num_awd_retries_left -= 1,
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Panic(_)))
+					if num_panic_retries_left > 0 =>
+					num_panic_retries_left -= 1,
 				Err(ValidationError::InternalError(_)) if num_internal_retries_left > 0 =>
 					num_internal_retries_left -= 1,
 				_ => break,
@@ -725,11 +768,14 @@ trait ValidationBackend {
 			// that the conditions that caused this error may have resolved on their own.
 			{
 				// Wait a brief delay before retrying.
-				futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
+				futures_timer::Delay::new(retry_delay).await;
+
+				let new_timeout = exec_timeout.saturating_sub(total_time_start.elapsed());
 
 				gum::warn!(
 					target: LOG_TARGET,
 					?pvf,
+					?new_timeout,
 					"Re-trying failed candidate validation due to possible transient error: {:?}",
 					validation_result
 				);
@@ -737,7 +783,7 @@ trait ValidationBackend {
 				// Encode the params again when re-trying. We expect the retry case to be relatively
 				// rare, and we want to avoid unconditionally cloning data.
 				validation_result =
-					self.validate_candidate(pvf.clone(), exec_timeout, params.encode()).await;
+					self.validate_candidate(pvf.clone(), new_timeout, params.encode()).await;
 			}
 		}
 
@@ -760,14 +806,18 @@ impl ValidationBackend for ValidationHost {
 
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self.execute_pvf(pvf, exec_timeout, encoded_params, priority, tx).await {
-			return Err(ValidationError::InternalError(format!(
-				"cannot send pvf to the validation host: {:?}",
+			return Err(InternalValidationError::HostCommunication(format!(
+				"cannot send pvf to the validation host, it might have shut down: {:?}",
 				err
-			)))
+			))
+			.into())
 		}
 
-		rx.await
-			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
+		rx.await.map_err(|_| {
+			ValidationError::from(InternalValidationError::HostCommunication(
+				"validation was cancelled".into(),
+			))
+		})?
 	}
 
 	async fn precheck_pvf(&mut self, pvf: PvfPrepData) -> Result<PrepareStats, PrepareError> {
