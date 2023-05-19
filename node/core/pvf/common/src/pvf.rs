@@ -25,9 +25,6 @@ use std::{
 	time::Duration,
 };
 
-#[cfg(test)]
-use crate::tests::TEST_PREPARATION_TIMEOUT;
-
 /// A struct that carries the exhaustive set of data to prepare an artifact out of plain
 /// Wasm binary
 ///
