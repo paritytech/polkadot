@@ -6723,7 +6723,7 @@ dependencies = [
  "tempfile",
  "tikv-jemallocator",
  "tokio",
- "wrapper-allocator",
+ "tracking-allocator",
 ]
 
 [[package]]
@@ -7388,7 +7388,7 @@ dependencies = [
  "tikv-jemalloc-ctl",
  "tokio",
  "tracing-gum",
- "wrapper-allocator",
+ "tracking-allocator",
 ]
 
 [[package]]
@@ -12796,6 +12796,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracking-allocator"
+version = "0.9.41"
+dependencies = [
+ "tikv-jemallocator",
+]
+
+[[package]]
 name = "trie-db"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14220,13 +14227,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80d0f4e272c85def139476380b12f9ac60926689dd2e01d4923222f40580869d"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "wrapper-allocator"
-version = "0.9.41"
-dependencies = [
- "tikv-jemallocator",
 ]
 
 [[package]]

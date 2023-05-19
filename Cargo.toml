@@ -26,7 +26,7 @@ tikv-jemallocator = "0.5.0"
 polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
 polkadot-node-core-pvf-worker = { path = "node/core/pvf/worker" }
 polkadot-overseer = { path = "node/overseer" }
-wrapper-allocator = { path = "node/wrapper-allocator", optional = true }
+tracking-allocator = { path = "node/tracking-allocator", optional = true }
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
@@ -102,7 +102,7 @@ members = [
 	"node/subsystem-types",
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
-	"node/wrapper-allocator",
+	"node/tracking-allocator",
 	"node/jaeger",
 	"node/gum",
 	"node/gum/proc-macro",
@@ -210,7 +210,7 @@ fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
 jemalloc-allocator = ["polkadot-node-core-pvf-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
-wrapper-allocator = ["jemalloc-allocator", "dep:wrapper-allocator", "polkadot-node-core-pvf-worker/wrapper-allocator"]
+tracking-allocator = ["jemalloc-allocator", "dep:tracking-allocator", "polkadot-node-core-pvf-worker/tracking-allocator"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

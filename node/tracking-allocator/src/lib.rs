@@ -20,13 +20,13 @@ use core::alloc::{GlobalAlloc, Layout};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tikv_jemallocator::Jemalloc;
 
-struct WrapperAllocatorData {
+struct TrackingAllocatorData {
 	lock: AtomicBool,
 	current: isize,
 	peak: isize,
 }
 
-impl WrapperAllocatorData {
+impl TrackingAllocatorData {
 	#[inline]
 	fn lock(&self) {
 		loop {
@@ -79,12 +79,12 @@ impl WrapperAllocatorData {
 	}
 }
 
-static mut ALLOCATOR_DATA: WrapperAllocatorData =
-	WrapperAllocatorData { lock: AtomicBool::new(false), current: 0, peak: 0 };
+static mut ALLOCATOR_DATA: TrackingAllocatorData =
+	TrackingAllocatorData { lock: AtomicBool::new(false), current: 0, peak: 0 };
 
-pub struct WrapperAllocator<A: GlobalAlloc>(A);
+pub struct TrackingAllocator<A: GlobalAlloc>(A);
 
-impl<A: GlobalAlloc> WrapperAllocator<A> {
+impl<A: GlobalAlloc> TrackingAllocator<A> {
 	// SAFETY:
 	// * The following functions write to `static mut`. That is safe as the critical section
 	//   inside is isolated by an exclusive lock.
@@ -103,7 +103,7 @@ impl<A: GlobalAlloc> WrapperAllocator<A> {
 	}
 }
 
-unsafe impl<A: GlobalAlloc> GlobalAlloc for WrapperAllocator<A> {
+unsafe impl<A: GlobalAlloc> GlobalAlloc for TrackingAllocator<A> {
 	// SAFETY:
 	// * The wrapped methods are as safe as the underlying allocator implementation is
 
@@ -133,4 +133,4 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for WrapperAllocator<A> {
 }
 
 #[global_allocator]
-pub static ALLOC: WrapperAllocator<Jemalloc> = WrapperAllocator(Jemalloc);
+pub static ALLOC: TrackingAllocator<Jemalloc> = TrackingAllocator(Jemalloc);
