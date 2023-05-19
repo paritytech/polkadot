@@ -24,7 +24,7 @@ jobs:
           - name: 'Ledger <> Polkadot Coordination'
             room: '!EoIhaKfGPmFOBrNSHT:web3.foundation'
             pre-release: true
-    
+
     runs-on: ubuntu-latest
     steps:
       - name: Send Matrix message to ${{ matrix.channel.name }}
