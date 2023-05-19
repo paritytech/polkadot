@@ -39,8 +39,8 @@ PendingAvailabilityCommitments: map ParaId => CandidateCommitments;
 
 * `MessageQueue`:
   The message queue provides general queueing and processing functionality. Currently it
-	replaces the old `UMP` dispatch queue. Other use-cases can be implemented as well by
-	adding new variants to `AggregateMessageOrigin`. Normally it should be set to an instance
+  replaces the old `UMP` dispatch queue. Other use-cases can be implemented as well by
+  adding new variants to `AggregateMessageOrigin`. Normally it should be set to an instance
   of the `MessageQueue` pallet.
 
 ## Session Change
