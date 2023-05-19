@@ -341,7 +341,7 @@ fn collect_pending_cleans_up_pending() {
 				descriptor: default_candidate.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
-				backed_in_number: 0,
+				backed_in_number: 1,
 				backers: default_backing_bitfield(),
 				backing_group: GroupIndex::from(1),
 			},
@@ -355,7 +355,7 @@ fn collect_pending_cleans_up_pending() {
 		assert!(<PendingAvailabilityCommitments<Test>>::get(&chain_a).is_some());
 		assert!(<PendingAvailabilityCommitments<Test>>::get(&chain_b).is_some());
 
-		ParaInclusion::collect_pending(|core, _since| core == CoreIndex::from(0));
+		ParaInclusion::collect_pending(|since| since == 0); // We want to collect Core 0
 
 		assert!(<PendingAvailability<Test>>::get(&chain_a).is_none());
 		assert!(<PendingAvailability<Test>>::get(&chain_b).is_some());
