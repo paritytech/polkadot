@@ -17,10 +17,10 @@
 use super::*;
 use assert_matches::assert_matches;
 use futures::{executor, future, Future};
-use sp_core::{crypto::Pair, Encode};
+use sp_core::{crypto::Pair, Encode, OpaquePeerId};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{testing::MemoryKeystore, Keystore};
-use std::{iter, sync::Arc, task::Poll, time::Duration};
+use std::{collections::BTreeSet, iter, sync::Arc, task::Poll, time::Duration};
 
 use polkadot_node_network_protocol::{
 	our_view,
@@ -33,8 +33,8 @@ use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeA
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{
-	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
-	ValidatorId, ValidatorIndex,
+	v4::CollatorRestrictionKind, vstaging::CollatorRestrictions, CollatorPair, CoreState,
+	GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,
@@ -82,7 +82,10 @@ impl Default for TestState {
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 1, now: 0 };
 
 		let cores = vec![
-			CoreState::Scheduled(ScheduledCore { para_id: chain_ids[0], collator: None }),
+			CoreState::Scheduled(ScheduledCore {
+				para_id: chain_ids[0],
+				collator_restrictions: CollatorRestrictions::none(),
+			}),
 			CoreState::Free,
 			CoreState::Occupied(OccupiedCore {
 				next_up_on_available: None,
@@ -295,6 +298,22 @@ async fn assert_fetch_collation_request(
 	})
 }
 
+/// Assert that a availbility_cores request was send.
+async fn assert_availability_cores_request(
+	virtual_overseer: &mut VirtualOverseer,
+	test_state: &TestState,
+) {
+	assert_matches!(
+	overseer_recv(virtual_overseer).await,
+	AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+		_,
+		RuntimeApiRequest::AvailabilityCores(tx),
+	)) => {
+		let _ = tx.send(Ok(test_state.cores.clone()));
+	}
+	);
+}
+
 /// Connect and declare a collator
 async fn connect_and_declare_collator(
 	virtual_overseer: &mut VirtualOverseer,
@@ -375,6 +394,8 @@ fn act_on_advertisement() {
 		.await;
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
+
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 
 		assert_fetch_collation_request(
 			&mut virtual_overseer,
@@ -536,6 +557,7 @@ fn fetch_one_collation_at_a_time() {
 		.await;
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		advertise_collation(&mut virtual_overseer, peer_c.clone(), test_state.relay_parent).await;
 
 		let response_channel = assert_fetch_collation_request(
@@ -545,6 +567,7 @@ fn fetch_one_collation_at_a_time() {
 		)
 		.await;
 
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		assert!(
 			overseer_recv_with_timeout(&mut &mut virtual_overseer, Duration::from_millis(30)).await.is_none(),
 			"There should not be sent any other PoV request while the first one wasn't finished or timed out.",
@@ -630,12 +653,15 @@ fn fetches_next_collation() {
 		.await;
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), second).await;
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		advertise_collation(&mut virtual_overseer, peer_c.clone(), second).await;
-		advertise_collation(&mut virtual_overseer, peer_d.clone(), second).await;
-
 		// Dropping the response channel should lead to fetching the second collation.
 		assert_fetch_collation_request(&mut virtual_overseer, second, test_state.chain_ids[0])
 			.await;
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
+		advertise_collation(&mut virtual_overseer, peer_d.clone(), second).await;
+
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 
 		let response_channel_non_exclusive =
 			assert_fetch_collation_request(&mut virtual_overseer, second, test_state.chain_ids[0])
@@ -723,6 +749,64 @@ fn reject_connection_to_next_group() {
 	})
 }
 
+// Ensure that collations from a peer not in the restriction set is rejected when set membership is required.
+#[test]
+fn collation_not_in_preferred_rejected() {
+	let mut peer_set = BTreeSet::new();
+	peer_set.insert(OpaquePeerId::new(vec![0, 0, 0, 0])); // not even a correct encoding of a PeerId
+	let mut test_state = TestState::default();
+	test_state.cores[0] = CoreState::Scheduled(ScheduledCore {
+		para_id: ParaId::from(1),
+		collator_restrictions: CollatorRestrictions::new(
+			peer_set,
+			CollatorRestrictionKind::Required,
+		),
+	});
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		let second = Hash::random();
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
+				our_view![test_state.relay_parent, second],
+			)),
+		)
+		.await;
+
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+
+		let peer_b = PeerId::random();
+
+		connect_and_declare_collator(
+			&mut virtual_overseer,
+			peer_b.clone(),
+			test_state.collators[0].clone(),
+			test_state.chain_ids[0].clone(),
+		)
+		.await;
+
+		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
+				peer,
+				rep,
+			)) => {
+				assert_eq!(peer, peer_b);
+				assert_eq!(rep, COST_REPORT_BAD);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
 // Ensure that we fetch a second collation, after the first checked collation was found to be invalid.
 #[test]
 fn fetch_next_collation_on_invalid_collation() {
@@ -764,6 +848,7 @@ fn fetch_next_collation_on_invalid_collation() {
 		.await;
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		advertise_collation(&mut virtual_overseer, peer_c.clone(), test_state.relay_parent).await;
 
 		let response_channel = assert_fetch_collation_request(
@@ -772,6 +857,7 @@ fn fetch_next_collation_on_invalid_collation() {
 			test_state.chain_ids[0],
 		)
 		.await;
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 
 		let pov = PoV { block_data: BlockData(vec![]) };
 		let mut candidate_a =
@@ -854,6 +940,7 @@ fn inactive_disconnected() {
 		.await;
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
 
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		assert_fetch_collation_request(
 			&mut virtual_overseer,
 			test_state.relay_parent,
@@ -908,6 +995,7 @@ fn activity_extends_life() {
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_a).await;
 
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		assert_fetch_collation_request(&mut virtual_overseer, hash_a, test_state.chain_ids[0])
 			.await;
 
@@ -915,6 +1003,7 @@ fn activity_extends_life() {
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_b).await;
 
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		assert_fetch_collation_request(&mut virtual_overseer, hash_b, test_state.chain_ids[0])
 			.await;
 
@@ -922,6 +1011,7 @@ fn activity_extends_life() {
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_c).await;
 
+		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		assert_fetch_collation_request(&mut virtual_overseer, hash_c, test_state.chain_ids[0])
 			.await;
 

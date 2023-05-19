@@ -7,7 +7,11 @@ pub mod v1 {
 	use frame_support::{
 		pallet_prelude::ValueQuery, storage_alias, traits::OnRuntimeUpgrade, weights::Weight,
 	};
-	use primitives::{v4, CollatorId};
+	use primitives::{
+		v4,
+		vstaging::{Assignment, CollatorRestrictions},
+		CollatorId,
+	};
 
 	#[storage_alias]
 	pub(super) type Scheduled<T: Config> = StorageValue<Pallet<T>, Vec<CoreAssignment>, ValueQuery>;
@@ -145,11 +149,8 @@ pub mod v1 {
 		let sched_len = scheduled.len() as u64;
 		for core_assignment in scheduled {
 			let core_idx = core_assignment.core;
-			let pe = ParasEntry {
-				para_id: core_assignment.para_id,
-				collator: core_assignment.required_collator(),
-				retries: 0,
-			};
+			let assignment = Assignment::new(core_assignment.para_id, CollatorRestrictions::none());
+			let pe = ParasEntry::new(assignment);
 			Pallet::<T>::add_to_claimqueue(core_idx, pe);
 		}
 
@@ -163,17 +164,13 @@ pub mod v1 {
 				None => CoreOccupied::Free,
 				Some(v4::CoreOccupied::Parachain) => {
 					let para_id = parachains[idx];
-					let pe = ParasEntry { para_id, collator: None, retries: 0 };
+					let pe =
+						ParasEntry::from(Assignment::new(para_id, CollatorRestrictions::none()));
 
 					CoreOccupied::Paras(pe)
 				},
-				Some(v4::CoreOccupied::Parathread(entry)) => {
-					let pe = ParasEntry {
-						para_id: entry.claim.0,
-						collator: entry.claim.1.clone(),
-						retries: entry.retries,
-					};
-					CoreOccupied::Paras(pe)
+				Some(v4::CoreOccupied::Parathread(_entry)) => {
+					panic!("There are no parathreads pre-v5")
 				},
 			})
 			.collect();

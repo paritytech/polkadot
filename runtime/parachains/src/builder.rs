@@ -24,7 +24,7 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use primitives::{
 	collator_signature_payload,
-	vstaging::{CoreOccupied, ParasEntry},
+	vstaging::{Assignment, CollatorRestrictions, CoreOccupied, ParasEntry},
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
 	CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt, CompactStatement,
 	CoreIndex, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId,
@@ -341,14 +341,20 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		// make sure parachains exist prior to session change.
 		for i in 0..cores {
 			let para_id = ParaId::from(i as u32);
+			let validation_code = mock_validation_code();
 
 			paras::Pallet::<T>::schedule_para_initialize(
 				para_id,
 				paras::ParaGenesisArgs {
 					genesis_head: Self::mock_head_data(),
-					validation_code: mock_validation_code(),
+					validation_code: validation_code.clone(),
 					para_kind: ParaKind::Parachain,
 				},
+			)
+			.unwrap();
+			paras::Pallet::<T>::add_trusted_validation_code(
+				frame_system::Origin::<T>::Root.into(),
+				validation_code,
 			)
 			.unwrap();
 		}
@@ -687,11 +693,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let cores = (0..used_cores)
 			.into_iter()
 			.map(|i| {
-				CoreOccupied::Paras(ParasEntry {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-					retries: 0,
-				})
+				CoreOccupied::Paras(ParasEntry::new(Assignment::new(
+					ParaId::from(i as u32),
+					CollatorRestrictions::none(),
+				)))
 			})
 			.collect();
 		scheduler::AvailabilityCores::<T>::set(cores);

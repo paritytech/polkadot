@@ -111,10 +111,10 @@
 //! from the stable primitives.
 
 use crate::{
-	BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
-	CoreState, DisputeState, ExecutorParams, GroupRotationInfo, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	vstaging::CoreState, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, DisputeState, ExecutorParams, GroupRotationInfo,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives as pcp;
@@ -123,7 +123,7 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	#[api_version(4)]
+	#[api_version(5)]
 	pub trait ParachainHost<H: Encode + Decode = pcp::v2::Hash, N: Encode + Decode = pcp::v2::BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;

@@ -17,12 +17,15 @@
 //! Put implementations of functions from staging APIs here.
 
 use crate::{configuration, inclusion, initializer, scheduler};
-use primitives::{vstaging::CoreOccupied, CoreIndex, CoreState, GroupIndex, OccupiedCore};
+use primitives::{
+	vstaging::{CoreOccupied, CoreState, OccupiedCore, ScheduledCore},
+	CoreIndex, GroupIndex,
+};
 use sp_runtime::traits::One;
 use sp_std::prelude::*;
 
-/// Implementation for the `availability_cores_ab` function of the runtime API.
-pub fn availability_cores_ab<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
+/// Implementation for the `availability_cores_staging` function of the runtime API.
+pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
 	let cores = <scheduler::Pallet<T>>::availability_cores();
 	let config = <configuration::Pallet<T>>::config();
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
@@ -71,7 +74,7 @@ pub fn availability_cores_ab<T: initializer::Config>() -> Vec<CoreState<T::Hash,
 		.map(|(i, core)| match core {
 			CoreOccupied::Paras(entry) => {
 				let pending_availability =
-					<inclusion::Pallet<T>>::pending_availability(entry.para_id)
+					<inclusion::Pallet<T>>::pending_availability(entry.para_id())
 						.expect("Occupied core always has pending availability; qed");
 
 				let backed_in_number = *pending_availability.backed_in_number();
@@ -100,9 +103,9 @@ pub fn availability_cores_ab<T: initializer::Config>() -> Vec<CoreState<T::Hash,
 	// TODO: update to use claimqueue
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
 	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue(now) {
-		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(primitives::ScheduledCore {
-			para_id: scheduled.paras_entry.para_id,
-			collator: scheduled.required_collator().map(|c| c.clone()),
+		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(ScheduledCore {
+			para_id: scheduled.para_id(),
+			collator_restrictions: scheduled.paras_entry.collator_restrictions().clone(),
 		});
 	}
 

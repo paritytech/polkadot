@@ -890,7 +890,10 @@ mod sanitizers {
 
 	use crate::mock::Test;
 	use keyring::Sr25519Keyring;
-	use primitives::{vstaging::ParasEntry, PARACHAIN_KEY_TYPE_ID};
+	use primitives::{
+		vstaging::{Assignment, CollatorRestrictions, ParasEntry},
+		PARACHAIN_KEY_TYPE_ID,
+	};
 	use sc_keystore::LocalKeystore;
 	use sp_keystore::{Keystore, KeystorePtr};
 	use std::sync::Arc;
@@ -1173,11 +1176,10 @@ mod sanitizers {
 			.map(|idx| {
 				let core_idx = CoreIndex::from(idx as u32);
 				let ca = CoreAssignment {
-					paras_entry: ParasEntry {
-						para_id: ParaId::from(1_u32 + idx as u32),
-						collator: None,
-						retries: 0,
-					},
+					paras_entry: ParasEntry::new(Assignment::new(
+						ParaId::from(1_u32 + idx as u32),
+						CollatorRestrictions::none(),
+					)),
 					group_idx: GroupIndex::from(idx as u32),
 					core: core_idx,
 				};
