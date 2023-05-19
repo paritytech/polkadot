@@ -1496,7 +1496,8 @@ pub mod migrations {
 
 	pub type V0938 = (
 		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
-		parachains_ump::migration::v1::MigrateToV1<Runtime>,
+		// The UMP pallet got deleted in <https://github.com/paritytech/polkadot/pull/6271>
+		// parachains_ump::migration::v1::MigrateToV1<Runtime>,
 	);
 
 	pub type V0940 = (
