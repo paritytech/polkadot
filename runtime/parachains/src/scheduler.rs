@@ -343,10 +343,10 @@ impl<T: Config> Pallet<T> {
 	/// This really should not be a box, but is working around a compiler limitation filed here:
 	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
-	pub(crate) fn availability_timeout_predicate() -> Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>
-	{
-		let predicate = move |core_index: CoreIndex, pending_since| {
-			let availability_period = T::AssignmentProvider::get_availability_period(core_index);
+	pub(crate) fn availability_timeout_predicate() -> Box<dyn Fn(T::BlockNumber) -> bool> {
+		let predicate = move |pending_since| {
+			let availability_period =
+				<configuration::Pallet<T>>::config().paras_availability_period;
 			let now = <frame_system::Pallet<T>>::block_number();
 			now.saturating_sub(pending_since) >= availability_period
 		};
@@ -400,12 +400,8 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Checks if `core_idx` occupied since `pending_since` will timeout after `after`.
-	fn timesout_after(
-		core_idx: CoreIndex,
-		pending_since: T::BlockNumber,
-		after: T::BlockNumber,
-	) -> bool {
-		let availability_period = T::AssignmentProvider::get_availability_period(core_idx);
+	fn timesout_after(pending_since: T::BlockNumber, after: T::BlockNumber) -> bool {
+		let availability_period = <configuration::Pallet<T>>::config().paras_availability_period;
 		after.saturating_sub(pending_since) >= availability_period
 	}
 
@@ -423,11 +419,7 @@ impl<T: Config> Pallet<T> {
 						let core_idx = CoreIndex::from(core_idx as u32);
 						match pending_cores.get(&core_idx) {
 							Some(pending_since)
-								if Self::timesout_after(
-									core_idx,
-									*pending_since,
-									new_session_start,
-								) =>
+								if Self::timesout_after(*pending_since, new_session_start) =>
 							{
 								todo!("We do need to tell the provider about this, right?")
 							},

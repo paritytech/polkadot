@@ -797,14 +797,12 @@ impl<T: Config> Pallet<T> {
 	/// since (i.e. the block number the candidate was backed at in this fork of the relay chain).
 	///
 	/// Returns a vector of cleaned-up core IDs.
-	pub(crate) fn collect_pending(
-		pred: impl Fn(CoreIndex, T::BlockNumber) -> bool,
-	) -> Vec<CoreIndex> {
+	pub(crate) fn collect_pending(pred: impl Fn(T::BlockNumber) -> bool) -> Vec<CoreIndex> {
 		let mut cleaned_up_ids = Vec::new();
 		let mut cleaned_up_cores = Vec::new();
 
 		for (para_id, pending_record) in <PendingAvailability<T>>::iter() {
-			if pred(pending_record.core, pending_record.backed_in_number) {
+			if pred(pending_record.backed_in_number) {
 				cleaned_up_ids.push(para_id);
 				cleaned_up_cores.push(pending_record.core);
 			}

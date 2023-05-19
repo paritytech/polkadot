@@ -56,10 +56,6 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 
 	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
 
-	fn get_availability_period(_: CoreIndex) -> T::BlockNumber {
-		<configuration::Pallet<T>>::config().chain_availability_period
-	}
-
 	fn get_max_retries(_: CoreIndex) -> u32 {
 		0
 	}
