@@ -23,13 +23,7 @@ use frame_support::{
 };
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{cell::Cell, marker::PhantomData, ops::ControlFlow, result::Result};
-use xcm::latest::{
-	Instruction::{self, *},
-	InteriorMultiLocation, Junction, Junctions,
-	Junctions::X1,
-	MultiLocation, Weight,
-	WeightLimit::*,
-};
+use xcm::prelude::*;
 use xcm_executor::traits::{CheckSuspension, OnResponse, Properties, ShouldExecute};
 
 /// Execution barrier that just takes `max_weight` from `properties.weight_credit`.
@@ -393,6 +387,75 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 				SubscribeVersion { .. } | UnsubscribeVersion => Ok(()),
 				_ => Err(ProcessMessageError::BadFormat),
 			})?;
+		Ok(())
+	}
+}
+
+/// Deny executing the XCM if it matches any of the Deny filter regardless of anything else.
+/// If it passes the Deny, and matches one of the Allow cases then it is let through.
+pub struct DenyThenTry<Deny, Allow>(PhantomData<Deny>, PhantomData<Allow>)
+where
+	Deny: ShouldExecute,
+	Allow: ShouldExecute;
+
+impl<Deny, Allow> ShouldExecute for DenyThenTry<Deny, Allow>
+where
+	Deny: ShouldExecute,
+	Allow: ShouldExecute,
+{
+	fn should_execute<RuntimeCall>(
+		origin: &MultiLocation,
+		message: &mut [Instruction<RuntimeCall>],
+		max_weight: Weight,
+		properties: &mut Properties,
+	) -> Result<(), ProcessMessageError> {
+		Deny::should_execute(origin, message, max_weight, properties)?;
+		Allow::should_execute(origin, message, max_weight, properties)
+	}
+}
+
+// See issue <https://github.com/paritytech/polkadot/issues/5233>
+pub struct DenyReserveTransferToRelayChain;
+impl ShouldExecute for DenyReserveTransferToRelayChain {
+	fn should_execute<RuntimeCall>(
+		origin: &MultiLocation,
+		message: &mut [Instruction<RuntimeCall>],
+		_max_weight: Weight,
+		_properties: &mut Properties,
+	) -> Result<(), ProcessMessageError> {
+		message.matcher().match_next_inst_while(
+			|_| true,
+			|inst| match inst {
+				InitiateReserveWithdraw {
+					reserve: MultiLocation { parents: 1, interior: Here },
+					..
+				} |
+				DepositReserveAsset {
+					dest: MultiLocation { parents: 1, interior: Here }, ..
+				} |
+				TransferReserveAsset {
+					dest: MultiLocation { parents: 1, interior: Here }, ..
+				} => {
+					Err(ProcessMessageError::Unsupported) // Deny
+				},
+
+				// An unexpected reserve transfer has arrived from the Relay Chain. Generally,
+				// `IsReserve` should not allow this, but we just log it here.
+				ReserveAssetDeposited { .. }
+					if matches!(origin, MultiLocation { parents: 1, interior: Here }) =>
+				{
+					log::warn!(
+						target: "xcm::barrier",
+						"Unexpected ReserveAssetDeposited from the Relay Chain",
+					);
+					Ok(ControlFlow::Continue(()))
+				},
+
+				_ => Ok(ControlFlow::Continue(())),
+			},
+		)?;
+
+		// Permit everything else
 		Ok(())
 	}
 }

@@ -184,7 +184,7 @@ pub mod prelude {
 			NetworkId::{self, *},
 			OriginKind, Outcome, PalletInfo, Parent, ParentThen, PreparedMessage, QueryId,
 			QueryResponseInfo, Response, Result as XcmResult, SendError, SendResult, SendXcm,
-			Unwrappable,
+			Unwrappable, Weight,
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
