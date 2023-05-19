@@ -24,7 +24,7 @@ use primitives::Id as ParaId;
 use runtime_parachains::{
 	configuration, dmp, hrmp,
 	paras::{self, ParaGenesisArgs},
-	ump, ParaLifecycle,
+	ParaLifecycle,
 };
 use sp_std::boxed::Box;
 
@@ -37,10 +37,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config:
-		configuration::Config + paras::Config + dmp::Config + ump::Config + hrmp::Config
-	{
-	}
+	pub trait Config: configuration::Config + paras::Config + dmp::Config + hrmp::Config {}
 
 	#[pallet::error]
 	pub enum Error<T> {

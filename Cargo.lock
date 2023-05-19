@@ -3922,6 +3922,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-message-queue",
  "pallet-multisig",
  "pallet-nis",
  "pallet-nomination-pools",
@@ -5964,6 +5965,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-message-queue"
+version = "7.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#b7e0518966b145f22c16137da5c9796fcdb43b73"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-weights",
+]
+
+[[package]]
 name = "pallet-mmr"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#93e2cf113a7ff1ee5300df8ef90dcd24a23af452"
@@ -7884,6 +7904,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-message-queue",
  "pallet-multisig",
  "pallet-nomination-pools",
  "pallet-nomination-pools-benchmarking",
@@ -8045,6 +8066,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-babe",
  "pallet-balances",
+ "pallet-message-queue",
  "pallet-session",
  "pallet-staking",
  "pallet-timestamp",
@@ -9276,6 +9298,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-message-queue",
  "pallet-mmr",
  "pallet-multisig",
  "pallet-nis",
@@ -14092,6 +14115,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-message-queue",
  "pallet-multisig",
  "pallet-nomination-pools",
  "pallet-nomination-pools-benchmarking",
@@ -14565,12 +14589,14 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-runtime-parachains",
+ "polkadot-test-runtime",
  "primitive-types",
  "scale-info",
  "sp-arithmetic",
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "sp-weights",
  "xcm",
  "xcm-executor",
 ]
@@ -14637,6 +14663,7 @@ dependencies = [
  "sp-io",
  "sp-std",
  "xcm",
+ "xcm-builder",
  "xcm-executor",
 ]
 
@@ -14648,6 +14675,7 @@ dependencies = [
  "frame-system",
  "log",
  "pallet-balances",
+ "pallet-message-queue",
  "pallet-uniques",
  "pallet-xcm",
  "parity-scale-codec",
@@ -14675,6 +14703,7 @@ dependencies = [
  "frame-system",
  "honggfuzz",
  "pallet-balances",
+ "pallet-message-queue",
  "pallet-xcm",
  "parity-scale-codec",
  "polkadot-core-primitives",
