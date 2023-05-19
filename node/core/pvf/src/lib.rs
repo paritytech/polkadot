@@ -100,17 +100,26 @@ mod worker_intf;
 #[doc(hidden)]
 pub mod testing;
 
+// Used by `decl_puppet_worker_main!`.
+#[doc(hidden)]
+pub use sp_tracing;
+
 pub use error::{InvalidCandidate, ValidationError};
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
 pub use priority::Priority;
 pub use worker_intf::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
 
+// Re-export some common types.
 pub use polkadot_node_core_pvf_common::{
 	error::{InternalValidationError, PrepareError},
 	prepare::PrepareStats,
 	pvf::PvfPrepData,
 };
+
+// Re-export worker entrypoints.
+pub use polkadot_node_core_pvf_execute_worker::worker_entrypoint as execute_worker_entrypoint;
+pub use polkadot_node_core_pvf_prepare_worker::worker_entrypoint as prepare_worker_entrypoint;
 
 /// The log target for this crate.
 pub const LOG_TARGET: &str = "parachain::pvf";

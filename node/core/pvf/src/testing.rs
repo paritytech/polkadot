@@ -30,10 +30,9 @@ use polkadot_primitives::ExecutorParams;
 macro_rules! decl_puppet_worker_main {
 	() => {
 		fn main() {
-			sp_tracing::try_init_simple();
+			$crate::sp_tracing::try_init_simple();
 
 			let args = std::env::args().collect::<Vec<_>>();
-			gum::trace!(target: $crate::LOG_TARGET, ?args, "running puppet worker");
 			if args.len() < 3 {
 				panic!("wrong number of arguments");
 			}
@@ -58,10 +57,10 @@ macro_rules! decl_puppet_worker_main {
 					std::thread::sleep(std::time::Duration::from_secs(5));
 				},
 				"prepare-worker" => {
-					polkadot_node_core_pvf_prepare_worker::worker_entrypoint(&socket_path, version);
+					$crate::prepare_worker_entrypoint(&socket_path, version);
 				},
 				"execute-worker" => {
-					polkadot_node_core_pvf_execute_worker::worker_entrypoint(&socket_path, version);
+					$crate::execute_worker_entrypoint(&socket_path, version);
 				},
 				other => panic!("unknown subcommand: {}", other),
 			}
