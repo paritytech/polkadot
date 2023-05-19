@@ -334,15 +334,17 @@ fn handle_job_finish(
 			Err(ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(err))),
 			None,
 		),
-		Outcome::InternalError { err, idle_worker } =>
-			(Some(idle_worker), Err(ValidationError::InternalError(err)), None),
+		Outcome::InternalError { err } => (None, Err(ValidationError::InternalError(err)), None),
 		Outcome::HardTimeout =>
 			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)), None),
+		// "Maybe invalid" errors (will retry).
 		Outcome::IoErr => (
 			None,
 			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)),
 			None,
 		),
+		Outcome::Panic { err } =>
+			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::Panic(err))), None),
 	};
 
 	queue.metrics.execute_finished();
@@ -356,7 +358,7 @@ fn handle_job_finish(
 			err
 		);
 	} else {
-		gum::debug!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?artifact_id,
 			?worker,

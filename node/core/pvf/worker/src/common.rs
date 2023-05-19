@@ -18,15 +18,12 @@ use crate::LOG_TARGET;
 use cpu_time::ProcessTime;
 use futures::never::Never;
 use std::{
+	any::Any,
 	path::PathBuf,
 	sync::mpsc::{Receiver, RecvTimeoutError},
 	time::Duration,
 };
-use tokio::{
-	io,
-	net::UnixStream,
-	runtime::{Handle, Runtime},
-};
+use tokio::{io, net::UnixStream, runtime::Runtime};
 
 /// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
 /// child process.
@@ -44,7 +41,7 @@ pub fn worker_event_loop<F, Fut>(
 	node_version: Option<&str>,
 	mut event_loop: F,
 ) where
-	F: FnMut(Handle, UnixStream) -> Fut,
+	F: FnMut(UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
 	let worker_pid = std::process::id();
@@ -68,13 +65,12 @@ pub fn worker_event_loop<F, Fut>(
 
 	// Run the main worker loop.
 	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
-	let handle = rt.handle();
 	let err = rt
 		.block_on(async move {
 			let stream = UnixStream::connect(socket_path).await?;
 			let _ = tokio::fs::remove_file(socket_path).await;
 
-			let result = event_loop(handle.clone(), stream).await;
+			let result = event_loop(stream).await;
 
 			result
 		})
@@ -108,8 +104,10 @@ pub fn cpu_time_monitor_loop(
 
 		// Treat the timeout as CPU time, which is less subject to variance due to load.
 		if cpu_time_elapsed <= timeout {
-			// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
-			// is wall clock time. The CPU clock may be slower than the wall clock.
+			// Sleep for the remaining CPU time, plus a bit to account for overhead. (And we don't
+			// want to wake up too often -- so, since we just want to halt the worker thread if it
+			// stalled, we can sleep longer than necessary.) Note that the sleep is wall clock time.
+			// The CPU clock may be slower than the wall clock.
 			let sleep_interval = timeout.saturating_sub(cpu_time_elapsed) + JOB_TIMEOUT_OVERHEAD;
 			match finished_rx.recv_timeout(sleep_interval) {
 				// Received finish signal.
@@ -121,6 +119,20 @@ pub fn cpu_time_monitor_loop(
 		}
 
 		return Some(cpu_time_elapsed)
+	}
+}
+
+/// Attempt to convert an opaque panic payload to a string.
+///
+/// This is a best effort, and is not guaranteed to provide the most accurate value.
+pub fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String {
+	match payload.downcast::<&'static str>() {
+		Ok(msg) => msg.to_string(),
+		Err(payload) => match payload.downcast::<String>() {
+			Ok(msg) => *msg,
+			// At least we tried...
+			Err(_) => "unknown panic payload".to_string(),
+		},
 	}
 }
 
@@ -137,6 +149,126 @@ fn kill_parent_node_in_emergency() {
 		let ppid = libc::getppid();
 		if ppid > 1 {
 			libc::kill(ppid, libc::SIGTERM);
+		}
+	}
+}
+
+/// Functionality related to threads spawned by the workers.
+///
+/// The motivation for this module is to coordinate worker threads without using async Rust.
+pub mod thread {
+	use std::{
+		panic,
+		sync::{Arc, Condvar, Mutex},
+		thread,
+		time::Duration,
+	};
+
+	/// Contains the outcome of waiting on threads, or `Pending` if none are ready.
+	#[derive(Clone, Copy)]
+	pub enum WaitOutcome {
+		Finished,
+		TimedOut,
+		Pending,
+	}
+
+	impl WaitOutcome {
+		pub fn is_pending(&self) -> bool {
+			matches!(self, Self::Pending)
+		}
+	}
+
+	/// Helper type.
+	pub type Cond = Arc<(Mutex<WaitOutcome>, Condvar)>;
+
+	/// Gets a condvar initialized to `Pending`.
+	pub fn get_condvar() -> Cond {
+		Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()))
+	}
+
+	/// Runs a thread, afterwards notifying the threads waiting on the condvar. Catches panics and
+	/// resumes them after triggering the condvar, so that the waiting thread is notified on panics.
+	pub fn spawn_worker_thread<F, R>(
+		name: &str,
+		f: F,
+		cond: Cond,
+		outcome: WaitOutcome,
+	) -> std::io::Result<thread::JoinHandle<R>>
+	where
+		F: FnOnce() -> R,
+		F: Send + 'static + panic::UnwindSafe,
+		R: Send + 'static,
+	{
+		thread::Builder::new()
+			.name(name.into())
+			.spawn(move || cond_notify_on_done(f, cond, outcome))
+	}
+
+	/// Runs a worker thread with the given stack size. See [`spawn_worker_thread`].
+	pub fn spawn_worker_thread_with_stack_size<F, R>(
+		name: &str,
+		f: F,
+		cond: Cond,
+		outcome: WaitOutcome,
+		stack_size: usize,
+	) -> std::io::Result<thread::JoinHandle<R>>
+	where
+		F: FnOnce() -> R,
+		F: Send + 'static + panic::UnwindSafe,
+		R: Send + 'static,
+	{
+		thread::Builder::new()
+			.name(name.into())
+			.stack_size(stack_size)
+			.spawn(move || cond_notify_on_done(f, cond, outcome))
+	}
+
+	/// Runs a function, afterwards notifying the threads waiting on the condvar. Catches panics and
+	/// resumes them after triggering the condvar, so that the waiting thread is notified on panics.
+	fn cond_notify_on_done<F, R>(f: F, cond: Cond, outcome: WaitOutcome) -> R
+	where
+		F: FnOnce() -> R,
+		F: panic::UnwindSafe,
+	{
+		let result = panic::catch_unwind(|| f());
+		cond_notify_all(cond, outcome);
+		match result {
+			Ok(inner) => return inner,
+			Err(err) => panic::resume_unwind(err),
+		}
+	}
+
+	/// Helper function to notify all threads waiting on this condvar.
+	fn cond_notify_all(cond: Cond, outcome: WaitOutcome) {
+		let (lock, cvar) = &*cond;
+		let mut flag = lock.lock().unwrap();
+		if !flag.is_pending() {
+			// Someone else already triggered the condvar.
+			return
+		}
+		*flag = outcome;
+		cvar.notify_all();
+	}
+
+	/// Block the thread while it waits on the condvar.
+	pub fn wait_for_threads(cond: Cond) -> WaitOutcome {
+		let (lock, cvar) = &*cond;
+		let guard = cvar.wait_while(lock.lock().unwrap(), |flag| flag.is_pending()).unwrap();
+		*guard
+	}
+
+	/// Block the thread while it waits on the condvar or on a timeout. If the timeout is hit,
+	/// returns `None`.
+	#[cfg_attr(not(any(target_os = "linux", feature = "jemalloc-allocator")), allow(dead_code))]
+	pub fn wait_for_threads_with_timeout(cond: &Cond, dur: Duration) -> Option<WaitOutcome> {
+		let (lock, cvar) = &**cond;
+		let result = cvar
+			.wait_timeout_while(lock.lock().unwrap(), dur, |flag| flag.is_pending())
+			.unwrap();
+		if result.1.timed_out() {
+			None
+		} else {
+			Some(*result.0)
 		}
 	}
 }
