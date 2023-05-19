@@ -104,7 +104,7 @@ fn report_outcome_notify_works() {
 					0,
 					Response::ExecutionResult(None),
 				)),
-				RuntimeEvent::XcmPallet(crate::Event::Notified(0, 4, 2)),
+				RuntimeEvent::XcmPallet(crate::Event::Notified { query_id: 0, pallet_index: 4, call_index: 2 }),
 			]
 		);
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![]);
@@ -160,10 +160,10 @@ fn report_outcome_works() {
 		assert_eq!(r, Outcome::Complete(Weight::from_parts(1_000, 1_000)));
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::ResponseReady(
-				0,
-				Response::ExecutionResult(None),
-			))
+			RuntimeEvent::XcmPallet(crate::Event::ResponseReady {
+				query_id: 0,
+				response: Response::ExecutionResult(None),
+			})
 		);
 
 		let response = Some((Response::ExecutionResult(None), 1));
@@ -209,12 +209,12 @@ fn custom_querier_works() {
 		assert_eq!(r, Outcome::Complete(Weight::from_parts(1_000, 1_000)));
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier(
-				AccountId32 { network: None, id: ALICE.into() }.into(),
-				0,
-				querier.clone(),
-				None,
-			)),
+			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier {
+				origin: AccountId32 { network: None, id: ALICE.into() }.into(),
+				query_id: 0,
+				expected_querier: querier.clone(),
+				maybe_actual_querier: None,
+			}),
 		);
 
 		// Supplying the wrong querier will also fail
@@ -235,12 +235,12 @@ fn custom_querier_works() {
 		assert_eq!(r, Outcome::Complete(Weight::from_parts(1_000, 1_000)));
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier(
-				AccountId32 { network: None, id: ALICE.into() }.into(),
-				0,
-				querier.clone(),
-				Some(MultiLocation::here()),
-			)),
+			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier {
+				origin: AccountId32 { network: None, id: ALICE.into() }.into(),
+				query_id: 0,
+				expected_querier: querier.clone(),
+				maybe_actual_querier: Some(MultiLocation::here()),
+			}),
 		);
 
 		// Multiple failures should not have changed the query state
@@ -260,10 +260,10 @@ fn custom_querier_works() {
 		assert_eq!(r, Outcome::Complete(Weight::from_parts(1_000, 1_000)));
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::ResponseReady(
-				0,
-				Response::ExecutionResult(None),
-			))
+			RuntimeEvent::XcmPallet(crate::Event::ResponseReady {
+				query_id: 0,
+				response: Response::ExecutionResult(None),
+			})
 		);
 
 		let response = Some((Response::ExecutionResult(None), 1));
@@ -308,7 +308,7 @@ fn send_works() {
 				origin: sender,
 				destination: RelayLocation::get(),
 				message,
-				id
+				message_id: id,
 			})
 		);
 	});
@@ -381,7 +381,7 @@ fn teleport_assets_works() {
 		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -425,7 +425,7 @@ fn limited_teleport_assets_works() {
 		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -467,7 +467,7 @@ fn unlimited_teleport_assets_works() {
 		);
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -514,7 +514,7 @@ fn reserve_transfer_assets_works() {
 		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -562,7 +562,7 @@ fn limited_reserve_transfer_assets_works() {
 		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -608,7 +608,7 @@ fn unlimited_reserve_transfer_assets_works() {
 		);
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -640,7 +640,7 @@ fn execute_withdraw_to_deposit_works() {
 		assert_eq!(Balances::total_balance(&BOB), SEND_AMOUNT);
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -675,10 +675,8 @@ fn trapped_assets_can_be_claimed() {
 		assert_eq!(
 			last_events(2),
 			vec![
-				RuntimeEvent::XcmPallet(crate::Event::AssetsTrapped(hash.clone(), source, vma)),
-				RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(
-					BaseXcmWeight::get() * 5
-				)))
+				RuntimeEvent::XcmPallet(crate::Event::AssetsTrapped { hash: hash.clone(), origin: source, assets: vma }),
+				RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(BaseXcmWeight::get() * 5) }),
 			]
 		);
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -712,13 +710,8 @@ fn trapped_assets_can_be_claimed() {
 			]))),
 			weight
 		));
-		assert_eq!(
-			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Incomplete(
-				BaseXcmWeight::get(),
-				XcmError::UnknownClaim
-			)))
-		);
+		let outcome = Outcome::Incomplete(BaseXcmWeight::get(), XcmError::UnknownClaim);
+		assert_eq!(last_event(), RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome }));
 	});
 }
 
