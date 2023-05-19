@@ -104,7 +104,11 @@ fn report_outcome_notify_works() {
 					0,
 					Response::ExecutionResult(None),
 				)),
-				RuntimeEvent::XcmPallet(crate::Event::Notified { query_id: 0, pallet_index: 4, call_index: 2 }),
+				RuntimeEvent::XcmPallet(crate::Event::Notified {
+					query_id: 0,
+					pallet_index: 4,
+					call_index: 2
+				}),
 			]
 		);
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![]);
@@ -675,8 +679,14 @@ fn trapped_assets_can_be_claimed() {
 		assert_eq!(
 			last_events(2),
 			vec![
-				RuntimeEvent::XcmPallet(crate::Event::AssetsTrapped { hash: hash.clone(), origin: source, assets: vma }),
-				RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(BaseXcmWeight::get() * 5) }),
+				RuntimeEvent::XcmPallet(crate::Event::AssetsTrapped {
+					hash: hash.clone(),
+					origin: source,
+					assets: vma
+				}),
+				RuntimeEvent::XcmPallet(crate::Event::Attempted {
+					outcome: Outcome::Complete(BaseXcmWeight::get() * 5)
+				}),
 			]
 		);
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
