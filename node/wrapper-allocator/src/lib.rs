@@ -14,104 +14,91 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Tracking global allocator. Initially just forwards allocation and deallocation requests
-//! to the underlying allocator. When tracking is enabled, stores every allocation event into
-//! pre-allocated backlog. When tracking mode is disables, replays the backlog and counts the
-//! number of allocation events and the peak allocation value.
+//! Tracking global allocator. Calculates the peak allocation between two checkpoints.
 
 use core::alloc::{GlobalAlloc, Layout};
-use std::sync::{
-	atomic::{AtomicUsize, Ordering::Relaxed},
-	RwLock,
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tikv_jemallocator::Jemalloc;
 
 struct WrapperAllocatorData {
-	tracking: RwLock<bool>,
-	backlog: Vec<isize>,
-	backlog_index: AtomicUsize,
+	lock: AtomicBool,
+	current: isize,
+	peak: isize,
 }
 
 impl WrapperAllocatorData {
-	// SAFETY:
-	// * Tracking must only be performed by a single thread at a time
-	// * `start_tracking` and `stop_tracking` must be called from the same thread
-	// * Tracking periods must not overlap
-	// * Caller must provide sufficient backlog size
-
-	unsafe fn start_tracking(&mut self, backlog_size: usize) {
-		// Allocate the backlog before locking anything. The allocation won't be available later.
-		let backlog = Vec::with_capacity(backlog_size);
-		// Lock allocations, move the allocated vector to our place and start tracking.
-		let mut tracking = self.tracking.write().unwrap();
-		assert!(!*tracking); // Shouldn't start tracking if already tracking
-		self.backlog = backlog;
-		self.backlog.resize(backlog_size, 0);
-		self.backlog_index.store(0, Relaxed);
-		*tracking = true;
-	}
-
-	unsafe fn end_tracking(&mut self) -> (usize, isize) {
-		let mut tracking = self.tracking.write().unwrap();
-		assert!(*tracking); // Start/end calls must be consistent
-        
-		// At this point, all the allocation is blocked as all the threads are waiting for
-		// read lock on `tracking`. The following code replays the backlog and calulates the
-		// peak value. It must not perform any allocation, otherwise a deadlock will occur.
-		let mut peak = 0;
-		let mut alloc = 0;
-		let mut events = 0usize;
-		for i in 0..self.backlog.len() {
-			if self.backlog[i] == 0 {
+	#[inline]
+	fn lock(&self) {
+		loop {
+			// Try to acquire the lock.
+			if self
+				.lock
+				.compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+				.is_ok()
+			{
 				break
 			}
-			events += 1;
-			alloc += self.backlog[i];
-			if alloc > peak {
-				peak = alloc
+			// We failed to acquire the lock; wait until it's unlocked.
+			//
+			// In theory this should result in less coherency traffic as unlike `compare_exchange`
+			// it is a read-only operation, so multiple cores can execute it simultaneously
+			// without taking an exclusive lock over the cache line.
+			while self.lock.load(Ordering::Relaxed) {
+				std::hint::spin_loop();
 			}
 		}
-		*tracking = false;
-		(events, peak)
 	}
 
 	#[inline]
-	unsafe fn track(&mut self, alloc: isize) {
-		let tracking = self.tracking.read().unwrap();
-		if !*tracking {
-			return
+	fn unlock(&self) {
+		self.lock.store(false, Ordering::Release);
+	}
+
+	fn start_tracking(&mut self) {
+		self.lock();
+		self.current = 0;
+		self.peak = 0;
+		self.unlock();
+	}
+
+	fn end_tracking(&self) -> isize {
+		self.lock();
+		let peak = self.peak;
+		self.unlock();
+		peak
+	}
+
+	#[inline]
+	fn track(&mut self, alloc: isize) {
+		self.lock();
+		self.current += alloc;
+		if self.current > self.peak {
+			self.peak = self.current;
 		}
-		let i = self.backlog_index.fetch_add(1, Relaxed);
-		if i == self.backlog.len() {
-			// We cannot use formatted text here as it would result in allocations and a deadlock
-			panic!("Backlog size provided was not enough for allocation tracking");
-		}
-		// It is safe as the vector is pre-allocated and the index is acquired atomically
-		self.backlog[i] = alloc;
+		self.unlock();
 	}
 }
 
-static mut ALLOCATOR_DATA: WrapperAllocatorData = WrapperAllocatorData {
-	tracking: RwLock::new(false),
-	backlog: vec![],
-	backlog_index: AtomicUsize::new(0),
-};
+static mut ALLOCATOR_DATA: WrapperAllocatorData =
+	WrapperAllocatorData { lock: AtomicBool::new(false), current: 0, peak: 0 };
 
 pub struct WrapperAllocator<A: GlobalAlloc>(A);
 
 impl<A: GlobalAlloc> WrapperAllocator<A> {
-	/// Start tracking with the given backlog size (in allocation events). Providing insufficient
-	/// backlog size will result in a panic.
-	pub fn start_tracking(&self, backlog_size: usize) {
+	// SAFETY:
+	// * The following functions write to `static mut`. That is safe as the critical section
+	//   inside is isolated by an exclusive lock.
+
+	/// Start tracking
+	pub fn start_tracking(&self) {
 		unsafe {
-			ALLOCATOR_DATA.start_tracking(backlog_size);
+			ALLOCATOR_DATA.start_tracking();
 		}
 	}
 
-	/// End tracking and return number of allocation events (as `usize`) and peak allocation
-	/// value in bytes (as `isize`). Peak allocation value is not guaranteed to be neither
-	/// non-zero nor positive.
-	pub fn end_tracking(&self) -> (usize, isize) {
+	/// End tracking and return the peak allocation value in bytes (as `isize`). Peak allocation
+	/// value is not guaranteed to be neither non-zero nor positive.
+	pub fn end_tracking(&self) -> isize {
 		unsafe { ALLOCATOR_DATA.end_tracking() }
 	}
 }
@@ -119,8 +106,6 @@ impl<A: GlobalAlloc> WrapperAllocator<A> {
 unsafe impl<A: GlobalAlloc> GlobalAlloc for WrapperAllocator<A> {
 	// SAFETY:
 	// * The wrapped methods are as safe as the underlying allocator implementation is
-	// * In tracking mode, it is safe as long as a sufficient backlog size is provided when
-	//   entering the tracking mode
 
 	#[inline]
 	unsafe fn alloc(&self, layout: Layout) -> *mut u8 {

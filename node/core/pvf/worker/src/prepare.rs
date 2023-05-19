@@ -112,19 +112,18 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let prepare_fut = rt_handle
 				.spawn_blocking(move || {
 					#[cfg(feature = "wrapper-allocator")]
-					ALLOC.start_tracking(100_000_000);
+					ALLOC.start_tracking();
 
 					let result = prepare_artifact(pvf);
 
 					#[cfg(feature = "wrapper-allocator")]
 					{
-						let (events, peak) = ALLOC.end_tracking();
+						let peak = ALLOC.end_tracking();
 						gum::debug!(
 							target: LOG_TARGET,
 							%worker_pid,
-							"prepare job peak allocation is {} bytes in {} events",
+							"prepare job peak allocation is {} bytes",
 							peak,
-							events,
 						);
 					}
 
