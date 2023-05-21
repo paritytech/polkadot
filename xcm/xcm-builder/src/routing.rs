@@ -67,7 +67,7 @@ impl SourceTopic for () {
 }
 
 /// Wrapper router which, if the message does not already begin with a `SetTopic` instruction,
-/// prepends one to the message filled with a universally unique ID. This ID is returned from a
+/// prepends one to the message filled with an ID from `TopicSource`. This ID is returned from a
 /// successful `deliver`.
 ///
 /// This is designed to be at the top-level of any routers, since it will always mutate the
