@@ -432,6 +432,7 @@ impl ProcessMessage for TestProcessMessage {
 		message: &[u8],
 		origin: AggregateMessageOrigin,
 		meter: &mut WeightMeter,
+		_id: &mut [u8; 32],
 	) -> Result<bool, ProcessMessageError> {
 		let para = match origin {
 			AggregateMessageOrigin::Ump(UmpQueueId::Para(p)) => p,

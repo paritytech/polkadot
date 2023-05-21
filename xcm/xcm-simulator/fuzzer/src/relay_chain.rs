@@ -221,6 +221,7 @@ impl ProcessMessage for MessageProcessor {
 		message: &[u8],
 		origin: Self::Origin,
 		meter: &mut WeightMeter,
+		id: &mut [u8; 32],
 	) -> Result<bool, ProcessMessageError> {
 		let para = match origin {
 			AggregateMessageOrigin::Ump(UmpQueueId::Para(para)) => para,
@@ -229,7 +230,7 @@ impl ProcessMessage for MessageProcessor {
 			Junction,
 			xcm_executor::XcmExecutor<XcmConfig>,
 			RuntimeCall,
-		>::process_message(message, Junction::Parachain(para.into()), meter)
+		>::process_message(message, Junction::Parachain(para.into()), meter, id)
 	}
 }
 

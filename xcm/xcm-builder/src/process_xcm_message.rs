@@ -22,7 +22,6 @@ use frame_support::{
 };
 use parity_scale_codec::{Decode, FullCodec, MaxEncodedLen};
 use scale_info::TypeInfo;
-use sp_io::hashing::blake2_256;
 use sp_std::{fmt::Debug, marker::PhantomData};
 use sp_weights::{Weight, WeightMeter};
 use xcm::prelude::*;
@@ -44,8 +43,8 @@ impl<
 		message: &[u8],
 		origin: Self::Origin,
 		meter: &mut WeightMeter,
+		id: &mut XcmHash,
 	) -> Result<bool, ProcessMessageError> {
-		let hash = blake2_256(message);
 		let versioned_message = VersionedXcm::<Call>::decode(&mut &message[..])
 			.map_err(|_| ProcessMessageError::Corrupt)?;
 		let message = Xcm::<Call>::try_from(versioned_message)
@@ -54,13 +53,13 @@ impl<
 		let required = pre.weight_of();
 		ensure!(meter.can_accrue(required), ProcessMessageError::Overweight(required));
 
-		let (consumed, result) =
-			match XcmExecutor::execute(origin.into(), pre, hash, Weight::zero()) {
-				Outcome::Complete(w) => (w, Ok(true)),
-				Outcome::Incomplete(w, _) => (w, Ok(false)),
-				// In the error-case we assume the worst case and consume all possible weight.
-				Outcome::Error(_) => (required, Err(ProcessMessageError::Unsupported)),
-			};
+		let (consumed, result) = match XcmExecutor::execute(origin.into(), pre, *id, Weight::zero())
+		{
+			Outcome::Complete(w) => (w, Ok(true)),
+			Outcome::Incomplete(w, _) => (w, Ok(false)),
+			// In the error-case we assume the worst case and consume all possible weight.
+			Outcome::Error(_) => (required, Err(ProcessMessageError::Unsupported)),
+		};
 		meter.defensive_saturating_accrue(consumed);
 		result
 	}
@@ -112,8 +111,9 @@ mod tests {
 			// Errors if we stay below a weight limit of 1000.
 			for i in 0..10 {
 				let meter = &mut WeightMeter::from_limit((i * 10).into());
+				let mut id = [0; 32];
 				assert_err!(
-					Processor::process_message(msg, ORIGIN, meter),
+					Processor::process_message(msg, ORIGIN, meter, &mut id),
 					Overweight(1000.into())
 				);
 				assert_eq!(meter.consumed, 0.into());
@@ -121,7 +121,8 @@ mod tests {
 
 			// Works with a limit of 1000.
 			let meter = &mut WeightMeter::from_limit(1000.into());
-			assert_ok!(Processor::process_message(msg, ORIGIN, meter));
+			let mut id = [0; 32];
+			assert_ok!(Processor::process_message(msg, ORIGIN, meter, &mut id));
 			assert_eq!(meter.consumed, 1000.into());
 		}
 	}
@@ -149,6 +150,6 @@ mod tests {
 	}
 
 	fn process_raw(raw: &[u8]) -> Result<bool, ProcessMessageError> {
-		Processor::process_message(raw, ORIGIN, &mut WeightMeter::max_limit())
+		Processor::process_message(raw, ORIGIN, &mut WeightMeter::max_limit(), &mut [0; 32])
 	}
 }

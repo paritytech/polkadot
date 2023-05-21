@@ -32,7 +32,8 @@ use frame_support::{
 };
 use primitives::v4::{well_known_keys, Id as ParaId, UpwardMessage};
 use sp_core::twox_64;
-use sp_runtime::traits::{Bounded, Hash};
+use sp_io::hashing::blake2_256;
+use sp_runtime::traits::Bounded;
 use sp_std::prelude::*;
 
 pub(super) struct GenesisConfigBuilder {
@@ -516,27 +517,27 @@ fn overweight_queue_works() {
 		queue_upward_msg(para_a, a_msg_3.clone());
 
 		MessageQueue::service_queues(Weight::from_parts(500, 500));
-		let hash_1 = <<Test as frame_system::Config>::Hashing as Hash>::hash(&a_msg_1[..]);
-		let hash_2 = <<Test as frame_system::Config>::Hashing as Hash>::hash(&a_msg_2[..]);
-		let hash_3 = <<Test as frame_system::Config>::Hashing as Hash>::hash(&a_msg_3[..]);
+		let hash_1 = blake2_256(&a_msg_1[..]);
+		let hash_2 = blake2_256(&a_msg_2[..]);
+		let hash_3 = blake2_256(&a_msg_3[..]);
 		assert_last_events(
 			[
 				pallet_message_queue::Event::<Test>::Processed {
-					hash: hash_1.clone(),
+					id: hash_1.clone(),
 					origin: Ump(UmpQueueId::Para(para_a)),
 					weight_used: Weight::from_parts(301, 301),
 					success: true,
 				}
 				.into(),
 				pallet_message_queue::Event::<Test>::OverweightEnqueued {
-					hash: hash_2.clone(),
+					id: hash_2.clone(),
 					origin: Ump(UmpQueueId::Para(para_a)),
 					page_index: 0,
 					message_index: 1,
 				}
 				.into(),
 				pallet_message_queue::Event::<Test>::OverweightEnqueued {
-					hash: hash_3.clone(),
+					id: hash_3.clone(),
 					origin: Ump(UmpQueueId::Para(para_a)),
 					page_index: 0,
 					message_index: 2,
@@ -564,7 +565,7 @@ fn overweight_queue_works() {
 		));
 		assert_last_event(
 			pallet_message_queue::Event::<Test>::Processed {
-				hash: hash_3,
+				id: hash_3,
 				origin: Ump(UmpQueueId::Para(para_a)),
 				weight_used: Weight::from_parts(501, 501),
 				success: true,
