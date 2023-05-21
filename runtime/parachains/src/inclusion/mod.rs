@@ -1196,7 +1196,6 @@ impl<T: Config> OnQueueChanged<AggregateMessageOrigin> for Pallet<T> {
 		let para = match origin {
 			AggregateMessageOrigin::Ump(UmpQueueId::Para(p)) => p,
 		};
-		// TODO maybe migrate this to u64
 		let (count, size) = (count.saturated_into(), size.saturated_into());
 		// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
 		#[allow(deprecated)]
