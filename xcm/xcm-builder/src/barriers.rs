@@ -242,7 +242,7 @@ impl<InnerBarrier: ShouldExecute> ShouldExecute for RequireSetTopic<InnerBarrier
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"AllowSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			"RequireSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
 			origin, instructions, max_weight, properties,
 		);
 		if let Some(SetTopic(t)) = instructions.first() {
@@ -251,6 +251,31 @@ impl<InnerBarrier: ShouldExecute> ShouldExecute for RequireSetTopic<InnerBarrier
 		} else {
 			Err(ProcessMessageError::Unsupported)
 		}
+	}
+}
+
+/// Allows the message to be prepended with a single `SetTopic` instruction, requiring some inner
+/// barrier to pass on the rest of the message.
+pub struct ExtractIdFromAppendedTopic<InnerBarrier>(PhantomData<InnerBarrier>);
+impl<InnerBarrier: ShouldExecute> ShouldExecute for ExtractIdFromAppendedTopic<InnerBarrier> {
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		instructions: &mut [Instruction<Call>],
+		max_weight: Weight,
+		properties: &mut Properties,
+	) -> Result<(), ProcessMessageError> {
+		log::trace!(
+			target: "xcm::barriers",
+			"ExtractIdFromAppendedTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			origin, instructions, max_weight, properties,
+		);
+		let until = if let Some(SetTopic(t)) = instructions.last() {
+			properties.message_id = Some(*t);
+			instructions.len() - 1
+		} else {
+			instructions.len()
+		};
+		InnerBarrier::should_execute(&origin, &mut instructions[..until], max_weight, properties)
 	}
 }
 

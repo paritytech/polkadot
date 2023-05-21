@@ -53,7 +53,7 @@ fn maybe_with_topic(f: impl Fn()) {
 
 fn xcm_with_topic<T>(topic: XcmHash, mut xcm: Vec<Instruction<T>>) -> Xcm<T> {
 	if UsingTopic::get() {
-		xcm.insert(0, SetTopic(topic));
+		xcm.push(SetTopic(topic));
 	}
 	Xcm(xcm)
 }

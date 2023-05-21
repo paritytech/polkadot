@@ -37,11 +37,11 @@ impl<Inner: SendXcm> SendXcm for WithUniqueTopic<Inner> {
 		message: &mut Option<Xcm<()>>,
 	) -> SendResult<Self::Ticket> {
 		let mut message = message.take().ok_or(SendError::MissingArgument)?;
-		let unique_id = if let Some(SetTopic(id)) = message.first() {
+		let unique_id = if let Some(SetTopic(id)) = message.last() {
 			*id
 		} else {
 			let unique_id = unique(&message);
-			message.0.insert(0, SetTopic(unique_id.clone()));
+			message.0.push(SetTopic(unique_id.clone()));
 			unique_id
 		};
 		let (ticket, assets) = Inner::validate(destination, &mut Some(message))
@@ -82,11 +82,11 @@ impl<Inner: SendXcm, TopicSource: SourceTopic> SendXcm for WithTopicSource<Inner
 		message: &mut Option<Xcm<()>>,
 	) -> SendResult<Self::Ticket> {
 		let mut message = message.take().ok_or(SendError::MissingArgument)?;
-		let unique_id = if let Some(SetTopic(id)) = message.first() {
+		let unique_id = if let Some(SetTopic(id)) = message.last() {
 			*id
 		} else {
 			let unique_id = TopicSource::source_topic(&message);
-			message.0.insert(0, SetTopic(unique_id.clone()));
+			message.0.push(SetTopic(unique_id.clone()));
 			unique_id
 		};
 		let (ticket, assets) = Inner::validate(destination, &mut Some(message))

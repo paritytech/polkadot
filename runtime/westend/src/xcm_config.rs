@@ -34,12 +34,13 @@ use sp_core::ConstU32;
 use westend_runtime_constants::currency::CENTS;
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSetTopic,
+	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, MintLocation,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	CurrencyAdapter as XcmCurrencyAdapter, ExtractIdFromAppendedTopic, IsChildSystemParachain,
+	IsConcrete, MintLocation, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WeightInfoBounds,
+	WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
 
@@ -108,7 +109,7 @@ pub type TrustedTeleporters =
 	(xcm_builder::Case<WndForWestmint>, xcm_builder::Case<WndForCollectives>);
 
 /// The barriers one of which must be passed for an XCM message to be executed.
-pub type Barrier = AllowSetTopic<(
+pub type Barrier = ExtractIdFromAppendedTopic<(
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// Expected responses are OK.

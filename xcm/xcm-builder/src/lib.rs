@@ -51,8 +51,9 @@ mod barriers;
 pub use barriers::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSetTopic,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	DenyReserveTransferToRelayChain, DenyThenTry, IsChildSystemParachain, RequireSetTopic,
-	RespectSuspension, TakeWeightCredit, WithComputedOrigin,
+	DenyReserveTransferToRelayChain, DenyThenTry, ExtractIdFromAppendedTopic,
+	IsChildSystemParachain, RequireSetTopic, RespectSuspension, TakeWeightCredit,
+	WithComputedOrigin,
 };
 
 mod currency_adapter;

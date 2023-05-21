@@ -146,13 +146,13 @@ pub fn forward_id_for(original_id: &XcmHash) -> XcmHash {
 ///
 /// The `XcmHash` value returned by `deliver` will always be the same as that returned by the
 /// message exporter (`Bridges`). Generally this should take notice of the message should it
-/// begin with the `SetTopic` instruction.
+/// end with the `SetTopic` instruction.
 ///
-/// In the case that the message begins with a `SetTopic(T)` (as should be the case if the top-level
+/// In the case that the message ends with a `SetTopic(T)` (as should be the case if the top-level
 /// router is `EnsureUniqueTopic`), then the forwarding message (i.e. the one carrying the
-/// export instruction *to* the bridge in local consensus) will begin with a `SetTopic` whose inner
-/// is `forward_id_for(T)`. If this is not the case then the onward message will not be given the
-/// `SetTopic` prelude.
+/// export instruction *to* the bridge in local consensus) will also end with a `SetTopic` whose
+/// inner is `forward_id_for(T)`. If this is not the case then the onward message will not be given
+/// the `SetTopic` afterword.
 pub struct UnpaidRemoteExporter<Bridges, Router, UniversalLocation>(
 	PhantomData<(Bridges, Router, UniversalLocation)>,
 );
@@ -174,9 +174,9 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 			Bridges::exporter_for(&remote_network, &remote_location, &xcm).ok_or(NotApplicable)?;
 		ensure!(maybe_payment.is_none(), Unroutable);
 
-		// `xcm` should already begin with `SetTopic` - if it does, then extract and derive into
+		// `xcm` should already end with `SetTopic` - if it does, then extract and derive into
 		// an onward topic ID.
-		let maybe_forward_id = match xcm.first() {
+		let maybe_forward_id = match xcm.last() {
 			Some(SetTopic(t)) => Some(forward_id_for(t)),
 			_ => None,
 		};
@@ -189,7 +189,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 			ExportMessage { network: remote_network, destination: remote_location, xcm },
 		]);
 		if let Some(forward_id) = maybe_forward_id {
-			message.0.insert(0, SetTopic(forward_id));
+			message.0.push(SetTopic(forward_id));
 		}
 		validate_send::<Router>(bridge, message)
 	}
@@ -207,13 +207,13 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 ///
 /// The `XcmHash` value returned by `deliver` will always be the same as that returned by the
 /// message exporter (`Bridges`). Generally this should take notice of the message should it
-/// begin with the `SetTopic` instruction.
+/// end with the `SetTopic` instruction.
 ///
-/// In the case that the message begins with a `SetTopic(T)` (as should be the case if the top-level
+/// In the case that the message ends with a `SetTopic(T)` (as should be the case if the top-level
 /// router is `EnsureUniqueTopic`), then the forwarding message (i.e. the one carrying the
-/// export instruction *to* the bridge in local consensus) will begin with a `SetTopic` whose inner
-/// is `forward_id_for(T)`. If this is not the case then the onward message will not be given the
-/// `SetTopic` prelude.
+/// export instruction *to* the bridge in local consensus) will also end with a `SetTopic` whose
+/// inner is `forward_id_for(T)`. If this is not the case then the onward message will not be given
+/// the `SetTopic` afterword.
 pub struct SovereignPaidRemoteExporter<Bridges, Router, UniversalLocation>(
 	PhantomData<(Bridges, Router, UniversalLocation)>,
 );
@@ -232,9 +232,9 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 
 		let xcm = xcm.take().ok_or(MissingArgument)?;
 
-		// `xcm` should already begin with `SetTopic` - if it does, then extract and derive into
+		// `xcm` should already end with `SetTopic` - if it does, then extract and derive into
 		// an onward topic ID.
-		let maybe_forward_id = match xcm.first() {
+		let maybe_forward_id = match xcm.last() {
 			Some(SetTopic(t)) => Some(forward_id_for(t)),
 			_ => None,
 		};
@@ -263,7 +263,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 			vec![export_instruction]
 		});
 		if let Some(forward_id) = maybe_forward_id {
-			message.0.insert(0, SetTopic(forward_id));
+			message.0.push(SetTopic(forward_id));
 		}
 
 		// We then send a normal message to the bridge asking it to export the prepended
@@ -391,13 +391,13 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> 
 			.split_global()
 			.map_err(|()| SendError::Unroutable)?;
 		let mut message = message.take().ok_or(SendError::MissingArgument)?;
-		let (start, maybe_id) = match message.first() {
-			Some(SetTopic(t)) => (1, Some(*t)),
-			_ => (0, None),
+		let maybe_id = match message.last() {
+			Some(SetTopic(t)) => Some(*t),
+			_ => None,
 		};
-		message.0.insert(start, UniversalOrigin(GlobalConsensus(local_net)));
+		message.0.insert(0, UniversalOrigin(GlobalConsensus(local_net)));
 		if local_sub != Here {
-			message.0.insert(start + 1, DescendOrigin(local_sub));
+			message.0.insert(1, DescendOrigin(local_sub));
 		}
 		let message = VersionedXcm::from(message);
 		let id = maybe_id.unwrap_or_else(|| message.using_encoded(sp_io::hashing::blake2_256));
