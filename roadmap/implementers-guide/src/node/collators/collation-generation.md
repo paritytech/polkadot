@@ -139,12 +139,4 @@ The configuration should be optional, to allow for the case where the node is no
   - Contains collator's authentication key, collator function, and
     parachain ID.
 
-## Glossary
-
-- *Slot:* Time is divided into discrete slots. Each validator in the validator
-  set produces a verifiable random value, using a VRF, per slot. If below a
-  threshold, this allows the validator to author a new block for that slot.
-
-- *VRF:* Verifiable random function.
-
 [CP]: collator-protocol.md
