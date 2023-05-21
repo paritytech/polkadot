@@ -33,7 +33,7 @@ use frame_support::{
 use primitives::v4::{well_known_keys, Id as ParaId, UpwardMessage};
 use sp_core::twox_64;
 use sp_io::hashing::blake2_256;
-use sp_runtime::traits::{Bounded, Hash};
+use sp_runtime::traits::Bounded;
 use sp_std::prelude::*;
 
 pub(super) struct GenesisConfigBuilder {
