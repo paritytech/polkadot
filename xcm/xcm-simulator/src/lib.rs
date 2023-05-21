@@ -123,6 +123,7 @@ macro_rules! decl_test_relay_chain {
 				msg: &[u8],
 				para: Self::Origin,
 				meter: &mut $crate::WeightMeter,
+				id: &mut [u8; 32],
 			) -> Result<bool, $crate::ProcessMessageError> {
 				use $crate::{Weight, AggregateMessageOrigin, UmpQueueId, ServiceQueues, EnqueueMessage};
 				use $mq as message_queue;
@@ -320,9 +321,11 @@ macro_rules! decl_test_network {
 				match destination.interior() {
 					$crate::Junctions::Here if destination.parent_count() == 1 => {
 						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
+						let mut _id = [0; 32];
 						let r = <$relay_chain>::process_message(
 							encoded.as_slice(), para_id,
 							&mut $crate::WeightMeter::max_limit(),
+							&mut _id,
 						);
 						match r {
 							Err($crate::ProcessMessageError::Overweight(required)) =>
