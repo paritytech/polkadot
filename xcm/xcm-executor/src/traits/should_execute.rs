@@ -18,9 +18,15 @@ use frame_support::traits::ProcessMessageError;
 use sp_std::result::Result;
 use xcm::latest::{Instruction, MultiLocation, Weight, XcmHash};
 
+/// Properyies of an XCM message and its imminent execution.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Properties {
+	/// The amount of weight that the system has determined this
+	/// message may utilize in its execution. Typically non-zero only because of prior fee
+	/// payment, but could in principle be due to other factors.
 	pub weight_credit: Weight,
+	/// The identity of the message, if one is known. If left as `None`, then it will generally
+	/// default to the hash of the message which may be non-unique.
 	pub message_id: Option<XcmHash>,
 }
 
@@ -34,9 +40,8 @@ pub trait ShouldExecute {
 	/// - `origin`: The origin (sender) of the message.
 	/// - `instructions`: The message itself.
 	/// - `max_weight`: The (possibly over-) estimation of the weight of execution of the message.
-	/// - `weight_credit`: The pre-established amount of weight that the system has determined this
-	///   message may utilize in its execution. Typically non-zero only because of prior fee
-	///   payment, but could in principle be due to other factors.
+	/// - `properties`: Various pre-established properties of the message which may be mutated by
+	///   this API.
 	fn should_execute<RuntimeCall>(
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<RuntimeCall>],
