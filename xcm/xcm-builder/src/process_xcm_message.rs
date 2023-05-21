@@ -53,13 +53,13 @@ impl<
 		let required = pre.weight_of();
 		ensure!(meter.can_accrue(required), ProcessMessageError::Overweight(required));
 
-		let (consumed, result) =
-			match XcmExecutor::execute(origin.into(), pre, id, Weight::zero()) {
-				Outcome::Complete(w) => (w, Ok(true)),
-				Outcome::Incomplete(w, _) => (w, Ok(false)),
-				// In the error-case we assume the worst case and consume all possible weight.
-				Outcome::Error(_) => (required, Err(ProcessMessageError::Unsupported)),
-			};
+		let (consumed, result) = match XcmExecutor::execute(origin.into(), pre, id, Weight::zero())
+		{
+			Outcome::Complete(w) => (w, Ok(true)),
+			Outcome::Incomplete(w, _) => (w, Ok(false)),
+			// In the error-case we assume the worst case and consume all possible weight.
+			Outcome::Error(_) => (required, Err(ProcessMessageError::Unsupported)),
+		};
 		meter.defensive_saturating_accrue(consumed);
 		result
 	}
