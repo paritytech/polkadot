@@ -185,6 +185,7 @@ zeroize = { opt-level = 3 }
 # Polkadot runtime requires unwinding.
 panic = "unwind"
 opt-level = 3
+debug-assertions = true
 
 # make sure dev builds with backtrace do
 # not slow us down
@@ -195,6 +196,7 @@ inherits = "release"
 inherits = "release"
 lto = true
 codegen-units = 1
+debug-assertions = true
 
 [profile.testnet]
 inherits = "release"
@@ -231,4 +233,4 @@ conf-files = [
 config = "./scripts/ci/gitlab/spellcheck.toml"
 
 [patch.crates-io]
-jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", branch = "na-server-throw-away-permit" }
+jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", branch = "master" }
