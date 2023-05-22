@@ -20,6 +20,7 @@ use frame_support::{
 	ensure,
 	traits::{Currency, Get, IsSubType, VestingSchedule},
 	weights::Weight,
+	DefaultNoBound,
 };
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
@@ -28,10 +29,8 @@ use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 use sp_io::{crypto::secp256k1_ecdsa_recover, hashing::keccak_256};
-#[cfg(feature = "std")]
-use sp_runtime::traits::Zero;
 use sp_runtime::{
-	traits::{CheckedSub, DispatchInfoOf, SignedExtension},
+	traits::{CheckedSub, DispatchInfoOf, SignedExtension, Zero},
 	transaction_validity::{
 		InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransaction,
 	},
@@ -229,17 +228,11 @@ pub mod pallet {
 	pub(super) type Preclaims<T: Config> = StorageMap<_, Identity, T::AccountId, EthereumAddress>;
 
 	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
 		pub claims:
 			Vec<(EthereumAddress, BalanceOf<T>, Option<T::AccountId>, Option<StatementKind>)>,
 		pub vesting: Vec<(EthereumAddress, (BalanceOf<T>, BalanceOf<T>, T::BlockNumber))>,
-	}
-
-	#[cfg(feature = "std")]
-	impl<T: Config> Default for GenesisConfig<T> {
-		fn default() -> Self {
-			GenesisConfig { claims: Default::default(), vesting: Default::default() }
-		}
 	}
 
 	#[pallet::genesis_build]

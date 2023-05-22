@@ -195,7 +195,6 @@ pub mod pallet {
 		pub next_free_para_id: ParaId,
 	}
 
-	#[cfg(feature = "std")]
 	impl Default for GenesisConfig {
 		fn default() -> Self {
 			GenesisConfig { next_free_para_id: LOWEST_PUBLIC_ID }

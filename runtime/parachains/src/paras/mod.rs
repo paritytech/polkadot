@@ -114,7 +114,7 @@ use crate::{
 	shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
+use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation, DefaultNoBound};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
@@ -771,15 +771,9 @@ pub mod pallet {
 		StorageMap<_, Identity, ValidationCodeHash, ValidationCode>;
 
 	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig {
 		pub paras: Vec<(ParaId, ParaGenesisArgs)>,
-	}
-
-	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
-		fn default() -> Self {
-			GenesisConfig { paras: Default::default() }
-		}
 	}
 
 	#[pallet::genesis_build]
