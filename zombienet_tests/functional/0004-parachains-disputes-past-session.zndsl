@@ -19,8 +19,11 @@ honest-validator-0: reports parachain_candidate_disputes_total is at least 2 wit
 # Stop issuing disputes
 malus-validator-0: pause
 
+# wait for the next session
+sleep 120 seconds
+
 # But should not resolve
-honest-validator-0: reports block height minus finalised block is at least 11 within 200 seconds
+honest-validator-0: reports block height minus finalised block is at least 10 within 100 seconds
 
 # Now resume alice
 alice: resume
