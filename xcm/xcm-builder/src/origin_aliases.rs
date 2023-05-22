@@ -23,7 +23,7 @@ impl<Prefix: Get<MultiLocation>> ContainsPair<MultiLocation, MultiLocation>
 	for RemovePrefixAccountId32<Prefix>
 {
 	fn contains(origin: &MultiLocation, target: &MultiLocation) -> bool {
-		if let Ok(appended) = (*target).prepended_with(Prefix::get()) {
+		if let Ok(appended) = (*target).clone().prepended_with(Prefix::get()) {
 			if appended == *origin {
 				match appended.last() {
 					Some(AccountId32 { .. }) => return true,
