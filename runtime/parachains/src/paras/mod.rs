@@ -107,7 +107,12 @@
 //! ```
 //!
 
-use crate::{configuration, initializer::SessionChangeNotification, shared};
+use crate::{
+	configuration,
+	inclusion::{QueueFootprinter, UmpQueueId},
+	initializer::SessionChangeNotification,
+	shared,
+};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
 use frame_system::pallet_prelude::*;
@@ -550,6 +555,12 @@ pub mod pallet {
 		type UnsignedPriority: Get<TransactionPriority>;
 
 		type NextSessionRotation: EstimateNextSessionRotation<Self::BlockNumber>;
+
+		/// Retrieve how many UMP messages are enqueued for this para-chain.
+		///
+		/// This is used to judge whether or not a para-chain can offboard. Per default this should
+		/// be set to the `ParaInclusion` pallet.
+		type QueueFootprinter: QueueFootprinter<Origin = UmpQueueId>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -1653,12 +1664,13 @@ impl<T: Config> Pallet<T> {
 	///
 	/// - para is not a stable parachain or parathread (i.e. [`ParaLifecycle::is_stable`] is `false`)
 	/// - para has a pending upgrade.
+	/// - para has unprocessed messages in its UMP queue.
 	///
 	/// No-op if para is not registered at all.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
 		// Disallow offboarding in case there is a PVF pre-checking in progress.
 		//
-		// This is not a fundamential limitation but rather simplification: it allows us to get
+		// This is not a fundamental limitation but rather simplification: it allows us to get
 		// away without introducing additional logic for pruning and, more importantly, enacting
 		// ongoing PVF pre-checking votes. It also removes some nasty edge cases.
 		//
@@ -1683,7 +1695,7 @@ impl<T: Config> Pallet<T> {
 			Some(ParaLifecycle::Parachain) => {
 				ParaLifecycles::<T>::insert(&id, ParaLifecycle::OffboardingParachain);
 			},
-			_ => return Err(Error::<T>::CannotOffboard)?,
+			_ => return Err(Error::<T>::CannotOffboard.into()),
 		}
 
 		let scheduled_session = Self::scheduled_session();
@@ -1692,6 +1704,10 @@ impl<T: Config> Pallet<T> {
 				v.insert(i, id);
 			}
 		});
+
+		if <T as Config>::QueueFootprinter::message_count(UmpQueueId::Para(id)) != 0 {
+			return Err(Error::<T>::CannotOffboard.into())
+		}
 
 		Ok(())
 	}
@@ -1984,6 +2000,13 @@ impl<T: Config> Pallet<T> {
 		} else {
 			false
 		}
+	}
+
+	/// Returns whether the given ID refers to a para that is offboarding.
+	///
+	/// An invalid or non-offboarding para ID will return `false`.
+	pub fn is_offboarding(id: ParaId) -> bool {
+		ParaLifecycles::<T>::get(&id).map_or(false, |state| state.is_offboarding())
 	}
 
 	/// Whether a para ID corresponds to any live parachain.

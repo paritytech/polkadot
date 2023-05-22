@@ -29,7 +29,7 @@ pub mod test_utils;
 mod location_conversion;
 pub use location_conversion::{
 	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
-	ParentIsPreset, SiblingParachainConvertsVia,
+	GlobalConsensusParachainConvertsFor, ParentIsPreset, SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;
@@ -53,6 +53,9 @@ pub use barriers::{
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, IsChildSystemParachain,
 	RespectSuspension, TakeWeightCredit, WithComputedOrigin,
 };
+
+mod process_xcm_message;
+pub use process_xcm_message::ProcessXcmMessage;
 
 mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;

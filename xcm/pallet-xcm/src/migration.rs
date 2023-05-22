@@ -21,8 +21,6 @@ use frame_support::{
 	weights::Weight,
 };
 
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
-
 const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 pub mod v1 {
@@ -51,7 +49,7 @@ pub mod v1 {
 				VersionNotifyTargets::<T>::translate_values(translate);
 
 				log::info!("v1 applied successfully");
-				STORAGE_VERSION.put::<Pallet<T>>();
+				StorageVersion::new(1).put::<Pallet<T>>();
 
 				weight.saturating_add(T::DbWeight::get().writes(1))
 			} else {
