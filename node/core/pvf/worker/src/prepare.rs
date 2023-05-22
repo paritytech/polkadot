@@ -131,20 +131,21 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let prepare_thread = thread::spawn_worker_thread(
 				"prepare thread",
 				move || {
+					#[allow(unused_mut)]
 					let mut result = prepare_artifact(pvf, cpu_time_start);
 
 					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
 					#[cfg(target_os = "linux")]
-					let result = result.map(|(artifact, elapsed)| (artifact, elapsed, get_max_rss_thread()));
+					let mut result = result.map(|(artifact, elapsed)| (artifact, elapsed, get_max_rss_thread()));
 
 					// If we are pre-checking, check for runtime construction errors.
 					//
 					// As pre-checking is more strict than just preparation in terms of memory and
 					// time, it is okay to do extra checks here. This takes negligible time anyway.
 					if let PrepareJobKind::Prechecking = prepare_job_kind {
-						result = result.and_then(|prepare_result| {
-							runtime_construction_check(prepare_result.0.as_ref(), executor_params)?;
-							Ok(prepare_result)
+						result = result.and_then(|output| {
+							runtime_construction_check(output.0.as_ref(), executor_params)?;
+							Ok(output)
 						});
 					}
 
