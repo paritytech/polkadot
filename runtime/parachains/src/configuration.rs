@@ -43,17 +43,9 @@ pub use pallet::*;
 
 const LOG_TARGET: &str = "runtime::configuration";
 
-/// All configuration of the runtime with respect to parachains and parathreads.
-#[derive(
-	Clone,
-	Encode,
-	Decode,
-	PartialEq,
-	sp_core::RuntimeDebug,
-	scale_info::TypeInfo,
-	serde::Serialize,
-	serde::Deserialize,
-)]
+/// All configuration of the runtime with respect to paras.
+#[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug, scale_info::TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct HostConfiguration<BlockNumber> {
 	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
 	// special treatment.
@@ -114,7 +106,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// been completed.
 	///
 	/// Note, there are situations in which `expected_at` in the past. For example, if
-	/// [`chain_availability_period`] or [`thread_availability_period`] is less than the delay set by
+	/// [`paras_availability_period`] is less than the delay set by
 	/// this field or if PVF pre-check took more time than the delay. In such cases, the upgrade is
 	/// further at the earliest possible time determined by [`minimum_validation_upgrade_delay`].
 	///
@@ -141,10 +133,8 @@ pub struct HostConfiguration<BlockNumber> {
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
 	pub max_downward_message_size: u32,
-	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
-	pub hrmp_max_parachain_outbound_channels: u32,
-	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
-	pub hrmp_max_parathread_outbound_channels: u32,
+	/// The maximum number of outbound HRMP channels a paras is allowed to open.
+	pub hrmp_max_paras_outbound_channels: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
 	pub hrmp_sender_deposit: Balance,
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
@@ -153,10 +143,8 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_channel_max_capacity: u32,
 	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
 	pub hrmp_channel_max_total_size: u32,
-	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
-	pub hrmp_max_parachain_inbound_channels: u32,
-	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
-	pub hrmp_max_parathread_inbound_channels: u32,
+	/// The maximum number of inbound HRMP channels a paras is allowed to accept.
+	pub hrmp_max_paras_inbound_channels: u32,
 	/// The maximum size of a message that could ever be put into an HRMP channel.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
@@ -191,18 +179,13 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// Must be non-zero.
 	pub group_rotation_frequency: BlockNumber,
-	/// The availability period, in blocks, for parachains. This is the amount of blocks
+	/// The availability period, in blocks. This is the amount of blocks
 	/// after inclusion that validators have to make the block available and signal its availability to
 	/// the chain.
 	///
 	/// Must be at least 1.
-	pub chain_availability_period: BlockNumber,
-	/// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
-	/// but a differing timeout due to differing requirements.
-	///
-	/// Must be at least 1.
-	pub thread_availability_period: BlockNumber,
-	/// The amount of blocks ahead to schedule parachains and parathreads.
+	pub paras_availability_period: BlockNumber,
+	/// The amount of blocks ahead to schedule paras.
 	pub scheduling_lookahead: u32,
 	/// The maximum number of validators to have per core.
 	///
@@ -255,8 +238,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// To prevent that, we introduce the minimum number of blocks after which the upgrade can be
 	/// scheduled. This number is controlled by this field.
 	///
-	/// This value should be greater than [`chain_availability_period`] and
-	/// [`thread_availability_period`].
+	/// This value should be greater than [`paras_availability_period`].
 	pub minimum_validation_upgrade_delay: BlockNumber,
 }
 
@@ -268,8 +250,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 				allowed_ancestry_len: 0,
 			},
 			group_rotation_frequency: 1u32.into(),
-			chain_availability_period: 1u32.into(),
-			thread_availability_period: 1u32.into(),
+			paras_availability_period: 1u32.into(),
 			no_show_slots: 1u32.into(),
 			validation_upgrade_cooldown: Default::default(),
 			validation_upgrade_delay: 2u32.into(),
@@ -297,11 +278,9 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_recipient_deposit: Default::default(),
 			hrmp_channel_max_capacity: Default::default(),
 			hrmp_channel_max_total_size: Default::default(),
-			hrmp_max_parachain_inbound_channels: Default::default(),
-			hrmp_max_parathread_inbound_channels: Default::default(),
+			hrmp_max_paras_inbound_channels: Default::default(),
 			hrmp_channel_max_message_size: Default::default(),
-			hrmp_max_parachain_outbound_channels: Default::default(),
-			hrmp_max_parathread_outbound_channels: Default::default(),
+			hrmp_max_paras_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
@@ -322,9 +301,7 @@ pub enum InconsistentError<BlockNumber> {
 	/// `group_rotation_frequency` is set to zero.
 	ZeroGroupRotationFrequency,
 	/// `chain_availability_period` is set to zero.
-	ZeroChainAvailabilityPeriod,
-	/// `thread_availability_period` is set to zero.
-	ZeroThreadAvailabilityPeriod,
+	ZeroParasAvailabilityPeriod,
 	/// `no_show_slots` is set to zero.
 	ZeroNoShowSlots,
 	/// `max_code_size` exceeds the hard limit of `MAX_CODE_SIZE`.
@@ -333,15 +310,10 @@ pub enum InconsistentError<BlockNumber> {
 	MaxHeadDataSizeExceedHardLimit { max_head_data_size: u32 },
 	/// `max_pov_size` exceeds the hard limit of `MAX_POV_SIZE`.
 	MaxPovSizeExceedHardLimit { max_pov_size: u32 },
-	/// `minimum_validation_upgrade_delay` is less than `chain_availability_period`.
+	/// `minimum_validation_upgrade_delay` is less than `paras_availability_period`.
 	MinimumValidationUpgradeDelayLessThanChainAvailabilityPeriod {
 		minimum_validation_upgrade_delay: BlockNumber,
-		chain_availability_period: BlockNumber,
-	},
-	/// `minimum_validation_upgrade_delay` is less than `thread_availability_period`.
-	MinimumValidationUpgradeDelayLessThanThreadAvailabilityPeriod {
-		minimum_validation_upgrade_delay: BlockNumber,
-		thread_availability_period: BlockNumber,
+		paras_availability_period: BlockNumber,
 	},
 	/// `validation_upgrade_delay` is less than or equal 1.
 	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
@@ -373,12 +345,8 @@ where
 			return Err(ZeroGroupRotationFrequency)
 		}
 
-		if self.chain_availability_period.is_zero() {
-			return Err(ZeroChainAvailabilityPeriod)
-		}
-
-		if self.thread_availability_period.is_zero() {
-			return Err(ZeroThreadAvailabilityPeriod)
+		if self.paras_availability_period.is_zero() {
+			return Err(ZeroParasAvailabilityPeriod)
 		}
 
 		if self.no_show_slots.is_zero() {
@@ -399,15 +367,10 @@ where
 			return Err(MaxPovSizeExceedHardLimit { max_pov_size: self.max_pov_size })
 		}
 
-		if self.minimum_validation_upgrade_delay <= self.chain_availability_period {
+		if self.minimum_validation_upgrade_delay <= self.paras_availability_period {
 			return Err(MinimumValidationUpgradeDelayLessThanChainAvailabilityPeriod {
 				minimum_validation_upgrade_delay: self.minimum_validation_upgrade_delay.clone(),
-				chain_availability_period: self.chain_availability_period.clone(),
-			})
-		} else if self.minimum_validation_upgrade_delay <= self.thread_availability_period {
-			return Err(MinimumValidationUpgradeDelayLessThanThreadAvailabilityPeriod {
-				minimum_validation_upgrade_delay: self.minimum_validation_upgrade_delay.clone(),
-				thread_availability_period: self.thread_availability_period.clone(),
+				paras_availability_period: self.paras_availability_period.clone(),
 			})
 		}
 
@@ -435,12 +398,11 @@ where
 			})
 		}
 
-		if self.hrmp_max_parachain_outbound_channels > crate::hrmp::HRMP_MAX_OUTBOUND_CHANNELS_BOUND
-		{
+		if self.hrmp_max_paras_outbound_channels > crate::hrmp::HRMP_MAX_OUTBOUND_CHANNELS_BOUND {
 			return Err(MaxHrmpOutboundChannelsExceeded)
 		}
 
-		if self.hrmp_max_parachain_inbound_channels > crate::hrmp::HRMP_MAX_INBOUND_CHANNELS_BOUND {
+		if self.hrmp_max_paras_inbound_channels > crate::hrmp::HRMP_MAX_INBOUND_CHANNELS_BOUND {
 			return Err(MaxHrmpInboundChannelsExceeded)
 		}
 
@@ -694,35 +656,19 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the availability period for parachains.
+		/// Set the availability period for paras.
 		#[pallet::call_index(9)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_chain_availability_period(
+		pub fn set_paras_availability_period(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.chain_availability_period = new;
-			})
-		}
-
-		/// Set the availability period for parathreads.
-		#[pallet::call_index(10)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_block_number(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_thread_availability_period(
-			origin: OriginFor<T>,
-			new: T::BlockNumber,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.thread_availability_period = new;
+				config.paras_availability_period = new;
 			})
 		}
 
@@ -998,35 +944,19 @@ pub mod pallet {
 			})
 		}
 
-		/// Sets the maximum number of inbound HRMP channels a parachain is allowed to accept.
+		/// Sets the maximum number of inbound HRMP channels a paras is allowed to accept.
 		#[pallet::call_index(34)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_hrmp_max_parachain_inbound_channels(
+		pub fn set_hrmp_max_paras_inbound_channels(
 			origin: OriginFor<T>,
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.hrmp_max_parachain_inbound_channels = new;
-			})
-		}
-
-		/// Sets the maximum number of inbound HRMP channels a parathread is allowed to accept.
-		#[pallet::call_index(35)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_hrmp_max_parathread_inbound_channels(
-			origin: OriginFor<T>,
-			new: u32,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.hrmp_max_parathread_inbound_channels = new;
+				config.hrmp_max_paras_inbound_channels = new;
 			})
 		}
 
@@ -1049,29 +979,13 @@ pub mod pallet {
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_hrmp_max_parachain_outbound_channels(
+		pub fn set_hrmp_max_paras_outbound_channels(
 			origin: OriginFor<T>,
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.hrmp_max_parachain_outbound_channels = new;
-			})
-		}
-
-		/// Sets the maximum number of outbound HRMP channels a parathread is allowed to open.
-		#[pallet::call_index(38)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_hrmp_max_parathread_outbound_channels(
-			origin: OriginFor<T>,
-			new: u32,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.hrmp_max_parathread_outbound_channels = new;
+				config.hrmp_max_paras_outbound_channels = new;
 			})
 		}
 
