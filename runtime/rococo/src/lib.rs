@@ -1618,6 +1618,8 @@ pub mod migrations {
 			RocksDbWeight::get().reads_writes(reads, writes)
 		}
 	}
+
+	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
 		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
