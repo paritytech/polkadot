@@ -20,7 +20,7 @@ honest-validator-0: reports parachain_candidate_disputes_total is at least 2 wit
 malus-validator-0: pause
 
 # But should not resolve
-honest-validator-0: reports polkadot_parachain_disputes_finality_lag is at least 15 within 200 seconds
+honest-validator-0: reports block height minus finalised block is at least 20 within 200 seconds
 
 # Now resume alice
 alice: resume
