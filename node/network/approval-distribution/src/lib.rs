@@ -1270,11 +1270,11 @@ impl State {
 			let candidate_entry = match block_entry.candidates.get(index as usize) {
 				None => {
 					gum::debug!(
-						target: LOG_TARGET,
-						?hash,
-						?index,
-						"`get_approval_signatures`: could not find candidate entry for given hash and index!"
-						);
+					target: LOG_TARGET,
+					?hash,
+					?index,
+					"`get_approval_signatures`: could not find candidate entry for given hash and index!"
+					);
 					continue
 				},
 				Some(e) => e,
