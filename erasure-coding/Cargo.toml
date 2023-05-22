@@ -9,8 +9,8 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../node/primitives" }
 novelpoly = { package = "reed-solomon-novelpoly", version = "1.0.0" }
 parity-scale-codec = { version = "3.4.0", default-features = false, features = ["std", "derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", rev = "a0dcac4adafbe4e05d96ab86a71e793c89a73e46" }
-sp-trie = { git = "https://github.com/paritytech/substrate", rev = "a0dcac4adafbe4e05d96ab86a71e793c89a73e46" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
+sp-trie = { git = "https://github.com/paritytech/substrate", rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
 thiserror = "1.0.31"
 
 [dev-dependencies]

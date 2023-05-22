@@ -15,8 +15,8 @@ polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-primitives = { path = "../../../primitives" }
 
-sc-executor-common = { git = "https://github.com/paritytech/substrate", rev = "a0dcac4adafbe4e05d96ab86a71e793c89a73e46" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", rev = "a0dcac4adafbe4e05d96ab86a71e793c89a73e46" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
 
 kusama-runtime = { path = "../../../runtime/kusama" }
 

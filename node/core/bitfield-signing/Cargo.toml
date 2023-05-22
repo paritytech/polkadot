@@ -10,7 +10,7 @@ gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", rev = "a0dcac4adafbe4e05d96ab86a71e793c89a73e46" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
 wasm-timer = "0.2.5"
 thiserror = "1.0.31"
 
