@@ -23,7 +23,7 @@ use parity_scale_codec::{Decode, Encode};
 
 pub mod latest {
 	use super::*;
-	use frame_support::{pallet_prelude::Weight, traits::OnRuntimeUpgrade};
+	use frame_support::{ensure, pallet_prelude::Weight, traits::OnRuntimeUpgrade};
 
 	/// Force update the UMP limits in the parachain host config.
 	// NOTE: `OnRuntimeUpgrade` does not have a `self`, so everything must be compile time.
@@ -99,9 +99,8 @@ pub mod latest {
 				"Last pending HostConfig upgrade:\n\n{:#?}\n",
 				pending.last()
 			);
-			assert_eq!(
-				pending.len(),
-				old_pending as usize + 1,
+			ensure!(
+				pending.len() == old_pending as usize + 1,
 				"There must be a new pending upgrade enqueued"
 			);
 
