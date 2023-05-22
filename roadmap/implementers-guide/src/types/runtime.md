@@ -63,11 +63,6 @@ struct HostConfiguration {
 	/// no further messages may be added to it. If it exceeds this then the queue may contain only
 	/// a single message.
 	pub max_upward_queue_size: u32,
-	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
-	/// stage.
-	///
-	/// NOTE that this is a soft limit and could be exceeded.
-	pub ump_service_total_weight: Weight,
 	/// The maximum size of an upward message that can be sent by a candidate.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
