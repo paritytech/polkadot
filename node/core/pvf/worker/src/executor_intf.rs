@@ -22,7 +22,7 @@ use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{HeapAllocStrategy, InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
+use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics, WasmtimeRuntime};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use sp_externalities::MultiRemovalResults;
 use std::{
@@ -229,20 +229,23 @@ impl Executor {
 		.map_err(|err| format!("execute error: {:?}", err))
 	}
 
-	/// Constructs the runtime for the given PVF.
+	/// Constructs the runtime for the given PVF, given the artifact bytes.
 	///
 	/// # Safety
 	///
-	/// See `execute` for safety considerations.
-	pub unsafe fn try_create_runtime(
+	/// The caller must ensure that the compiled artifact passed here was:
+	///   1) produced by [`prepare`],
+	///   2) was not modified,
+	///
+	/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
+	pub unsafe fn create_runtime_from_bytes(
 		&self,
-		compiled_artifact_path: &Path,
-	) -> Result<(), WasmError> {
-		let _runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
-			compiled_artifact_path,
+		compiled_artifact_bytes: &[u8],
+	) -> Result<WasmtimeRuntime, WasmError> {
+		sc_executor_wasmtime::create_runtime_from_artifact_bytes::<HostFunctions>(
+			compiled_artifact_bytes,
 			self.config.clone(),
-		)?;
-		Ok(())
+		)
 	}
 }
 

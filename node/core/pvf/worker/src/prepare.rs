@@ -35,7 +35,7 @@ use polkadot_node_core_pvf::{
 };
 use polkadot_primitives::ExecutorParams;
 use std::{
-	path::{Path, PathBuf},
+	path::PathBuf,
 	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
@@ -131,11 +131,22 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let prepare_thread = thread::spawn_worker_thread(
 				"prepare thread",
 				move || {
-					let result = prepare_artifact(pvf, cpu_time_start);
+					let mut result = prepare_artifact(pvf, cpu_time_start);
 
 					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
 					#[cfg(target_os = "linux")]
 					let result = result.map(|(artifact, elapsed)| (artifact, elapsed, get_max_rss_thread()));
+
+					// If we are pre-checking, check for runtime construction errors.
+					//
+					// As pre-checking is more strict than just preparation in terms of memory and
+					// time, it is okay to do extra checks here. It takes negligible time.
+					if let PrepareJobKind::Prechecking = prepare_job_kind {
+						result = result.and_then(|prepare_result| {
+							runtime_construction_check(prepare_result.0.as_ref(), executor_params)?;
+							Ok(prepare_result)
+						});
+					}
 
 					result
 				},
@@ -187,23 +198,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							);
 							tokio::fs::write(&temp_artifact_dest, &artifact).await?;
 
-							// If pre-checking, check for runtime construction errors.
-							let mut runtime_construction_error = None;
-							if let PrepareJobKind::Prechecking = prepare_job_kind {
-								if let Err(err) =
-									runtime_construction_check(&temp_artifact_dest, executor_params)
-								{
-									// Try to remove the file and always return the error.
-									let _ = tokio::fs::remove_file(&temp_artifact_dest).await;
-									runtime_construction_error = Some(err);
-								}
-							}
-
-							if let Some(err) = runtime_construction_error {
-								Err(err)
-							} else {
-								Ok(PrepareStats { cpu_time_elapsed, memory_stats })
-							}
+							Ok(PrepareStats { cpu_time_elapsed, memory_stats })
 						},
 					}
 				},
@@ -255,47 +250,16 @@ fn prepare_artifact(
 }
 
 /// Try constructing the runtime to catch any instantiation errors during pre-checking.
-///
-/// # Design considerations
-///
-/// 1. The instantiation needs to run in its own thread on the prepare worker so it
-///    can be sandboxed once we have sandboxing.
-/// 2. It shouldn't be the same thread as preparation because we would maybe have to
-///    relax some of the sandboxing, i.e. we might have to be less strict than we
-///    could be when sandboxing only preparation.
-/// 3. Apart from instantiation, everything should be either the same or more strict
-///    when pre-checking vs. preparing.
-/// 4. We don't want things like the CPU timeout loop and memory stats loop running
-///    during instantiation. Including them would make pre-checking more strict,
-///    because we are measuring more than when only preparing, but it would make the
-///    measurements harder to reason about, and leaving them out would also make the
-///    code much simpler.
-/// 5. We can instead rely on the long host-side timeout to kill the worker if this
-///    step gets stuck.
-/// 6. We must do the instantiation check after writing the code bytes to disk, and
-///    create the runtime from this path. It may be a bit inefficient compared to
-///    [creating the runtime directly from
-///    memory](https://github.com/paritytech/substrate/issues/13861), but that is
-///    not available yet, and doing it from disk would also match how the artifacts
-///    are executed at the moment.
-/// 7. The artifact that is written is only a temporary one, so if the instantiation
-///    check fails we don't have to worry about cleaning it up. (We can still do it
-///    to be thorough, we just don't need to worry about race conditions.)
 fn runtime_construction_check(
-	temp_artifact_path: &Path,
+	artifact_bytes: &[u8],
 	executor_params: ExecutorParams,
 ) -> Result<(), PrepareError> {
-	let temp_artifact_path = temp_artifact_path.to_owned();
 	let executor = Executor::new(executor_params)
 		.map_err(|e| PrepareError::RuntimeConstruction(format!("cannot create executor: {}", e)))?;
 
-	let handle = std::thread::spawn(move || unsafe {
-		// SAFETY: We just compiled this artifact and wrote it to disk at this path.
-		executor.try_create_runtime(&temp_artifact_path)
-	});
-
-	match handle.join() {
-		Err(err) => Err(PrepareError::RuntimeConstruction(stringify_panic_payload(err))),
-		Ok(result) => result.map_err(|err| PrepareError::RuntimeConstruction(format!("{:?}", err))),
-	}
+	// SAFETY: We just compiled this artifact.
+	let result = unsafe { executor.create_runtime_from_bytes(&artifact_bytes) };
+	result
+		.map(|_runtime| ())
+		.map_err(|err| PrepareError::RuntimeConstruction(format!("{:?}", err)))
 }
