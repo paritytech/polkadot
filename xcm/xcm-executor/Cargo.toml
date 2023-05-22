@@ -10,15 +10,15 @@ impl-trait-for-tuples = "0.2.2"
 environmental = { version = "1.1.4", default-features = false }
 parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
 log = { version = "0.4.17", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
 
 [features]
 default = ["std"]

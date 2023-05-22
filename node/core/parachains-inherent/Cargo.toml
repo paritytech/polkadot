@@ -13,5 +13,5 @@ async-trait = "0.1.57"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }

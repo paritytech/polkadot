@@ -11,18 +11,18 @@ parity-scale-codec = { version = "3.4.0", default-features = false, features = [
 scale-info = { version = "2.5.0", default-features = false, features = ["bit-vec", "derive"] }
 serde = { version = "1.0.137", optional = true, features = ["derive"] }
 
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
 
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }

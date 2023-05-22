@@ -5,11 +5,11 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
 parity-scale-codec = { version = "3.4.0", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "b7a5a48695bcf0ad08dfc09aa9723a4dd383a8a1" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "a03b9a01e59c3d4ce4b6bb7f1f9ca150898b054c" }
 
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 
