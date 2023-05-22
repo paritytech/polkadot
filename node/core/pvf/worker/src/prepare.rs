@@ -140,7 +140,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 					// If we are pre-checking, check for runtime construction errors.
 					//
 					// As pre-checking is more strict than just preparation in terms of memory and
-					// time, it is okay to do extra checks here. It takes negligible time.
+					// time, it is okay to do extra checks here. This takes negligible time anyway.
 					if let PrepareJobKind::Prechecking = prepare_job_kind {
 						result = result.and_then(|prepare_result| {
 							runtime_construction_check(prepare_result.0.as_ref(), executor_params)?;
