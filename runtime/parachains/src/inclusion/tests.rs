@@ -26,7 +26,7 @@ use crate::{
 	paras_inherent::DisputedBitfield,
 	scheduler::AssignmentKind,
 };
-use primitives::UncheckedSignedAvailabilityBitfields;
+use primitives::{SignedAvailabilityBitfields, UncheckedSignedAvailabilityBitfields};
 
 use frame_support::assert_noop;
 use keyring::Sr25519Keyring;

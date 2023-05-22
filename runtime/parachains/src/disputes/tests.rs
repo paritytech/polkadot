@@ -49,6 +49,34 @@ fn filter_dispute_set(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeSta
 		.collect::<Vec<_>>()
 }
 
+/// Returns `true` if duplicate items were found, otherwise `false`.
+///
+/// `check_equal(a: &T, b: &T)` _must_ return `true`, iff `a` and `b` are equal, otherwise `false.
+/// The definition of _equal_ is to be defined by the user.
+///
+/// Attention: Requires the input `iter` to be sorted, such that _equals_
+/// would be adjacent in respect whatever `check_equal` defines as equality!
+fn contains_duplicates_in_sorted_iter<
+	'a,
+	T: 'a,
+	I: 'a + IntoIterator<Item = &'a T>,
+	C: 'static + FnMut(&T, &T) -> bool,
+>(
+	iter: I,
+	mut check_equal: C,
+) -> bool {
+	let mut iter = iter.into_iter();
+	if let Some(mut previous) = iter.next() {
+		while let Some(current) = iter.next() {
+			if check_equal(previous, current) {
+				return true
+			}
+			previous = current;
+		}
+	}
+	return false
+}
+
 // All arguments for `initializer::on_new_session`
 type NewSession<'a> = (
 	bool,
