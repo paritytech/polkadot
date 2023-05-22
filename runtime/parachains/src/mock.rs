@@ -288,7 +288,6 @@ impl crate::scheduler_polkadot::Config for Test {}
 impl crate::scheduler::Config for Test {
 	type AssignmentProvider = crate::scheduler_polkadot::Pallet<Test>;
 }
-impl crate::scheduler::Config for Test {}
 
 pub struct TestMessageQueueWeight;
 impl pallet_message_queue::WeightInfo for TestMessageQueueWeight {
