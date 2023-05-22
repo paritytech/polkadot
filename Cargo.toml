@@ -185,7 +185,7 @@ zeroize = { opt-level = 3 }
 # Polkadot runtime requires unwinding.
 panic = "unwind"
 opt-level = 3
-debug-assertions = true
+debug = true # debug symbols are useful for profilers
 
 # make sure dev builds with backtrace do
 # not slow us down
@@ -196,11 +196,11 @@ inherits = "release"
 inherits = "release"
 lto = true
 codegen-units = 1
-debug-assertions = true
+debug = true # debug symbols are useful for profilers
 
 [profile.testnet]
 inherits = "release"
-debug = 1 # debug symbols are useful for profilers
+debug = true # debug symbols are useful for profilers
 debug-assertions = true
 overflow-checks = true
 
