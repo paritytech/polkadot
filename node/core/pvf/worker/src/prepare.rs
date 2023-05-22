@@ -38,8 +38,8 @@ use std::{
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
-#[cfg(feature = "wrapper-allocator")]
-use wrapper_allocator::ALLOC;
+#[cfg(feature = "tracking-allocator")]
+use tracking_allocator::ALLOC;
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
 	let pvf = framed_recv(stream).await?;
@@ -129,12 +129,12 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let prepare_thread = thread::spawn_worker_thread(
 				"prepare thread",
 				move || {
-					#[cfg(feature = "wrapper-allocator")]
+					#[cfg(feature = "tracking-allocator")]
 					ALLOC.start_tracking();
 
 					let result = prepare_artifact(pvf, cpu_time_start);
 
-					#[cfg(feature = "wrapper-allocator")]
+					#[cfg(feature = "tracking-allocator")]
 					{
 						let peak = ALLOC.end_tracking();
 						gum::debug!(
