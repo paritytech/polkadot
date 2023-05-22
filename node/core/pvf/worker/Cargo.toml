@@ -44,7 +44,13 @@ substrate-build-script-utils = { git = "https://github.com/paritytech/substrate"
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../../parachain/test-parachains/adder" }
 halt = { package = "test-parachain-halt", path = "../../../../parachain/test-parachains/halt" }
+criterion = { version = "0.4.0", default-features = false, features = ["cargo_bench_support"] }
+kusama-runtime = { path = "../../../../runtime/kusama" }
 tempfile = "3.3.0"
+
+[[bench]]
+name = "prepare_kusama_runtime"
+harness = false
 
 [features]
 jemalloc-allocator = ["dep:tikv-jemalloc-ctl"]

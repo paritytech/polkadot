@@ -7500,7 +7500,9 @@ version = "0.9.41"
 dependencies = [
  "assert_matches",
  "cpu-time",
+ "criterion",
  "futures",
+ "kusama-runtime",
  "libc",
  "parity-scale-codec",
  "polkadot-node-core-pvf",
