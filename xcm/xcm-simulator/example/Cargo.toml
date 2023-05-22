@@ -13,6 +13,7 @@ log = { version = "0.4.14", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-uniques = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -35,6 +36,7 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
+	"pallet-message-queue/runtime-benchmarks",
 	"pallet-uniques/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"xcm-builder/runtime-benchmarks",

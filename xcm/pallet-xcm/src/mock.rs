@@ -342,6 +342,8 @@ impl pallet_xcm::Config for Test {
 	type Currency = Balances;
 	type CurrencyMatcher = IsConcrete<RelayLocation>;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type MaxRemoteLockConsumers = frame_support::traits::ConstU32<0>;
+	type RemoteLockConsumerIdentifier = ();
 	type WeightInfo = TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;

@@ -331,14 +331,18 @@ where
 	<frame_system::Pallet<T>>::read_events_no_consensus()
 		.into_iter()
 		.filter_map(|record| extract_event(record.event))
-		.map(|event| match event {
-			RawEvent::<T>::CandidateBacked(c, h, core, group) =>
-				CandidateEvent::CandidateBacked(c, h, core, group),
-			RawEvent::<T>::CandidateIncluded(c, h, core, group) =>
-				CandidateEvent::CandidateIncluded(c, h, core, group),
-			RawEvent::<T>::CandidateTimedOut(c, h, core) =>
-				CandidateEvent::CandidateTimedOut(c, h, core),
-			RawEvent::<T>::__Ignore(_, _) => unreachable!("__Ignore cannot be used"),
+		.filter_map(|event| {
+			Some(match event {
+				RawEvent::<T>::CandidateBacked(c, h, core, group) =>
+					CandidateEvent::CandidateBacked(c, h, core, group),
+				RawEvent::<T>::CandidateIncluded(c, h, core, group) =>
+					CandidateEvent::CandidateIncluded(c, h, core, group),
+				RawEvent::<T>::CandidateTimedOut(c, h, core) =>
+					CandidateEvent::CandidateTimedOut(c, h, core),
+				// Not needed for candidate events.
+				RawEvent::<T>::UpwardMessagesReceived { .. } => return None,
+				RawEvent::<T>::__Ignore(_, _) => unreachable!("__Ignore cannot be used"),
+			})
 		})
 		.collect()
 }
