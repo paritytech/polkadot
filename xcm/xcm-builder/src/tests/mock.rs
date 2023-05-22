@@ -16,7 +16,9 @@
 
 use crate::{
 	barriers::{AllowSubscriptionsFrom, RespectSuspension},
-	test_utils::*, AliasSiblingAccountId32, origin_aliases::{AliasChildAccountId32, AliasParentAccountId32},
+	origin_aliases::{AliasChildAccountId32, AliasParentAccountId32},
+	test_utils::*,
+	AliasSiblingAccountId32,
 };
 pub use crate::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
@@ -30,7 +32,7 @@ pub use frame_support::{
 	},
 	ensure, parameter_types,
 	sp_runtime::DispatchErrorWithPostInfo,
-	traits::{Contains, Get, IsInVec, ConstU32},
+	traits::{ConstU32, Contains, Get, IsInVec},
 };
 pub use parity_scale_codec::{Decode, Encode};
 pub use sp_io::hashing::blake2_256;
@@ -642,11 +644,13 @@ impl AssetExchange for TestAssetExchange {
 	}
 }
 
-pub type TestAliases = (
-	AliasSiblingAccountId32<ConstU32<1>>,
-	AliasChildAccountId32<ConstU32<1>>,
-	AliasParentAccountId32,
-);
+parameter_types! {
+	pub static AliasSiblingPrefix: MultiLocation = (Parent, Parachain(1)).into();
+	pub static AliasChildPrefix: MultiLocation = (Parachain(1)).into();
+	pub static AliasParentPrefix: MultiLocation = (Parent).into();
+}
+
+pub type TestAliases = ();
 
 pub struct TestConfig;
 impl Config for TestConfig {

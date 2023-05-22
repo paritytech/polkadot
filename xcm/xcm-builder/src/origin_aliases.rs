@@ -15,65 +15,32 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::traits::{ContainsPair, Get};
+use sp_std::marker::PhantomData;
 use xcm::latest::prelude::*;
 
-pub struct AliasSiblingAccountId32<ParachainId>(sp_std::marker::PhantomData<ParachainId>);
-impl<ParachainId: Get<u32>> ContainsPair<MultiLocation, MultiLocation>
-	for AliasSiblingAccountId32<ParachainId>
+pub struct RemovePrefixAccountId32<Prefix>(PhantomData<Prefix>);
+impl<Prefix: Get<MultiLocation>> ContainsPair<MultiLocation, MultiLocation>
+	for RemovePrefixAccountId32<Prefix>
 {
 	fn contains(origin: &MultiLocation, target: &MultiLocation) -> bool {
-		match origin {
-			MultiLocation {
-				parents: 1,
-				interior:
-					X2(Parachain(para_id), origin_account  @  AccountId32 {network: _, id: _, }),
-			} if *para_id == ParachainId::get() => match target {
-				MultiLocation {
-					parents: 0,
-					interior: X1(alias_account),
-				} if origin_account == alias_account => true,
-				_ => false,
-			},
-			_ => false,
+		if let Ok(appended) = (*target).prepended_with(Prefix::get()) {
+			if appended == *origin {
+				match appended.last() {
+					Some(AccountId32 { .. }) => return true,
+					_ => return false,
+				}
+			}
 		}
+		false
 	}
 }
 
-pub struct AliasParentAccountId32;
-impl ContainsPair<MultiLocation, MultiLocation> for AliasParentAccountId32 {
-    fn contains(origin: &MultiLocation, target: &MultiLocation) -> bool {
-        match origin {
-            MultiLocation {
-                parents: 1,
-                interior: X1(origin_account  @  AccountId32 {network: _, id: _, })
-            } => match target {
-                MultiLocation {
-                    parents: 0,
-                    interior: X1(alias_account)
-                } if alias_account == origin_account => true,
-                _ => false,
-            }
-            _ => false
-        }
-    }
-}
-
-pub struct AliasChildAccountId32<ParachainId>(sp_std::marker::PhantomData<ParachainId>);
-impl<ParachainId: Get<u32>> ContainsPair<MultiLocation, MultiLocation> for AliasChildAccountId32<ParachainId> {
-    fn contains(origin: &MultiLocation, target: &MultiLocation) -> bool {
-		match origin {
-			MultiLocation {
-				parents: 0,
-				interior:
-					X2(Parachain(para_id), origin_account  @  AccountId32 {network: _, id: _, }),
-			} if *para_id == ParachainId::get() => match target {
-				MultiLocation {
-					parents: 0,
-					interior: X1(alias_account),
-				} if origin_account == alias_account => true,
-				_ => false,
-			},
-			_ => false,
-		}
+pub struct AliasCase<T>(PhantomData<T>);
+impl<T: Get<(MultiLocation, MultiLocation)>> ContainsPair<MultiLocation, MultiLocation>
+	for AliasCase<T>
+{
+	fn contains(origin: &MultiLocation, target: &MultiLocation) -> bool {
+		let (o, t) = T::get();
+		&o == origin && &t == target
 	}
 }

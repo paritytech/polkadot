@@ -18,20 +18,54 @@ use super::*;
 
 #[test]
 fn alias_sibling_account_should_work() {
-    // Wrong parachain
-    assert!(!AliasSiblingAccountId32::<ConstU32<1>>::contains(
-        &(Parent, Parachain(2), AccountId32 { network: None, id: [0;32] }).into(), 
-        &(AccountId32 { network: None, id: [0;32] }).into()
-    ));
+	// Wrong parachain
+	assert!(!RemovePrefixAccountId32::<AliasSiblingPrefix>::contains(
+		&(Parent, Parachain(2), AccountId32 { network: None, id: [0; 32] }).into(),
+		&(AccountId32 { network: None, id: [0; 32] }).into()
+	));
 
-    // Accounts Differ
-    assert!(!AliasSiblingAccountId32::<ConstU32<1>>::contains(
-        &(Parent, Parachain(1), AccountId32 { network: None, id: [0;32] }).into(), 
-        &(AccountId32 { network: None, id: [1;32] }).into()
-    ));
+	// Accounts Differ
+	assert!(!RemovePrefixAccountId32::<AliasSiblingPrefix>::contains(
+		&(Parent, Parachain(1), AccountId32 { network: None, id: [0; 32] }).into(),
+		&(AccountId32 { network: None, id: [1; 32] }).into()
+	));
 
-    assert!(AliasSiblingAccountId32::<ConstU32<1>>::contains(
-        &(Parent, Parachain(1), AccountId32 { network: None, id: [0;32] }).into(), 
-        &(AccountId32 { network: None, id: [0;32] }).into()
-    ));
+	assert!(RemovePrefixAccountId32::<AliasSiblingPrefix>::contains(
+		&(Parent, Parachain(1), AccountId32 { network: None, id: [0; 32] }).into(),
+		&(AccountId32 { network: None, id: [0; 32] }).into()
+	));
+}
+
+#[test]
+fn alias_child_account_should_work() {
+	// Wrong parachain
+	assert!(!RemovePrefixAccountId32::<AliasChildPrefix>::contains(
+		&(Parachain(2), AccountId32 { network: None, id: [0; 32] }).into(),
+		&(AccountId32 { network: None, id: [0; 32] }).into()
+	));
+
+	// Accounts Differ
+	assert!(!RemovePrefixAccountId32::<AliasChildPrefix>::contains(
+		&(Parachain(1), AccountId32 { network: None, id: [0; 32] }).into(),
+		&(AccountId32 { network: None, id: [1; 32] }).into()
+	));
+
+	assert!(RemovePrefixAccountId32::<AliasChildPrefix>::contains(
+		&(Parachain(1), AccountId32 { network: None, id: [0; 32] }).into(),
+		&(AccountId32 { network: None, id: [0; 32] }).into()
+	));
+}
+
+#[test]
+fn alias_parent_account_should_work() {
+	// Accounts Differ
+	assert!(!RemovePrefixAccountId32::<AliasParentPrefix>::contains(
+		&(Parent, AccountId32 { network: None, id: [0; 32] }).into(),
+		&(AccountId32 { network: None, id: [1; 32] }).into()
+	));
+
+	assert!(RemovePrefixAccountId32::<AliasParentPrefix>::contains(
+		&(Parent, AccountId32 { network: None, id: [0; 32] }).into(),
+		&(AccountId32 { network: None, id: [0; 32] }).into()
+	));
 }
