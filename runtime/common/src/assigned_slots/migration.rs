@@ -23,6 +23,7 @@ use frame_support::{
 
 #[cfg(feature = "try-runtime")]
 use frame_support::ensure;
+#[cfg(feature = "try-runtime")]
 use sp_std::vec::Vec;
 
 pub mod v1 {
