@@ -412,15 +412,15 @@ struct BlockEntry {
 	/// This maps to their knowledge of messages.
 	known_by: HashMap<PeerId, PeerKnowledge>,
 	/// The number of the block.
-	pub number: BlockNumber,
+	number: BlockNumber,
 	/// The parent hash of the block.
-	pub parent_hash: Hash,
+	parent_hash: Hash,
 	/// Our knowledge of messages.
-	pub knowledge: Knowledge,
+	knowledge: Knowledge,
 	/// A votes entry for each candidate indexed by [`CandidateIndex`].
 	candidates: Vec<CandidateEntry>,
 	/// The session index of this block.
-	pub session: SessionIndex,
+	session: SessionIndex,
 	/// Approval entries for whole block. These also contain all approvals in the cae of multiple candidates
 	/// being claimed by assignments.
 	approval_entries: HashMap<(ValidatorIndex, CandidateBitfield), ApprovalEntry>,
@@ -2002,6 +2002,7 @@ impl ApprovalDistribution {
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_indices) => {
 				// TODO: Fix warning: `Importing locally an already known assignment` for multiple candidate assignments.
 				// This is due to the fact that we call this on wakeup, and we do have a wakeup for each candidate index, but
+				// a single assignment claiming the candidates.
 				let _span = state
 					.spans
 					.get(&cert.block_hash)
@@ -2101,18 +2102,19 @@ pub const MAX_APPROVAL_BATCH_SIZE: usize = ensure_size_not_zero(
 // Low level helper for sending assignments.
 async fn send_assignments_batched_inner(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	batch: Vec<(IndirectAssignmentCertV2, CandidateBitfield)>,
-	peers: &Vec<PeerId>,
-	// TODO: use `ValidationVersion`.
-	peer_version: u32,
+	batch: impl IntoIterator<Item = (IndirectAssignmentCertV2, CandidateBitfield)>,
+	peers: &[PeerId],
+	peer_version: ValidationVersion,
 ) {
 	let peers = peers.into_iter().cloned().collect::<Vec<_>>();
-	if peer_version == 2 {
+	if peer_version == ValidationVersion::VStaging {
 		sender
 			.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 				peers,
 				Versioned::VStaging(protocol_vstaging::ValidationProtocol::ApprovalDistribution(
-					protocol_vstaging::ApprovalDistributionMessage::Assignments(batch),
+					protocol_vstaging::ApprovalDistributionMessage::Assignments(
+						batch.into_iter().collect(),
+					),
 				)),
 			))
 			.await;
@@ -2152,22 +2154,24 @@ async fn send_assignments_batched_inner(
 /// of assignments and can `select!` other tasks.
 pub(crate) async fn send_assignments_batched(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	v2_assignments: Vec<(IndirectAssignmentCertV2, CandidateBitfield)>,
-	peers: &Vec<(PeerId, ProtocolVersion)>,
+	v2_assignments: impl IntoIterator<Item = (IndirectAssignmentCertV2, CandidateBitfield)> + Clone,
+	peers: &[(PeerId, ProtocolVersion)],
 ) {
 	let v1_peers = filter_by_peer_version(peers, ValidationVersion::V1.into());
 	let v2_peers = filter_by_peer_version(peers, ValidationVersion::VStaging.into());
 
 	if v1_peers.len() > 0 {
-		let mut v1_assignments = v2_assignments.clone();
 		// Older peers(v1) do not understand `AssignmentsV2` messages, so we have to filter these out.
-		v1_assignments.retain(|(_, candidates)| candidates.count_ones() == 1);
+		let v1_assignments = v2_assignments
+			.clone()
+			.into_iter()
+			.filter(|(_, candidates)| candidates.count_ones() == 1);
 
-		let mut v1_batches = v1_assignments.into_iter().peekable();
+		let mut v1_batches = v1_assignments.peekable();
 
 		while v1_batches.peek().is_some() {
 			let batch: Vec<_> = v1_batches.by_ref().take(MAX_ASSIGNMENT_BATCH_SIZE).collect();
-			send_assignments_batched_inner(sender, batch, &v1_peers, 1).await;
+			send_assignments_batched_inner(sender, batch, &v1_peers, ValidationVersion::V1).await;
 		}
 	}
 
@@ -2176,7 +2180,8 @@ pub(crate) async fn send_assignments_batched(
 
 		while v2_batches.peek().is_some() {
 			let batch = v2_batches.by_ref().take(MAX_ASSIGNMENT_BATCH_SIZE).collect::<Vec<_>>();
-			send_assignments_batched_inner(sender, batch, &v2_peers, 2).await;
+			send_assignments_batched_inner(sender, batch, &v2_peers, ValidationVersion::VStaging)
+				.await;
 		}
 	}
 }
@@ -2184,8 +2189,8 @@ pub(crate) async fn send_assignments_batched(
 /// Send approvals while honoring the `max_notification_size` of the protocol and peer version.
 pub(crate) async fn send_approvals_batched(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	approvals: Vec<IndirectSignedApprovalVote>,
-	peers: &Vec<(PeerId, ProtocolVersion)>,
+	approvals: impl IntoIterator<Item = IndirectSignedApprovalVote> + Clone,
+	peers: &[(PeerId, ProtocolVersion)],
 ) {
 	let v1_peers = filter_by_peer_version(peers, ValidationVersion::V1.into());
 	let v2_peers = filter_by_peer_version(peers, ValidationVersion::VStaging.into());

@@ -632,7 +632,7 @@ pub mod v1 {
 
 /// Returns the subset of `peers` with the specified `version`.
 pub fn filter_by_peer_version(
-	peers: &Vec<(PeerId, peer_set::ProtocolVersion)>,
+	peers: &[(PeerId, peer_set::ProtocolVersion)],
 	version: peer_set::ProtocolVersion,
 ) -> Vec<PeerId> {
 	peers.iter().filter(|(_, v)| v == &version).map(|(p, _)| *p).collect::<Vec<_>>()

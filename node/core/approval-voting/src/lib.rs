@@ -431,8 +431,7 @@ struct ApprovalVoteRequest {
 
 #[derive(Default)]
 struct Wakeups {
-	// Tick -> [(Relay Block, Vec of Candidate Hash)]
-	// For Compact modulo VRF wakeups we want to wake-up once for all candidates
+	// Tick -> [(Relay Block, Candidate Hash)]
 	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
 	reverse_wakeups: HashMap<(Hash, CandidateHash), Tick>,
 	block_numbers: BTreeMap<BlockNumber, HashSet<Hash>>,
@@ -1863,7 +1862,6 @@ where
 		.map(|span| span.child("check-and-import-assignment"))
 		.unwrap_or_else(|| jaeger::Span::new(assignment.block_hash, "check-and-import-assignment"))
 		.with_relay_parent(assignment.block_hash)
-		// .with_uint_tag("candidate-index", candidate_index as u64)
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
 	for candidate_index in candidate_indices.iter_ones() {

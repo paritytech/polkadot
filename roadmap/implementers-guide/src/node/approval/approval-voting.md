@@ -55,7 +55,7 @@ struct OurAssignment {
   validator_index: ValidatorIndex,
   triggered: bool,
   /// A subset of the core indices obtained from the VRF output.
-  pub assignment_bitfield: AssignmentBitfield,
+  assignment_bitfield: AssignmentBitfield,
 }
 
 struct ApprovalEntry {

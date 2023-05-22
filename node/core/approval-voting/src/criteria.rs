@@ -372,6 +372,7 @@ pub(crate) fn compute_assignments(
 
 	let mut assignments = HashMap::new();
 
+	// First run `RelayVRFModulo` for each sample.
 	if enable_v2_assignments {
 		compute_relay_vrf_modulo_assignments_v2(
 			&assignments_key,
@@ -382,7 +383,7 @@ pub(crate) fn compute_assignments(
 			&mut assignments,
 		);
 	} else {
-		compute_relay_vrf_modulo_assignments(
+		compute_relay_vrf_modulo_assignments_v1(
 			&assignments_key,
 			index,
 			config,
@@ -405,7 +406,7 @@ pub(crate) fn compute_assignments(
 	assignments
 }
 
-fn compute_relay_vrf_modulo_assignments(
+fn compute_relay_vrf_modulo_assignments_v1(
 	assignments_key: &schnorrkel::Keypair,
 	validator_index: ValidatorIndex,
 	config: &Config,
@@ -716,7 +717,6 @@ pub(crate) fn check_assignment_cert(
 				config.n_cores,
 			);
 
-			// TODO: Enforce that all claimable cores are claimed, or include refused cores.
 			// Currently validators can opt out of checking specific cores.
 			// This is the same issue to how validator can opt out and not send their assignments in the first place.
 
@@ -738,6 +738,16 @@ pub(crate) fn check_assignment_cert(
 		AssignmentCertKindV2::RelayVRFModulo { sample } => {
 			if *sample >= config.relay_vrf_modulo_samples {
 				return Err(InvalidAssignment(Reason::SampleOutOfBounds))
+			}
+
+			// Enforce claimed candidates is 1.
+			if claimed_core_indices.count_ones() != 1 {
+				gum::warn!(
+					target: LOG_TARGET,
+					?claimed_core_indices,
+					"`RelayVRFModulo` assignment must always claim 1 core",
+				);
+				return Err(InvalidAssignment(Reason::InvalidArguments))
 			}
 
 			let (vrf_in_out, _) = public
@@ -766,6 +776,16 @@ pub(crate) fn check_assignment_cert(
 			}
 		},
 		AssignmentCertKindV2::RelayVRFDelay { core_index } => {
+			// Enforce claimed candidates is 1.
+			if claimed_core_indices.count_ones() != 1 {
+				gum::debug!(
+					target: LOG_TARGET,
+					?claimed_core_indices,
+					"`RelayVRFDelay` assignment must always claim 1 core",
+				);
+				return Err(InvalidAssignment(Reason::InvalidArguments))
+			}
+
 			if core_index.0 as usize !=
 				claimed_core_indices.first_one().expect("Checked above; qed")
 			{
