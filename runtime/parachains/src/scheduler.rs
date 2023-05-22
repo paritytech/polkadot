@@ -638,32 +638,19 @@ impl<T: Config> Pallet<T> {
 		let blocks_since_last_rotation =
 			blocks_since_session_start % config.group_rotation_frequency;
 
-		let absolute_cutoff =
-			sp_std::cmp::max(config.chain_availability_period, config.thread_availability_period);
-
 		let availability_cores = AvailabilityCores::<T>::get();
 
-		if blocks_since_last_rotation >= absolute_cutoff {
+		if blocks_since_last_rotation >= config.paras_availability_period {
 			None
 		} else {
 			Some(Box::new(move |core_index: CoreIndex, pending_since| {
 				match availability_cores.get(core_index.0 as usize) {
 					None => true,       // out-of-bounds, doesn't really matter what is returned.
 					Some(None) => true, // core not occupied, still doesn't really matter.
-					Some(Some(CoreOccupied::Parachain)) => {
-						if blocks_since_last_rotation >= config.chain_availability_period {
-							false // no pruning except recently after rotation.
-						} else {
-							now.saturating_sub(pending_since) >= config.chain_availability_period
-						}
-					},
-					Some(Some(CoreOccupied::Parathread(_))) => {
-						if blocks_since_last_rotation >= config.thread_availability_period {
-							false // no pruning except recently after rotation.
-						} else {
-							now.saturating_sub(pending_since) >= config.thread_availability_period
-						}
-					},
+					Some(Some(CoreOccupied::Parachain)) =>
+						now.saturating_sub(pending_since) >= config.paras_availability_period,
+					Some(Some(CoreOccupied::Parathread(_))) =>
+						now.saturating_sub(pending_since) >= config.paras_availability_period,
 				}
 			}))
 		}

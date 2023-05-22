@@ -216,11 +216,7 @@ fn invariants() {
 		);
 
 		assert_err!(
-			Configuration::set_chain_availability_period(RuntimeOrigin::root(), 0),
-			Error::<Test>::InvalidNewValue
-		);
-		assert_err!(
-			Configuration::set_thread_availability_period(RuntimeOrigin::root(), 0),
+			Configuration::set_paras_availability_period(RuntimeOrigin::root(), 0),
 			Error::<Test>::InvalidNewValue
 		);
 		assert_err!(
@@ -229,17 +225,12 @@ fn invariants() {
 		);
 
 		ActiveConfig::<Test>::put(HostConfiguration {
-			chain_availability_period: 10,
-			thread_availability_period: 8,
+			paras_availability_period: 10,
 			minimum_validation_upgrade_delay: 11,
 			..Default::default()
 		});
 		assert_err!(
-			Configuration::set_chain_availability_period(RuntimeOrigin::root(), 12),
-			Error::<Test>::InvalidNewValue
-		);
-		assert_err!(
-			Configuration::set_thread_availability_period(RuntimeOrigin::root(), 12),
+			Configuration::set_paras_availability_period(RuntimeOrigin::root(), 12),
 			Error::<Test>::InvalidNewValue
 		);
 		assert_err!(
@@ -294,8 +285,7 @@ fn setting_pending_config_members() {
 			parathread_cores: 2,
 			parathread_retries: 5,
 			group_rotation_frequency: 20,
-			chain_availability_period: 10,
-			thread_availability_period: 8,
+			paras_availability_period: 10,
 			scheduling_lookahead: 3,
 			max_validators_per_core: None,
 			max_validators: None,
@@ -315,11 +305,9 @@ fn setting_pending_config_members() {
 			hrmp_recipient_deposit: 4905,
 			hrmp_channel_max_capacity: 3921,
 			hrmp_channel_max_total_size: 7687,
-			hrmp_max_parachain_inbound_channels: 37,
-			hrmp_max_parathread_inbound_channels: 19,
+			hrmp_max_paras_inbound_channels: 37,
 			hrmp_channel_max_message_size: 8192,
-			hrmp_max_parachain_outbound_channels: 10,
-			hrmp_max_parathread_outbound_channels: 20,
+			hrmp_max_paras_outbound_channels: 10,
 			hrmp_max_message_num_per_candidate: 20,
 			pvf_checking_enabled: true,
 			pvf_voting_ttl: 3,
@@ -362,14 +350,9 @@ fn setting_pending_config_members() {
 			new_config.minimum_validation_upgrade_delay,
 		)
 		.unwrap();
-		Configuration::set_chain_availability_period(
+		Configuration::set_paras_availability_period(
 			RuntimeOrigin::root(),
-			new_config.chain_availability_period,
-		)
-		.unwrap();
-		Configuration::set_thread_availability_period(
-			RuntimeOrigin::root(),
-			new_config.thread_availability_period,
+			new_config.paras_availability_period,
 		)
 		.unwrap();
 		Configuration::set_scheduling_lookahead(
@@ -458,14 +441,9 @@ fn setting_pending_config_members() {
 			new_config.hrmp_channel_max_total_size,
 		)
 		.unwrap();
-		Configuration::set_hrmp_max_parachain_inbound_channels(
+		Configuration::set_hrmp_max_paras_inbound_channels(
 			RuntimeOrigin::root(),
-			new_config.hrmp_max_parachain_inbound_channels,
-		)
-		.unwrap();
-		Configuration::set_hrmp_max_parathread_inbound_channels(
-			RuntimeOrigin::root(),
-			new_config.hrmp_max_parathread_inbound_channels,
+			new_config.hrmp_max_paras_inbound_channels,
 		)
 		.unwrap();
 		Configuration::set_hrmp_channel_max_message_size(
@@ -473,14 +451,9 @@ fn setting_pending_config_members() {
 			new_config.hrmp_channel_max_message_size,
 		)
 		.unwrap();
-		Configuration::set_hrmp_max_parachain_outbound_channels(
+		Configuration::set_hrmp_max_paras_outbound_channels(
 			RuntimeOrigin::root(),
-			new_config.hrmp_max_parachain_outbound_channels,
-		)
-		.unwrap();
-		Configuration::set_hrmp_max_parathread_outbound_channels(
-			RuntimeOrigin::root(),
-			new_config.hrmp_max_parathread_outbound_channels,
+			new_config.hrmp_max_paras_outbound_channels,
 		)
 		.unwrap();
 		Configuration::set_hrmp_max_message_num_per_candidate(

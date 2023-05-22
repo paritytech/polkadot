@@ -99,8 +99,9 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 	HostConfiguration {
 		parathread_cores: 3,
 		group_rotation_frequency: 10,
-		chain_availability_period: 3,
-		thread_availability_period: 5,
+		paras_availability_period: 3,
+		//chain_availability_period: 3,
+		//thread_availability_period: 5,
 		scheduling_lookahead: 2,
 		parathread_retries: 1,
 		pvf_checking_enabled: false,
@@ -965,27 +966,17 @@ fn availability_predicate_works() {
 		..Default::default()
 	};
 
-	let HostConfiguration {
-		group_rotation_frequency,
-		chain_availability_period,
-		thread_availability_period,
-		..
-	} = default_config();
-	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+	let HostConfiguration { group_rotation_frequency, paras_availability_period, .. } =
+		default_config();
 
-	assert!(
-		chain_availability_period < thread_availability_period &&
-			thread_availability_period < group_rotation_frequency
-	);
+	assert!(paras_availability_period < group_rotation_frequency);
 
 	let chain_a = ParaId::from(1_u32);
-	let thread_a = ParaId::from(2_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(chain_a, ParaKind::Parachain);
-		schedule_blank_para(thread_a, ParaKind::Parathread);
 
-		// start a new session with our chain & thread registered.
+		// start a new session with our chain registered.
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: default_config(),
@@ -1001,18 +992,14 @@ fn availability_predicate_works() {
 			_ => None,
 		});
 
-		// assign some availability cores.
+		// assign some availability core.
 		{
 			AvailabilityCores::<Test>::mutate(|cores| {
 				cores[0] = Some(CoreOccupied::Parachain);
-				cores[1] = Some(CoreOccupied::Parathread(ParathreadEntry {
-					claim: ParathreadClaim(thread_a, collator),
-					retries: 0,
-				}))
 			});
 		}
 
-		run_to_block(1 + thread_availability_period, |_| None);
+		run_to_block(1 + paras_availability_period, |_| None);
 		assert!(Scheduler::availability_timeout_predicate().is_none());
 
 		run_to_block(1 + group_rotation_frequency, |_| None);
@@ -1022,39 +1009,24 @@ fn availability_predicate_works() {
 				.expect("predicate exists recently after rotation");
 
 			let now = System::block_number();
-			let would_be_timed_out = now - thread_availability_period;
+			let would_be_timed_out = now - paras_availability_period;
 			for i in 0..AvailabilityCores::<Test>::get().len() {
 				// returns true for unoccupied cores.
-				// And can time out both threads and chains at this stage.
+				// And can time out paras at this stage.
 				assert!(pred(CoreIndex(i as u32), would_be_timed_out));
 			}
 
-			assert!(!pred(CoreIndex(0), now)); // assigned: chain
-			assert!(!pred(CoreIndex(1), now)); // assigned: thread
-			assert!(pred(CoreIndex(2), now));
+			assert!(!pred(CoreIndex(0), now));
+			assert!(pred(CoreIndex(1), now));
 
-			// check the tighter bound on chains vs threads.
-			assert!(pred(CoreIndex(0), now - chain_availability_period));
-			assert!(!pred(CoreIndex(1), now - chain_availability_period));
+			// check the tight bound.
+			assert!(pred(CoreIndex(0), now - paras_availability_period));
 
 			// check the threshold is exact.
-			assert!(!pred(CoreIndex(0), now - chain_availability_period + 1));
-			assert!(!pred(CoreIndex(1), now - thread_availability_period + 1));
+			assert!(!pred(CoreIndex(0), now - paras_availability_period + 1));
 		}
 
-		run_to_block(1 + group_rotation_frequency + chain_availability_period, |_| None);
-
-		{
-			let pred = Scheduler::availability_timeout_predicate()
-				.expect("predicate exists recently after rotation");
-
-			let would_be_timed_out = System::block_number() - thread_availability_period;
-
-			assert!(!pred(CoreIndex(0), would_be_timed_out)); // chains can't be timed out now.
-			assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
-		}
-
-		run_to_block(1 + group_rotation_frequency + thread_availability_period, |_| None);
+		run_to_block(1 + group_rotation_frequency + paras_availability_period, |_| None);
 
 		assert!(Scheduler::availability_timeout_predicate().is_none());
 	});
