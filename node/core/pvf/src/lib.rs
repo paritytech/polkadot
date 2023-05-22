@@ -99,7 +99,9 @@ mod pvf;
 mod worker_common;
 
 pub use artifacts::CompiledArtifact;
-pub use error::{InvalidCandidate, PrepareError, PrepareResult, ValidationError};
+pub use error::{
+	InternalValidationError, InvalidCandidate, PrepareError, PrepareResult, ValidationError,
+};
 pub use execute::{ExecuteHandshake, ExecuteResponse};
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub use prepare::MemoryAllocationStats;
