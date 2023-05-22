@@ -88,3 +88,6 @@ pub use universal_exports::{
 	ExporterFor, HaulBlob, HaulBlobError, HaulBlobExporter, NetworkExportTable,
 	SovereignPaidRemoteExporter, UnpaidLocalExporter, UnpaidRemoteExporter,
 };
+
+mod origin_aliases;
+pub use origin_aliases::AliasSiblingAccountId32;

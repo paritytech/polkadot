@@ -16,7 +16,7 @@
 
 use crate::{
 	barriers::{AllowSubscriptionsFrom, RespectSuspension},
-	test_utils::*,
+	test_utils::*, AliasSiblingAccountId32, origin_aliases::{AliasChildAccountId32, AliasParentAccountId32},
 };
 pub use crate::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
@@ -30,7 +30,7 @@ pub use frame_support::{
 	},
 	ensure, parameter_types,
 	sp_runtime::DispatchErrorWithPostInfo,
-	traits::{Contains, Get, IsInVec},
+	traits::{Contains, Get, IsInVec, ConstU32},
 };
 pub use parity_scale_codec::{Decode, Encode};
 pub use sp_io::hashing::blake2_256;
@@ -642,6 +642,12 @@ impl AssetExchange for TestAssetExchange {
 	}
 }
 
+pub type TestAliases = (
+	AliasSiblingAccountId32<ConstU32<1>>,
+	AliasChildAccountId32<ConstU32<1>>,
+	AliasParentAccountId32,
+);
+
 pub struct TestConfig;
 impl Config for TestConfig {
 	type RuntimeCall = TestCall;
@@ -667,6 +673,7 @@ impl Config for TestConfig {
 	type MessageExporter = TestMessageExporter;
 	type CallDispatcher = TestCall;
 	type SafeCallFilter = Everything;
+	type Aliasers = TestAliases;
 }
 
 pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
