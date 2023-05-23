@@ -615,7 +615,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 ) where
 	F: FnOnce(
 			&'a mut TestSubsystemContextHandle<DisputeDistributionMessage>,
-			&'a mut mpsc::Sender<sc_network::config::IncomingRequest>,
+			&'a mut async_channel::Sender<sc_network::config::IncomingRequest>,
 			DisputeRequest,
 		) -> O
 		+ 'a,
