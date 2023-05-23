@@ -219,7 +219,6 @@ impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Con
 				message,
 				properties,
 			);
-			// TODO: include `properties.message_id` in outcome?
 			return Outcome::Error(XcmError::Barrier)
 		}
 
