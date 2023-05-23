@@ -337,19 +337,28 @@ impl TryFrom<OldWeightLimit> for WeightLimit {
 /// Contextual data pertaining to a specific list of XCM instructions.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub struct XcmContext {
-	/// The `MultiLocation` origin of the corresponding XCM.
+	/// The current value of the Origin register of the XCVM.
 	pub origin: Option<MultiLocation>,
-	/// The hash of the XCM.
-	pub message_hash: XcmHash,
-	/// The topic of the XCM.
+	/// The identity of the XCM; this may be a hash of its versioned encoding but could also be
+	/// a high-level identity set by an appropriate barrier.
+	pub message_id: XcmHash,
+	/// The current value of the Topic register of the XCVM.
 	pub topic: Option<[u8; 32]>,
 }
 
 impl XcmContext {
-	/// Constructor which sets the message hash to the supplied parameter and leaves the origin and
+	/// Constructor which sets the message ID to the supplied parameter and leaves the origin and
 	/// topic unset.
-	pub fn with_message_hash(message_hash: XcmHash) -> XcmContext {
-		XcmContext { origin: None, message_hash, topic: None }
+	///
+	/// This will be deprecated soon. Use `with_message_id` instead.
+	pub fn with_message_hash(message_id: XcmHash) -> XcmContext {
+		XcmContext { origin: None, message_id, topic: None }
+	}
+
+	/// Constructor which sets the message ID to the supplied parameter and leaves the origin and
+	/// topic unset.
+	pub fn with_message_id(message_id: XcmHash) -> XcmContext {
+		XcmContext { origin: None, message_id, topic: None }
 	}
 }
 

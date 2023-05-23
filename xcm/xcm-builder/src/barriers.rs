@@ -207,55 +207,6 @@ impl<
 
 /// Allows the message to be prepended with a single `SetTopic` instruction, requiring some inner
 /// barrier to pass on the rest of the message.
-pub struct AllowSetTopic<InnerBarrier>(PhantomData<InnerBarrier>);
-impl<InnerBarrier: ShouldExecute> ShouldExecute for AllowSetTopic<InnerBarrier> {
-	fn should_execute<Call>(
-		origin: &MultiLocation,
-		instructions: &mut [Instruction<Call>],
-		max_weight: Weight,
-		properties: &mut Properties,
-	) -> Result<(), ProcessMessageError> {
-		log::trace!(
-			target: "xcm::barriers",
-			"AllowSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
-			origin, instructions, max_weight, properties,
-		);
-		let skipped = if let Some(SetTopic(t)) = instructions.first() {
-			properties.message_id = Some(*t);
-			1
-		} else {
-			0
-		};
-		InnerBarrier::should_execute(&origin, &mut instructions[skipped..], max_weight, properties)
-	}
-}
-
-/// Requires the message to be prepended with a single `SetTopic` instruction, as well as some inner
-/// barrier to pass on the rest of the message.
-pub struct RequireSetTopic<InnerBarrier>(PhantomData<InnerBarrier>);
-impl<InnerBarrier: ShouldExecute> ShouldExecute for RequireSetTopic<InnerBarrier> {
-	fn should_execute<Call>(
-		origin: &MultiLocation,
-		instructions: &mut [Instruction<Call>],
-		max_weight: Weight,
-		properties: &mut Properties,
-	) -> Result<(), ProcessMessageError> {
-		log::trace!(
-			target: "xcm::barriers",
-			"RequireSetTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
-			origin, instructions, max_weight, properties,
-		);
-		if let Some(SetTopic(t)) = instructions.first() {
-			properties.message_id = Some(*t);
-			InnerBarrier::should_execute(&origin, &mut instructions[1..], max_weight, properties)
-		} else {
-			Err(ProcessMessageError::Unsupported)
-		}
-	}
-}
-
-/// Allows the message to be prepended with a single `SetTopic` instruction, requiring some inner
-/// barrier to pass on the rest of the message.
 pub struct ExtractIdFromAppendedTopic<InnerBarrier>(PhantomData<InnerBarrier>);
 impl<InnerBarrier: ShouldExecute> ShouldExecute for ExtractIdFromAppendedTopic<InnerBarrier> {
 	fn should_execute<Call>(

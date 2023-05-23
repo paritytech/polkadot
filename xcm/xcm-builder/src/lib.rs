@@ -49,10 +49,10 @@ pub use asset_conversion::{ConvertedAbstractAssetId, ConvertedConcreteAssetId};
 
 mod barriers;
 pub use barriers::{
-	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSetTopic,
+	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	DenyReserveTransferToRelayChain, DenyThenTry, ExtractIdFromAppendedTopic,
-	IsChildSystemParachain, RequireSetTopic, RespectSuspension, TakeWeightCredit,
+	IsChildSystemParachain, RespectSuspension, TakeWeightCredit,
 	WithComputedOrigin,
 };
 
