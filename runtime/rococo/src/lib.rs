@@ -1574,7 +1574,6 @@ pub mod migrations {
 
 			// TechnicalMembership
 			if TechnicalMembership::on_chain_storage_version() < 4 {
-				// Did not miss V4 upgrade because version would have been set in storage, qed.
 				StorageVersion::new(4).put::<TechnicalMembership>();
 				writes += 1;
 			}
