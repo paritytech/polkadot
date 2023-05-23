@@ -37,7 +37,6 @@ pub mod reward_points;
 pub mod scheduler;
 pub mod session_info;
 pub mod shared;
-pub mod ump;
 
 pub mod runtime_api_impl;
 
@@ -47,6 +46,8 @@ mod util;
 mod builder;
 #[cfg(test)]
 mod mock;
+#[cfg(test)]
+mod ump_tests;
 
 pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;

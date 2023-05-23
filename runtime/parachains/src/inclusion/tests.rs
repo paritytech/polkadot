@@ -29,6 +29,7 @@ use crate::{
 use assert_matches::assert_matches;
 use frame_support::assert_noop;
 use keyring::Sr25519Keyring;
+use parity_scale_codec::DecodeAll;
 use primitives::{
 	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
 	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
@@ -159,6 +160,17 @@ pub(crate) fn back_candidate(
 	backed
 }
 
+pub(crate) fn run_to_block_default_notifications(to: BlockNumber, new_session: Vec<BlockNumber>) {
+	run_to_block(to, |b| {
+		new_session.contains(&b).then_some(SessionChangeNotification {
+			prev_config: Configuration::config(),
+			new_config: Configuration::config(),
+			session_index: ParasShared::session_index() + 1,
+			..Default::default()
+		})
+	});
+}
+
 pub(crate) fn run_to_block(
 	to: BlockNumber,
 	new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
@@ -177,8 +189,8 @@ pub(crate) fn run_to_block(
 				&notification.new_config,
 				notification.validators.clone(),
 			);
-			Paras::initializer_on_new_session(&notification);
-			ParaInclusion::initializer_on_new_session(&notification);
+			let outgoing = Paras::initializer_on_new_session(&notification);
+			ParaInclusion::initializer_on_new_session(&notification, &outgoing);
 		}
 
 		System::on_finalize(b);
@@ -1971,4 +1983,13 @@ fn session_change_wipes() {
 		assert!(<PendingAvailability<Test>>::iter().collect::<Vec<_>>().is_empty());
 		assert!(<PendingAvailabilityCommitments<Test>>::iter().collect::<Vec<_>>().is_empty());
 	});
+}
+
+/// Assert that the encoding of a known `AggregateMessageOrigin` did not change.
+#[test]
+fn aggregate_origin_decode_regression_check() {
+	let ump = AggregateMessageOrigin::Ump(UmpQueueId::Para(u32::MAX.into()));
+	let raw = (0u8, 0u8, u32::MAX).encode();
+	let decoded = AggregateMessageOrigin::decode_all(&mut &raw[..]);
+	assert_eq!(decoded, Ok(ump), "Migration needed for AggregateMessageOrigin");
 }
