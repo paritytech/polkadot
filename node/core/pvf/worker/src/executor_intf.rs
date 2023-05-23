@@ -25,10 +25,7 @@ use sc_executor_common::{
 use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics, WasmtimeRuntime};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use sp_externalities::MultiRemovalResults;
-use std::{
-	any::{Any, TypeId},
-	path::Path,
-};
+use std::any::{Any, TypeId};
 
 // Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
 // That native code does not create any stacks and just reuses the stack of the thread that
@@ -207,7 +204,7 @@ impl Executor {
 	/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
 	pub unsafe fn execute(
 		&self,
-		compiled_artifact_path: &Path,
+		compiled_artifact_blob: &[u8],
 		params: &[u8],
 	) -> Result<Vec<u8>, String> {
 		let mut extensions = sp_externalities::Extensions::new();
@@ -217,10 +214,7 @@ impl Executor {
 		let mut ext = ValidationExternalities(extensions);
 
 		match sc_executor::with_externalities_safe(&mut ext, || {
-			let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
-				compiled_artifact_path,
-				self.config.clone(),
-			)?;
+			let runtime = self.create_runtime_from_bytes(compiled_artifact_blob)?;
 			runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
 		}) {
 			Ok(Ok(ok)) => Ok(ok),
@@ -240,10 +234,10 @@ impl Executor {
 	/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
 	pub unsafe fn create_runtime_from_bytes(
 		&self,
-		compiled_artifact_bytes: &[u8],
+		compiled_artifact_blob: &[u8],
 	) -> Result<WasmtimeRuntime, WasmError> {
 		sc_executor_wasmtime::create_runtime_from_artifact_bytes::<HostFunctions>(
-			compiled_artifact_bytes,
+			compiled_artifact_blob,
 			self.config.clone(),
 		)
 	}
