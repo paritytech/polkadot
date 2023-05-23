@@ -16,10 +16,7 @@
 
 use std::marker::PhantomData;
 
-use futures::{
-	channel::{mpsc, oneshot},
-	StreamExt,
-};
+use futures::{channel::oneshot, StreamExt};
 
 use parity_scale_codec::{Decode, Encode};
 
