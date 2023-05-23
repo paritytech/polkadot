@@ -205,8 +205,9 @@ impl<
 	}
 }
 
-/// Allows the message to be prepended with a single `SetTopic` instruction, requiring some inner
-/// barrier to pass on the rest of the message.
+/// Sets the message ID to `t` using a `SetTopic(t)` in the last position if present.
+///
+/// Requires some inner barrier to pass on the rest of the message.
 pub struct ExtractIdFromAppendedTopic<InnerBarrier>(PhantomData<InnerBarrier>);
 impl<InnerBarrier: ShouldExecute> ShouldExecute for ExtractIdFromAppendedTopic<InnerBarrier> {
 	fn should_execute<Call>(

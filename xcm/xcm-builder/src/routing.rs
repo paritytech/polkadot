@@ -21,8 +21,8 @@ use parity_scale_codec::Encode;
 use sp_std::{marker::PhantomData, result::Result};
 use xcm::prelude::*;
 
-/// Wrapper router which, if the message does not already begin with a `SetTopic` instruction,
-/// prepends one to the message filled with a universally unique ID. This ID is returned from a
+/// Wrapper router which, if the message does not already end with a `SetTopic` instruction,
+/// appends one to the message filled with a universally unique ID. This ID is returned from a
 /// successful `deliver`.
 ///
 /// This is designed to be at the top-level of any routers, since it will always mutate the
