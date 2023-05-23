@@ -100,7 +100,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			// Get the artifact bytes.
 			//
 			// We do this outside the thread so that we can lock down filesystem access there.
-			let artifact_bytes = match std::fs::read(artifact_path) {
+			let compiled_artifact_blob = match std::fs::read(artifact_path) {
 				Ok(bytes) => bytes,
 				Err(err) => {
 					let response = Response::InternalError(
@@ -130,7 +130,12 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let execute_thread = thread::spawn_worker_thread_with_stack_size(
 				"execute thread",
 				move || {
-					validate_using_artifact(&artifact_bytes, &params, executor_2, cpu_time_start)
+					validate_using_artifact(
+						&compiled_artifact_blob,
+						&params,
+						executor_2,
+						cpu_time_start,
+					)
 				},
 				Arc::clone(&condvar),
 				WaitOutcome::Finished,
@@ -181,7 +186,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 }
 
 fn validate_using_artifact(
-	artifact_bytes: &[u8],
+	compiled_artifact_blob: &[u8],
 	params: &[u8],
 	executor: Executor,
 	cpu_time_start: ProcessTime,
@@ -190,7 +195,7 @@ fn validate_using_artifact(
 		// SAFETY: this should be safe since the compiled artifact passed here comes from the
 		//         file created by the prepare workers. These files are obtained by calling
 		//         [`executor_intf::prepare`].
-		executor.execute(artifact_bytes, params)
+		executor.execute(compiled_artifact_blob, params)
 	} {
 		Err(err) => return Response::format_invalid("execute", &err),
 		Ok(d) => d,
