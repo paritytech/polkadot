@@ -7604,6 +7604,7 @@ dependencies = [
 name = "polkadot-node-network-protocol"
 version = "0.9.41"
 dependencies = [
+ "async-channel",
  "async-trait",
  "derive_more",
  "fatality",

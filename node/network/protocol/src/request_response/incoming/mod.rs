@@ -208,7 +208,7 @@ pub struct OutgoingResponse<Response> {
 ///
 /// Takes care of decoding and handling of invalid encoded requests.
 pub struct IncomingRequestReceiver<Req> {
-	raw: mpsc::Receiver<netconfig::IncomingRequest>,
+	raw: async_channel::Receiver<netconfig::IncomingRequest>,
 	phantom: PhantomData<Req>,
 }
 
