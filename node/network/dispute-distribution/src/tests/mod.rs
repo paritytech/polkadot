@@ -26,9 +26,9 @@ use std::{
 
 use assert_matches::assert_matches;
 use futures::{
-	channel::{mpsc, oneshot},
+	channel::oneshot,
 	future::{poll_fn, ready},
-	pin_mut, Future, SinkExt,
+	pin_mut, Future,
 };
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
