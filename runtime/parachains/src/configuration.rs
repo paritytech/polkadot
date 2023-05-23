@@ -473,8 +473,20 @@ impl WeightInfo for TestWeightInfo {
 pub mod pallet {
 	use super::*;
 
+	/// The current storage version.
+	///
+	/// v0-v1: <https://github.com/paritytech/polkadot/pull/3575>
+	/// v1-v2: <https://github.com/paritytech/polkadot/pull/4420>
+	/// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
+	/// v3-v4: <https://github.com/paritytech/polkadot/pull/6345>
+	/// v4-v5: <https://github.com/paritytech/polkadot/pull/6937>
+	///      + <https://github.com/paritytech/polkadot/pull/6961>
+	///      + <https://github.com/paritytech/polkadot/pull/6934>
+	/// v5-v6: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(6);
+
 	#[pallet::pallet]
-	#[pallet::storage_version(migration::STORAGE_VERSION)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
