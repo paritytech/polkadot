@@ -43,7 +43,6 @@ substrate-build-script-utils = { git = "https://github.com/paritytech/substrate"
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../../parachain/test-parachains/adder" }
 halt = { package = "test-parachain-halt", path = "../../../../parachain/test-parachains/halt" }
-tempfile = "3.3.0"
 
 [features]
 jemalloc-allocator = ["dep:tikv-jemalloc-ctl"]
