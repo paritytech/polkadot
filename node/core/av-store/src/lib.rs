@@ -662,6 +662,8 @@ async fn start_prune_all<Context>(
 		"av-store-prunning",
 		Box::pin(async move {
 			let _timer = metrics.time_pruning();
+
+			gum::debug!(target: LOG_TARGET, "Prunning started");
 			let result = prune_all(&db, &config, time_now);
 
 			if let Err(err) = pruning_result_tx.send(result).await {
