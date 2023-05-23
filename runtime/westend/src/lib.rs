@@ -334,6 +334,20 @@ impl pallet_session::historical::Config for Runtime {
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
+pub struct MaybeSignedPhase;
+
+impl Get<u32> for MaybeSignedPhase {
+	fn get() -> u32 {
+		// 1 day = 4 eras -> 1 week = 28 eras. We want to disable signed phase once a week to test the fallback unsigned
+		// phase is able to compute elections on Westend.
+		if Staking::current_era().unwrap_or(1) % 28 == 0 {
+			0
+		} else {
+			SignedPhase::get()
+		}
+	}
+}
+
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
 	pub SignedPhase: u32 = prod_or_fast!(
@@ -415,7 +429,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type EstimateCallFee = TransactionPayment;
-	type SignedPhase = SignedPhase;
+	type SignedPhase = MaybeSignedPhase;
 	type UnsignedPhase = UnsignedPhase;
 	type SignedMaxSubmissions = SignedMaxSubmissions;
 	type SignedMaxRefunds = SignedMaxRefunds;
@@ -2062,7 +2076,7 @@ mod clean_state_migration {
 
 	impl OnRuntimeUpgrade for CleanMigrate {
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+		fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
 			Ok(Default::default())
 		}
 
@@ -2074,7 +2088,7 @@ mod clean_state_migration {
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+		fn post_upgrade(_state: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
 			frame_support::ensure!(
 				!AutoLimits::exists() && !SignedMigrationMaxLimits::exists(),
 				"State migration clean.",
