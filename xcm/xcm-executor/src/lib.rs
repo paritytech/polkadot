@@ -873,9 +873,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			RequestUnlock { asset, locker } => {
 				let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 				let remote_asset = Self::try_reanchor(asset.clone(), &locker)?.0;
+				let remote_target = Self::try_reanchor(origin.clone(), &locker)?.0;
 				let reduce_ticket =
 					Config::AssetLocker::prepare_reduce_unlockable(locker, asset, origin)?;
-				let msg = Xcm::<()>(vec![UnlockAsset { asset: remote_asset, target: origin }]);
+				let msg =
+					Xcm::<()>(vec![UnlockAsset { asset: remote_asset, target: remote_target }]);
 				let (ticket, price) = validate_send::<Config::XcmSender>(locker, msg)?;
 				self.take_fee(price, FeeReason::RequestUnlock)?;
 				reduce_ticket.enact()?;
@@ -976,15 +978,18 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Config::XcmSender::deliver(ticket).map_err(Into::into)
 	}
 
-	fn try_reanchor(
-		asset: MultiAsset,
+	fn try_reanchor<T>(
+		reanchorable: T,
 		destination: &MultiLocation,
-	) -> Result<(MultiAsset, InteriorMultiLocation), XcmError> {
+	) -> Result<(T, InteriorMultiLocation), XcmError>
+	where
+		T: Reanchorable,
+	{
 		let reanchor_context = Config::UniversalLocation::get();
-		let asset = asset
+		let reanchored = reanchorable
 			.reanchored(&destination, reanchor_context)
-			.map_err(|()| XcmError::ReanchorFailed)?;
-		Ok((asset, reanchor_context))
+			.map_err(|_| XcmError::ReanchorFailed)?;
+		Ok((reanchored, reanchor_context))
 	}
 
 	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.

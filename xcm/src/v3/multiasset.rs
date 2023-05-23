@@ -24,11 +24,14 @@
 //!   account.
 
 use super::{InteriorMultiLocation, MultiLocation};
-use crate::v2::{
-	AssetId as OldAssetId, AssetInstance as OldAssetInstance, Fungibility as OldFungibility,
-	MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
-	MultiAssets as OldMultiAssets, WildFungibility as OldWildFungibility,
-	WildMultiAsset as OldWildMultiAsset,
+use crate::{
+	latest::Reanchorable,
+	v2::{
+		AssetId as OldAssetId, AssetInstance as OldAssetInstance, Fungibility as OldFungibility,
+		MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
+		MultiAssets as OldMultiAssets, WildFungibility as OldWildFungibility,
+		WildMultiAsset as OldWildMultiAsset,
+	},
 };
 use alloc::{vec, vec::Vec};
 use core::{
@@ -374,9 +377,22 @@ impl AssetId {
 		Ok(())
 	}
 
-	/// Mutate the asset to represent the same value from the perspective of a new `target`
-	/// location. The local chain's location is provided in `context`.
-	pub fn reanchor(
+	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `MultiAsset` value.
+	pub fn into_multiasset(self, fun: Fungibility) -> MultiAsset {
+		MultiAsset { fun, id: self }
+	}
+
+	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `WildMultiAsset`
+	/// wildcard (`AllOf`) value.
+	pub fn into_wild(self, fun: WildFungibility) -> WildMultiAsset {
+		WildMultiAsset::AllOf { fun, id: self }
+	}
+}
+
+impl Reanchorable for AssetId {
+	type Error = ();
+
+	fn reanchor(
 		&mut self,
 		target: &MultiLocation,
 		context: InteriorMultiLocation,
@@ -387,15 +403,15 @@ impl AssetId {
 		Ok(())
 	}
 
-	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `MultiAsset` value.
-	pub fn into_multiasset(self, fun: Fungibility) -> MultiAsset {
-		MultiAsset { fun, id: self }
-	}
-
-	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `WildMultiAsset`
-	/// wildcard (`AllOf`) value.
-	pub fn into_wild(self, fun: WildFungibility) -> WildMultiAsset {
-		WildMultiAsset::AllOf { fun, id: self }
+	fn reanchored(
+		mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<Self, ()> {
+		match self.reanchor(target, context) {
+			Ok(()) => Ok(self),
+			Err(()) => Err(()),
+		}
 	}
 }
 
@@ -448,27 +464,6 @@ impl MultiAsset {
 		self.id.prepend_with(prepend)
 	}
 
-	/// Mutate the location of the asset identifier if concrete, giving it the same location
-	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchor(
-		&mut self,
-		target: &MultiLocation,
-		context: InteriorMultiLocation,
-	) -> Result<(), ()> {
-		self.id.reanchor(target, context)
-	}
-
-	/// Mutate the location of the asset identifier if concrete, giving it the same location
-	/// relative to a `target` context. The local context is provided as `context`.
-	pub fn reanchored(
-		mut self,
-		target: &MultiLocation,
-		context: InteriorMultiLocation,
-	) -> Result<Self, ()> {
-		self.id.reanchor(target, context)?;
-		Ok(self)
-	}
-
 	/// Returns true if `self` is a super-set of the given `inner` asset.
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use Fungibility::*;
@@ -480,6 +475,27 @@ impl MultiAsset {
 			}
 		}
 		false
+	}
+}
+
+impl Reanchorable for MultiAsset {
+	type Error = ();
+
+	fn reanchor(
+		&mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<(), ()> {
+		self.id.reanchor(target, context)
+	}
+
+	fn reanchored(
+		mut self,
+		target: &MultiLocation,
+		context: InteriorMultiLocation,
+	) -> Result<Self, ()> {
+		self.id.reanchor(target, context)?;
+		Ok(self)
 	}
 }
 

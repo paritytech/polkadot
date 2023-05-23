@@ -272,7 +272,7 @@ mod tests {
 	}
 
 	#[test]
-	fn remote_locking() {
+	fn remote_locking_and_unlocking() {
 		MockNet::reset();
 
 		let locked_amount = 100;
@@ -306,6 +306,30 @@ mod tests {
 				}])]
 			);
 		});
+
+		ParaB::execute_with(|| {
+			// Request unlocking part of the funds on the relay chain
+			let message = Xcm(vec![RequestUnlock {
+				asset: (Parent, locked_amount - 50).into(),
+				locker: Parent.into(),
+			}]);
+			assert_ok!(ParachainPalletXcm::send_xcm(Here, (Parent, Parachain(1)), message));
+		});
+
+		Relay::execute_with(|| {
+			use pallet_balances::{BalanceLock, Reasons};
+			// Lock is reduced
+			assert_eq!(
+				relay_chain::Balances::locks(&child_account_id(2)),
+				vec![BalanceLock {
+					id: *b"py/xcmlk",
+					amount: locked_amount - 50,
+					reasons: Reasons::All
+				}]
+			);
+		});
+
+		// TODO: Test case where full lock is unlocked
 	}
 
 	/// Scenario:
