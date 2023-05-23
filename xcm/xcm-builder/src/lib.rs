@@ -90,4 +90,7 @@ pub use universal_exports::{
 };
 
 mod origin_aliases;
-pub use origin_aliases::{AliasCase, RemovePrefixAccountId32};
+pub use origin_aliases::{
+	AliasCase, AliasForeignAccountId32, ChildPrefix, IsNativeAccountId32, ParentPrefix,
+	SiblingPrefix,
+};

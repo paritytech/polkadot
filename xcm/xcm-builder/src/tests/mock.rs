@@ -16,9 +16,7 @@
 
 use crate::{
 	barriers::{AllowSubscriptionsFrom, RespectSuspension},
-	origin_aliases::{AliasChildAccountId32, AliasParentAccountId32},
 	test_utils::*,
-	AliasSiblingAccountId32,
 };
 pub use crate::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
@@ -642,12 +640,6 @@ impl AssetExchange for TestAssetExchange {
 		EXCHANGE_ASSETS.with(|l| l.replace(have));
 		Ok(get)
 	}
-}
-
-parameter_types! {
-	pub static AliasSiblingPrefix: MultiLocation = (Parent, Parachain(1)).into();
-	pub static AliasChildPrefix: MultiLocation = (Parachain(1)).into();
-	pub static AliasParentPrefix: MultiLocation = (Parent).into();
 }
 
 pub type TestAliases = ();
