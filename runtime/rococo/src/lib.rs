@@ -1527,6 +1527,7 @@ pub type Migrations =
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
+	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
 
 	pub type V0940 = ();
 	pub type V0941 = (); // Node only release - no migrations.
@@ -1535,8 +1536,91 @@ pub mod migrations {
 		pallet_offences::migration::v1::MigrateToV1<Runtime>,
 	);
 
+	/// Migrations that set `StorageVersion`s we missed to set.
+	///
+	/// It's *possible* that these pallets have not in fact been migrated to the versions being set,
+	/// which we should keep in mind in the future if we notice any strange behavior.
+	/// We opted to not check exactly what on-chain versions each pallet is at, since it would be
+	/// an involved effort, this is testnet, and no one has complained
+	/// (https://github.com/paritytech/polkadot/issues/6657#issuecomment-1552956439).
+	pub struct SetStorageVersions;
+
+	impl OnRuntimeUpgrade for SetStorageVersions {
+		fn on_runtime_upgrade() -> Weight {
+			let mut writes = 0;
+			let mut reads = 0;
+
+			// Council
+			if Council::on_chain_storage_version() < 4 {
+				// Safe to assume Council was created with V4 pallet.
+				StorageVersion::new(4).put::<Council>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Technical Committee
+			if TechnicalCommittee::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<TechnicalCommittee>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// PhragmenElection
+			if PhragmenElection::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<PhragmenElection>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// TechnicalMembership
+			if TechnicalMembership::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<TechnicalMembership>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Scheduler
+			if Scheduler::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<Scheduler>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Bounties
+			if Bounties::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<Bounties>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Tips
+			if Tips::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<Tips>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// NisCounterpartBalances
+			if NisCounterpartBalances::on_chain_storage_version() < 1 {
+				StorageVersion::new(1).put::<NisCounterpartBalances>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Crowdloan
+			if Crowdloan::on_chain_storage_version() < 2 {
+				StorageVersion::new(2).put::<Crowdloan>();
+				writes += 1;
+			}
+			reads += 1;
+
+			RocksDbWeight::get().reads_writes(reads, writes)
+		}
+	}
+
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
+		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
