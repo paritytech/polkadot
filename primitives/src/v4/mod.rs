@@ -802,12 +802,13 @@ impl TypeIndex for GroupIndex {
 	}
 }
 
-/// A claim on authoring the next block for a given parathread.
+/// A claim on authoring the next block for a given parathread (on-demand parachain).
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct ParathreadClaim(pub Id, pub CollatorId);
 
-/// An entry tracking a claim to ensure it does not pass the maximum number of retries.
+/// An entry tracking a parathread (on-demand parachain) claim to ensure it does not 
+/// pass the maximum number of retries.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct ParathreadEntry {
@@ -821,7 +822,7 @@ pub struct ParathreadEntry {
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreOccupied {
-	/// A parathread.
+	/// A parathread (on-demand parachain).
 	Parathread(ParathreadEntry),
 	/// A parachain.
 	Parachain,
@@ -974,8 +975,9 @@ pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// variant.
 	#[codec(index = 1)]
 	Scheduled(ScheduledCore),
-	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
-	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
+	/// The core is currently free and there is nothing scheduled. This can be the case for 
+	/// on-demand parachain cores when there are no on-demand blocks queued. Leased parachain 
+	/// cores will never be left idle.
 	#[codec(index = 2)]
 	Free,
 }
@@ -1176,10 +1178,10 @@ pub const POLKADOT_ENGINE_ID: runtime_primitives::ConsensusEngineId = *b"POL1";
 /// A consensus log item for polkadot validation. To be used with [`POLKADOT_ENGINE_ID`].
 #[derive(Decode, Encode, Clone, PartialEq, Eq)]
 pub enum ConsensusLog {
-	/// A parachain or parathread upgraded its code.
+	/// A parachain upgraded its code.
 	#[codec(index = 1)]
 	ParaUpgradeCode(Id, ValidationCodeHash),
-	/// A parachain or parathread scheduled a code upgrade.
+	/// A parachain scheduled a code upgrade.
 	#[codec(index = 2)]
 	ParaScheduleUpgradeCode(Id, ValidationCodeHash, BlockNumber),
 	/// Governance requests to auto-approve every candidate included up to the given block

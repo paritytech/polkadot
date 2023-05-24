@@ -1,6 +1,6 @@
 # Inclusion Module
 
-The inclusion module is responsible for inclusion and availability of scheduled parachains and parathreads. It also manages the UMP dispatch queue of each parachain/thread.
+The inclusion module is responsible for inclusion and availability of scheduled parachains.
 
 ## Storage
 
@@ -61,9 +61,9 @@ No initialization routine runs for this module. However, the initialization of t
 All failed checks should lead to an unrecoverable error making the block invalid.
 
 * `process_bitfields(expected_bits, Bitfields, core_lookup: Fn(CoreIndex) -> Option<ParaId>)`:
-  1. call `sanitize_bitfields<true>` and use the sanitized `signed_bitfields` from now on.
-  1. call `sanitize_backed_candidates<true>` and use the sanitized `backed_candidates` from now on.
-  1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `core_lookup`. Disregard bitfields that have a `1` bit for any free cores.
+  1. Call `sanitize_bitfields<true>` and use the sanitized `signed_bitfields` from now on.
+  1. Call `sanitize_backed_candidates<true>` and use the sanitized `backed_candidates` from now on.
+  1. Apply each bit of bitfield to the corresponding pending candidate, looking up on-demand parachain cores using the `core_lookup`. Disregard bitfields that have a `1` bit for any free cores.
   1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
   1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
   1. Return a list of `(CoreIndex, CandidateHash)` from freed cores consisting of the cores where candidates have become available.

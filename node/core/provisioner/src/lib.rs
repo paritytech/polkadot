@@ -663,7 +663,7 @@ async fn request_backable_candidates(
 						// The candidate occupying the core is available, choose its
 						// child in the fragment tree.
 						//
-						// TODO: doesn't work for parathreads. We lean hard on the assumption
+						// TODO: doesn't work for on-demand parachains. We lean hard on the assumption
 						// that cores are fixed to specific parachains within a session.
 						// https://github.com/paritytech/polkadot/issues/5492
 						(scheduled_core.para_id, vec![occupied_core.candidate_hash])

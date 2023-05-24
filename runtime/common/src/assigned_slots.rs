@@ -160,13 +160,15 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The specified parachain or parathread is not registered.
+		/// The specified parachain is not registered.
 		ParaDoesntExist,
-		/// Not a parathread.
+		/// Not a parathread (on-demand parachain).
 		NotParathread,
-		/// Cannot upgrade parathread.
+		/// Cannot upgrade on-demand parachain to lease holding 
+		/// parachain.
 		CannotUpgrade,
-		/// Cannot downgrade parachain.
+		/// Cannot downgrade lease holding parachain to 
+		/// on-demand.
 		CannotDowngrade,
 		/// Permanent or Temporary slot already assigned.
 		SlotAlreadyAssigned,
@@ -371,7 +373,7 @@ pub mod pallet {
 				}
 			}
 
-			// Force downgrade to parathread (if needed) before end of lease period
+			// Force downgrade to on-demand parachain (if needed) before end of lease period
 			if is_parachain {
 				if let Err(err) = runtime_parachains::schedule_parachain_downgrade::<T>(id) {
 					// Treat failed downgrade as warning .. slot lease has been cleared,
@@ -507,7 +509,7 @@ impl<T: Config> Pallet<T> {
 		TemporarySlots::<T>::contains_key(id)
 	}
 
-	/// Returns whether a para is currently a parachain.
+	/// Returns whether a para is currently a lease holding parachain.
 	fn is_parachain(id: ParaId) -> bool {
 		T::Registrar::is_parachain(id)
 	}
@@ -913,7 +915,7 @@ mod tests {
 				run_to_block(block);
 			}
 
-			// Para lease ended, downgraded back to parathread
+			// Para lease ended, downgraded back to parathread (on-demand parachain)
 			assert_eq!(TestRegistrar::<Test>::is_parathread(ParaId::from(1_u32)), true);
 			assert_eq!(Slots::already_leased(ParaId::from(1_u32), 0, 5), false);
 		});
@@ -1112,7 +1114,7 @@ mod tests {
 			println!("lease period #{}", AssignedSlots::current_lease_period_index());
 			println!("lease {:?}", Slots::lease(ParaId::from(1_u32)));
 
-			// Para lease ended, downgraded back to parathread
+			// Para lease ended, downgraded back to on-demand parachain
 			assert_eq!(TestRegistrar::<Test>::is_parathread(ParaId::from(1_u32)), true);
 			assert_eq!(Slots::already_leased(ParaId::from(1_u32), 0, 3), false);
 			assert_eq!(AssignedSlots::active_temporary_slot_count(), 0);

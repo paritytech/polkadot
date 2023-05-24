@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The inclusion pallet is responsible for inclusion and availability of scheduled parachains
-//! and parathreads.
+//! The inclusion pallet is responsible for inclusion and availability of scheduled parachains.
 //!
 //! It is responsible for carrying candidates from being backable to being backed, and then from backed
 //! to included.
