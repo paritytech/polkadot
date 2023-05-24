@@ -1731,8 +1731,12 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{Pallet as Auctions, *};
-	use frame_support::traits::{EnsureOrigin, OnInitialize};
+	use frame_support::{
+		assert_ok,
+		traits::{EnsureOrigin, OnInitialize},
+	};
 	use frame_system::RawOrigin;
+	use runtime_parachains::paras;
 	use sp_runtime::{traits::Bounded, SaturatedConversion};
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller, BenchmarkError};
@@ -1745,7 +1749,7 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn fill_winners<T: Config>(lease_period_index: LeasePeriodOf<T>) {
+	fn fill_winners<T: Config + paras::Config>(lease_period_index: LeasePeriodOf<T>) {
 		let auction_index = AuctionCounter::<T>::get();
 		let minimum_balance = CurrencyOf::<T>::minimum_balance();
 
@@ -1763,6 +1767,10 @@ mod benchmarking {
 			)
 			.is_ok());
 		}
+		assert_ok!(paras::Pallet::<T>::add_trusted_validation_code(
+			frame_system::Origin::<T>::Root.into(),
+			T::Registrar::worst_validation_code(),
+		));
 
 		T::Registrar::execute_pending_transitions();
 
@@ -1786,7 +1794,7 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		where_clause { where T: pallet_babe::Config }
+		where_clause { where T: pallet_babe::Config + paras::Config }
 
 		new_auction {
 			let duration = T::BlockNumber::max_value();
@@ -1824,7 +1832,12 @@ mod benchmarking {
 			let worst_head_data = T::Registrar::worst_head_data();
 			let worst_validation_code = T::Registrar::worst_validation_code();
 			T::Registrar::register(owner.clone(), para, worst_head_data.clone(), worst_validation_code.clone())?;
-			T::Registrar::register(owner, new_para, worst_head_data, worst_validation_code)?;
+			T::Registrar::register(owner, new_para, worst_head_data, worst_validation_code.clone())?;
+			assert_ok!(paras::Pallet::<T>::add_trusted_validation_code(
+				frame_system::Origin::<T>::Root.into(),
+				worst_validation_code,
+			));
+
 			T::Registrar::execute_pending_transitions();
 
 			// Make an existing bid
