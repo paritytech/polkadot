@@ -30,6 +30,8 @@ use std::net::ToSocketAddrs;
 pub use crate::{error::Error, service::BlockId};
 #[cfg(feature = "hostperfcheck")]
 pub use polkadot_performance_test::PerfCheckError;
+#[cfg(feature = "pyroscope")]
+use pyroscope_pprofrs::{pprof_backend, PprofConfig};
 
 impl From<String> for Error {
 	fn from(s: String) -> Self {
@@ -377,14 +379,13 @@ pub fn run() -> Result<()> {
 			.next()
 			.ok_or_else(|| Error::AddressResolutionMissing)?;
 		// The pyroscope agent requires a `http://` prefix, so we just do that.
-		let mut agent = pyro::PyroscopeAgent::builder(
+		let agent = pyro::PyroscopeAgent::builder(
 			"http://".to_owned() + address.to_string().as_str(),
 			"polkadot".to_owned(),
 		)
-		.sample_rate(113)
+		.backend(pprof_backend(PprofConfig::new().sample_rate(113)))
 		.build()?;
-		agent.start();
-		Some(agent)
+		Some(agent.start()?)
 	} else {
 		None
 	};
@@ -727,8 +728,9 @@ pub fn run() -> Result<()> {
 	}?;
 
 	#[cfg(feature = "pyroscope")]
-	if let Some(mut pyroscope_agent) = pyroscope_agent_maybe.take() {
-		pyroscope_agent.stop();
+	if let Some(pyroscope_agent) = pyroscope_agent_maybe.take() {
+		let agent = pyroscope_agent.stop()?;
+		agent.shutdown();
 	}
 	Ok(())
 }

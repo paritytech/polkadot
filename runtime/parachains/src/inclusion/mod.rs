@@ -21,29 +21,63 @@
 //! to included.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, paras,
+	configuration::{self, HostConfiguration}, disputes, dmp, hrmp, paras,
 	paras_inherent::DisputedBitfield,
 	scheduler::{self, CoreAssignment},
 	shared::{self, AllowedRelayParentsTracker},
-	ump,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::pallet_prelude::*;
+use frame_support::{
+	defensive,
+	pallet_prelude::*,
+	traits::{Defensive, EnqueueMessage},
+	BoundedSlice,
+};
+use pallet_message_queue::OnQueueChanged;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
-	supermajority_threshold, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
-	CandidateDescriptor, CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex,
-	GroupIndex, Hash, HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields,
-	ValidatorId, ValidatorIndex, ValidityAttestation,
+	supermajority_threshold, well_known_keys, AvailabilityBitfield, BackedCandidate,
+	CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
+	CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash, HeadData, Id as ParaId, SigningContext,
+	UncheckedSignedAvailabilityBitfields, UpwardMessage, ValidatorId, ValidatorIndex,
+	ValidityAttestation,
 };
 use scale_info::TypeInfo;
-use sp_runtime::{traits::One, DispatchError};
+use sp_runtime::{traits::One, DispatchError, SaturatedConversion, Saturating};
+#[cfg(feature = "std")]
+use sp_std::fmt;
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
 pub use pallet::*;
 
 #[cfg(test)]
 pub(crate) mod tests;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+pub trait WeightInfo {
+	fn receive_upward_messages(i: u32) -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn receive_upward_messages(_: u32) -> Weight {
+		Weight::MAX
+	}
+}
+
+impl WeightInfo for () {
+	fn receive_upward_messages(_: u32) -> Weight {
+		Weight::zero()
+	}
+}
+
+/// Maximum value that `config.max_upward_message_size` can be set to.
+///
+/// This is used for benchmarking sanely bounding relevant storage items. It is expected from the `configuration`
+/// pallet to check these values before setting.
+pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 128 * 1024;
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -189,6 +223,55 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	sp_std::cmp::min(n_validators, 2)
 }
 
+/// Reads the footprint of queues for a specific origin type.
+pub trait QueueFootprinter {
+	type Origin;
+
+	fn message_count(origin: Self::Origin) -> u64;
+}
+
+impl QueueFootprinter for () {
+	type Origin = UmpQueueId;
+
+	fn message_count(_: Self::Origin) -> u64 {
+		0
+	}
+}
+
+/// Aggregate message origin for the `MessageQueue` pallet.
+///
+/// Can be extended to serve further use-cases besides just UMP. Is stored in storage, so any change
+/// to existing values will require a migration.
+#[derive(Encode, Decode, Clone, MaxEncodedLen, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum AggregateMessageOrigin {
+	/// Inbound upward message.
+	#[codec(index = 0)]
+	Ump(UmpQueueId),
+}
+
+/// Identifies a UMP queue inside the `MessageQueue` pallet.
+///
+/// It is written in verbose form since future variants like `Loopback` and `Bridged` are already
+/// forseeable.
+#[derive(Encode, Decode, Clone, MaxEncodedLen, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum UmpQueueId {
+	/// The message originated from this parachain.
+	#[codec(index = 0)]
+	Para(ParaId),
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+impl From<u32> for AggregateMessageOrigin {
+	fn from(n: u32) -> Self {
+		// Some dummy for the benchmarks.
+		Self::Ump(UmpQueueId::Para(n.into()))
+	}
+}
+
+/// The maximal length of a UMP message.
+pub type MaxUmpMessageLenOf<T> =
+	<<T as Config>::MessageQueue as EnqueueMessage<AggregateMessageOrigin>>::MaxMessageLen;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -203,7 +286,6 @@ pub mod pallet {
 		+ shared::Config
 		+ paras::Config
 		+ dmp::Config
-		+ ump::Config
 		+ hrmp::Config
 		+ configuration::Config
 		+ scheduler::Config
@@ -211,6 +293,16 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
 		type RewardValidators: RewardValidators;
+
+		/// The system message queue.
+		///
+		/// The message queue provides general queueing and processing functionality. Currently it
+		/// replaces the old `UMP` dispatch queue. Other use-cases can be implemented as well by
+		/// adding new variants to `AggregateMessageOrigin`.
+		type MessageQueue: EnqueueMessage<AggregateMessageOrigin>;
+
+		/// Weight info for the calls of this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -222,6 +314,8 @@ pub mod pallet {
 		CandidateIncluded(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
 		/// A candidate timed out. `[candidate, head_data]`
 		CandidateTimedOut(CandidateReceipt<T::Hash>, HeadData, CoreIndex),
+		/// Some upward messages have been received and will be processed.
+		UpwardMessagesReceived { from: ParaId, count: u32 },
 	}
 
 	#[pallet::error]
@@ -314,6 +408,71 @@ pub mod pallet {
 
 const LOG_TARGET: &str = "runtime::inclusion";
 
+/// The reason that a candidate's outputs were rejected for.
+#[derive(derive_more::From)]
+#[cfg_attr(feature = "std", derive(Debug))]
+enum AcceptanceCheckErr<BlockNumber> {
+	HeadDataTooLarge,
+	/// Code upgrades are not permitted at the current time.
+	PrematureCodeUpgrade,
+	/// The new runtime blob is too large.
+	NewCodeTooLarge,
+	/// The candidate violated this DMP acceptance criteria.
+	ProcessedDownwardMessages(dmp::ProcessedDownwardMessagesAcceptanceErr),
+	/// The candidate violated this UMP acceptance criteria.
+	UpwardMessages(UmpAcceptanceCheckErr),
+	/// The candidate violated this HRMP watermark acceptance criteria.
+	HrmpWatermark(hrmp::HrmpWatermarkAcceptanceErr<BlockNumber>),
+	/// The candidate violated this outbound HRMP acceptance criteria.
+	OutboundHrmp(hrmp::OutboundHrmpAcceptanceErr),
+}
+
+/// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
+/// criteria rules.
+#[cfg_attr(test, derive(PartialEq))]
+pub enum UmpAcceptanceCheckErr {
+	/// The maximal number of messages that can be submitted in one batch was exceeded.
+	MoreMessagesThanPermitted { sent: u32, permitted: u32 },
+	/// The maximal size of a single message was exceeded.
+	MessageSize { idx: u32, msg_size: u32, max_size: u32 },
+	/// The allowed number of messages in the queue was exceeded.
+	CapacityExceeded { count: u64, limit: u64 },
+	/// The allowed combined message size in the queue was exceeded.
+	TotalSizeExceeded { total_size: u64, limit: u64 },
+	/// A para-chain cannot send UMP messages while it is offboarding.
+	IsOffboarding,
+}
+
+#[cfg(feature = "std")]
+impl fmt::Debug for UmpAcceptanceCheckErr {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		match *self {
+			UmpAcceptanceCheckErr::MoreMessagesThanPermitted { sent, permitted } => write!(
+				fmt,
+				"more upward messages than permitted by config ({} > {})",
+				sent, permitted,
+			),
+			UmpAcceptanceCheckErr::MessageSize { idx, msg_size, max_size } => write!(
+				fmt,
+				"upward message idx {} larger than permitted by config ({} > {})",
+				idx, msg_size, max_size,
+			),
+			UmpAcceptanceCheckErr::CapacityExceeded { count, limit } => write!(
+				fmt,
+				"the ump queue would have more items than permitted by config ({} > {})",
+				count, limit,
+			),
+			UmpAcceptanceCheckErr::TotalSizeExceeded { total_size, limit } => write!(
+				fmt,
+				"the ump queue would have grown past the max size permitted by config ({} > {})",
+				total_size, limit,
+			),
+			UmpAcceptanceCheckErr::IsOffboarding =>
+				write!(fmt, "upward message rejected because the para is off-boarding",),
+		}
+	}
+}
+
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
@@ -326,12 +485,25 @@ impl<T: Config> Pallet<T> {
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
 		_notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>,
+		outgoing_paras: &[ParaId],
 	) {
 		// unlike most drain methods, drained elements are not cleared on `Drop` of the iterator
 		// and require consumption.
 		for _ in <PendingAvailabilityCommitments<T>>::drain() {}
 		for _ in <PendingAvailability<T>>::drain() {}
 		for _ in <AvailabilityBitfields<T>>::drain() {}
+
+		Self::cleanup_outgoing_ump_dispatch_queues(outgoing_paras);
+	}
+
+	pub(crate) fn cleanup_outgoing_ump_dispatch_queues(outgoing: &[ParaId]) {
+		for outgoing_para in outgoing {
+			Self::cleanup_outgoing_ump_dispatch_queue(*outgoing_para);
+		}
+	}
+
+	pub(crate) fn cleanup_outgoing_ump_dispatch_queue(para: ParaId) {
+		T::MessageQueue::sweep_queue(AggregateMessageOrigin::Ump(UmpQueueId::Para(para)));
 	}
 
 	/// Extract the freed cores based on cores that became available.
@@ -728,21 +900,23 @@ impl<T: Config> Pallet<T> {
 		let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
 		let check_ctx = CandidateCheckContext::<T>::new(prev_context);
 
-		if let Err(err) = check_ctx.check_validation_outputs(
-			para_id,
-			relay_parent_number,
-			&validation_outputs.head_data,
-			&validation_outputs.new_validation_code,
-			validation_outputs.processed_downward_messages,
-			&validation_outputs.upward_messages,
-			T::BlockNumber::from(validation_outputs.hrmp_watermark),
-			&validation_outputs.horizontal_messages,
-		) {
+		if check_ctx
+			.check_validation_outputs(
+				para_id,
+				relay_parent_number,
+				&validation_outputs.head_data,
+				&validation_outputs.new_validation_code,
+				validation_outputs.processed_downward_messages,
+				&validation_outputs.upward_messages,
+				T::BlockNumber::from(validation_outputs.hrmp_watermark),
+				&validation_outputs.horizontal_messages,
+			)
+			.is_err()
+		{
 			log::debug!(
 				target: LOG_TARGET,
-				"Validation outputs checking for parachain `{}` failed: {:?}",
+				"Validation outputs checking for parachain `{}` failed",
 				u32::from(para_id),
-				err,
 			);
 			false
 		} else {
@@ -781,31 +955,31 @@ impl<T: Config> Pallet<T> {
 		// initial weight is config read.
 		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 		if let Some(new_code) = commitments.new_validation_code {
-			weight += <paras::Pallet<T>>::schedule_code_upgrade(
+			weight.saturating_add(<paras::Pallet<T>>::schedule_code_upgrade(
 				receipt.descriptor.para_id,
 				new_code,
 				relay_parent_number,
 				&config,
-			);
+			));
 		}
 
 		// enact the messaging facet of the candidate.
-		weight += <dmp::Pallet<T>>::prune_dmq(
+		weight.saturating_accrue(<dmp::Pallet<T>>::prune_dmq(
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
-		);
-		weight += <ump::Pallet<T>>::receive_upward_messages(
+		));
+		weight.saturating_accrue(Self::receive_upward_messages(
 			receipt.descriptor.para_id,
-			commitments.upward_messages,
-		);
-		weight += <hrmp::Pallet<T>>::prune_hrmp(
+			commitments.upward_messages.as_slice(),
+		));
+		weight.saturating_accrue(<hrmp::Pallet<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
 			T::BlockNumber::from(commitments.hrmp_watermark),
-		);
-		weight += <hrmp::Pallet<T>>::queue_outbound_hrmp(
+		));
+		weight.saturating_accrue(<hrmp::Pallet<T>>::queue_outbound_hrmp(
 			receipt.descriptor.para_id,
 			commitments.horizontal_messages,
-		);
+		));
 
 		Self::deposit_event(Event::<T>::CandidateIncluded(
 			plain,
@@ -814,12 +988,111 @@ impl<T: Config> Pallet<T> {
 			backing_group,
 		));
 
-		weight +
-			<paras::Pallet<T>>::note_new_head(
-				receipt.descriptor.para_id,
-				commitments.head_data,
-				relay_parent_number,
-			)
+		weight.saturating_add(<paras::Pallet<T>>::note_new_head(
+			receipt.descriptor.para_id,
+			commitments.head_data,
+			relay_parent_number,
+		))
+	}
+
+	pub(crate) fn relay_dispatch_queue_size(
+		para_id: ParaId,
+	) -> (u32, u32) {
+		let fp = T::MessageQueue::footprint(AggregateMessageOrigin::Ump(UmpQueueId::Para(para_id)));
+		(fp.count as u32, fp.size as u32)
+	}
+
+	/// Check that all the upward messages sent by a candidate pass the acceptance criteria.
+	pub(crate) fn check_upward_messages(
+		config: &HostConfiguration<T::BlockNumber>,
+		para: ParaId,
+		upward_messages: &[UpwardMessage],
+	) -> Result<(), UmpAcceptanceCheckErr> {
+		// Cannot send UMP messages while off-boarding.
+		if <paras::Pallet<T>>::is_offboarding(para) {
+			ensure!(upward_messages.is_empty(), UmpAcceptanceCheckErr::IsOffboarding);
+		}
+
+		let additional_msgs = upward_messages.len() as u32;
+		if additional_msgs > config.max_upward_message_num_per_candidate {
+			return Err(UmpAcceptanceCheckErr::MoreMessagesThanPermitted {
+				sent: additional_msgs,
+				permitted: config.max_upward_message_num_per_candidate,
+			})
+		}
+
+		let (para_queue_count, mut para_queue_size) = Self::relay_dispatch_queue_size(para);
+
+		if para_queue_count.saturating_add(additional_msgs) >
+			config.max_upward_queue_count
+		{
+			return Err(UmpAcceptanceCheckErr::CapacityExceeded {
+				count: para_queue_count.saturating_add(additional_msgs).into(),
+				limit: config.max_upward_queue_count.into(),
+			})
+		}
+
+		for (idx, msg) in upward_messages.into_iter().enumerate() {
+			let msg_size = msg.len() as u32;
+			if msg_size > config.max_upward_message_size {
+				return Err(UmpAcceptanceCheckErr::MessageSize {
+					idx: idx as u32,
+					msg_size: msg_size,
+					max_size: config.max_upward_message_size,
+				})
+			}
+			// make sure that the queue is not overfilled.
+			// we do it here only once since returning false invalidates the whole relay-chain block.
+			if para_queue_size.saturating_add(msg_size) > config.max_upward_queue_size
+			{
+				return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
+					total_size: para_queue_size.saturating_add(msg_size).into(),
+					limit: config.max_upward_queue_size.into(),
+				})
+			}
+			para_queue_size.saturating_accrue(msg_size);
+		}
+
+		Ok(())
+	}
+
+	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
+	///
+	/// This function is infallible since the candidate was already accepted and we therefore need
+	/// to deal with the messages as given. Messages that are too long will be ignored since such
+	/// candidates should have already been rejected in [`Self::check_upward_messages`].
+	pub(crate) fn receive_upward_messages(para: ParaId, upward_messages: &[Vec<u8>]) -> Weight {
+		let bounded = upward_messages
+			.iter()
+			.filter_map(|d| {
+				BoundedSlice::try_from(&d[..])
+					.map_err(|e| {
+						defensive!("Accepted candidate contains too long msg, len=", d.len());
+						e
+					})
+					.ok()
+			})
+			.collect();
+		Self::receive_bounded_upward_messages(para, bounded)
+	}
+
+	/// Enqueues storage-bounded `upward_messages` from a `para`'s accepted candidate block.
+	pub(crate) fn receive_bounded_upward_messages(
+		para: ParaId,
+		messages: Vec<BoundedSlice<'_, u8, MaxUmpMessageLenOf<T>>>,
+	) -> Weight {
+		let count = messages.len() as u32;
+		if count == 0 {
+			return Weight::zero()
+		}
+
+		T::MessageQueue::enqueue_messages(
+			messages.into_iter(),
+			AggregateMessageOrigin::Ump(UmpQueueId::Para(para)),
+		);
+		let weight = <T as Config>::WeightInfo::receive_upward_messages(count);
+		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
+		weight
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
@@ -933,17 +1206,6 @@ const fn availability_threshold(n_validators: usize) -> usize {
 	supermajority_threshold(n_validators)
 }
 
-#[derive(derive_more::From, Debug)]
-enum AcceptanceCheckErr<BlockNumber> {
-	HeadDataTooLarge,
-	PrematureCodeUpgrade,
-	NewCodeTooLarge,
-	ProcessedDownwardMessages(dmp::ProcessedDownwardMessagesAcceptanceErr),
-	UpwardMessages(ump::AcceptanceCheckErr),
-	HrmpWatermark(hrmp::HrmpWatermarkAcceptanceErr<BlockNumber>),
-	OutboundHrmp(hrmp::OutboundHrmpAcceptanceErr),
-}
-
 impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 	/// Returns the same error so that it can be threaded through a needle of `DispatchError` and
 	/// ultimately returned from a `Dispatchable`.
@@ -958,6 +1220,25 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 			HrmpWatermark(_) => Error::<T>::HrmpWatermarkMishandling,
 			OutboundHrmp(_) => Error::<T>::InvalidOutboundHrmp,
 		}
+	}
+}
+
+impl<T: Config> OnQueueChanged<AggregateMessageOrigin> for Pallet<T> {
+	// Write back the remaining queue capacity into `relay_dispatch_queue_remaining_capacity`.
+	fn on_queue_changed(origin: AggregateMessageOrigin, count: u64, size: u64) {
+		let para = match origin {
+			AggregateMessageOrigin::Ump(UmpQueueId::Para(p)) => p,
+		};
+		let (count, size) = (count.saturated_into(), size.saturated_into());
+		// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
+		#[allow(deprecated)]
+		well_known_keys::relay_dispatch_queue_size_typed(para).set((count, size));
+
+		let config = <configuration::Pallet<T>>::config();
+		let remaining_count = config.max_upward_queue_count.saturating_sub(count);
+		let remaining_size = config.max_upward_queue_size.saturating_sub(size);
+		well_known_keys::relay_dispatch_queue_remaining_capacity(para)
+			.set((remaining_count, remaining_size));
 	}
 }
 
@@ -1003,12 +1284,13 @@ impl<T: Config> CandidateCheckContext<T> {
 		};
 
 		{
-			// this should never fail because the para is registered
 			let persisted_validation_data = match crate::util::make_persisted_validation_data::<T>(
 				para_id,
 				relay_parent_number,
 				relay_parent_storage_root,
-			) {
+			)
+			.defensive_proof("the para is registered")
+			{
 				Some(l) => l,
 				None => return Ok(Err(FailedToCreatePVD)),
 			};
@@ -1052,10 +1334,9 @@ impl<T: Config> CandidateCheckContext<T> {
 		) {
 			log::debug!(
 				target: LOG_TARGET,
-				"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed: {:?}",
+				"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed",
 				candidate_idx,
 				u32::from(para_id),
-				err,
 			);
 			Err(err.strip_into_dispatch_err::<T>())?;
 		};
@@ -1112,10 +1393,18 @@ impl<T: Config> CandidateCheckContext<T> {
 			relay_parent_number,
 			processed_downward_messages,
 		)?;
-		<ump::Pallet<T>>::check_upward_messages(&self.config, para_id, upward_messages)?;
+		Pallet::<T>::check_upward_messages(&self.config, para_id, upward_messages)?;
 		<hrmp::Pallet<T>>::check_hrmp_watermark(para_id, relay_parent_number, hrmp_watermark)?;
 		<hrmp::Pallet<T>>::check_outbound_hrmp(&self.config, para_id, horizontal_messages)?;
 
 		Ok(())
+	}
+}
+
+impl<T: Config> QueueFootprinter for Pallet<T> {
+	type Origin = UmpQueueId;
+
+	fn message_count(origin: Self::Origin) -> u64 {
+		T::MessageQueue::footprint(AggregateMessageOrigin::Ump(origin)).count
 	}
 }

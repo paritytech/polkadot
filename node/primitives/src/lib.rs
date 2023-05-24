@@ -22,7 +22,7 @@
 
 #![deny(missing_docs)]
 
-use std::pin::Pin;
+use std::{num::NonZeroUsize, pin::Pin};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
@@ -140,6 +140,12 @@ impl SessionWindowSize {
 	#[doc(hidden)]
 	pub const fn unchecked_new(size: SessionIndex) -> Self {
 		Self(size)
+	}
+}
+
+impl From<SessionWindowSize> for NonZeroUsize {
+	fn from(value: SessionWindowSize) -> Self {
+		NonZeroUsize::new(value.get() as usize).expect("SessionWindowSize can't be 0. qed.")
 	}
 }
 

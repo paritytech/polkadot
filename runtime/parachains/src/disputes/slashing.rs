@@ -58,7 +58,7 @@ use sp_runtime::{
 		InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
 		TransactionValidityError, ValidTransaction,
 	},
-	DispatchResult, KeyTypeId, Perbill, RuntimeDebug,
+	KeyTypeId, Perbill, RuntimeDebug,
 };
 use sp_session::{GetSessionNumber, GetValidatorCount};
 use sp_staking::offence::{DisableStrategy, Kind, Offence, OffenceError, ReportOffence};
@@ -382,7 +382,7 @@ pub trait HandleReports<T: Config> {
 	fn submit_unsigned_slashing_report(
 		dispute_proof: DisputeProof,
 		key_owner_proof: T::KeyOwnerProof,
-	) -> DispatchResult;
+	) -> Result<(), sp_runtime::TryRuntimeError>;
 }
 
 impl<T: Config> HandleReports<T> for () {
@@ -404,7 +404,7 @@ impl<T: Config> HandleReports<T> for () {
 	fn submit_unsigned_slashing_report(
 		_dispute_proof: DisputeProof,
 		_key_owner_proof: T::KeyOwnerProof,
-	) -> DispatchResult {
+	) -> Result<(), sp_runtime::TryRuntimeError> {
 		Ok(())
 	}
 }
@@ -730,7 +730,7 @@ where
 	fn submit_unsigned_slashing_report(
 		dispute_proof: DisputeProof,
 		key_owner_proof: <T as Config>::KeyOwnerProof,
-	) -> DispatchResult {
+	) -> Result<(), sp_runtime::TryRuntimeError> {
 		use frame_system::offchain::SubmitTransaction;
 
 		let session_index = dispute_proof.time_slot.session_index;

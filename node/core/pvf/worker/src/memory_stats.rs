@@ -33,14 +33,13 @@
 /// NOTE: Requires jemalloc enabled.
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub mod memory_tracker {
-	use crate::LOG_TARGET;
-	use polkadot_node_core_pvf::MemoryAllocationStats;
-	use std::{
-		sync::mpsc::{Receiver, RecvTimeoutError, Sender},
-		time::Duration,
+	use crate::{
+		common::{stringify_panic_payload, thread},
+		LOG_TARGET,
 	};
+	use polkadot_node_core_pvf::MemoryAllocationStats;
+	use std::{thread::JoinHandle, time::Duration};
 	use tikv_jemalloc_ctl::{epoch, stats, Error};
-	use tokio::task::JoinHandle;
 
 	#[derive(Clone)]
 	struct MemoryAllocationTracker {
@@ -79,16 +78,16 @@ pub mod memory_tracker {
 	/// 2. Sleep for some short interval. Whenever we wake up, take a snapshot by updating the
 	///    allocation epoch.
 	///
-	/// 3. When we receive a signal that preparation has completed, take one last snapshot and return
+	/// 3. When we are notified that preparation has completed, take one last snapshot and return
 	///    the maximum observed values.
 	///
 	/// # Errors
 	///
 	/// For simplicity, any errors are returned as a string. As this is not a critical component, errors
 	/// are used for informational purposes (logging) only.
-	pub fn memory_tracker_loop(finished_rx: Receiver<()>) -> Result<MemoryAllocationStats, String> {
-		// This doesn't need to be too fine-grained since preparation currently takes 3-10s or more.
-		// Apart from that, there is not really a science to this number.
+	pub fn memory_tracker_loop(condvar: thread::Cond) -> Result<MemoryAllocationStats, String> {
+		// NOTE: This doesn't need to be too fine-grained since preparation currently takes 3-10s or
+		// more. Apart from that, there is not really a science to this number.
 		const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 		let tracker = MemoryAllocationTracker::new().map_err(|err| err.to_string())?;
@@ -109,58 +108,42 @@ pub mod memory_tracker {
 			// Take a snapshot and update the max stats.
 			update_stats()?;
 
-			// Sleep.
-			match finished_rx.recv_timeout(POLL_INTERVAL) {
-				// Received finish signal.
-				Ok(()) => {
+			// Sleep for the poll interval, or wake up if the condvar is triggered. Note that
+			// `wait_timeout_while` is documented as not being very precise or reliable, which is
+			// fine here -- see note above.
+			match thread::wait_for_threads_with_timeout(&condvar, POLL_INTERVAL) {
+				Some(_outcome) => {
 					update_stats()?;
 					return Ok(max_stats)
 				},
-				// Timed out, restart loop.
-				Err(RecvTimeoutError::Timeout) => continue,
-				Err(RecvTimeoutError::Disconnected) =>
-					return Err("memory_tracker_loop: finished_rx disconnected".into()),
+				None => continue,
 			}
 		}
 	}
 
-	/// Helper function to terminate the memory tracker thread and get the stats. Helps isolate all this
-	/// error handling.
+	/// Helper function to get the stats from the memory tracker. Helps isolate this error handling.
 	pub async fn get_memory_tracker_loop_stats(
-		fut: JoinHandle<Result<MemoryAllocationStats, String>>,
-		tx: Sender<()>,
+		thread: JoinHandle<Result<MemoryAllocationStats, String>>,
 		worker_pid: u32,
 	) -> Option<MemoryAllocationStats> {
-		// Signal to the memory tracker thread to terminate.
-		if let Err(err) = tx.send(()) {
-			gum::warn!(
-				target: LOG_TARGET,
-				%worker_pid,
-				"worker: error sending signal to memory tracker_thread: {}",
-				err
-			);
-			None
-		} else {
-			// Join on the thread handle.
-			match fut.await {
-				Ok(Ok(stats)) => Some(stats),
-				Ok(Err(err)) => {
-					gum::warn!(
-						target: LOG_TARGET,
-						%worker_pid,
-						"worker: error occurred in the memory tracker thread: {}", err
-					);
-					None
-				},
-				Err(err) => {
-					gum::warn!(
-						target: LOG_TARGET,
-						%worker_pid,
-						"worker: error joining on memory tracker thread: {}", err
-					);
-					None
-				},
-			}
+		match thread.join() {
+			Ok(Ok(stats)) => Some(stats),
+			Ok(Err(err)) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					%worker_pid,
+					"worker: error occurred in the memory tracker thread: {}", err
+				);
+				None
+			},
+			Err(err) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					%worker_pid,
+					"worker: error joining on memory tracker thread: {}", stringify_panic_payload(err)
+				);
+				None
+			},
 		}
 	}
 }

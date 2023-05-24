@@ -16,7 +16,7 @@
 
 use super::*;
 use crate::mock::{new_test_ext, Configuration, ParasShared, RuntimeOrigin, Test};
-use frame_support::{assert_err, assert_ok};
+use frame_support::{assert_err, assert_noop, assert_ok};
 
 fn on_new_session(session_index: SessionIndex) -> (HostConfiguration<u32>, HostConfiguration<u32>) {
 	ParasShared::set_session_index(session_index);
@@ -309,7 +309,6 @@ fn setting_pending_config_members() {
 			max_upward_queue_count: 1337,
 			max_upward_queue_size: 228,
 			max_downward_message_size: 2048,
-			ump_service_total_weight: Weight::from_parts(20000, 20000),
 			max_upward_message_size: 448,
 			max_upward_message_num_per_candidate: 5,
 			hrmp_sender_deposit: 22,
@@ -322,7 +321,6 @@ fn setting_pending_config_members() {
 			hrmp_max_parachain_outbound_channels: 10,
 			hrmp_max_parathread_outbound_channels: 20,
 			hrmp_max_message_num_per_candidate: 20,
-			ump_max_individual_weight: Weight::from_parts(909, 909),
 			pvf_checking_enabled: true,
 			pvf_voting_ttl: 3,
 			minimum_validation_upgrade_delay: 20,
@@ -418,14 +416,16 @@ fn setting_pending_config_members() {
 			new_config.max_upward_queue_size,
 		)
 		.unwrap();
+		assert_noop!(
+			Configuration::set_max_upward_queue_size(
+				RuntimeOrigin::root(),
+				MAX_UPWARD_MESSAGE_SIZE_BOUND + 1,
+			),
+			Error::<Test>::InvalidNewValue
+		);
 		Configuration::set_max_downward_message_size(
 			RuntimeOrigin::root(),
 			new_config.max_downward_message_size,
-		)
-		.unwrap();
-		Configuration::set_ump_service_total_weight(
-			RuntimeOrigin::root(),
-			new_config.ump_service_total_weight,
 		)
 		.unwrap();
 		Configuration::set_max_upward_message_size(
@@ -486,11 +486,6 @@ fn setting_pending_config_members() {
 		Configuration::set_hrmp_max_message_num_per_candidate(
 			RuntimeOrigin::root(),
 			new_config.hrmp_max_message_num_per_candidate,
-		)
-		.unwrap();
-		Configuration::set_ump_max_individual_weight(
-			RuntimeOrigin::root(),
-			new_config.ump_max_individual_weight,
 		)
 		.unwrap();
 		Configuration::set_pvf_checking_enabled(

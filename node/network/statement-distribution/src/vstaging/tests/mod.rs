@@ -81,13 +81,13 @@ struct TestState {
 	local: Option<TestLocalValidator>,
 	validators: Vec<ValidatorPair>,
 	session_info: SessionInfo,
-	req_sender: futures::channel::mpsc::Sender<sc_network::config::IncomingRequest>,
+	req_sender: async_channel::Sender<sc_network::config::IncomingRequest>,
 }
 
 impl TestState {
 	fn from_config(
 		config: TestConfig,
-		req_sender: futures::channel::mpsc::Sender<sc_network::config::IncomingRequest>,
+		req_sender: async_channel::Sender<sc_network::config::IncomingRequest>,
 		rng: &mut impl Rng,
 	) -> Self {
 		if config.group_size == 0 {
