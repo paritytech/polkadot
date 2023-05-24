@@ -16,7 +16,7 @@
 
 //! Put implementations of functions from staging APIs here.
 
-use crate::{configuration, dmp, hrmp, initializer, paras, shared, inclusion};
+use crate::{configuration, dmp, hrmp, inclusion, initializer, paras, shared};
 use primitives::{
 	vstaging::{
 		AsyncBackingParams, BackingState, CandidatePendingAvailability, Constraints,
@@ -50,7 +50,8 @@ pub fn backing_state<T: initializer::Config>(
 			Some(block_num).zip(<paras::Pallet<T>>::future_code_hash(para_id))
 		});
 
-	let (ump_msg_count, ump_total_bytes) = <inclusion::Pallet<T>>::relay_dispatch_queue_size(para_id);
+	let (ump_msg_count, ump_total_bytes) =
+		<inclusion::Pallet<T>>::relay_dispatch_queue_size(para_id);
 	let ump_remaining = config.max_upward_queue_count - ump_msg_count;
 	let ump_remaining_bytes = config.max_upward_queue_size - ump_total_bytes;
 

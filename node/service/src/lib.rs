@@ -840,10 +840,10 @@ where
 	net_config.add_request_response_protocol(cfg);
 	let (collation_req_v1_receiver, cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
-		net_config.add_request_response_protocol(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (collation_req_vstaging_receiver, cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
-		net_config.add_request_response_protocol(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (available_data_req_receiver, cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
 	net_config.add_request_response_protocol(cfg);
@@ -851,7 +851,7 @@ where
 	net_config.add_request_response_protocol(cfg);
 	let (candidate_req_vstaging_receiver, cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
-		net_config.add_request_response_protocol(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	net_config.add_request_response_protocol(cfg);
 

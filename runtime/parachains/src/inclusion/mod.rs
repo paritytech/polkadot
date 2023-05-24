@@ -21,7 +21,8 @@
 //! to included.
 
 use crate::{
-	configuration::{self, HostConfiguration}, disputes, dmp, hrmp, paras,
+	configuration::{self, HostConfiguration},
+	disputes, dmp, hrmp, paras,
 	paras_inherent::DisputedBitfield,
 	scheduler::{self, CoreAssignment},
 	shared::{self, AllowedRelayParentsTracker},
@@ -995,9 +996,7 @@ impl<T: Config> Pallet<T> {
 		))
 	}
 
-	pub(crate) fn relay_dispatch_queue_size(
-		para_id: ParaId,
-	) -> (u32, u32) {
+	pub(crate) fn relay_dispatch_queue_size(para_id: ParaId) -> (u32, u32) {
 		let fp = T::MessageQueue::footprint(AggregateMessageOrigin::Ump(UmpQueueId::Para(para_id)));
 		(fp.count as u32, fp.size as u32)
 	}
@@ -1023,9 +1022,7 @@ impl<T: Config> Pallet<T> {
 
 		let (para_queue_count, mut para_queue_size) = Self::relay_dispatch_queue_size(para);
 
-		if para_queue_count.saturating_add(additional_msgs) >
-			config.max_upward_queue_count
-		{
+		if para_queue_count.saturating_add(additional_msgs) > config.max_upward_queue_count {
 			return Err(UmpAcceptanceCheckErr::CapacityExceeded {
 				count: para_queue_count.saturating_add(additional_msgs).into(),
 				limit: config.max_upward_queue_count.into(),
@@ -1037,14 +1034,13 @@ impl<T: Config> Pallet<T> {
 			if msg_size > config.max_upward_message_size {
 				return Err(UmpAcceptanceCheckErr::MessageSize {
 					idx: idx as u32,
-					msg_size: msg_size,
+					msg_size,
 					max_size: config.max_upward_message_size,
 				})
 			}
 			// make sure that the queue is not overfilled.
 			// we do it here only once since returning false invalidates the whole relay-chain block.
-			if para_queue_size.saturating_add(msg_size) > config.max_upward_queue_size
-			{
+			if para_queue_size.saturating_add(msg_size) > config.max_upward_queue_size {
 				return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
 					total_size: para_queue_size.saturating_add(msg_size).into(),
 					limit: config.max_upward_queue_size.into(),
