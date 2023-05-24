@@ -334,7 +334,7 @@ impl State {
 	async fn handle_network_msg<Context>(
 		&mut self,
 		ctx: &mut Context,
-		rep_aggregator: &mut ReputationAggregator,
+		reputation: &mut ReputationAggregator,
 		metrics: &Metrics,
 		event: NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>,
 		rng: &mut (impl CryptoRng + Rng),
@@ -385,7 +385,7 @@ impl State {
 				});
 			},
 			NetworkBridgeEvent::PeerMessage(peer_id, Versioned::V1(msg)) => {
-				self.process_incoming_peer_message(ctx, rep_aggregator, metrics, peer_id, msg, rng)
+				self.process_incoming_peer_message(ctx, reputation, metrics, peer_id, msg, rng)
 					.await;
 			},
 		}
@@ -394,7 +394,7 @@ impl State {
 	async fn handle_new_blocks<Context>(
 		&mut self,
 		ctx: &mut Context,
-		rep_aggregator: &mut ReputationAggregator,
+		reputation: &mut ReputationAggregator,
 		metrics: &Metrics,
 		metas: Vec<BlockApprovalMeta>,
 		rng: &mut (impl CryptoRng + Rng),
@@ -495,7 +495,7 @@ impl State {
 						PendingMessage::Assignment(assignment, claimed_index) => {
 							self.import_and_circulate_assignment(
 								ctx,
-								rep_aggregator,
+								reputation,
 								metrics,
 								MessageSource::Peer(peer_id),
 								assignment,
@@ -507,7 +507,7 @@ impl State {
 						PendingMessage::Approval(approval_vote) => {
 							self.import_and_circulate_approval(
 								ctx,
-								rep_aggregator,
+								reputation,
 								metrics,
 								MessageSource::Peer(peer_id),
 								approval_vote,
@@ -556,7 +556,7 @@ impl State {
 	async fn process_incoming_peer_message<Context, R>(
 		&mut self,
 		ctx: &mut Context,
-		rep_aggregator: &mut ReputationAggregator,
+		reputation: &mut ReputationAggregator,
 		metrics: &Metrics,
 		peer_id: PeerId,
 		msg: protocol_v1::ApprovalDistributionMessage,
@@ -595,7 +595,7 @@ impl State {
 
 					self.import_and_circulate_assignment(
 						ctx,
-						rep_aggregator,
+						reputation,
 						metrics,
 						MessageSource::Peer(peer_id),
 						assignment,
@@ -634,7 +634,7 @@ impl State {
 
 					self.import_and_circulate_approval(
 						ctx,
-						rep_aggregator,
+						reputation,
 						metrics,
 						MessageSource::Peer(peer_id),
 						approval_vote,
@@ -726,7 +726,7 @@ impl State {
 	async fn import_and_circulate_assignment<Context, R>(
 		&mut self,
 		ctx: &mut Context,
-		mut rep_aggregator: &mut ReputationAggregator,
+		mut reputation: &mut ReputationAggregator,
 		metrics: &Metrics,
 		source: MessageSource,
 		assignment: IndirectAssignmentCert,
@@ -765,8 +765,7 @@ impl State {
 						"Unexpected assignment",
 					);
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
-						modify_reputation(&mut rep_aggregator, peer_id, COST_UNEXPECTED_MESSAGE)
-							.await;
+						modify_reputation(&mut reputation, peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
 				return
@@ -791,7 +790,7 @@ impl State {
 								?message_subject,
 								"Duplicate assignment",
 							);
-							modify_reputation(&mut rep_aggregator, peer_id, COST_DUPLICATE_MESSAGE)
+							modify_reputation(&mut reputation, peer_id, COST_DUPLICATE_MESSAGE)
 								.await;
 						}
 						return
@@ -804,13 +803,13 @@ impl State {
 						?message_subject,
 						"Assignment from a peer is out of view",
 					);
-					modify_reputation(&mut rep_aggregator, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(&mut reputation, peer_id, COST_UNEXPECTED_MESSAGE).await;
 				},
 			}
 
 			// if the assignment is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
-				modify_reputation(&mut rep_aggregator, peer_id, BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(&mut reputation, peer_id, BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known assignment");
 					peer_knowledge.received.insert(message_subject, message_kind);
@@ -846,8 +845,7 @@ impl State {
 			);
 			match result {
 				AssignmentCheckResult::Accepted => {
-					modify_reputation(&mut rep_aggregator, peer_id, BENEFIT_VALID_MESSAGE_FIRST)
-						.await;
+					modify_reputation(&mut reputation, peer_id, BENEFIT_VALID_MESSAGE_FIRST).await;
 					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
@@ -876,7 +874,7 @@ impl State {
 						"Got an assignment too far in the future",
 					);
 					modify_reputation(
-						&mut rep_aggregator,
+						&mut reputation,
 						peer_id,
 						COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE,
 					)
@@ -891,7 +889,7 @@ impl State {
 						%error,
 						"Got a bad assignment from peer",
 					);
-					modify_reputation(&mut rep_aggregator, peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(&mut reputation, peer_id, COST_INVALID_MESSAGE).await;
 					return
 				},
 			}
@@ -1013,7 +1011,7 @@ impl State {
 	async fn import_and_circulate_approval<Context>(
 		&mut self,
 		ctx: &mut Context,
-		mut rep_aggregator: &mut ReputationAggregator,
+		mut reputation: &mut ReputationAggregator,
 		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
@@ -1042,7 +1040,7 @@ impl State {
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
-						modify_reputation(rep_aggregator, peer_id, COST_UNEXPECTED_MESSAGE).await;
+						modify_reputation(reputation, peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
 				return
@@ -1061,7 +1059,7 @@ impl State {
 					?message_subject,
 					"Unknown approval assignment",
 				);
-				modify_reputation(&mut rep_aggregator, peer_id, COST_UNEXPECTED_MESSAGE).await;
+				modify_reputation(&mut reputation, peer_id, COST_UNEXPECTED_MESSAGE).await;
 				return
 			}
 
@@ -1078,7 +1076,7 @@ impl State {
 								"Duplicate approval",
 							);
 
-							modify_reputation(&mut rep_aggregator, peer_id, COST_DUPLICATE_MESSAGE)
+							modify_reputation(&mut reputation, peer_id, COST_DUPLICATE_MESSAGE)
 								.await;
 						}
 						return
@@ -1091,14 +1089,14 @@ impl State {
 						?message_subject,
 						"Approval from a peer is out of view",
 					);
-					modify_reputation(&mut rep_aggregator, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(&mut reputation, peer_id, COST_UNEXPECTED_MESSAGE).await;
 				},
 			}
 
 			// if the approval is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
-				modify_reputation(&mut rep_aggregator, peer_id, BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(&mut reputation, peer_id, BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					peer_knowledge.received.insert(message_subject.clone(), message_kind);
 				}
@@ -1129,8 +1127,7 @@ impl State {
 			);
 			match result {
 				ApprovalCheckResult::Accepted => {
-					modify_reputation(&mut rep_aggregator, peer_id, BENEFIT_VALID_MESSAGE_FIRST)
-						.await;
+					modify_reputation(&mut reputation, peer_id, BENEFIT_VALID_MESSAGE_FIRST).await;
 
 					entry.knowledge.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
@@ -1138,7 +1135,7 @@ impl State {
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
-					modify_reputation(&mut rep_aggregator, peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(&mut reputation, peer_id, COST_INVALID_MESSAGE).await;
 					gum::info!(
 						target: LOG_TARGET,
 						?peer_id,
@@ -1693,24 +1690,9 @@ struct ReputationAggregator {
 	by_peer: std::collections::HashMap<PeerId, i32>,
 }
 
-impl Default for ReputationAggregator {
-	fn default() -> Self {
-		Self::new()
-	}
-}
-
-impl IntoIterator for ReputationAggregator {
-	type Item = (PeerId, i32);
-	type IntoIter = std::collections::hash_map::IntoIter<PeerId, i32>;
-
-	fn into_iter(self) -> Self::IntoIter {
-		self.by_peer.into_iter()
-	}
-}
-
 impl ReputationAggregator {
 	pub fn new() -> Self {
-		Self { ..Default::default() }
+		Self { overflow: false, by_peer: std::collections::HashMap::new() }
 	}
 
 	pub fn clear(&mut self) {
@@ -1732,10 +1714,14 @@ impl ReputationAggregator {
 	pub fn overflow(&self) -> bool {
 		self.overflow
 	}
+
+	pub fn by_peer(&self) -> &std::collections::HashMap<PeerId, i32> {
+		&self.by_peer
+	}
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation(rep_aggregator: &mut ReputationAggregator, peer_id: PeerId, rep: Rep) {
+async fn modify_reputation(reputation: &mut ReputationAggregator, peer_id: PeerId, rep: Rep) {
 	gum::trace!(
 		target: LOG_TARGET,
 		reputation = ?rep,
@@ -1743,22 +1729,22 @@ async fn modify_reputation(rep_aggregator: &mut ReputationAggregator, peer_id: P
 		"Reputation change for peer",
 	);
 
-	rep_aggregator.update(peer_id, rep);
+	reputation.update(peer_id, rep);
 }
 
 async fn maybe_send_reputation(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	rep_aggregator: &mut ReputationAggregator,
+	reputation: &mut ReputationAggregator,
 	mut delay: &mut Fuse<Delay>,
 ) -> bool {
-	if rep_aggregator.overflow() {
-		send_reputation(sender, rep_aggregator).await;
+	if reputation.overflow() {
+		send_reputation(sender, reputation).await;
 		return true
 	}
 
 	select! {
 		_ = delay => {
-			send_reputation(sender, rep_aggregator).await;
+			send_reputation(sender, reputation).await;
 			true
 		},
 		default => false, // Will run if no futures are immediately ready
@@ -1767,9 +1753,9 @@ async fn maybe_send_reputation(
 
 async fn send_reputation(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	rep_aggregator: &mut ReputationAggregator,
+	reputation: &ReputationAggregator,
 ) {
-	for (peer_id, score) in rep_aggregator.clone() {
+	for (&peer_id, &score) in reputation.by_peer() {
 		sender
 			.send_message(NetworkBridgeTxMessage::ReportPeer(
 				peer_id,
@@ -1791,14 +1777,13 @@ impl ApprovalDistribution {
 
 	async fn run<Context>(self, ctx: Context) {
 		let mut state = State::default();
-		let mut rep_aggregator = ReputationAggregator::new();
+		let mut reputation = ReputationAggregator::new();
 		let rep_delay_fn = || Delay::new(std::time::Duration::from_millis(5)).fuse();
 
 		// According to the docs of `rand`, this is a ChaCha12 RNG in practice
 		// and will always be chosen for strong performance and security properties.
 		let mut rng = rand::rngs::StdRng::from_entropy();
-		self.run_inner(ctx, &mut state, &mut rep_aggregator, rep_delay_fn, &mut rng)
-			.await
+		self.run_inner(ctx, &mut state, &mut reputation, rep_delay_fn, &mut rng).await
 	}
 
 	/// Used for testing.
@@ -1806,7 +1791,7 @@ impl ApprovalDistribution {
 		self,
 		mut ctx: Context,
 		state: &mut State,
-		rep_aggregator: &mut ReputationAggregator,
+		reputation: &mut ReputationAggregator,
 		rep_delay_fn: impl Fn() -> Fuse<Delay>,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
@@ -1822,7 +1807,7 @@ impl ApprovalDistribution {
 			};
 			match message {
 				FromOrchestra::Communication { msg } =>
-					Self::handle_incoming(&mut ctx, state, rep_aggregator, msg, &self.metrics, rng)
+					Self::handle_incoming(&mut ctx, state, reputation, msg, &self.metrics, rng)
 						.await,
 				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
@@ -1844,8 +1829,8 @@ impl ApprovalDistribution {
 				FromOrchestra::Signal(OverseerSignal::Conclude) => return,
 			}
 
-			if maybe_send_reputation(ctx.sender(), rep_aggregator, &mut rep_delay).await {
-				rep_aggregator.clear();
+			if maybe_send_reputation(ctx.sender(), reputation, &mut rep_delay).await {
+				reputation.clear();
 				rep_delay = rep_delay_fn()
 			}
 		}
@@ -1854,17 +1839,17 @@ impl ApprovalDistribution {
 	async fn handle_incoming<Context>(
 		ctx: &mut Context,
 		state: &mut State,
-		rep_aggregator: &mut ReputationAggregator,
+		reputation: &mut ReputationAggregator,
 		msg: ApprovalDistributionMessage,
 		metrics: &Metrics,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
 		match msg {
 			ApprovalDistributionMessage::NetworkBridgeUpdate(event) => {
-				state.handle_network_msg(ctx, rep_aggregator, metrics, event, rng).await;
+				state.handle_network_msg(ctx, reputation, metrics, event, rng).await;
 			},
 			ApprovalDistributionMessage::NewBlocks(metas) => {
-				state.handle_new_blocks(ctx, rep_aggregator, metrics, metas, rng).await;
+				state.handle_new_blocks(ctx, reputation, metrics, metas, rng).await;
 			},
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index) => {
 				gum::debug!(
@@ -1877,7 +1862,7 @@ impl ApprovalDistribution {
 				state
 					.import_and_circulate_assignment(
 						ctx,
-						rep_aggregator,
+						reputation,
 						&metrics,
 						MessageSource::Local,
 						cert,
@@ -1897,7 +1882,7 @@ impl ApprovalDistribution {
 				state
 					.import_and_circulate_approval(
 						ctx,
-						rep_aggregator,
+						reputation,
 						metrics,
 						MessageSource::Local,
 						vote,

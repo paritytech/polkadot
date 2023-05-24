@@ -57,10 +57,10 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let subsystem = ApprovalDistribution::new(Default::default());
 	{
 		let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
-		let mut rep_aggregator = ReputationAggregator::new();
+		let mut reputation = ReputationAggregator::new();
 
 		let subsystem =
-			subsystem.run_inner(context, &mut state, &mut rep_aggregator, zero_delay, &mut rng);
+			subsystem.run_inner(context, &mut state, &mut reputation, zero_delay, &mut rng);
 
 		let test_fut = test_fn(virtual_overseer);
 
@@ -279,8 +279,11 @@ fn fake_assignment_cert(block_hash: Hash, validator: ValidatorIndex) -> Indirect
 async fn expect_reputation_change(
 	virtual_overseer: &mut VirtualOverseer,
 	peer_id: &PeerId,
-	expected_reputation_change: Rep,
+	expected_reputation_changes: Vec<Rep>,
 ) {
+	let change = expected_reputation_changes
+		.iter()
+		.fold(0_i32, |acc, rep| acc.saturating_add(rep.cost_or_benefit()));
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::NetworkBridgeTx(
@@ -290,7 +293,7 @@ async fn expect_reputation_change(
 			)
 		) => {
 			assert_eq!(peer_id, &rep_peer);
-			assert_eq!(expected_reputation_change.cost_or_benefit(), rep.value);
+			assert_eq!(change, rep.value);
 		}
 	);
 }
@@ -335,8 +338,6 @@ fn try_import_the_same_assignment() {
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
 		send_message_from_peer(overseer, &peer_a, msg).await;
 
-		expect_reputation_change(overseer, &peer_a, COST_UNEXPECTED_MESSAGE).await;
-
 		// send an `Accept` message from the Approval Voting subsystem
 		assert_matches!(
 			overseer_recv(overseer).await,
@@ -349,8 +350,6 @@ fn try_import_the_same_assignment() {
 				tx.send(AssignmentCheckResult::Accepted).unwrap();
 			}
 		);
-
-		expect_reputation_change(overseer, &peer_a, BENEFIT_VALID_MESSAGE_FIRST).await;
 
 		assert_matches!(
 			overseer_recv(overseer).await,
@@ -372,9 +371,18 @@ fn try_import_the_same_assignment() {
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments);
 		send_message_from_peer(overseer, &peer_d, msg).await;
 
-		expect_reputation_change(overseer, &peer_d, COST_UNEXPECTED_MESSAGE).await;
-		expect_reputation_change(overseer, &peer_d, BENEFIT_VALID_MESSAGE).await;
-
+		expect_reputation_change(
+			overseer,
+			&peer_a,
+			vec![COST_UNEXPECTED_MESSAGE, BENEFIT_VALID_MESSAGE_FIRST],
+		)
+		.await;
+		expect_reputation_change(
+			overseer,
+			&peer_d,
+			vec![COST_UNEXPECTED_MESSAGE, BENEFIT_VALID_MESSAGE],
+		)
+		.await;
 		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
 		virtual_overseer
 	});
@@ -426,8 +434,6 @@ fn spam_attack_results_in_negative_reputation_change() {
 		send_message_from_peer(overseer, peer, msg.clone()).await;
 
 		for i in 0..candidates_count {
-			expect_reputation_change(overseer, peer, COST_UNEXPECTED_MESSAGE).await;
-
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
@@ -440,9 +446,12 @@ fn spam_attack_results_in_negative_reputation_change() {
 					tx.send(AssignmentCheckResult::Accepted).unwrap();
 				}
 			);
-
-			expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE_FIRST).await;
 		}
+
+		let mut reputation_changes = vec![];
+		reputation_changes.extend(vec![COST_UNEXPECTED_MESSAGE; candidates_count]);
+		reputation_changes.extend(vec![BENEFIT_VALID_MESSAGE_FIRST; candidates_count]);
+		expect_reputation_change(overseer, peer, reputation_changes).await;
 
 		// send a view update that removes block B from peer's view by bumping the finalized_number
 		overseer_send(
@@ -458,10 +467,11 @@ fn spam_attack_results_in_negative_reputation_change() {
 		send_message_from_peer(overseer, peer, msg.clone()).await;
 
 		// each of them will incur `COST_UNEXPECTED_MESSAGE`, not only the first one
-		for _ in 0..candidates_count {
-			expect_reputation_change(overseer, peer, COST_UNEXPECTED_MESSAGE).await;
-			expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE).await;
-		}
+		let mut reputation_changes = vec![];
+		reputation_changes.extend(vec![COST_UNEXPECTED_MESSAGE; candidates_count]);
+		reputation_changes.extend(vec![BENEFIT_VALID_MESSAGE; candidates_count]);
+		expect_reputation_change(overseer, peer, reputation_changes).await;
+
 		virtual_overseer
 	});
 }
@@ -541,7 +551,7 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 		send_message_from_peer(overseer, peer, msg).await;
 
 		// now we should
-		expect_reputation_change(overseer, peer, COST_DUPLICATE_MESSAGE).await;
+		expect_reputation_change(overseer, peer, vec![COST_DUPLICATE_MESSAGE]).await;
 		virtual_overseer
 	});
 }
@@ -618,8 +628,6 @@ fn import_approval_happy_path() {
 			}
 		);
 
-		expect_reputation_change(overseer, &peer_b, BENEFIT_VALID_MESSAGE_FIRST).await;
-
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
@@ -632,6 +640,8 @@ fn import_approval_happy_path() {
 				assert_eq!(approvals.len(), 1);
 			}
 		);
+		expect_reputation_change(overseer, &peer_b, vec![BENEFIT_VALID_MESSAGE_FIRST]).await;
+
 		virtual_overseer
 	});
 }
@@ -676,13 +686,12 @@ fn import_approval_bad() {
 		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
 		send_message_from_peer(overseer, &peer_b, msg).await;
 
-		expect_reputation_change(overseer, &peer_b, COST_UNEXPECTED_MESSAGE).await;
-
 		// now import an assignment from peer_b
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments);
 		send_message_from_peer(overseer, &peer_b, msg).await;
 
+		expect_reputation_change(overseer, &peer_b, vec![COST_UNEXPECTED_MESSAGE]).await;
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
@@ -696,12 +705,11 @@ fn import_approval_bad() {
 			}
 		);
 
-		expect_reputation_change(overseer, &peer_b, BENEFIT_VALID_MESSAGE_FIRST).await;
-
 		// and try again
 		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
 		send_message_from_peer(overseer, &peer_b, msg).await;
 
+		expect_reputation_change(overseer, &peer_b, vec![BENEFIT_VALID_MESSAGE_FIRST]).await;
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportApproval(
@@ -712,8 +720,8 @@ fn import_approval_bad() {
 				tx.send(ApprovalCheckResult::Bad(ApprovalCheckError::UnknownBlock(hash))).unwrap();
 			}
 		);
+		expect_reputation_change(overseer, &peer_b, vec![COST_INVALID_MESSAGE]).await;
 
-		expect_reputation_change(overseer, &peer_b, COST_INVALID_MESSAGE).await;
 		virtual_overseer
 	});
 }
@@ -995,7 +1003,7 @@ fn import_remotely_then_locally() {
 			}
 		);
 
-		expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE_FIRST).await;
+		expect_reputation_change(overseer, peer, vec![BENEFIT_VALID_MESSAGE_FIRST]).await;
 
 		// import the same assignment locally
 		overseer_send(
@@ -1026,7 +1034,7 @@ fn import_remotely_then_locally() {
 				tx.send(ApprovalCheckResult::Accepted).unwrap();
 			}
 		);
-		expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE_FIRST).await;
+		expect_reputation_change(overseer, peer, vec![BENEFIT_VALID_MESSAGE_FIRST]).await;
 
 		// import the same approval locally
 		overseer_send(overseer, ApprovalDistributionMessage::DistributeApproval(approval)).await;
@@ -1191,7 +1199,7 @@ fn race_condition_in_local_vs_remote_view_update() {
 			);
 
 			// Since we have a valid statement pending, this should always occur
-			expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE_FIRST).await;
+			expect_reputation_change(overseer, peer, vec![BENEFIT_VALID_MESSAGE_FIRST]).await;
 		}
 		virtual_overseer
 	});
@@ -1364,7 +1372,6 @@ fn propagates_assignments_along_unshared_dimension() {
 					tx.send(AssignmentCheckResult::Accepted).unwrap();
 				}
 			);
-			expect_reputation_change(overseer, &peers[99].0, BENEFIT_VALID_MESSAGE_FIRST).await;
 
 			let expected_y = [50, 51, 52, 53];
 
@@ -1403,6 +1410,8 @@ fn propagates_assignments_along_unshared_dimension() {
 			// Issuer of the message is important, not the peer we receive from.
 			// 99 deliberately chosen because it's not in X or Y.
 			send_message_from_peer(overseer, &peers[99].0, msg).await;
+			expect_reputation_change(overseer, &peers[99].0, vec![BENEFIT_VALID_MESSAGE_FIRST])
+				.await;
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
@@ -1413,7 +1422,6 @@ fn propagates_assignments_along_unshared_dimension() {
 					tx.send(AssignmentCheckResult::Accepted).unwrap();
 				}
 			);
-			expect_reputation_change(overseer, &peers[99].0, BENEFIT_VALID_MESSAGE_FIRST).await;
 
 			let expected_x = [0, 10, 20, 30];
 
@@ -1436,6 +1444,8 @@ fn propagates_assignments_along_unshared_dimension() {
 					assert_eq!(sent_assignments, assignments);
 				}
 			);
+			expect_reputation_change(overseer, &peers[99].0, vec![BENEFIT_VALID_MESSAGE_FIRST])
+				.await;
 		};
 
 		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
@@ -1958,8 +1968,6 @@ fn non_originator_aggression_l1() {
 			}
 		);
 
-		expect_reputation_change(overseer, &peers[99].0, BENEFIT_VALID_MESSAGE_FIRST).await;
-
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
@@ -1991,6 +1999,8 @@ fn non_originator_aggression_l1() {
 				parent_hash = hash;
 			}
 		}
+
+		expect_reputation_change(overseer, &peers[99].0, vec![BENEFIT_VALID_MESSAGE_FIRST]).await;
 
 		// No-op on non-originator
 
@@ -2063,8 +2073,6 @@ fn non_originator_aggression_l2() {
 			}
 		);
 
-		expect_reputation_change(overseer, &peers[99].0, BENEFIT_VALID_MESSAGE_FIRST).await;
-
 		let prev_sent_indices = assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
@@ -2105,6 +2113,8 @@ fn non_originator_aggression_l2() {
 
 			parent_hash
 		};
+
+		expect_reputation_change(overseer, &peers[99].0, vec![BENEFIT_VALID_MESSAGE_FIRST]).await;
 
 		// No-op on non-originator
 
@@ -2229,7 +2239,6 @@ fn resends_messages_periodically() {
 					tx.send(AssignmentCheckResult::Accepted).unwrap();
 				}
 			);
-			expect_reputation_change(overseer, &peers[99].0, BENEFIT_VALID_MESSAGE_FIRST).await;
 
 			let expected_y = [50, 51, 52, 53];
 
@@ -2252,6 +2261,8 @@ fn resends_messages_periodically() {
 					assert_eq!(sent_assignments, assignments);
 				}
 			);
+			expect_reputation_change(overseer, &peers[99].0, vec![BENEFIT_VALID_MESSAGE_FIRST])
+				.await;
 		};
 
 		let mut number = 1;
@@ -2313,14 +2324,13 @@ fn batch_test_round(message_count: usize) {
 	use polkadot_node_subsystem::SubsystemContext;
 	let pool = sp_core::testing::TaskExecutor::new();
 	let mut state = State::default();
-	let mut rep_aggregator = ReputationAggregator::new();
+	let mut reputation = ReputationAggregator::new();
 
 	let (mut context, mut virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 	let subsystem = ApprovalDistribution::new(Default::default());
 	let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
 	let mut sender = context.sender().clone();
-	let subsystem =
-		subsystem.run_inner(context, &mut state, &mut rep_aggregator, zero_delay, &mut rng);
+	let subsystem = subsystem.run_inner(context, &mut state, &mut reputation, zero_delay, &mut rng);
 
 	let test_fut = async move {
 		let overseer = &mut virtual_overseer;
