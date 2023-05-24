@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Version 1 of the DB schema.
+//! Version 2 of the DB schema.
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
