@@ -51,8 +51,8 @@ mod barriers;
 pub use barriers::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, DenyReserveTransferToRelayChain,
-	DenyThenTry, ExtractIdFromAppendedTopic, IsChildSystemParachain, RespectSuspension,
-	TakeWeightCredit, WithComputedOrigin,
+	DenyThenTry, IsChildSystemParachain, RespectSuspension, TakeWeightCredit, TrailingSetTopicAsId,
+	WithComputedOrigin,
 };
 
 mod process_xcm_message;

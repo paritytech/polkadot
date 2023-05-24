@@ -942,7 +942,7 @@ pub enum Instruction<Call> {
 	UnlockAsset { asset: MultiAsset, target: MultiLocation },
 
 	/// Asset (`asset`) has been locked on the `origin` system and may not be transferred. It may
-	/// only be unlocked with the receipt of the `UnlockAsset`  instruction from this chain.
+	/// only be unlocked with the receipt of the `UnlockAsset` instruction from this chain.
 	///
 	/// - `asset`: The asset(s) which are now unlockable from this origin.
 	/// - `owner`: The owner of the asset on the chain in which it was locked. This may be a

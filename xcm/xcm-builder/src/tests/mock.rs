@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	barriers::{AllowSubscriptionsFrom, ExtractIdFromAppendedTopic, RespectSuspension},
+	barriers::{AllowSubscriptionsFrom, RespectSuspension, TrailingSetTopicAsId},
 	test_utils::*,
 };
 pub use crate::{
@@ -655,7 +655,7 @@ impl Config for TestConfig {
 	type IsReserve = TestIsReserve;
 	type IsTeleporter = TestIsTeleporter;
 	type UniversalLocation = ExecutorUniversalLocation;
-	type Barrier = ExtractIdFromAppendedTopic<RespectSuspension<TestBarrier, TestSuspender>>;
+	type Barrier = TrailingSetTopicAsId<RespectSuspension<TestBarrier, TestSuspender>>;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;

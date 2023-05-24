@@ -208,8 +208,8 @@ impl<
 /// Sets the message ID to `t` using a `SetTopic(t)` in the last position if present.
 ///
 /// Requires some inner barrier to pass on the rest of the message.
-pub struct ExtractIdFromAppendedTopic<InnerBarrier>(PhantomData<InnerBarrier>);
-impl<InnerBarrier: ShouldExecute> ShouldExecute for ExtractIdFromAppendedTopic<InnerBarrier> {
+pub struct TrailingSetTopicAsId<InnerBarrier>(PhantomData<InnerBarrier>);
+impl<InnerBarrier: ShouldExecute> ShouldExecute for TrailingSetTopicAsId<InnerBarrier> {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		instructions: &mut [Instruction<Call>],
@@ -218,7 +218,7 @@ impl<InnerBarrier: ShouldExecute> ShouldExecute for ExtractIdFromAppendedTopic<I
 	) -> Result<(), ProcessMessageError> {
 		log::trace!(
 			target: "xcm::barriers",
-			"ExtractIdFromAppendedTopic origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			"TrailingSetTopicAsId origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
 			origin, instructions, max_weight, properties,
 		);
 		let until = if let Some(SetTopic(t)) = instructions.last() {
