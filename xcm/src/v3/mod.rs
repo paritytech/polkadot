@@ -349,8 +349,7 @@ pub struct XcmContext {
 impl XcmContext {
 	/// Constructor which sets the message ID to the supplied parameter and leaves the origin and
 	/// topic unset.
-	///
-	/// This will be deprecated soon. Use `with_message_id` instead.
+	#[deprecated = "Use `with_message_id` instead."]
 	pub fn with_message_hash(message_id: XcmHash) -> XcmContext {
 		XcmContext { origin: None, message_id, topic: None }
 	}
