@@ -28,7 +28,7 @@ pub use frame_support::{
 		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, GetDispatchInfo,
 		Parameter, PostDispatchInfo,
 	},
-	ensure, parameter_types,
+	ensure, match_types, parameter_types,
 	sp_runtime::DispatchErrorWithPostInfo,
 	traits::{ConstU32, Contains, Get, IsInVec},
 };
@@ -640,6 +640,28 @@ impl AssetExchange for TestAssetExchange {
 		EXCHANGE_ASSETS.with(|l| l.replace(have));
 		Ok(get)
 	}
+}
+
+match_types! {
+	pub type SiblingPrefix: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 1, interior: X1(Parachain(_)) }
+	};
+	pub type ChildPrefix: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+	pub type ParentPrefix: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 1, interior: Here }
+	};
+	pub type IsNativeAccountId32: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(AccountId32 { .. }) }
+	};
+	pub type SpecificParachain: impl Contains<MultiLocation> = {
+		MultiLocation {parents: 1, interior: X1(Parachain(1))}
+	};
+
+	pub type SpecificPlurality: impl Contains<MultiLocation> = {
+		MultiLocation {parents: 0, interior: X1(Plurality{id: BodyId::Treasury, part: BodyPart::Voice})}
+	};
 }
 
 pub type TestAliases = ();

@@ -29,56 +29,15 @@ where
 	}
 }
 
-pub struct AliasForeignAccountId32<Prefix, Target>(PhantomData<(Prefix, Target)>);
-impl<Prefix: Contains<MultiLocation>, Target: Contains<MultiLocation>>
-	ContainsPair<MultiLocation, MultiLocation> for AliasForeignAccountId32<Prefix, Target>
+pub struct AliasForeignAccountId32<Prefix>(PhantomData<Prefix>);
+impl<Prefix: Contains<MultiLocation>> ContainsPair<MultiLocation, MultiLocation>
+	for AliasForeignAccountId32<Prefix>
 {
 	fn contains(origin: &MultiLocation, target: &MultiLocation) -> bool {
 		if let (prefix, Some(account_id @ AccountId32 { .. })) = origin.split_last_interior() {
 			return Prefix::contains(&prefix) &&
-				Target::contains(target) &&
-				Some(&account_id) == target.last()
+				*target == MultiLocation { parents: 0, interior: X1(account_id) }
 		}
 		false
-	}
-}
-
-pub struct SiblingPrefix;
-impl Contains<MultiLocation> for SiblingPrefix {
-	fn contains(t: &MultiLocation) -> bool {
-		match *t {
-			MultiLocation { parents: 1, interior: X1(Parachain(_)) } => true,
-			_ => false,
-		}
-	}
-}
-
-pub struct ParentPrefix;
-impl Contains<MultiLocation> for ParentPrefix {
-	fn contains(t: &MultiLocation) -> bool {
-		match *t {
-			MultiLocation { parents: 1, interior: Here } => true,
-			_ => false,
-		}
-	}
-}
-
-pub struct ChildPrefix;
-impl Contains<MultiLocation> for ChildPrefix {
-	fn contains(t: &MultiLocation) -> bool {
-		match *t {
-			MultiLocation { parents: 0, interior: X1(Parachain(_)) } => true,
-			_ => false,
-		}
-	}
-}
-
-pub struct IsNativeAccountId32;
-impl Contains<MultiLocation> for IsNativeAccountId32 {
-	fn contains(t: &MultiLocation) -> bool {
-		match *t {
-			MultiLocation { parents: 0, interior: X1(AccountId32 { .. }) } => true,
-			_ => false,
-		}
 	}
 }

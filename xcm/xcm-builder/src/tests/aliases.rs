@@ -17,43 +17,63 @@
 use super::*;
 
 #[test]
-fn alias_sibling_account_should_work() {
+fn alias_foreign_account_sibling_prefix() {
 	// Accounts Differ
-	assert!(!AliasForeignAccountId32::<SiblingPrefix, IsNativeAccountId32>::contains(
+	assert!(!AliasForeignAccountId32::<SiblingPrefix>::contains(
 		&(Parent, Parachain(1), AccountId32 { network: None, id: [0; 32] }).into(),
 		&(AccountId32 { network: None, id: [1; 32] }).into()
 	));
 
-	assert!(AliasForeignAccountId32::<SiblingPrefix, IsNativeAccountId32>::contains(
+	assert!(AliasForeignAccountId32::<SiblingPrefix>::contains(
 		&(Parent, Parachain(1), AccountId32 { network: None, id: [0; 32] }).into(),
 		&(AccountId32 { network: None, id: [0; 32] }).into()
 	));
 }
 
 #[test]
-fn alias_child_account_should_work() {
+fn alias_foreign_account_child_prefix() {
 	// Accounts Differ
-	assert!(!AliasForeignAccountId32::<ChildPrefix, IsNativeAccountId32>::contains(
+	assert!(!AliasForeignAccountId32::<ChildPrefix>::contains(
 		&(Parachain(1), AccountId32 { network: None, id: [0; 32] }).into(),
 		&(AccountId32 { network: None, id: [1; 32] }).into()
 	));
 
-	assert!(AliasForeignAccountId32::<ChildPrefix, IsNativeAccountId32>::contains(
+	assert!(AliasForeignAccountId32::<ChildPrefix>::contains(
 		&(Parachain(1), AccountId32 { network: None, id: [0; 32] }).into(),
 		&(AccountId32 { network: None, id: [0; 32] }).into()
 	));
 }
 
 #[test]
-fn alias_parent_account_should_work() {
+fn alias_foreign_account_parent_prefix() {
 	// Accounts Differ
-	assert!(!AliasForeignAccountId32::<ParentPrefix, IsNativeAccountId32>::contains(
+	assert!(!AliasForeignAccountId32::<ParentPrefix>::contains(
 		&(Parent, AccountId32 { network: None, id: [0; 32] }).into(),
 		&(AccountId32 { network: None, id: [1; 32] }).into()
 	));
 
-	assert!(AliasForeignAccountId32::<ParentPrefix, IsNativeAccountId32>::contains(
+	assert!(AliasForeignAccountId32::<ParentPrefix>::contains(
 		&(Parent, AccountId32 { network: None, id: [0; 32] }).into(),
 		&(AccountId32 { network: None, id: [0; 32] }).into()
+	));
+}
+
+#[test]
+fn alias_case_should_work() {
+	// Wrong Origin
+	assert!(!AliasCase::<SpecificParachain, SpecificPlurality>::contains(
+		&(Parent, Parachain(2)).into(),
+		&(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }).into()
+	));
+
+	// Wrong BodyId
+	assert!(!AliasCase::<SpecificParachain, SpecificPlurality>::contains(
+		&(Parent, Parachain(1)).into(),
+		&(Plurality { id: BodyId::Administration, part: BodyPart::Voice }).into()
+	));
+
+	assert!(AliasCase::<SpecificParachain, SpecificPlurality>::contains(
+		&(Parent, Parachain(1)).into(),
+		&(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }).into()
 	));
 }
