@@ -25,7 +25,6 @@ pub mod worker;
 
 pub use cpu_time::ProcessTime;
 
-// TODO: Is this right?
 const LOG_TARGET: &str = "parachain::pvf::common";
 
 use std::mem;

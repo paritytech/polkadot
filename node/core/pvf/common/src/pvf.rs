@@ -74,13 +74,14 @@ impl PvfPrepData {
 		self.prep_timeout
 	}
 
-	/// Creates a structure for tests
+	/// Creates a structure for tests.
 	#[doc(hidden)]
 	pub fn from_discriminator_and_timeout(num: u32, timeout: Duration) -> Self {
 		let descriminator_buf = num.to_le_bytes().to_vec();
 		Self::from_code(descriminator_buf, ExecutorParams::default(), timeout)
 	}
 
+	/// Creates a structure for tests.
 	#[doc(hidden)]
 	pub fn from_discriminator(num: u32) -> Self {
 		Self::from_discriminator_and_timeout(num, crate::tests::TEST_PREPARATION_TIMEOUT)
