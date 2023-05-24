@@ -440,6 +440,8 @@ impl Initialized {
 				}
 
 				if !key_ownership_proofs.is_empty() {
+					// If we found a parent that we can use, stop searching.
+					// If one key ownership was resolved successfully, all of them should be.
 					debug_assert_eq!(key_ownership_proofs.len(), pending.keys.len());
 					break
 				}

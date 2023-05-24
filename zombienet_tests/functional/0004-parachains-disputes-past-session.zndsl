@@ -34,5 +34,4 @@ honest-validator-0: reports parachain_candidate_dispute_concluded{validity="inva
 honest-validator-0: reports parachain_candidate_dispute_concluded{validity="valid"} is 0
 
 # Check an unsigned extrinsic is submitted
-# TODO: how to match on all honest validator logs?
-honest-validator-0: log line contains "Successfully reported pending slash" within 180 seconds
+honest-validator: log line contains "Successfully reported pending slash" within 180 seconds
