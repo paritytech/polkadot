@@ -2272,7 +2272,7 @@ sp_api::impl_runtime_apis! {
 					Err(BenchmarkError::Skip)
 				}
 
-				fn alias_origin() -> Result<(MultiLocation, Junction), BenchmarkError> {
+				fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
 					// The XCM executor of Westend doesn't have a configured `Aliasers`
 					Err(BenchmarkError::Skip)
 				}
