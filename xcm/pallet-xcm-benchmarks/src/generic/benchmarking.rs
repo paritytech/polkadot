@@ -634,6 +634,19 @@ benchmarks! {
 		executor.bench_process(xcm)?;
 	}
 
+	origin_alias {
+		let (origin, target) = T::origin_alias().map_err(|_| BenchmarkError::Skip)?;
+
+		let mut executor = new_executor::<T>(origin);
+
+		let instruction = Instruction::AliasOrigin(target.clone());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert_eq!(executor.origin(), target);
+	}
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::generic::mock::new_test_ext(),
