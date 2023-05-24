@@ -82,7 +82,7 @@ use persisted_entries::{ApprovalEntry, BlockEntry, CandidateEntry};
 use time::{slot_number_to_tick, Clock, ClockExt, SystemClock, Tick};
 
 mod approval_checking;
-mod approval_db;
+pub mod approval_db;
 mod backend;
 mod criteria;
 mod import;
@@ -91,7 +91,7 @@ mod persisted_entries;
 mod time;
 
 use crate::{
-	approval_db::v1::{Config as DatabaseConfig, DbBackend},
+	approval_db::v2::{Config as DatabaseConfig, DbBackend},
 	backend::{Backend, OverlayedBackend},
 	criteria::InvalidAssignmentReason,
 };
@@ -112,7 +112,7 @@ const APPROVAL_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(1024) {
 
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const APPROVAL_DELAY: Tick = 2;
-const LOG_TARGET: &str = "parachain::approval-voting";
+pub(crate) const LOG_TARGET: &str = "parachain::approval-voting";
 
 /// Configuration for the approval voting subsystem
 #[derive(Debug, Clone)]
@@ -372,11 +372,11 @@ impl ApprovalVotingSubsystem {
 	/// Revert to the block corresponding to the specified `hash`.
 	/// The operation is not allowed for blocks older than the last finalized one.
 	pub fn revert_to(&self, hash: Hash) -> Result<(), SubsystemError> {
-		let config = approval_db::v1::Config {
+		let config = approval_db::v2::Config {
 			col_approval_data: self.db_config.col_approval_data,
 			col_session_data: self.db_config.col_session_data,
 		};
-		let mut backend = approval_db::v1::DbBackend::new(self.db.clone(), config);
+		let mut backend = approval_db::v2::DbBackend::new(self.db.clone(), config);
 		let mut overlay = OverlayedBackend::new(&backend);
 
 		ops::revert_to(&mut overlay, hash)?;

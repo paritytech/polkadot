@@ -56,7 +56,7 @@ use std::{
 };
 
 use super::{
-	approval_db::v1::StoredBlockRange,
+	approval_db::v2::StoredBlockRange,
 	backend::BackendWriteOp,
 	import::tests::{
 		garbage_vrf_signature, AllowedSlots, BabeEpoch, BabeEpochConfiguration,
@@ -116,7 +116,7 @@ fn make_sync_oracle(val: bool) -> (Box<dyn SyncOracle + Send>, TestSyncOracleHan
 
 #[cfg(test)]
 pub mod test_constants {
-	use crate::approval_db::v1::Config as DatabaseConfig;
+	use crate::approval_db::v2::Config as DatabaseConfig;
 	const DATA_COL: u32 = 0;
 	const SESSION_DATA_COL: u32 = 1;
 
@@ -290,6 +290,13 @@ impl Backend for TestStoreInner {
 		Ok(self.candidate_entries.get(candidate_hash).cloned())
 	}
 
+	fn load_candidate_entry_v1(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>> {
+		self.load_candidate_entry(candidate_hash)
+	}
+
 	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
 		Ok(self.blocks_at_height.get(height).cloned().unwrap_or_default())
 	}
@@ -361,6 +368,13 @@ impl Backend for TestStore {
 	) -> SubsystemResult<Option<CandidateEntry>> {
 		let store = self.store.lock();
 		store.load_candidate_entry(candidate_hash)
+	}
+
+	fn load_candidate_entry_v1(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>> {
+		self.load_candidate_entry(candidate_hash)
 	}
 
 	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
@@ -2271,7 +2285,7 @@ fn subsystem_validate_approvals_cache() {
 			let mut assignments = HashMap::new();
 			let _ = assignments.insert(
 				CoreIndex(0),
-				approval_db::v1::OurAssignment {
+				approval_db::v2::OurAssignment {
 					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
 						.into(),
 					assignment_bitfield: CoreIndex(0u32).into(),
@@ -2284,7 +2298,7 @@ fn subsystem_validate_approvals_cache() {
 
 			let _ = assignments.insert(
 				CoreIndex(0),
-				approval_db::v1::OurAssignment {
+				approval_db::v2::OurAssignment {
 					cert: garbage_assignment_cert_v2(AssignmentCertKindV2::RelayVRFModuloCompact {
 						core_bitfield: vec![CoreIndex(0), CoreIndex(1), CoreIndex(2)]
 							.try_into()
@@ -2508,7 +2522,7 @@ where
 			let mut assignments = HashMap::new();
 			let _ = assignments.insert(
 				CoreIndex(0),
-				approval_db::v1::OurAssignment {
+				approval_db::v2::OurAssignment {
 					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
 						.into(),
 					assignment_bitfield: CoreIndex(0).into(),

@@ -32,6 +32,7 @@ use sp_application_crypto::ByteArray;
 use merlin::Transcript;
 use schnorrkel::vrf::VRFInOut;
 
+use super::approval_db::v2::dummy_assignment_bitfield;
 use itertools::Itertools;
 use std::collections::{hash_map::Entry, HashMap};
 
@@ -73,10 +74,15 @@ impl OurAssignment {
 	pub(crate) fn assignment_bitfield(&self) -> &CoreBitfield {
 		&self.assignment_bitfield
 	}
+
+	// Needed for v1 to v2 db migration.
+	pub(crate) fn assignment_bitfield_mut(&mut self) -> &mut CoreBitfield {
+		&mut self.assignment_bitfield
+	}
 }
 
-impl From<crate::approval_db::v1::OurAssignment> for OurAssignment {
-	fn from(entry: crate::approval_db::v1::OurAssignment) -> Self {
+impl From<crate::approval_db::v2::OurAssignment> for OurAssignment {
+	fn from(entry: crate::approval_db::v2::OurAssignment) -> Self {
 		OurAssignment {
 			cert: entry.cert,
 			tranche: entry.tranche,
@@ -87,7 +93,7 @@ impl From<crate::approval_db::v1::OurAssignment> for OurAssignment {
 	}
 }
 
-impl From<OurAssignment> for crate::approval_db::v1::OurAssignment {
+impl From<OurAssignment> for crate::approval_db::v2::OurAssignment {
 	fn from(entry: OurAssignment) -> Self {
 		Self {
 			cert: entry.cert,
@@ -815,6 +821,22 @@ fn is_in_backing_group(
 	group: GroupIndex,
 ) -> bool {
 	validator_groups.get(group).map_or(false, |g| g.contains(&validator))
+}
+
+/// Migration helpers.
+impl From<crate::approval_db::v1::OurAssignment> for OurAssignment {
+	fn from(value: crate::approval_db::v1::OurAssignment) -> Self {
+		Self {
+			cert: value.cert.into(),
+			tranche: value.tranche,
+			validator_index: value.validator_index,
+			// Whether the assignment has been triggered already.
+			triggered: value.triggered,
+			// This is a dummy value, assignment bitfield will be set later.
+			// The migration sanity check will test for 1 single bit being set here.
+			assignment_bitfield: dummy_assignment_bitfield(),
+		}
+	}
 }
 
 #[cfg(test)]

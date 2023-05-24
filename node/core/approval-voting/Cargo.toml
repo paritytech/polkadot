@@ -30,6 +30,9 @@ sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "mast
 sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["full_crypto"] }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+# Needed for migration test helpers
+test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
+rand_core = "0.5.1"
 
 [dev-dependencies]
 async-trait = "0.1.57"

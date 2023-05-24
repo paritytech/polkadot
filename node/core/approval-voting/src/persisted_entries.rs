@@ -33,7 +33,7 @@ use sp_consensus_slots::Slot;
 use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice};
 use std::collections::BTreeMap;
 
-use crate::approval_db::v1::Bitfield;
+use crate::approval_db::v2::Bitfield;
 
 use super::{criteria::OurAssignment, time::Tick};
 
@@ -58,8 +58,8 @@ impl TrancheEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::TrancheEntry> for TrancheEntry {
-	fn from(entry: crate::approval_db::v1::TrancheEntry) -> Self {
+impl From<crate::approval_db::v2::TrancheEntry> for TrancheEntry {
+	fn from(entry: crate::approval_db::v2::TrancheEntry) -> Self {
 		TrancheEntry {
 			tranche: entry.tranche,
 			assignments: entry.assignments.into_iter().map(|(v, t)| (v, t.into())).collect(),
@@ -67,7 +67,7 @@ impl From<crate::approval_db::v1::TrancheEntry> for TrancheEntry {
 	}
 }
 
-impl From<TrancheEntry> for crate::approval_db::v1::TrancheEntry {
+impl From<TrancheEntry> for crate::approval_db::v2::TrancheEntry {
 	fn from(entry: TrancheEntry) -> Self {
 		Self {
 			tranche: entry.tranche,
@@ -113,6 +113,11 @@ impl ApprovalEntry {
 	// Access our assignment for this approval entry.
 	pub fn our_assignment(&self) -> Option<&OurAssignment> {
 		self.our_assignment.as_ref()
+	}
+
+	// Needed for v1 to v2 migration.
+	pub fn our_assignment_mut(&mut self) -> Option<&mut OurAssignment> {
+		self.our_assignment.as_mut()
 	}
 
 	// Note that our assignment is triggered. No-op if already triggered.
@@ -234,8 +239,8 @@ impl ApprovalEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
-	fn from(entry: crate::approval_db::v1::ApprovalEntry) -> Self {
+impl From<crate::approval_db::v2::ApprovalEntry> for ApprovalEntry {
+	fn from(entry: crate::approval_db::v2::ApprovalEntry) -> Self {
 		ApprovalEntry {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
 			backing_group: entry.backing_group,
@@ -247,7 +252,7 @@ impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
 	}
 }
 
-impl From<ApprovalEntry> for crate::approval_db::v1::ApprovalEntry {
+impl From<ApprovalEntry> for crate::approval_db::v2::ApprovalEntry {
 	fn from(entry: ApprovalEntry) -> Self {
 		Self {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
@@ -305,8 +310,8 @@ impl CandidateEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
-	fn from(entry: crate::approval_db::v1::CandidateEntry) -> Self {
+impl From<crate::approval_db::v2::CandidateEntry> for CandidateEntry {
+	fn from(entry: crate::approval_db::v2::CandidateEntry) -> Self {
 		CandidateEntry {
 			candidate: entry.candidate,
 			session: entry.session,
@@ -320,7 +325,7 @@ impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
 	}
 }
 
-impl From<CandidateEntry> for crate::approval_db::v1::CandidateEntry {
+impl From<CandidateEntry> for crate::approval_db::v2::CandidateEntry {
 	fn from(entry: CandidateEntry) -> Self {
 		Self {
 			candidate: entry.candidate,
@@ -429,8 +434,8 @@ impl BlockEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
-	fn from(entry: crate::approval_db::v1::BlockEntry) -> Self {
+impl From<crate::approval_db::v2::BlockEntry> for BlockEntry {
+	fn from(entry: crate::approval_db::v2::BlockEntry) -> Self {
 		BlockEntry {
 			block_hash: entry.block_hash,
 			parent_hash: entry.parent_hash,
@@ -445,7 +450,7 @@ impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
 	}
 }
 
-impl From<BlockEntry> for crate::approval_db::v1::BlockEntry {
+impl From<BlockEntry> for crate::approval_db::v2::BlockEntry {
 	fn from(entry: BlockEntry) -> Self {
 		Self {
 			block_hash: entry.block_hash,
@@ -457,6 +462,35 @@ impl From<BlockEntry> for crate::approval_db::v1::BlockEntry {
 			candidates: entry.candidates,
 			approved_bitfield: entry.approved_bitfield,
 			children: entry.children,
+		}
+	}
+}
+
+/// Migration helpers.
+impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
+	fn from(value: crate::approval_db::v1::CandidateEntry) -> Self {
+		Self {
+			approvals: value.approvals,
+			block_assignments: value
+				.block_assignments
+				.into_iter()
+				.map(|(h, ae)| (h, ae.into()))
+				.collect(),
+			candidate: value.candidate,
+			session: value.session,
+		}
+	}
+}
+
+impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
+	fn from(value: crate::approval_db::v1::ApprovalEntry) -> Self {
+		ApprovalEntry {
+			tranches: value.tranches.into_iter().map(|tranche| tranche.into()).collect(),
+			backing_group: value.backing_group,
+			our_assignment: value.our_assignment.map(|assignment| assignment.into()),
+			our_approval_sig: value.our_approval_sig,
+			assigned_validators: value.assignments,
+			approved: value.approved,
 		}
 	}
 }

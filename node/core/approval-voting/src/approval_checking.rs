@@ -472,7 +472,7 @@ mod tests {
 		}
 		.into();
 
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			assigned_validators: BitVec::default(),
 			our_assignment: None,
@@ -509,17 +509,17 @@ mod tests {
 			candidate.mark_approval(ValidatorIndex(i));
 		}
 
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: vec![
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 0,
 					assignments: (0..2).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 1,
 					assignments: (2..5).map(|i| (ValidatorIndex(i), 1.into())).collect(),
 				},
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 2,
 					assignments: (5..10).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
@@ -581,17 +581,17 @@ mod tests {
 			candidate.mark_approval(ValidatorIndex(i));
 		}
 
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: vec![
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 0,
 					assignments: (0..4).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 1,
 					assignments: (4..6).map(|i| (ValidatorIndex(i), 1.into())).collect(),
 				},
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 2,
 					assignments: (6..10).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
@@ -647,7 +647,7 @@ mod tests {
 		let no_show_duration = 10;
 		let needed_approvals = 4;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			assigned_validators: bitvec![u8, BitOrderLsb0; 0; 5],
 			our_assignment: None,
@@ -691,7 +691,7 @@ mod tests {
 		let no_show_duration = 10;
 		let needed_approvals = 4;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			assigned_validators: bitvec![u8, BitOrderLsb0; 0; 10],
 			our_assignment: None,
@@ -731,7 +731,7 @@ mod tests {
 		let no_show_duration = 10;
 		let needed_approvals = 4;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			assigned_validators: bitvec![u8, BitOrderLsb0; 0; 10],
 			our_assignment: None,
@@ -776,7 +776,7 @@ mod tests {
 		let needed_approvals = 4;
 		let n_validators = 8;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			assigned_validators: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
@@ -843,7 +843,7 @@ mod tests {
 		let needed_approvals = 4;
 		let n_validators = 8;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			assigned_validators: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
@@ -934,7 +934,7 @@ mod tests {
 		let needed_approvals = 4;
 		let n_validators = 8;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			assigned_validators: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
@@ -1041,10 +1041,10 @@ mod tests {
 			candidate.mark_approval(ValidatorIndex(i));
 		}
 
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: vec![
 				// Assignments with invalid validator indexes.
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 1,
 					assignments: (2..5).map(|i| (ValidatorIndex(i), 1.into())).collect(),
 				},
@@ -1094,7 +1094,7 @@ mod tests {
 		];
 
 		for test_tranche in test_tranches {
-			let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+			let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 				tranches: Vec::new(),
 				backing_group: GroupIndex(0),
 				our_assignment: None,

@@ -15,8 +15,6 @@
 
 #![cfg(feature = "full-node")]
 
-use kvdb::DBTransaction;
-
 use super::{columns, other_io_error, DatabaseKind, LOG_TARGET};
 use std::{
 	fs, io,
@@ -24,6 +22,9 @@ use std::{
 	str::FromStr,
 };
 
+use polkadot_node_core_approval_voting::approval_db::v2::{
+	migrate_approval_db_v1_to_v2, Config as ApprovalDbConfig,
+};
 type Version = u32;
 
 /// Version file name.
@@ -41,6 +42,8 @@ pub enum Error {
 	CorruptedVersionFile,
 	#[error("Parachains DB has a future version (expected {current:?}, found {got:?})")]
 	FutureVersion { current: Version, got: Version },
+	#[error("Parachain DB migration failed")]
+	MigrationFailed,
 }
 
 impl From<Error> for io::Error {
@@ -132,17 +135,49 @@ fn migrate_from_version_1_to_2(path: &Path, db_kind: DatabaseKind) -> Result<(),
 	})
 }
 
+// Migrade approval voting database. `OurAssignment` has been changed to support the v2 assignments.
+// As these are backwards compatible, we'll convert the old entries in the new format.
 fn migrate_from_version_2_to_3(path: &Path, db_kind: DatabaseKind) -> Result<(), Error> {
 	gum::info!(target: LOG_TARGET, "Migrating parachains db from version 2 to version 3 ...");
+	use polkadot_node_subsystem_util::database::{
+		kvdb_impl::DbAdapter as RocksDbAdapter, paritydb_impl::DbAdapter as ParityDbAdapter,
+	};
+	use std::sync::Arc;
 
-	match db_kind {
-		DatabaseKind::ParityDB => paritydb_migrate_from_version_2_to_3(path),
-		DatabaseKind::RocksDB => rocksdb_migrate_from_version_2_to_3(path),
-	}
-	.and_then(|result| {
-		gum::info!(target: LOG_TARGET, "Migration complete! ");
-		Ok(result)
-	})
+	let approval_db_config = ApprovalDbConfig {
+		col_approval_data: super::REAL_COLUMNS.col_approval_data,
+		col_session_data: super::REAL_COLUMNS.col_session_window_data,
+	};
+
+	let result = match db_kind {
+		DatabaseKind::ParityDB => {
+			let db = ParityDbAdapter::new(
+				parity_db::Db::open(&paritydb_version_2_config(path))
+					.map_err(|e| other_io_error(format!("Error opening db {:?}", e)))?,
+				super::columns::v2::ORDERED_COL,
+			);
+
+			migrate_approval_db_v1_to_v2(Arc::new(db), approval_db_config)
+				.map_err(|_| Error::MigrationFailed)?;
+		},
+		DatabaseKind::RocksDB => {
+			let db_path = path
+				.to_str()
+				.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
+			let db_cfg =
+				kvdb_rocksdb::DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
+			let db = RocksDbAdapter::new(
+				kvdb_rocksdb::Database::open(&db_cfg, db_path)?,
+				&super::columns::v2::ORDERED_COL,
+			);
+
+			migrate_approval_db_v1_to_v2(Arc::new(db), approval_db_config)
+				.map_err(|_| Error::MigrationFailed)?;
+		},
+	};
+
+	gum::info!(target: LOG_TARGET, "Migration complete! ");
+	Ok(result)
 }
 
 /// Migration from version 0 to version 1:
@@ -296,44 +331,10 @@ fn paritydb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
 	Ok(())
 }
 
-/// Migration from version 2 to version 3.
-/// Clears the approval voting db column which changed format and cannot be migrated.
-fn paritydb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
-	parity_db::clear_column(
-		path,
-		super::columns::v2::COL_APPROVAL_DATA.try_into().expect("Invalid column ID"),
-	)
-	.map_err(|e| other_io_error(format!("Error clearing column {:?}", e)))?;
-
-	Ok(())
-}
-
-/// Migration from version 2 to version 3.
-/// Clears the approval voting db column because `OurAssignment` changed format. Not all
-/// instances of it can be converted to new version so we need to wipe it clean.
-fn rocksdb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
-	use kvdb::DBOp;
-	use kvdb_rocksdb::{Database, DatabaseConfig};
-
-	let db_path = path
-		.to_str()
-		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
-	let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
-	let db = Database::open(&db_cfg, db_path)?;
-
-	// Wipe all entries in one operation.
-	let ops = vec![DBOp::DeletePrefix {
-		col: super::columns::v2::COL_APPROVAL_DATA,
-		prefix: kvdb::DBKey::from_slice(b""),
-	}];
-
-	let transaction = DBTransaction { ops };
-	db.write(transaction)?;
-	Ok(())
-}
 #[cfg(test)]
 mod tests {
 	use super::{columns::v2::*, *};
+	use polkadot_node_core_approval_voting::approval_db::v2::migrate_approval_db_v1_to_v2_fill_test_data;
 
 	#[test]
 	fn test_paritydb_migrate_0_to_1() {
@@ -468,5 +469,48 @@ mod tests {
 			db.get(COL_SESSION_WINDOW_DATA, b"1337").unwrap(),
 			Some("0xdeadb00b".as_bytes().to_vec())
 		);
+	}
+
+	#[test]
+	fn test_migrate_2_to_3() {
+		use kvdb_rocksdb::{Database, DatabaseConfig};
+		use polkadot_node_core_approval_voting::approval_db::v2::migrate_approval_db_v1_to_v2_sanity_check;
+		use polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter;
+
+		let approval_cfg = ApprovalDbConfig {
+			col_approval_data: crate::parachains_db::REAL_COLUMNS.col_approval_data,
+			col_session_data: crate::parachains_db::REAL_COLUMNS.col_session_window_data,
+		};
+
+		let db_dir = tempfile::tempdir().unwrap();
+		let db_path = db_dir.path().to_str().unwrap();
+		let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
+
+		// We need to properly set db version for upgrade to work.
+		fs::write(version_file_path(db_dir.path()), "2").expect("Failed to write DB version");
+		let expected_candidates = {
+			let db = Database::open(&db_cfg, db_path.clone()).unwrap();
+			assert_eq!(db.num_columns(), super::columns::v2::NUM_COLUMNS as u32);
+			let db = DbAdapter::new(db, columns::v2::ORDERED_COL);
+			// Fill the approval voting column with test data.
+			migrate_approval_db_v1_to_v2_fill_test_data(
+				std::sync::Arc::new(db),
+				approval_cfg.clone(),
+			)
+			.unwrap()
+		};
+
+		try_upgrade_db(&db_dir.path(), DatabaseKind::RocksDB).unwrap();
+
+		let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
+		let db = Database::open(&db_cfg, db_path).unwrap();
+		let db = DbAdapter::new(db, columns::v2::ORDERED_COL);
+
+		migrate_approval_db_v1_to_v2_sanity_check(
+			std::sync::Arc::new(db),
+			approval_cfg.clone(),
+			expected_candidates,
+		)
+		.unwrap();
 	}
 }
