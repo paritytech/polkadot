@@ -342,15 +342,12 @@ impl PolkadotTestNode {
 		let mut import_notification_stream = self.client.finality_notification_stream();
 		let mut blocks = HashSet::new();
 
-		Box::pin(async move {
-			while let Some(notification) = import_notification_stream.next().await {
-				blocks.insert(notification.hash);
-				if blocks.len() == count {
-					break
-				}
+		while let Some(notification) = import_notification_stream.next().await {
+			blocks.insert(notification.hash);
+			if blocks.len() == count {
+				break
 			}
-		})
-		.await;
+		}
 	}
 
 	/// Register the collator functionality in the overseer of this node.
