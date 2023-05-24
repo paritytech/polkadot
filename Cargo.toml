@@ -2,10 +2,6 @@
 name = "polkadot"
 path = "src/main.rs"
 
-[[bin]]
-name = "staking-miner"
-path = "utils/staking-miner/src/main.rs"
-
 [package]
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
