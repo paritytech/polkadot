@@ -19,7 +19,7 @@
 use crate::{generic, mock::*, *};
 use codec::Decode;
 use frame_support::{
-	parameter_types, match_types,
+	match_types, parameter_types,
 	traits::{Everything, OriginTrait},
 	weights::Weight,
 };
@@ -33,7 +33,7 @@ use xcm_builder::{
 		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
 		TestUniversalAliases,
 	},
-	AllowUnpaidExecutionFrom, AliasForeignAccountId32,
+	AliasForeignAccountId32, AllowUnpaidExecutionFrom,
 };
 use xcm_executor::traits::ConvertOrigin;
 
@@ -201,8 +201,9 @@ impl generic::Config for Test {
 	}
 
 	fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
-		let origin: MultiLocation = (Parachain(1), AccountId32 { network: None, id: [0;32] }).into();
-		let target: MultiLocation =  AccountId32 { network: None, id: [0;32] }.into();
+		let origin: MultiLocation =
+			(Parachain(1), AccountId32 { network: None, id: [0; 32] }).into();
+		let target: MultiLocation = AccountId32 { network: None, id: [0; 32] }.into();
 		Ok((origin, target))
 	}
 }
