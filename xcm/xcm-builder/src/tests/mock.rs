@@ -269,18 +269,19 @@ impl TransactAsset for TestAssetTransactor {
 }
 
 pub fn to_account(l: impl Into<MultiLocation>) -> Result<u64, MultiLocation> {
-	Ok(match l.into() {
+	let l = l.into();
+	Ok(match l.unpack() {
 		// Siblings at 2000+id
-		MultiLocation { parents: 1, interior: X1(Parachain(id)) } => 2000 + id as u64,
+		(1, [Parachain(id)]) => 2000 + *id as u64,
 		// Accounts are their number
-		MultiLocation { parents: 0, interior: X1(AccountIndex64 { index, .. }) } => index,
+		(0, [AccountIndex64 { index, .. }]) => *index,
 		// Children at 1000+id
-		MultiLocation { parents: 0, interior: X1(Parachain(id)) } => 1000 + id as u64,
+		(0, [Parachain(id)]) => 1000 + *id as u64,
 		// Self at 3000
-		MultiLocation { parents: 0, interior: Here } => 3000,
+		(0, []) => 3000,
 		// Parent at 3001
-		MultiLocation { parents: 1, interior: Here } => 3001,
-		l => {
+		(1, []) => 3001,
+		_ => {
 			// Is it a foreign-consensus?
 			let uni = ExecutorUniversalLocation::get();
 			if l.parents as usize != uni.len() {
@@ -302,15 +303,14 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 		kind: OriginKind,
 	) -> Result<TestOrigin, MultiLocation> {
 		use OriginKind::*;
-		match (kind, origin.into()) {
+		let origin = origin.into();
+		match (kind, origin.unpack()) {
 			(Superuser, _) => Ok(TestOrigin::Root),
-			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
-			(Native, MultiLocation { parents: 0, interior: X1(Parachain(id)) }) =>
-				Ok(TestOrigin::Parachain(id)),
-			(Native, MultiLocation { parents: 1, interior: Here }) => Ok(TestOrigin::Relay),
-			(Native, MultiLocation { parents: 0, interior: X1(AccountIndex64 { index, .. }) }) =>
-				Ok(TestOrigin::Signed(index)),
-			(_, origin) => Err(origin),
+			(SovereignAccount, _) => Ok(TestOrigin::Signed(to_account(origin)?)),
+			(Native, (0, [Parachain(id)])) => Ok(TestOrigin::Parachain(*id)),
+			(Native, (1, [])) => Ok(TestOrigin::Relay),
+			(Native, (0, [AccountIndex64 { index, .. }])) => Ok(TestOrigin::Signed(*index)),
+			_ => Err(origin),
 		}
 	}
 }

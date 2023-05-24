@@ -41,32 +41,31 @@ pub mod multilocation {
 					(0..=num_junctions).map(|_| format_ident!("Junction")).collect::<Vec<_>>();
 				let idents =
 					(0..=num_junctions).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
-				let variant = &format_ident!("X{}", num_junctions + 1);
 				let array_size = num_junctions + 1;
 
 				let mut from_tuple = quote! {
 					impl From<( #(#junctions,)* )> for MultiLocation {
 						fn from( ( #(#idents,)* ): ( #(#junctions,)* ) ) -> Self {
-							MultiLocation { parents: 0, interior: Junctions::#variant( #(#idents),* ) }
+							MultiLocation { parents: 0, interior: [#(#idents),*].into() }
 						}
 					}
 
 					impl From<(u8, #(#junctions),*)> for MultiLocation {
 						fn from( ( parents, #(#idents),* ): (u8, #(#junctions),* ) ) -> Self {
-							MultiLocation { parents, interior: Junctions::#variant( #(#idents),* ) }
+							MultiLocation { parents, interior: [#(#idents),*].into() }
 						}
 					}
 
 					impl From<(Ancestor, #(#junctions),*)> for MultiLocation {
 						fn from( ( Ancestor(parents), #(#idents),* ): (Ancestor, #(#junctions),* ) ) -> Self {
-							MultiLocation { parents, interior: Junctions::#variant( #(#idents),* ) }
+							MultiLocation { parents, interior: [#(#idents),*].into() }
 						}
 					}
 
 					impl From<[Junction; #array_size]> for MultiLocation {
 						fn from(j: [Junction; #array_size]) -> Self {
 							let [#(#idents),*] = j;
-							MultiLocation { parents: 0, interior: Junctions::#variant( #(#idents),* ) }
+							MultiLocation { parents: 0, interior: [#(#idents),*].into() }
 						}
 					}
 				};
@@ -80,7 +79,7 @@ pub mod multilocation {
 					quote! {
 						impl From<( #(#parents,)* #(#junctions),* )> for MultiLocation {
 							fn from( (#(#underscores,)* #(#idents),*): ( #(#parents,)* #(#junctions),* ) ) -> Self {
-								MultiLocation { parents: #cur_parents, interior: Junctions::#variant( #(#idents),* ) }
+								MultiLocation { parents: #cur_parents, interior: [#(#idents),*].into() }
 							}
 						}
 					}
@@ -139,7 +138,7 @@ pub mod multilocation {
 
 			impl From<Junction> for MultiLocation {
 				fn from(x: Junction) -> Self {
-					MultiLocation { parents: 0, interior: Junctions::X1(x) }
+					MultiLocation { parents: 0, interior: [x].into() }
 				}
 			}
 
@@ -159,10 +158,19 @@ pub mod multilocation {
 				let num_ancestors = cur_num + 1;
 				let variant = format_ident!("X{}", num_ancestors);
 				let idents = (0..=cur_num).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
+				let convert = idents
+					.iter()
+					.map(|ident| {
+						quote! { let #ident = core::convert::TryInto::try_into(#ident)?; }
+					})
+					.collect::<Vec<_>>();
 
 				quote! {
-					crate::v3::Junctions::#variant( #(#idents),* ) =>
-						#variant( #( core::convert::TryInto::try_into(#idents)? ),* ),
+					crate::v3::Junctions::#variant( junctions ) => {
+						let [#(#idents),*] = *junctions;
+						#(#convert);*
+						[#(#idents),*].into()
+					},
 				}
 			})
 			.collect::<TokenStream>();

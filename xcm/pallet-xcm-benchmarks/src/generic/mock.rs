@@ -177,7 +177,7 @@ impl generic::Config for Test {
 
 	fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
 		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
-		let ticket = MultiLocation { parents: 0, interior: X1(GeneralIndex(0)) };
+		let ticket = MultiLocation { parents: 0, interior: [GeneralIndex(0)].into() };
 		Ok((Default::default(), ticket, assets))
 	}
 

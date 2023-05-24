@@ -412,8 +412,8 @@ impl<T> Unwrappable for Option<T> {
 /// impl SendXcm for Sender2 {
 ///     type Ticket = ();
 ///     fn validate(destination: &mut Option<MultiLocation>, message: &mut Option<Xcm<()>>) -> SendResult<()> {
-///         match destination.as_ref().ok_or(SendError::MissingArgument)? {
-///             MultiLocation { parents: 0, interior: X2(j1, j2) } => Ok(((), MultiAssets::new())),
+///         match destination.as_ref().ok_or(SendError::MissingArgument)?.unpack() {
+///             (0, [_, _]) => Ok(((), MultiAssets::new())),
 ///             _ => Err(SendError::Unroutable),
 ///         }
 ///     }

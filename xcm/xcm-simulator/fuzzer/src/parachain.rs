@@ -237,7 +237,7 @@ pub mod mock_msg_queue {
 			let message_hash = xcm.using_encoded(sp_io::hashing::blake2_256);
 			let (result, event) = match Xcm::<T::RuntimeCall>::try_from(xcm) {
 				Ok(xcm) => {
-					let location = MultiLocation::new(1, X1(Parachain(sender.into())));
+					let location = MultiLocation::new(1, [Parachain(sender.into())]);
 					match T::XcmExecutor::execute_xcm(location, xcm, message_hash, max_weight) {
 						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
 						Outcome::Complete(w) => (Ok(w), Event::Success(Some(hash))),

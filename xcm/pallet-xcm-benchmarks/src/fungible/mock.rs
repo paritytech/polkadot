@@ -166,7 +166,7 @@ impl crate::Config for Test {
 	type AccountIdConverter = AccountIdConverter;
 	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
-			X1(AccountId32 { network: None, id: [0u8; 32] }).into();
+			[AccountId32 { network: None, id: [0u8; 32] }].into();
 
 		Ok(valid_destination)
 	}
@@ -182,14 +182,14 @@ pub type TrustedTeleporters = (xcm_builder::Case<TeleportConcreteFungible>,);
 
 parameter_types! {
 	pub const CheckingAccount: Option<(u64, MintLocation)> = Some((100, MintLocation::Local));
-	pub const ChildTeleporter: MultiLocation = Parachain(1000).into_location();
-	pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
+	pub ChildTeleporter: MultiLocation = Parachain(1000).into_location();
+	pub TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
 		ChildTeleporter::get(),
 		MultiAsset { id: Concrete(Here.into_location()), fun: Fungible(100) },
 	));
-	pub const TeleportConcreteFungible: (MultiAssetFilter, MultiLocation) =
+	pub TeleportConcreteFungible: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into_location()) }), ChildTeleporter::get());
-	pub const ReserveConcreteFungible: (MultiAssetFilter, MultiLocation) =
+	pub ReserveConcreteFungible: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into_location()) }), ChildTeleporter::get());
 }
 

@@ -277,12 +277,12 @@ fn query_response_elicits_handler() {
 
 	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
 		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
-			r.event,
+			&r.event,
 			TestNotifier(ResponseReceived(
-				MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { .. }) },
+				location,
 				q,
 				Response::ExecutionResult(None),
-			)) if q == query_id,
+			)) if *q == query_id && matches!(location.unpack(), (0, [Junction::AccountId32 { .. }])),
 		)));
 	});
 }

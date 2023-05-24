@@ -81,12 +81,11 @@ impl<ParaId: IsSystem + From<u32>, RuntimeOrigin: OriginTrait> ConvertOrigin<Run
 	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(target: "xcm::origin_conversion", "ChildSystemParachainAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
-		match (kind, origin) {
-			(
-				OriginKind::Superuser,
-				MultiLocation { parents: 0, interior: X1(Junction::Parachain(id)) },
-			) if ParaId::from(id).is_system() => Ok(RuntimeOrigin::root()),
-			(_, origin) => Err(origin),
+		match (kind, origin.unpack()) {
+			(OriginKind::Superuser, (0, [Junction::Parachain(id)]))
+				if ParaId::from(*id).is_system() =>
+				Ok(RuntimeOrigin::root()),
+			_ => Err(origin),
 		}
 	}
 }
@@ -107,12 +106,11 @@ impl<ParaId: IsSystem + From<u32>, RuntimeOrigin: OriginTrait> ConvertOrigin<Run
 			"SiblingSystemParachainAsSuperuser origin: {:?}, kind: {:?}",
 			origin, kind,
 		);
-		match (kind, origin) {
-			(
-				OriginKind::Superuser,
-				MultiLocation { parents: 1, interior: X1(Junction::Parachain(id)) },
-			) if ParaId::from(id).is_system() => Ok(RuntimeOrigin::root()),
-			(_, origin) => Err(origin),
+		match (kind, origin.unpack()) {
+			(OriginKind::Superuser, (1, [Junction::Parachain(id)]))
+				if ParaId::from(*id).is_system() =>
+				Ok(RuntimeOrigin::root()),
+			_ => Err(origin),
 		}
 	}
 }
@@ -129,12 +127,10 @@ impl<ParachainOrigin: From<u32>, RuntimeOrigin: From<ParachainOrigin>> ConvertOr
 	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(target: "xcm::origin_conversion", "ChildParachainAsNative origin: {:?}, kind: {:?}", origin, kind);
-		match (kind, origin) {
-			(
-				OriginKind::Native,
-				MultiLocation { parents: 0, interior: X1(Junction::Parachain(id)) },
-			) => Ok(RuntimeOrigin::from(ParachainOrigin::from(id))),
-			(_, origin) => Err(origin),
+		match (kind, origin.unpack()) {
+			(OriginKind::Native, (0, [Junction::Parachain(id)])) =>
+				Ok(RuntimeOrigin::from(ParachainOrigin::from(*id))),
+			_ => Err(origin),
 		}
 	}
 }
@@ -155,12 +151,10 @@ impl<ParachainOrigin: From<u32>, RuntimeOrigin: From<ParachainOrigin>> ConvertOr
 			"SiblingParachainAsNative origin: {:?}, kind: {:?}",
 			origin, kind,
 		);
-		match (kind, origin) {
-			(
-				OriginKind::Native,
-				MultiLocation { parents: 1, interior: X1(Junction::Parachain(id)) },
-			) => Ok(RuntimeOrigin::from(ParachainOrigin::from(id))),
-			(_, origin) => Err(origin),
+		match (kind, origin.unpack()) {
+			(OriginKind::Native, (1, [Junction::Parachain(id)])) =>
+				Ok(RuntimeOrigin::from(ParachainOrigin::from(*id))),
+			_ => Err(origin),
 		}
 	}
 }
@@ -202,13 +196,11 @@ where
 			"SignedAccountId32AsNative origin: {:?}, kind: {:?}",
 			origin, kind,
 		);
-		match (kind, origin) {
-			(
-				OriginKind::Native,
-				MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { id, network }) },
-			) if matches!(network, None) || network == Network::get() =>
-				Ok(RuntimeOrigin::signed(id.into())),
-			(_, origin) => Err(origin),
+		match (kind, origin.unpack()) {
+			(OriginKind::Native, (0, [Junction::AccountId32 { id, network }]))
+				if matches!(network, None) || *network == Network::get() =>
+				Ok(RuntimeOrigin::signed((*id).into())),
+			_ => Err(origin),
 		}
 	}
 }
@@ -231,13 +223,11 @@ where
 			"SignedAccountKey20AsNative origin: {:?}, kind: {:?}",
 			origin, kind,
 		);
-		match (kind, origin) {
-			(
-				OriginKind::Native,
-				MultiLocation { parents: 0, interior: X1(Junction::AccountKey20 { key, network }) },
-			) if (matches!(network, None) || network == Network::get()) =>
-				Ok(RuntimeOrigin::signed(key.into())),
-			(_, origin) => Err(origin),
+		match (kind, origin.unpack()) {
+			(OriginKind::Native, (0, [Junction::AccountKey20 { key, network }]))
+				if (matches!(network, None) || *network == Network::get()) =>
+				Ok(RuntimeOrigin::signed((*key).into())),
+			_ => Err(origin),
 		}
 	}
 }

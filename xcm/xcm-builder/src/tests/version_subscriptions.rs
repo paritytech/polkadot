@@ -53,7 +53,7 @@ fn simple_version_subscriptions_should_work() {
 fn version_subscription_instruction_should_work() {
 	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![
-		DescendOrigin(X1(AccountIndex64 { index: 1, network: None })),
+		DescendOrigin([AccountIndex64 { index: 1, network: None }].into()),
 		SubscribeVersion { query_id: 42, max_response_weight: Weight::from_parts(5000, 5000) },
 	]);
 	let hash = fake_message_hash(&message);
@@ -118,7 +118,7 @@ fn version_unsubscription_instruction_should_work() {
 
 	// Not allowed to do it when origin has been changed.
 	let message = Xcm::<TestCall>(vec![
-		DescendOrigin(X1(AccountIndex64 { index: 1, network: None })),
+		DescendOrigin([AccountIndex64 { index: 1, network: None }].into()),
 		UnsubscribeVersion,
 	]);
 	let hash = fake_message_hash(&message);

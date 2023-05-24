@@ -147,9 +147,9 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// struct BumpParaId;
 /// impl ConvertOrigin<u32> for BumpParaId {
 /// 	fn convert_origin(origin: impl Into<MultiLocation>, _: OriginKind) -> Result<u32, MultiLocation> {
-/// 		match origin.into() {
-/// 			MultiLocation { parents: 0, interior: Junctions::X1(Junction::Parachain(id)) } => {
-/// 				Err(Junctions::X1(Junction::Parachain(id + 1)).into())
+/// 		match origin.into().unpack() {
+/// 			(0, [Junction::Parachain(id)]) => {
+/// 				Err([Junction::Parachain(id + 1)].into())
 /// 			}
 /// 			_ => unreachable!()
 /// 		}
@@ -159,16 +159,17 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// struct AcceptPara7;
 /// impl ConvertOrigin<u32> for AcceptPara7 {
 /// 	fn convert_origin(origin: impl Into<MultiLocation>, _: OriginKind) -> Result<u32, MultiLocation> {
-/// 		match origin.into() {
-/// 			MultiLocation { parents: 0, interior: Junctions::X1(Junction::Parachain(id)) } if id == 7 => {
+/// 		let origin = origin.into();
+/// 		match origin.unpack() {
+/// 			(0, [Junction::Parachain(id)]) if *id == 7 => {
 /// 				Ok(7)
 /// 			}
-/// 			o => Err(o)
+/// 			_ => Err(origin)
 /// 		}
 /// 	}
 /// }
 /// # fn main() {
-/// let origin: MultiLocation = Junctions::X1(Junction::Parachain(6)).into();
+/// let origin: MultiLocation = [Junction::Parachain(6)].into();
 /// assert!(
 /// 	<(BumpParaId, AcceptPara7) as ConvertOrigin<u32>>::convert_origin(origin, OriginKind::Native)
 /// 		.is_ok()

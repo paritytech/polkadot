@@ -25,9 +25,7 @@ use polkadot_parachain::primitives::IsSystem;
 use sp_std::{cell::Cell, marker::PhantomData, ops::ControlFlow, result::Result};
 use xcm::latest::{
 	Instruction::{self, *},
-	InteriorMultiLocation, Junction, Junctions,
-	Junctions::X1,
-	MultiLocation, Weight,
+	InteriorMultiLocation, Junction, Junctions, MultiLocation, Weight,
 	WeightLimit::*,
 };
 use xcm_executor::traits::{CheckSuspension, OnResponse, ShouldExecute};
@@ -173,7 +171,7 @@ impl<
 			"WithComputedOrigin origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, max_weight, weight_credit,
 		);
-		let mut actual_origin = *origin;
+		let mut actual_origin = origin.clone();
 		let skipped = Cell::new(0usize);
 		// NOTE: We do not check the validity of `UniversalOrigin` here, meaning that a malicious
 		// origin could place a `UniversalOrigin` in order to spoof some location which gets free
@@ -188,10 +186,11 @@ impl<
 						// Note the origin is *relative to local consensus*! So we need to escape
 						// local consensus with the `parents` before diving in into the
 						// `universal_location`.
-						actual_origin = X1(*new_global).relative_to(&LocalUniversal::get());
+						actual_origin =
+							Junctions::from(*new_global).relative_to(&LocalUniversal::get());
 					},
 					DescendOrigin(j) => {
-						let Ok(_) = actual_origin.append_with(*j) else {
+						let Ok(_) = actual_origin.append_with(j.clone()) else {
 							return Err(ProcessMessageError::Unsupported)
 						};
 					},
@@ -286,8 +285,8 @@ pub struct IsChildSystemParachain<ParaId>(PhantomData<ParaId>);
 impl<ParaId: IsSystem + From<u32>> Contains<MultiLocation> for IsChildSystemParachain<ParaId> {
 	fn contains(l: &MultiLocation) -> bool {
 		matches!(
-			l.interior(),
-			Junctions::X1(Junction::Parachain(id))
+			l.interior().as_slice(),
+			[Junction::Parachain(id)]
 				if ParaId::from(*id).is_system() && l.parent_count() == 0,
 		)
 	}

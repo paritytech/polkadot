@@ -28,11 +28,11 @@ fn basic_setup_works() {
 	assert_eq!(to_account((Parent, Parachain(1))), Ok(2001));
 	assert_eq!(to_account((Parent, Parachain(50))), Ok(2050));
 	assert_eq!(
-		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 1, network: None }))),
+		to_account(MultiLocation::new(0, [AccountIndex64 { index: 1, network: None }])),
 		Ok(1),
 	);
 	assert_eq!(
-		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 42, network: None }))),
+		to_account(MultiLocation::new(0, [AccountIndex64 { index: 42, network: None }])),
 		Ok(42),
 	);
 	assert_eq!(to_account(Here), Ok(3000));
@@ -65,7 +65,7 @@ fn code_registers_should_work() {
 		SetErrorHandler(Xcm(vec![
 			TransferAsset {
 				assets: (Here, 2u128).into(),
-				beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
+				beneficiary: [(AccountIndex64 { index: 3, network: None })].into(),
 			},
 			// It was handled fine.
 			ClearError,
@@ -73,17 +73,17 @@ fn code_registers_should_work() {
 		// Set the appendix - this will always fire.
 		SetAppendix(Xcm(vec![TransferAsset {
 			assets: (Here, 4u128).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
+			beneficiary: [(AccountIndex64 { index: 3, network: None })].into(),
 		}])),
 		// First xfer always works ok
 		TransferAsset {
 			assets: (Here, 1u128).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
+			beneficiary: [(AccountIndex64 { index: 3, network: None })].into(),
 		},
 		// Second xfer results in error on the second message - our error handler will fire.
 		TransferAsset {
 			assets: (Here, 8u128).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
+			beneficiary: [(AccountIndex64 { index: 3, network: None })].into(),
 		},
 	]);
 	// Weight limit of 70 is needed.

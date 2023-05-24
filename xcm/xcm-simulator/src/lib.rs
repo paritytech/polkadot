@@ -318,8 +318,8 @@ macro_rules! decl_test_network {
 
 			while let Some((para_id, destination, message)) = $crate::PARA_MESSAGE_BUS.with(
 				|b| b.borrow_mut().pop_front()) {
-				match destination.interior() {
-					$crate::Junctions::Here if destination.parent_count() == 1 => {
+				match destination.unpack() {
+					(1, []) => {
 						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
 						let mut _id = [0; 32];
 						let r = <$relay_chain>::process_message(
@@ -336,7 +336,7 @@ macro_rules! decl_test_network {
 						}
 					},
 					$(
-						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 1 => {
+						(1, [$crate::Parachain(id)]) if *id == $para_id => {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Xcmp);
 							let messages = vec![(para_id, 1, &encoded[..])];
 							let _weight = <$parachain>::handle_xcmp_messages(
@@ -360,9 +360,9 @@ macro_rules! decl_test_network {
 
 			while let Some((destination, message)) = $crate::RELAY_MESSAGE_BUS.with(
 				|b| b.borrow_mut().pop_front()) {
-				match destination.interior() {
+				match destination.unpack() {
 					$(
-						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 0 => {
+						(0, [$crate::Parachain(id)]) if *id == $para_id => {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
 							// NOTE: RelayChainBlockNumber is hard-coded to 1
 							let messages = vec![(1, encoded)];
@@ -390,10 +390,10 @@ macro_rules! decl_test_network {
 				use $crate::XcmpMessageHandlerT;
 
 				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
-				match (d.interior(), d.parent_count()) {
-					($crate::Junctions::Here, 1) => {},
+				match d.unpack() {
+					(1, []) => {},
 					$(
-						($crate::X1($crate::Parachain(id)), 1) if id == &$para_id => {}
+						(1, [$crate::Parachain(id)]) if id == &$para_id => {}
 					)*
 					_ => {
 						*destination = Some(d);
@@ -423,9 +423,9 @@ macro_rules! decl_test_network {
 				use $crate::DmpMessageHandlerT;
 
 				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
-				match (d.interior(), d.parent_count()) {
+				match d.unpack() {
 					$(
-						($crate::X1($crate::Parachain(id)), 0) if id == &$para_id => {},
+						(0, [$crate::Parachain(id)]) if id == &$para_id => {},
 					)*
 					_ => {
 						*destination = Some(d);

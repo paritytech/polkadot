@@ -177,7 +177,7 @@ pub mod prelude {
 			Instruction::*,
 			InteriorMultiLocation,
 			Junction::{self, *},
-			Junctions::{self, *},
+			Junctions::{self, Here},
 			MaybeErrorCode, MultiAsset,
 			MultiAssetFilter::{self, *},
 			MultiAssets, MultiLocation,
@@ -895,7 +895,7 @@ pub enum Instruction<Call> {
 	///
 	/// As an example, to export a message for execution on Statemine (parachain #1000 in the
 	/// Kusama network), you would call with `network: NetworkId::Kusama` and
-	/// `destination: X1(Parachain(1000))`. Alternatively, to export a message for execution on
+	/// `destination: [Parachain(1000)].into()`. Alternatively, to export a message for execution on
 	/// Polkadot, you would call with `network: NetworkId:: Polkadot` and `destination: Here`.
 	///
 	/// Kind: *Instruction*

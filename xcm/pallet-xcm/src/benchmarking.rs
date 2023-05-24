@@ -111,7 +111,7 @@ benchmarks! {
 		let loc = T::ReachableDest::get().ok_or(
 			BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)),
 		)?;
-		let versioned_loc: VersionedMultiLocation = loc.into();
+		let versioned_loc: VersionedMultiLocation = loc.clone().into();
 		let _ = Pallet::<T>::request_version_notify(loc);
 	}: _(RawOrigin::Root, Box::new(versioned_loc))
 

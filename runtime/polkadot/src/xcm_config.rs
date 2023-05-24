@@ -22,7 +22,7 @@ use super::{
 	TransactionByteFee, WeightToFee, XcmPallet,
 };
 use frame_support::{
-	match_types, parameter_types,
+	parameter_types,
 	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
@@ -56,7 +56,7 @@ parameter_types! {
 	/// The Polkadot network ID. This is named.
 	pub const ThisNetwork: NetworkId = NetworkId::Polkadot;
 	/// Our location in the universe of consensus systems.
-	pub const UniversalLocation: InteriorMultiLocation = X1(GlobalConsensus(ThisNetwork::get()));
+	pub UniversalLocation: InteriorMultiLocation = [GlobalConsensus(ThisNetwork::get())].into();
 	/// The Checking Account, which holds any native assets that have been teleported out and not back in (yet).
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 	/// The Checking Account along with the indication that the local chain is able to mint tokens.
@@ -134,9 +134,9 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Dot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(STATEMINT_ID).into_location());
-	pub const CollectivesLocation: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
-	pub const DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), CollectivesLocation::get());
+	pub DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(STATEMINT_ID).into_location());
+	pub CollectivesLocation: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
+	pub DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), CollectivesLocation::get());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
@@ -144,14 +144,21 @@ parameter_types! {
 pub type TrustedTeleporters =
 	(xcm_builder::Case<DotForStatemint>, xcm_builder::Case<DotForCollectives>);
 
-match_types! {
-	pub type OnlyParachains: impl Contains<MultiLocation> = {
-		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
-	};
-	pub type CollectivesOrFellows: impl Contains<MultiLocation> = {
-		MultiLocation { parents: 0, interior: X1(Parachain(COLLECTIVES_ID)) } |
-		MultiLocation { parents: 0, interior: X2(Parachain(COLLECTIVES_ID), Plurality { id: BodyId::Technical, .. }) }
-	};
+pub struct OnlyParachains;
+impl Contains<MultiLocation> for OnlyParachains {
+	fn contains(loc: &MultiLocation) -> bool {
+		matches!(loc.unpack(), (0, [Parachain(_)]))
+	}
+}
+
+pub struct CollectivesOrFellows;
+impl Contains<MultiLocation> for CollectivesOrFellows {
+	fn contains(loc: &MultiLocation) -> bool {
+		matches!(loc.unpack(), |(0, [Parachain(COLLECTIVES_ID)])| (
+			0,
+			[Parachain(COLLECTIVES_ID), Plurality { id: BodyId::Technical, .. }]
+		))
+	}
 }
 
 /// The barriers one of which must be passed for an XCM message to be executed.

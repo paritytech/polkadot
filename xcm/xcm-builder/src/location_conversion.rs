@@ -73,33 +73,25 @@ impl<AccountId: From<[u8; 32]> + Clone> Convert<MultiLocation, AccountId>
 	for ForeignChainAliasAccount<AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		let entropy = match location.borrow() {
+		let entropy = match location.borrow().unpack() {
 			// Used on the relay chain for sending paras that use 32 byte accounts
-			MultiLocation {
-				parents: 0,
-				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_32(para_id, id, 0),
+			(0, [Parachain(para_id), AccountId32 { id, .. }]) =>
+				ForeignChainAliasAccount::<AccountId>::from_para_32(para_id, id, 0),
 
 			// Used on the relay chain for sending paras that use 20 byte accounts
-			MultiLocation {
-				parents: 0,
-				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_20(para_id, key, 0),
+			(0, [Parachain(para_id), AccountKey20 { key, .. }]) =>
+				ForeignChainAliasAccount::<AccountId>::from_para_20(para_id, key, 0),
 
 			// Used on para-chain for sending paras that use 32 byte accounts
-			MultiLocation {
-				parents: 1,
-				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_32(para_id, id, 1),
+			(1, [Parachain(para_id), AccountId32 { id, .. }]) =>
+				ForeignChainAliasAccount::<AccountId>::from_para_32(para_id, id, 1),
 
 			// Used on para-chain for sending paras that use 20 byte accounts
-			MultiLocation {
-				parents: 1,
-				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_20(para_id, key, 1),
+			(1, [Parachain(para_id), AccountKey20 { key, .. }]) =>
+				ForeignChainAliasAccount::<AccountId>::from_para_20(para_id, key, 1),
 
 			// Used on para-chain for sending from the relay chain
-			MultiLocation { parents: 1, interior: X1(AccountId32 { id, .. }) } =>
+			(1, [AccountId32 { id, .. }]) =>
 				ForeignChainAliasAccount::<AccountId>::from_relay_32(id, 1),
 
 			// No other conversions provided
@@ -174,9 +166,8 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 	Convert<MultiLocation, AccountId> for ChildParachainConvertsVia<ParaId, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		match location.borrow() {
-			MultiLocation { parents: 0, interior: X1(Parachain(id)) } =>
-				Ok(ParaId::from(*id).into_account_truncating()),
+		match location.borrow().unpack() {
+			(0, [Parachain(id)]) => Ok(ParaId::from(*id).into_account_truncating()),
 			_ => Err(()),
 		}
 	}
@@ -195,16 +186,15 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 	Convert<MultiLocation, AccountId> for SiblingParachainConvertsVia<ParaId, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		match location.borrow() {
-			MultiLocation { parents: 1, interior: X1(Parachain(id)) } =>
-				Ok(ParaId::from(*id).into_account_truncating()),
+		match location.borrow().unpack() {
+			(1, [Parachain(id)]) => Ok(ParaId::from(*id).into_account_truncating()),
 			_ => Err(()),
 		}
 	}
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if let Some(id) = ParaId::try_from_account(who.borrow()) {
-			Ok(MultiLocation::new(1, X1(Parachain(id.into()))))
+			Ok(MultiLocation::new(1, [Parachain(id.into())]))
 		} else {
 			Err(())
 		}
@@ -217,14 +207,12 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]>
 	Convert<MultiLocation, AccountId> for AccountId32Aliases<Network, AccountId>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		let id = match location {
-			MultiLocation { parents: 0, interior: X1(AccountId32 { id, network: None }) } => id,
-			MultiLocation { parents: 0, interior: X1(AccountId32 { id, network }) }
-				if network == Network::get() =>
-				id,
+		let id = match location.unpack() {
+			(0, [AccountId32 { id, network: None }]) => id,
+			(0, [AccountId32 { id, network }]) if *network == Network::get() => id,
 			_ => return Err(location),
 		};
-		Ok(id.into())
+		Ok((*id).into())
 	}
 
 	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
@@ -237,14 +225,12 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 	Convert<MultiLocation, AccountId> for AccountKey20Aliases<Network, AccountId>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		let key = match location {
-			MultiLocation { parents: 0, interior: X1(AccountKey20 { key, network: None }) } => key,
-			MultiLocation { parents: 0, interior: X1(AccountKey20 { key, network }) }
-				if network == Network::get() =>
-				key,
+		let key = match location.unpack() {
+			(0, [AccountKey20 { key, network: None }]) => key,
+			(0, [AccountKey20 { key, network }]) if *network == Network::get() => key,
 			_ => return Err(location),
 		};
-		Ok(key.into())
+		Ok((*key).into())
 	}
 
 	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
@@ -335,12 +321,12 @@ mod tests {
 	#[test]
 	fn inverter_works_in_tree() {
 		parameter_types! {
-			pub UniversalLocation: InteriorMultiLocation = X3(Parachain(1), account20(), account20());
+			pub UniversalLocation: InteriorMultiLocation = [Parachain(1), account20(), account20()].into();
 		}
 
-		let input = MultiLocation::new(3, X2(Parachain(2), account32()));
+		let input = MultiLocation::new(3, [Parachain(2), account32()]);
 		let inverted = UniversalLocation::get().invert_target(&input).unwrap();
-		assert_eq!(inverted, MultiLocation::new(2, X3(Parachain(1), account20(), account20())));
+		assert_eq!(inverted, MultiLocation::new(2, [Parachain(1), account20(), account20()]));
 	}
 
 	// Network Topology
@@ -350,12 +336,12 @@ mod tests {
 	#[test]
 	fn inverter_uses_context_as_inverted_location() {
 		parameter_types! {
-			pub UniversalLocation: InteriorMultiLocation = X2(account20(), account20());
+			pub UniversalLocation: InteriorMultiLocation = [account20(), account20()].into();
 		}
 
 		let input = MultiLocation::grandparent();
 		let inverted = UniversalLocation::get().invert_target(&input).unwrap();
-		assert_eq!(inverted, X2(account20(), account20()).into());
+		assert_eq!(inverted, [account20(), account20()].into());
 	}
 
 	// Network Topology
@@ -379,7 +365,7 @@ mod tests {
 			pub UniversalLocation: InteriorMultiLocation = Here;
 		}
 
-		let input = MultiLocation { parents: 99, interior: X1(Parachain(88)) };
+		let input = MultiLocation { parents: 99, interior: [Parachain(88)].into() };
 		let inverted = UniversalLocation::get().invert_target(&input);
 		assert_eq!(inverted, Err(()));
 	}
@@ -494,7 +480,7 @@ mod tests {
 	fn remote_account_convert_on_para_sending_para_32() {
 		let mul = MultiLocation {
 			parents: 1,
-			interior: X2(Parachain(1), AccountId32 { network: None, id: [0u8; 32] }),
+			interior: [Parachain(1), AccountId32 { network: None, id: [0u8; 32] }].into(),
 		};
 		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
@@ -508,17 +494,18 @@ mod tests {
 
 		let mul = MultiLocation {
 			parents: 1,
-			interior: X2(
+			interior: [
 				Parachain(1),
 				AccountId32 { network: Some(NetworkId::Polkadot), id: [0u8; 32] },
-			),
+			]
+			.into(),
 		};
 
 		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 1,
-			interior: X2(Parachain(2), AccountId32 { network: None, id: [0u8; 32] }),
+			interior: [Parachain(2), AccountId32 { network: None, id: [0u8; 32] }].into(),
 		};
 		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
@@ -537,7 +524,7 @@ mod tests {
 	fn remote_account_convert_on_para_sending_para_20() {
 		let mul = MultiLocation {
 			parents: 1,
-			interior: X2(Parachain(1), AccountKey20 { network: None, key: [0u8; 20] }),
+			interior: [Parachain(1), AccountKey20 { network: None, key: [0u8; 20] }].into(),
 		};
 		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
@@ -551,17 +538,18 @@ mod tests {
 
 		let mul = MultiLocation {
 			parents: 1,
-			interior: X2(
+			interior: [
 				Parachain(1),
 				AccountKey20 { network: Some(NetworkId::Polkadot), key: [0u8; 20] },
-			),
+			]
+			.into(),
 		};
 
 		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 1,
-			interior: X2(Parachain(2), AccountKey20 { network: None, key: [0u8; 20] }),
+			interior: [Parachain(2), AccountKey20 { network: None, key: [0u8; 20] }].into(),
 		};
 		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
@@ -580,7 +568,7 @@ mod tests {
 	fn remote_account_convert_on_para_sending_relay() {
 		let mul = MultiLocation {
 			parents: 1,
-			interior: X1(AccountId32 { network: None, id: [0u8; 32] }),
+			interior: [AccountId32 { network: None, id: [0u8; 32] }].into(),
 		};
 		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
@@ -594,14 +582,14 @@ mod tests {
 
 		let mul = MultiLocation {
 			parents: 1,
-			interior: X1(AccountId32 { network: Some(NetworkId::Polkadot), id: [0u8; 32] }),
+			interior: [AccountId32 { network: Some(NetworkId::Polkadot), id: [0u8; 32] }].into(),
 		};
 
 		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 1,
-			interior: X1(AccountId32 { network: None, id: [1u8; 32] }),
+			interior: [AccountId32 { network: None, id: [1u8; 32] }].into(),
 		};
 		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
@@ -620,7 +608,7 @@ mod tests {
 	fn remote_account_convert_on_relay_sending_para_20() {
 		let mul = MultiLocation {
 			parents: 0,
-			interior: X2(Parachain(1), AccountKey20 { network: None, key: [0u8; 20] }),
+			interior: [Parachain(1), AccountKey20 { network: None, key: [0u8; 20] }].into(),
 		};
 		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
@@ -634,7 +622,7 @@ mod tests {
 
 		let mul = MultiLocation {
 			parents: 0,
-			interior: X2(Parachain(2), AccountKey20 { network: None, key: [0u8; 20] }),
+			interior: [Parachain(2), AccountKey20 { network: None, key: [0u8; 20] }].into(),
 		};
 		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
@@ -653,7 +641,7 @@ mod tests {
 	fn remote_account_convert_on_relay_sending_para_32() {
 		let mul = MultiLocation {
 			parents: 0,
-			interior: X2(Parachain(1), AccountId32 { network: None, id: [0u8; 32] }),
+			interior: [Parachain(1), AccountId32 { network: None, id: [0u8; 32] }].into(),
 		};
 		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
@@ -667,17 +655,18 @@ mod tests {
 
 		let mul = MultiLocation {
 			parents: 0,
-			interior: X2(
+			interior: [
 				Parachain(1),
 				AccountId32 { network: Some(NetworkId::Polkadot), id: [0u8; 32] },
-			),
+			]
+			.into(),
 		};
 
 		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 0,
-			interior: X2(Parachain(2), AccountId32 { network: None, id: [0u8; 32] }),
+			interior: [Parachain(2), AccountId32 { network: None, id: [0u8; 32] }].into(),
 		};
 		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
@@ -696,7 +685,7 @@ mod tests {
 	fn remote_account_fails_with_bad_multilocation() {
 		let mul = MultiLocation {
 			parents: 1,
-			interior: X1(AccountKey20 { network: None, key: [0u8; 20] }),
+			interior: [AccountKey20 { network: None, key: [0u8; 20] }].into(),
 		};
 		assert!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).is_err());
 	}
