@@ -667,7 +667,8 @@ async fn start_prune_all<Context>(
 			let result = prune_all(&db, &config, time_now);
 
 			if let Err(err) = pruning_result_tx.send(result).await {
-				gum::error!(target: LOG_TARGET, ?err, "Failed to send prune_all result",);
+				// This usually means that the node is closing down, log it just in case
+				gum::debug!(target: LOG_TARGET, ?err, "Failed to send prune_all result",);
 			}
 		}),
 	)?;
