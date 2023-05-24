@@ -888,7 +888,8 @@ pub enum CollatorRestrictionKind {
 }
 
 /// An entry tracking a paras
-#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct ParasEntry {
 	/// The `Assignment`
 	pub assignment: Assignment,
@@ -920,8 +921,8 @@ impl ParasEntry {
 }
 
 /// What is occupying a specific availability core.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum CoreOccupied {
 	/// The core is not occupied.
 	Free,
@@ -1028,8 +1029,8 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	// NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
 	/// If this core is freed by availability, this is the assignment that is next up on this
@@ -1063,8 +1064,8 @@ impl<H, N> OccupiedCore<H, N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ScheduledCore {
 	// TODO: Is the same as Assignment
 	/// The ID of a para scheduled.
@@ -1074,8 +1075,8 @@ pub struct ScheduledCore {
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = 0)]
