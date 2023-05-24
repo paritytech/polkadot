@@ -635,7 +635,7 @@ benchmarks! {
 	}
 
 	origin_alias {
-		let (origin, target) = T::origin_alias().map_err(|_| BenchmarkError::Skip)?;
+		let (origin, target) = T::alias_origin().map_err(|_| BenchmarkError::Skip)?;
 
 		let mut executor = new_executor::<T>(origin);
 
@@ -644,7 +644,7 @@ benchmarks! {
 	}: {
 		executor.bench_process(xcm)?;
 	} verify {
-		assert_eq!(executor.origin(), target);
+		assert_eq!(executor.origin(), &Some(target));
 	}
 
 	impl_benchmark_test_suite!(
