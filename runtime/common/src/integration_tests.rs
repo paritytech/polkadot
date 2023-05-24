@@ -205,6 +205,7 @@ impl paras::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
+	type QueueFootprinter = ();
 	type NextSessionRotation = crate::mock::TestNextSessionRotation;
 }
 

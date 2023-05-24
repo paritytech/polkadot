@@ -560,6 +560,8 @@ bitflags::bitflags! {
 		const FOR_SUPERMAJORITY = 0b0010;
 		/// Is the supermajority against the validity of the block reached.
 		const AGAINST_SUPERMAJORITY = 0b0100;
+		/// Is there f+1 against the validity of the block reached
+		const AGAINST_BYZANTINE = 0b1000;
 	}
 }
 
@@ -580,6 +582,10 @@ impl DisputeStateFlags {
 
 		if state.validators_for.count_ones() >= supermajority_threshold {
 			flags |= DisputeStateFlags::FOR_SUPERMAJORITY;
+		}
+
+		if state.validators_against.count_ones() > byzantine_threshold {
+			flags |= DisputeStateFlags::AGAINST_BYZANTINE;
 		}
 
 		if state.validators_against.count_ones() >= supermajority_threshold {
@@ -1243,8 +1249,8 @@ impl<T: Config> Pallet<T> {
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
 
-		// Freeze if just concluded against some local candidate
-		if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+		// Freeze if the INVALID votes against some local candidate are above the byzantine threshold
+		if summary.new_flags.contains(DisputeStateFlags::AGAINST_BYZANTINE) {
 			if let Some(revert_to) = <Included<T>>::get(&session, &candidate_hash) {
 				Self::revert_and_freeze(revert_to);
 			}

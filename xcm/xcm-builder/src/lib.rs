@@ -54,6 +54,9 @@ pub use barriers::{
 	RespectSuspension, TakeWeightCredit, WithComputedOrigin,
 };
 
+mod process_xcm_message;
+pub use process_xcm_message::ProcessXcmMessage;
+
 mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
 
