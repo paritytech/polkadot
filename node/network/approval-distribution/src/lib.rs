@@ -21,7 +21,6 @@
 #![warn(missing_docs)]
 
 use futures::{channel::oneshot, future::Fuse, select, FutureExt as _};
-use futures_timer::Delay;
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_network_protocol::{
 	self as net_protocol,
@@ -1735,15 +1734,16 @@ async fn modify_reputation(reputation: &mut ReputationAggregator, peer_id: PeerI
 async fn maybe_send_reputation(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
 	reputation: &mut ReputationAggregator,
-	mut delay: &mut Fuse<Delay>,
+	mut reputation_delay: &mut Fuse<futures_timer::Delay>,
+	reputation_interval: &std::time::Duration,
 ) -> bool {
-	if reputation.overflow() {
+	if reputation_interval.is_zero() || reputation.overflow() {
 		send_reputation(sender, reputation).await;
 		return true
 	}
 
 	select! {
-		_ = delay => {
+		_ = reputation_delay => {
 			send_reputation(sender, reputation).await;
 			true
 		},
@@ -1778,12 +1778,13 @@ impl ApprovalDistribution {
 	async fn run<Context>(self, ctx: Context) {
 		let mut state = State::default();
 		let mut reputation = ReputationAggregator::new();
-		let rep_delay_fn = || Delay::new(std::time::Duration::from_millis(5)).fuse();
+		let reputation_interval = std::time::Duration::from_millis(5);
 
 		// According to the docs of `rand`, this is a ChaCha12 RNG in practice
 		// and will always be chosen for strong performance and security properties.
 		let mut rng = rand::rngs::StdRng::from_entropy();
-		self.run_inner(ctx, &mut state, &mut reputation, rep_delay_fn, &mut rng).await
+		self.run_inner(ctx, &mut state, &mut reputation, reputation_interval, &mut rng)
+			.await
 	}
 
 	/// Used for testing.
@@ -1792,10 +1793,10 @@ impl ApprovalDistribution {
 		mut ctx: Context,
 		state: &mut State,
 		reputation: &mut ReputationAggregator,
-		rep_delay_fn: impl Fn() -> Fuse<Delay>,
+		reputation_interval: std::time::Duration,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
-		let mut rep_delay = rep_delay_fn();
+		let mut reputation_delay = futures_timer::Delay::new(reputation_interval).fuse();
 
 		loop {
 			let message = match ctx.recv().await {
@@ -1829,9 +1830,16 @@ impl ApprovalDistribution {
 				FromOrchestra::Signal(OverseerSignal::Conclude) => return,
 			}
 
-			if maybe_send_reputation(ctx.sender(), reputation, &mut rep_delay).await {
+			if maybe_send_reputation(
+				ctx.sender(),
+				reputation,
+				&mut reputation_delay,
+				&reputation_interval,
+			)
+			.await
+			{
 				reputation.clear();
-				rep_delay = rep_delay_fn()
+				reputation_delay = futures_timer::Delay::new(reputation_interval).fuse()
 			}
 		}
 	}
