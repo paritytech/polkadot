@@ -7098,6 +7098,7 @@ name = "polkadot-dispute-distribution"
 version = "0.9.41"
 dependencies = [
  "assert_matches",
+ "async-channel",
  "async-trait",
  "derive_more",
  "fatality",
