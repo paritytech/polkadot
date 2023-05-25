@@ -65,9 +65,9 @@ fn basic_buy_fees_message_executes() {
 	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
 		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 			r.event,
-			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
-				Outcome::Complete(_)
-			)),
+			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted {
+				outcome: Outcome::Complete(_)
+			}),
 		)));
 	});
 }
@@ -118,9 +118,9 @@ fn transact_recursion_limit_works() {
 	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
 		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 			r.event,
-			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
-				Outcome::Incomplete(_, XcmError::ExceedsStackLimit)
-			)),
+			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted {
+				outcome: Outcome::Incomplete(_, XcmError::ExceedsStackLimit)
+			}),
 		)));
 	});
 }
@@ -195,10 +195,10 @@ fn query_response_fires() {
 	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
 		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 			r.event,
-			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::ResponseReady(
-				q,
-				Response::ExecutionResult(None),
-			)) if q == query_id,
+			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::ResponseReady {
+				query_id: q,
+				response: Response::ExecutionResult(None),
+			}) if q == query_id,
 		)));
 		assert_eq!(
 			polkadot_test_runtime::Xcm::query(query_id),
