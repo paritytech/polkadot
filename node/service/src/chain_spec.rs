@@ -1884,9 +1884,7 @@ pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
 }
 
 #[cfg(feature = "rococo-native")]
-fn rococo_local_testnet_genesis(
-	wasm_binary: &[u8],
-) -> rococo_runtime::GenRuntimeGenesisConfigesisConfig {
+fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
 		vec![get_authority_keys_from_seed("Alice"), get_authority_keys_from_seed("Bob")],
