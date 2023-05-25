@@ -20,7 +20,7 @@ mod memory_stats;
 pub use executor_intf::{prepare, prevalidate};
 
 // NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
-//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf-prepare-worker=trace`.
+//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf::prepare-worker=trace`.
 const LOG_TARGET: &str = "parachain::pvf::prepare-worker";
 
 #[cfg(target_os = "linux")]
