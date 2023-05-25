@@ -63,6 +63,7 @@ pub(crate) struct RequestResultCache {
 		LruCache<(Hash, ParaId, OccupiedCoreAssumption), Option<ValidationCodeHash>>,
 	version: LruCache<Hash, u32>,
 	disputes: LruCache<Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
+	pending_executor_params: LruCache<Hash, ExecutorParams>,
 }
 
 impl Default for RequestResultCache {
@@ -90,6 +91,7 @@ impl Default for RequestResultCache {
 			validation_code_hash: LruCache::new(DEFAULT_CACHE_CAP),
 			version: LruCache::new(DEFAULT_CACHE_CAP),
 			disputes: LruCache::new(DEFAULT_CACHE_CAP),
+			pending_executor_params: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
 }
@@ -385,6 +387,21 @@ impl RequestResultCache {
 	) {
 		self.disputes.put(relay_parent, value);
 	}
+
+	pub(crate) fn pending_executor_params(
+		&mut self,
+		relay_parent: &Hash,
+	) -> Option<&ExecutorParams> {
+		self.pending_executor_params.get(relay_parent)
+	}
+
+	pub(crate) fn cache_pending_executor_params(
+		&mut self,
+		relay_parent: Hash,
+		value: ExecutorParams,
+	) {
+		self.pending_executor_params.put(relay_parent, value);
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -422,4 +439,5 @@ pub(crate) enum RequestResult {
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeHash>),
 	Version(Hash, u32),
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
+	PendingExecutorParams(Hash, ExecutorParams),
 }

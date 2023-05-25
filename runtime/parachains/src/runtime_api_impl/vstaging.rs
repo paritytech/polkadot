@@ -15,3 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Put implementations of functions from staging APIs here.
+
+use crate::configuration;
+use primitives::ExecutorParams;
+
+/// Returns the latest pending executor parameter set, or the current set if no configuration
+/// changes are pending
+pub fn pending_executor_params<T: configuration::Config>() -> ExecutorParams {
+	<configuration::Pallet<T>>::pending_executor_params()
+}

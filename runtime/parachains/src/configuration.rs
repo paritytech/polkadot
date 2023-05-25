@@ -1350,4 +1350,14 @@ impl<T: Config> Pallet<T> {
 
 		Ok(())
 	}
+
+	/// Returns the latest pending executor parameter set, or the current set if no configuration
+	/// changes are pending
+	pub fn pending_executor_params() -> ExecutorParams {
+		<PendingConfigs<T>>::get()
+			.last()
+			.map(|(_, config)| config.clone())
+			.unwrap_or_else(Self::config)
+			.executor_params
+	}
 }

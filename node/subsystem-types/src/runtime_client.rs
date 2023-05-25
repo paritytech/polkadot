@@ -201,6 +201,12 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
+
+	/***** Staging *****/
+
+	/// Returns the latest pending executor parameter set, or the current set if no configuration
+	/// changes are pending
+	async fn pending_executor_params(&self, at: Hash) -> Result<ExecutorParams, ApiError>;
 }
 
 #[async_trait]
@@ -373,5 +379,9 @@ where
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError> {
 		self.runtime_api().disputes(at)
+	}
+
+	async fn pending_executor_params(&self, at: Hash) -> Result<ExecutorParams, ApiError> {
+		self.runtime_api().pending_executor_params(at)
 	}
 }

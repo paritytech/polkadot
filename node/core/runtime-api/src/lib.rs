@@ -157,6 +157,9 @@ where
 				self.requests_cache.cache_version(relay_parent, version),
 			Disputes(relay_parent, disputes) =>
 				self.requests_cache.cache_disputes(relay_parent, disputes),
+			PendingExecutorParams(relay_parent, pending_executor_params) => self
+				.requests_cache
+				.cache_pending_executor_params(relay_parent, pending_executor_params),
 		}
 	}
 
@@ -271,6 +274,8 @@ where
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
 			Request::Disputes(sender) =>
 				query!(disputes(), sender).map(|sender| Request::Disputes(sender)),
+			Request::PendingExecutorParams(sender) => query!(pending_executor_params(), sender)
+				.map(|sender| Request::PendingExecutorParams(sender)),
 		}
 	}
 
@@ -490,5 +495,11 @@ where
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
 		Request::Disputes(sender) =>
 			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQUIREMENT, sender),
+		Request::PendingExecutorParams(sender) => query!(
+			PendingExecutorParams,
+			pending_executor_params(),
+			ver = Request::PENDING_EXECUTOR_PARAMS_RUNTIME_REQUIREMENT,
+			sender
+		),
 	}
 }

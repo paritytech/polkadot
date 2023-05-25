@@ -1170,17 +1170,9 @@ fn precheck_works() {
 		assert_matches!(
 			ctx_handle.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::PendingExecutorParams(tx))
 			) => {
-				tx.send(Ok(1u32.into())).unwrap();
-			}
-		);
-		assert_matches!(
-			ctx_handle.recv().await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(_, tx))
-			) => {
-				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+				tx.send(Ok(ExecutorParams::default())).unwrap();
 			}
 		);
 		assert_matches!(check_result.await, PreCheckOutcome::Valid);
@@ -1232,17 +1224,9 @@ fn precheck_invalid_pvf_blob_compression() {
 		assert_matches!(
 			ctx_handle.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::PendingExecutorParams(tx))
 			) => {
-				tx.send(Ok(1u32.into())).unwrap();
-			}
-		);
-		assert_matches!(
-			ctx_handle.recv().await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(_, tx))
-			) => {
-				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+				tx.send(Ok(ExecutorParams::default())).unwrap();
 			}
 		);
 		assert_matches!(check_result.await, PreCheckOutcome::Invalid);
@@ -1290,17 +1274,9 @@ fn precheck_properly_classifies_outcomes() {
 			assert_matches!(
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+					RuntimeApiMessage::Request(_, RuntimeApiRequest::PendingExecutorParams(tx))
 				) => {
-					tx.send(Ok(1u32.into())).unwrap();
-				}
-			);
-			assert_matches!(
-				ctx_handle.recv().await,
-				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(_, tx))
-				) => {
-					tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+					tx.send(Ok(ExecutorParams::default())).unwrap();
 				}
 			);
 			assert_eq!(check_result.await, precheck_outcome);
