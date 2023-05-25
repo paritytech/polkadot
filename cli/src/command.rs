@@ -299,7 +299,8 @@ where
 	let chain_spec = &runner.config().chain_spec;
 
 	// By default, enable BEEFY on test networks.
-	let enable_beefy = chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi();
+	let enable_beefy = (chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi()) &&
+		!cli.run.no_beefy;
 
 	set_default_ss58_version(chain_spec);
 
