@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Functionality common to both prepare and execute workers.
+
 use crate::LOG_TARGET;
 use cpu_time::ProcessTime;
 use futures::never::Never;
@@ -24,6 +26,42 @@ use std::{
 	time::Duration,
 };
 use tokio::{io, net::UnixStream, runtime::Runtime};
+
+/// Use this macro to declare a `fn main() {}` that will create an executable that can be used for
+/// spawning the desired worker.
+#[macro_export]
+macro_rules! decl_worker_main {
+	($expected_command:expr, $entrypoint:expr) => {
+		fn main() {
+			::sp_tracing::try_init_simple();
+
+			let args = std::env::args().collect::<Vec<_>>();
+			if args.len() < 3 {
+				panic!("wrong number of arguments");
+			}
+
+			let mut version = None;
+			let mut socket_path: &str = "";
+
+			for i in 2..args.len() {
+				match args[i].as_ref() {
+					"--socket-path" => socket_path = args[i + 1].as_str(),
+					"--node-version" => version = Some(args[i + 1].as_str()),
+					_ => (),
+				}
+			}
+
+			let subcommand = &args[1];
+			if subcommand != $expected_command {
+				panic!(
+					"trying to run {} binary with the {} subcommand",
+					$expected_command, subcommand
+				)
+			}
+			$entrypoint(&socket_path, version);
+		}
+	};
+}
 
 /// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
 /// child process.

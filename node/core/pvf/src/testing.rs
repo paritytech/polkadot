@@ -19,6 +19,9 @@
 //! N.B. This is not guarded with some feature flag. Overexposing items here may affect the final
 //!      artifact even for production builds.
 
+#[doc(hidden)]
+pub use crate::worker_intf::{spawn_with_program_path, SpawnErr};
+
 use polkadot_primitives::ExecutorParams;
 
 /// A function that emulates the stitches together behaviors of the preparation and the execution
@@ -27,7 +30,8 @@ pub fn validate_candidate(
 	code: &[u8],
 	params: &[u8],
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-	use crate::executor_intf::{prepare, prevalidate, Executor};
+	use polkadot_node_core_pvf_execute_worker::Executor;
+	use polkadot_node_core_pvf_prepare_worker::{prepare, prevalidate};
 
 	let code = sp_maybe_compressed_blob::decompress(code, 10 * 1024 * 1024)
 		.expect("Decompressing code failed");
