@@ -10,7 +10,7 @@ quote = "1.0.26"
 env_logger = "0.9"
 log = "0.4"
 
-polkadot-node-core-pvf-worker = { path = "../../core/pvf/worker" }
+polkadot-node-core-pvf-prepare-worker = { path = "../../core/pvf/prepare-worker" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-primitives = { path = "../../../primitives" }

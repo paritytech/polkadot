@@ -14,23 +14,31 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+mod executor_intf;
+mod memory_stats;
+
+pub use executor_intf::{prepare, prevalidate};
+
+// NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
+//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf-prepare-worker=trace`.
+const LOG_TARGET: &str = "parachain::pvf-prepare-worker";
+
 #[cfg(target_os = "linux")]
 use crate::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread};
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 use crate::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
-use crate::{
-	common::{
+use parity_scale_codec::{Decode, Encode};
+use polkadot_node_core_pvf_common::{
+	error::{PrepareError, PrepareResult},
+	framed_recv, framed_send,
+	prepare::{MemoryStats, PrepareStats},
+	pvf::PvfPrepData,
+	worker::{
 		bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload,
 		thread::{self, WaitOutcome},
 		worker_event_loop,
 	},
-	prepare, prevalidate, LOG_TARGET,
-};
-use cpu_time::ProcessTime;
-use parity_scale_codec::{Decode, Encode};
-use polkadot_node_core_pvf::{
-	framed_recv, framed_send, CompiledArtifact, MemoryStats, PrepareError, PrepareResult,
-	PrepareStats, PvfPrepData,
+	ProcessTime,
 };
 use std::{
 	path::PathBuf,
@@ -38,6 +46,22 @@ use std::{
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
+
+/// Contains the bytes for a successfully compiled artifact.
+pub struct CompiledArtifact(Vec<u8>);
+
+impl CompiledArtifact {
+	/// Creates a `CompiledArtifact`.
+	pub fn new(code: Vec<u8>) -> Self {
+		Self(code)
+	}
+}
+
+impl AsRef<[u8]> for CompiledArtifact {
+	fn as_ref(&self) -> &[u8] {
+		self.0.as_slice()
+	}
+}
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
 	let pvf = framed_recv(stream).await?;
