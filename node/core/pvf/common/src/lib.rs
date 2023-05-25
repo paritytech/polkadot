@@ -25,7 +25,7 @@ pub mod worker;
 
 pub use cpu_time::ProcessTime;
 
-const LOG_TARGET: &str = "parachain::pvf::common";
+const LOG_TARGET: &str = "parachain::pvf-common";
 
 use std::mem;
 use tokio::io::{self, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};

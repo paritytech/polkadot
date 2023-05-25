@@ -19,8 +19,8 @@ mod executor_intf;
 pub use executor_intf::Executor;
 
 // NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
-//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf::execute-worker=trace`.
-const LOG_TARGET: &str = "parachain::pvf::execute-worker";
+//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf-execute-worker=trace`.
+const LOG_TARGET: &str = "parachain::pvf-execute-worker";
 
 use crate::executor_intf::EXECUTE_THREAD_STACK_SIZE;
 use cpu_time::ProcessTime;

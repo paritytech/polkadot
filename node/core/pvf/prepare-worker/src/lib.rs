@@ -20,8 +20,8 @@ mod memory_stats;
 pub use executor_intf::{prepare, prevalidate};
 
 // NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
-//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf::prepare-worker=trace`.
-const LOG_TARGET: &str = "parachain::pvf::prepare-worker";
+//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf-prepare-worker=trace`.
+const LOG_TARGET: &str = "parachain::pvf-prepare-worker";
 
 #[cfg(target_os = "linux")]
 use crate::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread};
