@@ -66,7 +66,7 @@ impl SourceTopic for () {
 	}
 }
 
-/// Wrapper router which, if the message does not already begin with a `SetTopic` instruction,
+/// Wrapper router which, if the message does not already end with a `SetTopic` instruction,
 /// prepends one to the message filled with an ID from `TopicSource`. This ID is returned from a
 /// successful `deliver`.
 ///
