@@ -664,6 +664,38 @@ async fn check_and_import_assignment(
 	rx
 }
 
+async fn check_and_import_assignment_v2(
+	overseer: &mut VirtualOverseer,
+	block_hash: Hash,
+	core_indices: Vec<u32>,
+	validator: ValidatorIndex,
+) -> oneshot::Receiver<AssignmentCheckResult> {
+	let (tx, rx) = oneshot::channel();
+	overseer_send(
+		overseer,
+		FromOrchestra::Communication {
+			msg: ApprovalVotingMessage::CheckAndImportAssignment(
+				IndirectAssignmentCertV2 {
+					block_hash,
+					validator,
+					cert: garbage_assignment_cert_v2(AssignmentCertKindV2::RelayVRFModuloCompact {
+						core_bitfield: core_indices
+							.clone()
+							.into_iter()
+							.map(|c| CoreIndex(c))
+							.collect::<Vec<_>>()
+							.try_into()
+							.unwrap(),
+					}),
+				},
+				core_indices.try_into().unwrap(),
+				tx,
+			),
+		},
+	)
+	.await;
+	rx
+}
 struct BlockConfig {
 	slot: Slot,
 	candidates: Option<Vec<(CandidateReceipt, CoreIndex, GroupIndex)>>,
@@ -1357,9 +1389,22 @@ fn subsystem_accepts_duplicate_assignment() {
 			}
 		);
 
-		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_index = 0;
 		let validator = ValidatorIndex(0);
+		let candidate_index = 0;
+		let block_hash = Hash::repeat_byte(0x01);
+
+		let candidate_receipt1 = {
+			let mut receipt = dummy_candidate_receipt(block_hash);
+			receipt.descriptor.para_id = ParaId::from(1_u32);
+			receipt
+		};
+		let candidate_receipt2 = {
+			let mut receipt = dummy_candidate_receipt(block_hash);
+			receipt.descriptor.para_id = ParaId::from(2_u32);
+			receipt
+		};
+		let candidate_index1 = 0;
+		let candidate_index2 = 1;
 
 		// Add block hash 00.
 		ChainBuilder::new()
@@ -1367,11 +1412,30 @@ fn subsystem_accepts_duplicate_assignment() {
 				block_hash,
 				ChainBuilder::GENESIS_HASH,
 				1,
-				BlockConfig { slot: Slot::from(1), candidates: None, session_info: None },
+				BlockConfig {
+					slot: Slot::from(1),
+					candidates: Some(vec![
+						(candidate_receipt1, CoreIndex(0), GroupIndex(1)),
+						(candidate_receipt2, CoreIndex(1), GroupIndex(1)),
+					]),
+					session_info: None,
+				},
 			)
 			.build(&mut virtual_overseer)
 			.await;
 
+		// Initial assignment.
+		let rx = check_and_import_assignment_v2(
+			&mut virtual_overseer,
+			block_hash,
+			vec![candidate_index1, candidate_index2],
+			validator,
+		)
+		.await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+
+		// Test with single assigned core.
 		let rx = check_and_import_assignment(
 			&mut virtual_overseer,
 			block_hash,
@@ -1380,12 +1444,14 @@ fn subsystem_accepts_duplicate_assignment() {
 		)
 		.await;
 
-		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::AcceptedDuplicate));
 
-		let rx = check_and_import_assignment(
+		// Test with multiple assigned cores. This cannot happen in practice, as tranche0 assignments
+		// are sent first, but we should still ensure correct behavior.
+		let rx = check_and_import_assignment_v2(
 			&mut virtual_overseer,
 			block_hash,
-			candidate_index,
+			vec![candidate_index1, candidate_index2],
 			validator,
 		)
 		.await;

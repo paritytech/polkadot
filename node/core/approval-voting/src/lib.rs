@@ -1903,6 +1903,7 @@ where
 	let mut assigned_candidate_hashes = Vec::new();
 
 	for candidate_index in candidate_indices.iter_ones() {
+		println!("{:?}", &block_entry);
 		let (claimed_core_index, assigned_candidate_hash) =
 			match block_entry.candidate(candidate_index) {
 				Some((c, h)) => (*c, *h),
@@ -2000,7 +2001,7 @@ where
 
 	let mut actions = Vec::new();
 	let res = {
-		let mut is_duplicate = false;
+		let mut is_duplicate = true;
 		// Import the assignments for all cores in the cert.
 		for (assigned_candidate_hash, candidate_index) in
 			assigned_candidate_hashes.iter().zip(candidate_indices.iter_ones())
@@ -2028,7 +2029,7 @@ where
 						Vec::new(),
 					)),
 			};
-			is_duplicate |= approval_entry.is_assigned(assignment.validator);
+			is_duplicate &= approval_entry.is_assigned(assignment.validator);
 			approval_entry.import_assignment(tranche, assignment.validator, tick_now);
 			check_and_import_assignment_span.add_uint_tag("tranche", tranche as u64);
 
@@ -2052,15 +2053,29 @@ where
 			db.write_candidate_entry(candidate_entry.into());
 		}
 
+		// Since we don't account for tranche in distribution message fingerprinting, some validators
+		// can be assigned to the same core (VRF modulo vs VRF delay). These can be safely ignored ignored.
+		// However, if an assignment is for multiple cores (these are only tranche0), we cannot ignore it,
+		// because it would mean ignoring other non duplicate assignments.
 		if is_duplicate {
 			AssignmentCheckResult::AcceptedDuplicate
-		} else {
+		} else if candidate_indices.count_ones() > 1 {
 			gum::trace!(
 				target: LOG_TARGET,
 				validator = assignment.validator.0,
 				candidate_hashes = ?assigned_candidate_hashes,
 				assigned_cores = ?claimed_core_indices,
 				"Imported assignments for multiple cores.",
+			);
+
+			AssignmentCheckResult::Accepted
+		} else {
+			gum::trace!(
+				target: LOG_TARGET,
+				validator = assignment.validator.0,
+				candidate_hashes = ?assigned_candidate_hashes,
+				assigned_cores = ?claimed_core_indices,
+				"Imported assignment for a single core.",
 			);
 
 			AssignmentCheckResult::Accepted
