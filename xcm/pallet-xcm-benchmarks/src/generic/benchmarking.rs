@@ -209,7 +209,7 @@ benchmarks! {
 			assets.clone().into(),
 			&XcmContext {
 				origin: Some(origin.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		);
@@ -266,7 +266,7 @@ benchmarks! {
 			max_response_weight,
 			&XcmContext {
 				origin: Some(origin.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		).map_err(|_| "Could not start subscription")?;
