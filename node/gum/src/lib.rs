@@ -40,10 +40,8 @@
 //!
 //! ### Log levels
 //!
-//! Instead of `warn!` you can use one of the other available macros, which are
-//! based on the [`tracing`
-//! macros](https://docs.rs/tracing/latest/tracing/index.html#macros). In decreasing
-//! order of priority they are:
+//!  All of the the [`tracing` macros](https://docs.rs/tracing/latest/tracing/index.html#macros) log level macros are available.
+//! In decreasing order of priority they are:
 //!
 //! - `error!`
 //! - `warn!`
