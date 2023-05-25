@@ -610,7 +610,7 @@ pub(crate) mod tests {
 
 	const DATA_COL: u32 = 0;
 
-	const NUM_COLUMNS: u32 = 2;
+	const NUM_COLUMNS: u32 = 1;
 
 	const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_approval_data: DATA_COL };
 	#[derive(Default)]
