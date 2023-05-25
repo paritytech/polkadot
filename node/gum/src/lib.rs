@@ -40,7 +40,7 @@
 //!
 //! ### Log levels
 //!
-//!  All of the the [`tracing` macros](https://docs.rs/tracing/latest/tracing/index.html#macros) log level macros are available.
+//! All of the the [`tracing` macros](https://docs.rs/tracing/latest/tracing/index.html#macros) are available.
 //! In decreasing order of priority they are:
 //!
 //! - `error!`
@@ -54,11 +54,14 @@
 //! The `LOG_TARGET` should be defined once per crate, e.g.:
 //!
 //! ```rs
-//! const LOG_TARGET: &str = "parachain::pvf::prepare-worker";
+//! const LOG_TARGET: &str = "parachain::pvf";
 //! ```
 //!
-//! The target can be an arbitrary string, but we use the `::` syntax to mimic
-//! Rust's module separators.
+//! This should be of the form `<target>::<subtarget>`, where the `::<subtarget>` is optional.
+//!
+//! The target and subtarget are used when debugging by specializing the Grafana Loki query to
+//! filter specific subsystem logs. The more specific the query is the better when approaching the
+//! query response limit.
 //!
 //! ### Fields
 //!
@@ -99,7 +102,7 @@
 //! ```
 //!
 //! On the other hand if you want all `parachain` logs, specify `parachain=trace`, which will also
-//! include logs from `parachain::pvf` and other sub-modules.
+//! include logs from `parachain::pvf` and other subtargets.
 
 pub use tracing::{enabled, event, Level};
 
