@@ -44,6 +44,15 @@ pub fn worker_event_loop<F, Fut>(
 	F: FnMut(UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
+	// Use `PR_SET_PDEATHSIG` to ensure that the child is sent a kill signal when the parent dies.
+	//
+	// NOTE: This technically has a race as the parent may have already died. In that case we will
+	// fail to read the socket later and just shutdown.
+	#[cfg(linux)]
+	if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) != 0 {
+		return
+	}
+
 	let worker_pid = std::process::id();
 	gum::debug!(target: LOG_TARGET, %worker_pid, "starting pvf worker ({})", debug_id);
 
@@ -55,7 +64,7 @@ pub fn worker_event_loop<F, Fut>(
 				%worker_pid,
 				"Node and worker version mismatch, node needs restarting, forcing shutdown",
 			);
-			kill_parent_node_in_emergency();
+			kill_parent_node_in_emergency(worker_pid);
 			let err: io::Result<Never> =
 				Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"));
 			gum::debug!(target: LOG_TARGET, %worker_pid, "quitting pvf worker({}): {:?}", debug_id, err);
@@ -136,20 +145,29 @@ pub fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String
 	}
 }
 
-/// In case of node and worker version mismatch (as a result of in-place upgrade), send `SIGTERM`
-/// to the node to tear it down and prevent it from raising disputes on valid candidates. Node
-/// restart should be handled by the node owner. As node exits, unix sockets opened to workers
-/// get closed by the OS and other workers receive error on socket read and also exit. Preparation
-/// jobs are written to the temporary files that are renamed to real artifacts on the node side, so
-/// no leftover artifacts are possible.
-fn kill_parent_node_in_emergency() {
+/// In case of node and worker version mismatch (as a result of in-place upgrade or
+/// incorrectly-built binaries), send `SIGTERM` to the node to tear it down and prevent it from
+/// raising disputes on valid candidates. Node restart should be handled by the node owner. As node
+/// exits, unix sockets opened to workers get closed by the OS and other workers receive error on
+/// socket read and also exit. Preparation jobs are written to the temporary files that are renamed
+/// to real artifacts on the node side, so no leftover artifacts are possible.
+fn kill_parent_node_in_emergency(worker_pid: u32) {
 	unsafe {
+		// NOTE: On non-Linux this has a race condition between getting the pid and sending the
+		// signal -- the parent may have died and another process been assigned the same pid. On
+		// Linux this is not a problem -- we use `PR_SET_PDEATHSIG` to ensure that the child is sent
+		// a kill signal when the parent dies.
+		//
 		// SAFETY: `getpid()` never fails but may return "no-parent" (0) or "parent-init" (1) in
 		// some corner cases, which is checked. `kill()` never fails.
 		let ppid = libc::getppid();
 		if ppid > 1 {
 			libc::kill(ppid, libc::SIGTERM);
+		} else {
+			gum::error!(target: LOG_TARGET, %worker_pid, "unexpected ppid {}", ppid);
 		}
+
+		libc::kill(worker_pid as i32, libc::SIGKILL);
 	}
 }
 
