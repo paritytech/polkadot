@@ -21,7 +21,7 @@
 pub mod chain_spec;
 
 pub use chain_spec::*;
-use futures::future::Future;
+use futures::{future::Future, stream::StreamExt};
 use polkadot_node_primitives::{CollationGenerationConfig, CollatorFn};
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_overseer::Handle;
@@ -35,8 +35,9 @@ use polkadot_test_runtime::{
 	ParasCall, ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall,
 	UncheckedExtrinsic, VERSION,
 };
+
 use sc_chain_spec::ChainSpec;
-use sc_client_api::execution_extensions::ExecutionStrategies;
+use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr, NetworkStateInfo,
@@ -54,6 +55,7 @@ use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
 use std::{
+	collections::HashSet,
 	net::{Ipv4Addr, SocketAddr},
 	path::PathBuf,
 	sync::Arc,
@@ -61,7 +63,6 @@ use std::{
 use substrate_test_client::{
 	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
-
 /// Declare an instance of the native executor named `PolkadotTestExecutorDispatch`. Include the wasm binary as the
 /// equivalent wasm code.
 pub struct PolkadotTestExecutorDispatch;
@@ -333,6 +334,20 @@ impl PolkadotTestNode {
 	/// are ever created, thus you should restrict the maximum amount of time of the test execution.
 	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
 		self.client.wait_for_blocks(count)
+	}
+
+	/// Wait for `count` blocks to be finalized and then exit. Similarly with `wait_for_blocks` this function will
+	/// not return if no block are ever finalized.
+	pub async fn wait_for_finalized_blocks(&self, count: usize) {
+		let mut import_notification_stream = self.client.finality_notification_stream();
+		let mut blocks = HashSet::new();
+
+		while let Some(notification) = import_notification_stream.next().await {
+			blocks.insert(notification.hash);
+			if blocks.len() == count {
+				break
+			}
+		}
 	}
 
 	/// Register the collator functionality in the overseer of this node.

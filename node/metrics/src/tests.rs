@@ -61,8 +61,8 @@ async fn runtime_can_publish_metrics() {
 	// Start validator Bob.
 	let _bob = run_validator_node(bob_config, None);
 
-	// Wait for Alice to author two blocks.
-	alice.wait_for_blocks(2).await;
+	// Wait for Alice to see two finalized blocks.
+	alice.wait_for_finalized_blocks(2).await;
 
 	let metrics_uri = format!("http://localhost:{}/metrics", DEFAULT_PROMETHEUS_PORT);
 	let metrics = scrape_prometheus_metrics(&metrics_uri).await;
