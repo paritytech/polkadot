@@ -16,7 +16,6 @@
 
 mod mock;
 
-use frame_support::weights::Weight;
 use mock::{
 	fake_message_hash, kusama_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight,
 	System, XcmConfig, CENTS,
