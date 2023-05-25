@@ -428,7 +428,7 @@ impl<T: Config> Registrar for Pallet<T> {
 		paras::Pallet::<T>::is_parathread(id)
 	}
 
-	// Return if a para is a parachain
+	// Return if a para is a lease holding parachain
 	fn is_parachain(id: ParaId) -> bool {
 		paras::Pallet::<T>::is_parachain(id)
 	}

@@ -899,7 +899,7 @@ mod tests {
 				ParaId::from(1_u32),
 			));
 
-			// Para is a parachain for PermanentSlotLeasePeriodLength * LeasePeriod blocks
+			// Para is a lease holding parachain for PermanentSlotLeasePeriodLength * LeasePeriod blocks
 			while block < 9 {
 				println!("block #{}", block);
 
@@ -1082,7 +1082,7 @@ mod tests {
 			assert_eq!(AssignedSlots::active_temporary_slot_count(), 1);
 
 			// Block 1-5
-			// Para is a parachain for TemporarySlotLeasePeriodLength * LeasePeriod blocks
+			// Para is a lease holding parachain for TemporarySlotLeasePeriodLength * LeasePeriod blocks
 			while block < 6 {
 				println!("block #{}", block);
 				println!("lease period #{}", AssignedSlots::current_lease_period_index());

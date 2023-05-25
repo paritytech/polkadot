@@ -1,4 +1,4 @@
-# Paras Module
+# Paras Pallet
 
 The Paras module is responsible for storing information on parachains. Registered
 parachains cannot change except at session boundaries and after at least a full
@@ -56,7 +56,7 @@ pub enum ParaLifecycle {
   Onboarding,
   /// Para is a Parathread (on-demand parachain).
   Parathread,
-  /// Para is a Parachain.
+  /// Para is a lease holding Parachain.
   Parachain,
   /// Para is a Parathread (on-demand Parachain) which is upgrading to a lease holding Parachain.
   UpgradingParathread,
@@ -255,7 +255,7 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
   session. Noop if para is already registered in the system with some `ParaLifecycle`.
 * `schedule_para_cleanup(ParaId)`: Schedule a para to be cleaned up after the next full session.
 * `schedule_parathread_upgrade(ParaId)`: Schedule a parathread (on-demand parachain) to be upgraded to a parachain.
-* `schedule_parachain_downgrade(ParaId)`: Schedule a parachain to be downgraded to a parathread (on-demand parachain).
+* `schedule_parachain_downgrade(ParaId)`: Schedule a parachain to be downgraded from lease holding to on-demand.
 * `schedule_code_upgrade(ParaId, new_code, relay_parent: BlockNumber, HostConfiguration)`: Schedule a future code
   upgrade of the given parachain. In case the PVF pre-checking is disabled, or the new code is already present in the storage, the upgrade will be applied after inclusion of a block of the same parachain
   executed in the context of a relay-chain block with number >= `relay_parent + config.validation_upgrade_delay`. If the upgrade is scheduled `UpgradeRestrictionSignal` is set and it will remain set until `relay_parent + config.validation_upgrade_cooldown`.

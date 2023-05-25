@@ -1,6 +1,6 @@
-# Inclusion Module
+# Inclusion Pallet
 
-The inclusion module is responsible for inclusion and availability of scheduled parachains.
+The inclusion module is responsible for inclusion and availability of scheduled parachains. It also manages the UMP dispatch queue of each parachain.
 
 ## Storage
 

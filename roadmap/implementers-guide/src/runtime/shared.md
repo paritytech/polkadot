@@ -1,4 +1,4 @@
-# Shared Module
+# Shared Pallet
 
 This module is responsible for managing shared storage and configuration for other modules.
 
