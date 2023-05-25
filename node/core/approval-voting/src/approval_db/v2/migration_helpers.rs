@@ -244,7 +244,7 @@ pub fn migrate_approval_db_v1_to_v2_fill_test_data(
 		overlay_db.write_block_entry(block_entry.clone().into());
 
 		expected_candidates.insert(candidate_entry.candidate.hash());
-		db.write(write_candidate_entry_v1(candidate_entry, config.clone())).unwrap();
+		db.write(write_candidate_entry_v1(candidate_entry, config)).unwrap();
 	}
 
 	let write_ops = overlay_db.into_write_ops();
