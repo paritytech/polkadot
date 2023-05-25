@@ -638,7 +638,6 @@ pub mod pallet {
 		pub safe_xcm_version: Option<XcmVersion>,
 	}
 
-	#[cfg(feature = "std")]
 	impl Default for GenesisConfig {
 		fn default() -> Self {
 			Self { safe_xcm_version: Some(XCM_VERSION) }
