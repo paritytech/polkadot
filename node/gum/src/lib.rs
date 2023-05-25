@@ -96,7 +96,7 @@
 //!
 //! On the command line you specify `RUST_LOG`:
 //!
-//! ```
+//! ```sh
 //! RUST_LOG=parachain::pvf=trace cargo test
 //! ```
 
