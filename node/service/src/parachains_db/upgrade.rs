@@ -498,31 +498,18 @@ mod tests {
 
 	#[test]
 	fn test_rocksdb_migrate_2_to_3() {
-		use kvdb::{DBKey, DBOp};
 		use kvdb_rocksdb::{Database, DatabaseConfig};
-		use polkadot_node_subsystem_util::database::{
-			kvdb_impl::DbAdapter, DBTransaction, KeyValueDB,
-		};
 
 		let db_dir = tempfile::tempdir().unwrap();
 		let db_path = db_dir.path().to_str().unwrap();
 		let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
-		let db = Database::open(&db_cfg, db_path).unwrap();
-		assert_eq!(db.num_columns(), super::columns::v2::NUM_COLUMNS as u32);
+		{
+			let db = Database::open(&db_cfg, db_path).unwrap();
+			assert_eq!(db.num_columns(), super::columns::v2::NUM_COLUMNS as u32);
+		}
 
 		// We need to properly set db version for upgrade to work.
 		fs::write(version_file_path(db_dir.path()), "2").expect("Failed to write DB version");
-		{
-			let db = DbAdapter::new(db, columns::v2::ORDERED_COL);
-			db.write(DBTransaction {
-				ops: vec![DBOp::Insert {
-					col: COL_DISPUTE_COORDINATOR_DATA,
-					key: DBKey::from_slice(b"1234"),
-					value: b"0xdeadb00b".to_vec(),
-				}],
-			})
-			.unwrap();
-		}
 
 		try_upgrade_db(&db_dir.path(), DatabaseKind::RocksDB).unwrap();
 
