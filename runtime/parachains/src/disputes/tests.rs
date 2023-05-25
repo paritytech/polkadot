@@ -126,11 +126,23 @@ fn test_dispute_state_flag_from_state() {
 	assert_eq!(
 		DisputeStateFlags::from_state(&DisputeState {
 			validators_for: bitvec![u8, BitOrderLsb0; 0, 0, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 1, 1, 1, 0, 0, 0, 0],
+			start: 0,
+			concluded_at: None,
+		}),
+		DisputeStateFlags::CONFIRMED | DisputeStateFlags::AGAINST_BYZANTINE,
+	);
+
+	assert_eq!(
+		DisputeStateFlags::from_state(&DisputeState {
+			validators_for: bitvec![u8, BitOrderLsb0; 0, 0, 0, 0, 0, 0, 0],
 			validators_against: bitvec![u8, BitOrderLsb0; 1, 1, 1, 1, 1, 0, 0],
 			start: 0,
 			concluded_at: None,
 		}),
-		DisputeStateFlags::AGAINST_SUPERMAJORITY | DisputeStateFlags::CONFIRMED,
+		DisputeStateFlags::AGAINST_SUPERMAJORITY |
+			DisputeStateFlags::CONFIRMED |
+			DisputeStateFlags::AGAINST_BYZANTINE,
 	);
 }
 
@@ -248,7 +260,9 @@ fn test_import_prev_participant_confirmed_slash_for() {
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 1, 1, 1, 1, 0]);
 	assert_eq!(
 		summary.new_flags,
-		DisputeStateFlags::CONFIRMED | DisputeStateFlags::AGAINST_SUPERMAJORITY,
+		DisputeStateFlags::CONFIRMED |
+			DisputeStateFlags::AGAINST_SUPERMAJORITY |
+			DisputeStateFlags::AGAINST_BYZANTINE,
 	);
 }
 
@@ -670,6 +684,158 @@ fn test_freeze_provided_against_supermajority_for_included() {
 				.collect()
 		)
 		.is_ok());
+		assert_eq!(Frozen::<Test>::get(), Some(2));
+	});
+}
+
+#[test]
+fn test_freeze_provided_against_byzantine_threshold_for_included() {
+	new_test_ext(Default::default()).execute_with(|| {
+		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v2 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v3 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v4 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v5 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v6 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+		let active_set = vec![
+			(&0, v0.public()),
+			(&1, v1.public()),
+			(&2, v2.public()),
+			(&3, v3.public()),
+			(&4, v4.public()),
+			(&5, v5.public()),
+			(&6, v6.public()),
+		];
+
+		run_to_block(6, |b| Some((true, b, active_set.clone(), Some(active_set.clone()))));
+
+		// A candidate which will be disputed
+		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+		let inclusion_parent = sp_core::H256::repeat_byte(0xff);
+		let session = 3;
+
+		// A byzantine threshold of INVALID
+		let stmts = vec![DisputeStatementSet {
+			candidate_hash: candidate_hash.clone(),
+			session,
+			statements: vec![
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(0),
+					v0.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(1),
+					v1.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(2),
+					v2.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
+						inclusion_parent,
+					)),
+					ValidatorIndex(1),
+					v0.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+						&SigningContext { session_index: session, parent_hash: inclusion_parent },
+					)),
+				),
+			],
+		}];
+
+		// Include the candidate and import the votes
+		Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
+		assert!(Pallet::<Test>::process_checked_multi_dispute_data(
+			&stmts
+				.into_iter()
+				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+				.collect()
+		)
+		.is_ok());
+		// Successful import should freeze the chain
+		assert_eq!(Frozen::<Test>::get(), Some(2));
+
+		// Now include one more block
+		run_to_block(7, |b| Some((true, b, active_set.clone(), Some(active_set.clone()))));
+		Pallet::<Test>::note_included(3, CandidateHash(sp_core::H256::repeat_byte(2)), 3);
+
+		// And generate enough votes to reach supermajority of invalid votes
+		let stmts = vec![DisputeStatementSet {
+			candidate_hash: candidate_hash.clone(),
+			session,
+			statements: vec![
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(3),
+					v3.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(4),
+					v4.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(5),
+					v5.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+			],
+		}];
+		assert!(Pallet::<Test>::process_checked_multi_dispute_data(
+			&stmts
+				.into_iter()
+				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+				.collect()
+		)
+		.is_ok());
+		// Chain should still be frozen
 		assert_eq!(Frozen::<Test>::get(), Some(2));
 	});
 }

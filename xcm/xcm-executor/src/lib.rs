@@ -30,8 +30,8 @@ use xcm::latest::prelude::*;
 pub mod traits;
 use traits::{
 	channel_from_params, validate_export, AssetExchange, AssetLock, CallDispatcher, ClaimAssets,
-	ConvertOrigin, DropAssets, Enact, ExportXcm, FeeManager, FeeReason, OnResponse, ShouldExecute,
-	TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	ConvertOrigin, DropAssets, Enact, ExportXcm, FeeManager, FeeReason, OnResponse, Properties,
+	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -192,8 +192,8 @@ impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Con
 	fn execute(
 		origin: impl Into<MultiLocation>,
 		WeighedMessage(xcm_weight, mut message): WeighedMessage<Config::RuntimeCall>,
-		message_hash: XcmHash,
-		mut weight_credit: Weight,
+		id: &mut XcmHash,
+		weight_credit: Weight,
 	) -> Outcome {
 		let origin = origin.into();
 		log::trace!(
@@ -203,24 +203,27 @@ impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Con
 			message,
 			weight_credit,
 		);
+		let mut properties = Properties { weight_credit, message_id: None };
 		if let Err(e) = Config::Barrier::should_execute(
 			&origin,
 			message.inner_mut(),
 			xcm_weight,
-			&mut weight_credit,
+			&mut properties,
 		) {
 			log::trace!(
 				target: "xcm::execute_xcm_in_credit",
-				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_credit: {:?})",
+				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, properties: {:?})",
 				e,
 				origin,
 				message,
-				weight_credit,
+				properties,
 			);
 			return Outcome::Error(XcmError::Barrier)
 		}
 
-		let mut vm = Self::new(origin, message_hash);
+		*id = properties.message_id.unwrap_or(*id);
+
+		let mut vm = Self::new(origin, *id);
 
 		while !message.0.is_empty() {
 			let result = vm.process(message);
@@ -271,12 +274,12 @@ impl From<ExecutorError> for frame_benchmarking::BenchmarkError {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	pub fn new(origin: impl Into<MultiLocation>, message_hash: XcmHash) -> Self {
+	pub fn new(origin: impl Into<MultiLocation>, message_id: XcmHash) -> Self {
 		let origin = origin.into();
 		Self {
 			holding: Assets::new(),
 			holding_limit: Config::MaxAssetsIntoHolding::get() as usize,
-			context: XcmContext { origin: Some(origin), message_hash, topic: None },
+			context: XcmContext { origin: Some(origin), message_id, topic: None },
 			original_origin: origin,
 			trader: Config::Trader::new(),
 			error: None,

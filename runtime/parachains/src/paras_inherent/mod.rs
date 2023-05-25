@@ -29,7 +29,7 @@ use crate::{
 	initializer,
 	metrics::METRICS,
 	scheduler::{self, CoreAssignment, FreedReason},
-	shared, ump, ParaId,
+	shared, ParaId,
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
@@ -530,10 +530,6 @@ impl<T: Config> Pallet<T> {
 
 		// Note which of the scheduled cores were actually occupied by a backed candidate.
 		<scheduler::Pallet<T>>::occupied(&occupied);
-
-		// Give some time slice to dispatch pending upward messages.
-		// this is max config.ump_service_total_weight
-		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
 		METRICS.on_after_filter(total_consumed_weight.ref_time());
 

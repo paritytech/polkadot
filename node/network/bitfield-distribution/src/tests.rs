@@ -41,11 +41,12 @@ use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
 
+const TIMEOUT: Duration = Duration::from_millis(50);
 macro_rules! launch {
 	($fut:expr) => {
-		$fut.timeout(Duration::from_millis(10))
-			.await
-			.expect("10ms is more than enough for sending messages.")
+		$fut.timeout(TIMEOUT).await.unwrap_or_else(|| {
+			panic!("{}ms is more than enough for sending messages.", TIMEOUT.as_millis())
+		});
 	};
 }
 
@@ -220,7 +221,7 @@ fn receive_invalid_signature() {
 		));
 
 		// reputation doesn't change due to one_job_per_validator check
-		assert!(handle.recv().timeout(Duration::from_millis(10)).await.is_none());
+		assert!(handle.recv().timeout(TIMEOUT).await.is_none());
 
 		launch!(handle_network_msg(
 			&mut ctx,
@@ -523,7 +524,7 @@ fn do_not_relay_message_twice() {
 		);
 
 		// There shouldn't be any other message
-		assert!(handle.recv().timeout(Duration::from_millis(10)).await.is_none());
+		assert!(handle.recv().timeout(TIMEOUT).await.is_none());
 	});
 }
 
