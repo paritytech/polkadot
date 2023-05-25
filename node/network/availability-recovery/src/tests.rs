@@ -172,7 +172,9 @@ async fn overseer_signal(
 		.send(FromOrchestra::Signal(signal))
 		.timeout(TIMEOUT)
 		.await
-		.expect("10ms is more than enough for sending signals.");
+		.unwrap_or_else(|| {
+			panic!("{}ms is more than enough for sending signals.", TIMEOUT.as_millis())
+		});
 }
 
 async fn overseer_send(
@@ -184,7 +186,9 @@ async fn overseer_send(
 		.send(FromOrchestra::Communication { msg })
 		.timeout(TIMEOUT)
 		.await
-		.expect("10ms is more than enough for sending messages.");
+		.unwrap_or_else(|| {
+			panic!("{}ms is more than enough for sending messages.", TIMEOUT.as_millis())
+		});
 }
 
 async fn overseer_recv(

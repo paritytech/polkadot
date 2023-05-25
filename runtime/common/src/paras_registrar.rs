@@ -755,7 +755,7 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
-		type HoldIdentifier = ();
+		type RuntimeHoldReason = RuntimeHoldReason;
 		type FreezeIdentifier = ();
 		type MaxHolds = ConstU32<1>;
 		type MaxFreezes = ConstU32<1>;
@@ -773,6 +773,7 @@ mod tests {
 		type RuntimeEvent = RuntimeEvent;
 		type WeightInfo = paras::TestWeightInfo;
 		type UnsignedPriority = ParasUnsignedPriority;
+		type QueueFootprinter = ();
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
 	}
 
