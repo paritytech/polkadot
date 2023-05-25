@@ -264,7 +264,7 @@ impl pallet_balances::Config for Runtime {
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<0>;
 	type MaxFreezes = ConstU32<0>;
@@ -332,6 +332,20 @@ impl pallet_session::Config for Runtime {
 impl pallet_session::historical::Config for Runtime {
 	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
+}
+
+pub struct MaybeSignedPhase;
+
+impl Get<u32> for MaybeSignedPhase {
+	fn get() -> u32 {
+		// 1 day = 4 eras -> 1 week = 28 eras. We want to disable signed phase once a week to test the fallback unsigned
+		// phase is able to compute elections on Westend.
+		if Staking::current_era().unwrap_or(1) % 28 == 0 {
+			0
+		} else {
+			SignedPhase::get()
+		}
+	}
 }
 
 parameter_types! {
@@ -415,7 +429,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type EstimateCallFee = TransactionPayment;
-	type SignedPhase = SignedPhase;
+	type SignedPhase = MaybeSignedPhase;
 	type UnsignedPhase = UnsignedPhase;
 	type SignedMaxSubmissions = SignedMaxSubmissions;
 	type SignedMaxRefunds = SignedMaxRefunds;
@@ -1267,6 +1281,8 @@ pub type Migrations =
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
+	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
+
 	use super::*;
 
 	pub type V0940 = (
@@ -1283,8 +1299,23 @@ pub mod migrations {
 		pallet_offences::migration::v1::MigrateToV1<Runtime>,
 	);
 
+	/// Migrations that set `StorageVersion`s we missed to set.
+	pub struct SetStorageVersions;
+
+	impl OnRuntimeUpgrade for SetStorageVersions {
+		fn on_runtime_upgrade() -> Weight {
+			if FastUnstake::on_chain_storage_version() < 1 {
+				StorageVersion::new(1).put::<FastUnstake>();
+				return RocksDbWeight::get().reads_writes(1, 1)
+			}
+
+			RocksDbWeight::get().reads(1)
+		}
+	}
+
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
+		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
@@ -2045,7 +2076,7 @@ mod clean_state_migration {
 
 	impl OnRuntimeUpgrade for CleanMigrate {
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+		fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
 			Ok(Default::default())
 		}
 
@@ -2057,7 +2088,7 @@ mod clean_state_migration {
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+		fn post_upgrade(_state: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
 			frame_support::ensure!(
 				!AutoLimits::exists() && !SignedMigrationMaxLimits::exists(),
 				"State migration clean.",

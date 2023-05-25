@@ -287,7 +287,7 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
 	type FreezeIdentifier = ();
 	type MaxFreezes = ConstU32<1>;
-	type HoldIdentifier = RuntimeHoldReason;
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type MaxHolds = ConstU32<1>;
 }
 
@@ -1225,7 +1225,7 @@ impl pallet_balances::Config<NisCounterpartInstance> for Runtime {
 	type MaxReserves = ConstU32<4>;
 	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = weights::pallet_balances_nis_counterpart_balances::WeightInfo<Runtime>;
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<0>;
 	type MaxFreezes = ConstU32<0>;
@@ -1240,7 +1240,6 @@ parameter_types! {
 	pub const ThawThrottle: (Perquintill, BlockNumber) = (Perquintill::from_percent(25), 5);
 	pub storage NisTarget: Perquintill = Perquintill::zero();
 	pub const NisPalletId: PalletId = PalletId(*b"py/nis  ");
-	pub const NisHoldReason: RuntimeHoldReason = RuntimeHoldReason::Nis(pallet_nis::HoldReason::NftReceipt);
 }
 
 impl pallet_nis::Config for Runtime {
@@ -1264,7 +1263,7 @@ impl pallet_nis::Config for Runtime {
 	type IntakePeriod = IntakePeriod;
 	type MaxIntakeWeight = MaxIntakeWeight;
 	type ThawThrottle = ThawThrottle;
-	type HoldReason = NisHoldReason;
+	type RuntimeHoldReason = RuntimeHoldReason;
 }
 
 parameter_types! {
@@ -1282,12 +1281,9 @@ impl pallet_beefy::Config for Runtime {
 		pallet_beefy::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
-type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;
-
 impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = mmr::INDEXING_PREFIX;
 	type Hashing = Keccak256;
-	type Hash = MmrHash;
 	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
 	type WeightInfo = ();
 	type LeafData = pallet_beefy_mmr::Pallet<Runtime>;
@@ -1527,6 +1523,7 @@ pub type Migrations =
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
+	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
 
 	pub type V0940 = ();
 	pub type V0941 = (); // Node only release - no migrations.
@@ -1535,8 +1532,91 @@ pub mod migrations {
 		pallet_offences::migration::v1::MigrateToV1<Runtime>,
 	);
 
+	/// Migrations that set `StorageVersion`s we missed to set.
+	///
+	/// It's *possible* that these pallets have not in fact been migrated to the versions being set,
+	/// which we should keep in mind in the future if we notice any strange behavior.
+	/// We opted to not check exactly what on-chain versions each pallet is at, since it would be
+	/// an involved effort, this is testnet, and no one has complained
+	/// (https://github.com/paritytech/polkadot/issues/6657#issuecomment-1552956439).
+	pub struct SetStorageVersions;
+
+	impl OnRuntimeUpgrade for SetStorageVersions {
+		fn on_runtime_upgrade() -> Weight {
+			let mut writes = 0;
+			let mut reads = 0;
+
+			// Council
+			if Council::on_chain_storage_version() < 4 {
+				// Safe to assume Council was created with V4 pallet.
+				StorageVersion::new(4).put::<Council>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Technical Committee
+			if TechnicalCommittee::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<TechnicalCommittee>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// PhragmenElection
+			if PhragmenElection::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<PhragmenElection>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// TechnicalMembership
+			if TechnicalMembership::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<TechnicalMembership>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Scheduler
+			if Scheduler::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<Scheduler>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Bounties
+			if Bounties::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<Bounties>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Tips
+			if Tips::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<Tips>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// NisCounterpartBalances
+			if NisCounterpartBalances::on_chain_storage_version() < 1 {
+				StorageVersion::new(1).put::<NisCounterpartBalances>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Crowdloan
+			if Crowdloan::on_chain_storage_version() < 2 {
+				StorageVersion::new(2).put::<Crowdloan>();
+				writes += 1;
+			}
+			reads += 1;
+
+			RocksDbWeight::get().reads_writes(reads, writes)
+		}
+	}
+
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
+		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
@@ -2220,7 +2300,7 @@ mod encoding_tests {
 
 	#[test]
 	fn nis_hold_reason_encoding_is_correct() {
-		assert_eq!(NisHoldReason::get().encode(), [38, 0]);
+		assert_eq!(RuntimeHoldReason::Nis(pallet_nis::HoldReason::NftReceipt).encode(), [38, 0]);
 	}
 }
 
