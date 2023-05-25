@@ -93,4 +93,4 @@ pub use universal_exports::{
 };
 
 mod origin_aliases;
-pub use origin_aliases::{AliasCase, AliasForeignAccountId32};
+pub use origin_aliases::AliasForeignAccountId32;

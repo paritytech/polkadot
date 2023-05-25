@@ -18,17 +18,6 @@ use frame_support::traits::{Contains, ContainsPair};
 use sp_std::marker::PhantomData;
 use xcm::latest::prelude::*;
 
-pub struct AliasCase<Origin, Target>(PhantomData<(Origin, Target)>);
-impl<Origin, Target> ContainsPair<MultiLocation, MultiLocation> for AliasCase<Origin, Target>
-where
-	Origin: Contains<MultiLocation>,
-	Target: Contains<MultiLocation>,
-{
-	fn contains(origin: &MultiLocation, target: &MultiLocation) -> bool {
-		Origin::contains(origin) && Target::contains(target)
-	}
-}
-
 pub struct AliasForeignAccountId32<Prefix>(PhantomData<Prefix>);
 impl<Prefix: Contains<MultiLocation>> ContainsPair<MultiLocation, MultiLocation>
 	for AliasForeignAccountId32<Prefix>

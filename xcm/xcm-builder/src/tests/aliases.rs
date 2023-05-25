@@ -59,21 +59,27 @@ fn alias_foreign_account_parent_prefix() {
 }
 
 #[test]
-fn alias_case_should_work() {
-	// Wrong Origin
-	assert!(!AliasCase::<SpecificParachain, SpecificPlurality>::contains(
-		&(Parent, Parachain(2)).into(),
-		&(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }).into()
-	));
+fn alias_origin_should_work() {
+	AllowUnpaidFrom::set(vec![
+		(Parent, Parachain(1), AccountId32 { network: None, id: [0; 32] }).into(),
+		(Parachain(1), AccountId32 { network: None, id: [0; 32] }).into(),
+	]);
 
-	// Wrong BodyId
-	assert!(!AliasCase::<SpecificParachain, SpecificPlurality>::contains(
-		&(Parent, Parachain(1)).into(),
-		&(Plurality { id: BodyId::Administration, part: BodyPart::Voice }).into()
-	));
+	let message = Xcm(vec![AliasOrigin((AccountId32 { network: None, id: [0; 32] }).into())]);
+	let hash = fake_message_hash(&message);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		(Parachain(1), AccountId32 { network: None, id: [0; 32] }),
+		message.clone(),
+		hash,
+		Weight::from_parts(50, 50),
+	);
+	assert_eq!(r, Outcome::Incomplete(Weight::from_parts(10, 10), XcmError::NoPermission));
 
-	assert!(AliasCase::<SpecificParachain, SpecificPlurality>::contains(
-		&(Parent, Parachain(1)).into(),
-		&(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }).into()
-	));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		(Parent, Parachain(1), AccountId32 { network: None, id: [0; 32] }),
+		message.clone(),
+		hash,
+		Weight::from_parts(50, 50),
+	);
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(10, 10)));
 }

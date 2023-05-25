@@ -19,8 +19,9 @@ use crate::{
 	test_utils::*,
 };
 pub use crate::{
-	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, TakeWeightCredit,
+	AliasForeignAccountId32, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
+	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, FixedRateOfFungible,
+	FixedWeightBounds, TakeWeightCredit,
 };
 use frame_support::traits::{ContainsPair, Everything};
 pub use frame_support::{
@@ -652,19 +653,7 @@ match_types! {
 	pub type ParentPrefix: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 1, interior: Here }
 	};
-	pub type IsNativeAccountId32: impl Contains<MultiLocation> = {
-		MultiLocation { parents: 0, interior: X1(AccountId32 { .. }) }
-	};
-	pub type SpecificParachain: impl Contains<MultiLocation> = {
-		MultiLocation {parents: 1, interior: X1(Parachain(1))}
-	};
-
-	pub type SpecificPlurality: impl Contains<MultiLocation> = {
-		MultiLocation {parents: 0, interior: X1(Plurality{id: BodyId::Treasury, part: BodyPart::Voice})}
-	};
 }
-
-pub type TestAliases = ();
 
 pub struct TestConfig;
 impl Config for TestConfig {
@@ -691,7 +680,7 @@ impl Config for TestConfig {
 	type MessageExporter = TestMessageExporter;
 	type CallDispatcher = TestCall;
 	type SafeCallFilter = Everything;
-	type Aliasers = TestAliases;
+	type Aliasers = AliasForeignAccountId32<SiblingPrefix>;
 }
 
 pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
