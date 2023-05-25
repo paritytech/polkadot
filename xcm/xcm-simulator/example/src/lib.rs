@@ -328,8 +328,6 @@ mod tests {
 				}]
 			);
 		});
-
-		// TODO: Test case where full lock is unlocked
 	}
 
 	/// Scenario:

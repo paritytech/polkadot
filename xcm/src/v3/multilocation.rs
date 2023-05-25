@@ -16,7 +16,7 @@
 
 //! XCM `MultiLocation` datatype.
 
-use super::{traits::Reanchorable, Junction, Junctions};
+use super::{Junction, Junctions};
 use crate::{v2::MultiLocation as OldMultiLocation, VersionedMultiLocation};
 use core::{
 	convert::{TryFrom, TryInto},
@@ -385,30 +385,11 @@ impl MultiLocation {
 		}
 	}
 
-	/// Remove any unneeded parents/junctions in `self` based on the given context it will be
-	/// interpreted in.
-	pub fn simplify(&mut self, context: &Junctions) {
-		if context.len() < self.parents as usize {
-			// Not enough context
-			return
-		}
-		while self.parents > 0 {
-			let maybe = context.at(context.len() - (self.parents as usize));
-			match (self.interior.first(), maybe) {
-				(Some(i), Some(j)) if i == j => {
-					self.interior.take_first();
-					self.parents -= 1;
-				},
-				_ => break,
-			}
-		}
-	}
-}
-
-impl Reanchorable for MultiLocation {
-	type Error = Self;
-
-	fn reanchor(
+	/// Mutate `self` so that it represents the same location from the point of view of `target`.
+	/// The context of `self` is provided as `context`.
+	///
+	/// Does not modify `self` in case of overflow.
+	pub fn reanchor(
 		&mut self,
 		target: &MultiLocation,
 		context: InteriorMultiLocation,
@@ -429,7 +410,11 @@ impl Reanchorable for MultiLocation {
 		Ok(())
 	}
 
-	fn reanchored(
+	/// Consume `self` and return a new value representing the same location from the point of view
+	/// of `target`. The context of `self` is provided as `context`.
+	///
+	/// Returns the original `self` in case of overflow.
+	pub fn reanchored(
 		mut self,
 		target: &MultiLocation,
 		context: InteriorMultiLocation,
@@ -437,6 +422,25 @@ impl Reanchorable for MultiLocation {
 		match self.reanchor(target, context) {
 			Ok(()) => Ok(self),
 			Err(()) => Err(self),
+		}
+	}
+
+	/// Remove any unneeded parents/junctions in `self` based on the given context it will be
+	/// interpreted in.
+	pub fn simplify(&mut self, context: &Junctions) {
+		if context.len() < self.parents as usize {
+			// Not enough context
+			return
+		}
+		while self.parents > 0 {
+			let maybe = context.at(context.len() - (self.parents as usize));
+			match (self.interior.first(), maybe) {
+				(Some(i), Some(j)) if i == j => {
+					self.interior.take_first();
+					self.parents -= 1;
+				},
+				_ => break,
+			}
 		}
 	}
 }
