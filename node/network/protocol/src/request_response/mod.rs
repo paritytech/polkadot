@@ -34,7 +34,6 @@
 
 use std::{collections::HashMap, time::Duration, u64};
 
-use futures::channel::mpsc;
 use polkadot_primitives::{MAX_CODE_SIZE, MAX_POV_SIZE};
 use strum::{EnumIter, IntoEnumIterator};
 
@@ -144,8 +143,8 @@ impl Protocol {
 	pub fn get_config(
 		self,
 		req_protocol_names: &ReqProtocolNames,
-	) -> (mpsc::Receiver<network::IncomingRequest>, RequestResponseConfig) {
-		let (tx, rx) = mpsc::channel(self.get_channel_size());
+	) -> (async_channel::Receiver<network::IncomingRequest>, RequestResponseConfig) {
+		let (tx, rx) = async_channel::bounded(self.get_channel_size());
 		let cfg = self.create_config(req_protocol_names, Some(tx));
 		(rx, cfg)
 	}
@@ -153,7 +152,7 @@ impl Protocol {
 	fn create_config(
 		self,
 		req_protocol_names: &ReqProtocolNames,
-		tx: Option<mpsc::Sender<network::IncomingRequest>>,
+		tx: Option<async_channel::Sender<network::IncomingRequest>>,
 	) -> RequestResponseConfig {
 		let name = req_protocol_names.get_name(self);
 		let fallback_names = self.get_fallback_names();
