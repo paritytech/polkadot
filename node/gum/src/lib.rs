@@ -94,11 +94,14 @@
 //! sp_tracing::try_init_simple();
 //! ```
 //!
-//! On the command line you specify `RUST_LOG`:
+//! On the command line you specify `RUST_LOG` with the desired target and trace level:
 //!
 //! ```sh
 //! RUST_LOG=parachain::pvf=trace cargo test
 //! ```
+//!
+//! On the other hand if you want all `parachain` logs, specify `parachain=trace`, which will also
+//! include logs from `parachain::pvf` and other sub-modules.
 
 pub use tracing::{enabled, event, Level};
 
