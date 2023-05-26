@@ -421,7 +421,7 @@ struct BlockEntry {
 	candidates: Vec<CandidateEntry>,
 	/// The session index of this block.
 	session: SessionIndex,
-	/// Approval entries for whole block. These also contain all approvals in the cae of multiple candidates
+	/// Approval entries for whole block. These also contain all approvals in the case of multiple candidates
 	/// being claimed by assignments.
 	approval_entries: HashMap<(ValidatorIndex, CandidateBitfield), ApprovalEntry>,
 }
@@ -1550,7 +1550,15 @@ impl State {
 					approval_entry
 						.get_approvals()
 						.into_iter()
-						.map(|approval| (approval.validator, approval.signature))
+						// `get_approvals` gives all approvals for all candidates for a given validator.
+						// We need to restrict to a specific candidate.
+						.filter_map(|approval| {
+							if approval.candidate_index == index {
+								Some((approval.validator, approval.signature))
+							} else {
+								None
+							}
+						})
 				})
 				.collect::<HashMap<ValidatorIndex, ValidatorSignature>>();
 			all_sigs.extend(sigs);
