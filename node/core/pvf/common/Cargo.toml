@@ -16,11 +16,11 @@ parity-scale-codec = { version = "3.4.0", default-features = false, features = [
 polkadot-parachain = { path = "../../../../parachain" }
 polkadot-primitives = { path = "../../../../primitives" }
 
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }

@@ -18,14 +18,14 @@ polkadot-node-core-pvf-common = { path = "../common" }
 polkadot-parachain = { path = "../../../../parachain" }
 polkadot-primitives = { path = "../../../../primitives" }
 
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tikv-jemalloc-ctl = "0.5.0"

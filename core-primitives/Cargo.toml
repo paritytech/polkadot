@@ -5,9 +5,9 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "lexnv/bump_sp_crates", default-features = false }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 parity-scale-codec = { version = "3.4.0", default-features = false, features = [ "derive" ] }
 
