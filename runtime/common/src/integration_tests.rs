@@ -415,7 +415,7 @@ fn basic_end_to_end_works() {
 			));
 
 			// 2 sessions later they are parathreads (on-demand parachains)
-			run_to_session(2);
+			run_to_session(START_SESSION_INDEX + 2);
 			assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
 			assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
 
@@ -826,6 +826,7 @@ fn basic_swap_works() {
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
 		// First register 2 on-demand parachains with different data
+		let validation_code = test_validation_code(10);
 		assert_ok!(Registrar::reserve(signed(1)));
 		assert_ok!(Registrar::register(
 			signed(1),
@@ -859,7 +860,7 @@ fn basic_swap_works() {
 		));
 
 		// 2 sessions later they are on-demand parachains
-		run_to_session(2);
+		run_to_session(START_SESSION_INDEX + 2);
 		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
 		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parathread));
 
@@ -987,6 +988,7 @@ fn parachain_swap_works() {
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
 		// First register 2 on-demand parachains with different data
+		let validation_code = test_validation_code(10);
 		assert_ok!(Registrar::reserve(signed(1)));
 		assert_ok!(Registrar::register(
 			signed(1),
@@ -1164,6 +1166,7 @@ fn crowdloan_ending_period_bid() {
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
 		// First register 2 on-demand parachains
+		let validation_code = test_validation_code(10);
 		assert_ok!(Registrar::reserve(signed(1)));
 		assert_ok!(Registrar::register(
 			signed(1),
@@ -1198,7 +1201,7 @@ fn crowdloan_ending_period_bid() {
 		));
 
 		// 2 sessions later they are on-demand parachains
-		run_to_session(2);
+		run_to_session(START_SESSION_INDEX + 2);
 		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
 		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parathread));
 
@@ -1531,6 +1534,7 @@ fn cant_bid_on_existing_lease_periods() {
 
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		// First register an on-demand parachain
+		let validation_code = test_validation_code(10);
 		assert_ok!(Registrar::reserve(signed(1)));
 		assert_ok!(Registrar::register(
 			signed(1),
@@ -1551,7 +1555,7 @@ fn cant_bid_on_existing_lease_periods() {
 		));
 
 		// 2 sessions later they are on-demand parachains
-		run_to_session(2);
+		run_to_session(START_SESSION_INDEX + 2);
 
 		// Open a crowdloan for Para 1 for slots 0-3
 		assert_ok!(Crowdloan::create(
