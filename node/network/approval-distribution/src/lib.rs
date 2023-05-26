@@ -38,6 +38,7 @@ use polkadot_node_subsystem::{
 	},
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
+use polkadot_node_subsystem_util::reputation::ReputationAggregator;
 use polkadot_primitives::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
@@ -1685,48 +1686,6 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 
 	for (peer, approvals_packet) in peer_approvals {
 		send_approvals_batched(ctx.sender(), approvals_packet, peer).await;
-	}
-}
-
-#[derive(Debug, Clone)]
-struct ReputationAggregator {
-	malicious_reported: bool,
-	by_peer: std::collections::HashMap<PeerId, i32>,
-}
-
-impl Default for ReputationAggregator {
-	fn default() -> Self {
-		Self::new()
-	}
-}
-
-impl ReputationAggregator {
-	pub fn new() -> Self {
-		Self { malicious_reported: false, by_peer: std::collections::HashMap::new() }
-	}
-
-	pub fn clear(&mut self) {
-		self.by_peer.clear();
-	}
-
-	pub fn update(&mut self, peer_id: PeerId, rep: Rep) {
-		if matches!(rep, Rep::Malicious(_)) {
-			self.malicious_reported = true;
-		}
-		let current = match self.by_peer.get(&peer_id) {
-			Some(v) => *v,
-			None => 0,
-		};
-		let new_value = current.saturating_add(rep.cost_or_benefit());
-		self.by_peer.insert(peer_id, new_value);
-	}
-
-	pub fn malicious_reported(&self) -> bool {
-		self.malicious_reported
-	}
-
-	pub fn by_peer(&self) -> &std::collections::HashMap<PeerId, i32> {
-		&self.by_peer
 	}
 }
 
