@@ -334,10 +334,6 @@ enum PendingMessage {
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
 impl State {
-	pub fn new(reputation: ReputationAggregator) -> Self {
-		Self { reputation, ..Default::default() }
-	}
-
 	async fn handle_network_msg<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -1782,8 +1778,7 @@ impl ApprovalDistribution {
 	}
 
 	async fn run<Context>(self, ctx: Context) {
-		let reputation = ReputationAggregator::default();
-		let mut state = State::new(reputation);
+		let mut state = State::default();
 		let reputation_interval = std::time::Duration::from_secs(30);
 
 		// According to the docs of `rand`, this is a ChaCha12 RNG in practice

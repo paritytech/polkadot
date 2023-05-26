@@ -304,7 +304,7 @@ fn try_import_the_same_assignment() {
 	let reputation = ReputationAggregator::new(|rep| {
 		matches!(rep, COST_UNEXPECTED_MESSAGE | BENEFIT_VALID_MESSAGE_FIRST | BENEFIT_VALID_MESSAGE)
 	});
-	let state = State::new(reputation);
+	let state = State { reputation, ..Default::default() };
 
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
@@ -392,7 +392,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 	let reputation = ReputationAggregator::new(|rep| {
 		matches!(rep, COST_UNEXPECTED_MESSAGE | BENEFIT_VALID_MESSAGE_FIRST | BENEFIT_VALID_MESSAGE)
 	});
-	let state = State::new(reputation);
+	let state = State { reputation, ..Default::default() };
 
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
@@ -478,7 +478,7 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 	let peer_a = PeerId::random();
 	let hash = Hash::repeat_byte(0xAA);
 	let reputation = ReputationAggregator::new(|rep| matches!(rep, COST_DUPLICATE_MESSAGE));
-	let state = State::new(reputation);
+	let state = State { reputation, ..Default::default() };
 
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
@@ -556,7 +556,7 @@ fn import_approval_happy_path() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
 	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let state = State::new(reputation);
+	let state = State { reputation, ..Default::default() };
 
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
@@ -648,7 +648,7 @@ fn import_approval_bad() {
 	let reputation = ReputationAggregator::new(|rep| {
 		matches!(rep, COST_UNEXPECTED_MESSAGE | BENEFIT_VALID_MESSAGE_FIRST | COST_INVALID_MESSAGE)
 	});
-	let state = State::new(reputation);
+	let state = State { reputation, ..Default::default() };
 
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
@@ -959,7 +959,7 @@ fn import_remotely_then_locally() {
 	let hash = Hash::repeat_byte(0xAA);
 	let peer = &peer_a;
 	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let state = State::new(reputation);
+	let state = State { reputation, ..Default::default() };
 
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
@@ -1133,7 +1133,7 @@ fn race_condition_in_local_vs_remote_view_update() {
 	let peer_a = PeerId::random();
 	let hash_b = Hash::repeat_byte(0xBB);
 	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let state = State::new(reputation);
+	let state = State { reputation, ..Default::default() };
 
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
@@ -1315,7 +1315,7 @@ fn propagates_assignments_along_unshared_dimension() {
 
 	let peers = make_peers_and_authority_ids(100);
 	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let state = State::new(reputation);
+	let state = State { reputation, ..Default::default() };
 
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
@@ -1907,7 +1907,7 @@ fn non_originator_aggression_l1() {
 	let peers = make_peers_and_authority_ids(100);
 
 	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let mut state = State::new(reputation);
+	let mut state = State { reputation, ..Default::default() };
 	state.aggression_config.resend_unfinalized_period = None;
 	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
 
@@ -2012,7 +2012,7 @@ fn non_originator_aggression_l2() {
 	let peers = make_peers_and_authority_ids(100);
 
 	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let mut state = State::new(reputation);
+	let mut state = State { reputation, ..Default::default() };
 	state.aggression_config.resend_unfinalized_period = None;
 
 	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
@@ -2180,7 +2180,7 @@ fn resends_messages_periodically() {
 	let peers = make_peers_and_authority_ids(100);
 
 	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let mut state = State::new(reputation);
+	let mut state = State { reputation, ..Default::default() };
 	state.aggression_config.l1_threshold = None;
 	state.aggression_config.l2_threshold = None;
 	state.aggression_config.resend_unfinalized_period = Some(2);
