@@ -25,7 +25,7 @@ use sp_std::{marker::PhantomData, vec};
 use xcm::{opaque::lts::Weight, prelude::*};
 use xcm_executor::traits::{QueryHandler, QueryResponseStatus};
 
-/// Implementation of the `frame_support_traits::tokens::Pay` trait, to allow
+/// Implementation of the `frame_support::traits::tokens::Pay` trait, to allow
 /// for generic payments of a given `AssetKind` and `Balance` from an implied origin, to a
 /// beneficiary via XCM, relying on the XCM `TransferAsset` instruction.
 ///
