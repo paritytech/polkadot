@@ -213,6 +213,14 @@ impl ApprovalEntry {
 		self.approvals.values().cloned().collect::<Vec<_>>()
 	}
 
+	// Get the approval for a specific candidate index.
+	pub fn get_approval(
+		&self,
+		candidate_index: CandidateIndex,
+	) -> Option<IndirectSignedApprovalVote> {
+		self.approvals.get(&candidate_index).cloned()
+	}
+
 	// Get validator index.
 	pub fn get_validator_index(&self) -> ValidatorIndex {
 		self.validator_index
@@ -434,7 +442,7 @@ impl BlockEntry {
 
 	pub fn insert_approval_entry(&mut self, entry: ApprovalEntry) -> &mut ApprovalEntry {
 		// First map one entry per candidate to the same key we will use in `approval_entries`.
-		// Key is (Validator_index, Vec<CandidateIndex>) that links the `ApprovalEntry` to the (K,V)
+		// Key is (Validator_index, CandidateBitfield) that links the `ApprovalEntry` to the (K,V)
 		// entry in `candidate_entry.messages`.
 		for claimed_candidate_index in entry.candidates.iter_ones() {
 			match self.candidates.get_mut(claimed_candidate_index) {
@@ -1546,20 +1554,8 @@ impl State {
 			let sigs = block_entry
 				.get_approval_entries(index)
 				.into_iter()
-				.flat_map(|approval_entry| {
-					approval_entry
-						.get_approvals()
-						.into_iter()
-						// `get_approvals` gives all approvals for all candidates for a given validator.
-						// We need to restrict to a specific candidate.
-						.filter_map(|approval| {
-							if approval.candidate_index == index {
-								Some((approval.validator, approval.signature))
-							} else {
-								None
-							}
-						})
-				})
+				.filter_map(|approval_entry| approval_entry.get_approval(index))
+				.map(|approval| (approval.validator, approval.signature))
 				.collect::<HashMap<ValidatorIndex, ValidatorSignature>>();
 			all_sigs.extend(sigs);
 		}
