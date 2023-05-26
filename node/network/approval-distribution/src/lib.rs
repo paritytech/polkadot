@@ -764,8 +764,8 @@ impl State {
 					);
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
 						modify_reputation(
-							ctx.sender(),
 							&mut self.reputation,
+							ctx.sender(),
 							peer_id,
 							COST_UNEXPECTED_MESSAGE,
 						)
@@ -795,8 +795,8 @@ impl State {
 								"Duplicate assignment",
 							);
 							modify_reputation(
-								ctx.sender(),
 								&mut self.reputation,
+								ctx.sender(),
 								peer_id,
 								COST_DUPLICATE_MESSAGE,
 							)
@@ -813,8 +813,8 @@ impl State {
 						"Assignment from a peer is out of view",
 					);
 					modify_reputation(
-						ctx.sender(),
 						&mut self.reputation,
+						ctx.sender(),
 						peer_id,
 						COST_UNEXPECTED_MESSAGE,
 					)
@@ -825,8 +825,8 @@ impl State {
 			// if the assignment is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
 				modify_reputation(
-					ctx.sender(),
 					&mut self.reputation,
+					ctx.sender(),
 					peer_id,
 					BENEFIT_VALID_MESSAGE,
 				)
@@ -867,8 +867,8 @@ impl State {
 			match result {
 				AssignmentCheckResult::Accepted => {
 					modify_reputation(
-						ctx.sender(),
 						&mut self.reputation,
+						ctx.sender(),
 						peer_id,
 						BENEFIT_VALID_MESSAGE_FIRST,
 					)
@@ -901,8 +901,8 @@ impl State {
 						"Got an assignment too far in the future",
 					);
 					modify_reputation(
-						ctx.sender(),
 						&mut self.reputation,
+						ctx.sender(),
 						peer_id,
 						COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE,
 					)
@@ -918,8 +918,8 @@ impl State {
 						"Got a bad assignment from peer",
 					);
 					modify_reputation(
-						ctx.sender(),
 						&mut self.reputation,
+						ctx.sender(),
 						peer_id,
 						COST_INVALID_MESSAGE,
 					)
@@ -1074,8 +1074,8 @@ impl State {
 				if let Some(peer_id) = source.peer_id() {
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
 						modify_reputation(
-							ctx.sender(),
 							&mut self.reputation,
+							ctx.sender(),
 							peer_id,
 							COST_UNEXPECTED_MESSAGE,
 						)
@@ -1099,8 +1099,8 @@ impl State {
 					"Unknown approval assignment",
 				);
 				modify_reputation(
-					ctx.sender(),
 					&mut self.reputation,
+					ctx.sender(),
 					peer_id,
 					COST_UNEXPECTED_MESSAGE,
 				)
@@ -1122,8 +1122,8 @@ impl State {
 							);
 
 							modify_reputation(
-								ctx.sender(),
 								&mut self.reputation,
+								ctx.sender(),
 								peer_id,
 								COST_DUPLICATE_MESSAGE,
 							)
@@ -1140,8 +1140,8 @@ impl State {
 						"Approval from a peer is out of view",
 					);
 					modify_reputation(
-						ctx.sender(),
 						&mut self.reputation,
+						ctx.sender(),
 						peer_id,
 						COST_UNEXPECTED_MESSAGE,
 					)
@@ -1153,8 +1153,8 @@ impl State {
 			if entry.knowledge.contains(&message_subject, message_kind) {
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
 				modify_reputation(
-					ctx.sender(),
 					&mut self.reputation,
+					ctx.sender(),
 					peer_id,
 					BENEFIT_VALID_MESSAGE,
 				)
@@ -1190,8 +1190,8 @@ impl State {
 			match result {
 				ApprovalCheckResult::Accepted => {
 					modify_reputation(
-						ctx.sender(),
 						&mut self.reputation,
+						ctx.sender(),
 						peer_id,
 						BENEFIT_VALID_MESSAGE_FIRST,
 					)
@@ -1204,8 +1204,8 @@ impl State {
 				},
 				ApprovalCheckResult::Bad(error) => {
 					modify_reputation(
-						ctx.sender(),
 						&mut self.reputation,
+						ctx.sender(),
 						peer_id,
 						COST_INVALID_MESSAGE,
 					)
@@ -1760,8 +1760,8 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation(
-	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
 	reputation: &mut ReputationAggregator,
+	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
 	peer_id: PeerId,
 	rep: Rep,
 ) {
