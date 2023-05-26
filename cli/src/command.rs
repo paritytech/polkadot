@@ -298,12 +298,9 @@ where
 		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
-	// Disallow BEEFY on production networks.
-	if cli.run.beefy &&
-		(chain_spec.is_polkadot() || chain_spec.is_kusama() || chain_spec.is_westend())
-	{
-		return Err(Error::Other("BEEFY disallowed on production networks".to_string()))
-	}
+	// By default, enable BEEFY on test networks.
+	let enable_beefy = (chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi()) &&
+		!cli.run.no_beefy;
 
 	set_default_ss58_version(chain_spec);
 
@@ -346,7 +343,7 @@ where
 			config,
 			service::IsCollator::No,
 			grandpa_pause,
-			cli.run.beefy,
+			enable_beefy,
 			jaeger_agent,
 			None,
 			false,
@@ -495,7 +492,7 @@ pub fn run() -> Result<()> {
 
 			#[cfg(not(target_os = "android"))]
 			{
-				polkadot_node_core_pvf_worker::prepare_worker_entrypoint(
+				polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
 					&cmd.socket_path,
 					Some(&cmd.node_impl_version),
 				);
@@ -517,7 +514,7 @@ pub fn run() -> Result<()> {
 
 			#[cfg(not(target_os = "android"))]
 			{
-				polkadot_node_core_pvf_worker::execute_worker_entrypoint(
+				polkadot_node_core_pvf_execute_worker::worker_entrypoint(
 					&cmd.socket_path,
 					Some(&cmd.node_impl_version),
 				);

@@ -34,7 +34,7 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 # This one is tricky. Even though it is not used directly by the collator, we still need it for the
 # `puppet_worker` binary, which is required for the integration test. However, this shouldn't be
 # a big problem since it is used transitively anyway.
-polkadot-node-core-pvf-worker = { path = "../../../../node/core/pvf/worker" }
+polkadot-node-core-pvf = { path = "../../../../node/core/pvf" }
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }

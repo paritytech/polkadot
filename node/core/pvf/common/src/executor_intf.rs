@@ -27,42 +27,6 @@ use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use sp_externalities::MultiRemovalResults;
 use std::any::{Any, TypeId};
 
-// Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
-// That native code does not create any stacks and just reuses the stack of the thread that
-// wasmtime was invoked from.
-//
-// Also, we configure the executor to provide the deterministic stack and that requires
-// supplying the amount of the native stack space that wasm is allowed to use. This is
-// realized by supplying the limit into `wasmtime::Config::max_wasm_stack`.
-//
-// There are quirks to that configuration knob:
-//
-// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check
-//    that the stack space is actually available.
-//
-//    That means, if the calling thread has 1 MiB of stack space left and the wasm code consumes
-//    more, then the wasmtime limit will **not** trigger. Instead, the wasm code will hit the
-//    guard page and the Rust stack overflow handler will be triggered. That leads to an
-//    **abort**.
-//
-// 2. It cannot and does not limit the stack space consumed by Rust code.
-//
-//    Meaning that if the wasm code leaves no stack space for Rust code, then the Rust code
-//    will abort and that will abort the process as well.
-//
-// Typically on Linux the main thread gets the stack size specified by the `ulimit` and
-// typically it's configured to 8 MiB. Rust's spawned threads are 2 MiB. OTOH, the
-// NATIVE_STACK_MAX is set to 256 MiB. Not nearly enough.
-//
-// Hence we need to increase it. The simplest way to fix that is to spawn a thread with the desired
-// stack limit.
-//
-// The reasoning why we pick this particular size is:
-//
-// The default Rust thread stack limit 2 MiB + 256 MiB wasm stack.
-/// The stack size for the execute thread.
-pub const EXECUTE_THREAD_STACK_SIZE: usize = 2 * 1024 * 1024 + NATIVE_STACK_MAX as usize;
-
 // Memory configuration
 //
 // When Substrate Runtime is instantiated, a number of WASM pages are allocated for the Substrate
@@ -79,13 +43,13 @@ const DEFAULT_HEAP_PAGES_ESTIMATE: u32 = 32;
 const EXTRA_HEAP_PAGES: u32 = 2048;
 
 /// The number of bytes devoted for the stack during wasm execution of a PVF.
-const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
+pub const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
 
 // VALUES OF THE DEFAULT CONFIGURATION SHOULD NEVER BE CHANGED
 // They are used as base values for the execution environment parametrization.
 // To overwrite them, add new ones to `EXECUTOR_PARAMS` in the `session_info` pallet and perform
 // a runtime upgrade to make them active.
-const DEFAULT_CONFIG: Config = Config {
+pub const DEFAULT_CONFIG: Config = Config {
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
@@ -131,28 +95,7 @@ const DEFAULT_CONFIG: Config = Config {
 	},
 };
 
-/// Runs the prevalidation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
-pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error::WasmError> {
-	let blob = RuntimeBlob::new(code)?;
-	// It's assumed this function will take care of any prevalidation logic
-	// that needs to be done.
-	//
-	// Do nothing for now.
-	Ok(blob)
-}
-
-/// Runs preparation on the given runtime blob. If successful, it returns a serialized compiled
-/// artifact which can then be used to pass into `Executor::execute` after writing it to the disk.
-pub fn prepare(
-	blob: RuntimeBlob,
-	executor_params: &ExecutorParams,
-) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
-	let semantics = params_to_wasmtime_semantics(executor_params)
-		.map_err(|e| sc_executor_common::error::WasmError::Other(e))?;
-	sc_executor_wasmtime::prepare_runtime_artifact(blob, &semantics)
-}
-
-fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, String> {
+pub fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, String> {
 	let mut sem = DEFAULT_CONFIG.semantics.clone();
 	let mut stack_limit = if let Some(stack_limit) = sem.deterministic_stack_limit.clone() {
 		stack_limit
@@ -168,7 +111,8 @@ fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, Strin
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
 			ExecutorParam::WasmExtBulkMemory => sem.wasm_bulk_memory = true,
-			ExecutorParam::PrecheckingMaxMemory(_) => (), // TODO: Not implemented yet
+			// TODO: Not implemented yet; <https://github.com/paritytech/polkadot/issues/6472>.
+			ExecutorParam::PrecheckingMaxMemory(_) => (),
 			ExecutorParam::PvfPrepTimeout(_, _) | ExecutorParam::PvfExecTimeout(_, _) => (), // Not used here
 		}
 	}
