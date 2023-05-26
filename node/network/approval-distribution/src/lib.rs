@@ -1750,10 +1750,7 @@ async fn send_reputation(
 		sender
 			.send_message(NetworkBridgeTxMessage::ReportPeer(
 				peer_id,
-				net_protocol::ReputationChange::new(
-					score,
-					"Reputation changed during approval-distribution",
-				),
+				net_protocol::ReputationChange::new(score, "Aggregated reputation change"),
 			))
 			.await;
 	}
@@ -1784,20 +1781,21 @@ impl ApprovalDistribution {
 		reputation_interval: std::time::Duration,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
-		let mut reputation_delay = futures_timer::Delay::new(reputation_interval).fuse();
+		let reputation_delay_fn = || futures_timer::Delay::new(reputation_interval).fuse();
+		let mut reputation_delay = reputation_delay_fn();
 
 		loop {
 			if reputation_interval.is_zero() || state.reputation.malicious_reported() {
 				send_reputation(ctx.sender(), &state.reputation).await;
 				state.reputation.clear();
-				reputation_delay = futures_timer::Delay::new(reputation_interval).fuse();
+				reputation_delay = reputation_delay_fn();
 			}
 
 			select! {
 				_ = reputation_delay => {
 					send_reputation(ctx.sender(), &state.reputation).await;
 					state.reputation.clear();
-					reputation_delay = futures_timer::Delay::new(reputation_interval).fuse();
+					reputation_delay = reputation_delay_fn();
 				},
 				// Will run if no futures are immediately ready
 				default => {
