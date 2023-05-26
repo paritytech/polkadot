@@ -20,7 +20,7 @@
 
 #![warn(missing_docs)]
 
-use futures::{channel::oneshot, future::Fuse, select, FutureExt as _};
+use futures::{channel::oneshot, select, FutureExt as _};
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_network_protocol::{
 	self as net_protocol,
@@ -1690,7 +1690,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 
 #[derive(Debug, Clone)]
 struct ReputationAggregator {
-	overflow: bool,
+	malicious_reported: bool,
 	by_peer: std::collections::HashMap<PeerId, i32>,
 }
 
@@ -1702,7 +1702,7 @@ impl Default for ReputationAggregator {
 
 impl ReputationAggregator {
 	pub fn new() -> Self {
-		Self { overflow: false, by_peer: std::collections::HashMap::new() }
+		Self { malicious_reported: false, by_peer: std::collections::HashMap::new() }
 	}
 
 	pub fn clear(&mut self) {
@@ -1711,7 +1711,7 @@ impl ReputationAggregator {
 
 	pub fn update(&mut self, peer_id: PeerId, rep: Rep) {
 		if matches!(rep, Rep::Malicious(_)) {
-			self.overflow = true;
+			self.malicious_reported = true;
 		}
 		let current = match self.by_peer.get(&peer_id) {
 			Some(v) => *v,
@@ -1721,8 +1721,8 @@ impl ReputationAggregator {
 		self.by_peer.insert(peer_id, new_value);
 	}
 
-	pub fn overflow(&self) -> bool {
-		self.overflow
+	pub fn malicious_reported(&self) -> bool {
+		self.malicious_reported
 	}
 
 	pub fn by_peer(&self) -> &std::collections::HashMap<PeerId, i32> {
@@ -1740,26 +1740,6 @@ async fn modify_reputation(reputation: &mut ReputationAggregator, peer_id: PeerI
 	);
 
 	reputation.update(peer_id, rep);
-}
-
-async fn maybe_send_reputation(
-	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	reputation: &ReputationAggregator,
-	mut reputation_delay: &mut Fuse<futures_timer::Delay>,
-	reputation_interval: &std::time::Duration,
-) -> bool {
-	if reputation_interval.is_zero() || reputation.overflow() {
-		send_reputation(sender, reputation).await;
-		return true
-	}
-
-	select! {
-		_ = reputation_delay => {
-			send_reputation(sender, reputation).await;
-			true
-		},
-		default => false, // Will run if no futures are immediately ready
-	}
 }
 
 async fn send_reputation(
@@ -1788,7 +1768,7 @@ impl ApprovalDistribution {
 
 	async fn run<Context>(self, ctx: Context) {
 		let mut state = State::default();
-		let reputation_interval = std::time::Duration::from_millis(5);
+		let reputation_interval = std::time::Duration::from_secs(30);
 
 		// According to the docs of `rand`, this is a ChaCha12 RNG in practice
 		// and will always be chosen for strong performance and security properties.
@@ -1807,46 +1787,50 @@ impl ApprovalDistribution {
 		let mut reputation_delay = futures_timer::Delay::new(reputation_interval).fuse();
 
 		loop {
-			let message = match ctx.recv().await {
-				Ok(message) => message,
-				Err(e) => {
-					gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
-					return
-				},
-			};
-			match message {
-				FromOrchestra::Communication { msg } =>
-					Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
-				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
-					// the relay chain blocks relevant to the approval subsystems
-					// are those that are available, but not finalized yet
-					// actived and deactivated heads hence are irrelevant to this subsystem, other than
-					// for tracing purposes.
-					if let Some(activated) = update.activated {
-						let head = activated.hash;
-						let approval_distribution_span =
-							jaeger::PerLeafSpan::new(activated.span, "approval-distribution");
-						state.spans.insert(head, approval_distribution_span);
-					}
-				},
-				FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-					gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
-					state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
-				},
-				FromOrchestra::Signal(OverseerSignal::Conclude) => return,
+			if reputation_interval.is_zero() || state.reputation.malicious_reported() {
+				send_reputation(ctx.sender(), &state.reputation).await;
+				state.reputation.clear();
+				reputation_delay = futures_timer::Delay::new(reputation_interval).fuse();
 			}
 
-			if maybe_send_reputation(
-				ctx.sender(),
-				&state.reputation,
-				&mut reputation_delay,
-				&reputation_interval,
-			)
-			.await
-			{
-				state.reputation.clear();
-				reputation_delay = futures_timer::Delay::new(reputation_interval).fuse()
+			select! {
+				_ = reputation_delay => {
+					send_reputation(ctx.sender(), &state.reputation).await;
+					state.reputation.clear();
+					reputation_delay = futures_timer::Delay::new(reputation_interval).fuse();
+				},
+				// Will run if no futures are immediately ready
+				default => {
+					let message = match ctx.recv().await {
+						Ok(message) => message,
+						Err(e) => {
+							gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
+							return
+						},
+					};
+					match message {
+						FromOrchestra::Communication { msg } =>
+							Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
+						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
+							gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
+							// the relay chain blocks relevant to the approval subsystems
+							// are those that are available, but not finalized yet
+							// actived and deactivated heads hence are irrelevant to this subsystem, other than
+							// for tracing purposes.
+							if let Some(activated) = update.activated {
+								let head = activated.hash;
+								let approval_distribution_span =
+									jaeger::PerLeafSpan::new(activated.span, "approval-distribution");
+								state.spans.insert(head, approval_distribution_span);
+							}
+						},
+						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
+							gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
+							state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
+						},
+						FromOrchestra::Signal(OverseerSignal::Conclude) => return,
+					}
+				},
 			}
 		}
 	}
