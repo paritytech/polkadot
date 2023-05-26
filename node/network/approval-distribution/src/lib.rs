@@ -1770,6 +1770,8 @@ async fn modify_reputation(
 	reputation.modify(sender, peer_id, rep).await;
 }
 
+const REPUTATION_CHANGE_DELAY: u64 = 30;
+
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
 impl ApprovalDistribution {
 	/// Create a new instance of the [`ApprovalDistribution`] subsystem.
@@ -1779,7 +1781,7 @@ impl ApprovalDistribution {
 
 	async fn run<Context>(self, ctx: Context) {
 		let mut state = State::default();
-		let reputation_interval = std::time::Duration::from_secs(30);
+		let reputation_interval = std::time::Duration::from_secs(REPUTATION_CHANGE_DELAY);
 
 		// According to the docs of `rand`, this is a ChaCha12 RNG in practice
 		// and will always be chosen for strong performance and security properties.
