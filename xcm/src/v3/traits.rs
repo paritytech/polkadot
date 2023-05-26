@@ -212,6 +212,52 @@ impl From<SendError> for Error {
 
 pub type Result = result::Result<(), Error>;
 
+/*
+TODO: XCMv4
+/// Outcome of an XCM execution.
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
+pub enum Outcome {
+	/// Execution completed successfully; given weight was used.
+	Complete { used: Weight },
+	/// Execution started, but did not complete successfully due to the given error; given weight
+	/// was used.
+	Incomplete { used: Weight, error: Error },
+	/// Execution did not start due to the given error.
+	Error { error: Error },
+}
+
+impl Outcome {
+	pub fn ensure_complete(self) -> Result {
+		match self {
+			Outcome::Complete { .. } => Ok(()),
+			Outcome::Incomplete { error, .. } => Err(error),
+			Outcome::Error { error, .. } => Err(error),
+		}
+	}
+	pub fn ensure_execution(self) -> result::Result<Weight, Error> {
+		match self {
+			Outcome::Complete { used, .. } => Ok(used),
+			Outcome::Incomplete { used, .. } => Ok(used),
+			Outcome::Error { error, .. } => Err(error),
+		}
+	}
+	/// How much weight was used by the XCM execution attempt.
+	pub fn weight_used(&self) -> Weight {
+		match self {
+			Outcome::Complete { used, .. } => *used,
+			Outcome::Incomplete { used, .. } => *used,
+			Outcome::Error { .. } => Weight::zero(),
+		}
+	}
+}
+
+impl From<Error> for Outcome {
+	fn from(error: Error) -> Self {
+		Self::Error { error, maybe_id: None }
+	}
+}
+*/
+
 /// Outcome of an XCM execution.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
 pub enum Outcome {
@@ -259,13 +305,34 @@ pub trait ExecuteXcm<Call> {
 	fn execute(
 		origin: impl Into<MultiLocation>,
 		pre: Self::Prepared,
-		hash: XcmHash,
+		id: &mut XcmHash,
 		weight_credit: Weight,
 	) -> Outcome;
+	fn prepare_and_execute(
+		origin: impl Into<MultiLocation>,
+		message: Xcm<Call>,
+		id: &mut XcmHash,
+		weight_limit: Weight,
+		weight_credit: Weight,
+	) -> Outcome {
+		let pre = match Self::prepare(message) {
+			Ok(x) => x,
+			Err(_) => return Outcome::Error(Error::WeightNotComputable),
+		};
+		let xcm_weight = pre.weight_of();
+		if xcm_weight.any_gt(weight_limit) {
+			return Outcome::Error(Error::WeightLimitReached(xcm_weight))
+		}
+		Self::execute(origin, pre, id, weight_credit)
+	}
 
-	/// Execute some XCM `message` with the message `hash` from `origin` using no more than `weight_limit` weight.
-	/// The weight limit is a basic hard-limit and the implementation may place further restrictions or requirements
-	/// on weight and other aspects.
+	/// Execute some XCM `message` with the message `hash` from `origin` using no more than
+	/// `weight_limit` weight.
+	///
+	/// The weight limit is a basic hard-limit and the implementation may place further
+	/// restrictions or requirements on weight and other aspects.
+	//	TODO: XCMv4
+	//	#[deprecated = "Use `prepare_and_execute` instead"]
 	fn execute_xcm(
 		origin: impl Into<MultiLocation>,
 		message: Xcm<Call>,
@@ -283,14 +350,17 @@ pub trait ExecuteXcm<Call> {
 		Self::execute_xcm_in_credit(origin, message, hash, weight_limit, Weight::zero())
 	}
 
-	/// Execute some XCM `message` with the message `hash` from `origin` using no more than `weight_limit` weight.
+	/// Execute some XCM `message` with the message `hash` from `origin` using no more than
+	/// `weight_limit` weight.
 	///
-	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
-	/// execution without associated payment.
+	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may
+	/// allow execution without associated payment.
+	//	TODO: XCMv4
+	//	#[deprecated = "Use `prepare_and_execute` instead"]
 	fn execute_xcm_in_credit(
 		origin: impl Into<MultiLocation>,
 		message: Xcm<Call>,
-		hash: XcmHash,
+		mut hash: XcmHash,
 		weight_limit: Weight,
 		weight_credit: Weight,
 	) -> Outcome {
@@ -302,7 +372,7 @@ pub trait ExecuteXcm<Call> {
 		if xcm_weight.any_gt(weight_limit) {
 			return Outcome::Error(Error::WeightLimitReached(xcm_weight))
 		}
-		Self::execute(origin, pre, hash, weight_credit)
+		Self::execute(origin, pre, &mut hash, weight_credit)
 	}
 
 	/// Deduct some `fees` to the sovereign account of the given `location` and place them as per
@@ -322,7 +392,12 @@ impl<C> ExecuteXcm<C> for () {
 	fn prepare(message: Xcm<C>) -> result::Result<Self::Prepared, Xcm<C>> {
 		Err(message)
 	}
-	fn execute(_: impl Into<MultiLocation>, _: Self::Prepared, _: XcmHash, _: Weight) -> Outcome {
+	fn execute(
+		_: impl Into<MultiLocation>,
+		_: Self::Prepared,
+		_: &mut XcmHash,
+		_: Weight,
+	) -> Outcome {
 		unreachable!()
 	}
 	fn charge_fees(_location: impl Into<MultiLocation>, _fees: MultiAssets) -> Result {

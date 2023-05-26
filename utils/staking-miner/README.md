@@ -16,7 +16,7 @@ staking-miner --help
 
 You can build from the root of the Polkadot repository using:
 ```
-cargo build --release --locked --package staking-miner
+cargo build --profile production --locked --package staking-miner --bin staking-miner
 ```
 
 ## Docker

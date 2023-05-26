@@ -748,7 +748,7 @@ mod tests {
 		type MaxLocks = ();
 		type MaxReserves = MaxReserves;
 		type ReserveIdentifier = [u8; 8];
-		type HoldIdentifier = ();
+		type RuntimeHoldReason = RuntimeHoldReason;
 		type FreezeIdentifier = ();
 		type MaxHolds = ConstU32<1>;
 		type MaxFreezes = ConstU32<1>;
