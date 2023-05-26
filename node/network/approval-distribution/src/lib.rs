@@ -334,6 +334,10 @@ enum PendingMessage {
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
 impl State {
+	pub fn new(reputation: ReputationAggregator) -> Self {
+		Self { reputation, ..Default::default() }
+	}
+
 	async fn handle_network_msg<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -759,8 +763,13 @@ impl State {
 						"Unexpected assignment",
 					);
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
-						modify_reputation(&mut self.reputation, peer_id, COST_UNEXPECTED_MESSAGE)
-							.await;
+						modify_reputation(
+							ctx.sender(),
+							&mut self.reputation,
+							peer_id,
+							COST_UNEXPECTED_MESSAGE,
+						)
+						.await;
 					}
 				}
 				return
@@ -786,6 +795,7 @@ impl State {
 								"Duplicate assignment",
 							);
 							modify_reputation(
+								ctx.sender(),
 								&mut self.reputation,
 								peer_id,
 								COST_DUPLICATE_MESSAGE,
@@ -802,13 +812,25 @@ impl State {
 						?message_subject,
 						"Assignment from a peer is out of view",
 					);
-					modify_reputation(&mut self.reputation, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(
+						ctx.sender(),
+						&mut self.reputation,
+						peer_id,
+						COST_UNEXPECTED_MESSAGE,
+					)
+					.await;
 				},
 			}
 
 			// if the assignment is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
-				modify_reputation(&mut self.reputation, peer_id, BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(
+					ctx.sender(),
+					&mut self.reputation,
+					peer_id,
+					BENEFIT_VALID_MESSAGE,
+				)
+				.await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known assignment");
 					peer_knowledge.received.insert(message_subject, message_kind);
@@ -844,8 +866,13 @@ impl State {
 			);
 			match result {
 				AssignmentCheckResult::Accepted => {
-					modify_reputation(&mut self.reputation, peer_id, BENEFIT_VALID_MESSAGE_FIRST)
-						.await;
+					modify_reputation(
+						ctx.sender(),
+						&mut self.reputation,
+						peer_id,
+						BENEFIT_VALID_MESSAGE_FIRST,
+					)
+					.await;
 					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
@@ -874,6 +901,7 @@ impl State {
 						"Got an assignment too far in the future",
 					);
 					modify_reputation(
+						ctx.sender(),
 						&mut self.reputation,
 						peer_id,
 						COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE,
@@ -889,7 +917,13 @@ impl State {
 						%error,
 						"Got a bad assignment from peer",
 					);
-					modify_reputation(&mut self.reputation, peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(
+						ctx.sender(),
+						&mut self.reputation,
+						peer_id,
+						COST_INVALID_MESSAGE,
+					)
+					.await;
 					return
 				},
 			}
@@ -1039,8 +1073,13 @@ impl State {
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
-						modify_reputation(&mut self.reputation, peer_id, COST_UNEXPECTED_MESSAGE)
-							.await;
+						modify_reputation(
+							ctx.sender(),
+							&mut self.reputation,
+							peer_id,
+							COST_UNEXPECTED_MESSAGE,
+						)
+						.await;
 					}
 				}
 				return
@@ -1059,7 +1098,13 @@ impl State {
 					?message_subject,
 					"Unknown approval assignment",
 				);
-				modify_reputation(&mut self.reputation, peer_id, COST_UNEXPECTED_MESSAGE).await;
+				modify_reputation(
+					ctx.sender(),
+					&mut self.reputation,
+					peer_id,
+					COST_UNEXPECTED_MESSAGE,
+				)
+				.await;
 				return
 			}
 
@@ -1077,6 +1122,7 @@ impl State {
 							);
 
 							modify_reputation(
+								ctx.sender(),
 								&mut self.reputation,
 								peer_id,
 								COST_DUPLICATE_MESSAGE,
@@ -1093,14 +1139,26 @@ impl State {
 						?message_subject,
 						"Approval from a peer is out of view",
 					);
-					modify_reputation(&mut self.reputation, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(
+						ctx.sender(),
+						&mut self.reputation,
+						peer_id,
+						COST_UNEXPECTED_MESSAGE,
+					)
+					.await;
 				},
 			}
 
 			// if the approval is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
-				modify_reputation(&mut self.reputation, peer_id, BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(
+					ctx.sender(),
+					&mut self.reputation,
+					peer_id,
+					BENEFIT_VALID_MESSAGE,
+				)
+				.await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					peer_knowledge.received.insert(message_subject.clone(), message_kind);
 				}
@@ -1131,8 +1189,13 @@ impl State {
 			);
 			match result {
 				ApprovalCheckResult::Accepted => {
-					modify_reputation(&mut self.reputation, peer_id, BENEFIT_VALID_MESSAGE_FIRST)
-						.await;
+					modify_reputation(
+						ctx.sender(),
+						&mut self.reputation,
+						peer_id,
+						BENEFIT_VALID_MESSAGE_FIRST,
+					)
+					.await;
 
 					entry.knowledge.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
@@ -1140,7 +1203,13 @@ impl State {
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
-					modify_reputation(&mut self.reputation, peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(
+						ctx.sender(),
+						&mut self.reputation,
+						peer_id,
+						COST_INVALID_MESSAGE,
+					)
+					.await;
 					gum::info!(
 						target: LOG_TARGET,
 						?peer_id,
@@ -1690,29 +1759,19 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation(reputation: &mut ReputationAggregator, peer_id: PeerId, rep: Rep) {
+async fn modify_reputation(
+	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
+	reputation: &mut ReputationAggregator,
+	peer_id: PeerId,
+	rep: Rep,
+) {
 	gum::trace!(
 		target: LOG_TARGET,
 		reputation = ?rep,
 		?peer_id,
 		"Reputation change for peer",
 	);
-
-	reputation.update(peer_id, rep);
-}
-
-async fn send_reputation(
-	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	reputation: &ReputationAggregator,
-) {
-	for (&peer_id, &score) in reputation.by_peer() {
-		sender
-			.send_message(NetworkBridgeTxMessage::ReportPeer(
-				peer_id,
-				net_protocol::ReputationChange::new(score, "Aggregated reputation change"),
-			))
-			.await;
-	}
+	reputation.modify(sender, peer_id, rep).await;
 }
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
@@ -1723,7 +1782,8 @@ impl ApprovalDistribution {
 	}
 
 	async fn run<Context>(self, ctx: Context) {
-		let mut state = State::default();
+		let reputation = ReputationAggregator::default();
+		let mut state = State::new(reputation);
 		let reputation_interval = std::time::Duration::from_secs(30);
 
 		// According to the docs of `rand`, this is a ChaCha12 RNG in practice
@@ -1740,21 +1800,14 @@ impl ApprovalDistribution {
 		reputation_interval: std::time::Duration,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
-		let reputation_delay_fn = || futures_timer::Delay::new(reputation_interval).fuse();
-		let mut reputation_delay = reputation_delay_fn();
+		let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+		let mut reputation_delay = new_reputation_delay();
 
 		loop {
-			if reputation_interval.is_zero() || state.reputation.malicious_reported() {
-				send_reputation(ctx.sender(), &state.reputation).await;
-				state.reputation.clear();
-				reputation_delay = reputation_delay_fn();
-			}
-
 			select! {
 				_ = reputation_delay => {
-					send_reputation(ctx.sender(), &state.reputation).await;
-					state.reputation.clear();
-					reputation_delay = reputation_delay_fn();
+					state.reputation.send(ctx.sender()).await;
+					reputation_delay = new_reputation_delay();
 				},
 				// Will run if no futures are immediately ready
 				default => {

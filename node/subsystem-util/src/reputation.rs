@@ -14,46 +14,63 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
+use polkadot_node_network_protocol::{self as net_protocol, PeerId, UnifiedReputationChange};
+use polkadot_node_subsystem::{messages::NetworkBridgeTxMessage, overseer};
 
+/// TODO
 #[derive(Debug, Clone)]
 pub struct ReputationAggregator {
-	malicious_reported: bool,
+	send_immediately_if: fn(UnifiedReputationChange) -> bool,
 	by_peer: std::collections::HashMap<PeerId, i32>,
 }
 
 impl Default for ReputationAggregator {
 	fn default() -> Self {
-		Self::new()
+		Self::new(|rep| matches!(rep, UnifiedReputationChange::Malicious(_)))
 	}
 }
 
 impl ReputationAggregator {
-	pub fn new() -> Self {
-		Self { malicious_reported: false, by_peer: std::collections::HashMap::new() }
+	/// TODO
+	pub fn new(send_immediately_if: fn(UnifiedReputationChange) -> bool) -> Self {
+		Self { by_peer: Default::default(), send_immediately_if }
 	}
 
-	pub fn clear(&mut self) {
+	/// TODO
+	pub async fn send(
+		&mut self,
+		sender: &mut impl overseer::SubsystemSender<NetworkBridgeTxMessage>,
+	) {
+		for (&peer_id, &score) in &self.by_peer {
+			sender
+				.send_message(NetworkBridgeTxMessage::ReportPeer(
+					peer_id,
+					net_protocol::ReputationChange::new(score, "Aggregated reputation change"),
+				))
+				.await;
+		}
 		self.by_peer.clear();
 	}
 
-	pub fn update(&mut self, peer_id: PeerId, rep: UnifiedReputationChange) {
-		if matches!(rep, UnifiedReputationChange::Malicious(_)) {
-			self.malicious_reported = true;
+	/// TODO
+	pub async fn modify(
+		&mut self,
+		sender: &mut impl overseer::ApprovalDistributionSenderTrait,
+		peer_id: PeerId,
+		rep: UnifiedReputationChange,
+	) {
+		self.add(peer_id, rep);
+		if (self.send_immediately_if)(rep) {
+			self.send(sender).await;
 		}
+	}
+
+	fn add(&mut self, peer_id: PeerId, rep: UnifiedReputationChange) {
 		let current = match self.by_peer.get(&peer_id) {
 			Some(v) => *v,
 			None => 0,
 		};
 		let new_value = current.saturating_add(rep.cost_or_benefit());
 		self.by_peer.insert(peer_id, new_value);
-	}
-
-	pub fn malicious_reported(&self) -> bool {
-		self.malicious_reported
-	}
-
-	pub fn by_peer(&self) -> &std::collections::HashMap<PeerId, i32> {
-		&self.by_peer
 	}
 }
