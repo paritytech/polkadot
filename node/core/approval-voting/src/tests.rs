@@ -2725,14 +2725,12 @@ async fn step_until_done(clock: &MockClock) {
 		futures_timer::Delay::new(Duration::from_millis(200)).await;
 		let mut clock = clock.inner.lock();
 		if let Some(tick) = clock.next_wakeup() {
-			println!("TICK: {:?}", tick);
 			relevant_ticks.push(tick);
 			clock.set_tick(tick);
 		} else {
 			break
 		}
 	}
-	println!("relevant_ticks: {:?}", relevant_ticks);
 }
 
 #[test]

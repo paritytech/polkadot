@@ -489,7 +489,8 @@ fn compute_relay_vrf_modulo_assignments_v2(
 	assignments: &mut HashMap<CoreIndex, OurAssignment>,
 ) {
 	let mut assigned_cores = Vec::new();
-	// for rvm_sample in 0..config.relay_vrf_modulo_samples {
+	let leaving_cores = leaving_cores.iter().map(|(_, core)| core).collect::<Vec<_>>();
+
 	let maybe_assignment = {
 		let assigned_cores = &mut assigned_cores;
 		assignments_key.vrf_sign_extra_after_check(
@@ -501,9 +502,7 @@ fn compute_relay_vrf_modulo_assignments_v2(
 					config.n_cores,
 				)
 				.into_iter()
-				.filter(|core| {
-					leaving_cores.iter().map(|(_, core)| core).collect::<Vec<_>>().contains(&core)
-				})
+				.filter(|core| leaving_cores.contains(&core))
 				.collect::<Vec<CoreIndex>>();
 
 				if !assigned_cores.is_empty() {

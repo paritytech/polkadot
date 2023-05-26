@@ -1903,7 +1903,6 @@ where
 	let mut assigned_candidate_hashes = Vec::new();
 
 	for candidate_index in candidate_indices.iter_ones() {
-		println!("{:?}", &block_entry);
 		let (claimed_core_index, assigned_candidate_hash) =
 			match block_entry.candidate(candidate_index) {
 				Some((c, h)) => (*c, *h),
