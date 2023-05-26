@@ -731,10 +731,8 @@ fn update_our_view() {
 	let hash_a = Hash::repeat_byte(0xAA);
 	let hash_b = Hash::repeat_byte(0xBB);
 	let hash_c = Hash::repeat_byte(0xCC);
-	let reputation = ReputationAggregator::new(|_rep| false);
-	let state = State::new(reputation);
 
-	let state = test_harness(state, |mut virtual_overseer| async move {
+	let state = test_harness(State::default(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		// new block `hash_a` with 1 candidates
 		let meta_a = BlockApprovalMeta {
@@ -809,10 +807,8 @@ fn update_peer_view() {
 	let hash_d = Hash::repeat_byte(0xDD);
 	let peer_a = PeerId::random();
 	let peer = &peer_a;
-	let reputation = ReputationAggregator::new(|_rep| false);
-	let state = State::new(reputation);
 
-	let state = test_harness(state, |mut virtual_overseer| async move {
+	let state = test_harness(State::default(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		// new block `hash_a` with 1 candidates
 		let meta_a = BlockApprovalMeta {
@@ -1051,10 +1047,8 @@ fn sends_assignments_even_when_state_is_approved() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
 	let peer = &peer_a;
-	let reputation = ReputationAggregator::new(|_rep| false);
-	let state = State::new(reputation);
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 
 		// new block `hash_a` with 1 candidates
@@ -1215,10 +1209,8 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 	let hash = Hash::repeat_byte(0xAA);
 
 	let peers = make_peers_and_authority_ids(100);
-	let reputation = ReputationAggregator::new(|_rep| false);
-	let state = State::new(reputation);
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 
 		// Connect all peers.
@@ -1463,10 +1455,8 @@ fn propagates_to_required_after_connect() {
 	let hash = Hash::repeat_byte(0xAA);
 
 	let peers = make_peers_and_authority_ids(100);
-	let reputation = ReputationAggregator::new(|_rep| false);
-	let state = State::new(reputation);
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 
 		let omitted = [0, 10, 50, 51];
@@ -1606,10 +1596,8 @@ fn sends_to_more_peers_after_getting_topology() {
 	let hash = Hash::repeat_byte(0xAA);
 
 	let peers = make_peers_and_authority_ids(100);
-	let reputation = ReputationAggregator::new(|_rep| false);
-	let state = State::new(reputation);
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 
 		// Connect all peers except omitted.
@@ -1757,8 +1745,7 @@ fn originator_aggression_l1() {
 
 	let peers = make_peers_and_authority_ids(100);
 
-	let reputation = ReputationAggregator::new(|_rep| false);
-	let mut state = State::new(reputation);
+	let mut state = State::default();
 	state.aggression_config.resend_unfinalized_period = None;
 	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
 
@@ -2331,8 +2318,7 @@ fn resends_messages_periodically() {
 fn batch_test_round(message_count: usize) {
 	use polkadot_node_subsystem::SubsystemContext;
 	let pool = sp_core::testing::TaskExecutor::new();
-	let reputation = ReputationAggregator::new(|_rep| false);
-	let mut state = State::new(reputation);
+	let mut state = State::default();
 
 	let (mut context, mut virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 	let subsystem = ApprovalDistribution::new(Default::default());
