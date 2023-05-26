@@ -873,7 +873,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			RequestUnlock { asset, locker } => {
 				let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 				let remote_asset = Self::try_reanchor(asset.clone(), &locker)?.0;
-				let remote_target = Self::try_reanchor_multilocation(origin.clone(), &locker)?.0;
+				let remote_target = Self::try_reanchor_multilocation(origin, &locker)?.0;
 				let reduce_ticket =
 					Config::AssetLocker::prepare_reduce_unlockable(locker, asset, origin)?;
 				let msg =
