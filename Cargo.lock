@@ -4035,6 +4035,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "landlock"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "520baa32708c4e957d2fc3a186bc5bd8d26637c33137f399ddfc202adb240068"
+dependencies = [
+ "enumflags2",
+ "libc",
+ "thiserror",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7517,8 +7528,10 @@ dependencies = [
 name = "polkadot-node-core-pvf-common"
 version = "0.9.41"
 dependencies = [
+ "assert_matches",
  "cpu-time",
  "futures",
+ "landlock",
  "libc",
  "parity-scale-codec",
  "polkadot-parachain",
