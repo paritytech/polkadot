@@ -53,15 +53,9 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let subsystem = ApprovalDistribution::new(Default::default());
 	{
 		let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
-		let mut reputation = ReputationAggregator::new();
 
-		let subsystem = subsystem.run_inner(
-			context,
-			&mut state,
-			&mut reputation,
-			std::time::Duration::from_millis(0),
-			&mut rng,
-		);
+		let subsystem =
+			subsystem.run_inner(context, &mut state, std::time::Duration::from_millis(0), &mut rng);
 
 		let test_fut = test_fn(virtual_overseer);
 
@@ -2325,19 +2319,13 @@ fn batch_test_round(message_count: usize) {
 	use polkadot_node_subsystem::SubsystemContext;
 	let pool = sp_core::testing::TaskExecutor::new();
 	let mut state = State::default();
-	let mut reputation = ReputationAggregator::new();
 
 	let (mut context, mut virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 	let subsystem = ApprovalDistribution::new(Default::default());
 	let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
 	let mut sender = context.sender().clone();
-	let subsystem = subsystem.run_inner(
-		context,
-		&mut state,
-		&mut reputation,
-		std::time::Duration::from_millis(0),
-		&mut rng,
-	);
+	let subsystem =
+		subsystem.run_inner(context, &mut state, std::time::Duration::from_millis(0), &mut rng);
 
 	let test_fut = async move {
 		let overseer = &mut virtual_overseer;
