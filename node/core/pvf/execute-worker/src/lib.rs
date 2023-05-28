@@ -14,20 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{
-	common::{
+mod executor_intf;
+
+pub use executor_intf::Executor;
+
+// NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
+//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf-execute-worker=trace`.
+const LOG_TARGET: &str = "parachain::pvf-execute-worker";
+
+use crate::executor_intf::EXECUTE_THREAD_STACK_SIZE;
+use cpu_time::ProcessTime;
+use parity_scale_codec::{Decode, Encode};
+use polkadot_node_core_pvf_common::{
+	error::InternalValidationError,
+	execute::{Handshake, Response},
+	framed_recv, framed_send,
+	worker::{
 		bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload,
 		thread::{self, WaitOutcome},
 		worker_event_loop,
 	},
-	executor_intf::{Executor, EXECUTE_THREAD_STACK_SIZE},
-	LOG_TARGET,
-};
-use cpu_time::ProcessTime;
-use parity_scale_codec::{Decode, Encode};
-use polkadot_node_core_pvf::{
-	framed_recv, framed_send, ExecuteHandshake as Handshake, ExecuteResponse as Response,
-	InternalValidationError,
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
