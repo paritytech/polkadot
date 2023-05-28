@@ -18,6 +18,16 @@
 //!
 //! This is needed because workers are used to compile and execute untrusted code (PVFs).
 
+/// The	[landlock] docs say it best:
+///
+/// > "Landlock is a security feature available since Linux 5.13. The goal is to enable to restrict
+/// ambient rights (e.g., global filesystem access) for a set of processes by creating safe security
+/// sandboxes as new security layers in addition to the existing system-wide access-controls. This
+/// kind of sandbox is expected to help mitigate the security impact of bugs, unexpected or
+/// malicious behaviors in applications. Landlock empowers any process, including unprivileged ones,
+/// to securely restrict themselves."
+///
+/// [landlock]: https://docs.rs/landlock/latest/landlock/index.html
 #[cfg(target_os = "linux")]
 pub mod landlock {
 	use landlock::{
@@ -28,15 +38,21 @@ pub mod landlock {
 	/// Returns to what degree landlock is enabled on the current Linux environment.
 	///
 	/// This is a separate check so it can run outside a worker thread, so the results can be sent via telemetry.
-	pub fn check_enabled() -> bool {
+	pub fn check_enabled() -> RulesetStatus {
 		// TODO: <https://github.com/landlock-lsm/rust-landlock/issues/36>
-		true
+		RulesetStatus::FullyEnforced
 	}
 
 	/// Tries to restrict the current thread with the following landlock access controls:
 	///
 	/// 1. all global filesystem access
 	/// 2. ... more may be supported in the future.
+	///
+	/// If landlock is not supported in the current environment this is simply a noop.
+	///
+	/// # Returns
+	///
+	/// The status of the restriction (whether it was fully, partially, or not-at-all enforced).
 	pub fn try_restrict_thread() -> Result<RulesetStatus, RulesetError> {
 		let abi = ABI::V2;
 		let status = Ruleset::new()
