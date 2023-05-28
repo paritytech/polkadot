@@ -82,10 +82,8 @@ pub fn worker_event_loop<F, Fut>(
 	F: FnMut(UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
-	// Use `PR_SET_PDEATHSIG` to ensure that the child is sent a kill signal when the parent dies.
-	//
-	// NOTE: This technically has a race as the parent may have already died. In that case we will
-	// fail to read the socket later and just shutdown.
+	// Use `PR_SET_PDEATHSIG` to ensure that the child is sent a kill signal when the parent process
+	// or thread dies.
 	#[cfg(linux)]
 	if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) != 0 {
 		return
@@ -191,11 +189,6 @@ pub fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String
 /// to real artifacts on the node side, so no leftover artifacts are possible.
 fn kill_parent_node_in_emergency(worker_pid: u32) {
 	unsafe {
-		// NOTE: On non-Linux this has a race condition between getting the pid and sending the
-		// signal -- the parent may have died and another process been assigned the same pid. On
-		// Linux this is not a problem -- we use `PR_SET_PDEATHSIG` to ensure that the child is sent
-		// a kill signal when the parent dies.
-		//
 		// SAFETY: `getpid()` never fails but may return "no-parent" (0) or "parent-init" (1) in
 		// some corner cases, which is checked. `kill()` never fails.
 		let ppid = libc::getppid();
@@ -205,6 +198,8 @@ fn kill_parent_node_in_emergency(worker_pid: u32) {
 			gum::error!(target: LOG_TARGET, %worker_pid, "unexpected ppid {}", ppid);
 		}
 
+		// Explicitly terminate the worker here. Not strictly necessary as it would end when it
+		// fails to read from the socket later.
 		libc::kill(worker_pid as i32, libc::SIGKILL);
 	}
 }
