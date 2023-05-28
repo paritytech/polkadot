@@ -16,9 +16,7 @@
 
 //! Functionality for securing workers.
 //!
-//! This is needed because workers are used to compile and execute untrusted code (PVFs). This means
-//! it is possible for erroneous disputes and slashing to occur, whether intentional (as a result of
-//! a malicious attacker) or not (a bug or operator error occurred).
+//! This is needed because workers are used to compile and execute untrusted code (PVFs).
 
 #[cfg(target_os = "linux")]
 pub mod landlock {
