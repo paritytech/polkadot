@@ -28,7 +28,10 @@ pub mod landlock {
 	/// Returns to what degree landlock is enabled on the current Linux environment.
 	///
 	/// This is a separate check so it can run outside a worker thread, so the results can be sent via telemetry.
-	pub fn check_enabled() {}
+	pub fn check_enabled() -> bool {
+		// TODO: <https://github.com/landlock-lsm/rust-landlock/issues/36>
+		true
+	}
 
 	/// Tries to restrict the current thread with the following landlock access controls:
 	///
@@ -46,9 +49,13 @@ pub mod landlock {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use crate::worker::thread::{self, WaitOutcome};
 		use assert_matches::assert_matches;
-		use std::sync::Arc;
+		use std::{
+			fs,
+			io::{ErrorKind, Read, Write},
+			sync::Arc,
+			thread,
+		};
 
 		#[test]
 		fn restricted_thread_cannot_access_fs() {
@@ -57,21 +64,51 @@ pub mod landlock {
 				return
 			}
 
-			let cond = thread::get_condvar();
+			// Restricted thread cannot read from FS.
+			let handle = thread::spawn(|| {
+				// Write to a tmp file, this should succeed before landlock is applied.
+				let text = "foo";
+				let tmpfile = tempfile::NamedTempFile::new().unwrap();
+				let path = tmpfile.path();
+				fs::write(path, text).unwrap();
+				let s = fs::read_to_string(path).unwrap();
+				assert_eq!(s, text);
 
-			// Use the same method we use to spawn workers in production.
-			let handle = thread::spawn_worker_thread(
-				"test_restricted_thread_cannot_access_fs",
-				|| true,
-				Arc::clone(&cond),
-				WaitOutcome::Finished,
-			)
-			.unwrap();
+				let status = super::try_restrict_thread().unwrap();
+				if let RulesetStatus::NotEnforced = status {
+					panic!("Ruleset should be enforced since we checked if landlock is enabled");
+				}
 
-			let outcome = thread::wait_for_threads(cond);
+				// Try to read from the tmp file after landlock.
+				let result = fs::read_to_string(path);
+				assert!(matches!(
+					result,
+					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
+				));
+			});
 
-			assert_matches!(outcome, WaitOutcome::Finished);
-			assert_matches!(handle.join(), Ok(true));
+			assert_matches!(handle.join(), Ok(()));
+
+			// Restricted thread cannot write to FS.
+			let handle = thread::spawn(|| {
+				let text = "foo";
+				let tmpfile = tempfile::NamedTempFile::new().unwrap();
+				let path = tmpfile.path();
+
+				let status = super::try_restrict_thread().unwrap();
+				if let RulesetStatus::NotEnforced = status {
+					panic!("Ruleset should be enforced since we checked if landlock is enabled");
+				}
+
+				// Try to write to the tmp file after landlock.
+				let result = fs::write(path, text);
+				assert!(matches!(
+					result,
+					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
+				));
+			});
+
+			assert_matches!(handle.join(), Ok(()));
 		}
 	}
 }

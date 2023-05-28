@@ -7541,6 +7541,7 @@ dependencies = [
  "sp-core",
  "sp-tracing",
  "substrate-build-script-utils",
+ "tempfile",
  "tokio",
  "tracing-gum",
 ]
