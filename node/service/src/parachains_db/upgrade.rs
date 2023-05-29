@@ -249,7 +249,7 @@ fn paritydb_fix_columns(
 pub(crate) fn paritydb_version_1_config(path: &Path) -> parity_db::Options {
 	let mut options =
 		parity_db::Options::with_columns(&path, super::columns::v1::NUM_COLUMNS as u8);
-	for i in columns::v2::ORDERED_COL {
+	for i in columns::v3::ORDERED_COL {
 		options.columns[*i as usize].btree_index = true;
 	}
 
@@ -260,7 +260,7 @@ pub(crate) fn paritydb_version_1_config(path: &Path) -> parity_db::Options {
 pub(crate) fn paritydb_version_2_config(path: &Path) -> parity_db::Options {
 	let mut options =
 		parity_db::Options::with_columns(&path, super::columns::v2::NUM_COLUMNS as u8);
-	for i in columns::v2::ORDERED_COL {
+	for i in columns::v3::ORDERED_COL {
 		options.columns[*i as usize].btree_index = true;
 	}
 
@@ -283,8 +283,8 @@ pub(crate) fn paritydb_version_3_config(path: &Path) -> parity_db::Options {
 pub(crate) fn paritydb_version_0_config(path: &Path) -> parity_db::Options {
 	let mut options =
 		parity_db::Options::with_columns(&path, super::columns::v1::NUM_COLUMNS as u8);
-	options.columns[super::columns::v2::COL_AVAILABILITY_META as usize].btree_index = true;
-	options.columns[super::columns::v2::COL_CHAIN_SELECTION_DATA as usize].btree_index = true;
+	options.columns[super::columns::v3::COL_AVAILABILITY_META as usize].btree_index = true;
+	options.columns[super::columns::v3::COL_CHAIN_SELECTION_DATA as usize].btree_index = true;
 
 	options
 }
@@ -299,7 +299,7 @@ fn paritydb_migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
 	paritydb_fix_columns(
 		path,
 		paritydb_version_1_config(path),
-		vec![super::columns::v2::COL_DISPUTE_COORDINATOR_DATA],
+		vec![super::columns::v3::COL_DISPUTE_COORDINATOR_DATA],
 	)?;
 
 	Ok(())
@@ -327,7 +327,10 @@ fn paritydb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
-	use super::{columns::v2::*, *};
+	use super::{
+		columns::{v2::COL_SESSION_WINDOW_DATA, v3::*},
+		*,
+	};
 
 	#[test]
 	fn test_paritydb_migrate_0_to_1() {
@@ -422,7 +425,7 @@ mod tests {
 		// We need to properly set db version for upgrade to work.
 		fs::write(version_file_path(db_dir.path()), "1").expect("Failed to write DB version");
 		{
-			let db = DbAdapter::new(db, columns::v2::ORDERED_COL);
+			let db = DbAdapter::new(db, columns::v3::ORDERED_COL);
 			db.write(DBTransaction {
 				ops: vec![DBOp::Insert {
 					col: COL_DISPUTE_COORDINATOR_DATA,
@@ -440,7 +443,7 @@ mod tests {
 
 		assert_eq!(db.num_columns(), super::columns::v2::NUM_COLUMNS);
 
-		let db = DbAdapter::new(db, columns::v2::ORDERED_COL);
+		let db = DbAdapter::new(db, columns::v3::ORDERED_COL);
 
 		assert_eq!(
 			db.get(COL_DISPUTE_COORDINATOR_DATA, b"1234").unwrap(),

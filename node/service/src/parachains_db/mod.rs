@@ -36,16 +36,9 @@ pub(crate) mod columns {
 
 	pub mod v2 {
 		pub const NUM_COLUMNS: u32 = 6;
-		// pub const COL_AVAILABILITY_DATA: u32 = 0;
-		pub const COL_AVAILABILITY_META: u32 = 1;
-		// pub const COL_APPROVAL_DATA: u32 = 2;
-		pub const COL_CHAIN_SELECTION_DATA: u32 = 3;
-		pub const COL_DISPUTE_COORDINATOR_DATA: u32 = 4;
+
 		#[cfg(test)]
 		pub const COL_SESSION_WINDOW_DATA: u32 = 5;
-
-		pub const ORDERED_COL: &[u32] =
-			&[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA, COL_DISPUTE_COORDINATOR_DATA];
 	}
 
 	pub mod v3 {
