@@ -8,17 +8,15 @@ chain = "rococo-local"
 
   [[relaychain.nodes]]
   name = "alice"
-  args = [ "-lparachain=debug,runtime=debug", "--db paritydb" ]
-  substrate_cli_args_version = 1
+  args = [ "-lparachain=debug,runtime=debug,parachain::approval-distribution=trace", "--db paritydb" ]
 
   [[relaychain.nodes]]
   name = "bob"
   args = [ "-lparachain=debug,runtime=debug", "--db rocksdb" ]
-  substrate_cli_args_version = 1
 
   [[relaychain.nodes]]
   name = "charlie"
-  args = [ "-lparachain=debug,runtime=debug", "--db paritydb" ]
+  args = [ "-lparachain=debug,runtime=debug,parachain::approval-distribution=trace", "--db paritydb" ]
 
   [[relaychain.nodes]]
   name = "dave"
