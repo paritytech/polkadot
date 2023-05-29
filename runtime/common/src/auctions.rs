@@ -1463,7 +1463,12 @@ mod tests {
 	#[test]
 	fn handle_bid_checks_existing_lease_periods() {
 		new_test_ext().execute_with(|| {
-			MockLeaser::mock_already_leased(|_, _, _| true);
+			MockLeaser::mock_lease_period_index(|_| Some((0, 0))); // Used by new_auction
+			MockLeaser::mock_already_leased(|_, _, _| true); // Used by bid
+
+			run_to_block(1);
+
+			assert_ok!(Auctions::new_auction(RuntimeOrigin::signed(6), 5, 1));
 			assert_noop!(
 				Auctions::bid(RuntimeOrigin::signed(1), 0.into(), 2, 1, 4, 1),
 				Error::<Test>::AlreadyLeasedOut,
