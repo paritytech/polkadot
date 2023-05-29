@@ -30,7 +30,7 @@ use sp_std::vec::Vec;
 pub struct ClearOldSessionStorage<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for ClearOldSessionStorage<T> {
 	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+	fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
 		Ok(Vec::new())
 	}
 
@@ -64,7 +64,7 @@ impl<T: Config> OnRuntimeUpgrade for ClearOldSessionStorage<T> {
 	}
 
 	#[cfg(feature = "try-runtime")]
-	fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+	fn post_upgrade(_state: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
 		Ok(())
 	}
 }

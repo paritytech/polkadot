@@ -49,7 +49,7 @@ benchmarks_instance_pallet! {
 			&sender_location,
 			&XcmContext {
 				origin: Some(sender_location.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		).unwrap();
@@ -82,7 +82,7 @@ benchmarks_instance_pallet! {
 			&sender_location,
 			&XcmContext {
 				origin: Some(sender_location.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		).unwrap();
@@ -109,7 +109,7 @@ benchmarks_instance_pallet! {
 			&sender_location,
 			&XcmContext {
 				origin: Some(sender_location.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		).unwrap();

@@ -30,7 +30,7 @@ use polkadot_runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, runtime_api_impl::v4 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
-	shared as parachains_shared, ump as parachains_ump,
+	shared as parachains_shared,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -79,6 +79,7 @@ pub use pallet_balances::Call as BalancesCall;
 pub use pallet_staking::StakerStatus;
 pub use pallet_sudo::Call as SudoCall;
 pub use pallet_timestamp::Call as TimestampCall;
+pub use parachains_paras::Call as ParasCall;
 pub use paras_sudo_wrapper::Call as ParasSudoWrapperCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
@@ -217,7 +218,7 @@ impl pallet_balances::Config for Runtime {
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = ();
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<0>;
 	type MaxFreezes = ConstU32<0>;
@@ -463,6 +464,7 @@ impl pallet_vesting::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeCall = RuntimeCall;
+	type WeightInfo = ();
 }
 
 impl parachains_configuration::Config for Runtime {
@@ -475,6 +477,8 @@ impl parachains_inclusion::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = ParasDisputes;
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
+	type MessageQueue = ();
+	type WeightInfo = ();
 }
 
 impl parachains_disputes::Config for Runtime {
@@ -506,6 +510,7 @@ impl parachains_paras::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = parachains_paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
+	type QueueFootprinter = ParaInclusion;
 	type NextSessionRotation = Babe;
 }
 
@@ -513,14 +518,6 @@ impl parachains_dmp::Config for Runtime {}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;
-}
-
-impl parachains_ump::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type UmpSink = ();
-	type FirstMessageFactorPercent = FirstMessageFactorPercent;
-	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
-	type WeightInfo = parachains_ump::TestWeightInfo;
 }
 
 impl parachains_hrmp::Config for Runtime {
@@ -671,7 +668,6 @@ construct_runtime! {
 		ParasOrigin: parachains_origin::{Pallet, Origin},
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>},
-		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Dmp: parachains_dmp::{Pallet, Storage},
 		Xcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
