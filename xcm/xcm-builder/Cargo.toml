@@ -22,7 +22,6 @@ log = { version = "0.4.17", default-features = false }
 
 # Polkadot dependencies
 polkadot-parachain = { path = "../../parachain", default-features = false }
-polkadot-core-primitives = { path = "../../core-primitives", default-features = false }
 
 [dev-dependencies]
 primitive-types = "0.12.1"

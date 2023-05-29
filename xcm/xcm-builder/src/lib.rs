@@ -28,8 +28,8 @@ pub mod test_utils;
 
 mod location_conversion;
 pub use location_conversion::{
-	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
-	ParentIsPreset, SiblingParachainConvertsVia,
+	Account32Hash, AccountId32Aliases, AccountKey20Aliases, AliasesIntoAccountId32,
+	ChildParachainConvertsVia, ParentIsPreset, SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;
@@ -90,4 +90,4 @@ pub use universal_exports::{
 };
 
 mod pay;
-pub use pay::PayOverXcm;
+pub use pay::{PayAccountId32OverXcm, PayOverXcm};

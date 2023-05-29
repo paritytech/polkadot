@@ -14340,7 +14340,6 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-xcm",
  "parity-scale-codec",
- "polkadot-core-primitives",
  "polkadot-parachain",
  "polkadot-runtime-parachains",
  "primitive-types",

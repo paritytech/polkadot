@@ -22,15 +22,15 @@ use sp_std::{borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::Convert;
 
-/// Prefix for generating alias account for accounts coming  
+/// Prefix for generating alias account for accounts coming
 /// from chains that use 32 byte long representations.
 pub const FOREIGN_CHAIN_PREFIX_PARA_32: [u8; 37] = *b"ForeignChainAliasAccountPrefix_Para32";
 
-/// Prefix for generating alias account for accounts coming  
+/// Prefix for generating alias account for accounts coming
 /// from chains that use 20 byte long representations.
 pub const FOREIGN_CHAIN_PREFIX_PARA_20: [u8; 37] = *b"ForeignChainAliasAccountPrefix_Para20";
 
-/// Prefix for generating alias account for accounts coming  
+/// Prefix for generating alias account for accounts coming
 /// from the relay chain using 32 byte long representations.
 pub const FOREIGN_CHAIN_PREFIX_RELAY: [u8; 36] = *b"ForeignChainAliasAccountPrefix_Relay";
 
@@ -228,6 +228,14 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]>
 
 	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
 		Ok(AccountId32 { id: who.into(), network: Network::get() }.into())
+	}
+}
+pub struct AliasesIntoAccountId32<Network, AccountId>(PhantomData<(Network, AccountId)>);
+impl<Network: Get<Option<NetworkId>>, AccountId: Into<[u8; 32]> + Clone>
+	Convert<AccountId, MultiLocation> for AliasesIntoAccountId32<Network, AccountId>
+{
+	fn convert(who: AccountId) -> Result<MultiLocation, AccountId> {
+		Ok(AccountId32 { network: Network::get(), id: who.into() }.into())
 	}
 }
 

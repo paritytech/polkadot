@@ -14,53 +14,70 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! `PayOverXcm` struct for paying through XCM and getting the status back
+//! `PayOverXcm` struct for paying through XCM and getting the status back.
 
 use frame_support::traits::{
 	tokens::{Pay, PaymentStatus},
 	Get,
 };
-use polkadot_core_primitives::AccountId;
+use sp_runtime::traits::Convert;
 use sp_std::{marker::PhantomData, vec};
 use xcm::{opaque::lts::Weight, prelude::*};
 use xcm_executor::traits::{QueryHandler, QueryResponseStatus};
 
 /// Implementation of the `frame_support::traits::tokens::Pay` trait, to allow
-/// for generic payments of a given `AssetKind` and `Balance` from an implied origin, to a
-/// beneficiary via XCM, relying on the XCM `TransferAsset` instruction.
+/// for XCM payments of a given `Balance` of `AssetKind` existing on a `DestinationChain` under
+/// ownership of some `Interior` location of the local chain to a particular `Beneficiary`.
+///
+/// This relies on the XCM `TransferAsset` instruction. A trait `BeneficiaryToLocation` must be
+/// provided in order to convert the `Beneficiary` value into a location usable by `TransferAsset`.
 ///
 /// `PayOverXcm::pay` is asynchronous, and returns a `QueryId` which can then be used in
 /// `check_payment` to check the status of the XCM transaction.
 ///
+/// See also `PayAccountId32OverXcm` which is similar to this except that `BeneficiaryToLocation`
+/// need not be supplied and `Beneficiary` must implement `Into<[u8; 32]>`.
 pub struct PayOverXcm<
 	DestinationChain,
-	SenderAccount,
+	Interior,
 	Router,
 	Querier,
 	Timeout,
 	Beneficiary,
 	AssetKind,
+	BeneficiaryToLocation,
 >(
 	PhantomData<(
 		DestinationChain,
-		SenderAccount,
+		Interior,
 		Router,
 		Querier,
 		Timeout,
 		Beneficiary,
 		AssetKind,
+		BeneficiaryToLocation,
 	)>,
 );
 impl<
 		DestinationChain: Get<MultiLocation>,
-		SenderAccount: Get<AccountId>,
+		Interior: Get<InteriorMultiLocation>,
 		Router: SendXcm,
 		Querier: QueryHandler,
 		Timeout: Get<Querier::BlockNumber>,
-		Beneficiary: Into<[u8; 32]> + Clone,
+		Beneficiary: Clone,
 		AssetKind: Into<AssetId>,
+		BeneficiaryToLocation: Convert<Beneficiary, MultiLocation>,
 	> Pay
-	for PayOverXcm<DestinationChain, SenderAccount, Router, Querier, Timeout, Beneficiary, AssetKind>
+	for PayOverXcm<
+		DestinationChain,
+		Interior,
+		Router,
+		Querier,
+		Timeout,
+		Beneficiary,
+		AssetKind,
+		BeneficiaryToLocation,
+	>
 {
 	type Beneficiary = Beneficiary;
 	type AssetKind = AssetKind;
@@ -74,14 +91,12 @@ impl<
 		amount: Self::Balance,
 	) -> Result<Self::Id, Self::Error> {
 		let destination_chain = DestinationChain::get();
-		let sender_account = SenderAccount::get();
-		let sender_origin = Junction::AccountId32 { network: None, id: sender_account.into() };
-
 		let destination = Querier::UniversalLocation::get()
 			.invert_target(&destination_chain)
 			.map_err(|()| Self::Error::LocationNotInvertible)?;
+		let beneficiary = BeneficiaryToLocation::convert(who.clone());
 
-		let query_id = Querier::new_query(destination_chain, Timeout::get(), sender_origin);
+		let query_id = Querier::new_query(destination_chain, Timeout::get(), Interior::get());
 
 		let message = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
@@ -90,9 +105,9 @@ impl<
 				query_id,
 				max_weight: Weight::zero(),
 			})])),
-			DescendOrigin(sender_origin.into()),
+			DescendOrigin(Interior::get()),
 			TransferAsset {
-				beneficiary: AccountId32 { network: None, id: who.clone().into() }.into(),
+				beneficiary,
 				assets: vec![MultiAsset {
 					id: asset_kind.into(),
 					fun: Fungibility::Fungible(amount),
@@ -129,3 +144,22 @@ impl<
 		Querier::expect_response(id);
 	}
 }
+
+pub type PayAccountId32OverXcm<
+	DestinationChain,
+	Interior,
+	Router,
+	Querier,
+	Timeout,
+	Beneficiary,
+	AssetKind,
+> = PayOverXcm<
+	DestinationChain,
+	Interior,
+	Router,
+	Querier,
+	Timeout,
+	Beneficiary,
+	AssetKind,
+	crate::AliasesIntoAccountId32<(), Beneficiary>,
+>;
