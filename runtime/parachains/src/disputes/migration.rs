@@ -18,9 +18,6 @@
 
 use frame_support::traits::StorageVersion;
 
-/// The current storage version.
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
-
 pub mod v1 {
 	use super::*;
 	use crate::disputes::{Config, Pallet};
@@ -38,10 +35,10 @@ pub mod v1 {
 		fn on_runtime_upgrade() -> Weight {
 			let mut weight: Weight = Weight::zero();
 
-			if StorageVersion::get::<Pallet<T>>() < STORAGE_VERSION {
+			if StorageVersion::get::<Pallet<T>>() < 1 {
 				log::info!(target: crate::disputes::LOG_TARGET, "Migrating disputes storage to v1");
 				weight += migrate_to_v1::<T>();
-				STORAGE_VERSION.put::<Pallet<T>>();
+				StorageVersion::new(1).put::<Pallet<T>>();
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			} else {
 				log::info!(
@@ -54,7 +51,7 @@ pub mod v1 {
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+		fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
 			log::trace!(
 				target: crate::disputes::LOG_TARGET,
 				"SpamSlots before migration: {}",
@@ -68,10 +65,10 @@ pub mod v1 {
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+		fn post_upgrade(_state: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
 			log::trace!(target: crate::disputes::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
-				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
+				StorageVersion::get::<Pallet<T>>() >= 1,
 				"Storage version should be `1` after the migration"
 			);
 			ensure!(

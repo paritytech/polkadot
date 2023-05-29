@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	barriers::{AllowSubscriptionsFrom, RespectSuspension},
+	barriers::{AllowSubscriptionsFrom, RespectSuspension, TrailingSetTopicAsId},
 	test_utils::*,
 };
 pub use crate::{
@@ -41,6 +41,7 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::{prelude::*, Weight};
+use xcm_executor::traits::Properties;
 pub use xcm_executor::{
 	traits::{
 		AssetExchange, AssetLock, CheckSuspension, ConvertOrigin, Enact, ExportXcm, FeeManager,
@@ -241,6 +242,9 @@ pub fn asset_list(who: impl Into<MultiLocation>) -> Vec<MultiAsset> {
 pub fn add_asset(who: impl Into<MultiLocation>, what: impl Into<MultiAsset>) {
 	ASSETS.with(|a| a.borrow_mut().entry(who.into()).or_insert(Assets::new()).subsume(what.into()));
 }
+pub fn clear_assets(who: impl Into<MultiLocation>) {
+	ASSETS.with(|a| a.borrow_mut().remove(&who.into()));
+}
 
 pub struct TestAssetTransactor;
 impl TransactAsset for TestAssetTransactor {
@@ -429,7 +433,7 @@ impl CheckSuspension for TestSuspender {
 		_origin: &MultiLocation,
 		_instructions: &mut [Instruction<Call>],
 		_max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> bool {
 		SUSPENDED.with(|s| s.get())
 	}
@@ -651,7 +655,7 @@ impl Config for TestConfig {
 	type IsReserve = TestIsReserve;
 	type IsTeleporter = TestIsTeleporter;
 	type UniversalLocation = ExecutorUniversalLocation;
-	type Barrier = RespectSuspension<TestBarrier, TestSuspender>;
+	type Barrier = TrailingSetTopicAsId<RespectSuspension<TestBarrier, TestSuspender>>;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
