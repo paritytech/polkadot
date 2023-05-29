@@ -15,6 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! `V1` database for the dispute coordinator.
+//!
+//! Note that the version here differs from the actual version of the parachains
+//! database (check `CURRENT_VERSION` in `node/service/src/parachains_db/upgrade.rs`).
+//! The code in this module implements the way dispute coordinator works with
+//! the dispute data in the database. Any breaking changes here will still
+//! require a db migration (check `node/service/src/parachains_db/upgrade.rs`).
 
 use polkadot_node_primitives::DisputeStatus;
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};

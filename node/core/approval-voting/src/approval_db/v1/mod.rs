@@ -15,6 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Version 1 of the DB schema.
+//!
+//! Note that the version here differs from the actual version of the parachains
+//! database (check `CURRENT_VERSION` in `node/service/src/parachains_db/upgrade.rs`).
+//! The code in this module implements the way approval voting works with
+//! its data in the database. Any breaking changes here will still
+//! require a db migration (check `node/service/src/parachains_db/upgrade.rs`).
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{AssignmentCert, DelayTranche};
