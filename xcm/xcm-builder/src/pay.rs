@@ -145,6 +145,20 @@ impl<
 	}
 }
 
+/// Specialization of the [PayOverXcm] trait to allow `[u8; 32]`-based `AccountId` values to be
+/// paid on a remote chain.
+///
+/// Implementation of the `frame_support::traits::tokens::Pay` trait, to allow
+/// for XCM payments of a given `Balance` of `AssetKind` existing on a `DestinationChain` under
+/// ownership of some `Interior` location of the local chain to a particular `Beneficiary`.
+///
+/// This relies on the XCM `TransferAsset` instruction. `Beneficiary` must implement
+/// `Into<[u8; 32]>` (as 32-byte `AccountId`s generally do), and the actual XCM beneficiary will be
+/// the location consisting of a single `AccountId32` junction with an appropriate account and no
+/// specific network.
+///
+/// `PayOverXcm::pay` is asynchronous, and returns a `QueryId` which can then be used in
+/// `check_payment` to check the status of the XCM transaction.
 pub type PayAccountId32OverXcm<
 	DestinationChain,
 	Interior,
