@@ -14,24 +14,30 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{
-	common::{
+mod executor_intf;
+
+pub use executor_intf::Executor;
+
+// NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
+//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf-execute-worker=trace`.
+const LOG_TARGET: &str = "parachain::pvf-execute-worker";
+
+use crate::executor_intf::EXECUTE_THREAD_STACK_SIZE;
+use cpu_time::ProcessTime;
+use parity_scale_codec::{Decode, Encode};
+use polkadot_node_core_pvf_common::{
+	error::InternalValidationError,
+	execute::{Handshake, Response},
+	framed_recv, framed_send,
+	worker::{
 		bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload,
 		thread::{self, WaitOutcome},
 		worker_event_loop,
 	},
-	executor_intf::{Executor, EXECUTE_THREAD_STACK_SIZE},
-	LOG_TARGET,
-};
-use cpu_time::ProcessTime;
-use parity_scale_codec::{Decode, Encode};
-use polkadot_node_core_pvf::{
-	framed_recv, framed_send, ExecuteHandshake as Handshake, ExecuteResponse as Response,
-	InternalValidationError,
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
-	path::{Path, PathBuf},
+	path::PathBuf,
 	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
@@ -97,6 +103,20 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				artifact_path.display(),
 			);
 
+			// Get the artifact bytes.
+			//
+			// We do this outside the thread so that we can lock down filesystem access there.
+			let compiled_artifact_blob = match std::fs::read(artifact_path) {
+				Ok(bytes) => bytes,
+				Err(err) => {
+					let response = Response::InternalError(
+						InternalValidationError::CouldNotOpenFile(err.to_string()),
+					);
+					send_response(&mut stream, response).await?;
+					continue
+				},
+			};
+
 			// Conditional variable to notify us when a thread is done.
 			let condvar = thread::get_condvar();
 
@@ -116,7 +136,12 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let execute_thread = thread::spawn_worker_thread_with_stack_size(
 				"execute thread",
 				move || {
-					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
+					validate_using_artifact(
+						&compiled_artifact_blob,
+						&params,
+						executor_2,
+						cpu_time_start,
+					)
 				},
 				Arc::clone(&condvar),
 				WaitOutcome::Finished,
@@ -167,23 +192,16 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 }
 
 fn validate_using_artifact(
-	artifact_path: &Path,
+	compiled_artifact_blob: &[u8],
 	params: &[u8],
 	executor: Executor,
 	cpu_time_start: ProcessTime,
 ) -> Response {
-	// Check here if the file exists, because the error from Substrate is not match-able.
-	// TODO: Re-evaluate after <https://github.com/paritytech/substrate/issues/13860>.
-	let file_metadata = std::fs::metadata(artifact_path);
-	if let Err(err) = file_metadata {
-		return Response::InternalError(InternalValidationError::CouldNotOpenFile(err.to_string()))
-	}
-
 	let descriptor_bytes = match unsafe {
 		// SAFETY: this should be safe since the compiled artifact passed here comes from the
 		//         file created by the prepare workers. These files are obtained by calling
 		//         [`executor_intf::prepare`].
-		executor.execute(artifact_path.as_ref(), params)
+		executor.execute(compiled_artifact_blob, params)
 	} {
 		Err(err) => return Response::format_invalid("execute", &err),
 		Ok(d) => d,

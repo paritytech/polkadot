@@ -111,7 +111,7 @@
 //! from the stable primitives.
 
 use crate::{
-	vstaging::CoreState, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	vstaging, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
 	CommittedCandidateReceipt, DisputeState, ExecutorParams, GroupRotationInfo,
 	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
 	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex, ValidatorSignature,
@@ -123,7 +123,6 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	#[api_version(5)]
 	pub trait ParachainHost<H: Encode + Decode = pcp::v2::Hash, N: Encode + Decode = pcp::v2::BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
@@ -135,7 +134,12 @@ sp_api::decl_runtime_apis! {
 
 		/// Yields information on all availability cores as relevant to the child block.
 		/// Cores are either free or occupied. Free cores can have paras assigned to them.
-		fn availability_cores() -> Vec<CoreState<H, N>>;
+		fn availability_cores() -> Vec<crate::v4::CoreState<H, N>>;
+
+		/// Yields information on all availability cores as relevant to the child block.
+		/// Cores are either free or occupied. Free cores can have paras assigned to them.
+		#[api_version(5)]
+		fn availability_cores_v5() -> Vec<vstaging::CoreState<H, N>>;
 
 		/// Yields the persisted validation data for the given `ParaId` along with an assumption that
 		/// should be used if the para currently occupies a core.
@@ -218,5 +222,23 @@ sp_api::decl_runtime_apis! {
 
 		/// Returns execution parameters for the session.
 		fn session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>;
+
+		/// Returns a list of validators that lost a past session dispute and need to be slashed.
+		#[api_version(5)]
+		fn unapplied_slashes() -> Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>;
+
+		/// Returns a merkle proof of a validator session key.
+		#[api_version(5)]
+		fn key_ownership_proof(
+			validator_id: ValidatorId,
+		) -> Option<vstaging::slashing::OpaqueKeyOwnershipProof>;
+
+		/// Submit an unsigned extrinsic to slash validators who lost a dispute about
+		/// a candidate of a past session.
+		#[api_version(5)]
+		fn submit_report_dispute_lost(
+			dispute_proof: vstaging::slashing::DisputeProof,
+			key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+		) -> Option<()>;
 	}
 }

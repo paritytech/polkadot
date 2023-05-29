@@ -98,7 +98,7 @@ pub mod v1 {
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+		fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::DispatchError> {
 			log::trace!(
 				target: crate::scheduler::LOG_TARGET,
 				"Scheduled before migration: {}",
@@ -115,7 +115,7 @@ pub mod v1 {
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
+		fn post_upgrade(state: Vec<u8>) -> Result<(), sp_runtime::DispatchError> {
 			log::trace!(target: crate::scheduler::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,

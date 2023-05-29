@@ -33,11 +33,11 @@
 /// NOTE: Requires jemalloc enabled.
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub mod memory_tracker {
-	use crate::{
-		common::{stringify_panic_payload, thread},
-		LOG_TARGET,
+	use crate::LOG_TARGET;
+	use polkadot_node_core_pvf_common::{
+		prepare::MemoryAllocationStats,
+		worker::{stringify_panic_payload, thread},
 	};
-	use polkadot_node_core_pvf::MemoryAllocationStats;
 	use std::{thread::JoinHandle, time::Duration};
 	use tikv_jemalloc_ctl::{epoch, stats, Error};
 

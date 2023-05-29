@@ -16,16 +16,39 @@
 
 //! Put implementations of functions from staging APIs here.
 
-use crate::{configuration, inclusion, initializer, scheduler};
-use primitives::{
-	vstaging::{CoreOccupied, CoreState, OccupiedCore, ScheduledCore},
-	CoreIndex, GroupIndex,
-};
+use crate::{configuration, disputes, inclusion, initializer, scheduler};
+use primitives::{vstaging, CandidateHash, CoreIndex, DisputeState, GroupIndex, SessionIndex};
 use sp_runtime::traits::One;
 use sp_std::prelude::*;
 
+/// Implementation for `get_session_disputes` function from the runtime API
+pub fn get_session_disputes<T: disputes::Config>(
+) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
+	<disputes::Pallet<T>>::disputes()
+}
+
+/// Implementation of `unapplied_slashes` runtime API
+pub fn unapplied_slashes<T: disputes::slashing::Config>(
+) -> Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)> {
+	<disputes::slashing::Pallet<T>>::unapplied_slashes()
+}
+
+/// Implementation of `submit_report_dispute_lost` runtime API
+pub fn submit_unsigned_slashing_report<T: disputes::slashing::Config>(
+	dispute_proof: vstaging::slashing::DisputeProof,
+	key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+) -> Option<()> {
+	let key_ownership_proof = key_ownership_proof.decode()?;
+
+	<disputes::slashing::Pallet<T>>::submit_unsigned_slashing_report(
+		dispute_proof,
+		key_ownership_proof,
+	)
+}
+
 /// Implementation for the `availability_cores_staging` function of the runtime API.
-pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
+pub fn availability_cores<T: initializer::Config>(
+) -> Vec<vstaging::CoreState<T::Hash, T::BlockNumber>> {
 	let cores = <scheduler::Pallet<T>>::availability_cores();
 	let config = <configuration::Pallet<T>>::config();
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
@@ -72,13 +95,13 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		.into_iter()
 		.enumerate()
 		.map(|(i, core)| match core {
-			CoreOccupied::Paras(entry) => {
+			vstaging::CoreOccupied::Paras(entry) => {
 				let pending_availability =
 					<inclusion::Pallet<T>>::pending_availability(entry.para_id())
 						.expect("Occupied core always has pending availability; qed");
 
 				let backed_in_number = *pending_availability.backed_in_number();
-				CoreState::Occupied(OccupiedCore {
+				vstaging::CoreState::Occupied(vstaging::OccupiedCore {
 					next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(CoreIndex(
 						i as u32,
 					)),
@@ -96,17 +119,18 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 					candidate_descriptor: pending_availability.candidate_descriptor().clone(),
 				})
 			},
-			CoreOccupied::Free => CoreState::Free,
+			vstaging::CoreOccupied::Free => vstaging::CoreState::Free,
 		})
 		.collect();
 
 	// TODO: update to use claimqueue
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
 	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue(now) {
-		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(ScheduledCore {
-			para_id: scheduled.para_id(),
-			collator_restrictions: scheduled.paras_entry.collator_restrictions().clone(),
-		});
+		core_states[scheduled.core.0 as usize] =
+			vstaging::CoreState::Scheduled(vstaging::ScheduledCore {
+				para_id: scheduled.para_id(),
+				collator_restrictions: scheduled.paras_entry.collator_restrictions().clone(),
+			});
 	}
 
 	core_states
