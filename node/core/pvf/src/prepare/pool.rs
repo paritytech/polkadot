@@ -16,15 +16,17 @@
 
 use super::worker_intf::{self, Outcome};
 use crate::{
-	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
-	pvf::PvfPrepData,
-	worker_common::{IdleWorker, WorkerHandle},
+	worker_intf::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
 };
 use always_assert::never;
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
+};
+use polkadot_node_core_pvf_common::{
+	error::{PrepareError, PrepareResult},
+	pvf::PvfPrepData,
 };
 use slotmap::HopSlotMap;
 use std::{
