@@ -21,6 +21,7 @@ use frame_support::{
 	pallet_prelude::{Get, TypeInfo},
 };
 use parity_scale_codec::{FullCodec, MaxEncodedLen};
+use sp_arithmetic::traits::Zero;
 use xcm::latest::{
 	Error as XcmError, InteriorMultiLocation, MultiLocation, QueryId, Response,
 	Result as XcmResult, Weight, XcmContext,
@@ -127,7 +128,7 @@ pub trait QueryHandler {
 		+ PartialEq
 		+ Debug
 		+ Copy;
-	type BlockNumber;
+	type BlockNumber: Zero;
 	type Error;
 	type UniversalLocation: Get<InteriorMultiLocation>;
 
@@ -160,5 +161,5 @@ pub trait QueryHandler {
 
 	/// Makes sure to expect a response with the given id.
 	#[cfg(feature = "runtime-benchmarks")]
-	fn expect_response(id: Self::QueryId);
+	fn expect_response(id: Self::QueryId, response: Response);
 }

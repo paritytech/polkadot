@@ -546,7 +546,7 @@ pub mod pallet_test_notifier {
 	use pallet_xcm::ensure_response;
 	use sp_runtime::DispatchResult;
 	use xcm::latest::prelude::*;
-	use xcm_executor::traits::XcmQueryHandler;
+	use xcm_executor::traits::QueryHandler as XcmQueryHandler;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);

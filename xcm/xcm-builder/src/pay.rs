@@ -135,13 +135,15 @@ impl<
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn ensure_successful(_: &Self::Beneficiary, _: Self::Balance) {
-		Querier::expect_response(id);
+	fn ensure_successful(_: &Self::Beneficiary, _: Self::AssetKind, _: Self::Balance) {
+		// We cannot generally guarantee this will go through successfully since we don't have any
+		// control over the XCM transport layers. We just assume that the benchmark environment
+		// will be sending it somewhere sensible.
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn ensure_concluded(id: Self::Id) {
-		Querier::expect_response(id);
+		Querier::expect_response(id, Response::ExecutionResult(None));
 	}
 }
 

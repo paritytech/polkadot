@@ -1177,8 +1177,12 @@ impl<T: Config> QueryHandler for Pallet<T> {
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn expect_response(id: Self::QueryId, status: QueryStatus) {
-		Queries::<T>::insert(id, status);
+	fn expect_response(id: Self::QueryId, response: Response) {
+		let response = response.into();
+		Queries::<T>::insert(
+			id,
+			QueryStatus::Ready { response, at: frame_system::Pallet::<T>::block_number() },
+		);
 	}
 }
 
