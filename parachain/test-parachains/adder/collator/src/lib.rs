@@ -272,7 +272,7 @@ mod tests {
 	}
 
 	fn validate_collation(collator: &Collator, parent_head: HeadData, collation: Collation) {
-		use polkadot_node_core_pvf_worker::testing::validate_candidate;
+		use polkadot_node_core_pvf::testing::validate_candidate;
 
 		let block_data = match collation.proof_of_validity {
 			MaybeCompressedPoV::Raw(pov) => pov.block_data,
