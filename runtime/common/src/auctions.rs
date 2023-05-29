@@ -700,6 +700,7 @@ mod tests {
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Auctions: auctions::{Pallet, Call, Storage, Event<T>},
+			MockLeaser: pallet_mock_leaser,
 		}
 	);
 
@@ -754,92 +755,42 @@ mod tests {
 		type MaxFreezes = ConstU32<1>;
 	}
 
-	#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug)]
-	pub struct LeaseData {
-		leaser: u64,
-		amount: u64,
+	// This is procedural does not exists already,
+	// but it's like we would want to build mock pallets.
+	#[mock_builder::pallet]
+	mod pallet_mock_leaser {
+		trait Leaser<BlockNumber> {
+			type AccountId;
+			type LeasePeriod;
+			type Currency: ReservableCurrency<Self::AccountId>;
+
+			fn lease_out(
+				_: ParaId,
+				_: &Self::AccountId,
+				_: <Self::Currency as Currency<Self::AccountId>>::Balance,
+				_: Self::LeasePeriod,
+				_: Self::LeasePeriod,
+			) -> Result<(), LeaseError>;
+
+			fn deposit_held(
+				_: ParaId,
+				_: &Self::AccountId,
+			) -> <Self::Currency as Currency<Self::AccountId>>::Balance;
+
+			#[cfg(any(feature = "runtime-benchmarks", test))]
+			fn lease_period_length() -> (BlockNumber, BlockNumber);
+
+			fn lease_period_index(_: BlockNumber) -> Option<(Self::LeasePeriod, bool)>;
+
+			fn already_leased(_: ParaId, _: Self::LeasePeriod, _: Self::LeasePeriod) -> bool;
+		}
 	}
 
-	thread_local! {
-		pub static LEASES:
-			RefCell<BTreeMap<(ParaId, BlockNumber), LeaseData>> = RefCell::new(BTreeMap::new());
-	}
-
-	fn leases() -> Vec<((ParaId, BlockNumber), LeaseData)> {
-		LEASES.with(|p| (&*p.borrow()).clone().into_iter().collect::<Vec<_>>())
-	}
-
-	pub struct TestLeaser;
-	impl Leaser<BlockNumber> for TestLeaser {
+	impl pallet_mock_leaser::Config for Test {
 		type AccountId = u64;
 		type LeasePeriod = BlockNumber;
+		type BlockNumber = BlockNumber;
 		type Currency = Balances;
-
-		fn lease_out(
-			para: ParaId,
-			leaser: &Self::AccountId,
-			amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
-			period_begin: Self::LeasePeriod,
-			period_count: Self::LeasePeriod,
-		) -> Result<(), LeaseError> {
-			LEASES.with(|l| {
-				let mut leases = l.borrow_mut();
-				let now = System::block_number();
-				let (current_lease_period, _) =
-					Self::lease_period_index(now).ok_or(LeaseError::NoLeasePeriod)?;
-				if period_begin < current_lease_period {
-					return Err(LeaseError::AlreadyEnded)
-				}
-				for period in period_begin..(period_begin + period_count) {
-					if leases.contains_key(&(para, period)) {
-						return Err(LeaseError::AlreadyLeased)
-					}
-					leases.insert((para, period), LeaseData { leaser: leaser.clone(), amount });
-				}
-				Ok(())
-			})
-		}
-
-		fn deposit_held(
-			para: ParaId,
-			leaser: &Self::AccountId,
-		) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
-			leases()
-				.iter()
-				.filter_map(|((id, _period), data)| {
-					if id == &para && &data.leaser == leaser {
-						Some(data.amount)
-					} else {
-						None
-					}
-				})
-				.max()
-				.unwrap_or_default()
-		}
-
-		fn lease_period_length() -> (BlockNumber, BlockNumber) {
-			(10, 0)
-		}
-
-		fn lease_period_index(b: BlockNumber) -> Option<(Self::LeasePeriod, bool)> {
-			let (lease_period_length, offset) = Self::lease_period_length();
-			let b = b.checked_sub(offset)?;
-
-			let lease_period = b / lease_period_length;
-			let first_block = (b % lease_period_length).is_zero();
-
-			Some((lease_period, first_block))
-		}
-
-		fn already_leased(
-			para_id: ParaId,
-			first_period: Self::LeasePeriod,
-			last_period: Self::LeasePeriod,
-		) -> bool {
-			leases().into_iter().any(|((para, period), _data)| {
-				para == para_id && first_period <= period && period <= last_period
-			})
-		}
 	}
 
 	ord_parameter_types! {
@@ -1087,23 +1038,28 @@ mod tests {
 	#[test]
 	fn can_win_auction() {
 		new_test_ext().execute_with(|| {
+			MockLeaser::mock_lease_period_index(|index| {
+				assert_eq!(index, 1);
+				Some((0, 0))
+			});
+			MockLeaser::mock_deposit_held(|para, bidder| {
+				assert_eq!(bidder, 1);
+				assert_eq!(para, 0);
+				0
+			});
+			MockLeaser::mock_already_leased(|para, first_slot, last_slot| {
+				assert_eq!(para, 0);
+				assert_eq!(first_slot, 1);
+				assert_eq!(last_slot, 4);
+				false
+			});
+
 			run_to_block(1);
 			assert_ok!(Auctions::new_auction(RuntimeOrigin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(RuntimeOrigin::signed(1), 0.into(), 1, 1, 4, 1));
 			assert_eq!(Balances::reserved_balance(1), 1);
 			assert_eq!(Balances::free_balance(1), 9);
 			run_to_block(9);
-
-			assert_eq!(
-				leases(),
-				vec![
-					((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
-					((0.into(), 2), LeaseData { leaser: 1, amount: 1 }),
-					((0.into(), 3), LeaseData { leaser: 1, amount: 1 }),
-					((0.into(), 4), LeaseData { leaser: 1, amount: 1 }),
-				]
-			);
-			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 1);
 		});
 	}
 
@@ -1507,39 +1463,11 @@ mod tests {
 	#[test]
 	fn handle_bid_checks_existing_lease_periods() {
 		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Auctions::new_auction(RuntimeOrigin::signed(6), 5, 1));
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(1), 0.into(), 1, 2, 3, 1));
-			assert_eq!(Balances::reserved_balance(1), 1);
-			assert_eq!(Balances::free_balance(1), 9);
-			run_to_block(9);
-
-			assert_eq!(
-				leases(),
-				vec![
-					((0.into(), 2), LeaseData { leaser: 1, amount: 1 }),
-					((0.into(), 3), LeaseData { leaser: 1, amount: 1 }),
-				]
-			);
-			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 1);
-
-			// Para 1 just won an auction above and won some lease periods.
-			// No bids can work which overlap these periods.
-			assert_ok!(Auctions::new_auction(RuntimeOrigin::signed(6), 5, 1));
+			MockLeaser::mock_already_leased(|_, _, _| true);
 			assert_noop!(
 				Auctions::bid(RuntimeOrigin::signed(1), 0.into(), 2, 1, 4, 1),
 				Error::<Test>::AlreadyLeasedOut,
 			);
-			assert_noop!(
-				Auctions::bid(RuntimeOrigin::signed(1), 0.into(), 2, 1, 2, 1),
-				Error::<Test>::AlreadyLeasedOut,
-			);
-			assert_noop!(
-				Auctions::bid(RuntimeOrigin::signed(1), 0.into(), 2, 3, 4, 1),
-				Error::<Test>::AlreadyLeasedOut,
-			);
-			// This is okay, not an overlapping bid.
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(1), 0.into(), 2, 1, 1, 1));
 		});
 	}
 
