@@ -318,7 +318,7 @@ fn paritydb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
 }
 
 /// Migration from version 2 to version 3:
-/// - drop the column used by `RollingSessionWindow` 
+/// - drop the column used by `RollingSessionWindow`
 fn paritydb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
 	parity_db::Db::drop_last_column(&mut paritydb_version_2_config(path))
 		.map_err(|e| other_io_error(format!("Error removing COL_SESSION_WINDOW_DATA {:?}", e)))?;
