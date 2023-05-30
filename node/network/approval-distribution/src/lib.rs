@@ -43,7 +43,10 @@ use polkadot_primitives::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 use rand::{CryptoRng, Rng, SeedableRng};
-use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
+use std::{
+	collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque},
+	time::Duration,
+};
 
 use self::metrics::Metrics;
 
@@ -1770,7 +1773,7 @@ async fn modify_reputation(
 	reputation.modify(sender, peer_id, rep).await;
 }
 
-const REPUTATION_CHANGE_DELAY: u64 = 30;
+const REPUTATION_CHANGE_INTERVAL: Duration = Duration::from_secs(30);
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
 impl ApprovalDistribution {
@@ -1781,12 +1784,11 @@ impl ApprovalDistribution {
 
 	async fn run<Context>(self, ctx: Context) {
 		let mut state = State::default();
-		let reputation_interval = std::time::Duration::from_secs(REPUTATION_CHANGE_DELAY);
 
 		// According to the docs of `rand`, this is a ChaCha12 RNG in practice
 		// and will always be chosen for strong performance and security properties.
 		let mut rng = rand::rngs::StdRng::from_entropy();
-		self.run_inner(ctx, &mut state, reputation_interval, &mut rng).await
+		self.run_inner(ctx, &mut state, REPUTATION_CHANGE_INTERVAL, &mut rng).await
 	}
 
 	/// Used for testing.
@@ -1794,15 +1796,17 @@ impl ApprovalDistribution {
 		self,
 		mut ctx: Context,
 		state: &mut State,
-		reputation_interval: std::time::Duration,
+		reputation_interval: Duration,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
 		let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
 		let mut reputation_delay = new_reputation_delay();
 
 		loop {
+			println!("New loop");
 			select! {
 				_ = reputation_delay => {
+					println!("Reputation timer fired");
 					state.reputation.send(ctx.sender()).await;
 					reputation_delay = new_reputation_delay();
 				},

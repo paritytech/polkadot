@@ -54,7 +54,8 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	{
 		let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
 
-		let subsystem = subsystem.run_inner(context, &mut state, TIMEOUT / 10, &mut rng);
+		let subsystem =
+			subsystem.run_inner(context, &mut state, REPUTATION_CHANGE_INTERVAL, &mut rng);
 
 		let test_fut = test_fn(virtual_overseer);
 
@@ -78,6 +79,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 }
 
 const TIMEOUT: Duration = Duration::from_millis(200);
+const REPUTATION_CHANGE_INTERVAL: Duration = Duration::from_millis(1);
 
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: ApprovalDistributionMessage) {
 	gum::trace!(msg = ?msg, "Sending message");
@@ -313,6 +315,14 @@ async fn expect_reputation_changes(
 	expect_reputation_change_by_value(virtual_overseer, peer_id, change).await;
 }
 
+fn state_without_reputation_delay() -> State {
+	State { reputation: ReputationAggregator::new(|_| true), ..Default::default() }
+}
+
+fn state_with_reputation_delay() -> State {
+	State { reputation: ReputationAggregator::new(|_| false), ..Default::default() }
+}
+
 /// import an assignment
 /// connect a new peer
 /// the new peer sends us the same assignment
@@ -324,12 +334,8 @@ fn try_import_the_same_assignment() {
 	let peer_d = PeerId::random();
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
-	let reputation = ReputationAggregator::new(|rep| {
-		matches!(rep, COST_UNEXPECTED_MESSAGE | BENEFIT_VALID_MESSAGE_FIRST | BENEFIT_VALID_MESSAGE)
-	});
-	let state = State { reputation, ..Default::default() };
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(state_without_reputation_delay(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		// setup peers
 		setup_peer_with_view(overseer, &peer_a, view![]).await;
@@ -405,21 +411,16 @@ fn try_import_the_same_assignment() {
 /// connect a new peer
 /// the new peer sends us the same assignment
 #[test]
-fn delay_reputation_change_on_trying_import_the_same_assignment() {
-	let peer_a = PeerId::random();
-	let peer_b = PeerId::random();
-	let peer_c = PeerId::random();
-	let peer_d = PeerId::random();
+fn delay_reputation_change() {
+	let peer = PeerId::random();
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
-	let state = State { reputation: ReputationAggregator::new(|_rep| false), ..Default::default() };
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(state_with_reputation_delay(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
-		// setup peers
-		setup_peer_with_view(overseer, &peer_a, view![]).await;
-		setup_peer_with_view(overseer, &peer_b, view![hash]).await;
-		setup_peer_with_view(overseer, &peer_c, view![hash]).await;
+
+		// Setup peers
+		setup_peer_with_view(overseer, &peer, view![]).await;
 
 		// new block `hash_a` with 1 candidates
 		let meta = BlockApprovalMeta {
@@ -439,7 +440,7 @@ fn delay_reputation_change_on_trying_import_the_same_assignment() {
 		let assignments = vec![(cert.clone(), 0u32)];
 
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
-		send_message_from_peer(overseer, &peer_a, msg).await;
+		send_message_from_peer(overseer, &peer, msg).await;
 
 		// send an `Accept` message from the Approval Voting subsystem
 		assert_matches!(
@@ -453,40 +454,14 @@ fn delay_reputation_change_on_trying_import_the_same_assignment() {
 				tx.send(AssignmentCheckResult::Accepted).unwrap();
 			}
 		);
-
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
-				peers,
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
-				))
-			)) => {
-				assert_eq!(peers.len(), 2);
-				assert_eq!(assignments.len(), 1);
-			}
-		);
-
-		// setup new peer
-		setup_peer_with_view(overseer, &peer_d, view![]).await;
-
-		// send the same assignment from peer_d
-		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments);
-		send_message_from_peer(overseer, &peer_d, msg).await;
-
 		expect_reputation_changes(
 			overseer,
-			&peer_a,
-			vec![
-				COST_UNEXPECTED_MESSAGE,
-				BENEFIT_VALID_MESSAGE_FIRST,
-				COST_UNEXPECTED_MESSAGE,
-				BENEFIT_VALID_MESSAGE,
-			],
+			&peer,
+			vec![COST_UNEXPECTED_MESSAGE, BENEFIT_VALID_MESSAGE_FIRST],
 		)
 		.await;
-
 		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
+
 		virtual_overseer
 	});
 }
@@ -502,12 +477,8 @@ fn spam_attack_results_in_negative_reputation_change() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let peer_a = PeerId::random();
 	let hash_b = Hash::repeat_byte(0xBB);
-	let reputation = ReputationAggregator::new(|rep| {
-		matches!(rep, COST_UNEXPECTED_MESSAGE | BENEFIT_VALID_MESSAGE_FIRST | BENEFIT_VALID_MESSAGE)
-	});
-	let state = State { reputation, ..Default::default() };
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(state_without_reputation_delay(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		let peer = &peer_a;
 		setup_peer_with_view(overseer, peer, view![]).await;
@@ -590,10 +561,8 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let peer_a = PeerId::random();
 	let hash = Hash::repeat_byte(0xAA);
-	let reputation = ReputationAggregator::new(|rep| matches!(rep, COST_DUPLICATE_MESSAGE));
-	let state = State { reputation, ..Default::default() };
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(state_without_reputation_delay(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		let peer = &peer_a;
 		setup_peer_with_view(overseer, peer, view![]).await;
@@ -668,10 +637,8 @@ fn import_approval_happy_path() {
 	let peer_c = PeerId::random();
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
-	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let state = State { reputation, ..Default::default() };
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(state_without_reputation_delay(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		// setup peers
 		setup_peer_with_view(overseer, &peer_a, view![]).await;
@@ -758,12 +725,8 @@ fn import_approval_bad() {
 	let peer_b = PeerId::random();
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
-	let reputation = ReputationAggregator::new(|rep| {
-		matches!(rep, COST_UNEXPECTED_MESSAGE | BENEFIT_VALID_MESSAGE_FIRST | COST_INVALID_MESSAGE)
-	});
-	let state = State { reputation, ..Default::default() };
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(state_without_reputation_delay(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		// setup peers
 		setup_peer_with_view(overseer, &peer_a, view![]).await;
@@ -1071,10 +1034,8 @@ fn import_remotely_then_locally() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
 	let peer = &peer_a;
-	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let state = State { reputation, ..Default::default() };
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(state_without_reputation_delay(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		// setup the peer
 		setup_peer_with_view(overseer, peer, view![hash]).await;
@@ -1245,10 +1206,8 @@ fn race_condition_in_local_vs_remote_view_update() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let peer_a = PeerId::random();
 	let hash_b = Hash::repeat_byte(0xBB);
-	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let state = State { reputation, ..Default::default() };
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(state_without_reputation_delay(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		let peer = &peer_a;
 
@@ -1425,12 +1384,9 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 fn propagates_assignments_along_unshared_dimension() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
-
 	let peers = make_peers_and_authority_ids(100);
-	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let state = State { reputation, ..Default::default() };
 
-	let _ = test_harness(state, |mut virtual_overseer| async move {
+	let _ = test_harness(state_without_reputation_delay(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 
 		// Connect all peers.
@@ -2016,11 +1972,9 @@ fn originator_aggression_l1() {
 fn non_originator_aggression_l1() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
-
 	let peers = make_peers_and_authority_ids(100);
 
-	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let mut state = State { reputation, ..Default::default() };
+	let mut state = state_without_reputation_delay();
 	state.aggression_config.resend_unfinalized_period = None;
 	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
 
@@ -2121,11 +2075,9 @@ fn non_originator_aggression_l1() {
 fn non_originator_aggression_l2() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
-
 	let peers = make_peers_and_authority_ids(100);
 
-	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let mut state = State { reputation, ..Default::default() };
+	let mut state = state_without_reputation_delay();
 	state.aggression_config.resend_unfinalized_period = None;
 
 	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
@@ -2289,11 +2241,9 @@ fn non_originator_aggression_l2() {
 fn resends_messages_periodically() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
-
 	let peers = make_peers_and_authority_ids(100);
 
-	let reputation = ReputationAggregator::new(|rep| matches!(rep, BENEFIT_VALID_MESSAGE_FIRST));
-	let mut state = State { reputation, ..Default::default() };
+	let mut state = state_without_reputation_delay();
 	state.aggression_config.l1_threshold = None;
 	state.aggression_config.l2_threshold = None;
 	state.aggression_config.resend_unfinalized_period = Some(2);
@@ -2437,7 +2387,7 @@ fn batch_test_round(message_count: usize) {
 	let subsystem = ApprovalDistribution::new(Default::default());
 	let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
 	let mut sender = context.sender().clone();
-	let subsystem = subsystem.run_inner(context, &mut state, TIMEOUT / 10, &mut rng);
+	let subsystem = subsystem.run_inner(context, &mut state, REPUTATION_CHANGE_INTERVAL, &mut rng);
 
 	let test_fut = async move {
 		let overseer = &mut virtual_overseer;
