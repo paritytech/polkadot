@@ -21,11 +21,11 @@ use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfigurati
 use polkadot_node_subsystem::SpawnGlue;
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::{
-	runtime_api::ParachainHost, v4::CoreState, AuthorityDiscoveryId, Block, CandidateEvent,
-	CommittedCandidateReceipt, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
-	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	runtime_api::ParachainHost, v4::CoreState, vstaging, AuthorityDiscoveryId, Block,
+	CandidateEvent, CommittedCandidateReceipt, GroupRotationInfo, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_api::ProvideRuntimeApi;
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -334,7 +334,15 @@ fn requests_availability_cores() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.availability_cores);
+		assert_eq!(
+			rx.await.unwrap().unwrap(),
+			runtime_api
+				.availability_cores
+				.clone()
+				.into_iter()
+				.map(vstaging::corestate_from_v4)
+				.collect::<Vec<_>>()
+		);
 
 		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -889,9 +897,17 @@ fn multiple_requests_in_parallel_are_working() {
 
 		let join = future::join_all(receivers);
 
-		join.await
-			.into_iter()
-			.for_each(|r| assert_eq!(r.unwrap().unwrap(), runtime_api.availability_cores));
+		join.await.into_iter().for_each(|r| {
+			assert_eq!(
+				r.unwrap().unwrap(),
+				runtime_api
+					.availability_cores
+					.clone()
+					.into_iter()
+					.map(vstaging::corestate_from_v4)
+					.collect::<Vec<_>>()
+			)
+		});
 
 		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
