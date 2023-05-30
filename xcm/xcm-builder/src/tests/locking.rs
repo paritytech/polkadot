@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -136,6 +136,8 @@ fn remote_unlock_roundtrip_should_work() {
 	set_send_price((Parent, 10u128));
 
 	// We have been told by Parachain #1 that Account #3 has locked funds which we can unlock.
+	// Previously, we must have sent a LockAsset instruction to Parachain #1.
+	// This caused Parachain #1 to send us the NoteUnlockable instruction.
 	let message =
 		Xcm(vec![NoteUnlockable { asset: (Parent, 100u128).into(), owner: (3u64,).into() }]);
 	let hash = fake_message_hash(&message);
@@ -169,8 +171,10 @@ fn remote_unlock_roundtrip_should_work() {
 	assert_eq!(r, Outcome::Complete(Weight::from_parts(40, 40)));
 	assert_eq!(asset_list((3u64,)), vec![(Parent, 990u128).into()]);
 
-	let expected_msg =
-		Xcm::<()>(vec![UnlockAsset { target: (3u64,).into(), asset: (Parent, 100u128).into() }]);
+	let expected_msg = Xcm::<()>(vec![UnlockAsset {
+		target: (Parent, Parachain(42), 3u64).into(),
+		asset: (Parent, 100u128).into(),
+	}]);
 	let expected_hash = fake_message_hash(&expected_msg);
 	assert_eq!(sent_xcm(), vec![((Parent, Parachain(1)).into(), expected_msg, expected_hash)]);
 	assert_eq!(

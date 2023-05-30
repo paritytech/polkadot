@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -47,6 +47,14 @@ fn call_size() {
 		"size of RuntimeCall is more than 230 bytes: some calls have too big arguments, use Box to reduce \
 		the size of RuntimeCall.
 		If the limit is too strong, maybe consider increase the limit to 300.",
+	);
+}
+
+#[test]
+fn max_upward_message_size() {
+	assert_eq!(
+		ump_migrations::MAX_UPWARD_MESSAGE_SIZE,
+		pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
 	);
 }
 

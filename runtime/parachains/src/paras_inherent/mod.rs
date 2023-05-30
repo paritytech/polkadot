@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ use crate::{
 	initializer,
 	metrics::METRICS,
 	scheduler::{self, CoreAssignment, FreedReason},
-	shared, ump, ParaId,
+	shared, ParaId,
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
@@ -531,10 +531,6 @@ impl<T: Config> Pallet<T> {
 		// Note which of the scheduled cores were actually occupied by a backed candidate.
 		<scheduler::Pallet<T>>::occupied(&occupied);
 
-		// Give some time slice to dispatch pending upward messages.
-		// this is max config.ump_service_total_weight
-		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
-
 		METRICS.on_after_filter(total_consumed_weight.ref_time());
 
 		Ok(Some(total_consumed_weight).into())
@@ -791,7 +787,7 @@ where
 /// as well as their indices in ascending order.
 fn random_sel<X, F: Fn(&X) -> Weight>(
 	rng: &mut rand_chacha::ChaChaRng,
-	selectables: Vec<X>,
+	selectables: &[X],
 	mut preferred_indices: Vec<usize>,
 	weight_fn: F,
 	weight_limit: Weight,
@@ -892,7 +888,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
 				rng,
-				candidates.clone(),
+				&candidates,
 				preferred_indices,
 				|c| backed_candidate_weight::<T>(c),
 				max_consumable_by_candidates,
@@ -911,7 +907,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// into the block and skip the candidates entirely
 	let (total_consumed, indices) = random_sel::<UncheckedSignedAvailabilityBitfield, _>(
 		rng,
-		bitfields.clone(),
+		&bitfields,
 		vec![],
 		|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
 		max_consumable_weight,
@@ -1282,7 +1278,7 @@ fn limit_and_sanitize_disputes<
 		// Select remote disputes at random until the block is full
 		let (_acc_remote_disputes_weight, mut indices) = random_sel::<u32, _>(
 			rng,
-			d,
+			&d,
 			vec![],
 			|v| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(*v),
 			max_consumable_weight.saturating_sub(weight_acc),

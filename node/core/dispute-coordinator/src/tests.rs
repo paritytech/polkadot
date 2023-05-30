@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -33,6 +33,7 @@ use polkadot_node_subsystem_util::database::Database;
 
 use polkadot_node_primitives::{
 	DisputeMessage, DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement,
+	DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -45,10 +46,10 @@ use polkadot_node_subsystem::{
 
 use polkadot_node_subsystem_util::TimeoutExt;
 use sc_keystore::LocalKeystore;
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_core::{sr25519::Pair, testing::TaskExecutor, Pair as PairT};
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 
 use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash};
 use polkadot_node_primitives::{Timestamp, ACTIVE_DURATION_SECS};
@@ -121,17 +122,20 @@ async fn generate_opposing_votes_pair(
 ) -> (SignedDisputeStatement, SignedDisputeStatement) {
 	let valid_vote = match valid_vote_type {
 		VoteType::Backing =>
-			test_state
-				.issue_backing_statement_with_index(valid_voter_idx, candidate_hash, session)
-				.await,
-		VoteType::Explicit =>
-			test_state
-				.issue_explicit_statement_with_index(valid_voter_idx, candidate_hash, session, true)
-				.await,
+			test_state.issue_backing_statement_with_index(valid_voter_idx, candidate_hash, session),
+		VoteType::Explicit => test_state.issue_explicit_statement_with_index(
+			valid_voter_idx,
+			candidate_hash,
+			session,
+			true,
+		),
 	};
-	let invalid_vote = test_state
-		.issue_explicit_statement_with_index(invalid_voter_idx, candidate_hash, session, false)
-		.await;
+	let invalid_vote = test_state.issue_explicit_statement_with_index(
+		invalid_voter_idx,
+		candidate_hash,
+		session,
+		false,
+	);
 
 	(valid_vote, invalid_vote)
 }
@@ -211,9 +215,9 @@ impl Default for TestState {
 			make_keystore(vec![Sr25519Keyring::Alice.to_seed()].into_iter()).into();
 
 		let db = kvdb_memorydb::create(1);
-		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[0]);
 		let db = Arc::new(db);
-		let config = Config { col_dispute_data: 0, col_session_data: 1 };
+		let config = Config { col_dispute_data: 0 };
 
 		let genesis_header = Header {
 			parent_hash: Hash::zero(),
@@ -281,14 +285,8 @@ impl TestState {
 			)))
 			.await;
 
-		self.handle_sync_queries(
-			virtual_overseer,
-			block_hash,
-			block_number,
-			session,
-			candidate_events,
-		)
-		.await;
+		self.handle_sync_queries(virtual_overseer, block_hash, session, candidate_events)
+			.await;
 	}
 
 	/// Returns any sent `DisputeMessage`s.
@@ -296,7 +294,6 @@ impl TestState {
 		&mut self,
 		virtual_overseer: &mut VirtualOverseer,
 		block_hash: Hash,
-		block_number: BlockNumber,
 		session: SessionIndex,
 		candidate_events: Vec<CandidateEvent>,
 	) -> Vec<DisputeMessage> {
@@ -334,61 +331,26 @@ impl TestState {
 					assert_eq!(h, block_hash);
 					let _ = tx.send(Ok(session));
 
-					// Queries for fetching earliest unfinalized block session. See `RollingSessionWindow`.
+					let first_expected_session = session.saturating_sub(DISPUTE_WINDOW.get() - 1);
+
+					// Queries for session caching - see `handle_startup`
 					if self.known_session.is_none() {
-						assert_matches!(
-							overseer_recv(virtual_overseer).await,
-							AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
-								s_tx,
-							)) => {
-								let _ = s_tx.send(Ok(block_number));
-							}
-						);
-
-						assert_matches!(
-							overseer_recv(virtual_overseer).await,
-							AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
-								number,
-								s_tx,
-							)) => {
-								assert_eq!(block_number, number);
-								let _ = s_tx.send(Ok(Some(block_hash)));
-							}
-						);
-
-						assert_matches!(
-							overseer_recv(virtual_overseer).await,
-							AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-								h,
-								RuntimeApiRequest::SessionIndexForChild(s_tx),
-							)) => {
-								assert_eq!(h, block_hash);
-								let _ = s_tx.send(Ok(session));
-							}
-						);
-					}
-
-					// No queries, if subsystem knows about this session already.
-					if self.known_session == Some(session) {
-						continue
-					}
-					self.known_session = Some(session);
-
-					loop {
-						// answer session info queries until the current session is reached.
-						assert_matches!(
-						overseer_recv(virtual_overseer).await,
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-								h,
-								RuntimeApiRequest::SessionInfo(session_index, tx),
+						for i in first_expected_session..=session {
+							assert_matches!(
+								overseer_recv(virtual_overseer).await,
+								AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+									h,
+									RuntimeApiRequest::SessionInfo(session_index, tx),
 								)) => {
-							assert_eq!(h, block_hash);
-
-							let _ = tx.send(Ok(Some(self.session_info())));
-							if session_index == session { break }
+									assert_eq!(h, block_hash);
+									assert_eq!(session_index, i);
+									let _ = tx.send(Ok(Some(self.session_info())));
+								}
+							);
 						}
-						);
 					}
+
+					self.known_session = Some(session);
 				},
 				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(tx)) => {
 					assert!(
@@ -481,9 +443,8 @@ impl TestState {
 
 			let events = if n == 1 { std::mem::take(&mut initial_events) } else { Vec::new() };
 
-			let mut new_messages = self
-				.handle_sync_queries(virtual_overseer, *leaf, n as BlockNumber, session, events)
-				.await;
+			let mut new_messages =
+				self.handle_sync_queries(virtual_overseer, *leaf, session, events).await;
 			messages.append(&mut new_messages);
 		}
 		messages
@@ -511,7 +472,7 @@ impl TestState {
 		}
 	}
 
-	async fn issue_explicit_statement_with_index(
+	fn issue_explicit_statement_with_index(
 		&self,
 		index: ValidatorIndex,
 		candidate_hash: CandidateHash,
@@ -520,21 +481,20 @@ impl TestState {
 	) -> SignedDisputeStatement {
 		let public = self.validator_public.get(index).unwrap().clone();
 
-		let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
+		let keystore = self.master_keystore.clone() as KeystorePtr;
 
 		SignedDisputeStatement::sign_explicit(&keystore, valid, candidate_hash, session, public)
-			.await
 			.unwrap()
 			.unwrap()
 	}
 
-	async fn issue_backing_statement_with_index(
+	fn issue_backing_statement_with_index(
 		&self,
 		index: ValidatorIndex,
 		candidate_hash: CandidateHash,
 		session: SessionIndex,
 	) -> SignedDisputeStatement {
-		let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
+		let keystore = self.master_keystore.clone() as KeystorePtr;
 		let validator_id = self.validators[index.0 as usize].public().into();
 		let context =
 			SigningContext { session_index: session, parent_hash: Hash::repeat_byte(0xac) };
@@ -546,7 +506,6 @@ impl TestState {
 			index,
 			&validator_id,
 		)
-		.await
 		.unwrap()
 		.unwrap()
 		.into_unchecked();
@@ -560,26 +519,22 @@ impl TestState {
 		candidate_hash: CandidateHash,
 		session: SessionIndex,
 	) -> SignedDisputeStatement {
-		let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
+		let keystore = self.master_keystore.clone() as KeystorePtr;
 		let validator_id = self.validators[index.0 as usize].public();
 
 		let payload = ApprovalVote(candidate_hash).signing_payload(session);
-		let signature = SyncCryptoStore::sign_with(
-			&*keystore,
-			ValidatorId::ID,
-			&validator_id.into(),
-			&payload[..],
-		)
-		.ok()
-		.flatten()
-		.unwrap();
+		let signature = keystore
+			.sr25519_sign(ValidatorId::ID, &validator_id, &payload)
+			.ok()
+			.flatten()
+			.unwrap();
 
 		SignedDisputeStatement::new_unchecked_from_trusted_source(
 			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
 			candidate_hash,
 			session,
 			validator_id.into(),
-			signature.try_into().unwrap(),
+			signature.into(),
 		)
 	}
 
@@ -1254,13 +1209,17 @@ fn backing_statements_import_works_and_no_spam() {
 				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
-			let valid_vote1 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
-				.await;
+			let valid_vote1 = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(3),
+				candidate_hash,
+				session,
+			);
 
-			let valid_vote2 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(4), candidate_hash, session)
-				.await;
+			let valid_vote2 = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(4),
+				candidate_hash,
+				session,
+			);
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
@@ -1307,13 +1266,17 @@ fn backing_statements_import_works_and_no_spam() {
 			let candidate_receipt = make_invalid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			let valid_vote1 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
-				.await;
+			let valid_vote1 = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(3),
+				candidate_hash,
+				session,
+			);
 
-			let valid_vote2 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(4), candidate_hash, session)
-				.await;
+			let valid_vote2 = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(4),
+				candidate_hash,
+				session,
+			);
 
 			test_state
 				.activate_leaf_at_session(
@@ -1384,14 +1347,12 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			)
 			.await;
 
-			let invalid_vote_2 = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(2),
-					candidate_hash,
-					session,
-					false,
-				)
-				.await;
+			let invalid_vote_2 = test_state.issue_explicit_statement_with_index(
+				ValidatorIndex(2),
+				candidate_hash,
+				session,
+				false,
+			);
 
 			virtual_overseer
 				.send(FromOrchestra::Communication {
@@ -1501,23 +1462,19 @@ fn positive_votes_dont_trigger_participation() {
 				)
 				.await;
 
-			let valid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(2),
-					candidate_hash,
-					session,
-					true,
-				)
-				.await;
+			let valid_vote = test_state.issue_explicit_statement_with_index(
+				ValidatorIndex(2),
+				candidate_hash,
+				session,
+				true,
+			);
 
-			let valid_vote_2 = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(1),
-					candidate_hash,
-					session,
-					true,
-				)
-				.await;
+			let valid_vote_2 = test_state.issue_explicit_statement_with_index(
+				ValidatorIndex(1),
+				candidate_hash,
+				session,
+				true,
+			);
 
 			virtual_overseer
 				.send(FromOrchestra::Communication {
@@ -1840,14 +1797,12 @@ fn supermajority_valid_dispute_may_be_finalized() {
 
 			let mut statements = Vec::new();
 			for i in (0_u32..supermajority_threshold as u32 - 1).map(|i| i + 3) {
-				let vote = test_state
-					.issue_explicit_statement_with_index(
-						ValidatorIndex(i),
-						candidate_hash,
-						session,
-						true,
-					)
-					.await;
+				let vote = test_state.issue_explicit_statement_with_index(
+					ValidatorIndex(i),
+					candidate_hash,
+					session,
+					true,
+				);
 
 				statements.push((vote, ValidatorIndex(i as _)));
 			}
@@ -1980,14 +1935,12 @@ fn concluded_supermajority_for_non_active_after_time() {
 			let mut statements = Vec::new();
 			// -2: 1 for already imported vote and one for local vote (which is valid).
 			for i in (0_u32..supermajority_threshold as u32 - 2).map(|i| i + 3) {
-				let vote = test_state
-					.issue_explicit_statement_with_index(
-						ValidatorIndex(i),
-						candidate_hash,
-						session,
-						true,
-					)
-					.await;
+				let vote = test_state.issue_explicit_statement_with_index(
+					ValidatorIndex(i),
+					candidate_hash,
+					session,
+					true,
+				);
 
 				statements.push((vote, ValidatorIndex(i as _)));
 			}
@@ -2102,14 +2055,12 @@ fn concluded_supermajority_against_non_active_after_time() {
 			let mut statements = Vec::new();
 			// minus 2, because of local vote and one previously imported invalid vote.
 			for i in (0_u32..supermajority_threshold as u32 - 2).map(|i| i + 3) {
-				let vote = test_state
-					.issue_explicit_statement_with_index(
-						ValidatorIndex(i),
-						candidate_hash,
-						session,
-						false,
-					)
-					.await;
+				let vote = test_state.issue_explicit_statement_with_index(
+					ValidatorIndex(i),
+					candidate_hash,
+					session,
+					false,
+				);
 
 				statements.push((vote, ValidatorIndex(i as _)));
 			}
@@ -2255,14 +2206,12 @@ fn resume_dispute_without_local_statement() {
 			let mut statements = Vec::new();
 			// Getting votes for supermajority. Should already have two valid votes.
 			for i in vec![3, 4, 5, 6, 7] {
-				let vote = test_state
-					.issue_explicit_statement_with_index(
-						ValidatorIndex(i),
-						candidate_hash,
-						session,
-						true,
-					)
-					.await;
+				let vote = test_state.issue_explicit_statement_with_index(
+					ValidatorIndex(i),
+					candidate_hash,
+					session,
+					true,
+				);
 
 				statements.push((vote, ValidatorIndex(i as _)));
 			}
@@ -2325,14 +2274,12 @@ fn resume_dispute_with_local_statement() {
 				)
 				.await;
 
-			let local_valid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(0),
-					candidate_hash,
-					session,
-					true,
-				)
-				.await;
+			let local_valid_vote = test_state.issue_explicit_statement_with_index(
+				ValidatorIndex(0),
+				candidate_hash,
+				session,
+				true,
+			);
 
 			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
 				&test_state,
@@ -2527,14 +2474,12 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
-			let other_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(1),
-					candidate_hash,
-					session,
-					!validity,
-				)
-				.await;
+			let other_vote = test_state.issue_explicit_statement_with_index(
+				ValidatorIndex(1),
+				candidate_hash,
+				session,
+				!validity,
+			);
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
@@ -2738,13 +2683,17 @@ fn redundant_votes_ignored() {
 				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
-			let valid_vote = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(1), candidate_hash, session)
-				.await;
+			let valid_vote = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(1),
+				candidate_hash,
+				session,
+			);
 
-			let valid_vote_2 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(1), candidate_hash, session)
-				.await;
+			let valid_vote_2 = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(1),
+				candidate_hash,
+				session,
+			);
 
 			assert!(valid_vote.validator_signature() != valid_vote_2.validator_signature());
 
@@ -2813,13 +2762,11 @@ fn no_onesided_disputes() {
 			let mut statements = Vec::new();
 			for index in 1..10 {
 				statements.push((
-					test_state
-						.issue_backing_statement_with_index(
-							ValidatorIndex(index),
-							candidate_hash,
-							session,
-						)
-						.await,
+					test_state.issue_backing_statement_with_index(
+						ValidatorIndex(index),
+						candidate_hash,
+						session,
+					),
 					ValidatorIndex(index),
 				));
 			}
@@ -3095,9 +3042,11 @@ fn local_participation_in_dispute_for_backed_candidate() {
 				)
 				.await;
 
-			let backing_valid = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
-				.await;
+			let backing_valid = test_state.issue_backing_statement_with_index(
+				ValidatorIndex(3),
+				candidate_hash,
+				session,
+			);
 
 			virtual_overseer
 				.send(FromOrchestra::Communication {
@@ -3338,8 +3287,8 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				)
 				.await;
 
-			let supermajority_threshold =
-				polkadot_primitives::supermajority_threshold(test_state.validators.len());
+			let byzantine_threshold =
+				polkadot_primitives::byzantine_threshold(test_state.validators.len());
 
 			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
 				&test_state,
@@ -3380,18 +3329,16 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 			.await;
 
 			let mut statements = Vec::new();
-			// minus 2, because of local vote and one previously imported invalid vote.
-			for i in (0_u32..supermajority_threshold as u32 - 2).map(|i| i + 3) {
-				let vote = test_state
-					.issue_explicit_statement_with_index(
-						ValidatorIndex(i),
-						candidate_hash,
-						session,
-						false,
-					)
-					.await;
+			// own vote + `byzantine_threshold` more votes should be enough to issue `RevertBlocks`
+			for i in 3_u32..byzantine_threshold as u32 + 3 {
+				let vote = test_state.issue_explicit_statement_with_index(
+					ValidatorIndex(i),
+					candidate_hash,
+					session,
+					false,
+				);
 
-				statements.push((vote, ValidatorIndex(i as _)));
+				statements.push((vote, ValidatorIndex(i)));
 			}
 
 			virtual_overseer
@@ -3403,8 +3350,6 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 						pending_confirmation: None,
 					},
 				})
-				.await;
-			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
 			// Checking that concluded dispute has signaled the reversion of all parent blocks.
@@ -3419,6 +3364,27 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				"Overseer did not receive `ChainSelectionMessage::RevertBlocks` message"
 			);
 
+			// One more import which should not trigger reversion
+			// Validator index is `byzantine_threshold + 4`
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![(
+							test_state.issue_explicit_statement_with_index(
+								ValidatorIndex(byzantine_threshold as u32 + 4),
+								candidate_hash,
+								session,
+								false,
+							),
+							ValidatorIndex(byzantine_threshold as u32 + 4),
+						)],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+
 			// Wrap up
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert_matches!(
@@ -3426,6 +3392,177 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				None => {}
 			);
 
+			test_state
+		})
+	});
+}
+
+// On startup `SessionInfo` cache should be populated
+#[test]
+fn session_info_caching_on_startup_works() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			test_state
+		})
+	});
+}
+
+// Underflow means that no more than `DISPUTE_WINDOW` sessions should be fetched on startup
+#[test]
+fn session_info_caching_doesnt_underflow() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = DISPUTE_WINDOW.get() + 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			test_state
+		})
+	});
+}
+
+// Cached `SessionInfo` shouldn't be re-requested from the runtime
+#[test]
+fn session_info_is_requested_only_once() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			// This leaf activation shouldn't fetch `SessionInfo` because the session is already cached
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					3,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			// This leaf activation should fetch `SessionInfo` because the session is new
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session + 1,
+					4,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_,
+					RuntimeApiRequest::SessionInfo(session_index, tx),
+				)) => {
+					assert_eq!(session_index, 2);
+					let _ = tx.send(Ok(Some(test_state.session_info())));
+				}
+			);
+			test_state
+		})
+	});
+}
+
+// Big jump means the new session we see with a leaf update is at least a `DISPUTE_WINDOW` bigger than
+// the already known one. In this case The whole `DISPUTE_WINDOW` should be fetched.
+#[test]
+fn session_info_big_jump_works() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session_on_startup = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session_on_startup).await;
+
+			// This leaf activation shouldn't fetch `SessionInfo` because the session is already cached
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session_on_startup,
+					3,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			let session_after_jump = session_on_startup + DISPUTE_WINDOW.get() + 10;
+			// This leaf activation should cache all missing `SessionInfo`s
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session_after_jump,
+					4,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			let first_expected_session =
+				session_after_jump.saturating_sub(DISPUTE_WINDOW.get() - 1);
+			for expected_idx in first_expected_session..=session_after_jump {
+				assert_matches!(
+					virtual_overseer.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						_,
+						RuntimeApiRequest::SessionInfo(session_index, tx),
+					)) => {
+						assert_eq!(session_index, expected_idx);
+						let _ = tx.send(Ok(Some(test_state.session_info())));
+					}
+				);
+			}
+			test_state
+		})
+	});
+}
+
+// Small jump means the new session we see with a leaf update is at less than last known one + `DISPUTE_WINDOW`. In this
+// case fetching should start from last known one + 1.
+#[test]
+fn session_info_small_jump_works() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session_on_startup = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session_on_startup).await;
+
+			// This leaf activation shouldn't fetch `SessionInfo` because the session is already cached
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session_on_startup,
+					3,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			let session_after_jump = session_on_startup + DISPUTE_WINDOW.get() - 1;
+			// This leaf activation should cache all missing `SessionInfo`s
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session_after_jump,
+					4,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			let first_expected_session = session_on_startup + 1;
+			for expected_idx in first_expected_session..=session_after_jump {
+				assert_matches!(
+					virtual_overseer.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						_,
+						RuntimeApiRequest::SessionInfo(session_index, tx),
+					)) => {
+						assert_eq!(session_index, expected_idx);
+						let _ = tx.send(Ok(Some(test_state.session_info())));
+					}
+				);
+			}
 			test_state
 		})
 	});

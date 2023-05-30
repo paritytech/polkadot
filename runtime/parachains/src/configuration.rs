@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,12 +18,15 @@
 //!
 //! Configuration can change only at session boundaries and is buffered until then.
 
-use crate::shared;
-use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
+use crate::{inclusion::MAX_UPWARD_MESSAGE_SIZE_BOUND, shared};
+use frame_support::{pallet_prelude::*, DefaultNoBound};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
-use primitives::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
+use primitives::{
+	vstaging::AsyncBackingParams, Balance, ExecutorParams, SessionIndex, MAX_CODE_SIZE,
+	MAX_HEAD_DATA_SIZE, MAX_POV_SIZE,
+};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
@@ -33,9 +36,10 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-pub use pallet::*;
-
 pub mod migration;
+pub mod migration_ump;
+
+pub use pallet::*;
 
 const LOG_TARGET: &str = "runtime::configuration";
 
@@ -118,6 +122,8 @@ pub struct HostConfiguration<BlockNumber> {
 	 * The parameters that are not essential, but still may be of interest for parachains.
 	 */
 
+	/// Asynchronous backing parameters.
+	pub async_backing_params: AsyncBackingParams,
 	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
@@ -127,11 +133,6 @@ pub struct HostConfiguration<BlockNumber> {
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
 	pub max_downward_message_size: u32,
-	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
-	/// stage.
-	///
-	/// NOTE that this is a soft limit and could be exceeded.
-	pub ump_service_total_weight: Weight,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
@@ -152,6 +153,8 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_channel_max_message_size: u32,
+	/// The executor environment parameters
+	pub executor_params: ExecutorParams,
 
 	/**
 	 * Parameters that will unlikely be needed by parachains.
@@ -193,8 +196,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub dispute_period: SessionIndex,
 	/// How long after dispute conclusion to accept statements.
 	pub dispute_post_conclusion_acceptance_period: BlockNumber,
-	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
-	pub dispute_conclusion_by_time_out_period: BlockNumber,
 	/// The amount of consensus slots that must pass between submitting an assignment and
 	/// submitting an approval vote before a validator is considered a no-show.
 	///
@@ -209,9 +210,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub needed_approvals: u32,
 	/// The number of samples to do of the `RelayVRFModulo` approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
-	/// The maximum amount of weight any individual upward message may consume. Messages above this
-	/// weight go into the overweight queue and may only be serviced explicitly.
-	pub ump_max_individual_weight: Weight,
 	/// This flag controls whether PVF pre-checking is enabled.
 	///
 	/// If the flag is false, the behavior should be exactly the same as prior. Specifically, the
@@ -245,6 +243,10 @@ pub struct HostConfiguration<BlockNumber> {
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
 	fn default() -> Self {
 		Self {
+			async_backing_params: AsyncBackingParams {
+				max_candidate_depth: 0,
+				allowed_ancestry_len: 0,
+			},
 			group_rotation_frequency: 1u32.into(),
 			chain_availability_period: 1u32.into(),
 			thread_availability_period: 1u32.into(),
@@ -262,7 +264,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_validators: None,
 			dispute_period: 6,
 			dispute_post_conclusion_acceptance_period: 100.into(),
-			dispute_conclusion_by_time_out_period: 200.into(),
 			n_delay_tranches: Default::default(),
 			zeroth_delay_tranche_width: Default::default(),
 			needed_approvals: Default::default(),
@@ -270,7 +271,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_upward_queue_count: Default::default(),
 			max_upward_queue_size: Default::default(),
 			max_downward_message_size: Default::default(),
-			ump_service_total_weight: Default::default(),
 			max_upward_message_size: Default::default(),
 			max_upward_message_num_per_candidate: Default::default(),
 			hrmp_sender_deposit: Default::default(),
@@ -283,13 +283,10 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
-			ump_max_individual_weight: Weight::from_parts(
-				20u64 * WEIGHT_REF_TIME_PER_MILLIS,
-				MAX_POV_SIZE as u64,
-			),
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
+			executor_params: Default::default(),
 		}
 	}
 }
@@ -395,7 +392,7 @@ where
 			})
 		}
 
-		if self.max_upward_message_size > crate::ump::MAX_UPWARD_MESSAGE_SIZE_BOUND {
+		if self.max_upward_message_size > crate::inclusion::MAX_UPWARD_MESSAGE_SIZE_BOUND {
 			return Err(MaxUpwardMessageSizeExceeded {
 				max_message_size: self.max_upward_message_size,
 			})
@@ -432,7 +429,7 @@ where
 	/// This function panics if the configuration is inconsistent.
 	pub fn panic_if_not_consistent(&self) {
 		if let Err(err) = self.check_consistency() {
-			panic!("Host configuration is inconsistent: {:?}", err);
+			panic!("Host configuration is inconsistent: {:?}\nCfg:\n{:#?}", err, self);
 		}
 	}
 }
@@ -441,9 +438,9 @@ pub trait WeightInfo {
 	fn set_config_with_block_number() -> Weight;
 	fn set_config_with_u32() -> Weight;
 	fn set_config_with_option_u32() -> Weight;
-	fn set_config_with_weight() -> Weight;
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
+	fn set_config_with_executor_params() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -457,13 +454,13 @@ impl WeightInfo for TestWeightInfo {
 	fn set_config_with_option_u32() -> Weight {
 		Weight::MAX
 	}
-	fn set_config_with_weight() -> Weight {
-		Weight::MAX
-	}
 	fn set_config_with_balance() -> Weight {
 		Weight::MAX
 	}
 	fn set_hrmp_open_request_ttl() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_executor_params() -> Weight {
 		Weight::MAX
 	}
 }
@@ -472,8 +469,20 @@ impl WeightInfo for TestWeightInfo {
 pub mod pallet {
 	use super::*;
 
+	/// The current storage version.
+	///
+	/// v0-v1: <https://github.com/paritytech/polkadot/pull/3575>
+	/// v1-v2: <https://github.com/paritytech/polkadot/pull/4420>
+	/// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
+	/// v3-v4: <https://github.com/paritytech/polkadot/pull/6345>
+	/// v4-v5: <https://github.com/paritytech/polkadot/pull/6937>
+	///      + <https://github.com/paritytech/polkadot/pull/6961>
+	///      + <https://github.com/paritytech/polkadot/pull/6934>
+	/// v5-v6: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(6);
+
 	#[pallet::pallet]
-	#[pallet::storage_version(migration::STORAGE_VERSION)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -512,15 +521,9 @@ pub mod pallet {
 	pub(crate) type BypassConsistencyCheck<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
 		pub config: HostConfiguration<T::BlockNumber>,
-	}
-
-	#[cfg(feature = "std")]
-	impl<T: Config> Default for GenesisConfig<T> {
-		fn default() -> Self {
-			GenesisConfig { config: Default::default() }
-		}
 	}
 
 	#[pallet::genesis_build]
@@ -765,22 +768,6 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the dispute conclusion by time out period.
-		#[pallet::call_index(17)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_block_number(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_dispute_conclusion_by_time_out_period(
-			origin: OriginFor<T>,
-			new: T::BlockNumber,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.dispute_conclusion_by_time_out_period = new;
-			})
-		}
-
 		/// Set the no show slots, in number of number of consensus slots.
 		/// Must be at least 1.
 		#[pallet::call_index(18)]
@@ -868,6 +855,8 @@ pub mod pallet {
 		))]
 		pub fn set_max_upward_queue_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(new <= MAX_UPWARD_MESSAGE_SIZE_BOUND, Error::<T>::InvalidNewValue);
+
 			Self::schedule_config_update(|config| {
 				config.max_upward_queue_size = new;
 			})
@@ -883,19 +872,6 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.max_downward_message_size = new;
-			})
-		}
-
-		/// Sets the soft limit for the phase of dispatching dispatchable upward messages.
-		#[pallet::call_index(26)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_weight(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_ump_service_total_weight(origin: OriginFor<T>, new: Weight) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.ump_service_total_weight = new;
 			})
 		}
 
@@ -1086,19 +1062,6 @@ pub mod pallet {
 			})
 		}
 
-		/// Sets the maximum amount of weight any individual upward message may consume.
-		#[pallet::call_index(40)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_weight(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_ump_max_individual_weight(origin: OriginFor<T>, new: Weight) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.ump_max_individual_weight = new;
-			})
-		}
-
 		/// Enable or disable PVF pre-checking. Consult the field documentation prior executing.
 		#[pallet::call_index(41)]
 		#[pallet::weight((
@@ -1156,6 +1119,35 @@ pub mod pallet {
 			ensure_root(origin)?;
 			BypassConsistencyCheck::<T>::put(new);
 			Ok(())
+		}
+
+		/// Set the asynchronous backing parameters.
+		#[pallet::call_index(45)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			DispatchClass::Operational,
+		))]
+		pub fn set_async_backing_params(
+			origin: OriginFor<T>,
+			new: AsyncBackingParams,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.async_backing_params = new;
+			})
+		}
+
+		/// Set PVF executor parameters.
+		#[pallet::call_index(46)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_executor_params(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_executor_params(origin: OriginFor<T>, new: ExecutorParams) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.executor_params = new;
+			})
 		}
 	}
 
@@ -1257,7 +1249,7 @@ impl<T: Config> Pallet<T> {
 	// duplicated code (making this function to show up in the top of heaviest functions) only for
 	// the sake of essentially avoiding an indirect call. Doesn't worth it.
 	#[inline(never)]
-	fn schedule_config_update(
+	pub(crate) fn schedule_config_update(
 		updater: impl FnOnce(&mut HostConfiguration<T::BlockNumber>),
 	) -> DispatchResult {
 		let mut pending_configs = <PendingConfigs<T>>::get();
@@ -1291,7 +1283,7 @@ impl<T: Config> Pallet<T> {
 		// First, we need to decide what we should use as the base configuration.
 		let mut base_config = pending_configs
 			.last()
-			.map(|&(_, ref config)| config.clone())
+			.map(|(_, config)| config.clone())
 			.unwrap_or_else(Self::config);
 		let base_config_consistent = base_config.check_consistency().is_ok();
 

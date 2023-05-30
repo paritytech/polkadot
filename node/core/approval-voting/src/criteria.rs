@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -274,7 +274,7 @@ pub(crate) fn compute_assignments(
 	// Ignore any cores where the assigned group is our own.
 	let leaving_cores = leaving_cores
 		.into_iter()
-		.filter(|&(_, _, ref g)| !is_in_backing_group(&config.validator_groups, index, *g))
+		.filter(|(_, _, g)| !is_in_backing_group(&config.validator_groups, index, *g))
 		.map(|(c_hash, core, _)| (c_hash, core))
 		.collect::<Vec<_>>();
 
@@ -356,10 +356,10 @@ fn compute_relay_vrf_modulo_assignments(
 			// has been executed.
 			let cert = AssignmentCert {
 				kind: AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
-				vrf: (
-					approval_types::VRFOutput(vrf_in_out.to_output()),
-					approval_types::VRFProof(vrf_proof),
-				),
+				vrf: approval_types::VrfSignature {
+					output: approval_types::VrfOutput(vrf_in_out.to_output()),
+					proof: approval_types::VrfProof(vrf_proof),
+				},
 			};
 
 			// All assignments of type RelayVRFModulo have tranche 0.
@@ -393,10 +393,10 @@ fn compute_relay_vrf_delay_assignments(
 
 		let cert = AssignmentCert {
 			kind: AssignmentCertKind::RelayVRFDelay { core_index: core },
-			vrf: (
-				approval_types::VRFOutput(vrf_in_out.to_output()),
-				approval_types::VRFProof(vrf_proof),
-			),
+			vrf: approval_types::VrfSignature {
+				output: approval_types::VrfOutput(vrf_in_out.to_output()),
+				proof: approval_types::VrfProof(vrf_proof),
+			},
 		};
 
 		let our_assignment = OurAssignment { cert, tranche, validator_index, triggered: false };
@@ -496,7 +496,7 @@ pub(crate) fn check_assignment_cert(
 		return Err(InvalidAssignment(Reason::IsInBackingGroup))
 	}
 
-	let &(ref vrf_output, ref vrf_proof) = &assignment.vrf;
+	let vrf_signature = &assignment.vrf;
 	match assignment.kind {
 		AssignmentCertKind::RelayVRFModulo { sample } => {
 			if sample >= config.relay_vrf_modulo_samples {
@@ -506,8 +506,8 @@ pub(crate) fn check_assignment_cert(
 			let (vrf_in_out, _) = public
 				.vrf_verify_extra(
 					relay_vrf_modulo_transcript(relay_vrf_story, sample),
-					&vrf_output.0,
-					&vrf_proof.0,
+					&vrf_signature.output.0,
+					&vrf_signature.proof.0,
 					assigned_core_transcript(claimed_core_index),
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
@@ -527,8 +527,8 @@ pub(crate) fn check_assignment_cert(
 			let (vrf_in_out, _) = public
 				.vrf_verify(
 					relay_vrf_delay_transcript(relay_vrf_story, core_index),
-					&vrf_output.0,
-					&vrf_proof.0,
+					&vrf_signature.output.0,
+					&vrf_signature.proof.0,
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFDelayOutputMismatch))?;
 
@@ -552,22 +552,19 @@ fn is_in_backing_group(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
+	use crate::import::tests::garbage_vrf_signature;
 	use polkadot_primitives::{Hash, ASSIGNMENT_KEY_TYPE_ID};
 	use sp_application_crypto::sr25519;
 	use sp_core::crypto::Pair as PairT;
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
-	use sp_keystore::CryptoStore;
+	use sp_keystore::Keystore;
 
 	// sets up a keystore with the given keyring accounts.
-	async fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
+	fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
 		let store = LocalKeystore::in_memory();
 
 		for s in accounts.iter().copied().map(|k| k.to_seed()) {
-			store
-				.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str()))
-				.await
-				.unwrap();
+			store.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str())).unwrap();
 		}
 
 		store
@@ -609,18 +606,9 @@ mod tests {
 			.collect()
 	}
 
-	// used for generating assignments where the validity of the VRF doesn't matter.
-	fn garbage_vrf() -> (VRFOutput, VRFProof) {
-		let key = Sr25519Keyring::Alice.pair();
-		let key: &schnorrkel::Keypair = key.as_ref();
-
-		let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
-		(VRFOutput(o.to_output()), VRFProof(p))
-	}
-
 	#[test]
 	fn assignments_produced_for_non_backing() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let c_a = CandidateHash(Hash::repeat_byte(0));
 		let c_b = CandidateHash(Hash::repeat_byte(1));
@@ -655,7 +643,7 @@ mod tests {
 
 	#[test]
 	fn assign_to_nonzero_core() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let c_a = CandidateHash(Hash::repeat_byte(0));
 		let c_b = CandidateHash(Hash::repeat_byte(1));
@@ -688,7 +676,7 @@ mod tests {
 
 	#[test]
 	fn succeeds_empty_for_0_cores() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let relay_vrf_story = RelayVRFStory([42u8; 32]);
 		let assignments = compute_assignments(
@@ -728,7 +716,7 @@ mod tests {
 		rotation_offset: usize,
 		f: impl Fn(&mut MutatedAssignment) -> Option<bool>, // None = skip
 	) {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let group_for_core = |i| GroupIndex(((i + rotation_offset) % n_cores) as _);
 
@@ -828,7 +816,7 @@ mod tests {
 		check_mutated_assignments(40, 10, 8, |m| {
 			match m.cert.kind.clone() {
 				AssignmentCertKind::RelayVRFDelay { .. } => {
-					m.cert.vrf = garbage_vrf();
+					m.cert.vrf = garbage_vrf_signature();
 					Some(false)
 				},
 				_ => None, // skip everything else.
@@ -841,7 +829,7 @@ mod tests {
 		check_mutated_assignments(200, 100, 25, |m| {
 			match m.cert.kind.clone() {
 				AssignmentCertKind::RelayVRFModulo { .. } => {
-					m.cert.vrf = garbage_vrf();
+					m.cert.vrf = garbage_vrf_signature();
 					Some(false)
 				},
 				_ => None, // skip everything else.

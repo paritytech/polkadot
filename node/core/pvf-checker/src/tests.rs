@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -29,10 +29,10 @@ use polkadot_primitives::{
 	BlockNumber, Hash, Header, PvfCheckStatement, SessionIndex, ValidationCode, ValidationCodeHash,
 	ValidatorId,
 };
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::SyncCryptoStore;
+use sp_keystore::Keystore;
 use sp_runtime::traits::AppVerify;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
@@ -363,12 +363,8 @@ fn test_harness(test: impl FnOnce(TestState, VirtualOverseer) -> BoxFuture<'stat
 	let keystore = Arc::new(sc_keystore::LocalKeystore::in_memory());
 
 	// Add OUR_VALIDATOR (which is Alice) to the keystore.
-	SyncCryptoStore::sr25519_generate_new(
-		&*keystore,
-		ValidatorId::ID,
-		Some(&OUR_VALIDATOR.to_seed()),
-	)
-	.expect("Generating keys for our node failed");
+	Keystore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&OUR_VALIDATOR.to_seed()))
+		.expect("Generating keys for our node failed");
 
 	let subsystem_task = crate::run(ctx, keystore, crate::Metrics::default()).map(|x| x.unwrap());
 

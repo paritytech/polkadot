@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,5 +17,21 @@
 use substrate_wasm_builder::WasmBuilder;
 
 fn main() {
-	WasmBuilder::new().with_current_project().export_heap_base().build()
+	WasmBuilder::new()
+		.with_current_project()
+		.export_heap_base()
+		.disable_runtime_version_section_check()
+		.build();
+
+	enable_alloc_error_handler();
 }
+
+#[rustversion::before(1.68)]
+fn enable_alloc_error_handler() {
+	if !cfg!(feature = "std") {
+		println!("cargo:rustc-cfg=enable_alloc_error_handler");
+	}
+}
+
+#[rustversion::since(1.68)]
+fn enable_alloc_error_handler() {}

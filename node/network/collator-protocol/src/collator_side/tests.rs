@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@ use super::*;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
-use futures::{executor, future, Future, SinkExt};
+use futures::{executor, future, Future};
 use futures_timer::Delay;
 
 use parity_scale_codec::{Decode, Encode};

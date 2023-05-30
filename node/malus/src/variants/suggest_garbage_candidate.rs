@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -122,17 +122,22 @@ where
 							{
 								Ok(Some((validation_data, validation_code))) => {
 									sender
-										.send((validation_data, validation_code, n_validators))
+										.send(Some((
+											validation_data,
+											validation_code,
+											n_validators,
+										)))
 										.expect("channel is still open");
 								},
 								_ => {
-									panic!("Unable to fetch validation data");
+									sender.send(None).expect("channel is still open");
 								},
 							}
 						}),
 					);
 
-					let (validation_data, validation_code, n_validators) = receiver.recv().unwrap();
+					let (validation_data, validation_code, n_validators) =
+						receiver.recv().unwrap()?;
 
 					let validation_data_hash = validation_data.hash();
 					let validation_code_hash = validation_code.hash();

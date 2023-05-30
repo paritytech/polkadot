@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -49,7 +49,7 @@ benchmarks_instance_pallet! {
 			&sender_location,
 			&XcmContext {
 				origin: Some(sender_location.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		).unwrap();
@@ -82,7 +82,7 @@ benchmarks_instance_pallet! {
 			&sender_location,
 			&XcmContext {
 				origin: Some(sender_location.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		).unwrap();
@@ -109,7 +109,7 @@ benchmarks_instance_pallet! {
 			&sender_location,
 			&XcmContext {
 				origin: Some(sender_location.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		).unwrap();

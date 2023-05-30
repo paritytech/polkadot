@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Substrate.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -89,15 +89,13 @@ pub fn find_ws_url_from_output(read: impl Read + Send) -> (String, String) {
 			data.push_str(&line);
 
 			// does the line contain our port (we expect this specific output from substrate).
-			let sock_addr = match line.split_once("Running JSON-RPC WS server: addr=") {
+			let sock_addr = match line.split_once("Running JSON-RPC server: addr=") {
 				None => return None,
 				Some((_, after)) => after.split_once(',').unwrap().0,
 			};
 
 			Some(format!("ws://{}", sock_addr))
 		})
-		.unwrap_or_else(|| {
-			panic!("Could not find WebSocket address in process output:\n{}", &data)
-		});
+		.unwrap_or_else(|| panic!("Could not find address in process output:\n{}", &data));
 	(ws_url, data)
 }

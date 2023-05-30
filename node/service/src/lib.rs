@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -104,8 +104,10 @@ pub use polkadot_client::{
 pub use polkadot_primitives::{Block, BlockId, BlockNumber, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
-use sc_executor::NativeElseWasmExecutor;
 pub use sc_executor::NativeExecutionDispatch;
+use sc_executor::{
+	HeapAllocStrategy, NativeElseWasmExecutor, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY,
+};
 pub use service::{
 	config::{DatabaseSource, PrometheusConfig},
 	ChainSpec, Configuration, Error as SubstrateServiceError, PruningMode, Role, RuntimeGenesis,
@@ -404,12 +406,19 @@ where
 		})
 		.transpose()?;
 
-	let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new(
-		config.wasm_method,
-		config.default_heap_pages,
-		config.max_runtime_instances,
-		config.runtime_cache_size,
-	);
+	let heap_pages = config
+		.default_heap_pages
+		.map_or(DEFAULT_HEAP_ALLOC_STRATEGY, |h| HeapAllocStrategy::Static { extra_pages: h as _ });
+
+	let wasm = WasmExecutor::builder()
+		.with_execution_method(config.wasm_method)
+		.with_onchain_heap_alloc_strategy(heap_pages)
+		.with_offchain_heap_alloc_strategy(heap_pages)
+		.with_max_runtime_instances(config.max_runtime_instances)
+		.with_runtime_cache_size(config.runtime_cache_size)
+		.build();
+
+	let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new_with_wasm_executor(wasm);
 
 	let (client, backend, keystore_container, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, _>(
@@ -522,7 +531,7 @@ where
 		babe::block_import(babe_config.clone(), beefy_block_import, client.clone())?;
 
 	let slot_duration = babe_link.config().slot_duration();
-	let import_queue = babe::import_queue(
+	let (import_queue, babe_worker_handle) = babe::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
@@ -552,15 +561,12 @@ where
 		Some(shared_authority_set.clone()),
 	);
 
-	let shared_epoch_changes = babe_link.epoch_changes().clone();
-	let slot_duration = babe_config.slot_duration();
-
 	let import_setup = (block_import, grandpa_link, babe_link, beefy_voter_links);
 	let rpc_setup = shared_voter_state.clone();
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
-		let keystore = keystore_container.sync_keystore();
+		let keystore = keystore_container.keystore();
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
@@ -576,8 +582,7 @@ where
 				chain_spec: chain_spec.cloned_box(),
 				deny_unsafe,
 				babe: polkadot_rpc::BabeDeps {
-					babe_config: babe_config.clone(),
-					shared_epoch_changes: shared_epoch_changes.clone(),
+					babe_worker_handle: babe_worker_handle.clone(),
 					keystore: keystore.clone(),
 				},
 				grandpa: polkadot_rpc::GrandpaDeps {
@@ -751,13 +756,11 @@ where
 
 	let chain_spec = config.chain_spec.cloned_box();
 
-	let local_keystore = basics.keystore_container.local_keystore();
+	let keystore = basics.keystore_container.local_keystore();
 	let auth_or_collator = role.is_authority() || is_collator.is_collator();
-	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
-
 	let pvf_checker_enabled = role.is_authority() && !is_collator.is_collator();
 
-	let select_chain = if requires_overseer_for_chain_sel {
+	let select_chain = if auth_or_collator {
 		let metrics =
 			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
 
@@ -765,6 +768,7 @@ where
 			basics.backend.clone(),
 			overseer_handle.clone(),
 			metrics,
+			Some(basics.task_manager.spawn_handle()),
 		)
 	} else {
 		SelectRelayChain::new_longest_chain(basics.backend.clone())
@@ -787,6 +791,7 @@ where
 
 	let shared_voter_state = rpc_setup;
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
+	let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
 
 	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
 
@@ -794,10 +799,9 @@ where
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
 	let grandpa_protocol_name = grandpa::protocol_standard_name(&genesis_hash, &config.chain_spec);
-	config
-		.network
-		.extra_sets
-		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
+	net_config.add_notification_protocol(grandpa::grandpa_peers_set_config(
+		grandpa_protocol_name.clone(),
+	));
 
 	let beefy_gossip_proto_name =
 		beefy::gossip_protocol_name(&genesis_hash, config.chain_spec.fork_id());
@@ -811,11 +815,10 @@ where
 			prometheus_registry.clone(),
 		);
 	if enable_beefy {
-		config
-			.network
-			.extra_sets
-			.push(beefy::communication::beefy_peers_set_config(beefy_gossip_proto_name.clone()));
-		config.network.request_response_protocols.push(beefy_req_resp_cfg);
+		net_config.add_notification_protocol(beefy::communication::beefy_peers_set_config(
+			beefy_gossip_proto_name.clone(),
+		));
+		net_config.add_request_response_protocol(beefy_req_resp_cfg);
 	}
 
 	let peerset_protocol_names =
@@ -824,27 +827,26 @@ where
 	{
 		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
 		let is_authority = if role.is_authority() { IsAuthority::Yes } else { IsAuthority::No };
-		config
-			.network
-			.extra_sets
-			.extend(peer_sets_info(is_authority, &peerset_protocol_names));
+		for config in peer_sets_info(is_authority, &peerset_protocol_names) {
+			net_config.add_notification_protocol(config);
+		}
 	}
 
 	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, config.chain_spec.fork_id());
 
 	let (pov_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (collation_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (available_data_req_receiver, cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (statement_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 
 	let grandpa_hard_forks = if config.chain_spec.is_kusama() {
 		grandpa_support::kusama_hard_forks()
@@ -861,6 +863,7 @@ where
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
+			net_config,
 			client: client.clone(),
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
@@ -893,7 +896,6 @@ where
 
 	let approval_voting_config = ApprovalVotingConfig {
 		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
@@ -917,14 +919,13 @@ where
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
 		col_dispute_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 	};
 
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
-		keystore: keystore_container.sync_keystore(),
+		keystore: keystore_container.keystore(),
 		network: network.clone(),
 		sync_service: sync_service.clone(),
 		rpc_builder: Box::new(rpc_extensions_builder),
@@ -1000,14 +1001,7 @@ where
 		None
 	};
 
-	if local_keystore.is_none() {
-		gum::info!("Cannot run as validator without local keystore.");
-	}
-
-	let maybe_params =
-		local_keystore.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
-
-	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
+	let overseer_handle = if let Some(authority_discovery_service) = authority_discovery_service {
 		let (overseer, overseer_handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
 				overseer_connector,
@@ -1071,7 +1065,7 @@ where
 		Some(handle)
 	} else {
 		assert!(
-			!requires_overseer_for_chain_sel,
+			!auth_or_collator,
 			"Precondition congruence (false) is guaranteed by manual checking. qed"
 		);
 		None
@@ -1091,7 +1085,7 @@ where
 			overseer_handle.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
 		let slot_duration = babe_link.config().slot_duration();
 		let babe_config = babe::BabeParams {
-			keystore: keystore_container.sync_keystore(),
+			keystore: keystore_container.keystore(),
 			client: client.clone(),
 			select_chain,
 			block_import,
@@ -1135,8 +1129,7 @@ where
 
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
-	let keystore_opt =
-		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
+	let keystore_opt = if role.is_authority() { Some(keystore_container.keystore()) } else { None };
 
 	if enable_beefy {
 		let justifications_protocol_name = beefy_on_demand_justifications_handler.protocol_name();
@@ -1163,15 +1156,11 @@ where
 
 		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
 
-		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
+		// BEEFY currently only runs on testnets, if it fails we'll
 		// bring the node down with it to make sure it is noticed.
-		if chain_spec.is_wococo() {
-			task_manager
-				.spawn_essential_handle()
-				.spawn_blocking("beefy-gadget", None, gadget);
-		} else {
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
-		}
+		task_manager
+			.spawn_essential_handle()
+			.spawn_blocking("beefy-gadget", None, gadget);
 
 		if is_offchain_indexing_enabled {
 			task_manager.spawn_handle().spawn_blocking(
@@ -1521,7 +1510,6 @@ fn revert_chain_selection(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::R
 fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
 	let config = approval_voting_subsystem::Config {
 		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: Default::default(),
 	};
 

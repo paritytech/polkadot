@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -37,7 +37,6 @@ pub mod reward_points;
 pub mod scheduler;
 pub mod session_info;
 pub mod shared;
-pub mod ump;
 
 pub mod runtime_api_impl;
 
@@ -47,11 +46,18 @@ mod util;
 mod builder;
 #[cfg(test)]
 mod mock;
+#[cfg(test)]
+mod ump_tests;
 
 pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;
 use primitives::{HeadData, Id as ParaId, ValidationCode};
-use sp_runtime::DispatchResult;
+use sp_runtime::{DispatchResult, FixedU128};
+
+/// Trait for tracking message delivery fees on a transport protocol.
+pub trait FeeTracker {
+	fn get_fee_factor(para: ParaId) -> FixedU128;
+}
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 ///

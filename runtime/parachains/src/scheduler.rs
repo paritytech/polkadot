@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -235,7 +235,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &SessionChangeNotification<T::BlockNumber>,
 	) {
-		let &SessionChangeNotification { ref validators, ref new_config, .. } = notification;
+		let SessionChangeNotification { validators, new_config, .. } = notification;
 		let config = new_config;
 
 		let mut thread_queue = ParathreadQueue::<T>::get();

@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,10 +18,9 @@
 //!
 //! The validation host [runs the queue][`start`] communicating with it by sending [`ToQueue`]
 //! messages. The queue will spawn workers in new processes. Those processes should jump to
-//! [`worker_entrypoint`].
+//! `polkadot_node_core_pvf_worker::execute_worker_entrypoint`.
 
 mod queue;
-mod worker;
+mod worker_intf;
 
-pub use queue::{start, ToQueue};
-pub use worker::{worker_entrypoint, Response as ExecuteResponse};
+pub use queue::{start, PendingExecutionRequest, ToQueue};

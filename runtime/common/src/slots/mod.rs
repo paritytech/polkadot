@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -568,6 +568,10 @@ mod tests {
 		type MaxLocks = ();
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
+		type RuntimeHoldReason = RuntimeHoldReason;
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	parameter_types! {
@@ -844,9 +848,9 @@ mod tests {
 			// max_num different people are reserved for leases to Para ID 1
 			for i in 1u32..=max_num {
 				let j: u64 = i.into();
-				assert_ok!(Slots::lease_out(1.into(), &j, j * 10, i * i, i));
-				assert_eq!(Slots::deposit_held(1.into(), &j), j * 10);
-				assert_eq!(Balances::reserved_balance(j), j * 10);
+				assert_ok!(Slots::lease_out(1.into(), &j, j * 10 - 1, i * i, i));
+				assert_eq!(Slots::deposit_held(1.into(), &j), j * 10 - 1);
+				assert_eq!(Balances::reserved_balance(j), j * 10 - 1);
 			}
 
 			assert_ok!(Slots::clear_all_leases(RuntimeOrigin::root(), 1.into()));
@@ -984,6 +988,7 @@ mod benchmarking {
 	use super::*;
 	use frame_support::assert_ok;
 	use frame_system::RawOrigin;
+	use runtime_parachains::paras;
 	use sp_runtime::traits::{Bounded, One};
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller, BenchmarkError};
@@ -998,7 +1003,7 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn register_a_parathread<T: Config>(i: u32) -> (ParaId, T::AccountId) {
+	fn register_a_parathread<T: Config + paras::Config>(i: u32) -> (ParaId, T::AccountId) {
 		let para = ParaId::from(i);
 		let leaser: T::AccountId = account("leaser", i, 0);
 		T::Currency::make_free_balance_be(&leaser, BalanceOf::<T>::max_value());
@@ -1009,14 +1014,21 @@ mod benchmarking {
 			leaser.clone(),
 			para,
 			worst_head_data,
-			worst_validation_code
+			worst_validation_code.clone(),
 		));
+		assert_ok!(paras::Pallet::<T>::add_trusted_validation_code(
+			frame_system::Origin::<T>::Root.into(),
+			worst_validation_code,
+		));
+
 		T::Registrar::execute_pending_transitions();
 
 		(para, leaser)
 	}
 
 	benchmarks! {
+		where_clause { where T: paras::Config }
+
 		force_lease {
 			// If there is an offset, we need to be on that block to be able to do lease things.
 			frame_system::Pallet::<T>::set_block_number(T::LeaseOffset::get() + One::one());

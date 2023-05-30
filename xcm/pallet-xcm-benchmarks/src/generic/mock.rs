@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -27,7 +27,6 @@ use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
-	BuildStorage,
 };
 use xcm_builder::{
 	test_utils::{
@@ -163,8 +162,8 @@ impl generic::Config for Test {
 		Ok(Default::default())
 	}
 
-	fn universal_alias() -> Result<Junction, BenchmarkError> {
-		Ok(GlobalConsensus(ByGenesis([0; 32])))
+	fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError> {
+		Ok((Here.into(), GlobalConsensus(ByGenesis([0; 32]))))
 	}
 
 	fn transact_origin_and_runtime_call(
@@ -186,9 +185,17 @@ impl generic::Config for Test {
 		let assets: MultiAsset = (Concrete(Here.into()), 100).into();
 		Ok((Default::default(), Default::default(), assets))
 	}
+
+	fn export_message_origin_and_destination(
+	) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError> {
+		// No MessageExporter in tests
+		Err(BenchmarkError::Skip)
+	}
 }
 
+#[cfg(feature = "runtime-benchmarks")]
 pub fn new_test_ext() -> sp_io::TestExternalities {
+	use sp_runtime::BuildStorage;
 	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
 	sp_tracing::try_init_simple();
 	t.into()

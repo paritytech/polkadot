@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -133,7 +133,7 @@ pub type ValidatorSignature = validator_app::Signature;
 
 /// A declarations of storage keys where an external observer can find some interesting data.
 pub mod well_known_keys {
-	use super::{HrmpChannelId, Id};
+	use super::{HrmpChannelId, Id, WellKnownKey};
 	use hex_literal::hex;
 	use parity_scale_codec::Encode as _;
 	use sp_io::hashing::twox_64;
@@ -187,12 +187,30 @@ pub mod well_known_keys {
 	pub const ACTIVE_CONFIG: &[u8] =
 		&hex!["06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385"];
 
+	/// Hash of the committed head data for a given registered para.
+	///
+	/// The storage entry stores wrapped `HeadData(Vec<u8>)`.
+	pub fn para_head(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["cd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix
+				.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
 	/// The upward message dispatch queue for the given para id.
 	///
 	/// The storage entry stores a tuple of two values:
 	///
 	/// - `count: u32`, the number of messages currently in the queue for given para,
 	/// - `total_size: u32`, the total size of all messages in the queue.
+	#[deprecated = "Use `relay_dispatch_queue_remaining_capacity` instead"]
 	pub fn relay_dispatch_queue_size(para_id: Id) -> Vec<u8> {
 		let prefix = hex!["f5207f03cfdce586301014700e2c2593fad157e461d71fd4c1f936839a5f1f3e"];
 
@@ -205,6 +223,24 @@ pub mod well_known_keys {
 				.cloned()
 				.collect()
 		})
+	}
+
+	/// Type safe version of `relay_dispatch_queue_size`.
+	#[deprecated = "Use `relay_dispatch_queue_remaining_capacity` instead"]
+	pub fn relay_dispatch_queue_size_typed(para: Id) -> WellKnownKey<(u32, u32)> {
+		#[allow(deprecated)]
+		relay_dispatch_queue_size(para).into()
+	}
+
+	/// The upward message dispatch queue remaining capacity for the given para id.
+	///
+	/// The storage entry stores a tuple of two values:
+	///
+	/// - `count: u32`, the number of additional messages which may be enqueued for the given para,
+	/// - `total_size: u32`, the total size of additional messages which may be enqueued for the
+	/// given para.
+	pub fn relay_dispatch_queue_remaining_capacity(para_id: Id) -> WellKnownKey<(u32, u32)> {
+		(b":relay_dispatch_queue_remaining_capacity", para_id).encode().into()
 	}
 
 	/// The HRMP channel for the given identifier.
@@ -1592,13 +1628,13 @@ where
 /// The maximum number of validators `f` which may safely be faulty.
 ///
 /// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
-pub fn byzantine_threshold(n: usize) -> usize {
+pub const fn byzantine_threshold(n: usize) -> usize {
 	n.saturating_sub(1) / 3
 }
 
 /// The supermajority threshold of validators which represents a subset
 /// guaranteed to have at least f+1 honest validators.
-pub fn supermajority_threshold(n: usize) -> usize {
+pub const fn supermajority_threshold(n: usize) -> usize {
 	n - byzantine_threshold(n)
 }
 
@@ -1689,8 +1725,45 @@ impl PvfCheckStatement {
 	}
 }
 
+/// A well-known and typed storage key.
+///
+/// Allows for type-safe access to raw well-known storage keys.
+pub struct WellKnownKey<T> {
+	/// The raw storage key.
+	pub key: Vec<u8>,
+	_p: sp_std::marker::PhantomData<T>,
+}
+
+impl<T> From<Vec<u8>> for WellKnownKey<T> {
+	fn from(key: Vec<u8>) -> Self {
+		Self { key, _p: Default::default() }
+	}
+}
+
+impl<T> AsRef<[u8]> for WellKnownKey<T> {
+	fn as_ref(&self) -> &[u8] {
+		self.key.as_ref()
+	}
+}
+
+impl<T: Decode> WellKnownKey<T> {
+	/// Gets the value or `None` if it does not exist or decoding failed.
+	pub fn get(&self) -> Option<T> {
+		sp_io::storage::get(&self.key)
+			.and_then(|raw| parity_scale_codec::DecodeAll::decode_all(&mut raw.as_ref()).ok())
+	}
+}
+
+impl<T: Encode> WellKnownKey<T> {
+	/// Sets the value.
+	pub fn set(&self, value: T) {
+		sp_io::storage::set(&self.key, &value.encode());
+	}
+}
+
 /// Type discriminator for PVF preparation timeouts
 #[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PvfPrepTimeoutKind {
 	/// For prechecking requests, the time period after which the preparation worker is considered
 	/// unresponsive and will be killed.
@@ -1704,6 +1777,7 @@ pub enum PvfPrepTimeoutKind {
 
 /// Type discriminator for PVF execution timeouts
 #[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PvfExecTimeoutKind {
 	/// The amount of time to spend on execution during backing.
 	Backing,

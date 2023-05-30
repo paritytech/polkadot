@@ -8,5 +8,9 @@ command = "polkadot"
 
 [[relaychain.node_groups]]
 name = "validator"
-count = 4
-args = ["--log=beefy=debug", "--beefy", "--enable-offchain-indexing=true"]
+count = 3
+args = ["--log=beefy=debug", "--enable-offchain-indexing=true"]
+
+[[relaychain.nodes]]
+name = "validator-unstable"
+args = ["--log=beefy=debug", "--enable-offchain-indexing=true"]

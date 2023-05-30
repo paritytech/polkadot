@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,8 +17,8 @@
 //! XCM configurations for the Kusama runtime.
 
 use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, Fellows,
-	ParaId, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Dmp, Fellows, ParaId, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, TransactionByteFee, WeightToFee,
 	XcmPallet,
 };
 use frame_support::{
@@ -26,17 +26,23 @@ use frame_support::{
 	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
-use runtime_common::{paras_registrar, xcm_sender, ToAuthor};
+use frame_system::EnsureRoot;
+use kusama_runtime_constants::currency::CENTS;
+use runtime_common::{
+	crowdloan, paras_registrar,
+	xcm_sender::{ChildParachainRouter, ExponentialPrice},
+	ToAuthor,
+};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
-	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
-	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
+	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WeightInfoBounds,
-	WithComputedOrigin,
+	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
+	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -101,14 +107,22 @@ parameter_types! {
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;
+	/// The asset ID for the asset that we use to pay for message delivery fees.
+	pub FeeAssetId: AssetId = Concrete(TokenLocation::get());
+	/// The base fee for the message delivery fees.
+	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 }
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
-pub type XcmRouter = (
+pub type XcmRouter = WithUniqueTopic<(
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet, ()>,
-);
+	ChildParachainRouter<
+		Runtime,
+		XcmPallet,
+		ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, Dmp>,
+	>,
+)>;
 
 parameter_types! {
 	pub const Ksm: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
@@ -128,7 +142,7 @@ match_types! {
 }
 
 /// The barriers one of which must be passed for an XCM message to be executed.
-pub type Barrier = (
+pub type Barrier = TrailingSetTopicAsId<(
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// Expected responses are OK.
@@ -145,7 +159,7 @@ pub type Barrier = (
 		UniversalLocation,
 		ConstU32<8>,
 	>,
-);
+)>;
 
 /// A call filter for the XCM Transact instruction. This is a temporary measure until we properly
 /// account for proof size weights.
@@ -172,6 +186,16 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			RuntimeCall::Timestamp(..) |
 			RuntimeCall::Indices(..) |
 			RuntimeCall::Balances(..) |
+			RuntimeCall::Crowdloan(
+				crowdloan::Call::create { .. } |
+				crowdloan::Call::contribute { .. } |
+				crowdloan::Call::withdraw { .. } |
+				crowdloan::Call::refund { .. } |
+				crowdloan::Call::dissolve { .. } |
+				crowdloan::Call::edit { .. } |
+				crowdloan::Call::poke { .. } |
+				crowdloan::Call::contribute_all { .. },
+			) |
 			RuntimeCall::Staking(
 				pallet_staking::Call::bond { .. } |
 				pallet_staking::Call::bond_extra { .. } |
@@ -200,49 +224,6 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			RuntimeCall::Session(pallet_session::Call::purge_keys { .. }) |
 			RuntimeCall::Grandpa(..) |
 			RuntimeCall::ImOnline(..) |
-			RuntimeCall::Democracy(
-				pallet_democracy::Call::second { .. } |
-				pallet_democracy::Call::vote { .. } |
-				pallet_democracy::Call::emergency_cancel { .. } |
-				pallet_democracy::Call::fast_track { .. } |
-				pallet_democracy::Call::veto_external { .. } |
-				pallet_democracy::Call::cancel_referendum { .. } |
-				pallet_democracy::Call::delegate { .. } |
-				pallet_democracy::Call::undelegate { .. } |
-				pallet_democracy::Call::clear_public_proposals { .. } |
-				pallet_democracy::Call::unlock { .. } |
-				pallet_democracy::Call::remove_vote { .. } |
-				pallet_democracy::Call::remove_other_vote { .. } |
-				pallet_democracy::Call::blacklist { .. } |
-				pallet_democracy::Call::cancel_proposal { .. },
-			) |
-			RuntimeCall::Council(
-				pallet_collective::Call::vote { .. } |
-				pallet_collective::Call::close_old_weight { .. } |
-				pallet_collective::Call::disapprove_proposal { .. } |
-				pallet_collective::Call::close { .. },
-			) |
-			RuntimeCall::TechnicalCommittee(
-				pallet_collective::Call::vote { .. } |
-				pallet_collective::Call::close_old_weight { .. } |
-				pallet_collective::Call::disapprove_proposal { .. } |
-				pallet_collective::Call::close { .. },
-			) |
-			RuntimeCall::PhragmenElection(
-				pallet_elections_phragmen::Call::remove_voter { .. } |
-				pallet_elections_phragmen::Call::submit_candidacy { .. } |
-				pallet_elections_phragmen::Call::renounce_candidacy { .. } |
-				pallet_elections_phragmen::Call::remove_member { .. } |
-				pallet_elections_phragmen::Call::clean_defunct_voters { .. },
-			) |
-			RuntimeCall::TechnicalMembership(
-				pallet_membership::Call::add_member { .. } |
-				pallet_membership::Call::remove_member { .. } |
-				pallet_membership::Call::swap_member { .. } |
-				pallet_membership::Call::change_key { .. } |
-				pallet_membership::Call::set_prime { .. } |
-				pallet_membership::Call::clear_prime { .. },
-			) |
 			RuntimeCall::Treasury(..) |
 			RuntimeCall::ConvictionVoting(..) |
 			RuntimeCall::Referenda(
@@ -336,7 +317,9 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			) |
 			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
-			}) => true,
+			}) |
+			RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. }) |
+			RuntimeCall::Proxy(..) => true,
 			_ => false,
 		}
 	}
@@ -377,7 +360,6 @@ impl xcm_executor::Config for XcmConfig {
 }
 
 parameter_types! {
-	pub const CouncilBodyId: BodyId = BodyId::Executive;
 	// StakingAdmin pluralistic body.
 	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
 	// Fellows pluralistic body.
@@ -389,19 +371,9 @@ parameter_types! {
 	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
 }
 
-/// Type to convert the council origin to a Plurality `MultiLocation` value.
-pub type CouncilToPlurality = BackingToPlurality<
-	RuntimeOrigin,
-	pallet_collective::Origin<Runtime, CouncilCollective>,
-	CouncilBodyId,
->;
-
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
 pub type LocalOriginToLocation = (
-	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
-	// `Unit` body.
-	CouncilToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
 );
@@ -416,9 +388,6 @@ pub type FellowsToPlurality = OriginToPluralityVoice<RuntimeOrigin, Fellows, Fel
 /// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain for a destination chain.
 pub type LocalPalletOriginToLocation = (
-	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
-	// `Unit` body.
-	CouncilToPlurality,
 	// StakingAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
 	StakingAdminToPlurality,
 	// Fellows origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
@@ -453,16 +422,22 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = SovereignAccountOf;
 	type MaxLockers = ConstU32<8>;
+	type MaxRemoteLockConsumers = ConstU32<0>;
+	type RemoteLockConsumerIdentifier = ();
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 #[test]
 fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
+	use frame_support::dispatch::GetDispatchInfo;
 	use parity_scale_codec::Decode;
 	use xcm::VersionedXcm;
 	use xcm_executor::traits::WeightBounds;
+
+	// should be [WithdrawAsset, BuyExecution, Transact, RefundSurplus, DepositAsset]
 	let blob = hex_literal::hex!("02140004000000000700e40b540213000000000700e40b54020006010700c817a804341801000006010b00c490bf4302140d010003ffffffff000100411f");
 	let Ok(VersionedXcm::V2(old_xcm)) =
 		VersionedXcm::<super::RuntimeCall>::decode(&mut &blob[..]) else { panic!("can't decode XCM blob") };
@@ -471,5 +446,21 @@ fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
 	let weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut xcm)
 		.expect("weighing XCM failed");
 
+	// Test that the weigher gives us a sensible weight
 	assert_eq!(weight, Weight::from_parts(20_313_281_000, 65536));
+
+	let Some(Transact { require_weight_at_most, call, .. }) =
+		xcm.inner_mut().into_iter().find(|inst| matches!(inst, Transact { .. })) else {
+			panic!("no Transact instruction found")
+		};
+	// should be pallet_utility.as_derivative { index: 0, call: pallet_staking::bond_extra { max_additional: 2490000000000 } }
+	let message_call = call.take_decoded().expect("can't decode Transact call");
+	let call_weight = message_call.get_dispatch_info().weight;
+	// Ensure that the Transact instruction is giving a sensible `require_weight_at_most` value
+	assert!(
+		call_weight.all_lte(*require_weight_at_most),
+		"call weight ({:?}) was not less than or equal to require_weight_at_most ({:?})",
+		call_weight,
+		require_weight_at_most
+	);
 }

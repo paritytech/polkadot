@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -224,7 +224,7 @@ where
 			IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver },
 			Metrics::register(registry)?,
 		))
-		.availability_recovery(AvailabilityRecoverySubsystem::with_chunks_only(
+		.availability_recovery(AvailabilityRecoverySubsystem::with_chunks_if_pov_large(
 			available_data_req_receiver,
 			Metrics::register(registry)?,
 		))

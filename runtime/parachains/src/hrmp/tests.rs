@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -15,18 +15,16 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{
-	mock::{
-		new_test_ext, Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared,
-		RuntimeEvent as MockEvent, RuntimeOrigin, System, Test,
-	},
-	paras::ParaKind,
+use crate::mock::{
+	deregister_parachain, new_test_ext, register_parachain, register_parachain_with_balance,
+	Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared, RuntimeEvent as MockEvent,
+	RuntimeOrigin, System, Test,
 };
-use frame_support::{assert_noop, assert_ok, traits::Currency as _};
+use frame_support::assert_noop;
 use primitives::BlockNumber;
 use std::collections::BTreeMap;
 
-fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 	let config = Configuration::config();
 	while System::block_number() < to {
 		let b = System::block_number();
@@ -127,26 +125,6 @@ fn default_genesis_config() -> MockGenesisConfig {
 		},
 		..Default::default()
 	}
-}
-
-fn register_parachain_with_balance(id: ParaId, balance: Balance) {
-	assert_ok!(Paras::schedule_para_initialize(
-		id,
-		crate::paras::ParaGenesisArgs {
-			para_kind: ParaKind::Parachain,
-			genesis_head: vec![1].into(),
-			validation_code: vec![1].into(),
-		},
-	));
-	<Test as Config>::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
-}
-
-fn register_parachain(id: ParaId) {
-	register_parachain_with_balance(id, 1000);
-}
-
-fn deregister_parachain(id: ParaId) {
-	assert_ok!(Paras::schedule_para_cleanup(id));
 }
 
 fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
@@ -654,6 +632,51 @@ fn cancel_pending_open_channel_request() {
 
 		run_to_block(10, Some(vec![10]));
 		assert!(!channel_exists(para_a, para_b));
+		Hrmp::assert_storage_consistency_exhaustive();
+	});
+}
+
+#[test]
+fn watermark_maxed_out_at_relay_parent() {
+	let para_a = 32.into();
+	let para_b = 64.into();
+
+	let mut genesis = GenesisConfigBuilder::default();
+	genesis.hrmp_channel_max_message_size = 20;
+	genesis.hrmp_channel_max_total_size = 20;
+	new_test_ext(genesis.build()).execute_with(|| {
+		register_parachain(para_a);
+		register_parachain(para_b);
+
+		run_to_block(5, Some(vec![4, 5]));
+		Hrmp::init_open_channel(para_a, para_b, 2, 20).unwrap();
+		Hrmp::accept_open_channel(para_b, para_a).unwrap();
+
+		// On Block 6:
+		// A sends a message to B
+		run_to_block(6, Some(vec![6]));
+		assert!(channel_exists(para_a, para_b));
+		let msgs: HorizontalMessages =
+			vec![OutboundHrmpMessage { recipient: para_b, data: b"this is an emergency".to_vec() }]
+				.try_into()
+				.unwrap();
+		let config = Configuration::config();
+		assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
+		let _ = Hrmp::queue_outbound_hrmp(para_a, msgs);
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// On block 8:
+		// B receives the message sent by A. B sets the watermark to 7.
+		run_to_block(8, None);
+		assert!(Hrmp::check_hrmp_watermark(para_b, 7, 7).is_ok());
+		let _ = Hrmp::prune_hrmp(para_b, 7);
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// On block 9:
+		// B includes a candidate with the same relay parent as before.
+		run_to_block(9, None);
+		assert!(Hrmp::check_hrmp_watermark(para_b, 7, 7).is_ok());
+		let _ = Hrmp::prune_hrmp(para_b, 7);
 		Hrmp::assert_storage_consistency_exhaustive();
 	});
 }

@@ -21,7 +21,7 @@ build-linux-stable:
     # Ensure we run the UI tests.
     RUN_UI_TESTS: 1
   script:
-    - time cargo build --profile testnet --features pyroscope --verbose --bin polkadot
+    - time cargo build --locked --profile testnet --features pyroscope --verbose --bin polkadot
     # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
@@ -52,8 +52,8 @@ build-test-collators:
     - .compiler-info
     - .collect-artifacts
   script:
-    - time cargo build --profile testnet --verbose -p test-parachain-adder-collator
-    - time cargo build --profile testnet --verbose -p test-parachain-undying-collator
+    - time cargo build --locked --profile testnet --verbose -p test-parachain-adder-collator
+    - time cargo build --locked --profile testnet --verbose -p test-parachain-undying-collator
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/adder-collator ./artifacts/.
@@ -77,7 +77,7 @@ build-malus:
     - .compiler-info
     - .collect-artifacts
   script:
-    - time cargo build --profile testnet --verbose -p polkadot-test-malus
+    - time cargo build --locked --profile testnet --verbose -p polkadot-test-malus
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/malus ./artifacts/.
@@ -129,7 +129,7 @@ build-rustdoc:
   script:
     # FIXME: it fails with `RUSTDOCFLAGS="-Dwarnings"` and `--all-features`
     # FIXME: return to stable when https://github.com/rust-lang/rust/issues/96937 gets into stable
-    - time cargo +nightly doc --workspace --verbose --no-deps
+    - time cargo doc --workspace --verbose --no-deps
     - rm -f ./target/doc/.lock
     - mv ./target/doc ./crate-docs
     # FIXME: remove me after CI image gets nonroot
@@ -169,6 +169,6 @@ build-short-benchmark:
     - .test-refs
     - .collect-artifacts
   script:
-    - cargo +nightly build --profile release --locked --features=runtime-benchmarks
+    - cargo build --profile release --locked --features=runtime-benchmarks
     - mkdir artifacts
     - cp ./target/release/polkadot ./artifacts/

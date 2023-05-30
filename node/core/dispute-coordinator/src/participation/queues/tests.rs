@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -46,7 +46,7 @@ fn clone_request(request: &ParticipationRequest) -> ParticipationRequest {
 		candidate_receipt: request.candidate_receipt.clone(),
 		candidate_hash: request.candidate_hash.clone(),
 		session: request.session,
-		_request_timer: None,
+		request_timer: None,
 	}
 }
 

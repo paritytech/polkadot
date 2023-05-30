@@ -6,14 +6,15 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.3.0" }
+codec = { package = "parity-scale-codec", version = "3.4.0" }
 honggfuzz = "0.5.55"
 arbitrary = "1.2.0"
-scale-info = { version = "2.1.2", features = ["derive"] }
+scale-info = { version = "2.5.0", features = ["derive"] }
 
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -31,6 +32,7 @@ polkadot-parachain = { path = "../../../parachain" }
 [features]
 runtime-benchmarks = [
     "pallet-xcm/runtime-benchmarks",
+    "pallet-message-queue/runtime-benchmarks",
     "xcm-builder/runtime-benchmarks",
     "frame-support/runtime-benchmarks",
 ]

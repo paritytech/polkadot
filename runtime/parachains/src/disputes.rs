@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,11 +16,14 @@
 
 //! Runtime component for handling disputes of parachain candidates.
 
-use crate::{configuration, initializer::SessionChangeNotification, session_info};
+use crate::{
+	configuration, initializer::SessionChangeNotification, metrics::METRICS, session_info,
+};
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
-use frame_support::{ensure, traits::Get, weights::Weight};
+use frame_support::{ensure, weights::Weight};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_runtime_metrics::get_current_time;
 use primitives::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash,
 	CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CompactStatement, ConsensusLog,
@@ -443,8 +446,12 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 	}
 
+	/// The current storage version.
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	/// The last pruned session, if any. All data stored by this module
@@ -503,9 +510,6 @@ pub mod pallet {
 		/// A dispute has concluded for or against a candidate.
 		/// `\[para id, candidate hash, dispute result\]`
 		DisputeConcluded(CandidateHash, DisputeResult),
-		/// A dispute has timed out due to insufficient participation.
-		/// `\[para id, candidate hash\]`
-		DisputeTimedOut(CandidateHash),
 		/// A dispute has concluded with supermajority against a candidate.
 		/// Block authors should no longer build on top of this head and should
 		/// instead revert the block at the given height. This should be the
@@ -556,6 +560,8 @@ bitflags::bitflags! {
 		const FOR_SUPERMAJORITY = 0b0010;
 		/// Is the supermajority against the validity of the block reached.
 		const AGAINST_SUPERMAJORITY = 0b0100;
+		/// Is there f+1 against the validity of the block reached
+		const AGAINST_BYZANTINE = 0b1000;
 	}
 }
 
@@ -576,6 +582,10 @@ impl DisputeStateFlags {
 
 		if state.validators_for.count_ones() >= supermajority_threshold {
 			flags |= DisputeStateFlags::FOR_SUPERMAJORITY;
+		}
+
+		if state.validators_against.count_ones() > byzantine_threshold {
+			flags |= DisputeStateFlags::AGAINST_BYZANTINE;
 		}
 
 		if state.validators_against.count_ones() >= supermajority_threshold {
@@ -911,26 +921,8 @@ impl StatementSetFilter {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes module.
-	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		let config = <configuration::Pallet<T>>::config();
-
-		let mut weight = Weight::zero();
-		for (session_index, candidate_hash, mut dispute) in <Disputes<T>>::iter() {
-			weight += T::DbWeight::get().reads_writes(1, 0);
-
-			if dispute.concluded_at.is_none() &&
-				dispute.start + config.dispute_conclusion_by_time_out_period < now
-			{
-				Self::deposit_event(Event::DisputeTimedOut(candidate_hash));
-
-				dispute.concluded_at = Some(now);
-				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
-
-				weight += T::DbWeight::get().writes(1);
-			}
-		}
-
-		weight
+	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the disputes pallet.
@@ -1257,8 +1249,8 @@ impl<T: Config> Pallet<T> {
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
 
-		// Freeze if just concluded against some local candidate
-		if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+		// Freeze if the INVALID votes against some local candidate are above the byzantine threshold
+		if summary.new_flags.contains(DisputeStateFlags::AGAINST_BYZANTINE) {
 			if let Some(revert_to) = <Included<T>>::get(&session, &candidate_hash) {
 				Self::revert_and_freeze(revert_to);
 			}
@@ -1357,9 +1349,14 @@ fn check_signature(
 			ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
 	};
 
-	if validator_signature.verify(&payload[..], &validator_public) {
-		Ok(())
-	} else {
-		Err(())
-	}
+	let start = get_current_time();
+
+	let res =
+		if validator_signature.verify(&payload[..], &validator_public) { Ok(()) } else { Err(()) };
+
+	let end = get_current_time();
+
+	METRICS.on_signature_check_complete(end.saturating_sub(start)); // ns
+
+	res
 }
