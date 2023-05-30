@@ -98,4 +98,4 @@ pub use universal_exports::{
 };
 
 mod pay;
-pub use pay::{PayAccountId32OverXcm, PayOverXcm};
+pub use pay::{PayAccountId32OnChainOverXcm, PayOverXcm};
