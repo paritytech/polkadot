@@ -87,6 +87,7 @@ fn prewarmed_state(
 		peer_views: peers.iter().cloned().map(|peer| (peer, view!(relay_parent))).collect(),
 		topologies,
 		view: our_view!(relay_parent),
+		reputation: ReputationAggregator::new(|_| false),
 	}
 }
 
@@ -237,7 +238,7 @@ fn receive_invalid_signature() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_SIGNATURE_INVALID)
+				assert_eq!(rep.value, COST_SIGNATURE_INVALID.cost_or_benefit())
 			}
 		);
 	});
@@ -298,7 +299,7 @@ fn receive_invalid_validator_index() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_VALIDATOR_INDEX_INVALID)
+				assert_eq!(rep.value, COST_VALIDATOR_INDEX_INVALID.cost_or_benefit())
 			}
 		);
 	});
@@ -374,7 +375,7 @@ fn receive_duplicate_messages() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
 			}
 		);
 
@@ -393,7 +394,7 @@ fn receive_duplicate_messages() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_a);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE)
+				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE.cost_or_benefit())
 			}
 		);
 
@@ -412,7 +413,7 @@ fn receive_duplicate_messages() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE)
+				assert_eq!(rep.value, COST_PEER_DUPLICATE_MESSAGE.cost_or_benefit())
 			}
 		);
 	});
@@ -621,7 +622,7 @@ fn changing_view() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
 			}
 		);
 
@@ -653,7 +654,7 @@ fn changing_view() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE)
+				assert_eq!(rep.value, COST_PEER_DUPLICATE_MESSAGE.cost_or_benefit())
 			}
 		);
 
@@ -685,7 +686,7 @@ fn changing_view() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_a);
-				assert_eq!(rep, COST_NOT_IN_VIEW)
+				assert_eq!(rep.value, COST_NOT_IN_VIEW.cost_or_benefit())
 			}
 		);
 	});
@@ -770,7 +771,7 @@ fn do_not_send_message_back_to_origin() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
 			}
 		);
 	});
@@ -891,7 +892,7 @@ fn topology_test() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peers_x[0]);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
 			}
 		);
 	});

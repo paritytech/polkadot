@@ -149,7 +149,7 @@ where
 {
 	match msg {
 		NetworkBridgeTxMessage::ReportPeer(peer, rep) => {
-			if !rep.is_benefit() {
+			if !rep.value.is_positive() {
 				gum::debug!(target: LOG_TARGET, ?peer, ?rep, action = "ReportPeer");
 			}
 

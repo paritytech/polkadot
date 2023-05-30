@@ -436,7 +436,7 @@ fn collator_reporting_works() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep),
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REPORT_BAD);
+				assert_eq!(rep.value, COST_REPORT_BAD.cost_or_benefit());
 			}
 		);
 
@@ -486,7 +486,7 @@ fn collator_authentication_verification_works() {
 				NetworkBridgeTxMessage::ReportPeer(peer, rep),
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_INVALID_SIGNATURE);
+				assert_eq!(rep.value, COST_INVALID_SIGNATURE.cost_or_benefit());
 			}
 		);
 		virtual_overseer
@@ -713,7 +713,7 @@ fn reject_connection_to_next_group() {
 				rep,
 			)) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_UNNEEDED_COLLATOR);
+				assert_eq!(rep.value, COST_UNNEEDED_COLLATOR.cost_or_benefit());
 			}
 		);
 
@@ -806,7 +806,7 @@ fn fetch_next_collation_on_invalid_collation() {
 				rep,
 			)) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REPORT_BAD);
+				assert_eq!(rep.value, COST_REPORT_BAD.cost_or_benefit());
 			}
 		);
 
@@ -1021,7 +1021,7 @@ fn disconnect_if_wrong_declare() {
 				rep,
 			)) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_UNNEEDED_COLLATOR);
+				assert_eq!(rep.value, COST_UNNEEDED_COLLATOR.cost_or_benefit());
 			}
 		);
 

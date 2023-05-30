@@ -707,8 +707,11 @@ async fn handle_incoming_peer_message<Context>(
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 
-			ctx.send_message(NetworkBridgeTxMessage::ReportPeer(origin, COST_UNEXPECTED_MESSAGE))
-				.await;
+			ctx.send_message(NetworkBridgeTxMessage::ReportPeer(
+				origin,
+				COST_UNEXPECTED_MESSAGE.into_base_rep(),
+			))
+			.await;
 
 			// If we are advertised to, this is another collator, and we should disconnect.
 			ctx.send_message(NetworkBridgeTxMessage::DisconnectPeer(origin, PeerSet::Collation))
@@ -794,8 +797,11 @@ async fn handle_incoming_request<Context>(
 					target: LOG_TARGET,
 					"Dropping incoming request as peer has a request in flight already."
 				);
-				ctx.send_message(NetworkBridgeTxMessage::ReportPeer(req.peer, COST_APPARENT_FLOOD))
-					.await;
+				ctx.send_message(NetworkBridgeTxMessage::ReportPeer(
+					req.peer,
+					COST_APPARENT_FLOOD.into_base_rep(),
+				))
+				.await;
 				return Ok(())
 			}
 

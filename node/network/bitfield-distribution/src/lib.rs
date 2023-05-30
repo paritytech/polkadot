@@ -35,11 +35,15 @@ use polkadot_node_subsystem::{
 	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan,
 	SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
-use polkadot_node_subsystem_util::{self as util};
+use polkadot_node_subsystem_util::{self as util, reputation::ReputationAggregator};
 
+use futures::select;
 use polkadot_primitives::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use rand::{CryptoRng, Rng, SeedableRng};
-use std::collections::{HashMap, HashSet};
+use std::{
+	collections::{HashMap, HashSet},
+	time::Duration,
+};
 
 use self::metrics::Metrics;
 
@@ -97,6 +101,9 @@ struct ProtocolState {
 
 	/// Additional data particular to a relay parent.
 	per_relay_parent: HashMap<Hash, PerRelayParentData>,
+
+	/// Aggregated reputation change
+	reputation: ReputationAggregator,
 }
 
 /// Data for a particular relay parent.
@@ -161,7 +168,7 @@ impl PerRelayParentData {
 }
 
 const LOG_TARGET: &str = "parachain::bitfield-distribution";
-
+const REPUTATION_CHANGE_INTERVAL: Duration = Duration::from_secs(30);
 /// The bitfield distribution subsystem.
 pub struct BitfieldDistribution {
 	metrics: Metrics,
@@ -178,18 +185,31 @@ impl BitfieldDistribution {
 	async fn run<Context>(self, ctx: Context) {
 		let mut state = ProtocolState::default();
 		let mut rng = rand::rngs::StdRng::from_entropy();
-		self.run_inner(ctx, &mut state, &mut rng).await
+		self.run_inner(ctx, &mut state, REPUTATION_CHANGE_INTERVAL, &mut rng).await
 	}
 
 	async fn run_inner<Context>(
 		self,
 		mut ctx: Context,
 		state: &mut ProtocolState,
+		reputation_interval: Duration,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
 		// work: process incoming messages from the overseer and process accordingly.
 
+		let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+		let mut reputation_delay = new_reputation_delay();
+
 		loop {
+			select! {
+				_ = reputation_delay => {
+					state.reputation.send(ctx.sender()).await;
+					reputation_delay = new_reputation_delay();
+				},
+				// Will run if no futures are immediately ready
+				default => {
+				}
+			}
 			let message = match ctx.recv().await {
 				Ok(message) => message,
 				Err(err) => {
@@ -274,6 +294,7 @@ impl BitfieldDistribution {
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::BitfieldDistributionSenderTrait,
 	relay_parent: Hash,
 	peer: PeerId,
@@ -281,7 +302,7 @@ async fn modify_reputation(
 ) {
 	gum::trace!(target: LOG_TARGET, ?relay_parent, ?rep, %peer, "reputation change");
 
-	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
+	reputation.modify(sender, peer, rep).await;
 }
 /// Distribute a given valid and signature checked bitfield message.
 ///
@@ -454,7 +475,14 @@ async fn process_incoming_peer_message<Context>(
 	);
 	// we don't care about this, not part of our view.
 	if !state.view.contains(&relay_parent) {
-		modify_reputation(ctx.sender(), relay_parent, origin, COST_NOT_IN_VIEW).await;
+		modify_reputation(
+			&mut state.reputation,
+			ctx.sender(),
+			relay_parent,
+			origin,
+			COST_NOT_IN_VIEW,
+		)
+		.await;
 		return
 	}
 
@@ -463,7 +491,14 @@ async fn process_incoming_peer_message<Context>(
 	let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
 		job_data
 	} else {
-		modify_reputation(ctx.sender(), relay_parent, origin, COST_NOT_IN_VIEW).await;
+		modify_reputation(
+			&mut state.reputation,
+			ctx.sender(),
+			relay_parent,
+			origin,
+			COST_NOT_IN_VIEW,
+		)
+		.await;
 		return
 	};
 
@@ -480,7 +515,14 @@ async fn process_incoming_peer_message<Context>(
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
 		gum::trace!(target: LOG_TARGET, ?relay_parent, ?origin, "Validator set is empty",);
-		modify_reputation(ctx.sender(), relay_parent, origin, COST_MISSING_PEER_SESSION_KEY).await;
+		modify_reputation(
+			&mut state.reputation,
+			ctx.sender(),
+			relay_parent,
+			origin,
+			COST_MISSING_PEER_SESSION_KEY,
+		)
+		.await;
 		return
 	}
 
@@ -490,7 +532,14 @@ async fn process_incoming_peer_message<Context>(
 	let validator = if let Some(validator) = validator_set.get(validator_index.0 as usize) {
 		validator.clone()
 	} else {
-		modify_reputation(ctx.sender(), relay_parent, origin, COST_VALIDATOR_INDEX_INVALID).await;
+		modify_reputation(
+			&mut state.reputation,
+			ctx.sender(),
+			relay_parent,
+			origin,
+			COST_VALIDATOR_INDEX_INVALID,
+		)
+		.await;
 		return
 	};
 
@@ -503,7 +552,14 @@ async fn process_incoming_peer_message<Context>(
 		received_set.insert(validator.clone());
 	} else {
 		gum::trace!(target: LOG_TARGET, ?validator_index, ?origin, "Duplicate message");
-		modify_reputation(ctx.sender(), relay_parent, origin, COST_PEER_DUPLICATE_MESSAGE).await;
+		modify_reputation(
+			&mut state.reputation,
+			ctx.sender(),
+			relay_parent,
+			origin,
+			COST_PEER_DUPLICATE_MESSAGE,
+		)
+		.await;
 		return
 	};
 
@@ -517,13 +573,27 @@ async fn process_incoming_peer_message<Context>(
 			"already received a message for validator",
 		);
 		if old_message.signed_availability.as_unchecked() == &bitfield {
-			modify_reputation(ctx.sender(), relay_parent, origin, BENEFIT_VALID_MESSAGE).await;
+			modify_reputation(
+				&mut state.reputation,
+				ctx.sender(),
+				relay_parent,
+				origin,
+				BENEFIT_VALID_MESSAGE,
+			)
+			.await;
 		}
 		return
 	}
 	let signed_availability = match bitfield.try_into_checked(&signing_context, &validator) {
 		Err(_) => {
-			modify_reputation(ctx.sender(), relay_parent, origin, COST_SIGNATURE_INVALID).await;
+			modify_reputation(
+				&mut state.reputation,
+				ctx.sender(),
+				relay_parent,
+				origin,
+				COST_SIGNATURE_INVALID,
+			)
+			.await;
 			return
 		},
 		Ok(bitfield) => bitfield,
@@ -552,7 +622,14 @@ async fn process_incoming_peer_message<Context>(
 	)
 	.await;
 
-	modify_reputation(ctx.sender(), relay_parent, origin, BENEFIT_VALID_MESSAGE_FIRST).await
+	modify_reputation(
+		&mut state.reputation,
+		ctx.sender(),
+		relay_parent,
+		origin,
+		BENEFIT_VALID_MESSAGE_FIRST,
+	)
+	.await
 }
 
 /// Deal with network bridge updates and track what needs to be tracked

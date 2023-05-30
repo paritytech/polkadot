@@ -87,3 +87,9 @@ impl UnifiedReputationChange {
 		ReputationChange::new(self.cost_or_benefit(), self.description())
 	}
 }
+
+impl From<UnifiedReputationChange> for ReputationChange {
+	fn from(value: UnifiedReputationChange) -> Self {
+		value.into_base_rep()
+	}
+}

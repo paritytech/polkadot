@@ -1803,10 +1803,8 @@ impl ApprovalDistribution {
 		let mut reputation_delay = new_reputation_delay();
 
 		loop {
-			println!("New loop");
 			select! {
 				_ = reputation_delay => {
-					println!("Reputation timer fired");
 					state.reputation.send(ctx.sender()).await;
 					reputation_delay = new_reputation_delay();
 				},

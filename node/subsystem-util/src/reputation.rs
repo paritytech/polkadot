@@ -55,7 +55,7 @@ impl ReputationAggregator {
 	/// TODO
 	pub async fn modify(
 		&mut self,
-		sender: &mut impl overseer::ApprovalDistributionSenderTrait,
+		sender: &mut impl overseer::SubsystemSender<NetworkBridgeTxMessage>,
 		peer_id: PeerId,
 		rep: UnifiedReputationChange,
 	) {

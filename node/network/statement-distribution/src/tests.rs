@@ -863,7 +863,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
+			) if p == peer_a && r.value == BENEFIT_VALID_STATEMENT_FIRST.cost_or_benefit() => {}
 		);
 
 		assert_matches!(
@@ -1227,7 +1227,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_bad && r == COST_WRONG_HASH => {}
+			) if p == peer_bad && r.value == COST_WRONG_HASH.cost_or_benefit() => {}
 		);
 
 		// a is tried again (retried in reverse order):
@@ -1278,21 +1278,21 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r == COST_FETCH_FAIL => {}
+			) if p == peer_a && r.value == COST_FETCH_FAIL.cost_or_benefit() => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_c && r == BENEFIT_VALID_RESPONSE => {}
+			) if p == peer_c && r.value == BENEFIT_VALID_RESPONSE.cost_or_benefit() => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
+			) if p == peer_a && r.value == BENEFIT_VALID_STATEMENT_FIRST.cost_or_benefit() => {}
 		);
 
 		assert_matches!(
@@ -1874,7 +1874,7 @@ fn peer_cant_flood_with_large_statements() {
 				},
 
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == COST_APPARENT_FLOOD =>
+					if p == peer_a && r.value == COST_APPARENT_FLOOD.cost_or_benefit() =>
 				{
 					punished = true;
 				},
@@ -2139,7 +2139,7 @@ fn handle_multiple_seconded_statements() {
 				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_a);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
+				assert_eq!(r.value, BENEFIT_VALID_STATEMENT_FIRST.cost_or_benefit());
 			}
 		);
 
@@ -2191,7 +2191,7 @@ fn handle_multiple_seconded_statements() {
 				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_b);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT);
+				assert_eq!(r.value, BENEFIT_VALID_STATEMENT.cost_or_benefit());
 			}
 		);
 
@@ -2240,7 +2240,7 @@ fn handle_multiple_seconded_statements() {
 				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_a);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
+				assert_eq!(r.value, BENEFIT_VALID_STATEMENT_FIRST.cost_or_benefit());
 			}
 		);
 
@@ -2293,7 +2293,7 @@ fn handle_multiple_seconded_statements() {
 				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_b);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT);
+				assert_eq!(r.value, BENEFIT_VALID_STATEMENT.cost_or_benefit());
 			}
 		);
 
