@@ -57,8 +57,8 @@ use frame_election_provider_support::{
 use frame_support::{
 	construct_runtime, ord_parameter_types, parameter_types,
 	traits::{
-		ConstU32, Contains, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem,
-		PrivilegeCmp, ProcessMessage, ProcessMessageError, StorageMapShim, WithdrawReasons,
+		tokens::ConversionFromAssetBalance, ConstU32, Contains, EitherOf, EitherOfDiverse,
+		InstanceFilter, KeyOwnerProofSystem, PrivilegeCmp,ProcessMessage, ProcessMessageError, StorageMapShim, WithdrawReasons,
 	},
 	weights::{ConstantMultiplier, WeightMeter},
 	PalletId, RuntimeDebug,
@@ -97,6 +97,7 @@ pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
 use kusama_runtime_constants::{currency::*, fee::*, time::*};
+use xcm::v3::{AssetId, Fungibility};
 
 // Weights used in the runtime.
 mod weights;
@@ -114,7 +115,7 @@ use governance::{
 	pallet_custom_origins, AuctionAdmin, Fellows, GeneralAdmin, LeaseAdmin, StakingAdmin,
 	Treasurer, TreasurySpender,
 };
-use xcm_builder::PayOverXcm;
+use xcm_builder::{HasDestination, PayOverXcm};
 
 #[cfg(test)]
 mod tests;
@@ -630,11 +631,58 @@ ord_parameter_types! {
 	pub const TreasuryAccountId: AccountId = AccountIdConversion::<AccountId>::into_account_truncating(&TreasuryPalletId::get());
 }
 
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, MaxEncodedLen, RuntimeDebug, TypeInfo)]
+pub struct AssetKind<AssetId> {
+	destination: xcm::latest::MultiLocation,
+	asset_id: AssetId,
+	amount: Fungibility,
+}
+
+impl From<AssetKind<AssetId>> for xcm::latest::AssetId {
+	fn from(item: AssetKind<AssetId>) -> Self {
+		item.asset_id
+	}
+}
+
+impl HasDestination for AssetKind<AssetId> {
+	fn destination(&self) -> xcm::latest::MultiLocation {
+		self.destination
+	}
+}
+
+impl pallet_treasury::Asset<AssetKind<xcm::v3::AssetId>, xcm::v3::Fungibility>
+	for AssetKind<AssetId>
+{
+	fn asset_kind(&self) -> Self {
+		*self
+	}
+	fn amount(&self) -> xcm::v3::Fungibility {
+		self.amount
+	}
+}
+
+pub struct FungibleBalanceConverter;
+impl<AssetId, OutBalance: core::convert::From<u128>>
+	ConversionFromAssetBalance<Fungibility, AssetId, OutBalance> for FungibleBalanceConverter
+{
+	type Error = ();
+	fn from_asset_balance(
+		balance: Fungibility,
+		_asset_id: AssetId,
+	) -> Result<OutBalance, Self::Error> {
+		match balance {
+			Fungibility::Fungible(b) => Ok(b.into()),
+			Fungibility::NonFungible(_) => Ok(0.into()),
+		}
+	}
+}
+
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
-	type AssetKind = xcm::latest::AssetId;
+	type AssetId = AssetKind<AssetId>;
+	type AssetKind = AssetKind<AssetId>;
+	// type AssetKind = MultiAsset;
 	type Paymaster = PayOverXcm<
-		Statemine,
 		TreasuryAccountId,
 		xcm_config::XcmRouter,
 		XcmPallet,
@@ -642,7 +690,7 @@ impl pallet_treasury::Config for Runtime {
 		Self::AccountId,
 		Self::AssetKind,
 	>;
-	type BalanceConverter = ();
+	type BalanceConverter = FungibleBalanceConverter;
 	type Currency = Balances;
 	type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
 	type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
@@ -658,6 +706,7 @@ impl pallet_treasury::Config for Runtime {
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
 	type SpendOrigin = TreasurySpender;
+	type MaxPaymentRetries = ConstU32<5>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type BenchmarkHelper = runtime_common::impls::JunctionsBenchmarkHelper;
 }

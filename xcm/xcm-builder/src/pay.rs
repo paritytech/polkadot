@@ -84,7 +84,7 @@ impl<
 {
 	type Beneficiary = Beneficiary;
 	type AssetKind = AssetKind;
-	type Balance = u128;
+	type Balance = Fungibility;
 	type Id = Querier::QueryId;
 	type Error = xcm::latest::Error;
 

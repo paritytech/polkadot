@@ -58,6 +58,7 @@ use sp_runtime::traits::AccountIdConversion;
 use frame_support::{
 	construct_runtime, ord_parameter_types, parameter_types,
 	traits::{
+		tokens::{ConversionFromAssetBalance, Pay, PayFromAccount, PaymentStatus},
 		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, ProcessMessage, ProcessMessageError, StorageMapShim, WithdrawReasons,
 	},
@@ -85,16 +86,20 @@ use sp_staking::SessionIndex;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
-use xcm_builder::PayOverXcm;
-use xcm::latest::Junction;
+use xcm::{
+	v3::{AssetId, Fungibility, MultiAssets},
+	VersionedMultiAssets,
+};
+use xcm_builder::{HasDestination, PayOverXcm};
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
+use xcm_executor::traits::XcmQueryHandler;
 
-use crate::xcm_config::Statemine;
+use crate::xcm_config::{Statemine, XcmRouter};
 
 // Weights used in the runtime.
 mod weights;
@@ -547,7 +552,7 @@ parameter_types! {
 	pub const Burn: Permill = Permill::from_perthousand(2);
 	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 
-	pub const TipCountdown: BlockNumber = 1 * DAYS;
+	pub const TipCountdown: BlockNumber = 30 * MINUTES;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
 	pub const TipReportDepositBase: Balance = 100 * CENTS;
 	pub const DataDepositPerByte: Balance = 1 * CENTS;
@@ -570,11 +575,58 @@ ord_parameter_types! {
 	pub const TreasuryAccountId: AccountId = AccountIdConversion::<AccountId>::into_account_truncating(&TreasuryPalletId::get());
 }
 
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, MaxEncodedLen, RuntimeDebug, TypeInfo)]
+pub struct AssetKind<AssetId> {
+	destination: xcm::latest::MultiLocation,
+	asset_id: AssetId,
+	amount: Fungibility,
+}
+
+impl From<AssetKind<AssetId>> for xcm::latest::AssetId {
+	fn from(item: AssetKind<AssetId>) -> Self {
+		item.asset_id
+	}
+}
+
+impl HasDestination for AssetKind<AssetId> {
+	fn destination(&self) -> xcm::latest::MultiLocation {
+		self.destination
+	}
+}
+
+impl pallet_treasury::Asset<AssetKind<xcm::v3::AssetId>, xcm::v3::Fungibility>
+	for AssetKind<AssetId>
+{
+	fn asset_kind(&self) -> Self {
+		*self
+	}
+	fn amount(&self) -> xcm::v3::Fungibility {
+		self.amount
+	}
+}
+
+pub struct FungibleBalanceConverter;
+impl<AssetId, OutBalance: core::convert::From<u128>>
+	ConversionFromAssetBalance<Fungibility, AssetId, OutBalance> for FungibleBalanceConverter
+{
+	type Error = ();
+	fn from_asset_balance(
+		balance: Fungibility,
+		_asset_id: AssetId,
+	) -> Result<OutBalance, Self::Error> {
+		match balance {
+			Fungibility::Fungible(b) => Ok(b.into()),
+			Fungibility::NonFungible(_) => Ok(0.into()),
+		}
+	}
+}
+
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
-	type AssetKind = xcm::latest::AssetId;
+	type AssetId = AssetKind<AssetId>;
+	type AssetKind = AssetKind<AssetId>;
+	// type AssetKind = MultiAsset;
 	type Paymaster = PayOverXcm<
-		Statemine,
 		TreasuryAccountId,
 		xcm_config::XcmRouter,
 		XcmPallet,
@@ -582,7 +634,7 @@ impl pallet_treasury::Config for Runtime {
 		Self::AccountId,
 		Self::AssetKind,
 	>;
-	type BalanceConverter = ();
+	type BalanceConverter = FungibleBalanceConverter;
 	type Currency = Balances;
 	type ApproveOrigin = ApproveOrigin;
 	type RejectOrigin = MoreThanHalfCouncil;
@@ -597,6 +649,7 @@ impl pallet_treasury::Config for Runtime {
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
+	type MaxPaymentRetries = ConstU32<5>;
 	// type SpendOrigin = frame_support::traits::NeverEnsureOrigin<Balance>;
 	type SpendOrigin = frame_system::EnsureRootWithSuccess<AccountId, MaxBalance>;
 	#[cfg(feature = "runtime-benchmarks")]

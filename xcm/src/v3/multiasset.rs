@@ -235,7 +235,7 @@ impl TryFrom<AssetInstance> for u128 {
 }
 
 /// Classification of whether an asset is fungible or not, along with a mandatory amount or instance.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo, MaxEncodedLen)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Fungibility {
 	/// A fungible asset; we record a number of units, as a `u128` in the inner item.
@@ -243,6 +243,12 @@ pub enum Fungibility {
 	/// A non-fungible asset. We record the instance identifier in the inner item. Only one asset
 	/// of each instance identifier may ever be in existence at once.
 	NonFungible(AssetInstance),
+}
+
+impl Default for Fungibility {
+	fn default() -> Self {
+		0u32.into()
+	}
 }
 
 #[derive(Decode)]
