@@ -59,7 +59,7 @@ pub struct PayOverXcm<
 	)>,
 );
 impl<
-		DestinationChain: Get<MultiLocation>,
+		DestinationChain: for<'a> Convert<&'a AssetKind, MultiLocation>,
 		Interior: Get<InteriorMultiLocation>,
 		Router: SendXcm,
 		Querier: QueryHandler,
@@ -90,7 +90,7 @@ impl<
 		asset_kind: Self::AssetKind,
 		amount: Self::Balance,
 	) -> Result<Self::Id, Self::Error> {
-		let destination_chain = DestinationChain::get();
+		let destination_chain = DestinationChain::convert(&asset_kind);
 		let destination = Querier::UniversalLocation::get()
 			.invert_target(&destination_chain)
 			.map_err(|()| Self::Error::LocationNotInvertible)?;
@@ -179,3 +179,6 @@ pub type PayAccountId32OverXcm<
 	AssetKind,
 	crate::AliasesIntoAccountId32<(), Beneficiary>,
 >;
+
+#[test]
+fn it_builds() {}
