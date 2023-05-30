@@ -17,7 +17,7 @@
 //! Staging Primitives.
 
 // Put any primitives used by staging APIs functions here
-pub use crate::v4::*;
+pub use crate::{v4, v4::*};
 pub mod slashing;
 use bitvec::prelude::BitVec;
 use parity_scale_codec::{Decode, Encode};
@@ -66,8 +66,7 @@ impl CoreOccupied {
 }
 
 /// An Assignemnt for a paras going to produce a paras block.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
 pub struct Assignment {
 	/// Assignment's ParaId
 	pub para_id: Id,
@@ -83,8 +82,7 @@ impl Assignment {
 }
 
 /// Restrictions on collators for a specific paras block.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
 pub struct CollatorRestrictions {
 	/// Collators to prefer/allow.
 	/// Empty set means no restrictions.
@@ -124,8 +122,7 @@ impl CollatorRestrictions {
 }
 
 /// How to apply the collator restrictions.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
 pub enum CollatorRestrictionKind {
 	/// peer ids mentioned will be preferred in connections, but others are still allowed.
 	Preferred,
@@ -200,6 +197,20 @@ impl<H, N> OccupiedCore<H, N> {
 	}
 }
 
+/// Upgrade a v4 OccupiedCore to a vstaging one.
+pub fn occupied_core_from_v4(oc: v4::OccupiedCore) -> OccupiedCore {
+	OccupiedCore {
+		next_up_on_available: oc.next_up_on_available.map(scheduled_core_from_v4),
+		occupied_since: oc.occupied_since,
+		time_out_at: oc.time_out_at,
+		next_up_on_time_out: oc.next_up_on_time_out.map(scheduled_core_from_v4),
+		availability: oc.availability,
+		group_responsible: oc.group_responsible,
+		candidate_hash: oc.candidate_hash,
+		candidate_descriptor: oc.candidate_descriptor,
+	}
+}
+
 /// Information about a core which is currently occupied.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
@@ -215,6 +226,14 @@ impl ScheduledCore {
 	/// Converts its current form of itself to the v4 version of itself
 	pub fn to_v4(self) -> crate::v4::ScheduledCore {
 		crate::v4::ScheduledCore { para_id: self.para_id, collator: None }
+	}
+}
+
+/// Upgrade a v4 ScheduledCore to a vstaging one.
+pub fn scheduled_core_from_v4(sc: v4::ScheduledCore) -> ScheduledCore {
+	ScheduledCore {
+		para_id: sc.para_id,
+		collator_restrictions: CollatorRestrictions::none(), // v4 is all leased parachains
 	}
 }
 
@@ -251,5 +270,16 @@ impl<N> CoreState<N> {
 	/// Is this core state `Self::Occupied`?
 	pub fn is_occupied(&self) -> bool {
 		matches!(self, Self::Occupied(_))
+	}
+}
+
+/// Upgrade a v4 CoreState to a vstaging one.
+pub fn corestate_from_v4(cs: v4::CoreState) -> CoreState {
+	match cs {
+		v4::CoreState::Free => CoreState::Free,
+		v4::CoreState::Occupied(occupied_core) =>
+			CoreState::Occupied(occupied_core_from_v4(occupied_core)),
+		v4::CoreState::Scheduled(scheduled_core) =>
+			CoreState::Scheduled(scheduled_core_from_v4(scheduled_core)),
 	}
 }
