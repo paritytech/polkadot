@@ -1158,15 +1158,11 @@ where
 
 		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
 
-		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
+		// BEEFY currently only runs on testnets, if it fails we'll
 		// bring the node down with it to make sure it is noticed.
-		if chain_spec.is_wococo() {
-			task_manager
-				.spawn_essential_handle()
-				.spawn_blocking("beefy-gadget", None, gadget);
-		} else {
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
-		}
+		task_manager
+			.spawn_essential_handle()
+			.spawn_blocking("beefy-gadget", None, gadget);
 
 		if is_offchain_indexing_enabled {
 			task_manager.spawn_handle().spawn_blocking(

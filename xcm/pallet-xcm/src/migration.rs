@@ -21,8 +21,6 @@ use frame_support::{
 	weights::Weight,
 };
 
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
-
 const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 pub mod v1 {
@@ -33,7 +31,7 @@ pub mod v1 {
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<sp_std::vec::Vec<u8>, &'static str> {
+		fn pre_upgrade() -> Result<sp_std::vec::Vec<u8>, sp_runtime::TryRuntimeError> {
 			ensure!(StorageVersion::get::<Pallet<T>>() == 0, "must upgrade linearly");
 
 			Ok(sp_std::vec::Vec::new())
