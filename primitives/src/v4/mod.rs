@@ -137,7 +137,7 @@ pub type ValidatorSignature = validator_app::Signature;
 
 /// A declarations of storage keys where an external observer can find some interesting data.
 pub mod well_known_keys {
-	use super::{HrmpChannelId, Id};
+	use super::{HrmpChannelId, Id, WellKnownKey};
 	use hex_literal::hex;
 	use parity_scale_codec::Encode as _;
 	use sp_io::hashing::twox_64;
@@ -214,6 +214,7 @@ pub mod well_known_keys {
 	///
 	/// - `count: u32`, the number of messages currently in the queue for given para,
 	/// - `total_size: u32`, the total size of all messages in the queue.
+	#[deprecated = "Use `relay_dispatch_queue_remaining_capacity` instead"]
 	pub fn relay_dispatch_queue_size(para_id: Id) -> Vec<u8> {
 		let prefix = hex!["f5207f03cfdce586301014700e2c2593fad157e461d71fd4c1f936839a5f1f3e"];
 
@@ -226,6 +227,24 @@ pub mod well_known_keys {
 				.cloned()
 				.collect()
 		})
+	}
+
+	/// Type safe version of `relay_dispatch_queue_size`.
+	#[deprecated = "Use `relay_dispatch_queue_remaining_capacity` instead"]
+	pub fn relay_dispatch_queue_size_typed(para: Id) -> WellKnownKey<(u32, u32)> {
+		#[allow(deprecated)]
+		relay_dispatch_queue_size(para).into()
+	}
+
+	/// The upward message dispatch queue remaining capacity for the given para id.
+	///
+	/// The storage entry stores a tuple of two values:
+	///
+	/// - `count: u32`, the number of additional messages which may be enqueued for the given para,
+	/// - `total_size: u32`, the total size of additional messages which may be enqueued for the
+	/// given para.
+	pub fn relay_dispatch_queue_remaining_capacity(para_id: Id) -> WellKnownKey<(u32, u32)> {
+		(b":relay_dispatch_queue_remaining_capacity", para_id).encode().into()
 	}
 
 	/// The HRMP channel for the given identifier.
@@ -869,7 +888,8 @@ pub enum CollatorRestrictionKind {
 }
 
 /// An entry tracking a paras
-#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct ParasEntry {
 	/// The `Assignment`
 	pub assignment: Assignment,
@@ -901,8 +921,8 @@ impl ParasEntry {
 }
 
 /// What is occupying a specific availability core.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum CoreOccupied {
 	/// The core is not occupied.
 	Free,
@@ -1009,8 +1029,8 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	// NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
 	/// If this core is freed by availability, this is the assignment that is next up on this
@@ -1044,8 +1064,8 @@ impl<H, N> OccupiedCore<H, N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ScheduledCore {
 	// TODO: Is the same as Assignment
 	/// The ID of a para scheduled.
@@ -1055,8 +1075,8 @@ pub struct ScheduledCore {
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = 0)]
@@ -1816,6 +1836,42 @@ impl PvfCheckStatement {
 	pub fn signing_payload(&self) -> Vec<u8> {
 		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
 		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
+	}
+}
+
+/// A well-known and typed storage key.
+///
+/// Allows for type-safe access to raw well-known storage keys.
+pub struct WellKnownKey<T> {
+	/// The raw storage key.
+	pub key: Vec<u8>,
+	_p: sp_std::marker::PhantomData<T>,
+}
+
+impl<T> From<Vec<u8>> for WellKnownKey<T> {
+	fn from(key: Vec<u8>) -> Self {
+		Self { key, _p: Default::default() }
+	}
+}
+
+impl<T> AsRef<[u8]> for WellKnownKey<T> {
+	fn as_ref(&self) -> &[u8] {
+		self.key.as_ref()
+	}
+}
+
+impl<T: Decode> WellKnownKey<T> {
+	/// Gets the value or `None` if it does not exist or decoding failed.
+	pub fn get(&self) -> Option<T> {
+		sp_io::storage::get(&self.key)
+			.and_then(|raw| parity_scale_codec::DecodeAll::decode_all(&mut raw.as_ref()).ok())
+	}
+}
+
+impl<T: Encode> WellKnownKey<T> {
+	/// Sets the value.
+	pub fn set(&self, value: T) {
+		sp_io::storage::set(&self.key, &value.encode());
 	}
 }
 
