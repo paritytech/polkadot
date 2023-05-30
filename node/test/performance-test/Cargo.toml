@@ -6,7 +6,7 @@ edition.workspace = true
 
 [dependencies]
 thiserror = "1.0.31"
-quote = "1.0.26"
+quote = "1.0.28"
 env_logger = "0.9"
 log = "0.4"
 
