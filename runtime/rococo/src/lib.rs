@@ -2269,7 +2269,7 @@ sp_api::impl_runtime_apis! {
 				}
 
 				fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
-					// The XCM executor of Westend doesn't have a configured `Aliasers`
+					// The XCM executor of Rococo doesn't have a configured `Aliasers`
 					Err(BenchmarkError::Skip)
 				}
 			}
