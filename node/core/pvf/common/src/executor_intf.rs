@@ -186,6 +186,13 @@ impl Executor {
 	}
 }
 
+/// Available host functions. We leave out:
+///
+/// 1. storage related stuff (PVF doesn't have a notion of a persistent storage/trie)
+/// 2. tracing
+/// 3. off chain workers (PVFs do not have such a notion)
+/// 4. runtime tasks
+/// 5. sandbox
 type HostFunctions = (
 	sp_io::misc::HostFunctions,
 	sp_io::crypto::HostFunctions,
@@ -195,7 +202,8 @@ type HostFunctions = (
 	sp_io::trie::HostFunctions,
 );
 
-/// The validation externalities that will panic on any storage related access.
+/// The validation externalities that will panic on any storage related access. (PVFs should not
+/// have a notion of a persistent storage/trie.)
 struct ValidationExternalities(sp_externalities::Extensions);
 
 impl sp_externalities::Externalities for ValidationExternalities {
