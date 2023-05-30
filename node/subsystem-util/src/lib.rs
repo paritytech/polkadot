@@ -65,8 +65,6 @@ pub mod reexports {
 	pub use polkadot_overseer::gen::{SpawnedSubsystem, Spawner, Subsystem, SubsystemContext};
 }
 
-/// A rolling session window cache.
-pub mod rolling_session_window;
 /// Convenient and efficient runtime info access.
 pub mod runtime;
 
