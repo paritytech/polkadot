@@ -120,6 +120,8 @@ pub fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, S
 	Ok(sem)
 }
 
+/// A WASM executor with a given configuration. It is instantiated once per execute worker and is
+/// specific to that worker.
 #[derive(Clone)]
 pub struct Executor {
 	config: Config,
@@ -140,10 +142,7 @@ impl Executor {
 	///
 	/// The caller must ensure that the compiled artifact passed here was:
 	///   1) produced by [`prepare`],
-	///   2) written to the disk as a file,
-	///   3) was not modified,
-	///   4) will not be modified while any runtime using this artifact is alive, or is being
-	///      instantiated.
+	///   2) was not modified,
 	///
 	/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
 	pub unsafe fn execute(
