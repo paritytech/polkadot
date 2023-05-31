@@ -934,7 +934,7 @@ mod tests {
 			assert!(!Parachains::is_parachain(para_id));
 			// Some other external process will elevate on-demand to lease holding parachain
 			assert_ok!(Registrar::make_parachain(para_id));
-			run_to_session(4);
+			run_to_session(START_SESSION_INDEX + 4);
 			// It is now a lease holding parachain.
 			assert!(!Parachains::is_parathread(para_id));
 			assert!(Parachains::is_parachain(para_id));
