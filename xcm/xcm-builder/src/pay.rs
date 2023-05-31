@@ -17,7 +17,7 @@
 //! `PayOverXcm` struct for paying through XCM and getting the status back.
 
 use frame_support::traits::{
-	tokens::{Pay, PaymentStatus},
+	tokens::{self, Balance, Pay, PaymentStatus},
 	Get,
 };
 use sp_runtime::traits::Convert;
@@ -49,6 +49,8 @@ pub struct PayOverXcm<
 	AssetKind,
 	AssetKindToLocatableAsset,
 	BeneficiaryRefToLocation,
+	Balance,
+	BalanceToFungibility,
 >(
 	PhantomData<(
 		Interior,
@@ -59,6 +61,8 @@ pub struct PayOverXcm<
 		AssetKind,
 		AssetKindToLocatableAsset,
 		BeneficiaryRefToLocation,
+		Balance,
+		BalanceToFungibility,
 	)>,
 );
 impl<
@@ -70,6 +74,8 @@ impl<
 		AssetKind: Into<AssetId>,
 		AssetKindToLocatableAsset: Convert<AssetKind, LocatableAssetId>,
 		BeneficiaryRefToLocation: for<'a> Convert<&'a Beneficiary, MultiLocation>,
+		Balance: tokens::Balance,
+		BalanceToFungibility: Convert<Balance, Fungibility>,
 	> Pay
 	for PayOverXcm<
 		Interior,
@@ -80,11 +86,13 @@ impl<
 		AssetKind,
 		AssetKindToLocatableAsset,
 		BeneficiaryRefToLocation,
+		Balance,
+		BalanceToFungibility,
 	>
 {
 	type Beneficiary = Beneficiary;
 	type AssetKind = AssetKind;
-	type Balance = Fungibility;
+	type Balance = Balance;
 	type Id = Querier::QueryId;
 	type Error = xcm::latest::Error;
 
@@ -112,8 +120,11 @@ impl<
 			DescendOrigin(Interior::get()),
 			TransferAsset {
 				beneficiary,
-				assets: vec![MultiAsset { id: asset_id, fun: Fungibility::Fungible(amount) }]
-					.into(),
+				assets: vec![MultiAsset {
+					id: asset_id,
+					fun: BalanceToFungibility::convert(amount),
+				}]
+				.into(),
 			},
 		]);
 
@@ -177,6 +188,7 @@ pub type PayAccountId32OnChainOverXcm<
 	Timeout,
 	Beneficiary,
 	AssetKind,
+	Balance,
 > = PayOverXcm<
 	Interior,
 	Router,
@@ -186,6 +198,8 @@ pub type PayAccountId32OnChainOverXcm<
 	AssetKind,
 	crate::AliasesIntoAccountId32<(), Beneficiary>,
 	FixedLocation<DestinationChain>,
+	Balance,
+	FixedFungibleBalance<Balance>,
 >;
 
 /// Simple struct which contains both an XCM `location` and `asset_id` to identift an asset which
@@ -205,6 +219,15 @@ impl<Location: Get<MultiLocation>, AssetKind: Into<AssetId>> Convert<AssetKind, 
 {
 	fn convert(value: AssetKind) -> LocatableAssetId {
 		LocatableAssetId { asset_id: value.into(), location: Location::get() }
+	}
+}
+
+// Adapter which implements a conversion from a `Balance` to a `Fungibility`, where the
+// `Fungibility` is always `Fungible`.
+pub struct FixedFungibleBalance<Balance>(sp_std::marker::PhantomData<Balance>);
+impl<Balance: Into<u128>> Convert<Balance, Fungibility> for FixedFungibleBalance<Balance> {
+	fn convert(value: Balance) -> Fungibility {
+		Fungibility::Fungible(value.into())
 	}
 }
 

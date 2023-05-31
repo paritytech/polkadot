@@ -75,7 +75,7 @@ use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, ConstU32, ConvertInto,
+		AccountIdLookup, BlakeTwo256, Block as BlockT, ConstU32, Convert, ConvertInto,
 		Extrinsic as ExtrinsicT, Keccak256, OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
@@ -87,17 +87,17 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
 use xcm::{
-	v3::{AssetId, Fungibility, MultiAssets},
+	v3::{AssetId, Fungibility, Junction, MultiAssets},
 	VersionedMultiAssets,
 };
-use xcm_builder::{HasDestination, PayOverXcm};
+use xcm_builder::{AliasesIntoAccountId32, LocatableAssetId, PayOverXcm};
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
-use xcm_executor::traits::XcmQueryHandler;
+use xcm_executor::traits::QueryHandler;
 
 use crate::xcm_config::{Statemine, XcmRouter};
 
@@ -588,20 +588,51 @@ impl From<AssetKind<AssetId>> for xcm::latest::AssetId {
 	}
 }
 
-impl HasDestination for AssetKind<AssetId> {
-	fn destination(&self) -> xcm::latest::MultiLocation {
-		self.destination
+pub struct LocatableAssetKindConverter;
+impl Convert<AssetKind<AssetId>, LocatableAssetId> for LocatableAssetKindConverter {
+	fn convert(value: AssetKind<AssetId>) -> LocatableAssetId {
+		LocatableAssetId { asset_id: value.asset_id, location: value.destination }
 	}
 }
 
-impl pallet_treasury::Asset<AssetKind<xcm::v3::AssetId>, xcm::v3::Fungibility>
-	for AssetKind<AssetId>
-{
+impl pallet_treasury::Asset<AssetKind<xcm::v3::AssetId>, FungibleAmount> for AssetKind<AssetId> {
 	fn asset_kind(&self) -> Self {
 		*self
 	}
-	fn amount(&self) -> xcm::v3::Fungibility {
-		self.amount
+	fn amount(&self) -> FungibleAmount {
+		FungibleAmount(self.amount)
+	}
+}
+
+#[derive(
+	Encode, Decode, Clone, Copy, Default, PartialEq, Eq, MaxEncodedLen, RuntimeDebug, TypeInfo,
+)]
+pub struct FungibleAmount(Fungibility);
+
+impl From<FungibleAmount> for u32 {
+	fn from(value: FungibleAmount) -> Self {
+		if let Fungibility::Fungible(val) = value {
+			val.into()
+		} else {
+			0.into()
+		}
+	}
+}
+impl From<FungibleAmount> for u128 {
+	fn from(value: FungibleAmount) -> Self {
+		if let Fungibility::Fungible(val) = value {
+			val.into()
+		} else {
+			0.into()
+		}
+	}
+}
+
+pub struct FungibleAmountToFungibility;
+impl Convert<FungibleAmount, Fungibility> for FungibleAmountToFungibility {
+	fn convert(value: FungibleAmount) -> Fungibility {
+		let FungibleAmount(fungibility) = value;
+		fungibility
 	}
 }
 
@@ -623,9 +654,8 @@ impl<AssetId, OutBalance: core::convert::From<u128>>
 
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
-	type AssetId = AssetKind<AssetId>;
+	type AssetId = AssetId;
 	type AssetKind = AssetKind<AssetId>;
-	// type AssetKind = MultiAsset;
 	type Paymaster = PayOverXcm<
 		TreasuryAccountId,
 		xcm_config::XcmRouter,
@@ -633,6 +663,10 @@ impl pallet_treasury::Config for Runtime {
 		PayOverXcmTimeout,
 		Self::AccountId,
 		Self::AssetKind,
+		LocatableAssetKindConverter,
+		AliasesIntoAccountId32<(), Self::AccountId>,
+		FungibleAmount,
+		FungibleAmountToFungibility,
 	>;
 	type BalanceConverter = FungibleBalanceConverter;
 	type Currency = Balances;
