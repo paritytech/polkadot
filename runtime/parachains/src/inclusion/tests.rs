@@ -988,7 +988,7 @@ fn candidate_checks() {
 			paras_entry: ParasEntry::new(Assignment::new(
 				thread_a,
 				CollatorRestrictions::new(
-					[OpaquePeerId::new(thread_collator.encode_as())].into_iter().collect(),
+					[OpaquePeerId::new(thread_collator.encode_as())].into_iter().collect(), // Doesn't matter, we don't check at inclusion level
 					CollatorRestrictionKind::Required,
 				),
 			)),

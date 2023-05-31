@@ -816,8 +816,8 @@ pub struct ParathreadEntry {
 }
 
 /// What is occupying a specific availability core.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreOccupied {
 	/// A parathread.
 	Parathread(ParathreadEntry),
