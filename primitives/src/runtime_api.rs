@@ -123,6 +123,7 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
+	#[api_version(4)]
 	pub trait ParachainHost<H: Encode + Decode = pcp::v2::Hash, N: Encode + Decode = pcp::v2::BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
