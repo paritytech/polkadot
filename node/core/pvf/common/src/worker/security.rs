@@ -101,8 +101,8 @@ pub mod landlock {
 				let s = fs::read_to_string(path).unwrap();
 				assert_eq!(s, text);
 
-				let status = super::try_restrict_thread().unwrap();
-				if let RulesetStatus::NotEnforced = status {
+				let status = try_restrict_thread().unwrap();
+				if !matches!(status, RulesetStatus::FullyEnforced) {
 					panic!("Ruleset should be enforced since we checked if landlock is enabled");
 				}
 
@@ -122,8 +122,8 @@ pub mod landlock {
 				let tmpfile = tempfile::NamedTempFile::new().unwrap();
 				let path = tmpfile.path();
 
-				let status = super::try_restrict_thread().unwrap();
-				if let RulesetStatus::NotEnforced = status {
+				let status = try_restrict_thread().unwrap();
+				if !matches!(status, RulesetStatus::FullyEnforced) {
 					panic!("Ruleset should be enforced since we checked if landlock is enabled");
 				}
 

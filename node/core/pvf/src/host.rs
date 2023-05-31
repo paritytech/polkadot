@@ -872,14 +872,14 @@ fn warn_if_no_landlock() {
 				target: LOG_TARGET,
 				?status,
 				%abi,
-				"Could not fully enable landlock, a Linux kernel security feature. Running validation of PVF code has a higher risk of compromising this machine. Consider upgrading the kernel version for maximum security."
+				"Cannot fully enable landlock, a Linux kernel security feature. Running validation of PVF code has a higher risk of compromising this machine. Consider upgrading the kernel version for maximum security."
 			);
 		}
 	}
 	#[cfg(not(target_os = "linux"))]
 	gum::warn!(
 		target: LOG_TARGET,
-		"Could not enable landlock, a Linux kernel security feature. Running validation of PVF code has a higher risk of compromising this machine. Consider running on Linux with landlock support for maximum security."
+		"Cannot enable landlock, a Linux kernel security feature. Running validation of PVF code has a higher risk of compromising this machine. Consider running on Linux with landlock support for maximum security."
 	);
 }
 

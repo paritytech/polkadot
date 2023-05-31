@@ -2,8 +2,6 @@
 
 The PVF host is responsible for handling requests to prepare and execute PVF
 code blobs, which it sends to PVF workers running in their own child processes.
-(This architecture is unlikely to change, but for more implementation details
-please look at the code.)
 
 This system has two high-levels goals that we will touch on here: *determinism*
 and *security*.
@@ -98,10 +96,9 @@ in the system.
 ### Possible attacks / threat model
 
 Webassembly is already sandboxed, but there have already been reported multiple
-CVEs enabling remote code execution. See e.g. these two advisories from [Mar
-2023](https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-ff4p-7xrq-q5r8)
-and [Jul
-2022](https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-7f6x-jwh5-m9r4).
+CVEs enabling remote code execution. See e.g. these two advisories from
+[Mar 2023](https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-ff4p-7xrq-q5r8)
+and [Jul 2022](https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-7f6x-jwh5-m9r4).
 
 So what are we actually worried about? Things that come to mind:
 
