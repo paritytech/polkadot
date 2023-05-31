@@ -769,21 +769,25 @@ fn update_our_view<Net, Context>(
 	let vstaging_validation_peers =
 		filter_by_version(&validation_peers, ValidationVersion::VStaging.into());
 
-	send_validation_message_v1(
-		net,
-		v1_validation_peers,
-		peerset_protocol_names,
-		WireMessage::ViewUpdate(new_view.clone()),
-		metrics,
-	);
+	if v1_validation_peers.len() > 0 {
+		send_validation_message_v1(
+			net,
+			v1_validation_peers,
+			peerset_protocol_names,
+			WireMessage::ViewUpdate(new_view.clone()),
+			metrics,
+		);
+	}
 
-	send_validation_message_vstaging(
-		net,
-		vstaging_validation_peers,
-		peerset_protocol_names,
-		WireMessage::ViewUpdate(new_view.clone()),
-		metrics,
-	);
+	if vstaging_validation_peers.len() > 0 {
+		send_validation_message_vstaging(
+			net,
+			vstaging_validation_peers,
+			peerset_protocol_names,
+			WireMessage::ViewUpdate(new_view.clone()),
+			metrics,
+		);
+	}
 
 	send_collation_message_v1(
 		net,
