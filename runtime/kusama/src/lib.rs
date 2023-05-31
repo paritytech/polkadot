@@ -684,6 +684,17 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
+impl pallet_tips::Config for Runtime {
+	type MaximumReasonLength = MaximumReasonLength;
+	type DataDepositPerByte = DataDepositPerByte;
+	type Tippers = PhragmenElection;
+	type TipCountdown = TipCountdown;
+	type TipFindersFee = TipFindersFee;
+	type TipReportDepositBase = TipReportDepositBase;
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = weights::pallet_tips::WeightInfo<Runtime>;
+}
+
 impl pallet_authority_discovery::Config for Runtime {
 	type MaxAuthorities = MaxAuthorities;
 }
@@ -1375,6 +1386,14 @@ construct_runtime! {
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 12,
 
+		// Old, deprecated governance stuff. Here purely so storage can be migrated.
+		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 13,
+		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
+		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
+		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 16,
+		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
+		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 36,
+
 		// Governance stuff.
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 18,
 		ConvictionVoting: pallet_conviction_voting::{Pallet, Call, Storage, Event<T>} = 20,
@@ -1499,6 +1518,16 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 	}
 }
 
+// Gov V1 pallets pending storage removal using the frame_support RemovePallet migration.
+parameter_types! {
+	pub const DemocracyStr: &'static str = "Democracy";
+	pub const CouncilStr: &'static str = "Council";
+	pub const TechnicalCommitteeStr: &'static str = "TechnicalCommittee";
+	pub const PhragmenElectionStr: &'static str = "PhragmenElection";
+	pub const TechnicalMembershipStr: &'static str = "TechnicalMembership";
+	pub const TipsStr: &'static str = "Tips";
+}
+
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
@@ -1529,6 +1558,23 @@ pub mod migrations {
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
 		SetStorageVersions,
+
+		// Gov v1 storage migrations
+		// https://github.com/paritytech/polkadot/issues/6749
+		pallet_elections_phragmen::migrations::unlock_and_unreserve_all_funds::UnlockAndUnreserveAllFunds<Runtime>,
+		pallet_democracy::migrations::unlock_and_unreserve_all_funds::UnlockAndUnreserveAllFunds<Runtime>,
+		pallet_tips::migrations::unreserve_all_funds::UnreserveAllFunds<Runtime, ()>,
+
+		// RemovePallets only after they have been removed from the runtime. Otherwise, the on-chain
+		// storage version is removed for active pallets causing try-runtime to fail. The below code
+		// should be uncommented when the pallets are removed from the runtime.
+		// frame_support::migrations::RemovePallet<DemocracyStr, RocksDbWeight>,
+		// frame_support::migrations::RemovePallet<CouncilStr, RocksDbWeight>,
+		// frame_support::migrations::RemovePallet<TechnicalCommitteeStr, RocksDbWeight>,
+		// frame_support::migrations::RemovePallet<PhragmenElectionStr, RocksDbWeight>,
+		// frame_support::migrations::RemovePallet<TechnicalMembershipStr, RocksDbWeight>,
+		// frame_support::migrations::RemovePallet<TipsStr, RocksDbWeight>,
+
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
@@ -1552,7 +1598,32 @@ pub mod migrations {
 				StorageVersion::new(1).put::<Historical>();
 			}
 
-			RocksDbWeight::get().reads_writes(2, 2)
+			let storage_version = Democracy::on_chain_storage_version();
+			if storage_version < 1 {
+				StorageVersion::new(1).put::<Democracy>();
+			}
+
+			let storage_version = Council::on_chain_storage_version();
+			if storage_version < 4 {
+				StorageVersion::new(4).put::<Council>();
+			}
+
+			let storage_version = TechnicalCommittee::on_chain_storage_version();
+			if storage_version < 4 {
+				StorageVersion::new(4).put::<TechnicalCommittee>();
+			}
+
+			let storage_version = PhragmenElection::on_chain_storage_version();
+			if storage_version < 4 {
+				StorageVersion::new(4).put::<PhragmenElection>();
+			}
+
+			let storage_version = TechnicalMembership::on_chain_storage_version();
+			if storage_version < 4 {
+				StorageVersion::new(4).put::<TechnicalMembership>();
+			}
+
+			RocksDbWeight::get().reads_writes(7, 7)
 		}
 	}
 }
