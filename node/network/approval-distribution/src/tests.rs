@@ -409,7 +409,7 @@ fn try_import_the_same_assignment() {
 
 /// import an assignment
 /// connect a new peer
-/// the new peer sends us the same assignment
+/// state sends aggregated reputation change
 #[test]
 fn delay_reputation_change() {
 	let peer = PeerId::random();
@@ -1384,6 +1384,7 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 fn propagates_assignments_along_unshared_dimension() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
+
 	let peers = make_peers_and_authority_ids(100);
 
 	let _ = test_harness(state_without_reputation_delay(), |mut virtual_overseer| async move {
@@ -1972,6 +1973,7 @@ fn originator_aggression_l1() {
 fn non_originator_aggression_l1() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
+
 	let peers = make_peers_and_authority_ids(100);
 
 	let mut state = state_without_reputation_delay();
@@ -2075,6 +2077,7 @@ fn non_originator_aggression_l1() {
 fn non_originator_aggression_l2() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
+
 	let peers = make_peers_and_authority_ids(100);
 
 	let mut state = state_without_reputation_delay();
@@ -2241,6 +2244,7 @@ fn non_originator_aggression_l2() {
 fn resends_messages_periodically() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
+
 	let peers = make_peers_and_authority_ids(100);
 
 	let mut state = state_without_reputation_delay();
