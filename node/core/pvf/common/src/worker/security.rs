@@ -30,7 +30,10 @@
 /// [landlock]: https://docs.rs/landlock/latest/landlock/index.html
 #[cfg(target_os = "linux")]
 pub mod landlock {
-	use landlock::{Access, AccessFs, Ruleset, RulesetAttr, RulesetError, RulesetStatus, ABI};
+	// Export for checking the status.
+	pub use landlock::RulesetStatus;
+
+	use landlock::{Access, AccessFs, Ruleset, RulesetAttr, RulesetError, ABI};
 
 	/// Version of landlock ABI. Use the latest version supported by our reference kernel version.
 	///
@@ -39,7 +42,7 @@ pub mod landlock {
 	/// - V2: 5.19
 	///
 	/// Please update the above if it is out-of-date.
-	const LANDLOCK_ABI: ABI = ABI::V1;
+	pub const LANDLOCK_ABI: ABI = ABI::V1;
 
 	// TODO: <https://github.com/landlock-lsm/rust-landlock/issues/36>
 	/// Returns to what degree landlock is enabled on the current Linux environment.
