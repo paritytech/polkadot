@@ -55,7 +55,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
 
 		let subsystem =
-			subsystem.run_inner(context, &mut state, REPUTATION_CHANGE_INTERVAL, &mut rng);
+			subsystem.run_inner(context, &mut state, REPUTATION_CHANGE_TEST_INTERVAL, &mut rng);
 
 		let test_fut = test_fn(virtual_overseer);
 
@@ -79,7 +79,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 }
 
 const TIMEOUT: Duration = Duration::from_millis(200);
-const REPUTATION_CHANGE_INTERVAL: Duration = Duration::from_millis(1);
+const REPUTATION_CHANGE_TEST_INTERVAL: Duration = Duration::from_millis(1);
 
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: ApprovalDistributionMessage) {
 	gum::trace!(msg = ?msg, "Sending message");
@@ -2391,7 +2391,8 @@ fn batch_test_round(message_count: usize) {
 	let subsystem = ApprovalDistribution::new(Default::default());
 	let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
 	let mut sender = context.sender().clone();
-	let subsystem = subsystem.run_inner(context, &mut state, REPUTATION_CHANGE_INTERVAL, &mut rng);
+	let subsystem =
+		subsystem.run_inner(context, &mut state, REPUTATION_CHANGE_TEST_INTERVAL, &mut rng);
 
 	let test_fut = async move {
 		let overseer = &mut virtual_overseer;

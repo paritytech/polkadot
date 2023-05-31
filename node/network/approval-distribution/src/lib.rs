@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 	},
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
-use polkadot_node_subsystem_util::reputation::ReputationAggregator;
+use polkadot_node_subsystem_util::reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL};
 use polkadot_primitives::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
@@ -1772,8 +1772,6 @@ async fn modify_reputation(
 	);
 	reputation.modify(sender, peer_id, rep).await;
 }
-
-const REPUTATION_CHANGE_INTERVAL: Duration = Duration::from_secs(30);
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
 impl ApprovalDistribution {

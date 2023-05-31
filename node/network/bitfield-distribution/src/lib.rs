@@ -35,7 +35,10 @@ use polkadot_node_subsystem::{
 	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan,
 	SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
-use polkadot_node_subsystem_util::{self as util, reputation::ReputationAggregator};
+use polkadot_node_subsystem_util::{
+	self as util,
+	reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL},
+};
 
 use futures::select;
 use polkadot_primitives::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
@@ -168,7 +171,7 @@ impl PerRelayParentData {
 }
 
 const LOG_TARGET: &str = "parachain::bitfield-distribution";
-const REPUTATION_CHANGE_INTERVAL: Duration = Duration::from_secs(30);
+
 /// The bitfield distribution subsystem.
 pub struct BitfieldDistribution {
 	metrics: Metrics,

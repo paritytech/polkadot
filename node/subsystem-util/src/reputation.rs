@@ -18,7 +18,9 @@
 
 use polkadot_node_network_protocol::{self as net_protocol, PeerId, UnifiedReputationChange};
 use polkadot_node_subsystem::{messages::NetworkBridgeTxMessage, overseer};
+use std::time::Duration;
 
+pub const REPUTATION_CHANGE_INTERVAL: Duration = Duration::from_secs(30);
 /// Collects reputation changes and sends them in one batch to relieve network channels
 #[derive(Debug, Clone)]
 pub struct ReputationAggregator {
