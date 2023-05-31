@@ -52,8 +52,8 @@ use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use xcm_executor::{
 	traits::{
-		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse,
-		VersionChangeNotifier, WeightBounds,
+		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse, QueryHandler,
+		QueryResponseStatus, VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -1126,6 +1126,66 @@ pub mod pallet {
 /// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
 const MAX_ASSETS_FOR_TRANSFER: usize = 2;
 
+impl<T: Config> QueryHandler for Pallet<T> {
+	type QueryId = u64;
+	type BlockNumber = T::BlockNumber;
+	type Error = XcmError;
+	type UniversalLocation = T::UniversalLocation;
+
+	/// Attempt to create a new query ID and register it as a query that is yet to respond.
+	fn new_query(
+		responder: impl Into<MultiLocation>,
+		timeout: T::BlockNumber,
+		match_querier: impl Into<MultiLocation>,
+	) -> Self::QueryId {
+		Self::do_new_query(responder, None, timeout, match_querier).into()
+	}
+
+	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
+	/// value.
+	fn report_outcome(
+		message: &mut Xcm<()>,
+		responder: impl Into<MultiLocation>,
+		timeout: Self::BlockNumber,
+	) -> Result<Self::QueryId, Self::Error> {
+		let responder = responder.into();
+		let destination = Self::UniversalLocation::get()
+			.invert_target(&responder)
+			.map_err(|()| XcmError::LocationNotInvertible)?;
+		let query_id = Self::new_query(responder, timeout, Here);
+		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
+		let report_error = Xcm(vec![ReportError(response_info)]);
+		message.0.insert(0, SetAppendix(report_error));
+		Ok(query_id)
+	}
+
+	/// Removes response when ready and emits [Event::ResponseTaken] event.
+	fn take_response(query_id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber> {
+		match Queries::<T>::get(query_id) {
+			Some(QueryStatus::Ready { response, at }) => match response.try_into() {
+				Ok(response) => {
+					Queries::<T>::remove(query_id);
+					Self::deposit_event(Event::ResponseTaken { query_id });
+					QueryResponseStatus::Ready { response, at }
+				},
+				Err(_) => QueryResponseStatus::UnexpectedVersion,
+			},
+			Some(QueryStatus::Pending { timeout, .. }) => QueryResponseStatus::Pending { timeout },
+			Some(_) => QueryResponseStatus::UnexpectedVersion,
+			None => QueryResponseStatus::NotFound,
+		}
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn expect_response(id: Self::QueryId, response: Response) {
+		let response = response.into();
+		Queries::<T>::insert(
+			id,
+			QueryStatus::Ready { response, at: frame_system::Pallet::<T>::block_number() },
+		);
+	}
+}
+
 impl<T: Config> Pallet<T> {
 	fn do_reserve_transfer_assets(
 		origin: OriginFor<T>,
@@ -1498,36 +1558,6 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Consume `message` and return another which is equivalent to it except that it reports
-	/// back the outcome.
-	///
-	/// - `message`: The message whose outcome should be reported.
-	/// - `responder`: The origin from which a response should be expected.
-	/// - `timeout`: The block number after which it is permissible for `notify` not to be
-	///   called even if a response is received.
-	///
-	/// `report_outcome` may return an error if the `responder` is not invertible.
-	///
-	/// It is assumed that the querier of the response will be `Here`.
-	///
-	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
-	/// value.
-	pub fn report_outcome(
-		message: &mut Xcm<()>,
-		responder: impl Into<MultiLocation>,
-		timeout: T::BlockNumber,
-	) -> Result<QueryId, XcmError> {
-		let responder = responder.into();
-		let destination = T::UniversalLocation::get()
-			.invert_target(&responder)
-			.map_err(|()| XcmError::LocationNotInvertible)?;
-		let query_id = Self::new_query(responder, timeout, Here);
-		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
-		let report_error = Xcm(vec![ReportError(response_info)]);
-		message.0.insert(0, SetAppendix(report_error));
-		Ok(query_id)
-	}
-
-	/// Consume `message` and return another which is equivalent to it except that it reports
 	/// back the outcome and dispatches `notify` on this chain.
 	///
 	/// - `message`: The message whose outcome should be reported.
@@ -1568,15 +1598,6 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Attempt to create a new query ID and register it as a query that is yet to respond.
-	pub fn new_query(
-		responder: impl Into<MultiLocation>,
-		timeout: T::BlockNumber,
-		match_querier: impl Into<MultiLocation>,
-	) -> u64 {
-		Self::do_new_query(responder, None, timeout, match_querier)
-	}
-
 	/// Attempt to create a new query ID and register it as a query that is yet to respond, and
 	/// which will call a dispatchable when a response happens.
 	pub fn new_notify_query(
@@ -1589,20 +1610,6 @@ impl<T: Config> Pallet<T> {
 			"decode input is output of Call encode; Call guaranteed to have two enums; qed",
 		);
 		Self::do_new_query(responder, Some(notify), timeout, match_querier)
-	}
-
-	/// Attempt to remove and return the response of query with ID `query_id`.
-	///
-	/// Returns `None` if the response is not (yet) available.
-	pub fn take_response(query_id: QueryId) -> Option<(Response, T::BlockNumber)> {
-		if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
-			let response = response.try_into().ok()?;
-			Queries::<T>::remove(query_id);
-			Self::deposit_event(Event::ResponseTaken { query_id });
-			Some((response, at))
-		} else {
-			None
-		}
 	}
 
 	/// Note that a particular destination to whom we would like to send a message is unknown
