@@ -28,8 +28,9 @@ pub mod test_utils;
 
 mod location_conversion;
 pub use location_conversion::{
-	Account32Hash, AccountId32Aliases, AccountKey20Aliases, AliasesIntoAccountId32, ChildParachainConvertsVia, GlobalConsensusParachainConvertsFor,
-	ParentIsPreset, SiblingParachainConvertsVia, TinkernetMultisigAsAccountId,
+	Account32Hash, AccountId32Aliases, AccountKey20Aliases, AliasesIntoAccountId32,
+	ChildParachainConvertsVia, GlobalConsensusParachainConvertsFor, ParentIsPreset,
+	SiblingParachainConvertsVia, TinkernetMultisigAsAccountId,
 };
 
 mod origin_conversion;

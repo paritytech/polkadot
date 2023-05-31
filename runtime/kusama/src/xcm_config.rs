@@ -42,7 +42,8 @@ use xcm_builder::{
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit, TinkernetMultisigAsAccountId,
-	TinkernetMultisigAsNative, TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	TinkernetMultisigAsNative, TrailingSetTopicAsId, UsingComponents, WeightInfoBounds,
+	WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::traits::WithOriginFilter;
 
