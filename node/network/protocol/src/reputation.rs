@@ -90,6 +90,6 @@ impl UnifiedReputationChange {
 
 impl From<UnifiedReputationChange> for ReputationChange {
 	fn from(value: UnifiedReputationChange) -> Self {
-		value.into_base_rep()
+		value.into()
 	}
 }

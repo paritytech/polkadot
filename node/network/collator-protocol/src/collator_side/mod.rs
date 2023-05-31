@@ -709,7 +709,7 @@ async fn handle_incoming_peer_message<Context>(
 
 			ctx.send_message(NetworkBridgeTxMessage::ReportPeer(
 				origin,
-				COST_UNEXPECTED_MESSAGE.into_base_rep(),
+				COST_UNEXPECTED_MESSAGE.into(),
 			))
 			.await;
 
@@ -799,7 +799,7 @@ async fn handle_incoming_request<Context>(
 				);
 				ctx.send_message(NetworkBridgeTxMessage::ReportPeer(
 					req.peer,
-					COST_APPARENT_FLOOD.into_base_rep(),
+					COST_APPARENT_FLOOD.into(),
 				))
 				.await;
 				return Ok(())

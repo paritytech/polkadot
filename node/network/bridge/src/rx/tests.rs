@@ -947,10 +947,7 @@ fn relays_collation_protocol_messages() {
 		let actions = network_handle.next_network_actions(3).await;
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::ReputationChange(
-				peer_a.clone(),
-				UNCONNECTED_PEERSET_COST.into_base_rep(),
-			),
+			&NetworkAction::ReputationChange(peer_a.clone(), UNCONNECTED_PEERSET_COST.into()),
 		);
 
 		// peer B has the message relayed.
@@ -1145,7 +1142,7 @@ fn view_finalized_number_can_not_go_down() {
 		let actions = network_handle.next_network_actions(2).await;
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::ReputationChange(peer_a.clone(), MALFORMED_VIEW_COST.into_base_rep()),
+			&NetworkAction::ReputationChange(peer_a.clone(), MALFORMED_VIEW_COST.into()),
 		);
 		virtual_overseer
 	});

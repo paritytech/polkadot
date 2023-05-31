@@ -857,7 +857,7 @@ fn test_availability_store_msg() -> AvailabilityStoreMessage {
 fn test_network_bridge_tx_msg() -> NetworkBridgeTxMessage {
 	NetworkBridgeTxMessage::ReportPeer(
 		PeerId::random(),
-		UnifiedReputationChange::BenefitMinor("").into_base_rep(),
+		UnifiedReputationChange::BenefitMinor("").into(),
 	)
 }
 
