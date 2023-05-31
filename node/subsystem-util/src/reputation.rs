@@ -14,10 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! A utility abstraction to collect and send reputation changes.
+
 use polkadot_node_network_protocol::{self as net_protocol, PeerId, UnifiedReputationChange};
 use polkadot_node_subsystem::{messages::NetworkBridgeTxMessage, overseer};
 
-/// TODO
+/// Collects reputation changes and sends them in one batch to relieve network channels
 #[derive(Debug, Clone)]
 pub struct ReputationAggregator {
 	send_immediately_if: fn(UnifiedReputationChange) -> bool,
@@ -31,12 +33,19 @@ impl Default for ReputationAggregator {
 }
 
 impl ReputationAggregator {
-	/// TODO
+	/// New ReputationAggregator
+	///
+	/// # Arguments
+	///
+	/// * `send_immediately_if` - A function, takes `UnifiedReputationChange`,
+	/// results shows if we need to send the changes right away.
+	/// Useful for malicious changes and tests.
 	pub fn new(send_immediately_if: fn(UnifiedReputationChange) -> bool) -> Self {
 		Self { by_peer: Default::default(), send_immediately_if }
 	}
 
-	/// TODO
+	/// Sends collected reputation changes in a batch,
+	/// removing them from inner state
 	pub async fn send(
 		&mut self,
 		sender: &mut impl overseer::SubsystemSender<NetworkBridgeTxMessage>,
@@ -52,7 +61,8 @@ impl ReputationAggregator {
 		self.by_peer.clear();
 	}
 
-	/// TODO
+	/// Adds reputation change to inner state,
+	/// сhecks if the change is dangerous, sends all collected changes in a batch if it is
 	pub async fn modify(
 		&mut self,
 		sender: &mut impl overseer::SubsystemSender<NetworkBridgeTxMessage>,
