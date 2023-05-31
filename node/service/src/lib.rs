@@ -791,6 +791,7 @@ where
 
 	let shared_voter_state = rpc_setup;
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
+	let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
 
 	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
 
@@ -798,10 +799,9 @@ where
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
 	let grandpa_protocol_name = grandpa::protocol_standard_name(&genesis_hash, &config.chain_spec);
-	config
-		.network
-		.extra_sets
-		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
+	net_config.add_notification_protocol(grandpa::grandpa_peers_set_config(
+		grandpa_protocol_name.clone(),
+	));
 
 	let beefy_gossip_proto_name =
 		beefy::gossip_protocol_name(&genesis_hash, config.chain_spec.fork_id());
@@ -815,11 +815,10 @@ where
 			prometheus_registry.clone(),
 		);
 	if enable_beefy {
-		config
-			.network
-			.extra_sets
-			.push(beefy::communication::beefy_peers_set_config(beefy_gossip_proto_name.clone()));
-		config.network.request_response_protocols.push(beefy_req_resp_cfg);
+		net_config.add_notification_protocol(beefy::communication::beefy_peers_set_config(
+			beefy_gossip_proto_name.clone(),
+		));
+		net_config.add_request_response_protocol(beefy_req_resp_cfg);
 	}
 
 	let peerset_protocol_names =
@@ -828,27 +827,26 @@ where
 	{
 		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
 		let is_authority = if role.is_authority() { IsAuthority::Yes } else { IsAuthority::No };
-		config
-			.network
-			.extra_sets
-			.extend(peer_sets_info(is_authority, &peerset_protocol_names));
+		for config in peer_sets_info(is_authority, &peerset_protocol_names) {
+			net_config.add_notification_protocol(config);
+		}
 	}
 
 	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, config.chain_spec.fork_id());
 
 	let (pov_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (collation_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (available_data_req_receiver, cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (statement_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	config.network.request_response_protocols.push(cfg);
+	net_config.add_request_response_protocol(cfg);
 
 	let grandpa_hard_forks = if config.chain_spec.is_kusama() {
 		grandpa_support::kusama_hard_forks()
@@ -865,6 +863,7 @@ where
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
+			net_config,
 			client: client.clone(),
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
@@ -897,7 +896,6 @@ where
 
 	let approval_voting_config = ApprovalVotingConfig {
 		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
@@ -921,7 +919,6 @@ where
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
 		col_dispute_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 	};
 
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
@@ -1159,15 +1156,11 @@ where
 
 		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
 
-		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
+		// BEEFY currently only runs on testnets, if it fails we'll
 		// bring the node down with it to make sure it is noticed.
-		if chain_spec.is_wococo() {
-			task_manager
-				.spawn_essential_handle()
-				.spawn_blocking("beefy-gadget", None, gadget);
-		} else {
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
-		}
+		task_manager
+			.spawn_essential_handle()
+			.spawn_blocking("beefy-gadget", None, gadget);
 
 		if is_offchain_indexing_enabled {
 			task_manager.spawn_handle().spawn_blocking(
@@ -1517,7 +1510,6 @@ fn revert_chain_selection(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::R
 fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
 	let config = approval_voting_subsystem::Config {
 		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: Default::default(),
 	};
 

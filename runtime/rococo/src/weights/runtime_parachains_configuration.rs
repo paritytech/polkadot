@@ -101,24 +101,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
-	/// Storage: Configuration PendingConfigs (r:1 w:1)
-	/// Proof Skipped: Configuration PendingConfigs (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Configuration ActiveConfig (r:1 w:0)
-	/// Proof Skipped: Configuration ActiveConfig (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
-	/// Proof Skipped: Configuration BypassConsistencyCheck (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
-	/// Proof Skipped: ParasShared CurrentSessionIndex (max_values: Some(1), max_size: None, mode: Measured)
-	fn set_config_with_weight() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `397`
-		//  Estimated: `1882`
-		// Minimum execution time: 12_914_000 picoseconds.
-		Weight::from_parts(13_395_000, 0)
-			.saturating_add(Weight::from_parts(0, 1882))
-			.saturating_add(T::DbWeight::get().reads(4))
-			.saturating_add(T::DbWeight::get().writes(1))
-	}
+
 	/// Storage: Benchmark Override (r:0 w:0)
 	/// Proof Skipped: Benchmark Override (max_values: None, max_size: None, mode: Measured)
 	fn set_hrmp_open_request_ttl() -> Weight {

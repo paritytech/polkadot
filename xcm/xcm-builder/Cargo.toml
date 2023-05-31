@@ -16,6 +16,7 @@ sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -30,12 +31,14 @@ pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-xcm = { path = "../pallet-xcm" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 assert_matches = "1.5.0"
+polkadot-test-runtime = { path = "../../runtime/test-runtime" }
 
 [features]
 default = ["std"]
 runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
-	"frame-system/runtime-benchmarks"
+	"frame-system/runtime-benchmarks",
+	"xcm-executor/runtime-benchmarks",
 ]
 std = [
 	"log/std",
@@ -48,6 +51,7 @@ std = [
 	"sp-io/std",
 	"sp-runtime/std",
 	"sp-core/std",
+	"sp-weights/std",
 	"frame-support/std",
 	"frame-system/std",
 	"polkadot-parachain/std",

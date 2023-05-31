@@ -1153,3 +1153,51 @@ async fn import_leaf(
 
 	new_leaf
 }
+
+#[test]
+fn query_chunk_size_works() {
+	let store = test_store();
+
+	test_harness(TestState::default(), store.clone(), |mut virtual_overseer| async move {
+		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
+		let validator_index = ValidatorIndex(5);
+		let n_validators = 10;
+
+		let chunk = ErasureChunk {
+			chunk: vec![1, 2, 3],
+			index: validator_index,
+			proof: Proof::try_from(vec![vec![3, 4, 5]]).unwrap(),
+		};
+
+		// Ensure an entry already exists. In reality this would come from watching
+		// chain events.
+		with_tx(&store, |tx| {
+			super::write_meta(
+				tx,
+				&TEST_CONFIG,
+				&candidate_hash,
+				&CandidateMeta {
+					data_available: false,
+					chunks_stored: bitvec::bitvec![u8, BitOrderLsb0; 0; n_validators],
+					state: State::Unavailable(BETimestamp(0)),
+				},
+			);
+		});
+
+		let (tx, rx) = oneshot::channel();
+
+		let chunk_msg =
+			AvailabilityStoreMessage::StoreChunk { candidate_hash, chunk: chunk.clone(), tx };
+
+		overseer_send(&mut virtual_overseer, chunk_msg).await;
+		assert_eq!(rx.await.unwrap(), Ok(()));
+
+		let (tx, rx) = oneshot::channel();
+		let query_chunk_size = AvailabilityStoreMessage::QueryChunkSize(candidate_hash, tx);
+
+		overseer_send(&mut virtual_overseer, query_chunk_size).await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), chunk.chunk.len());
+		virtual_overseer
+	});
+}

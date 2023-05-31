@@ -214,62 +214,61 @@ impl Initialized {
 			gum::trace!(target: LOG_TARGET, "Waiting for message");
 			let mut overlay_db = OverlayedBackend::new(backend);
 			let default_confirm = Box::new(|| Ok(()));
-			let confirm_write = match MuxedMessage::receive(ctx, &mut self.participation_receiver)
-				.await?
-			{
-				MuxedMessage::Participation(msg) => {
-					gum::trace!(target: LOG_TARGET, "MuxedMessage::Participation");
-					let ParticipationStatement {
-						session,
-						candidate_hash,
-						candidate_receipt,
-						outcome,
-					} = self.participation.get_participation_result(ctx, msg).await?;
-					if let Some(valid) = outcome.validity() {
-						gum::trace!(
-							target: LOG_TARGET,
-							?session,
-							?candidate_hash,
-							?valid,
-							"Issuing local statement based on participation outcome."
-						);
-						self.issue_local_statement(
-							ctx,
-							&mut overlay_db,
+			let confirm_write =
+				match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
+					MuxedMessage::Participation(msg) => {
+						gum::trace!(target: LOG_TARGET, "MuxedMessage::Participation");
+						let ParticipationStatement {
+							session,
 							candidate_hash,
 							candidate_receipt,
-							session,
-							valid,
-							clock.now(),
-						)
-						.await?;
-					} else {
-						gum::warn!(target: LOG_TARGET, ?outcome, "Dispute participation failed");
-					}
-					default_confirm
-				},
-				MuxedMessage::Subsystem(msg) => match msg {
-					FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
-					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-						gum::trace!(target: LOG_TARGET, "OverseerSignal::ActiveLeaves");
-						self.process_active_leaves_update(
-							ctx,
-							&mut overlay_db,
-							update,
-							clock.now(),
-						)
-						.await?;
+							outcome,
+						} = self.participation.get_participation_result(ctx, msg).await?;
+						if let Some(valid) = outcome.validity() {
+							gum::trace!(
+								target: LOG_TARGET,
+								?session,
+								?candidate_hash,
+								?valid,
+								"Issuing local statement based on participation outcome."
+							);
+							self.issue_local_statement(
+								ctx,
+								&mut overlay_db,
+								candidate_hash,
+								candidate_receipt,
+								session,
+								valid,
+								clock.now(),
+							)
+							.await?;
+						} else {
+							gum::warn!(target: LOG_TARGET, ?outcome, "Dispute participation failed");
+						}
 						default_confirm
 					},
-					FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, n)) => {
-						gum::trace!(target: LOG_TARGET, "OverseerSignal::BlockFinalized");
-						self.scraper.process_finalized_block(&n);
-						default_confirm
+					MuxedMessage::Subsystem(msg) => match msg {
+						FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
+							gum::trace!(target: LOG_TARGET, "OverseerSignal::ActiveLeaves");
+							self.process_active_leaves_update(
+								ctx,
+								&mut overlay_db,
+								update,
+								clock.now(),
+							)
+							.await?;
+							default_confirm
+						},
+						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, n)) => {
+							gum::trace!(target: LOG_TARGET, "OverseerSignal::BlockFinalized");
+							self.scraper.process_finalized_block(&n);
+							default_confirm
+						},
+						FromOrchestra::Communication { msg } =>
+							self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?,
 					},
-					FromOrchestra::Communication { msg } =>
-						self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?,
-				},
-			};
+				};
 
 			if !overlay_db.is_empty() {
 				let ops = overlay_db.into_write_ops();
@@ -306,13 +305,12 @@ impl Initialized {
 				Ok(session_idx)
 					if self.gaps_in_cache || session_idx > self.highest_session_seen =>
 				{
-					// If error has occurred during last session caching - fetch the whole window
-					// Otherwise - cache only the new sessions
-					let lower_bound = if self.gaps_in_cache {
-						session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)
-					} else {
-						self.highest_session_seen + 1
-					};
+					// Fetch the last `DISPUTE_WINDOW` number of sessions unless there are no gaps in
+					// cache and we are not missing too many `SessionInfo`s
+					let mut lower_bound = session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1);
+					if !self.gaps_in_cache && self.highest_session_seen > lower_bound {
+						lower_bound = self.highest_session_seen + 1
+					}
 
 					// There is a new session. Perform a dummy fetch to cache it.
 					for idx in lower_bound..=session_idx {
@@ -1094,7 +1092,7 @@ impl Initialized {
 
 		// Notify ChainSelection if a dispute has concluded against a candidate. ChainSelection
 		// will need to mark the candidate's relay parent as reverted.
-		if import_result.is_freshly_concluded_against() {
+		if import_result.has_fresh_byzantine_threshold_against() {
 			let blocks_including = self.scraper.get_blocks_including_candidate(&candidate_hash);
 			for (parent_block_number, parent_block_hash) in &blocks_including {
 				gum::trace!(

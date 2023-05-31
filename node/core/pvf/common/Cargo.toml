@@ -1,0 +1,26 @@
+[package]
+name = "polkadot-node-core-pvf-common"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+cpu-time = "1.0.0"
+futures = "0.3.21"
+gum = { package = "tracing-gum", path = "../../../gum" }
+libc = "0.2.139"
+tokio = { version = "1.24.2", features = ["fs", "process", "io-util"] }
+
+parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
+
+polkadot-parachain = { path = "../../../../parachain" }
+polkadot-primitives = { path = "../../../../primitives" }
+
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }

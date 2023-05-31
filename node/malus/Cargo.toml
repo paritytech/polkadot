@@ -20,7 +20,8 @@ polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator" }
 polkadot-node-core-candidate-validation = { path = "../core/candidate-validation" }
 polkadot-node-core-backing = { path = "../core/backing" }
-polkadot-node-core-pvf-worker = { path = "../core/pvf/worker" }
+polkadot-node-core-pvf-execute-worker = { path = "../core/pvf/execute-worker" }
+polkadot-node-core-pvf-prepare-worker = { path = "../core/pvf/prepare-worker" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
 color-eyre = { version = "0.6.1", default-features = false }
