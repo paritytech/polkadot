@@ -34,9 +34,11 @@ pub mod landlock {
 
 	/// Version of landlock ABI. Use the latest version supported by our reference kernel version.
 	///
-	/// - Reference kernel version: 5.15
+	/// - Reference kernel version: 5.16+
 	/// - V1: 5.13
 	/// - V2: 5.19
+	///
+	/// Please update the above if it is out-of-date.
 	const LANDLOCK_ABI: ABI = ABI::V1;
 
 	// TODO: <https://github.com/landlock-lsm/rust-landlock/issues/36>
