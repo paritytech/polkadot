@@ -496,6 +496,7 @@ impl State {
 								assignment,
 								claimed_index,
 								rng,
+								"new-blocks-import-and-distribute-assignment",
 							)
 							.await;
 						},
@@ -505,6 +506,7 @@ impl State {
 								metrics,
 								MessageSource::Peer(peer_id),
 								approval_vote,
+								"new-blocks-import-and-distribute-approval",
 							)
 							.await;
 						},
@@ -593,6 +595,7 @@ impl State {
 						assignment,
 						claimed_index,
 						rng,
+						"peer-message-import-and-distribute-assignment",
 					)
 					.await;
 				}
@@ -629,6 +632,7 @@ impl State {
 						metrics,
 						MessageSource::Peer(peer_id),
 						approval_vote,
+						"peer-message-import-and-distribute-approval",
 					)
 					.await;
 				}
@@ -722,13 +726,14 @@ impl State {
 		assignment: IndirectAssignmentCert,
 		claimed_candidate_index: CandidateIndex,
 		rng: &mut R,
+		tracing_label: &'static str,
 	) where
 		R: CryptoRng + Rng,
 	{
 		let _span = self
 			.spans
 			.get(&assignment.block_hash)
-			.map(|span| span.child("import-and-distribute-assignment"))
+			.map(|span| span.child(tracing_label))
 			.unwrap_or_else(|| jaeger::Span::new(&assignment.block_hash, "distribute-assignment"))
 			.with_string_tag("block-hash", format!("{:?}", assignment.block_hash))
 			.with_stage(jaeger::Stage::ApprovalDistribution);
@@ -992,11 +997,12 @@ impl State {
 		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
+		tracing_label: &'static str,
 	) {
 		let _span = self
 			.spans
 			.get(&vote.block_hash)
-			.map(|span| span.child("import-and-distribute-approval"))
+			.map(|span| span.child(tracing_label))
 			.unwrap_or_else(|| jaeger::Span::new(&vote.block_hash, "distribute-approval"))
 			.with_string_tag("block-hash", format!("{:?}", vote.block_hash))
 			.with_stage(jaeger::Stage::ApprovalDistribution);
@@ -1755,6 +1761,7 @@ impl ApprovalDistribution {
 						cert,
 						candidate_index,
 						rng,
+						"import-and-distribute-assignment",
 					)
 					.await;
 			},
@@ -1767,7 +1774,13 @@ impl ApprovalDistribution {
 				);
 
 				state
-					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote)
+					.import_and_circulate_approval(
+						ctx,
+						metrics,
+						MessageSource::Local,
+						vote,
+						"import-and-distribute-approval",
+					)
 					.await;
 			},
 			ApprovalDistributionMessage::GetApprovalSignatures(indices, tx) => {
