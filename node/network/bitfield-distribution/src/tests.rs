@@ -87,7 +87,7 @@ fn prewarmed_state(
 		peer_views: peers.iter().cloned().map(|peer| (peer, view!(relay_parent))).collect(),
 		topologies,
 		view: our_view!(relay_parent),
-		reputation: ReputationAggregator::new(|_| false),
+		reputation: ReputationAggregator::new(|_| true),
 	}
 }
 
@@ -95,7 +95,8 @@ fn state_with_view(
 	view: OurView,
 	relay_parent: Hash,
 ) -> (ProtocolState, SigningContext, KeystorePtr, ValidatorId) {
-	let mut state = ProtocolState::default();
+	let mut state =
+		ProtocolState { reputation: ReputationAggregator::new(|_| true), ..Default::default() };
 
 	let signing_context = SigningContext { session_index: 1, parent_hash: relay_parent.clone() };
 
