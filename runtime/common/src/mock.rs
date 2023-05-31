@@ -149,7 +149,7 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 		Ok(())
 	}
 
-	/// If the ParaId corresponds to a lease holding parachain, then downgrade it to a 
+	/// If the ParaId corresponds to a lease holding parachain, then downgrade it to a
 	/// parathread (on-demand parachain)
 	fn make_parathread(id: ParaId) -> DispatchResult {
 		PARACHAINS.with(|x| {

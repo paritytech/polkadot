@@ -24,8 +24,8 @@
 //!
 //! A para is not considered live until it is registered and activated in this pallet.
 //!
-//! The set of parachains cannot change except at session boundaries. This is primarily to ensure 
-//! that the number and meaning of bits required for the availability bitfields does not change 
+//! The set of parachains cannot change except at session boundaries. This is primarily to ensure
+//! that the number and meaning of bits required for the availability bitfields does not change
 //! except at session boundaries.
 //!
 //! # Validation Code Upgrades
@@ -61,7 +61,7 @@
 //!
 //! # Para Lifecycle Management
 //!
-//! A para can be in one of the two stable states: it is either a lease holding parachain or an 
+//! A para can be in one of the two stable states: it is either a lease holding parachain or an
 //! on-demand parachain.
 //!
 //! However, in order to get into one of those two states, it must first be onboarded. Onboarding

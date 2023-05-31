@@ -621,8 +621,8 @@ fn schedule_schedules_including_just_freed() {
 			assert!(Scheduler::scheduled().is_empty());
 		}
 
-		// add a couple more parathread (on-demand parachain) claims - the claim on `b` will go to 
-		// the 3rd on-demand core (4) and the claim on `d` will go back to the 1st on-demand 
+		// add a couple more parathread (on-demand parachain) claims - the claim on `b` will go to
+		// the 3rd on-demand core (4) and the claim on `d` will go back to the 1st on-demand
 		// core (2). The claim on `e` then will go for core `3`.
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_d, collator.clone()));
@@ -633,7 +633,7 @@ fn schedule_schedules_including_just_freed() {
 		{
 			let scheduled = Scheduler::scheduled();
 
-			// cores 0 and 1 are occupied by lease holding parachains. cores 2 and 3 are occupied by 
+			// cores 0 and 1 are occupied by lease holding parachains. cores 2 and 3 are occupied by
 			// on-demand parachain claims. core 4 was free.
 			assert_eq!(scheduled.len(), 1);
 			assert_eq!(

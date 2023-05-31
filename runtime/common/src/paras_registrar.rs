@@ -280,7 +280,7 @@ pub mod pallet {
 		///
 		/// The `ParaId`s remain mapped to the same head data and code so external code can rely on
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
-		/// scheduling info (i.e. whether they're an on-demand parachain or lease holding parachain), 
+		/// scheduling info (i.e. whether they're an on-demand parachain or lease holding parachain),
 		/// auction information and the auction deposit are switched.
 		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::swap())]
@@ -345,7 +345,7 @@ pub mod pallet {
 		///
 		/// This function will reserve a new Para Id to be owned/managed by the origin account.
 		/// The origin account is able to register head data and validation code using `register` to create
-		/// an on-demand parachain. Using the Slots pallet, an on-demand parachain can then be upgraded to 
+		/// an on-demand parachain. Using the Slots pallet, an on-demand parachain can then be upgraded to
 		/// a lease holding parachain.
 		///
 		/// ## Arguments
@@ -1335,7 +1335,7 @@ mod tests {
 				Error::<Test>::CannotSwap
 			);
 
-			// Some other external process will elevate one on-demand 
+			// Some other external process will elevate one on-demand
 			// parachain to a lease holding parachain
 			assert_ok!(Registrar::make_parachain(para_1));
 

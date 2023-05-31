@@ -135,7 +135,7 @@ pub struct HostConfiguration<BlockNumber> {
 	pub max_downward_message_size: u32,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
 	pub hrmp_max_parachain_outbound_channels: u32,
-	/// The maximum number of outbound HRMP channels a parathread (on-demand parachain) is allowed 
+	/// The maximum number of outbound HRMP channels a parathread (on-demand parachain) is allowed
 	/// to open.
 	pub hrmp_max_parathread_outbound_channels: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
@@ -148,7 +148,7 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_channel_max_total_size: u32,
 	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
 	pub hrmp_max_parachain_inbound_channels: u32,
-	/// The maximum number of inbound HRMP channels a parathread (on-demand parachain) is allowed 
+	/// The maximum number of inbound HRMP channels a parathread (on-demand parachain) is allowed
 	/// to accept.
 	pub hrmp_max_parathread_inbound_channels: u32,
 	/// The maximum size of a message that could ever be put into an HRMP channel.
@@ -179,7 +179,7 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// Must be at least 1.
 	pub chain_availability_period: BlockNumber,
-	/// The availability period, in blocks, for parathreads (on-demand parachains). Same as the 
+	/// The availability period, in blocks, for parathreads (on-demand parachains). Same as the
 	/// `chain_availability_period`, but a differing timeout due to differing requirements.
 	///
 	/// Must be at least 1.

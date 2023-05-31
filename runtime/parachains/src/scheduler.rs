@@ -75,7 +75,7 @@ pub struct ParathreadClaimQueue {
 impl ParathreadClaimQueue {
 	/// Queue a parathread (on-demand parachain) entry to be processed.
 	///
-	/// Provide the entry and the number of parathread (on-demand parachain) cores, 
+	/// Provide the entry and the number of parathread (on-demand parachain) cores,
 	/// which must be greater than 0.
 	fn enqueue_entry(&mut self, entry: ParathreadEntry, n_parathread_cores: u32) {
 		let core_offset = self.next_core_offset;
@@ -172,8 +172,8 @@ pub mod pallet {
 	/// broader set of Polkadot validators, but instead just the subset used for parachains during
 	/// this session.
 	///
-	/// Bound: The number of cores is the sum of the numbers of lease holding parachains and on-demand 
-	/// parachain multiplexers. Reasonably, 100-1000. The dominant factor is the number of validators: 
+	/// Bound: The number of cores is the sum of the numbers of lease holding parachains and on-demand
+	/// parachain multiplexers. Reasonably, 100-1000. The dominant factor is the number of validators:
 	/// safe upper bound at 10k.
 	#[pallet::storage]
 	#[pallet::getter(fn validator_groups)]
@@ -182,7 +182,7 @@ pub mod pallet {
 	/// A queue of upcoming claims and which core they should be mapped onto.
 	///
 	/// The number of queued claims is bounded at the `scheduling_lookahead`
-	/// multiplied by the number of parathread (on-demand parachain) multiplexer cores. Reasonably, 
+	/// multiplied by the number of parathread (on-demand parachain) multiplexer cores. Reasonably,
 	/// 10 * 50 = 500.
 	#[pallet::storage]
 	pub(crate) type ParathreadQueue<T> = StorageValue<_, ParathreadClaimQueue, ValueQuery>;
@@ -199,7 +199,7 @@ pub mod pallet {
 	#[pallet::getter(fn availability_cores)]
 	pub(crate) type AvailabilityCores<T> = StorageValue<_, Vec<Option<CoreOccupied>>, ValueQuery>;
 
-	/// An index used to ensure that only one claim on a parathread (on-demand parachain) exists in the queue 
+	/// An index used to ensure that only one claim on a parathread (on-demand parachain) exists in the queue
 	/// or is currently being handled by an occupied core.
 	///
 	/// Bounded by the number of parathread (on-demand parachain) cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
@@ -347,8 +347,8 @@ impl<T: Config> Pallet<T> {
 		<SessionStartBlock<T>>::set(now);
 	}
 
-	/// Add a parathread (on-demand parachain) claim to the queue. If there is a competing claim in the 
-	/// queue or currently assigned to a core, this call will fail. This call will also fail if the queue 
+	/// Add a parathread (on-demand parachain) claim to the queue. If there is a competing claim in the
+	/// queue or currently assigned to a core, this call will fail. This call will also fail if the queue
 	/// is full.
 	///
 	/// Fails if the claim does not correspond to any live on-demand parachain.

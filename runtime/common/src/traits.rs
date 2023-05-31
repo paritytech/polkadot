@@ -31,7 +31,7 @@ pub trait Registrar {
 	/// Report the manager (permissioned owner) of a parachain, if there is one.
 	fn manager_of(id: ParaId) -> Option<Self::AccountId>;
 
-	/// All lease holding parachains. Ordered ascending by `ParaId`. On-demand 
+	/// All lease holding parachains. Ordered ascending by `ParaId`. On-demand
 	/// parachains are not included.
 	fn parachains() -> Vec<ParaId>;
 
@@ -81,7 +81,7 @@ pub trait Registrar {
 	fn worst_validation_code() -> ValidationCode;
 
 	/// Execute any pending state transitions for paras.
-	/// For example onboarding to on-demand parachain, or upgrading on-demand to 
+	/// For example onboarding to on-demand parachain, or upgrading on-demand to
 	/// lease holding parachain.
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn execute_pending_transitions();

@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Parachains leasing system. Allows para IDs to be claimed, the code and data to be initialized and
-//! parachain slots (i.e. continuous scheduling) to be leased. Also allows for lease holding parachains and 
+//! parachain slots (i.e. continuous scheduling) to be leased. Also allows for lease holding parachains and
 //! on-demand parachains to be swapped.
 //!
 //! This doesn't handle the mechanics of determining which para ID actually ends up with a parachain lease. This

@@ -164,10 +164,10 @@ pub mod pallet {
 		ParaDoesntExist,
 		/// Not a parathread (on-demand parachain).
 		NotParathread,
-		/// Cannot upgrade on-demand parachain to lease holding 
+		/// Cannot upgrade on-demand parachain to lease holding
 		/// parachain.
 		CannotUpgrade,
-		/// Cannot downgrade lease holding parachain to 
+		/// Cannot downgrade lease holding parachain to
 		/// on-demand.
 		CannotDowngrade,
 		/// Permanent or Temporary slot already assigned.

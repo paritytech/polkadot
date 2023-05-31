@@ -807,7 +807,7 @@ impl TypeIndex for GroupIndex {
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct ParathreadClaim(pub Id, pub CollatorId);
 
-/// An entry tracking a parathread (on-demand parachain) claim to ensure it does not 
+/// An entry tracking a parathread (on-demand parachain) claim to ensure it does not
 /// pass the maximum number of retries.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
@@ -975,8 +975,8 @@ pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// variant.
 	#[codec(index = 1)]
 	Scheduled(ScheduledCore),
-	/// The core is currently free and there is nothing scheduled. This can be the case for 
-	/// on-demand parachain cores when there are no on-demand blocks queued. Leased parachain 
+	/// The core is currently free and there is nothing scheduled. This can be the case for
+	/// on-demand parachain cores when there are no on-demand blocks queued. Leased parachain
 	/// cores will never be left idle.
 	#[codec(index = 2)]
 	Free,
