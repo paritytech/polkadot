@@ -34,6 +34,7 @@ mod bridging;
 mod expecting;
 mod locking;
 mod origins;
+mod pay;
 mod querying;
 mod transacting;
 mod version_subscriptions;
