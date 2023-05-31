@@ -14,30 +14,36 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use xcm_executor::traits::Properties;
+
 use super::*;
+
+fn props(weight_credit: Weight) -> Properties {
+	Properties { weight_credit, message_id: None }
+}
 
 #[test]
 fn take_weight_credit_barrier_should_work() {
 	let mut message =
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
-	let mut weight_credit = Weight::from_parts(10, 10);
+	let mut properties = props(Weight::from_parts(10, 10));
 	let r = TakeWeightCredit::should_execute(
 		&Parent.into(),
 		message.inner_mut(),
 		Weight::from_parts(10, 10),
-		&mut weight_credit,
+		&mut properties,
 	);
 	assert_eq!(r, Ok(()));
-	assert_eq!(weight_credit, Weight::zero());
+	assert_eq!(properties.weight_credit, Weight::zero());
 
 	let r = TakeWeightCredit::should_execute(
 		&Parent.into(),
 		message.inner_mut(),
 		Weight::from_parts(10, 10),
-		&mut weight_credit,
+		&mut properties,
 	);
 	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(10, 10))));
-	assert_eq!(weight_credit, Weight::zero());
+	assert_eq!(properties.weight_credit, Weight::zero());
 }
 
 #[test]
@@ -67,7 +73,7 @@ fn computed_origin_should_work() {
 		&Parent.into(),
 		message.inner_mut(),
 		Weight::from_parts(100, 100),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
@@ -79,7 +85,7 @@ fn computed_origin_should_work() {
 		&Parent.into(),
 		message.inner_mut(),
 		Weight::from_parts(100, 100),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
@@ -91,7 +97,7 @@ fn computed_origin_should_work() {
 		&Parent.into(),
 		message.inner_mut(),
 		Weight::from_parts(100, 100),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Ok(()));
 }
@@ -107,7 +113,7 @@ fn allow_unpaid_should_work() {
 		&Parachain(1).into(),
 		message.inner_mut(),
 		Weight::from_parts(10, 10),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
@@ -115,7 +121,7 @@ fn allow_unpaid_should_work() {
 		&Parent.into(),
 		message.inner_mut(),
 		Weight::from_parts(10, 10),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Ok(()));
 }
@@ -147,7 +153,7 @@ fn allow_explicit_unpaid_should_work() {
 		&Parachain(1).into(),
 		good_message.inner_mut(),
 		Weight::from_parts(20, 20),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
@@ -155,7 +161,7 @@ fn allow_explicit_unpaid_should_work() {
 		&Parent.into(),
 		bad_message1.inner_mut(),
 		Weight::from_parts(20, 20),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(20, 20))));
 
@@ -163,7 +169,7 @@ fn allow_explicit_unpaid_should_work() {
 		&Parent.into(),
 		bad_message2.inner_mut(),
 		Weight::from_parts(20, 20),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(20, 20))));
 
@@ -171,7 +177,7 @@ fn allow_explicit_unpaid_should_work() {
 		&Parent.into(),
 		good_message.inner_mut(),
 		Weight::from_parts(20, 20),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Ok(()));
 
@@ -187,7 +193,7 @@ fn allow_explicit_unpaid_should_work() {
 		&Parent.into(),
 		message_with_different_weight_parts.inner_mut(),
 		Weight::from_parts(20, 20),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(20, 20))));
 
@@ -195,7 +201,7 @@ fn allow_explicit_unpaid_should_work() {
 		&Parent.into(),
 		message_with_different_weight_parts.inner_mut(),
 		Weight::from_parts(10, 10),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Ok(()));
 }
@@ -211,7 +217,7 @@ fn allow_paid_should_work() {
 		&Parachain(1).into(),
 		message.inner_mut(),
 		Weight::from_parts(10, 10),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
@@ -226,7 +232,7 @@ fn allow_paid_should_work() {
 		&Parent.into(),
 		underpaying_message.inner_mut(),
 		Weight::from_parts(30, 30),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(30, 30))));
 
@@ -241,7 +247,7 @@ fn allow_paid_should_work() {
 		&Parachain(1).into(),
 		paying_message.inner_mut(),
 		Weight::from_parts(30, 30),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Unsupported));
 
@@ -249,7 +255,7 @@ fn allow_paid_should_work() {
 		&Parent.into(),
 		paying_message.inner_mut(),
 		Weight::from_parts(30, 30),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Ok(()));
 
@@ -264,7 +270,7 @@ fn allow_paid_should_work() {
 		&Parent.into(),
 		paying_message_with_different_weight_parts.inner_mut(),
 		Weight::from_parts(20, 20),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Overweight(Weight::from_parts(20, 20))));
 
@@ -272,7 +278,7 @@ fn allow_paid_should_work() {
 		&Parent.into(),
 		paying_message_with_different_weight_parts.inner_mut(),
 		Weight::from_parts(10, 10),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Ok(()))
 }
@@ -288,7 +294,7 @@ fn suspension_should_work() {
 		&Parent.into(),
 		message.inner_mut(),
 		Weight::from_parts(10, 10),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Err(ProcessMessageError::Yield));
 
@@ -299,7 +305,7 @@ fn suspension_should_work() {
 		&Parent.into(),
 		message.inner_mut(),
 		Weight::from_parts(10, 10),
-		&mut Weight::zero(),
+		&mut props(Weight::zero()),
 	);
 	assert_eq!(r, Ok(()));
 }

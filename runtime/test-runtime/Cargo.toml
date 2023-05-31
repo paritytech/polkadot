@@ -123,6 +123,7 @@ std = [
 	"serde/std",
 	"pallet-babe/std",
 	"babe-primitives/std",
+	"beefy-primitives/std",
 	"sp-session/std",
 	"runtime-common/std",
 	"log/std",

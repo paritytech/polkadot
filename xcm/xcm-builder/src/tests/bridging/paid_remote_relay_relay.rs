@@ -27,8 +27,8 @@ parameter_types! {
 	pub UniversalLocation: Junctions = X2(GlobalConsensus(Local::get()), Parachain(100));
 	pub RelayUniversalLocation: Junctions = X1(GlobalConsensus(Local::get()));
 	pub RemoteUniversalLocation: Junctions = X1(GlobalConsensus(Remote::get()));
-	pub static BridgeTable: Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>
-		= vec![(Remote::get(), MultiLocation::parent(), Some((Parent, 200u128).into()))];
+	pub BridgeTable: Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>
+		= vec![(Remote::get(), MultiLocation::parent(), Some((Parent, 200u128 + if UsingTopic::get() { 20 } else { 0 }).into()))];
 	// ^^^ 100 to use the bridge (export) and 100 for the remote execution weight (5 instructions
 	//     x (10 + 10) weight each).
 }
@@ -41,7 +41,7 @@ type LocalBridgeRouter = SovereignPaidRemoteExporter<
 	LocalInnerRouter,
 	UniversalLocation,
 >;
-type LocalRouter = (LocalInnerRouter, LocalBridgeRouter);
+type LocalRouter = TestTopic<(LocalInnerRouter, LocalBridgeRouter)>;
 
 /// ```nocompile
 ///  local                                  |                                      remote
@@ -55,33 +55,66 @@ type LocalRouter = (LocalInnerRouter, LocalBridgeRouter);
 /// ```
 #[test]
 fn sending_to_bridged_chain_works() {
+	maybe_with_topic(|| {
+		let dest: MultiLocation = (Parent, Parent, Remote::get()).into();
+
+		// Initialize the local relay so that our parachain has funds to pay for export.
+		clear_assets(Parachain(100));
+		add_asset(Parachain(100), (Here, 1000u128));
+
+		let price = 200u128 + if UsingTopic::get() { 20 } else { 0 };
+
+		let msg = Xcm(vec![Trap(1)]);
+		assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, (Parent, price).into());
+		assert_eq!(TheBridge::service(), 1);
+		let expected = vec![(
+			Here.into(),
+			xcm_with_topic(
+				[0; 32],
+				vec![
+					UniversalOrigin(Local::get().into()),
+					DescendOrigin(Parachain(100).into()),
+					Trap(1),
+				],
+			),
+		)];
+		assert_eq!(take_received_remote_messages(), expected);
+
+		// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of balance).
+		assert_eq!(asset_list(Parachain(100)), vec![(Here, 1000u128 - price).into()]);
+
+		let entry = LogEntry {
+			local: UniversalLocation::get(),
+			remote: RelayUniversalLocation::get(),
+			id: maybe_forward_id_for(&[0; 32]),
+			message: xcm_with_topic(
+				maybe_forward_id_for(&[0; 32]),
+				vec![
+					WithdrawAsset(MultiAsset::from((Here, price)).into()),
+					BuyExecution { fees: (Here, price).into(), weight_limit: Unlimited },
+					ExportMessage {
+						network: ByGenesis([1; 32]),
+						destination: Here,
+						xcm: xcm_with_topic([0; 32], vec![Trap(1)]),
+					},
+					RefundSurplus,
+					DepositAsset { assets: Wild(All), beneficiary: Parachain(100).into() },
+				],
+			),
+			outcome: Outcome::Complete(test_weight(5)),
+			paid: true,
+		};
+		assert_eq!(RoutingLog::take(), vec![entry]);
+	});
+}
+#[test]
+fn sending_to_bridged_chain_without_funds_fails() {
 	let dest: MultiLocation = (Parent, Parent, Remote::get()).into();
 	// Routing won't work if we don't have enough funds.
 	assert_eq!(
 		send_xcm::<LocalRouter>(dest.clone(), Xcm(vec![Trap(1)])),
 		Err(SendError::Transport("Error executing")),
 	);
-
-	// Initialize the local relay so that our parachain has funds to pay for export.
-	add_asset(Parachain(100), (Here, 1000u128));
-
-	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, (Parent, 200u128).into());
-	assert_eq!(TheBridge::service(), 1);
-	assert_eq!(
-		take_received_remote_messages(),
-		vec![(
-			Here.into(),
-			Xcm(vec![
-				UniversalOrigin(Local::get().into()),
-				DescendOrigin(Parachain(100).into()),
-				Trap(1),
-			])
-		)]
-	);
-
-	// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of balance).
-	assert_eq!(asset_list(Parachain(100)), vec![(Here, 800u128).into()]);
 }
 
 /// ```nocompile
@@ -96,29 +129,64 @@ fn sending_to_bridged_chain_works() {
 /// ```
 #[test]
 fn sending_to_parachain_of_bridged_chain_works() {
+	maybe_with_topic(|| {
+		let dest: MultiLocation = (Parent, Parent, Remote::get(), Parachain(100)).into();
+
+		// Initialize the local relay so that our parachain has funds to pay for export.
+		clear_assets(Parachain(100));
+		add_asset(Parachain(100), (Here, 1000u128));
+
+		let price = 200u128 + if UsingTopic::get() { 20 } else { 0 };
+
+		let msg = Xcm(vec![Trap(1)]);
+		assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, (Parent, price).into());
+		assert_eq!(TheBridge::service(), 1);
+		let expected = vec![(
+			Parachain(100).into(),
+			xcm_with_topic(
+				[0; 32],
+				vec![
+					UniversalOrigin(Local::get().into()),
+					DescendOrigin(Parachain(100).into()),
+					Trap(1),
+				],
+			),
+		)];
+		assert_eq!(take_received_remote_messages(), expected);
+
+		// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of balance).
+		assert_eq!(asset_list(Parachain(100)), vec![(Here, 1000u128 - price).into()]);
+
+		let entry = LogEntry {
+			local: UniversalLocation::get(),
+			remote: RelayUniversalLocation::get(),
+			id: maybe_forward_id_for(&[0; 32]),
+			message: xcm_with_topic(
+				maybe_forward_id_for(&[0; 32]),
+				vec![
+					WithdrawAsset(MultiAsset::from((Here, price)).into()),
+					BuyExecution { fees: (Here, price).into(), weight_limit: Unlimited },
+					ExportMessage {
+						network: ByGenesis([1; 32]),
+						destination: Parachain(100).into(),
+						xcm: xcm_with_topic([0; 32], vec![Trap(1)]),
+					},
+					RefundSurplus,
+					DepositAsset { assets: Wild(All), beneficiary: Parachain(100).into() },
+				],
+			),
+			outcome: Outcome::Complete(test_weight(5)),
+			paid: true,
+		};
+		assert_eq!(RoutingLog::take(), vec![entry]);
+	});
+}
+#[test]
+fn sending_to_parachain_of_bridged_chain_without_funds_fails() {
 	let dest: MultiLocation = (Parent, Parent, Remote::get(), Parachain(100)).into();
 	// Routing won't work if we don't have enough funds.
 	assert_eq!(
 		send_xcm::<LocalRouter>(dest.clone(), Xcm(vec![Trap(1)])),
 		Err(SendError::Transport("Error executing")),
 	);
-
-	// Initialize the local relay so that our parachain has funds to pay for export.
-	add_asset(Parachain(100), (Here, 1000u128));
-
-	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, (Parent, 200u128).into());
-	assert_eq!(TheBridge::service(), 1);
-	let expected = vec![(
-		Parachain(100).into(),
-		Xcm(vec![
-			UniversalOrigin(Local::get().into()),
-			DescendOrigin(Parachain(100).into()),
-			Trap(1),
-		]),
-	)];
-	assert_eq!(take_received_remote_messages(), expected);
-
-	// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of balance).
-	assert_eq!(asset_list(Parachain(100)), vec![(Here, 800u128).into()]);
 }

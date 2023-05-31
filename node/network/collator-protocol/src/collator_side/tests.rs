@@ -19,7 +19,7 @@ use super::*;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
-use futures::{executor, future, Future, SinkExt};
+use futures::{executor, future, Future};
 use futures_timer::Delay;
 
 use parity_scale_codec::{Decode, Encode};
