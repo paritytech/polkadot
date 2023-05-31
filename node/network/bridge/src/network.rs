@@ -61,13 +61,21 @@ pub(crate) fn send_message<M>(
 		encoded
 	};
 
+	// optimization: generate the protocol name once.
+	let protocol_name = protocol_names.get_name(peer_set, version);
+	gum::trace!(
+		target: LOG_TARGET,
+		?peers,
+		?version,
+		?protocol_name,
+		?message,
+		"Sending message to peers",
+	);
+
 	// optimization: avoid cloning the message for the last peer in the
 	// list. The message payload can be quite large. If the underlying
 	// network used `Bytes` this would not be necessary.
 	let last_peer = peers.pop();
-	// optimization: generate the protocol name once.
-	let protocol_name = protocol_names.get_name(peer_set, version);
-	gum::trace!(target: LOG_TARGET, ?peers, ?version, ?protocol_name, "Sending message to peers",);
 	peers.into_iter().for_each(|peer| {
 		net.write_notification(peer, protocol_name.clone(), message.clone());
 	});
