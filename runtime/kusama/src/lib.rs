@@ -1386,13 +1386,13 @@ construct_runtime! {
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 12,
 
-		// Old, deprecated governance stuff. Here purely so storage can be migrated.
-		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 13,
-		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
-		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
-		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 16,
-		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
-		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 36,
+		// Old, deprecated governance pallets. Here purely so storage can be migrated.
+		Democracy: pallet_democracy exclude_parts {Call} = 13,
+		Council: pallet_collective::<Instance1> exclude_parts {Call} = 14,
+		TechnicalCommittee: pallet_collective::<Instance2> exclude_parts {Call} = 15,
+		PhragmenElection: pallet_elections_phragmen exclude_parts {Call} = 16,
+		TechnicalMembership: pallet_membership::<Instance1> exclude_parts {Call} = 17,
+		Tips: pallet_tips exclude_parts {Call} = 36,
 
 		// Governance stuff.
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 18,
