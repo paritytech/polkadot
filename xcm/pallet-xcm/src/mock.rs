@@ -50,6 +50,7 @@ pub mod pallet_test_notifier {
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::DispatchResult;
 	use xcm::latest::prelude::*;
+	use xcm_executor::traits::QueryHandler;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -85,7 +86,7 @@ pub mod pallet_test_notifier {
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
-			let qid = crate::Pallet::<T>::new_query(
+			let qid = <crate::Pallet<T> as QueryHandler>::new_query(
 				Junction::AccountId32 { network: None, id },
 				100u32.into(),
 				querier,
