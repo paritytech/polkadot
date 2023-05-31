@@ -30,17 +30,29 @@
 /// [landlock]: https://docs.rs/landlock/latest/landlock/index.html
 #[cfg(target_os = "linux")]
 pub mod landlock {
-	use landlock::{
-		path_beneath_rules, Access, AccessFs, Ruleset, RulesetAttr, RulesetCreatedAttr,
-		RulesetError, RulesetStatus, ABI,
-	};
+	use landlock::{Access, AccessFs, Ruleset, RulesetAttr, RulesetError, RulesetStatus, ABI};
 
-	/// Returns to what degree landlock is enabled on the current Linux environment.
+	/// Version of landlock ABI. Use the latest version supported by our reference kernel version.
 	///
-	/// This is a separate check so it can run outside a worker thread, so the results can be sent via telemetry.
-	pub fn check_enabled() -> RulesetStatus {
-		// TODO: <https://github.com/landlock-lsm/rust-landlock/issues/36>
-		RulesetStatus::FullyEnforced
+	/// - Reference kernel version: 5.15
+	/// - V1: 5.13
+	/// - V2: 5.19
+	const LANDLOCK_ABI: ABI = ABI::V1;
+
+	// TODO: <https://github.com/landlock-lsm/rust-landlock/issues/36>
+	/// Returns to what degree landlock is enabled on the current Linux environment.
+	pub fn get_status() -> Result<RulesetStatus, Box<dyn std::error::Error>> {
+		match std::thread::spawn(|| try_restrict_thread()).join() {
+			Ok(Ok(status)) => Ok(status),
+			Ok(Err(ruleset_err)) => Err(ruleset_err.into()),
+			Err(_err) => Err("a panic occurred in try_restrict_thread".into()),
+		}
+	}
+
+	/// Returns a single bool indicating whether landlock is fully enabled on the current Linux
+	/// environment.
+	pub fn is_fully_enabled() -> bool {
+		matches!(get_status(), Ok(RulesetStatus::FullyEnforced))
 	}
 
 	/// Tries to restrict the current thread with the following landlock access controls:
@@ -54,9 +66,8 @@ pub mod landlock {
 	///
 	/// The status of the restriction (whether it was fully, partially, or not-at-all enforced).
 	pub fn try_restrict_thread() -> Result<RulesetStatus, RulesetError> {
-		let abi = ABI::V2;
 		let status = Ruleset::new()
-			.handle_access(AccessFs::from_all(abi))?
+			.handle_access(AccessFs::from_all(LANDLOCK_ABI))?
 			.create()?
 			.restrict_self()?;
 		Ok(status.ruleset)
@@ -65,18 +76,12 @@ pub mod landlock {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use assert_matches::assert_matches;
-		use std::{
-			fs,
-			io::{ErrorKind, Read, Write},
-			sync::Arc,
-			thread,
-		};
+		use std::{fs, io::ErrorKind, thread};
 
 		#[test]
 		fn restricted_thread_cannot_access_fs() {
-			// This would be nice: <https://github.com/rust-lang/rust/issues/68007>.
-			if !check_enabled() {
+			// TODO: This would be nice: <https://github.com/rust-lang/rust/issues/68007>.
+			if !is_fully_enabled() {
 				return
 			}
 
@@ -103,7 +108,7 @@ pub mod landlock {
 				));
 			});
 
-			assert_matches!(handle.join(), Ok(()));
+			assert!(handle.join().is_ok());
 
 			// Restricted thread cannot write to FS.
 			let handle = thread::spawn(|| {
@@ -124,7 +129,7 @@ pub mod landlock {
 				));
 			});
 
-			assert_matches!(handle.join(), Ok(()));
+			assert!(handle.join().is_ok());
 		}
 	}
 }
