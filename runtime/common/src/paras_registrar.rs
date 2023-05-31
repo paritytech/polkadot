@@ -926,7 +926,9 @@ mod tests {
 				test_genesis_head(32),
 				validation_code.clone(),
 			));
-			run_to_session(2);
+			conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
+
+			run_to_session(START_SESSION_INDEX + 2);
 			// It is now a parathread (on-demand parachain).
 			assert!(Parachains::is_parathread(para_id));
 			assert!(!Parachains::is_parachain(para_id));

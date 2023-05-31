@@ -2030,6 +2030,13 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	/// Returns whether the given ID refers to a para that is offboarding.
+	///
+	/// An invalid or non-offboarding para ID will return `false`.
+	pub fn is_offboarding(id: ParaId) -> bool {
+		ParaLifecycles::<T>::get(&id).map_or(false, |state| state.is_offboarding())
+	}
+
 	/// Whether a para ID corresponds to any live lease holding parachain.
 	///
 	/// Includes lease holding parachains which will downgrade to a on-demand parachains in the future.
