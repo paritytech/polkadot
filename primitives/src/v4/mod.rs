@@ -820,8 +820,7 @@ pub struct ParathreadEntry {
 }
 
 /// An Assignemnt for a paras going to produce a paras block.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
 pub struct Assignment {
 	/// Assignment's ParaId
 	pub para_id: Id,
@@ -837,8 +836,7 @@ impl Assignment {
 }
 
 /// Restrictions on collators for a specific paras block.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
 pub struct CollatorRestrictions {
 	/// Collators to prefer/allow.
 	/// Empty set means no restrictions.
@@ -878,8 +876,7 @@ impl CollatorRestrictions {
 }
 
 /// How to apply the collator restrictions.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
 pub enum CollatorRestrictionKind {
 	/// peer ids mentioned will be preferred in connections, but others are still allowed.
 	Preferred,
@@ -888,8 +885,7 @@ pub enum CollatorRestrictionKind {
 }
 
 /// An entry tracking a paras
-#[derive(Clone, Encode, Decode, TypeInfo, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
 pub struct ParasEntry {
 	/// The `Assignment`
 	pub assignment: Assignment,
@@ -921,8 +917,8 @@ impl ParasEntry {
 }
 
 /// What is occupying a specific availability core.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreOccupied {
 	/// The core is not occupied.
 	Free,
@@ -1029,8 +1025,8 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	// NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
 	/// If this core is freed by availability, this is the assignment that is next up on this
@@ -1064,8 +1060,8 @@ impl<H, N> OccupiedCore<H, N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct ScheduledCore {
 	// TODO: Is the same as Assignment
 	/// The ID of a para scheduled.
@@ -1075,8 +1071,8 @@ pub struct ScheduledCore {
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = 0)]
