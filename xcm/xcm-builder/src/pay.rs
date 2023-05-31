@@ -26,10 +26,10 @@ use xcm::{opaque::lts::Weight, prelude::*};
 use xcm_executor::traits::{QueryHandler, QueryResponseStatus};
 
 /// Implementation of the `frame_support::traits::tokens::Pay` trait, to allow
-/// for XCM payments of a given `Balance` of some asset ID existing on some chain under
+/// for XCM-based payments of a given `Balance` of some asset ID existing on some chain under
 /// ownership of some `Interior` location of the local chain to a particular `Beneficiary`. The
 /// `AssetKind` value can be converted into both the XCM `AssetId` (via and `Into` bound) and the
-/// the destination chain's location, via the `AssetKindToDestination` type parameter.
+/// the destination chain's location, via the `AssetKindToLocatableAsset` type parameter.
 ///
 /// This relies on the XCM `TransferAsset` instruction. A trait `BeneficiaryRefToLocation` must be
 /// provided in order to convert the `Beneficiary` reference into a location usable by
@@ -67,7 +67,7 @@ impl<
 		Querier: QueryHandler,
 		Timeout: Get<Querier::BlockNumber>,
 		Beneficiary: Clone,
-		AssetKind: Into<AssetId>,
+		AssetKind,
 		AssetKindToLocatableAsset: Convert<AssetKind, LocatableAssetId>,
 		BeneficiaryRefToLocation: for<'a> Convert<&'a Beneficiary, MultiLocation>,
 	> Pay
@@ -145,13 +145,6 @@ impl<
 	#[cfg(feature = "runtime-benchmarks")]
 	fn ensure_concluded(id: Self::Id) {
 		Querier::expect_response(id, Response::ExecutionResult(None));
-	}
-}
-
-pub struct ConvertToValue<T>(sp_std::marker::PhantomData<T>);
-impl<X, Y, T: Get<Y>> Convert<X, Y> for ConvertToValue<T> {
-	fn convert(_: X) -> Y {
-		T::get()
 	}
 }
 
