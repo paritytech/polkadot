@@ -208,85 +208,85 @@ impl BitfieldDistribution {
 				},
 				// Will run if no futures are immediately ready
 				default => {
-				}
-			}
-			let message = match ctx.recv().await {
-				Ok(message) => message,
-				Err(err) => {
-					gum::error!(
-						target: LOG_TARGET,
-						?err,
-						"Failed to receive a message from Overseer, exiting"
-					);
-					return
-				},
-			};
-			match message {
-				FromOrchestra::Communication {
-					msg:
-						BitfieldDistributionMessage::DistributeBitfield(
-							relay_parent,
-							signed_availability,
-						),
-				} => {
-					gum::trace!(target: LOG_TARGET, ?relay_parent, "Processing DistributeBitfield");
-					handle_bitfield_distribution(
-						&mut ctx,
-						state,
-						&self.metrics,
-						relay_parent,
-						signed_availability,
-						rng,
-					)
-					.await;
-				},
-				FromOrchestra::Communication {
-					msg: BitfieldDistributionMessage::NetworkBridgeUpdate(event),
-				} => {
-					gum::trace!(target: LOG_TARGET, "Processing NetworkMessage");
-					// a network message was received
-					handle_network_msg(&mut ctx, state, &self.metrics, event, rng).await;
-				},
-				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated,
-					..
-				})) => {
-					let _timer = self.metrics.time_active_leaves_update();
-
-					if let Some(activated) = activated {
-						let relay_parent = activated.hash;
-
-						gum::trace!(target: LOG_TARGET, ?relay_parent, "activated");
-						let span = PerLeafSpan::new(activated.span, "bitfield-distribution");
-						let _span = span.child("query-basics");
-
-						// query validator set and signing context per relay_parent once only
-						match query_basics(&mut ctx, relay_parent).await {
-							Ok(Some((validator_set, signing_context))) => {
-								// If our runtime API fails, we don't take down the node,
-								// but we might alter peers' reputations erroneously as a result
-								// of not having the correct bookkeeping. If we have lost a race
-								// with state pruning, it is unlikely that peers will be sending
-								// us anything to do with this relay-parent anyway.
-								let _ = state.per_relay_parent.insert(
+					let message = match ctx.recv().await {
+						Ok(message) => message,
+						Err(err) => {
+							gum::error!(
+								target: LOG_TARGET,
+								?err,
+								"Failed to receive a message from Overseer, exiting"
+							);
+							return
+						},
+					};
+					match message {
+						FromOrchestra::Communication {
+							msg:
+								BitfieldDistributionMessage::DistributeBitfield(
 									relay_parent,
-									PerRelayParentData::new(signing_context, validator_set, span),
-								);
-							},
-							Err(err) => {
-								gum::warn!(target: LOG_TARGET, ?err, "query_basics has failed");
-							},
-							_ => {},
-						}
+									signed_availability,
+								),
+						} => {
+							gum::trace!(target: LOG_TARGET, ?relay_parent, "Processing DistributeBitfield");
+							handle_bitfield_distribution(
+								&mut ctx,
+								state,
+								&self.metrics,
+								relay_parent,
+								signed_availability,
+								rng,
+							)
+							.await;
+						},
+						FromOrchestra::Communication {
+							msg: BitfieldDistributionMessage::NetworkBridgeUpdate(event),
+						} => {
+							gum::trace!(target: LOG_TARGET, "Processing NetworkMessage");
+							// a network message was received
+							handle_network_msg(&mut ctx, state, &self.metrics, event, rng).await;
+						},
+						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+							activated,
+							..
+						})) => {
+							let _timer = self.metrics.time_active_leaves_update();
+
+							if let Some(activated) = activated {
+								let relay_parent = activated.hash;
+
+								gum::trace!(target: LOG_TARGET, ?relay_parent, "activated");
+								let span = PerLeafSpan::new(activated.span, "bitfield-distribution");
+								let _span = span.child("query-basics");
+
+								// query validator set and signing context per relay_parent once only
+								match query_basics(&mut ctx, relay_parent).await {
+									Ok(Some((validator_set, signing_context))) => {
+										// If our runtime API fails, we don't take down the node,
+										// but we might alter peers' reputations erroneously as a result
+										// of not having the correct bookkeeping. If we have lost a race
+										// with state pruning, it is unlikely that peers will be sending
+										// us anything to do with this relay-parent anyway.
+										let _ = state.per_relay_parent.insert(
+											relay_parent,
+											PerRelayParentData::new(signing_context, validator_set, span),
+										);
+									},
+									Err(err) => {
+										gum::warn!(target: LOG_TARGET, ?err, "query_basics has failed");
+									},
+									_ => {},
+								}
+							}
+						},
+						FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+							gum::trace!(target: LOG_TARGET, ?hash, %number, "block finalized");
+						},
+						FromOrchestra::Signal(OverseerSignal::Conclude) => {
+							gum::info!(target: LOG_TARGET, "Conclude");
+							return
+						},
 					}
-				},
-				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
-					gum::trace!(target: LOG_TARGET, ?hash, %number, "block finalized");
-				},
-				FromOrchestra::Signal(OverseerSignal::Conclude) => {
-					gum::info!(target: LOG_TARGET, "Conclude");
-					return
-				},
+				}
 			}
 		}
 	}
