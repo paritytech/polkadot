@@ -13,7 +13,7 @@ log = { version = "0.4.17", default-features = false }
 parity-scale-codec = { version = "3.4.0", default-features = false, features = [ "derive", "max-encoded-len" ] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-serde = { version = "1.0.136", optional = true, features = ["derive"] }
+serde = { version = "1.0.163", optional = true, features = ["derive"] }
 xcm-procedural = { path = "procedural" }
 
 [dev-dependencies]

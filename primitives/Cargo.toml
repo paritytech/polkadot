@@ -9,7 +9,7 @@ bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 hex-literal = "0.4.1"
 parity-scale-codec = { version = "3.4.0", default-features = false, features = ["bit-vec", "derive"] }
 scale-info = { version = "2.5.0", default-features = false, features = ["bit-vec", "derive"] }
-serde = { version = "1.0.137", optional = true, features = ["derive"] }
+serde = { version = "1.0.163", optional = true, features = ["derive"] }
 
 application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
