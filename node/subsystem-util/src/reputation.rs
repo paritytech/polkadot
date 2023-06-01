@@ -87,7 +87,7 @@ impl ReputationAggregator {
 		rep: UnifiedReputationChange,
 	) {
 		sender
-			.send_message(NetworkBridgeTxMessage::ReportPeer(peer_id, rep.into_base_rep()))
+			.send_message(NetworkBridgeTxMessage::ReportPeer(peer_id, rep.into()))
 			.await;
 	}
 

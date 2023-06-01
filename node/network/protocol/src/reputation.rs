@@ -81,15 +81,10 @@ impl UnifiedReputationChange {
 			_ => false,
 		}
 	}
-
-	/// Convert into a base reputation as used with substrate.
-	pub const fn into_base_rep(self) -> ReputationChange {
-		ReputationChange::new(self.cost_or_benefit(), self.description())
-	}
 }
 
 impl From<UnifiedReputationChange> for ReputationChange {
 	fn from(value: UnifiedReputationChange) -> Self {
-		value.into()
+		ReputationChange::new(value.cost_or_benefit(), value.description())
 	}
 }
