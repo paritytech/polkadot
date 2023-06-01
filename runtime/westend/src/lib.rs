@@ -1043,6 +1043,7 @@ impl parachains_slashing::Config for Runtime {
 		Offences,
 		ReportLongevity,
 	>;
+	type DisablingStrategy = ();
 	type WeightInfo = weights::runtime_parachains_disputes_slashing::WeightInfo<Runtime>;
 	type BenchmarkingConfig = parachains_slashing::BenchConfig<300>;
 }

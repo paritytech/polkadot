@@ -39,7 +39,7 @@ use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
-	disputes::slashing as parachains_slashing,
+	disputes::{disabling_strategy as parachains_disabling, slashing as parachains_slashing},
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	inclusion::{AggregateMessageOrigin, UmpQueueId},
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
@@ -1132,9 +1132,12 @@ impl parachains_slashing::Config for Runtime {
 		Offences,
 		ReportLongevity,
 	>;
+	type DisablingStrategy = parachains_disabling::ValidatorDisabling<ParasDisabling>;
 	type WeightInfo = parachains_slashing::TestWeightInfo;
 	type BenchmarkingConfig = parachains_slashing::BenchConfig<200>;
 }
+
+impl parachains_disabling::Config for Runtime {}
 
 parameter_types! {
 	pub const ParaDeposit: Balance = 40 * UNITS;
@@ -1465,6 +1468,7 @@ construct_runtime! {
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned} = 63,
 		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 64,
+		ParasDisabling: parachains_disabling::{Pallet} = 65,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config} = 70,

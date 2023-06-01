@@ -91,6 +91,40 @@ impl<const M: u32> BenchmarkingConfiguration for BenchConfig<M> {
 	const MAX_VALIDATORS: u32 = M;
 }
 
+/// Validator disabling hooks
+pub trait ValidatorDisablingHandler<BlockNumber> {
+	/// Called on a new slash. Inserts all the validators in the offenders list.
+	fn on_slash(
+		validators: impl IntoIterator<Item = ValidatorIndex>,
+		offence_kind: SlashingOffenceKind,
+	);
+
+	/// Called by the initializer to initialize the slashing pallet.
+	fn initializer_initialize(now: BlockNumber) -> Weight;
+
+	/// Called by the initializer to finalize the slashing pallet.
+	fn initializer_finalize();
+
+	/// Called by the initializer to note that a new session has started.
+	fn initializer_on_new_session(session_index: SessionIndex);
+}
+
+impl<BlockNumber> ValidatorDisablingHandler<BlockNumber> for () {
+	fn on_slash(
+		_validators: impl IntoIterator<Item = ValidatorIndex>,
+		_offence_kind: SlashingOffenceKind,
+	) {
+	}
+
+	fn initializer_initialize(_now: BlockNumber) -> Weight {
+		Weight::zero()
+	}
+
+	fn initializer_finalize() {}
+
+	fn initializer_on_new_session(_session_index: SessionIndex) {}
+}
+
 /// An offence that is filed when a series of validators lost a dispute.
 #[derive(TypeInfo)]
 #[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]
@@ -250,6 +284,10 @@ where
 			// This is the first time we report an offence for this dispute,
 			// so it is not a duplicate.
 			let _ = T::HandleReports::report_offence(offence);
+
+			// Notify `DisablingStrategy` for the punished validators
+			T::DisablingStrategy::on_slash(to_punish.clone(), kind);
+
 			return
 		}
 
@@ -287,11 +325,14 @@ where
 	fn punish_against_valid(
 		_session_index: SessionIndex,
 		_candidate_hash: CandidateHash,
-		_losers: impl IntoIterator<Item = ValidatorIndex>,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
 		_backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		// do nothing for now
+		// do nothing in terms of slashing for now
 		// NOTE: changing that requires modifying `do_punish` implementation
+
+		// but report the offenders to the `DisablingStrategy`
+		T::DisablingStrategy::on_slash(losers, SlashingOffenceKind::AgainstValid);
 	}
 
 	fn initializer_initialize(now: T::BlockNumber) -> Weight {
@@ -404,6 +445,10 @@ pub mod pallet {
 		/// `ValidateUnsigned` in the runtime definition.
 		type HandleReports: HandleReports<Self>;
 
+		/// Disabling strategy controls which validators should be (temporary)removed
+		/// from the active set based on the severity of their offence.
+		type DisablingStrategy: ValidatorDisablingHandler<Self::BlockNumber>;
+
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 
@@ -509,6 +554,7 @@ pub mod pallet {
 
 			<T::HandleReports as HandleReports<T>>::report_offence(offence)
 				.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
+			T::DisablingStrategy::on_slash(vec![dispute_proof.validator_index], dispute_proof.kind);
 
 			Ok(Pays::No.into())
 		}

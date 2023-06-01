@@ -42,6 +42,7 @@ use sp_std::{cmp::Ordering, collections::btree_set::BTreeSet, prelude::*};
 #[allow(unused_imports)]
 pub(crate) use self::tests::run_to_block;
 
+pub mod disabling_strategy;
 pub mod slashing;
 #[cfg(test)]
 mod tests;
