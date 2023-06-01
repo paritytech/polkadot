@@ -634,7 +634,7 @@ benchmarks! {
 		executor.bench_process(xcm)?;
 	}
 
-	origin_alias {
+	alias_origin {
 		let (origin, target) = T::alias_origin().map_err(|_| BenchmarkError::Skip)?;
 
 		let mut executor = new_executor::<T>(origin);

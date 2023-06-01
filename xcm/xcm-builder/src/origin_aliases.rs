@@ -20,7 +20,7 @@ use frame_support::traits::{Contains, ContainsPair};
 use sp_std::marker::PhantomData;
 use xcm::latest::prelude::*;
 
-/// Alias a Foreign AccountId32 with a sovereign AccountId32 if the Foreign AccountId32 matches the `Prefix` pattern.  
+/// Alias a Foreign AccountId32 with a local AccountId32 if the Foreign AccountId32 matches the `Prefix` pattern.  
 pub struct AliasForeignAccountId32<Prefix>(PhantomData<Prefix>);
 impl<Prefix: Contains<MultiLocation>> ContainsPair<MultiLocation, MultiLocation>
 	for AliasForeignAccountId32<Prefix>
