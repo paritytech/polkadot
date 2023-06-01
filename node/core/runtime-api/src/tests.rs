@@ -42,6 +42,7 @@ struct MockRuntimeApi {
 	validators: Vec<ValidatorId>,
 	validator_groups: Vec<Vec<ValidatorIndex>>,
 	availability_cores: Vec<CoreState>,
+	availability_cores_on_demand: Vec<vstaging::CoreState>,
 	availability_cores_wait: Arc<Mutex<()>>,
 	validation_data: HashMap<ParaId, PersistedValidationData>,
 	session_index_for_child: SessionIndex,
@@ -88,6 +89,11 @@ sp_api::mock_impl_runtime_apis! {
 		fn availability_cores(&self) -> Vec<CoreState> {
 			let _lock = self.availability_cores_wait.lock().unwrap();
 			self.availability_cores.clone()
+		}
+
+		fn availability_cores_on_demand(&self) -> Vec<vstaging::CoreState> {
+			let _lock = self.availability_cores_wait.lock().unwrap();
+			self.availability_cores_on_demand.clone()
 		}
 
 		fn persisted_validation_data(
@@ -334,15 +340,7 @@ fn requests_availability_cores() {
 			})
 			.await;
 
-		assert_eq!(
-			rx.await.unwrap().unwrap(),
-			runtime_api
-				.availability_cores
-				.clone()
-				.into_iter()
-				.map(vstaging::corestate_from_v4)
-				.collect::<Vec<_>>()
-		);
+		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.availability_cores_on_demand);
 
 		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -898,15 +896,7 @@ fn multiple_requests_in_parallel_are_working() {
 		let join = future::join_all(receivers);
 
 		join.await.into_iter().for_each(|r| {
-			assert_eq!(
-				r.unwrap().unwrap(),
-				runtime_api
-					.availability_cores
-					.clone()
-					.into_iter()
-					.map(vstaging::corestate_from_v4)
-					.collect::<Vec<_>>()
-			)
+			assert_eq!(r.unwrap().unwrap(), runtime_api.availability_cores_on_demand)
 		});
 
 		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
