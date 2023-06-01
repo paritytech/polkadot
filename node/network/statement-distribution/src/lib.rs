@@ -55,12 +55,19 @@ use futures::{
 	channel::{mpsc, oneshot},
 	future::RemoteHandle,
 	prelude::*,
+	select,
 };
 use indexmap::{map::Entry as IEntry, IndexMap};
 use sp_keystore::KeystorePtr;
-use util::{reputation::ReputationAggregator, runtime::RuntimeInfo};
+use util::{
+	reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL},
+	runtime::RuntimeInfo,
+};
 
-use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
+use std::{
+	collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
+	time::Duration,
+};
 
 use fatality::Nested;
 
@@ -1768,7 +1775,18 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		}
 	}
 
-	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
+	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), FatalError> {
+		self.run_inner(ctx, REPUTATION_CHANGE_INTERVAL).await
+	}
+
+	async fn run_inner<Context>(
+		mut self,
+		mut ctx: Context,
+		reputation_interval: Duration,
+	) -> std::result::Result<(), FatalError> {
+		let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+		let mut reputation_delay = new_reputation_delay();
+
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
 		let mut topology_storage: SessionBoundGridTopologyStorage = Default::default();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
@@ -1793,55 +1811,61 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		.map_err(FatalError::SpawnTask)?;
 
 		loop {
-			let message =
-				MuxedMessage::receive(&mut ctx, &mut req_receiver, &mut res_receiver).await;
-			match message {
-				MuxedMessage::Subsystem(result) => {
-					let result = self
-						.handle_subsystem_message(
-							&mut ctx,
-							&mut runtime,
-							&mut peers,
-							&mut topology_storage,
-							&mut authorities,
-							&mut active_heads,
-							&mut recent_outdated_heads,
-							&req_sender,
-							result?,
-						)
-						.await;
-					match result.into_nested()? {
-						Ok(true) => break,
-						Ok(false) => {},
-						Err(jfyi) => gum::debug!(target: LOG_TARGET, error = ?jfyi),
-					}
+			select! {
+				_ = reputation_delay => {
+					self.reputation.send(ctx.sender()).await;
+					reputation_delay = new_reputation_delay();
 				},
-				MuxedMessage::Requester(result) => {
-					let result = self
-						.handle_requester_message(
-							&mut ctx,
-							&topology_storage,
-							&mut peers,
-							&mut active_heads,
-							&recent_outdated_heads,
-							&req_sender,
-							&mut runtime,
-							result.ok_or(FatalError::RequesterReceiverFinished)?,
-						)
-						.await;
-					log_error(result.map_err(From::from), "handle_requester_message")?;
-				},
-				MuxedMessage::Responder(result) => {
-					let result = self
-						.handle_responder_message(
-							&peers,
-							&mut active_heads,
-							result.ok_or(FatalError::ResponderReceiverFinished)?,
-						)
-						.await;
-					log_error(result.map_err(From::from), "handle_responder_message")?;
-				},
-			};
+				message = MuxedMessage::receive(&mut ctx, &mut req_receiver, &mut res_receiver).fuse() => {
+					match message {
+						MuxedMessage::Subsystem(result) => {
+							let result = self
+								.handle_subsystem_message(
+									&mut ctx,
+									&mut runtime,
+									&mut peers,
+									&mut topology_storage,
+									&mut authorities,
+									&mut active_heads,
+									&mut recent_outdated_heads,
+									&req_sender,
+									result?,
+								)
+								.await;
+							match result.into_nested()? {
+								Ok(true) => break,
+								Ok(false) => {},
+								Err(jfyi) => gum::debug!(target: LOG_TARGET, error = ?jfyi),
+							}
+						},
+						MuxedMessage::Requester(result) => {
+							let result = self
+								.handle_requester_message(
+									&mut ctx,
+									&topology_storage,
+									&mut peers,
+									&mut active_heads,
+									&recent_outdated_heads,
+									&req_sender,
+									&mut runtime,
+									result.ok_or(FatalError::RequesterReceiverFinished)?,
+								)
+								.await;
+							log_error(result.map_err(From::from), "handle_requester_message")?;
+						},
+						MuxedMessage::Responder(result) => {
+							let result = self
+								.handle_responder_message(
+									&peers,
+									&mut active_heads,
+									result.ok_or(FatalError::ResponderReceiverFinished)?,
+								)
+								.await;
+							log_error(result.map_err(From::from), "handle_responder_message")?;
+						},
+					};
+				}
+			}
 		}
 		Ok(())
 	}
