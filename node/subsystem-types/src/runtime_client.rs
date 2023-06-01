@@ -252,9 +252,12 @@ where
 		&self,
 		at: Hash,
 	) -> Result<Vec<CoreState<Hash, BlockNumber>>, ApiError> {
-		let version = self.api_version_parachain_host(at).await;
-		// TODO: less unwrap()
-		if version.unwrap().unwrap() >= 5 {
+		let version = self
+			.api_version_parachain_host(at)
+			.await
+			.unwrap_or_default()
+			.unwrap_or_default();
+		if version >= 5 {
 			self.runtime_api().availability_cores_on_demand(at)
 		} else {
 			self.runtime_api()
