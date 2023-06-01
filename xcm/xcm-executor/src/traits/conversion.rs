@@ -29,6 +29,7 @@ use xcm::latest::prelude::*;
 ///
 /// Can be amalgamated into tuples. If any of the tuple elements converts into `Ok(_)` it short circuits. Otherwise returns
 /// the `Err(_)` of the last failing conversion (or `Err(())` for ref conversions).
+#[deprecated = "Use sp_runtime::traits::Convert and ConvertBack instead"]
 pub trait Convert<A: Clone, B: Clone> {
 	/// Convert from `value` (of type `A`) into an equivalent value of type `B`, `Err` if not possible.
 	fn convert(value: A) -> Result<B, A> {
