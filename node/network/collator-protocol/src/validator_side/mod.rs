@@ -1239,7 +1239,8 @@ pub(crate) async fn run<Context>(
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> std::result::Result<(), crate::error::FatalError> {
-	let mut state = State { metrics, ..Default::default() };
+	let mut state =
+		State { metrics, reputation: ReputationAggregator::new(|_| true), ..Default::default() };
 
 	let next_inactivity_stream = tick_stream(ACTIVITY_POLL);
 	futures::pin_mut!(next_inactivity_stream);
