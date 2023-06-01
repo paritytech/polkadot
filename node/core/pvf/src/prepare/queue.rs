@@ -17,10 +17,11 @@
 //! A queue that handles requests for PVF preparation.
 
 use super::pool::{self, Worker};
-use crate::{artifacts::ArtifactId, metrics::Metrics, Priority, LOG_TARGET};
+use crate::{
+	artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, PvfPrepData, LOG_TARGET,
+};
 use always_assert::{always, never};
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
-use polkadot_node_core_pvf_common::{error::PrepareResult, pvf::PvfPrepData};
 use std::{
 	collections::{HashMap, VecDeque},
 	path::PathBuf,
@@ -230,7 +231,7 @@ async fn handle_enqueue(
 	);
 	queue.metrics.prepare_enqueued();
 
-	let artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
+	let artifact_id = pvf.as_artifact_id();
 	if never!(
 		queue.artifact_id_to_job.contains_key(&artifact_id),
 		"second Enqueue sent for a known artifact"
@@ -338,7 +339,7 @@ async fn handle_worker_concluded(
 	// this can't be None;
 	// qed.
 	let job_data = never_none!(queue.jobs.remove(job));
-	let artifact_id = ArtifactId::from_pvf_prep_data(&job_data.pvf);
+	let artifact_id = job_data.pvf.as_artifact_id();
 
 	queue.artifact_id_to_job.remove(&artifact_id);
 
@@ -424,7 +425,7 @@ async fn spawn_extra_worker(queue: &mut Queue, critical: bool) -> Result<(), Fat
 async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal> {
 	let job_data = &mut queue.jobs[job];
 
-	let artifact_id = ArtifactId::from_pvf_prep_data(&job_data.pvf);
+	let artifact_id = job_data.pvf.as_artifact_id();
 	let artifact_path = artifact_id.path(&queue.cache_path);
 
 	job_data.worker = Some(worker);
@@ -487,10 +488,11 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::host::tests::TEST_PREPARATION_TIMEOUT;
+	use crate::{
+		error::PrepareError, host::tests::TEST_PREPARATION_TIMEOUT, prepare::PrepareStats,
+	};
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
-	use polkadot_node_core_pvf_common::{error::PrepareError, prepare::PrepareStats};
 	use slotmap::SlotMap;
 	use std::task::Poll;
 
@@ -614,10 +616,7 @@ mod tests {
 			result: Ok(PrepareStats::default()),
 		});
 
-		assert_eq!(
-			test.poll_and_recv_from_queue().await.artifact_id,
-			ArtifactId::from_pvf_prep_data(&pvf(1))
-		);
+		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
 	}
 
 	#[tokio::test]
@@ -736,10 +735,7 @@ mod tests {
 		// Since there is still work, the queue requested one extra worker to spawn to handle the
 		// remaining enqueued work items.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
-		assert_eq!(
-			test.poll_and_recv_from_queue().await.artifact_id,
-			ArtifactId::from_pvf_prep_data(&pvf(1))
-		);
+		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
 	}
 
 	#[tokio::test]

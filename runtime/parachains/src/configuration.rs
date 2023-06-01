@@ -19,7 +19,7 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use crate::{inclusion::MAX_UPWARD_MESSAGE_SIZE_BOUND, shared};
-use frame_support::{pallet_prelude::*, DefaultNoBound};
+use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
@@ -438,6 +438,7 @@ pub trait WeightInfo {
 	fn set_config_with_block_number() -> Weight;
 	fn set_config_with_u32() -> Weight;
 	fn set_config_with_option_u32() -> Weight;
+	fn set_config_with_weight() -> Weight;
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
 	fn set_config_with_executor_params() -> Weight;
@@ -452,6 +453,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn set_config_with_option_u32() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_weight() -> Weight {
 		Weight::MAX
 	}
 	fn set_config_with_balance() -> Weight {
@@ -521,9 +525,15 @@ pub mod pallet {
 	pub(crate) type BypassConsistencyCheck<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	#[pallet::genesis_config]
-	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
 		pub config: HostConfiguration<T::BlockNumber>,
+	}
+
+	#[cfg(feature = "std")]
+	impl<T: Config> Default for GenesisConfig<T> {
+		fn default() -> Self {
+			GenesisConfig { config: Default::default() }
+		}
 	}
 
 	#[pallet::genesis_build]

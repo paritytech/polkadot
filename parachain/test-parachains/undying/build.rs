@@ -17,9 +17,5 @@
 use substrate_wasm_builder::WasmBuilder;
 
 fn main() {
-	WasmBuilder::new()
-		.with_current_project()
-		.export_heap_base()
-		.disable_runtime_version_section_check()
-		.build()
+	WasmBuilder::new().with_current_project().export_heap_base().build()
 }

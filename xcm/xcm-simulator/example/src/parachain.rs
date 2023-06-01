@@ -17,10 +17,9 @@
 //! Parachain runtime mock.
 
 use codec::{Decode, Encode};
-use core::marker::PhantomData;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{ContainsPair, EnsureOrigin, EnsureOriginWithArg, Everything, EverythingBut, Nothing},
+	traits::{EnsureOrigin, EnsureOriginWithArg, Everything, EverythingBut, Nothing},
 	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
 
@@ -28,7 +27,7 @@ use frame_system::EnsureRoot;
 use sp_core::{ConstU32, H256};
 use sp_runtime::{
 	testing::Header,
-	traits::{Get, Hash, IdentityLookup},
+	traits::{Hash, IdentityLookup},
 	AccountId32,
 };
 use sp_std::prelude::*;
@@ -239,7 +238,7 @@ impl Config for XcmConfig {
 	type Trader = FixedRateOfFungible<KsmPerSecondPerByte, ()>;
 	type ResponseHandler = ();
 	type AssetTrap = ();
-	type AssetLocker = PolkadotXcm;
+	type AssetLocker = ();
 	type AssetExchanger = ();
 	type AssetClaims = ();
 	type SubscriptionService = ();
@@ -326,7 +325,7 @@ pub mod mock_msg_queue {
 				Ok(xcm) => {
 					let location = (Parent, Parachain(sender.into()));
 					match T::XcmExecutor::execute_xcm(location, xcm, message_hash, max_weight) {
-						Outcome::Error(e) => (Err(e), Event::Fail(Some(hash), e)),
+						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
 						Outcome::Complete(w) => (Ok(w), Event::Success(Some(hash))),
 						// As far as the caller is concerned, this was dispatched without error, so
 						// we just report the weight used.
@@ -350,7 +349,7 @@ pub mod mock_msg_queue {
 				let _ = XcmpMessageFormat::decode(&mut data_ref)
 					.expect("Simulator encodes with versioned xcm format; qed");
 
-				let mut remaining_fragments = data_ref;
+				let mut remaining_fragments = &data_ref[..];
 				while !remaining_fragments.is_empty() {
 					if let Ok(xcm) =
 						VersionedXcm::<T::RuntimeCall>::decode(&mut remaining_fragments)
@@ -404,22 +403,6 @@ parameter_types! {
 	pub ReachableDest: Option<MultiLocation> = Some(Parent.into());
 }
 
-pub struct TrustedLockerCase<T>(PhantomData<T>);
-impl<T: Get<(MultiLocation, MultiAssetFilter)>> ContainsPair<MultiLocation, MultiAsset>
-	for TrustedLockerCase<T>
-{
-	fn contains(origin: &MultiLocation, asset: &MultiAsset) -> bool {
-		let (o, a) = T::get();
-		a.matches(asset) && &o == origin
-	}
-}
-
-parameter_types! {
-	pub RelayTokenForRelay: (MultiLocation, MultiAssetFilter) = (Parent.into(), Wild(AllOf { id: Concrete(Parent.into()), fun: WildFungible }));
-}
-
-pub type TrustedLockers = TrustedLockerCase<RelayTokenForRelay>;
-
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type SendXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
@@ -437,7 +420,7 @@ impl pallet_xcm::Config for Runtime {
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 	type Currency = Balances;
 	type CurrencyMatcher = ();
-	type TrustedLockers = TrustedLockers;
+	type TrustedLockers = ();
 	type SovereignAccountOf = LocationToAccountId;
 	type MaxLockers = ConstU32<8>;
 	type MaxRemoteLockConsumers = ConstU32<0>;
