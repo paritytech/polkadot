@@ -30,8 +30,8 @@ use polkadot_node_subsystem_types::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::{
-	CandidateHash, CandidateReceipt, CollatorPair, Id as ParaId, InvalidDisputeStatementKind,
-	PvfExecTimeoutKind, SessionIndex, ValidDisputeStatementKind, ValidatorIndex,
+	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind, PvfExecTimeoutKind,
+	SessionIndex, ValidDisputeStatementKind, ValidatorIndex,
 };
 
 use crate::{
@@ -909,17 +909,10 @@ fn test_chain_selection_msg() -> ChainSelectionMessage {
 	ChainSelectionMessage::Approved(Default::default())
 }
 
-fn test_prospective_parachains_msg() -> ProspectiveParachainsMessage {
-	ProspectiveParachainsMessage::CandidateBacked(
-		ParaId::from(5),
-		CandidateHash(Hash::repeat_byte(0)),
-	)
-}
-
 // Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
 #[test]
 fn overseer_all_subsystems_receive_signals_and_messages() {
-	const NUM_SUBSYSTEMS: usize = 23;
+	const NUM_SUBSYSTEMS: usize = 22;
 	// -4 for BitfieldSigning, GossipSupport, AvailabilityDistribution and PvfCheckerSubsystem.
 	const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 4;
 
@@ -1007,9 +1000,6 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 		handle
 			.send_msg_anon(AllMessages::ChainSelection(test_chain_selection_msg()))
 			.await;
-		handle
-			.send_msg_anon(AllMessages::ProspectiveParachains(test_prospective_parachains_msg()))
-			.await;
 		// handle.send_msg_anon(AllMessages::PvfChecker(test_pvf_checker_msg())).await;
 
 		// Wait until all subsystems have received. Otherwise the messages might race against
@@ -1066,7 +1056,6 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (dispute_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (chain_selection_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (pvf_checker_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-	let (prospective_parachains_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 
 	let (candidate_validation_unbounded_tx, _) = metered::unbounded();
 	let (candidate_backing_unbounded_tx, _) = metered::unbounded();
@@ -1090,7 +1079,6 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (dispute_distribution_unbounded_tx, _) = metered::unbounded();
 	let (chain_selection_unbounded_tx, _) = metered::unbounded();
 	let (pvf_checker_unbounded_tx, _) = metered::unbounded();
-	let (prospective_parachains_unbounded_tx, _) = metered::unbounded();
 
 	let channels_out = ChannelsOut {
 		candidate_validation: candidate_validation_bounded_tx.clone(),
@@ -1115,7 +1103,6 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		dispute_distribution: dispute_distribution_bounded_tx.clone(),
 		chain_selection: chain_selection_bounded_tx.clone(),
 		pvf_checker: pvf_checker_bounded_tx.clone(),
-		prospective_parachains: prospective_parachains_bounded_tx.clone(),
 
 		candidate_validation_unbounded: candidate_validation_unbounded_tx.clone(),
 		candidate_backing_unbounded: candidate_backing_unbounded_tx.clone(),
@@ -1139,7 +1126,6 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		dispute_distribution_unbounded: dispute_distribution_unbounded_tx.clone(),
 		chain_selection_unbounded: chain_selection_unbounded_tx.clone(),
 		pvf_checker_unbounded: pvf_checker_unbounded_tx.clone(),
-		prospective_parachains_unbounded: prospective_parachains_unbounded_tx.clone(),
 	};
 
 	let (mut signal_tx, signal_rx) = metered::channel(CHANNEL_CAPACITY);

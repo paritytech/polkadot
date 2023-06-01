@@ -24,8 +24,8 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	disputes, dmp, hrmp, paras,
 	paras_inherent::DisputedBitfield,
-	scheduler::{self, CoreAssignment},
-	shared::{self, AllowedRelayParentsTracker},
+	scheduler::CoreAssignment,
+	shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{
@@ -153,14 +153,6 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 		&self.descriptor
 	}
 
-	/// Get the candidate's relay parent's number.
-	pub(crate) fn relay_parent_number(&self) -> N
-	where
-		N: Clone,
-	{
-		self.relay_parent_number.clone()
-	}
-
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	pub(crate) fn new(
 		core: CoreIndex,
@@ -215,7 +207,8 @@ impl<H> Default for ProcessedCandidates<H> {
 
 /// Number of backing votes we need for a valid backing.
 ///
-/// WARNING: This check has to be kept in sync with the node side checks.
+/// WARNING: This check has to be kept in sync with the node side check in the backing
+/// subsystem.
 pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	// For considerations on this value see:
 	// https://github.com/paritytech/polkadot/pull/1656#issuecomment-999734650
@@ -289,7 +282,6 @@ pub mod pallet {
 		+ dmp::Config
 		+ hrmp::Config
 		+ configuration::Config
-		+ scheduler::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
@@ -353,12 +345,8 @@ pub mod pallet {
 		PrematureCodeUpgrade,
 		/// Output code is too large
 		NewCodeTooLarge,
-		/// The candidate's relay-parent was not allowed. Either it was
-		/// not recent enough or it didn't advance based on the last parachain block.
-		DisallowedRelayParent,
-		/// Failed to compute group index for the core: either it's out of bounds
-		/// or the relay parent doesn't belong to the current session.
-		InvalidAssignment,
+		/// Candidate not in parent context.
+		CandidateNotInParentContext,
 		/// Invalid group index in core assignment.
 		InvalidGroupIndex,
 		/// Insufficient (non-majority) backing.
@@ -653,7 +641,7 @@ impl<T: Config> Pallet<T> {
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
 	pub(crate) fn process_candidates<GV>(
-		allowed_relay_parents: &AllowedRelayParentsTracker<T::Hash, T::BlockNumber>,
+		parent_storage_root: T::Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: GV,
@@ -661,8 +649,6 @@ impl<T: Config> Pallet<T> {
 	where
 		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
 	{
-		let now = <frame_system::Pallet<T>>::block_number();
-
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
@@ -670,6 +656,13 @@ impl<T: Config> Pallet<T> {
 		}
 
 		let validators = shared::Pallet::<T>::active_validator_keys();
+		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+
+		// At the moment we assume (and in fact enforce, below) that the relay-parent is always one
+		// before of the block where we include a candidate (i.e. this code path).
+		let now = <frame_system::Pallet<T>>::block_number();
+		let relay_parent_number = now - One::one();
+		let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
 		// Collect candidate receipts with backers.
 		let mut candidate_receipt_with_backing_validator_indices =
@@ -691,6 +684,9 @@ impl<T: Config> Pallet<T> {
 				Ok(())
 			};
 
+			let signing_context =
+				SigningContext { parent_hash, session_index: shared::Pallet::<T>::session_index() };
+
 			// We combine an outer loop over candidates with an inner loop over the scheduled,
 			// where each iteration of the outer loop picks up at the position
 			// in scheduled just after the past iteration left off.
@@ -704,27 +700,18 @@ impl<T: Config> Pallet<T> {
 			'next_backed_candidate: for (candidate_idx, backed_candidate) in
 				candidates.iter().enumerate()
 			{
-				let relay_parent_hash = backed_candidate.descriptor().relay_parent;
-				let para_id = backed_candidate.descriptor().para_id;
-
-				let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
-
-				let check_ctx = CandidateCheckContext::<T>::new(prev_context);
-				let signing_context = SigningContext {
-					parent_hash: relay_parent_hash,
-					session_index: shared::Pallet::<T>::session_index(),
-				};
-
-				let relay_parent_number = match check_ctx.verify_backed_candidate(
-					&allowed_relay_parents,
+				match check_ctx.verify_backed_candidate(
+					parent_hash,
+					parent_storage_root,
 					candidate_idx,
 					backed_candidate,
 				)? {
 					Err(FailedToCreatePVD) => {
 						log::debug!(
 							target: LOG_TARGET,
-							"Failed to create PVD for candidate {}",
+							"Failed to create PVD for candidate {} on relay parent {:?}",
 							candidate_idx,
+							parent_hash,
 						);
 						// We don't want to error out here because it will
 						// brick the relay-chain. So we return early without
@@ -732,7 +719,7 @@ impl<T: Config> Pallet<T> {
 						return Ok(ProcessedCandidates::default())
 					},
 					Ok(rpn) => rpn,
-				};
+				}
 
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
@@ -757,22 +744,7 @@ impl<T: Config> Pallet<T> {
 						// account for already skipped, and then skip this one.
 						skip = i + skip + 1;
 
-						// The candidate based upon relay parent `N` should be backed by a group
-						// assigned to core at block `N + 1`. Thus, `relay_parent_number + 1`
-						// will always land in the current session.
-						let group_idx = <scheduler::Pallet<T>>::group_assigned_to_core(
-							assignment.core,
-							relay_parent_number + One::one(),
-						)
-						.ok_or_else(|| {
-							log::warn!(
-								target: LOG_TARGET,
-								"Failed to compute group index for candidate {}",
-								candidate_idx
-							);
-							Error::<T>::InvalidAssignment
-						})?;
-						let group_vals = group_validators(group_idx)
+						let group_vals = group_validators(assignment.group_idx)
 							.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
 
 						// check the signatures in the backing and that it is a majority.
@@ -826,8 +798,7 @@ impl<T: Config> Pallet<T> {
 						core_indices_and_backers.push((
 							assignment.core,
 							backers,
-							group_idx,
-							relay_parent_number,
+							assignment.group_idx,
 						));
 						continue 'next_backed_candidate
 					}
@@ -848,8 +819,8 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// one more sweep for actually writing to storage.
-		let core_indices = core_indices_and_backers.iter().map(|(c, ..)| *c).collect();
-		for (candidate, (core, backers, group, relay_parent_number)) in
+		let core_indices = core_indices_and_backers.iter().map(|(c, _, _)| *c).collect();
+		for (candidate, (core, backers, group)) in
 			candidates.into_iter().zip(core_indices_and_backers)
 		{
 			let para_id = candidate.descriptor().para_id;
@@ -879,7 +850,7 @@ impl<T: Config> Pallet<T> {
 					availability_votes,
 					relay_parent_number,
 					backers: backers.to_bitvec(),
-					backed_in_number: now,
+					backed_in_number: check_ctx.now,
 					backing_group: group,
 				},
 			);
@@ -895,16 +866,17 @@ impl<T: Config> Pallet<T> {
 	/// Run the acceptance criteria checks on the given candidate commitments.
 	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
-		relay_parent_number: T::BlockNumber,
 		validation_outputs: primitives::CandidateCommitments,
 	) -> bool {
-		let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
-		let check_ctx = CandidateCheckContext::<T>::new(prev_context);
+		// This function is meant to be called from the runtime APIs against the relay-parent, hence
+		// `relay_parent_number` is equal to `now`.
+		let now = <frame_system::Pallet<T>>::block_number();
+		let relay_parent_number = now;
+		let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
 		if check_ctx
 			.check_validation_outputs(
 				para_id,
-				relay_parent_number,
 				&validation_outputs.head_data,
 				&validation_outputs.new_validation_code,
 				validation_outputs.processed_downward_messages,
@@ -996,11 +968,6 @@ impl<T: Config> Pallet<T> {
 		))
 	}
 
-	pub(crate) fn relay_dispatch_queue_size(para_id: ParaId) -> (u32, u32) {
-		let fp = T::MessageQueue::footprint(AggregateMessageOrigin::Ump(UmpQueueId::Para(para_id)));
-		(fp.count as u32, fp.size as u32)
-	}
-
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria.
 	pub(crate) fn check_upward_messages(
 		config: &HostConfiguration<T::BlockNumber>,
@@ -1012,41 +979,45 @@ impl<T: Config> Pallet<T> {
 			ensure!(upward_messages.is_empty(), UmpAcceptanceCheckErr::IsOffboarding);
 		}
 
-		let additional_msgs = upward_messages.len() as u32;
-		if additional_msgs > config.max_upward_message_num_per_candidate {
+		let additional_msgs = upward_messages.len();
+		if additional_msgs > config.max_upward_message_num_per_candidate as usize {
 			return Err(UmpAcceptanceCheckErr::MoreMessagesThanPermitted {
-				sent: additional_msgs,
+				sent: additional_msgs as u32,
 				permitted: config.max_upward_message_num_per_candidate,
 			})
 		}
 
-		let (para_queue_count, mut para_queue_size) = Self::relay_dispatch_queue_size(para);
+		let fp = T::MessageQueue::footprint(AggregateMessageOrigin::Ump(UmpQueueId::Para(para)));
+		let (para_queue_count, mut para_queue_size) = (fp.count, fp.size);
 
-		if para_queue_count.saturating_add(additional_msgs) > config.max_upward_queue_count {
+		if para_queue_count.saturating_add(additional_msgs as u64) >
+			config.max_upward_queue_count as u64
+		{
 			return Err(UmpAcceptanceCheckErr::CapacityExceeded {
-				count: para_queue_count.saturating_add(additional_msgs).into(),
-				limit: config.max_upward_queue_count.into(),
+				count: para_queue_count.saturating_add(additional_msgs as u64),
+				limit: config.max_upward_queue_count as u64,
 			})
 		}
 
 		for (idx, msg) in upward_messages.into_iter().enumerate() {
-			let msg_size = msg.len() as u32;
-			if msg_size > config.max_upward_message_size {
+			let msg_size = msg.len();
+			if msg_size > config.max_upward_message_size as usize {
 				return Err(UmpAcceptanceCheckErr::MessageSize {
 					idx: idx as u32,
-					msg_size,
+					msg_size: msg_size as u32,
 					max_size: config.max_upward_message_size,
 				})
 			}
 			// make sure that the queue is not overfilled.
 			// we do it here only once since returning false invalidates the whole relay-chain block.
-			if para_queue_size.saturating_add(msg_size) > config.max_upward_queue_size {
+			if para_queue_size.saturating_add(msg_size as u64) > config.max_upward_queue_size as u64
+			{
 				return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
-					total_size: para_queue_size.saturating_add(msg_size).into(),
-					limit: config.max_upward_queue_size.into(),
+					total_size: para_queue_size.saturating_add(msg_size as u64),
+					limit: config.max_upward_queue_size as u64,
 				})
 			}
-			para_queue_size.saturating_accrue(msg_size);
+			para_queue_size.saturating_accrue(msg_size as u64);
 		}
 
 		Ok(())
@@ -1241,7 +1212,8 @@ impl<T: Config> OnQueueChanged<AggregateMessageOrigin> for Pallet<T> {
 /// A collection of data required for checking a candidate.
 pub(crate) struct CandidateCheckContext<T: Config> {
 	config: configuration::HostConfiguration<T::BlockNumber>,
-	prev_context: Option<T::BlockNumber>,
+	now: T::BlockNumber,
+	relay_parent_number: T::BlockNumber,
 }
 
 /// An error indicating that creating Persisted Validation Data failed
@@ -1249,41 +1221,33 @@ pub(crate) struct CandidateCheckContext<T: Config> {
 pub(crate) struct FailedToCreatePVD;
 
 impl<T: Config> CandidateCheckContext<T> {
-	pub(crate) fn new(prev_context: Option<T::BlockNumber>) -> Self {
-		Self { config: <configuration::Pallet<T>>::config(), prev_context }
+	pub(crate) fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
+		Self { config: <configuration::Pallet<T>>::config(), now, relay_parent_number }
 	}
 
 	/// Execute verification of the candidate.
 	///
 	/// Assures:
-	///  * relay-parent in-bounds
+	///  * correct expected relay parent reference
 	///  * collator signature check passes
 	///  * code hash of commitments matches current code hash
 	///  * para head in the descriptor and commitments match
-	///
-	/// Returns the relay-parent block number.
 	pub(crate) fn verify_backed_candidate(
 		&self,
-		allowed_relay_parents: &AllowedRelayParentsTracker<T::Hash, T::BlockNumber>,
+		parent_hash: <T as frame_system::Config>::Hash,
+		parent_storage_root: T::Hash,
 		candidate_idx: usize,
 		backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>,
-	) -> Result<Result<T::BlockNumber, FailedToCreatePVD>, Error<T>> {
+	) -> Result<Result<(), FailedToCreatePVD>, Error<T>> {
 		let para_id = backed_candidate.descriptor().para_id;
-		let relay_parent = backed_candidate.descriptor().relay_parent;
-
-		// Check that the relay-parent is one of the allowed relay-parents.
-		let (relay_parent_storage_root, relay_parent_number) = {
-			match allowed_relay_parents.acquire_info(relay_parent, self.prev_context) {
-				None => return Err(Error::<T>::DisallowedRelayParent),
-				Some(info) => info,
-			}
-		};
+		let now = <frame_system::Pallet<T>>::block_number();
+		let relay_parent_number = now - One::one();
 
 		{
 			let persisted_validation_data = match crate::util::make_persisted_validation_data::<T>(
 				para_id,
 				relay_parent_number,
-				relay_parent_storage_root,
+				parent_storage_root,
 			)
 			.defensive_proof("the para is registered")
 			{
@@ -1299,6 +1263,11 @@ impl<T: Config> CandidateCheckContext<T> {
 			);
 		}
 
+		// we require that the candidate is in the context of the parent block.
+		ensure!(
+			backed_candidate.descriptor().relay_parent == parent_hash,
+			Error::<T>::CandidateNotInParentContext,
+		);
 		ensure!(
 			backed_candidate.descriptor().check_collator_signature().is_ok(),
 			Error::<T>::NotCollatorSigned,
@@ -1320,7 +1289,6 @@ impl<T: Config> CandidateCheckContext<T> {
 
 		if let Err(err) = self.check_validation_outputs(
 			para_id,
-			relay_parent_number,
 			&backed_candidate.candidate.commitments.head_data,
 			&backed_candidate.candidate.commitments.new_validation_code,
 			backed_candidate.candidate.commitments.processed_downward_messages,
@@ -1336,29 +1304,14 @@ impl<T: Config> CandidateCheckContext<T> {
 			);
 			Err(err.strip_into_dispatch_err::<T>())?;
 		};
-		Ok(Ok(relay_parent_number))
+		Ok(Ok(()))
 	}
 
 	/// Check the given outputs after candidate validation on whether it passes the acceptance
 	/// criteria.
-	///
-	/// The things that are checked can be roughly divided into limits and minimums.
-	///
-	/// Limits are things like max message queue sizes and max head data size.
-	///
-	/// Minimums are things like the minimum amount of messages that must be processed
-	/// by the parachain block.
-	///
-	/// Limits are checked against the current state. The parachain block must be acceptable
-	/// by the current relay-chain state regardless of whether it was acceptable at some relay-chain
-	/// state in the past.
-	///
-	/// Minimums are checked against the current state but modulated by
-	/// considering the information available at the relay-parent of the parachain block.
 	fn check_validation_outputs(
 		&self,
 		para_id: ParaId,
-		relay_parent_number: T::BlockNumber,
 		head_data: &HeadData,
 		new_validation_code: &Option<primitives::ValidationCode>,
 		processed_downward_messages: u32,
@@ -1384,13 +1337,9 @@ impl<T: Config> CandidateCheckContext<T> {
 		}
 
 		// check if the candidate passes the messaging acceptance criteria
-		<dmp::Pallet<T>>::check_processed_downward_messages(
-			para_id,
-			relay_parent_number,
-			processed_downward_messages,
-		)?;
+		<dmp::Pallet<T>>::check_processed_downward_messages(para_id, processed_downward_messages)?;
 		Pallet::<T>::check_upward_messages(&self.config, para_id, upward_messages)?;
-		<hrmp::Pallet<T>>::check_hrmp_watermark(para_id, relay_parent_number, hrmp_watermark)?;
+		<hrmp::Pallet<T>>::check_hrmp_watermark(para_id, self.relay_parent_number, hrmp_watermark)?;
 		<hrmp::Pallet<T>>::check_outbound_hrmp(&self.config, para_id, horizontal_messages)?;
 
 		Ok(())

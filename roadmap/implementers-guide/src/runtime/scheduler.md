@@ -137,6 +137,7 @@ struct CoreAssignment {
   core: CoreIndex,
   para_id: ParaId,
   kind: AssignmentKind,
+  group_idx: GroupIndex,
 }
 // reasons a core might be freed.
 enum FreedReason {

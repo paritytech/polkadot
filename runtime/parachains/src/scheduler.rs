@@ -51,10 +51,6 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
-pub mod migration;
-
-const LOG_TARGET: &str = "runtime::scheduler";
-
 /// A queued parathread entry, pre-assigned to a core.
 #[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
@@ -131,6 +127,8 @@ pub struct CoreAssignment {
 	pub para_id: ParaId,
 	/// The kind of the assignment.
 	pub kind: AssignmentKind,
+	/// The index of the validator group assigned to the core.
+	pub group_idx: GroupIndex,
 }
 
 impl CoreAssignment {
@@ -161,7 +159,6 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
-	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -422,7 +419,10 @@ impl<T: Config> Pallet<T> {
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
 	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
 	/// ascending order by core index.
-	pub(crate) fn schedule(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
+	pub(crate) fn schedule(
+		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
+		now: T::BlockNumber,
+	) {
 		Self::free_cores(just_freed_cores);
 
 		let cores = AvailabilityCores::<T>::get();
@@ -483,6 +483,10 @@ impl<T: Config> Pallet<T> {
 						kind: AssignmentKind::Parachain,
 						para_id: parachains[core_index],
 						core,
+						group_idx: Self::group_assigned_to_core(core, now).expect(
+							"core is not out of bounds and we are guaranteed \
+									to be after the most recent session start; qed",
+						),
 					})
 				} else {
 					// parathread core offset, rel. to beginning.
@@ -492,6 +496,10 @@ impl<T: Config> Pallet<T> {
 						kind: AssignmentKind::Parathread(entry.claim.1, entry.retries),
 						para_id: entry.claim.0,
 						core,
+						group_idx: Self::group_assigned_to_core(core, now).expect(
+							"core is not out of bounds and we are guaranteed \
+									to be after the most recent session start; qed",
+						),
 					})
 				};
 
@@ -750,10 +758,5 @@ impl<T: Config> Pallet<T> {
 				}
 			}
 		});
-	}
-
-	#[cfg(test)]
-	pub(crate) fn set_validator_groups(validator_groups: Vec<Vec<ValidatorIndex>>) {
-		ValidatorGroups::<T>::set(validator_groups);
 	}
 }

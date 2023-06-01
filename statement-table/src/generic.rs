@@ -61,14 +61,6 @@ pub trait Context {
 	fn requisite_votes(&self, group: &Self::GroupId) -> usize;
 }
 
-/// Table configuration.
-pub struct Config {
-	/// When this is true, the table will allow multiple seconded candidates
-	/// per authority. This flag means that higher-level code is responsible for
-	/// bounding the number of candidates.
-	pub allow_multiple_seconded: bool,
-}
-
 /// Statements circulated among peers.
 #[derive(PartialEq, Eq, Debug, Clone, Encode, Decode)]
 pub enum Statement<Candidate, Digest> {
@@ -278,12 +270,12 @@ impl<Ctx: Context> CandidateData<Ctx> {
 
 // authority metadata
 struct AuthorityData<Ctx: Context> {
-	proposals: Vec<(Ctx::Digest, Ctx::Signature)>,
+	proposal: Option<(Ctx::Digest, Ctx::Signature)>,
 }
 
 impl<Ctx: Context> Default for AuthorityData<Ctx> {
 	fn default() -> Self {
-		AuthorityData { proposals: Vec::new() }
+		AuthorityData { proposal: None }
 	}
 }
 
@@ -298,20 +290,19 @@ pub struct Table<Ctx: Context> {
 	authority_data: HashMap<Ctx::AuthorityId, AuthorityData<Ctx>>,
 	detected_misbehavior: HashMap<Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>>,
 	candidate_votes: HashMap<Ctx::Digest, CandidateData<Ctx>>,
-	config: Config,
+}
+
+impl<Ctx: Context> Default for Table<Ctx> {
+	fn default() -> Self {
+		Table {
+			authority_data: HashMap::new(),
+			detected_misbehavior: HashMap::new(),
+			candidate_votes: HashMap::new(),
+		}
+	}
 }
 
 impl<Ctx: Context> Table<Ctx> {
-	/// Create a new `Table` from a `Config`.
-	pub fn new(config: Config) -> Self {
-		Table {
-			authority_data: HashMap::default(),
-			detected_misbehavior: HashMap::default(),
-			candidate_votes: HashMap::default(),
-			config,
-		}
-	}
-
 	/// Get the attested candidate for `digest`.
 	///
 	/// Returns `Some(_)` if the candidate exists and is includable.
@@ -402,9 +393,7 @@ impl<Ctx: Context> Table<Ctx> {
 				// note misbehavior.
 				let existing = occ.get_mut();
 
-				if !self.config.allow_multiple_seconded && existing.proposals.len() == 1 {
-					let (old_digest, old_sig) = &existing.proposals[0];
-
+				if let Some((ref old_digest, ref old_sig)) = existing.proposal {
 					if old_digest != &digest {
 						const EXISTENCE_PROOF: &str =
 							"when proposal first received from authority, candidate \
@@ -425,18 +414,14 @@ impl<Ctx: Context> Table<Ctx> {
 					}
 
 					false
-				} else if self.config.allow_multiple_seconded &&
-					existing.proposals.iter().any(|(ref od, _)| od == &digest)
-				{
-					false
 				} else {
-					existing.proposals.push((digest.clone(), signature.clone()));
+					existing.proposal = Some((digest.clone(), signature.clone()));
 					true
 				}
 			},
 			Entry::Vacant(vacant) => {
 				vacant
-					.insert(AuthorityData { proposals: vec![(digest.clone(), signature.clone())] });
+					.insert(AuthorityData { proposal: Some((digest.clone(), signature.clone())) });
 				true
 			},
 		};
@@ -586,12 +571,8 @@ mod tests {
 	use super::*;
 	use std::collections::HashMap;
 
-	fn create_single_seconded<Candidate: Context>() -> Table<Candidate> {
-		Table::new(Config { allow_multiple_seconded: false })
-	}
-
-	fn create_many_seconded<Candidate: Context>() -> Table<Candidate> {
-		Table::new(Config { allow_multiple_seconded: true })
+	fn create<Candidate: Context>() -> Table<Candidate> {
+		Table::default()
 	}
 
 	#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -649,7 +630,7 @@ mod tests {
 	}
 
 	#[test]
-	fn submitting_two_candidates_can_be_misbehavior() {
+	fn submitting_two_candidates_is_misbehavior() {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
@@ -658,7 +639,7 @@ mod tests {
 			},
 		};
 
-		let mut table = create_single_seconded();
+		let mut table = create();
 		let statement_a = SignedStatement {
 			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
@@ -685,36 +666,6 @@ mod tests {
 	}
 
 	#[test]
-	fn submitting_two_candidates_can_be_allowed() {
-		let context = TestContext {
-			authorities: {
-				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), GroupId(2));
-				map
-			},
-		};
-
-		let mut table = create_many_seconded();
-		let statement_a = SignedStatement {
-			statement: Statement::Seconded(Candidate(2, 100)),
-			signature: Signature(1),
-			sender: AuthorityId(1),
-		};
-
-		let statement_b = SignedStatement {
-			statement: Statement::Seconded(Candidate(2, 999)),
-			signature: Signature(1),
-			sender: AuthorityId(1),
-		};
-
-		table.import_statement(&context, statement_a);
-		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
-
-		table.import_statement(&context, statement_b);
-		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
-	}
-
-	#[test]
 	fn submitting_candidate_from_wrong_group_is_misbehavior() {
 		let context = TestContext {
 			authorities: {
@@ -724,7 +675,7 @@ mod tests {
 			},
 		};
 
-		let mut table = create_single_seconded();
+		let mut table = create();
 		let statement = SignedStatement {
 			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
@@ -756,7 +707,7 @@ mod tests {
 			},
 		};
 
-		let mut table = create_single_seconded();
+		let mut table = create();
 
 		let candidate_a = SignedStatement {
 			statement: Statement::Seconded(Candidate(2, 100)),
@@ -800,7 +751,7 @@ mod tests {
 			},
 		};
 
-		let mut table = create_single_seconded();
+		let mut table = create();
 		let statement = SignedStatement {
 			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
@@ -830,7 +781,7 @@ mod tests {
 			},
 		};
 
-		let mut table = create_single_seconded();
+		let mut table = create();
 		let statement = SignedStatement {
 			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
@@ -898,7 +849,7 @@ mod tests {
 		};
 
 		// have 2/3 validity guarantors note validity.
-		let mut table = create_single_seconded();
+		let mut table = create();
 		let statement = SignedStatement {
 			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
@@ -932,7 +883,7 @@ mod tests {
 			},
 		};
 
-		let mut table = create_single_seconded();
+		let mut table = create();
 		let statement = SignedStatement {
 			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
@@ -959,7 +910,7 @@ mod tests {
 			},
 		};
 
-		let mut table = create_single_seconded();
+		let mut table = create();
 		let statement = SignedStatement {
 			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),

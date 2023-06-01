@@ -74,7 +74,7 @@ fn run_to_block(
 
 		// In the real runtime this is expected to be called by the `InclusionInherent` pallet.
 		Scheduler::clear();
-		Scheduler::schedule(Vec::new());
+		Scheduler::schedule(Vec::new(), b + 1);
 	}
 }
 
@@ -485,6 +485,7 @@ fn schedule_schedules() {
 					core: CoreIndex(0),
 					para_id: chain_a,
 					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
 				}
 			);
 
@@ -494,6 +495,7 @@ fn schedule_schedules() {
 					core: CoreIndex(1),
 					para_id: chain_b,
 					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(1),
 				}
 			);
 		}
@@ -514,6 +516,7 @@ fn schedule_schedules() {
 					core: CoreIndex(0),
 					para_id: chain_a,
 					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
 				}
 			);
 
@@ -523,6 +526,7 @@ fn schedule_schedules() {
 					core: CoreIndex(1),
 					para_id: chain_b,
 					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(1),
 				}
 			);
 
@@ -532,6 +536,7 @@ fn schedule_schedules() {
 					core: CoreIndex(2),
 					para_id: thread_a,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(2),
 				}
 			);
 
@@ -541,6 +546,7 @@ fn schedule_schedules() {
 					core: CoreIndex(3),
 					para_id: thread_c,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(3),
 				}
 			);
 		}
@@ -642,16 +648,20 @@ fn schedule_schedules_including_just_freed() {
 					core: CoreIndex(4),
 					para_id: thread_b,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(4),
 				}
 			);
 		}
 
 		// now note that cores 0, 2, and 3 were freed.
-		Scheduler::schedule(vec![
-			(CoreIndex(0), FreedReason::Concluded),
-			(CoreIndex(2), FreedReason::Concluded),
-			(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
-		]);
+		Scheduler::schedule(
+			vec![
+				(CoreIndex(0), FreedReason::Concluded),
+				(CoreIndex(2), FreedReason::Concluded),
+				(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
+			],
+			3,
+		);
 
 		{
 			let scheduled = Scheduler::scheduled();
@@ -664,6 +674,7 @@ fn schedule_schedules_including_just_freed() {
 					core: CoreIndex(0),
 					para_id: chain_a,
 					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
 				}
 			);
 			assert_eq!(
@@ -672,6 +683,7 @@ fn schedule_schedules_including_just_freed() {
 					core: CoreIndex(2),
 					para_id: thread_d,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(2),
 				}
 			);
 			assert_eq!(
@@ -680,6 +692,7 @@ fn schedule_schedules_including_just_freed() {
 					core: CoreIndex(3),
 					para_id: thread_e,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(3),
 				}
 			);
 			assert_eq!(
@@ -688,6 +701,7 @@ fn schedule_schedules_including_just_freed() {
 					core: CoreIndex(4),
 					para_id: thread_b,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(4),
 				}
 			);
 
@@ -773,10 +787,10 @@ fn schedule_clears_availability_cores() {
 		run_to_block(3, |_| None);
 
 		// now note that cores 0 and 2 were freed.
-		Scheduler::schedule(vec![
-			(CoreIndex(0), FreedReason::Concluded),
-			(CoreIndex(2), FreedReason::Concluded),
-		]);
+		Scheduler::schedule(
+			vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)],
+			3,
+		);
 
 		{
 			let scheduled = Scheduler::scheduled();
@@ -788,6 +802,7 @@ fn schedule_clears_availability_cores() {
 					core: CoreIndex(0),
 					para_id: chain_a,
 					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
 				}
 			);
 			assert_eq!(
@@ -796,6 +811,7 @@ fn schedule_clears_availability_cores() {
 					core: CoreIndex(2),
 					para_id: chain_c,
 					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(2),
 				}
 			);
 
@@ -861,37 +877,31 @@ fn schedule_rotates_groups() {
 
 		run_to_block(2, |_| None);
 
-		let assert_groups_rotated = |rotations: u32, block_number: u32| {
+		let assert_groups_rotated = |rotations: u32| {
 			let scheduled = Scheduler::scheduled();
 			assert_eq!(scheduled.len(), 2);
-			assert_eq!(
-				Scheduler::group_assigned_to_core(scheduled[0].core, block_number).unwrap(),
-				GroupIndex((0u32 + rotations) % parathread_cores)
-			);
-			assert_eq!(
-				Scheduler::group_assigned_to_core(scheduled[1].core, block_number).unwrap(),
-				GroupIndex((1u32 + rotations) % parathread_cores)
-			);
+			assert_eq!(scheduled[0].group_idx, GroupIndex((0u32 + rotations) % parathread_cores));
+			assert_eq!(scheduled[1].group_idx, GroupIndex((1u32 + rotations) % parathread_cores));
 		};
 
-		assert_groups_rotated(0, 2);
+		assert_groups_rotated(0);
 
 		// one block before first rotation.
 		run_to_block(rotation_frequency, |_| None);
 
-		assert_groups_rotated(0, rotation_frequency);
+		assert_groups_rotated(0);
 
 		// first rotation.
 		run_to_block(rotation_frequency + 1, |_| None);
-		assert_groups_rotated(1, rotation_frequency + 1);
+		assert_groups_rotated(1);
 
 		// one block before second rotation.
 		run_to_block(rotation_frequency * 2, |_| None);
-		assert_groups_rotated(1, rotation_frequency * 2);
+		assert_groups_rotated(1);
 
 		// second rotation.
 		run_to_block(rotation_frequency * 2 + 1, |_| None);
-		assert_groups_rotated(2, rotation_frequency * 2 + 1);
+		assert_groups_rotated(2);
 	});
 }
 
@@ -1371,7 +1381,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		});
 
 		Scheduler::clear();
-		Scheduler::schedule(Vec::new());
+		Scheduler::schedule(Vec::new(), 3);
 
 		assert_eq!(
 			Scheduler::scheduled(),
@@ -1379,6 +1389,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 				core: CoreIndex(0),
 				para_id: chain_a,
 				kind: AssignmentKind::Parachain,
+				group_idx: GroupIndex(0),
 			}],
 		);
 	});

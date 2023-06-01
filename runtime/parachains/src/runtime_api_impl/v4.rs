@@ -56,7 +56,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 	<scheduler::Pallet<T>>::clear();
-	<scheduler::Pallet<T>>::schedule(Vec::new());
+	<scheduler::Pallet<T>>::schedule(Vec::new(), now);
 
 	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
 
@@ -259,12 +259,7 @@ pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
 	outputs: primitives::CandidateCommitments,
 ) -> bool {
-	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
-	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(
-		para_id,
-		relay_parent_number,
-		outputs,
-	)
+	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.

@@ -79,7 +79,6 @@ members = [
 	"node/core/chain-selection",
 	"node/core/dispute-coordinator",
 	"node/core/parachains-inherent",
-	"node/core/prospective-parachains",
 	"node/core/provisioner",
 	"node/core/pvf",
 	"node/core/pvf/common",
@@ -212,7 +211,6 @@ fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
 jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
-network-protocol-staging = ["polkadot-cli/network-protocol-staging"]
 
 
 

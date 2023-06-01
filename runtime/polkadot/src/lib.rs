@@ -1521,8 +1521,6 @@ pub mod migrations {
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
-		/* Asynchronous backing mirgration */
-		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 	);
 
 	/// Migrations that set `StorageVersion`s we missed to set.

@@ -42,11 +42,11 @@ use futures::channel::{mpsc, oneshot};
 use parity_scale_codec::Encode;
 
 use polkadot_primitives::{
-	vstaging as vstaging_primitives, AuthorityDiscoveryId, CandidateEvent,
-	CommittedCandidateReceipt, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash,
-	Id as ParaId, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
-	SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
+	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
+	SigningContext, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 pub use rand;
 use sp_application_crypto::AppCrypto;
@@ -65,13 +65,6 @@ pub mod reexports {
 	pub use polkadot_overseer::gen::{SpawnedSubsystem, Spawner, Subsystem, SubsystemContext};
 }
 
-/// A utility for managing the implicit view of the relay-chain derived from active
-/// leaves and the minimum allowed relay-parents that parachain candidates can have
-/// and be backed in those leaves' children.
-pub mod backing_implicit_view;
-/// An emulator for node-side code to predict the results of on-chain parachain inclusion
-/// and predict future constraints.
-pub mod inclusion_emulator;
 /// Convenient and efficient runtime info access.
 pub mod runtime;
 
@@ -203,7 +196,6 @@ macro_rules! specialize_requests {
 }
 
 specialize_requests! {
-	fn request_runtime_api_version() -> u32; Version;
 	fn request_authorities() -> Vec<AuthorityDiscoveryId>; Authorities;
 	fn request_validators() -> Vec<ValidatorId>; Validators;
 	fn request_validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
@@ -219,7 +211,6 @@ specialize_requests! {
 	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
 		-> Option<ValidationCodeHash>; ValidationCodeHash;
 	fn request_on_chain_votes() -> Option<ScrapedOnChainVotes>; FetchOnChainVotes;
-	fn request_staging_async_backing_params() -> vstaging_primitives::AsyncBackingParams; StagingAsyncBackingParams;
 	fn request_session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>; SessionExecutorParams;
 }
 
@@ -272,20 +263,17 @@ pub async fn executor_params_at_relay_parent(
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub fn signing_key<'a>(
-	validators: impl IntoIterator<Item = &'a ValidatorId>,
-	keystore: &KeystorePtr,
-) -> Option<ValidatorId> {
+pub fn signing_key(validators: &[ValidatorId], keystore: &KeystorePtr) -> Option<ValidatorId> {
 	signing_key_and_index(validators, keystore).map(|(k, _)| k)
 }
 
 /// From the given set of validators, find the first key we can sign with, if any, and return it
 /// along with the validator index.
-pub fn signing_key_and_index<'a>(
-	validators: impl IntoIterator<Item = &'a ValidatorId>,
+pub fn signing_key_and_index(
+	validators: &[ValidatorId],
 	keystore: &KeystorePtr,
 ) -> Option<(ValidatorId, ValidatorIndex)> {
-	for (i, v) in validators.into_iter().enumerate() {
+	for (i, v) in validators.iter().enumerate() {
 		if keystore.has_keys(&[(v.to_raw_vec(), ValidatorId::ID)]) {
 			return Some((v.clone(), ValidatorIndex(i as _)))
 		}
