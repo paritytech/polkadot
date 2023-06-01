@@ -35,18 +35,36 @@ pub mod landlock {
 
 	use landlock::{Access, AccessFs, Ruleset, RulesetAttr, RulesetError, ABI};
 
-	/// Version of landlock ABI. Use the latest version supported by our reference kernel version.
+	/// Landlock ABI version. Use the latest version supported by our reference kernel version.
+	///
+	/// # Versions (June 2023)
 	///
 	/// - Reference kernel version: 5.16+
 	/// - ABI V1: 5.13
 	/// - ABI V2: 5.19
 	///
-	/// Please update these docs if they are out-of-date, and bump the ABI version to the minimum
+	/// Please update these values if they are out-of-date, and bump the ABI version to the minimum
 	/// ABI supported by the reference kernel version.
+	///
+	/// # Determinism
+	///
+	/// You may wonder whether we could always use the latest ABI instead of the ABI supported by
+	/// the reference kernel version. It seems plausible, since landlock provides a best-effort
+	/// approach to enabling sandboxing. For example, if the reference version only supported V1 and
+	/// we were on V2, then landlock would use V2 if it was supported on the current machine, and
+	/// just fall back to V1 if not.
+	///
+	/// The issue with this is indeterminacy. If half of validators were on V2 and half were on V1,
+	/// they may have different semantics on some PVFs. So a malicious PVF now has a new attack
+	/// vector: they can exploit this indeterminism between landlock ABIs! But this is exactly the
+	/// kind of thing we want to prevent! So, we have to stick only to the latest ABI supported by
+	/// our reference kernel version (in this example ABI V1). And if a validator's machine does not
+	/// *fully* support it, we can't let them run as a secure validator.
 	pub const LANDLOCK_ABI: ABI = ABI::V1;
 
 	// TODO: <https://github.com/landlock-lsm/rust-landlock/issues/36>
-	/// Returns to what degree landlock is enabled on the current Linux environment.
+	/// Returns to what degree landlock is enabled with the given ABI on the current Linux
+	/// environment.
 	pub fn get_status() -> Result<RulesetStatus, Box<dyn std::error::Error>> {
 		match std::thread::spawn(|| try_restrict_thread()).join() {
 			Ok(Ok(status)) => Ok(status),
@@ -55,8 +73,12 @@ pub mod landlock {
 		}
 	}
 
-	/// Returns a single bool indicating whether landlock is fully enabled on the current Linux
-	/// environment.
+	/// Returns a single bool indicating whether the given landlock ABI is fully enabled on the
+	/// current Linux environment.
+	///
+	/// NOTE: Secure validators *should* have this *fully* enabled for the reference ABI. Even having
+	/// this partially enabled (which landlock does in a best-effort capacity) may lead to
+	/// indeterminism. See "Determinism" under [`LANDLOCK_ABI`].
 	pub fn is_fully_enabled() -> bool {
 		matches!(get_status(), Ok(RulesetStatus::FullyEnforced))
 	}
