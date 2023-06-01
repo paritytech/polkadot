@@ -496,7 +496,6 @@ impl State {
 								assignment,
 								claimed_index,
 								rng,
-								"new-blocks-import-and-distribute-assignment",
 							)
 							.await;
 						},
@@ -506,7 +505,6 @@ impl State {
 								metrics,
 								MessageSource::Peer(peer_id),
 								approval_vote,
-								"new-blocks-import-and-distribute-approval",
 							)
 							.await;
 						},
@@ -595,7 +593,6 @@ impl State {
 						assignment,
 						claimed_index,
 						rng,
-						"peer-message-import-and-distribute-assignment",
 					)
 					.await;
 				}
@@ -632,7 +629,6 @@ impl State {
 						metrics,
 						MessageSource::Peer(peer_id),
 						approval_vote,
-						"peer-message-import-and-distribute-approval",
 					)
 					.await;
 				}
@@ -726,16 +722,22 @@ impl State {
 		assignment: IndirectAssignmentCert,
 		claimed_candidate_index: CandidateIndex,
 		rng: &mut R,
-		tracing_label: &'static str,
 	) where
 		R: CryptoRng + Rng,
 	{
 		let _span = self
 			.spans
 			.get(&assignment.block_hash)
-			.map(|span| span.child(tracing_label))
+			.map(|span| {
+				span.child(if source.peer_id().is_some() {
+					"peer-import-and-distribute-assignment"
+				} else {
+					"local-import-and-distribute-assignment"
+				})
+			})
 			.unwrap_or_else(|| jaeger::Span::new(&assignment.block_hash, "distribute-assignment"))
 			.with_string_tag("block-hash", format!("{:?}", assignment.block_hash))
+			.with_optional_peer_id(source.peer_id().as_ref())
 			.with_stage(jaeger::Stage::ApprovalDistribution);
 
 		let block_hash = assignment.block_hash;
@@ -997,14 +999,20 @@ impl State {
 		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
-		tracing_label: &'static str,
 	) {
 		let _span = self
 			.spans
 			.get(&vote.block_hash)
-			.map(|span| span.child(tracing_label))
+			.map(|span| {
+				span.child(if source.peer_id().is_some() {
+					"peer-import-and-distribute-approval"
+				} else {
+					"local-import-and-distribute-approval"
+				})
+			})
 			.unwrap_or_else(|| jaeger::Span::new(&vote.block_hash, "distribute-approval"))
 			.with_string_tag("block-hash", format!("{:?}", vote.block_hash))
+			.with_optional_peer_id(source.peer_id().as_ref())
 			.with_stage(jaeger::Stage::ApprovalDistribution);
 
 		let block_hash = vote.block_hash;
@@ -1761,7 +1769,6 @@ impl ApprovalDistribution {
 						cert,
 						candidate_index,
 						rng,
-						"import-and-distribute-assignment",
 					)
 					.await;
 			},
@@ -1774,13 +1781,7 @@ impl ApprovalDistribution {
 				);
 
 				state
-					.import_and_circulate_approval(
-						ctx,
-						metrics,
-						MessageSource::Local,
-						vote,
-						"import-and-distribute-approval",
-					)
+					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote)
 					.await;
 			},
 			ApprovalDistributionMessage::GetApprovalSignatures(indices, tx) => {
