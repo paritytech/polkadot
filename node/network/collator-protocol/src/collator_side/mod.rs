@@ -44,7 +44,7 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
 use polkadot_node_subsystem_util::{
-	reputation::ReputationAggregator,
+	reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL},
 	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
 	TimeoutExt,
 };
@@ -971,6 +971,7 @@ pub(crate) async fn run<Context>(
 		req_receiver,
 		metrics,
 		ReputationAggregator::default(),
+		REPUTATION_CHANGE_INTERVAL,
 	)
 	.await
 }
@@ -983,8 +984,12 @@ async fn run_inner<Context>(
 	mut req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
 	metrics: Metrics,
 	reputation: ReputationAggregator,
+	reputation_interval: Duration,
 ) -> std::result::Result<(), FatalError> {
 	use OverseerSignal::*;
+
+	let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+	let mut reputation_delay = new_reputation_delay();
 
 	let mut state = State::new(local_peer_id, collator_pair, metrics, reputation);
 	let mut runtime = RuntimeInfo::new(None);
@@ -996,6 +1001,10 @@ async fn run_inner<Context>(
 		let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
 		pin_mut!(recv_req);
 		select! {
+			_ = reputation_delay => {
+				state.reputation.send(ctx.sender()).await;
+				reputation_delay = new_reputation_delay();
+			},
 			msg = ctx.recv().fuse() => match msg.map_err(FatalError::SubsystemReceive)? {
 				FromOrchestra::Communication { msg } => {
 					log_error(

@@ -49,6 +49,8 @@ use polkadot_primitives::{
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
 
+const REPUTATION_CHANGE_TEST_INTERVAL: Duration = Duration::from_millis(1);
+
 #[derive(Clone)]
 struct TestState {
 	para_id: ParaId,
@@ -223,6 +225,7 @@ fn test_harness<T: Future<Output = TestHarness>>(
 			collation_req_receiver,
 			Default::default(),
 			reputation,
+			REPUTATION_CHANGE_TEST_INTERVAL,
 		)
 		.await
 		.unwrap();

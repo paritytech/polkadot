@@ -42,6 +42,7 @@ use polkadot_primitives_test_helpers::{
 
 const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(500);
 const DECLARE_TIMEOUT: Duration = Duration::from_millis(25);
+const REPUTATION_CHANGE_TEST_INTERVAL: Duration = Duration::from_millis(1);
 
 #[derive(Clone)]
 struct TestState {
@@ -150,6 +151,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		},
 		Metrics::default(),
 		reputation,
+		REPUTATION_CHANGE_TEST_INTERVAL,
 	);
 
 	let test_fut = test(TestHarness { virtual_overseer });

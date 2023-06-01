@@ -54,7 +54,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
-	reputation::ReputationAggregator,
+	reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL},
 };
 use polkadot_primitives::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
 
@@ -1239,7 +1239,15 @@ pub(crate) async fn run<Context>(
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> std::result::Result<(), crate::error::FatalError> {
-	run_inner(ctx, keystore, eviction_policy, metrics, ReputationAggregator::default()).await
+	run_inner(
+		ctx,
+		keystore,
+		eviction_policy,
+		metrics,
+		ReputationAggregator::default(),
+		REPUTATION_CHANGE_INTERVAL,
+	)
+	.await
 }
 
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
@@ -1249,7 +1257,11 @@ async fn run_inner<Context>(
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 	reputation: ReputationAggregator,
+	reputation_interval: Duration,
 ) -> std::result::Result<(), crate::error::FatalError> {
+	let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+	let mut reputation_delay = new_reputation_delay();
+
 	let mut state = State { metrics, reputation, ..Default::default() };
 
 	let next_inactivity_stream = tick_stream(ACTIVITY_POLL);
@@ -1260,6 +1272,10 @@ async fn run_inner<Context>(
 
 	loop {
 		select! {
+			_ = reputation_delay => {
+				state.reputation.send(ctx.sender()).await;
+				reputation_delay = new_reputation_delay();
+			},
 			res = ctx.recv().fuse() => {
 				match res {
 					Ok(FromOrchestra::Communication { msg }) => {
