@@ -27,8 +27,8 @@ use crate::{
 use bounded_collections::{BoundedSlice, BoundedVec, ConstU32};
 use core::convert::{TryFrom, TryInto};
 use parity_scale_codec::{self, Decode, Encode, MaxEncodedLen};
-use serde::{Deserialize, Serialize};
 use scale_info::TypeInfo;
+use serde::{Deserialize, Serialize};
 
 /// A global identifier of a data structure existing within consensus.
 ///
