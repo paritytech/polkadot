@@ -100,8 +100,6 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 		parathread_cores: 3,
 		group_rotation_frequency: 10,
 		paras_availability_period: 3,
-		//chain_availability_period: 3,
-		//thread_availability_period: 5,
 		scheduling_lookahead: 2,
 		parathread_retries: 1,
 		pvf_checking_enabled: false,
