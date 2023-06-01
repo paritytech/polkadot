@@ -304,11 +304,20 @@ pub enum NetworkBridgeRxMessage {
 	},
 }
 
+/// Type of peer reporting
+#[derive(Debug)]
+pub enum ReportPeerMessage {
+	/// Single peer report about malicious actions which should be sent right away
+	Single(PeerId, ReputationChange),
+	/// Delayed report for other actions.
+	Batch(HashMap<PeerId, i32>),
+}
+
 /// Messages received from other subsystems by the network bridge subsystem.
 #[derive(Debug)]
 pub enum NetworkBridgeTxMessage {
 	/// Report a peer for their actions.
-	ReportPeer(PeerId, ReputationChange),
+	ReportPeer(ReportPeerMessage),
 
 	/// Disconnect a peer from the given peer-set without affecting their reputation.
 	DisconnectPeer(PeerId, PeerSet),

@@ -16,8 +16,11 @@
 
 //! A utility abstraction to collect and send reputation changes.
 
-use polkadot_node_network_protocol::{self as net_protocol, PeerId, UnifiedReputationChange};
-use polkadot_node_subsystem::{messages::NetworkBridgeTxMessage, overseer};
+use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
+use polkadot_node_subsystem::{
+	messages::{NetworkBridgeTxMessage, ReportPeerMessage},
+	overseer,
+};
 use std::time::Duration;
 
 /// Default delay for sending reputation changes
@@ -54,14 +57,12 @@ impl ReputationAggregator {
 		&mut self,
 		sender: &mut impl overseer::SubsystemSender<NetworkBridgeTxMessage>,
 	) {
-		for (&peer_id, &score) in &self.by_peer {
-			sender
-				.send_message(NetworkBridgeTxMessage::ReportPeer(
-					peer_id,
-					net_protocol::ReputationChange::new(score, "Aggregated reputation change"),
-				))
-				.await;
-		}
+		sender
+			.send_message(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(
+				self.by_peer.clone(),
+			)))
+			.await;
+
 		self.by_peer.clear();
 	}
 
@@ -87,7 +88,10 @@ impl ReputationAggregator {
 		rep: UnifiedReputationChange,
 	) {
 		sender
-			.send_message(NetworkBridgeTxMessage::ReportPeer(peer_id, rep.into()))
+			.send_message(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(
+				peer_id,
+				rep.into(),
+			)))
 			.await;
 	}
 
