@@ -28,9 +28,8 @@ pub mod test_utils;
 
 mod location_conversion;
 pub use location_conversion::{
-	Account32Hash, AccountId32Aliases, AccountKey20Aliases, AliasesIntoAccountId32,
-	ChildParachainConvertsVia, GlobalConsensusParachainConvertsFor, ParentIsPreset,
-	SiblingParachainConvertsVia,
+	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
+	GlobalConsensusParachainConvertsFor, ParentIsPreset, SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;
@@ -96,6 +95,3 @@ pub use universal_exports::{
 	ExporterFor, HaulBlob, HaulBlobError, HaulBlobExporter, NetworkExportTable,
 	SovereignPaidRemoteExporter, UnpaidLocalExporter, UnpaidRemoteExporter,
 };
-
-mod pay;
-pub use pay::{FixedLocation, LocatableAssetId, PayAccountId32OnChainOverXcm, PayOverXcm};

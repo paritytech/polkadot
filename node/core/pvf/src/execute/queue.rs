@@ -21,7 +21,7 @@ use crate::{
 	artifacts::{ArtifactId, ArtifactPathId},
 	host::ResultSender,
 	metrics::Metrics,
-	worker_intf::{IdleWorker, WorkerHandle},
+	worker_common::{IdleWorker, WorkerHandle},
 	InvalidCandidate, ValidationError, LOG_TARGET,
 };
 use futures::{

@@ -16,7 +16,7 @@
 
 //! Prometheus metrics related to the validation host.
 
-use polkadot_node_core_pvf_common::prepare::MemoryStats;
+use crate::prepare::MemoryStats;
 use polkadot_node_metrics::metrics::{self, prometheus};
 
 /// Validation host metrics.
