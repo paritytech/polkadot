@@ -448,7 +448,7 @@ fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
 
 	// Test that the weigher gives us a sensible weight but don't exactly hard-code it, otherwise it
 	// will be out of date after each re-run.
-	assert!(weight <= Weight::from_parts(30_313_281_000, 65536));
+	assert!(weight.all_lte(Weight::from_parts(30_313_281_000, 65536)));
 
 	let Some(Transact { require_weight_at_most, call, .. }) =
 		xcm.inner_mut().into_iter().find(|inst| matches!(inst, Transact { .. })) else {
