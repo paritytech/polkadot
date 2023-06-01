@@ -367,7 +367,6 @@ async fn handle_active_leaves_update<Context>(
 	let (assignment, _collator_restrictions) = match assignment {
 		None => {
 			assignments_span.add_string_tag("assigned", "false");
-			// Is CollatorRestrictions::none() here correct?
 			(None, CollatorRestrictions::none())
 		},
 		Some((assignment, collator_restrictions)) => {

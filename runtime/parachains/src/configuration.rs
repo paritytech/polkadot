@@ -438,7 +438,6 @@ pub trait WeightInfo {
 	fn set_config_with_block_number() -> Weight;
 	fn set_config_with_u32() -> Weight;
 	fn set_config_with_option_u32() -> Weight;
-	fn set_config_with_weight() -> Weight;
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
 	fn set_config_with_executor_params() -> Weight;
@@ -453,9 +452,6 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn set_config_with_option_u32() -> Weight {
-		Weight::MAX
-	}
-	fn set_config_with_weight() -> Weight {
 		Weight::MAX
 	}
 	fn set_config_with_balance() -> Weight {
