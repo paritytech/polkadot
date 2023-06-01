@@ -34,7 +34,9 @@ use polkadot_node_core_pvf_common::{
 	prepare::{MemoryStats, PrepareStats},
 	pvf::PvfPrepData,
 	worker::{
-		bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload,
+		bytes_to_path, cpu_time_monitor_loop,
+		security::LandlockStatus,
+		stringify_panic_payload,
 		thread::{self, WaitOutcome},
 		worker_event_loop,
 	},
@@ -151,13 +153,21 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let prepare_thread = thread::spawn_worker_thread(
 				"prepare thread",
 				move || {
+					// Try to enable landlock.
+					#[cfg(target_os = "linux")]
+					let landlock_status = polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread()
+						.map(LandlockStatus::from_ruleset_status)
+						.map_err(|e| e.to_string());
+					#[cfg(not(target_os = "linux"))]
+					let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
+
 					let result = prepare_artifact(pvf, cpu_time_start);
 
 					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
 					#[cfg(target_os = "linux")]
 					let result = result.map(|(artifact, elapsed)| (artifact, elapsed, get_max_rss_thread()));
 
-					result
+					(result, landlock_status)
 				},
 				Arc::clone(&condvar),
 				WaitOutcome::Finished,
@@ -170,13 +180,16 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 					let _ = cpu_time_monitor_tx.send(());
 
 					match prepare_thread.join().unwrap_or_else(|err| {
-						Err(PrepareError::Panic(stringify_panic_payload(err)))
+						(
+							Err(PrepareError::Panic(stringify_panic_payload(err))),
+							Ok(LandlockStatus::Unavailable),
+						)
 					}) {
-						Err(err) => {
+						(Err(err), _) => {
 							// Serialized error will be written into the socket.
 							Err(err)
 						},
-						Ok(ok) => {
+						(Ok(ok), landlock_status) => {
 							#[cfg(not(target_os = "linux"))]
 							let (artifact, cpu_time_elapsed) = ok;
 							#[cfg(target_os = "linux")]
@@ -191,6 +204,16 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 								#[cfg(target_os = "linux")]
 								max_rss: extract_max_rss_stat(max_rss, worker_pid),
 							};
+
+							// Log if landlock threw an error.
+							if let Err(err) = landlock_status {
+								gum::warn!(
+									target: LOG_TARGET,
+									%worker_pid,
+									"error enabling landlock: {}",
+									err
+								);
+							}
 
 							// Write the serialized artifact into a temp file.
 							//

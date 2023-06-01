@@ -229,6 +229,11 @@ pub mod thread {
 	/// Runs a worker thread. Will first enable security features, and afterwards notify the threads waiting on the
 	/// condvar. Catches panics during execution and resumes the panics after triggering the condvar, so that the
 	/// waiting thread is notified on panics.
+	///
+	/// # Returns
+	///
+	/// Returns the thread's join handle. Calling `.join()` on it returns the result of executing
+	/// `f()`, as well as whether we were able to enable sandboxing.
 	pub fn spawn_worker_thread<F, R>(
 		name: &str,
 		f: F,
@@ -240,18 +245,9 @@ pub mod thread {
 		F: Send + 'static + panic::UnwindSafe,
 		R: Send + 'static,
 	{
-		thread::Builder::new().name(name.into()).spawn(move || {
-			cond_notify_on_done(
-				|| {
-					#[cfg(target_os = "linux")]
-					let _ = crate::worker::security::landlock::try_restrict_thread();
-
-					f()
-				},
-				cond,
-				outcome,
-			)
-		})
+		thread::Builder::new()
+			.name(name.into())
+			.spawn(move || cond_notify_on_done(f, cond, outcome))
 	}
 
 	/// Runs a worker thread with the given stack size. See [`spawn_worker_thread`].

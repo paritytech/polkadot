@@ -866,7 +866,7 @@ fn warn_if_no_landlock() {
 	{
 		use polkadot_node_core_pvf_common::worker::security::landlock;
 		let status = landlock::get_status();
-		if !matches!(status, Ok(landlock::RulesetStatus::FullyEnforced)) {
+		if !landlock::status_is_fully_enabled(&status) {
 			let abi = landlock::LANDLOCK_ABI as u8;
 			gum::warn!(
 				target: LOG_TARGET,

@@ -18,6 +18,28 @@
 //!
 //! This is needed because workers are used to compile and execute untrusted code (PVFs).
 
+/// To what degree landlock is enabled. It's a separate struct from `RulesetStatus` because that is
+/// only available on Linux, plus this has a nicer name.
+pub enum LandlockStatus {
+	FullyEnforced,
+	PartiallyEnforced,
+	NotEnforced,
+	/// Thread panicked, we don't know what the status is.
+	Unavailable,
+}
+
+impl LandlockStatus {
+	#[cfg(target_os = "linux")]
+	pub fn from_ruleset_status(ruleset_status: ::landlock::RulesetStatus) -> Self {
+		use ::landlock::RulesetStatus::*;
+		match ruleset_status {
+			FullyEnforced => LandlockStatus::FullyEnforced,
+			PartiallyEnforced => LandlockStatus::PartiallyEnforced,
+			NotEnforced => LandlockStatus::NotEnforced,
+		}
+	}
+}
+
 /// The	[landlock] docs say it best:
 ///
 /// > "Landlock is a security feature available since Linux 5.13. The goal is to enable to restrict
@@ -30,10 +52,7 @@
 /// [landlock]: https://docs.rs/landlock/latest/landlock/index.html
 #[cfg(target_os = "linux")]
 pub mod landlock {
-	// Export for checking the status.
-	pub use landlock::RulesetStatus;
-
-	use landlock::{Access, AccessFs, Ruleset, RulesetAttr, RulesetError, ABI};
+	use landlock::{Access, AccessFs, Ruleset, RulesetAttr, RulesetError, RulesetStatus, ABI};
 
 	/// Landlock ABI version. Use the latest version supported by our reference kernel version.
 	///
@@ -73,14 +92,22 @@ pub mod landlock {
 		}
 	}
 
-	/// Returns a single bool indicating whether the given landlock ABI is fully enabled on the
-	/// current Linux environment.
+	/// Basaed on the given `status`, returns a single bool indicating whether the given landlock
+	/// ABI is fully enabled on the current Linux environment.
 	///
-	/// NOTE: Secure validators *should* have this *fully* enabled for the reference ABI. Even having
-	/// this partially enabled (which landlock does in a best-effort capacity) may lead to
-	/// indeterminism. See "Determinism" under [`LANDLOCK_ABI`].
-	pub fn is_fully_enabled() -> bool {
-		matches!(get_status(), Ok(RulesetStatus::FullyEnforced))
+	/// NOTE: Secure validators must be *fully* enabled. See "Determinism" in [`LANDLOCK_ABI`].
+	pub fn status_is_fully_enabled(
+		status: &Result<RulesetStatus, Box<dyn std::error::Error>>,
+	) -> bool {
+		matches!(status, Ok(RulesetStatus::FullyEnforced))
+	}
+
+	/// Runs a check for landlock and returns a single bool indicating whether the given landlock
+	/// ABI is fully enabled on the current Linux environment.
+	///
+	/// NOTE: Secure validators must be *fully* enabled. See "Determinism" in [`LANDLOCK_ABI`].
+	pub fn check_is_fully_enabled() -> bool {
+		status_is_fully_enabled(&get_status())
 	}
 
 	/// Tries to restrict the current thread with the following landlock access controls:
