@@ -126,6 +126,8 @@ pub struct StatementDistributionSubsystem<R> {
 	metrics: Metrics,
 	/// Pseudo-random generator for peers selection logic
 	rng: R,
+	/// Aggregated reputation change
+	reputation: ReputationAggregator,
 }
 
 #[overseer::subsystem(StatementDistribution, error=SubsystemError, prefix=self::overseer)]
@@ -1757,7 +1759,13 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		metrics: Metrics,
 		rng: R,
 	) -> Self {
-		Self { keystore, req_receiver: Some(req_receiver), metrics, rng }
+		Self {
+			keystore,
+			req_receiver: Some(req_receiver),
+			metrics,
+			rng,
+			reputation: Default::default(),
+		}
 	}
 
 	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
@@ -1768,7 +1776,6 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		let mut recent_outdated_heads = RecentOutdatedHeads::default();
 
 		let mut runtime = RuntimeInfo::new(Some(self.keystore.clone()));
-		let mut reputation = ReputationAggregator::new(|_| true);
 
 		// Sender/Receiver for getting news from our statement fetching tasks.
 		let (req_sender, mut req_receiver) = mpsc::channel(1);
@@ -1801,7 +1808,6 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							&mut recent_outdated_heads,
 							&req_sender,
 							result?,
-							&mut reputation,
 						)
 						.await;
 					match result.into_nested()? {
@@ -1821,7 +1827,6 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							&req_sender,
 							&mut runtime,
 							result.ok_or(FatalError::RequesterReceiverFinished)?,
-							&mut reputation,
 						)
 						.await;
 					log_error(result.map_err(From::from), "handle_requester_message")?;
@@ -1890,7 +1895,6 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		runtime: &mut RuntimeInfo,
 		message: RequesterMessage,
-		reputation: &mut ReputationAggregator,
 	) -> JfyiErrorResult<()> {
 		match message {
 			RequesterMessage::Finished {
@@ -1901,10 +1905,16 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				bad_peers,
 			} => {
 				for bad in bad_peers {
-					modify_reputation(reputation, ctx.sender(), bad, COST_FETCH_FAIL).await;
+					modify_reputation(&mut self.reputation, ctx.sender(), bad, COST_FETCH_FAIL)
+						.await;
 				}
-				modify_reputation(reputation, ctx.sender(), from_peer, BENEFIT_VALID_RESPONSE)
-					.await;
+				modify_reputation(
+					&mut self.reputation,
+					ctx.sender(),
+					from_peer,
+					BENEFIT_VALID_RESPONSE,
+				)
+				.await;
 
 				let active_head = active_heads
 					.get_mut(&relay_parent)
@@ -1944,7 +1954,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							&self.metrics,
 							runtime,
 							&mut self.rng,
-							reputation,
+							&mut self.reputation,
 						)
 						.await;
 					}
@@ -1989,7 +1999,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				}
 			},
 			RequesterMessage::ReportPeer(peer, rep) =>
-				modify_reputation(reputation, ctx.sender(), peer, rep).await,
+				modify_reputation(&mut self.reputation, ctx.sender(), peer, rep).await,
 		}
 		Ok(())
 	}
@@ -2005,7 +2015,6 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		recent_outdated_heads: &mut RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: FromOrchestra<StatementDistributionMessage>,
-		reputation: &mut ReputationAggregator,
 	) -> Result<bool> {
 		let metrics = &self.metrics;
 
@@ -2128,7 +2137,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						metrics,
 						runtime,
 						&mut self.rng,
-						reputation,
+						&mut self.reputation,
 					)
 					.await;
 				},
