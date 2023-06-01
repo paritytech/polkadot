@@ -21,7 +21,6 @@
   - [`Inclusion` Pallet](runtime/inclusion.md)
   - [`ParaInherent` Pallet](runtime/parainherent.md)
   - [`DMP` Pallet](runtime/dmp.md)
-  - [`UMP` Pallet](runtime/ump.md)
   - [`HRMP` Pallet](runtime/hrmp.md)
   - [`Session Info` Pallet](runtime/session_info.md)
 - [Runtime APIs](runtime-api/README.md)
