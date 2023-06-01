@@ -500,9 +500,6 @@ fn delay_reputation_change() {
 			}
 		);
 
-		// Wait enough to fire reputation delay
-		futures_timer::Delay::new(reputation_interval).await;
-
 		// let peer send the initial message again
 		handle
 			.send(FromOrchestra::Communication {
@@ -514,6 +511,9 @@ fn delay_reputation_change() {
 				),
 			})
 			.await;
+
+		// Wait enough to fire reputation delay
+		futures_timer::Delay::new(reputation_interval).await;
 
 		let expected_change = vec![BENEFIT_VALID_MESSAGE_FIRST, COST_PEER_DUPLICATE_MESSAGE]
 			.iter()

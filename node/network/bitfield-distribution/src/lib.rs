@@ -209,9 +209,8 @@ impl BitfieldDistribution {
 					state.reputation.send(ctx.sender()).await;
 					reputation_delay = new_reputation_delay();
 				},
-				// Will run if no futures are immediately ready
-				default => {
-					let message = match ctx.recv().await {
+				message = ctx.recv().fuse() => {
+					let message = match message {
 						Ok(message) => message,
 						Err(err) => {
 							gum::error!(
