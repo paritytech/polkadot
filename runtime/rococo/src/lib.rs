@@ -1620,6 +1620,8 @@ pub mod migrations {
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
+		/* Asynchronous backing mirgration */
+		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 	);
 }
 
@@ -1800,7 +1802,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	#[api_version(5)]
+	#[api_version(99)]
 	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
@@ -1930,6 +1932,14 @@ sp_api::impl_runtime_apis! {
 				dispute_proof,
 				key_ownership_proof,
 			)
+		}
+
+		fn staging_para_backing_state(para_id: ParaId) -> Option<primitives::vstaging::BackingState> {
+			runtime_parachains::runtime_api_impl::vstaging::backing_state::<Runtime>(para_id)
+		}
+
+		fn staging_async_backing_params() -> primitives::vstaging::AsyncBackingParams {
+			runtime_parachains::runtime_api_impl::vstaging::async_backing_params::<Runtime>()
 		}
 	}
 

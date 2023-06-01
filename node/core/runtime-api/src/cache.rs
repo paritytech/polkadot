@@ -20,12 +20,12 @@ use lru::LruCache;
 use sp_consensus_babe::Epoch;
 
 use polkadot_primitives::{
-	vstaging, AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
-	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams,
-	GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
-	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	vstaging as vstaging_primitives, AuthorityDiscoveryId, BlockNumber, CandidateCommitments,
+	CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState,
+	ExecutorParams, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 /// For consistency we have the same capacity for all caches. We use 128 as we'll only need that
@@ -65,9 +65,11 @@ pub(crate) struct RequestResultCache {
 	version: LruCache<Hash, u32>,
 	disputes: LruCache<Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
 	unapplied_slashes:
-		LruCache<Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>>,
+		LruCache<Hash, Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>>,
 	key_ownership_proof:
-		LruCache<(Hash, ValidatorId), Option<vstaging::slashing::OpaqueKeyOwnershipProof>>,
+		LruCache<(Hash, ValidatorId), Option<vstaging_primitives::slashing::OpaqueKeyOwnershipProof>>,
+	staging_para_backing_state: LruCache<(Hash, ParaId), Option<vstaging_primitives::BackingState>>,
+	staging_async_backing_params: LruCache<Hash, vstaging_primitives::AsyncBackingParams>,
 }
 
 impl Default for RequestResultCache {
@@ -97,6 +99,8 @@ impl Default for RequestResultCache {
 			disputes: LruCache::new(DEFAULT_CACHE_CAP),
 			unapplied_slashes: LruCache::new(DEFAULT_CACHE_CAP),
 			key_ownership_proof: LruCache::new(DEFAULT_CACHE_CAP),
+			staging_para_backing_state: LruCache::new(DEFAULT_CACHE_CAP),
+			staging_async_backing_params: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
 }
@@ -396,14 +400,14 @@ impl RequestResultCache {
 	pub(crate) fn unapplied_slashes(
 		&mut self,
 		relay_parent: &Hash,
-	) -> Option<&Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>> {
+	) -> Option<&Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>> {
 		self.unapplied_slashes.get(relay_parent)
 	}
 
 	pub(crate) fn cache_unapplied_slashes(
 		&mut self,
 		relay_parent: Hash,
-		value: Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>,
+		value: Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>,
 	) {
 		self.unapplied_slashes.put(relay_parent, value);
 	}
@@ -411,14 +415,14 @@ impl RequestResultCache {
 	pub(crate) fn key_ownership_proof(
 		&mut self,
 		key: (Hash, ValidatorId),
-	) -> Option<&Option<vstaging::slashing::OpaqueKeyOwnershipProof>> {
+	) -> Option<&Option<vstaging_primitives::slashing::OpaqueKeyOwnershipProof>> {
 		self.key_ownership_proof.get(&key)
 	}
 
 	pub(crate) fn cache_key_ownership_proof(
 		&mut self,
 		key: (Hash, ValidatorId),
-		value: Option<vstaging::slashing::OpaqueKeyOwnershipProof>,
+		value: Option<vstaging_primitives::slashing::OpaqueKeyOwnershipProof>,
 	) {
 		self.key_ownership_proof.put(key, value);
 	}
@@ -426,9 +430,39 @@ impl RequestResultCache {
 	// This request is never cached, hence always returns `None`.
 	pub(crate) fn submit_report_dispute_lost(
 		&mut self,
-		_key: (Hash, vstaging::slashing::DisputeProof, vstaging::slashing::OpaqueKeyOwnershipProof),
+		_key: (Hash, vstaging_primitives::slashing::DisputeProof, vstaging_primitives::slashing::OpaqueKeyOwnershipProof),
 	) -> Option<&Option<()>> {
 		None
+	}
+
+	pub(crate) fn staging_para_backing_state(
+		&mut self,
+		key: (Hash, ParaId),
+	) -> Option<&Option<vstaging_primitives::BackingState>> {
+		self.staging_para_backing_state.get(&key)
+	}
+
+	pub(crate) fn cache_staging_para_backing_state(
+		&mut self,
+		key: (Hash, ParaId),
+		value: Option<vstaging_primitives::BackingState>,
+	) {
+		self.staging_para_backing_state.put(key, value);
+	}
+
+	pub(crate) fn staging_async_backing_params(
+		&mut self,
+		key: &Hash,
+	) -> Option<&vstaging_primitives::AsyncBackingParams> {
+		self.staging_async_backing_params.get(key)
+	}
+
+	pub(crate) fn cache_staging_async_backing_params(
+		&mut self,
+		key: Hash,
+		value: vstaging_primitives::AsyncBackingParams,
+	) {
+		self.staging_async_backing_params.put(key, value);
 	}
 }
 
@@ -467,13 +501,16 @@ pub(crate) enum RequestResult {
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeHash>),
 	Version(Hash, u32),
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
-	UnappliedSlashes(Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>),
-	KeyOwnershipProof(Hash, ValidatorId, Option<vstaging::slashing::OpaqueKeyOwnershipProof>),
+	UnappliedSlashes(Hash, Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>),
+	KeyOwnershipProof(Hash, ValidatorId, Option<vstaging_primitives::slashing::OpaqueKeyOwnershipProof>),
 	// This is a request with side-effects.
 	SubmitReportDisputeLost(
 		Hash,
-		vstaging::slashing::DisputeProof,
-		vstaging::slashing::OpaqueKeyOwnershipProof,
+		vstaging_primitives::slashing::DisputeProof,
+		vstaging_primitives::slashing::OpaqueKeyOwnershipProof,
 		Option<()>,
 	),
+
+	StagingParaBackingState(Hash, ParaId, Option<vstaging_primitives::BackingState>),
+	StagingAsyncBackingParams(Hash, vstaging_primitives::AsyncBackingParams),
 }

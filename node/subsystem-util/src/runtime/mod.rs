@@ -25,17 +25,20 @@ use sp_application_crypto::AppCrypto;
 use sp_core::crypto::ByteArray;
 use sp_keystore::{Keystore, KeystorePtr};
 
-use polkadot_node_subsystem::{messages::RuntimeApiMessage, overseer, SubsystemSender};
+use polkadot_node_subsystem::{
+	errors::RuntimeApiError, messages::RuntimeApiMessage, overseer, SubsystemSender,
+};
 use polkadot_primitives::{
-	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, IndexedVec,
-	OccupiedCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext,
-	UncheckedSigned, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	vstaging as vstaging_primitives, CandidateEvent, CoreState, EncodeAs, GroupIndex,
+	GroupRotationInfo, Hash, IndexedVec, OccupiedCore, ScrapedOnChainVotes, SessionIndex,
+	SessionInfo, Signed, SigningContext, UncheckedSigned, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex,
 };
 
 use crate::{
 	request_availability_cores, request_candidate_events, request_on_chain_votes,
-	request_session_index_for_child, request_session_info, request_validation_code_by_hash,
-	request_validator_groups,
+	request_session_index_for_child, request_session_info, request_staging_async_backing_params,
+	request_validation_code_by_hash, request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -43,6 +46,8 @@ mod error;
 
 use error::{recv_runtime, Result};
 pub use error::{Error, FatalError, JfyiError};
+
+const LOG_TARGET: &'static str = "parachain::runtime-info";
 
 /// Configuration for construction a `RuntimeInfo`.
 pub struct Config {
@@ -342,4 +347,64 @@ where
 {
 	recv_runtime(request_validation_code_by_hash(relay_parent, validation_code_hash, sender).await)
 		.await
+}
+
+/// Prospective parachains mode of a relay parent. Defined by
+/// the Runtime API version.
+///
+/// Needed for the period of transition to asynchronous backing.
+#[derive(Debug, Copy, Clone)]
+pub enum ProspectiveParachainsMode {
+	/// v2 runtime API: no prospective parachains.
+	Disabled,
+	/// vstaging runtime API: prospective parachains.
+	Enabled {
+		/// The maximum number of para blocks between the para head in a relay parent
+		/// and a new candidate. Restricts nodes from building arbitrary long chains
+		/// and spamming other validators.
+		max_candidate_depth: usize,
+		/// How many ancestors of a relay parent are allowed to build candidates on top
+		/// of.
+		allowed_ancestry_len: usize,
+	},
+}
+
+impl ProspectiveParachainsMode {
+	/// Returns `true` if mode is enabled, `false` otherwise.
+	pub fn is_enabled(&self) -> bool {
+		matches!(self, ProspectiveParachainsMode::Enabled { .. })
+	}
+}
+
+/// Requests prospective parachains mode for a given relay parent based on
+/// the Runtime API version.
+pub async fn prospective_parachains_mode<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+) -> Result<ProspectiveParachainsMode>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	let result =
+		recv_runtime(request_staging_async_backing_params(relay_parent, sender).await).await;
+
+	if let Err(error::Error::RuntimeRequest(RuntimeApiError::NotSupported { runtime_api_name })) =
+		&result
+	{
+		gum::trace!(
+			target: LOG_TARGET,
+			?relay_parent,
+			"Prospective parachains are disabled, {} is not supported by the current Runtime API",
+			runtime_api_name,
+		);
+
+		Ok(ProspectiveParachainsMode::Disabled)
+	} else {
+		let vstaging_primitives::AsyncBackingParams { max_candidate_depth, allowed_ancestry_len } =
+			result?;
+		Ok(ProspectiveParachainsMode::Enabled {
+			max_candidate_depth: max_candidate_depth as _,
+			allowed_ancestry_len: allowed_ancestry_len as _,
+		})
+	}
 }

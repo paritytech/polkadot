@@ -209,15 +209,15 @@ async fn handle_new_activations<Context>(
 			let (scheduled_core, assumption) = match core {
 				CoreState::Scheduled(scheduled_core) =>
 					(scheduled_core, OccupiedCoreAssumption::Free),
-				CoreState::Occupied(_occupied_core) => {
-					// TODO: https://github.com/paritytech/polkadot/issues/1573
-					gum::trace!(
-						target: LOG_TARGET,
-						core_idx = %core_idx,
-						relay_parent = ?relay_parent,
-						"core is occupied. Keep going.",
-					);
-					continue
+				CoreState::Occupied(occupied_core) => {
+					// TODO [now]: this assumes that next up == current.
+					// in practice we should only set `OccupiedCoreAssumption::Included`
+					// when the candidate occupying the core is also of the same para.
+					if let Some(scheduled) = occupied_core.next_up_on_available {
+						(scheduled, OccupiedCoreAssumption::Included)
+					} else {
+						continue
+					}
 				},
 				CoreState::Free => {
 					gum::trace!(
@@ -297,6 +297,7 @@ async fn handle_new_activations<Context>(
 				"collation-builder",
 				Box::pin(async move {
 					let persisted_validation_data_hash = validation_data.hash();
+					let parent_head_data_hash = validation_data.parent_head.hash();
 
 					let (collation, result_sender) =
 						match (task_config.collator)(relay_parent, &validation_data).await {
@@ -396,8 +397,13 @@ async fn handle_new_activations<Context>(
 
 					if let Err(err) = task_sender
 						.send(
-							CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender)
-								.into(),
+							CollatorProtocolMessage::DistributeCollation(
+								ccr,
+								parent_head_data_hash,
+								pov,
+								result_sender,
+							)
+							.into(),
 						)
 						.await
 					{
