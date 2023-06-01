@@ -42,7 +42,7 @@ use polkadot_primitives_test_helpers::{
 
 const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(500);
 const DECLARE_TIMEOUT: Duration = Duration::from_millis(25);
-const REPUTATION_CHANGE_TEST_INTERVAL: Duration = Duration::from_millis(1);
+const REPUTATION_CHANGE_TEST_INTERVAL: Duration = Duration::from_millis(10);
 
 #[derive(Clone)]
 struct TestState {
@@ -1032,6 +1032,90 @@ fn disconnect_if_wrong_declare() {
 		);
 
 		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn delay_reputation_change() {
+	let test_state = TestState::default();
+
+	test_harness(ReputationAggregator::new(|_| false), |test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		let pair = CollatorPair::generate().0;
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
+				our_view![test_state.relay_parent],
+			)),
+		)
+		.await;
+
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+
+		let peer_b = PeerId::random();
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
+				peer_b.clone(),
+				ObservedRole::Full,
+				CollationVersion::V1.into(),
+				None,
+			)),
+		)
+		.await;
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
+					pair.public(),
+					ParaId::from(69),
+					pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+				)),
+			)),
+		)
+		.await;
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
+					pair.public(),
+					ParaId::from(69),
+					pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+				)),
+			)),
+		)
+		.await;
+
+		// Wait enough to fire reputation delay
+		futures_timer::Delay::new(REPUTATION_CHANGE_TEST_INTERVAL).await;
+
+		let expected_change = vec![COST_UNNEEDED_COLLATOR, COST_UNNEEDED_COLLATOR]
+			.iter()
+			.fold(0_i32, |acc, rep| acc.saturating_add(rep.cost_or_benefit()));
+
+		loop {
+			match overseer_recv(&mut virtual_overseer).await {
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::DisconnectPeer(_, _)) => {
+					gum::trace!("`Disconnecting inactive peer` message skipped");
+					continue
+				},
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(peer, rep)) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep.value, expected_change);
+					break
+				},
+				_ => panic!("Message should be either `DisconnectPeer` or `ReportPeer`"),
+			}
+		}
 
 		virtual_overseer
 	})
