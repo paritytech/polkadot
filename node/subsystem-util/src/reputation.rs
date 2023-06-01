@@ -65,18 +65,30 @@ impl ReputationAggregator {
 		self.by_peer.clear();
 	}
 
-	/// Adds reputation change to inner state,
-	/// сhecks if the change is dangerous, sends all collected changes in a batch if it is
+	/// Adds reputation change to inner state
+	/// or sends it right away if the change is dangerous
 	pub async fn modify(
 		&mut self,
 		sender: &mut impl overseer::SubsystemSender<NetworkBridgeTxMessage>,
 		peer_id: PeerId,
 		rep: UnifiedReputationChange,
 	) {
-		self.add(peer_id, rep);
 		if (self.send_immediately_if)(rep) {
-			self.send(sender).await;
+			self.single_send(sender, peer_id, rep).await;
+		} else {
+			self.add(peer_id, rep);
 		}
+	}
+
+	async fn single_send(
+		&self,
+		sender: &mut impl overseer::SubsystemSender<NetworkBridgeTxMessage>,
+		peer_id: PeerId,
+		rep: UnifiedReputationChange,
+	) {
+		sender
+			.send_message(NetworkBridgeTxMessage::ReportPeer(peer_id, rep.into_base_rep()))
+			.await;
 	}
 
 	fn add(&mut self, peer_id: PeerId, rep: UnifiedReputationChange) {
