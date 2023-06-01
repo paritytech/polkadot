@@ -16,21 +16,23 @@
 
 use super::*;
 use frame_support::{assert_ok, traits::tokens::Pay};
-use sp_runtime::traits::Convert;
 
 type BlockNumber = u64;
 type AccountId = u64;
 
 parameter_types! {
-	pub Interior: InteriorMultiLocation = AccountIndex64 { index: 3u64, network: None }.into();
+	pub InteriorAccount: InteriorMultiLocation = AccountIndex64 { index: 3u64, network: None }.into();
+	pub InteriorBody: InteriorMultiLocation = Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into();
 	pub Timeout: BlockNumber = 5; // 5 blocks
 	pub Beneficiary: AccountId = 5;
 }
 
+/// Type representing both a location and an asset that is held at that location.
+/// The id of the held asset is relative to the location where it is being held.
 #[derive(Encode, Decode, Clone, Copy, PartialEq, Eq)]
 pub struct AssetKind {
-	destination: xcm::latest::MultiLocation,
-	asset_id: xcm::latest::AssetId,
+	destination: MultiLocation,
+	asset_id: AssetId,
 }
 
 pub struct LocatableAssetKindConverter;
@@ -40,6 +42,7 @@ impl sp_runtime::traits::Convert<AssetKind, LocatableAssetId> for LocatableAsset
 	}
 }
 
+/// Simple converter to turn a u64 into a MultiLocation using the AccountIndex64 junction and no parents
 pub struct AliasesIntoAccountIndex64;
 impl<'a> sp_runtime::traits::Convert<&'a AccountId, MultiLocation> for AliasesIntoAccountIndex64 {
 	fn convert(who: &AccountId) -> MultiLocation {
@@ -47,16 +50,18 @@ impl<'a> sp_runtime::traits::Convert<&'a AccountId, MultiLocation> for AliasesIn
 	}
 }
 
+/// Scenario:
+/// Account #3 on the local chain, Parachain(42), controls an amount of funds on Parachain(2).
+/// PayOverXcm::pay creates the correct message for account #3 to pay another account, account #5, on Parachain(2), remotely, in its native token.
 #[test]
 fn pay_over_xcm_works() {
-	AllowExplicitUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
-	add_asset(AliasesIntoAccountIndex64::convert(&3u64), (Here, 1000u128));
 	let who = 5u64;
 	let asset_kind =
 		AssetKind { destination: (Parent, Parachain(2)).into(), asset_id: Here.into() };
 	let amount = 1000u128;
+
 	assert_ok!(PayOverXcm::<
-		Interior,
+		InteriorAccount,
 		TestMessageSender,
 		TestQueryHandler<TestConfig, BlockNumber>,
 		Timeout,
@@ -65,5 +70,59 @@ fn pay_over_xcm_works() {
 		LocatableAssetKindConverter,
 		AliasesIntoAccountIndex64,
 	>::pay(&who, asset_kind, amount));
-	dbg!(&sent_xcm());
+
+	let expected_message = Xcm(vec![
+		UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+		SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
+			destination: (Parent, Parachain(42)).into(),
+			query_id: 1,
+			max_weight: Weight::zero(),
+		})])),
+		DescendOrigin(AccountIndex64 { index: 3, network: None }.into()),
+		TransferAsset {
+			assets: (Here, 1000u128).into(),
+			beneficiary: AccountIndex64 { index: 5, network: None }.into(),
+		},
+	]);
+
+	let expected_hash = fake_message_hash(&expected_message);
+	assert_eq!(sent_xcm(), vec![((Parent, Parachain(2)).into(), expected_message, expected_hash)]);
+}
+
+/// Scenario:
+/// A pluralistic body, a Treasury, on the local chain, Parachain(42), controls an amount of funds on Parachain(2).
+/// PayOverXcm::pay creates the correct message for the treasury to pay another account, account #7, on Parachain(2), remotely, in the relay's token.
+#[test]
+fn pay_over_xcm_governance_body() {
+	let who = 7u64;
+	let asset_kind =
+		AssetKind { destination: (Parent, Parachain(2)).into(), asset_id: Parent.into() };
+	let amount = 500u128;
+
+	assert_ok!(PayOverXcm::<
+		InteriorBody,
+		TestMessageSender,
+		TestQueryHandler<TestConfig, BlockNumber>,
+		Timeout,
+		AccountId,
+		AssetKind,
+		LocatableAssetKindConverter,
+		AliasesIntoAccountIndex64,
+	>::pay(&who, asset_kind, amount));
+
+	let expected_message = Xcm(vec![
+		UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+		SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
+			destination: (Parent, Parachain(42)).into(),
+			query_id: 1,
+			max_weight: Weight::zero(),
+		})])),
+		DescendOrigin(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into()),
+		TransferAsset {
+			assets: (Parent, 500u128).into(),
+			beneficiary: AccountIndex64 { index: 7, network: None }.into(),
+		},
+	]);
+	let expected_hash = fake_message_hash(&expected_message);
+	assert_eq!(sent_xcm(), vec![((Parent, Parachain(2)).into(), expected_message, expected_hash)]);
 }

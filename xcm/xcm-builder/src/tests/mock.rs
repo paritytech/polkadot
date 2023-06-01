@@ -461,10 +461,10 @@ impl<T: Config, BlockNumber: sp_runtime::traits::Zero> QueryHandler
 			.unwrap_or(QueryResponseStatus::NotFound)
 	}
 
-	// #[cfg(feature = "runtime-benchmarks")]
-	// fn expect_response(id: Self::QueryId, response: xcm::latest::Result) {
-	// 	// Unneeded since this is only test
-	// }
+	#[cfg(feature = "runtime-benchmarks")]
+	fn expect_response(id: Self::QueryId, response: xcm::latest::Response) {
+		// Unnecessary since it's only a test implementation
+	}
 }
 
 parameter_types! {
