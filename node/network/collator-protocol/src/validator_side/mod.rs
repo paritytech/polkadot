@@ -1234,13 +1234,23 @@ async fn process_msg<Context>(
 /// The main run loop.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 pub(crate) async fn run<Context>(
-	mut ctx: Context,
+	ctx: Context,
 	keystore: KeystorePtr,
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> std::result::Result<(), crate::error::FatalError> {
-	let mut state =
-		State { metrics, reputation: ReputationAggregator::new(|_| true), ..Default::default() };
+	run_inner(ctx, keystore, eviction_policy, metrics, ReputationAggregator::default()).await
+}
+
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
+async fn run_inner<Context>(
+	mut ctx: Context,
+	keystore: KeystorePtr,
+	eviction_policy: crate::CollatorEvictionPolicy,
+	metrics: Metrics,
+	reputation: ReputationAggregator,
+) -> std::result::Result<(), crate::error::FatalError> {
+	let mut state = State { metrics, reputation, ..Default::default() };
 
 	let next_inactivity_stream = tick_stream(ACTIVITY_POLL);
 	futures::pin_mut!(next_inactivity_stream);

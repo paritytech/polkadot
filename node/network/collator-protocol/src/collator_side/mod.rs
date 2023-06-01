@@ -958,16 +958,35 @@ async fn handle_our_view_change(state: &mut State, view: OurView) -> Result<()> 
 /// The collator protocol collator side main loop.
 #[overseer::contextbounds(CollatorProtocol, prefix = crate::overseer)]
 pub(crate) async fn run<Context>(
+	ctx: Context,
+	local_peer_id: PeerId,
+	collator_pair: CollatorPair,
+	req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	metrics: Metrics,
+) -> std::result::Result<(), FatalError> {
+	run_inner(
+		ctx,
+		local_peer_id,
+		collator_pair,
+		req_receiver,
+		metrics,
+		ReputationAggregator::default(),
+	)
+	.await
+}
+
+#[overseer::contextbounds(CollatorProtocol, prefix = crate::overseer)]
+async fn run_inner<Context>(
 	mut ctx: Context,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
 	mut req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
 	metrics: Metrics,
+	reputation: ReputationAggregator,
 ) -> std::result::Result<(), FatalError> {
 	use OverseerSignal::*;
 
-	let mut state =
-		State::new(local_peer_id, collator_pair, metrics, ReputationAggregator::new(|_| true));
+	let mut state = State::new(local_peer_id, collator_pair, metrics, reputation);
 	let mut runtime = RuntimeInfo::new(None);
 
 	let reconnect_stream = super::tick_stream(RECONNECT_POLL);
