@@ -80,11 +80,10 @@ impl ReputationAggregator {
 	}
 
 	fn add(&mut self, peer_id: PeerId, rep: UnifiedReputationChange) {
-		let current = match self.by_peer.get(&peer_id) {
-			Some(v) => *v,
-			None => 0,
-		};
-		let new_value = current.saturating_add(rep.cost_or_benefit());
-		self.by_peer.insert(peer_id, new_value);
+		let cost = rep.cost_or_benefit();
+		self.by_peer
+			.entry(peer_id)
+			.and_modify(|v| *v = v.saturating_add(cost))
+			.or_insert(cost);
 	}
 }
