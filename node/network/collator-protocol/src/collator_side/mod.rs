@@ -44,6 +44,7 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
 use polkadot_node_subsystem_util::{
+	reputation::ReputationAggregator,
 	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
 	TimeoutExt,
 };
@@ -53,7 +54,10 @@ use polkadot_primitives::{
 };
 
 use super::LOG_TARGET;
-use crate::error::{log_error, Error, FatalError, Result};
+use crate::{
+	error::{log_error, Error, FatalError, Result},
+	modify_reputation,
+};
 use fatality::Split;
 
 mod metrics;
@@ -245,12 +249,20 @@ struct State {
 	///
 	/// Each future returns the relay parent of the finished collation fetch.
 	active_collation_fetches: ActiveCollationFetches,
+
+	/// Aggregated reputation change
+	reputation: ReputationAggregator,
 }
 
 impl State {
 	/// Creates a new `State` instance with the given parameters and setting all remaining
 	/// state fields to their default values (i.e. empty).
-	fn new(local_peer_id: PeerId, collator_pair: CollatorPair, metrics: Metrics) -> State {
+	fn new(
+		local_peer_id: PeerId,
+		collator_pair: CollatorPair,
+		metrics: Metrics,
+		reputation: ReputationAggregator,
+	) -> State {
 		State {
 			local_peer_id,
 			collator_pair,
@@ -267,6 +279,7 @@ impl State {
 			last_connected_at: None,
 			waiting_collation_fetches: Default::default(),
 			active_collation_fetches: Default::default(),
+			reputation,
 		}
 	}
 
@@ -707,11 +720,8 @@ async fn handle_incoming_peer_message<Context>(
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 
-			ctx.send_message(NetworkBridgeTxMessage::ReportPeer(
-				origin,
-				COST_UNEXPECTED_MESSAGE.into(),
-			))
-			.await;
+			modify_reputation(&mut state.reputation, ctx.sender(), origin, COST_UNEXPECTED_MESSAGE)
+				.await;
 
 			// If we are advertised to, this is another collator, and we should disconnect.
 			ctx.send_message(NetworkBridgeTxMessage::DisconnectPeer(origin, PeerSet::Collation))
@@ -797,10 +807,12 @@ async fn handle_incoming_request<Context>(
 					target: LOG_TARGET,
 					"Dropping incoming request as peer has a request in flight already."
 				);
-				ctx.send_message(NetworkBridgeTxMessage::ReportPeer(
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
 					req.peer,
 					COST_APPARENT_FLOOD.into(),
-				))
+				)
 				.await;
 				return Ok(())
 			}
@@ -954,7 +966,8 @@ pub(crate) async fn run<Context>(
 ) -> std::result::Result<(), FatalError> {
 	use OverseerSignal::*;
 
-	let mut state = State::new(local_peer_id, collator_pair, metrics);
+	let mut state =
+		State::new(local_peer_id, collator_pair, metrics, ReputationAggregator::new(|_| true));
 	let mut runtime = RuntimeInfo::new(None);
 
 	let reconnect_stream = super::tick_stream(RECONNECT_POLL);
