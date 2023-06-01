@@ -645,7 +645,9 @@ pub enum RuntimeApiRequest {
 	/// Returns a list of validators that lost a past session dispute and need to be slashed.
 	/// `VStaging`
 	UnappliedSlashes(
-		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>>,
+		RuntimeApiSender<
+			Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>,
+		>,
 	),
 	/// Returns a merkle proof of a validator session key.
 	/// `VStaging`

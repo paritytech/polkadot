@@ -16,13 +16,14 @@
 
 //! Put implementations of functions from staging APIs here.
 
-use crate::{configuration, dmp, hrmp, inclusion, initializer, paras, shared, disputes};
+use crate::{configuration, disputes, dmp, hrmp, inclusion, initializer, paras, shared};
 use primitives::{
+	vstaging,
 	vstaging::{
 		AsyncBackingParams, BackingState, CandidatePendingAvailability, Constraints,
 		InboundHrmpLimitations, OutboundHrmpChannelLimitations,
 	},
-	Id as ParaId, vstaging, CandidateHash, DisputeState, SessionIndex,
+	CandidateHash, DisputeState, Id as ParaId, SessionIndex,
 };
 use sp_std::prelude::*;
 

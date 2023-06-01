@@ -64,10 +64,14 @@ pub(crate) struct RequestResultCache {
 		LruCache<(Hash, ParaId, OccupiedCoreAssumption), Option<ValidationCodeHash>>,
 	version: LruCache<Hash, u32>,
 	disputes: LruCache<Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
-	unapplied_slashes:
-		LruCache<Hash, Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>>,
-	key_ownership_proof:
-		LruCache<(Hash, ValidatorId), Option<vstaging_primitives::slashing::OpaqueKeyOwnershipProof>>,
+	unapplied_slashes: LruCache<
+		Hash,
+		Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>,
+	>,
+	key_ownership_proof: LruCache<
+		(Hash, ValidatorId),
+		Option<vstaging_primitives::slashing::OpaqueKeyOwnershipProof>,
+	>,
 	staging_para_backing_state: LruCache<(Hash, ParaId), Option<vstaging_primitives::BackingState>>,
 	staging_async_backing_params: LruCache<Hash, vstaging_primitives::AsyncBackingParams>,
 }
@@ -400,7 +404,8 @@ impl RequestResultCache {
 	pub(crate) fn unapplied_slashes(
 		&mut self,
 		relay_parent: &Hash,
-	) -> Option<&Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>> {
+	) -> Option<&Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>>
+	{
 		self.unapplied_slashes.get(relay_parent)
 	}
 
@@ -430,7 +435,11 @@ impl RequestResultCache {
 	// This request is never cached, hence always returns `None`.
 	pub(crate) fn submit_report_dispute_lost(
 		&mut self,
-		_key: (Hash, vstaging_primitives::slashing::DisputeProof, vstaging_primitives::slashing::OpaqueKeyOwnershipProof),
+		_key: (
+			Hash,
+			vstaging_primitives::slashing::DisputeProof,
+			vstaging_primitives::slashing::OpaqueKeyOwnershipProof,
+		),
 	) -> Option<&Option<()>> {
 		None
 	}
@@ -501,8 +510,15 @@ pub(crate) enum RequestResult {
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeHash>),
 	Version(Hash, u32),
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
-	UnappliedSlashes(Hash, Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>),
-	KeyOwnershipProof(Hash, ValidatorId, Option<vstaging_primitives::slashing::OpaqueKeyOwnershipProof>),
+	UnappliedSlashes(
+		Hash,
+		Vec<(SessionIndex, CandidateHash, vstaging_primitives::slashing::PendingSlashes)>,
+	),
+	KeyOwnershipProof(
+		Hash,
+		ValidatorId,
+		Option<vstaging_primitives::slashing::OpaqueKeyOwnershipProof>,
+	),
 	// This is a request with side-effects.
 	SubmitReportDisputeLost(
 		Hash,
