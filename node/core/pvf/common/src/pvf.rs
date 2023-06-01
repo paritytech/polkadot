@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::artifacts::ArtifactId;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationCodeHash;
 use polkadot_primitives::ExecutorParams;
@@ -25,9 +24,6 @@ use std::{
 	sync::Arc,
 	time::Duration,
 };
-
-#[cfg(test)]
-use crate::host::tests::TEST_PREPARATION_TIMEOUT;
 
 /// A struct that carries the exhaustive set of data to prepare an artifact out of plain
 /// Wasm binary
@@ -58,13 +54,8 @@ impl PvfPrepData {
 		Self { code, code_hash, executor_params, prep_timeout }
 	}
 
-	/// Returns artifact ID that corresponds to the PVF with given executor params
-	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
-		ArtifactId::new(self.code_hash, self.executor_params.hash())
-	}
-
 	/// Returns validation code hash for the PVF
-	pub(crate) fn code_hash(&self) -> ValidationCodeHash {
+	pub fn code_hash(&self) -> ValidationCodeHash {
 		self.code_hash
 	}
 
@@ -83,16 +74,17 @@ impl PvfPrepData {
 		self.prep_timeout
 	}
 
-	/// Creates a structure for tests
-	#[cfg(test)]
-	pub(crate) fn from_discriminator_and_timeout(num: u32, timeout: Duration) -> Self {
+	/// Creates a structure for tests.
+	#[doc(hidden)]
+	pub fn from_discriminator_and_timeout(num: u32, timeout: Duration) -> Self {
 		let descriminator_buf = num.to_le_bytes().to_vec();
 		Self::from_code(descriminator_buf, ExecutorParams::default(), timeout)
 	}
 
-	#[cfg(test)]
-	pub(crate) fn from_discriminator(num: u32) -> Self {
-		Self::from_discriminator_and_timeout(num, TEST_PREPARATION_TIMEOUT)
+	/// Creates a structure for tests.
+	#[doc(hidden)]
+	pub fn from_discriminator(num: u32) -> Self {
+		Self::from_discriminator_and_timeout(num, crate::tests::TEST_PREPARATION_TIMEOUT)
 	}
 }
 
