@@ -18,7 +18,7 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	dmp, ensure_parachain, initializer, paras,
 };
-use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
+use frame_support::{pallet_prelude::*, traits::ReservableCurrency, DefaultNoBound};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::HorizontalMessages;
@@ -435,15 +435,9 @@ pub mod pallet {
 	///    configuration pallet.
 	/// 2. `sender` and `recipient` must be valid paras.
 	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig {
 		preopen_hrmp_channels: Vec<(ParaId, ParaId, u32, u32)>,
-	}
-
-	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
-		fn default() -> Self {
-			GenesisConfig { preopen_hrmp_channels: Default::default() }
-		}
 	}
 
 	#[pallet::genesis_build]
@@ -621,7 +615,6 @@ pub mod pallet {
 	}
 }
 
-#[cfg(feature = "std")]
 fn initialize_storage<T: Config>(preopen_hrmp_channels: &[(ParaId, ParaId, u32, u32)]) {
 	let host_config = configuration::Pallet::<T>::config();
 	for &(sender, recipient, max_capacity, max_message_size) in preopen_hrmp_channels {
@@ -634,7 +627,6 @@ fn initialize_storage<T: Config>(preopen_hrmp_channels: &[(ParaId, ParaId, u32, 
 	<Pallet<T>>::process_hrmp_open_channel_requests(&host_config);
 }
 
-#[cfg(feature = "std")]
 fn preopen_hrmp_channel<T: Config>(
 	sender: ParaId,
 	recipient: ParaId,

@@ -14,8 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::Xcm;
+use core::result;
+use frame_support::{
+	dispatch::fmt::Debug,
+	pallet_prelude::{Get, TypeInfo},
+};
+use parity_scale_codec::{FullCodec, MaxEncodedLen};
+use sp_arithmetic::traits::Zero;
 use xcm::latest::{
-	Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult, Weight, XcmContext,
+	Error as XcmError, InteriorMultiLocation, MultiLocation, QueryId, Response,
+	Result as XcmResult, Weight, XcmContext,
 };
 
 /// Define what needs to be done upon receiving a query response.
@@ -93,4 +102,64 @@ impl VersionChangeNotifier for () {
 	fn is_subscribed(_: &MultiLocation) -> bool {
 		false
 	}
+}
+
+/// The possible state of an XCM query response.
+#[derive(Debug, PartialEq, Eq)]
+pub enum QueryResponseStatus<BlockNumber> {
+	/// The response has arrived, and includes the inner Response and the block number it arrived at.
+	Ready { response: Response, at: BlockNumber },
+	/// The response has not yet arrived, the XCM might still be executing or the response might be in transit.
+	Pending { timeout: BlockNumber },
+	/// No response with the given `QueryId` was found, or the response was already queried and removed from local storage.
+	NotFound,
+	/// Got an unexpected XCM version.
+	UnexpectedVersion,
+}
+
+/// Provides methods to expect responses from XCMs and query their status.
+pub trait QueryHandler {
+	type QueryId: From<u64>
+		+ FullCodec
+		+ MaxEncodedLen
+		+ TypeInfo
+		+ Clone
+		+ Eq
+		+ PartialEq
+		+ Debug
+		+ Copy;
+	type BlockNumber: Zero;
+	type Error;
+	type UniversalLocation: Get<InteriorMultiLocation>;
+
+	/// Attempt to create a new query ID and register it as a query that is yet to respond.
+	fn new_query(
+		responder: impl Into<MultiLocation>,
+		timeout: Self::BlockNumber,
+		match_querier: impl Into<MultiLocation>,
+	) -> QueryId;
+
+	/// Consume `message` and return another which is equivalent to it except that it reports
+	/// back the outcome.
+	///
+	/// - `message`: The message whose outcome should be reported.
+	/// - `responder`: The origin from which a response should be expected.
+	/// - `timeout`: The block number after which it is permissible to return `NotFound` from `take_response`.
+	///
+	/// `report_outcome` may return an error if the `responder` is not invertible.
+	///
+	/// It is assumed that the querier of the response will be `Here`.
+	/// The response can be queried with `take_response`.
+	fn report_outcome(
+		message: &mut Xcm<()>,
+		responder: impl Into<MultiLocation>,
+		timeout: Self::BlockNumber,
+	) -> result::Result<Self::QueryId, Self::Error>;
+
+	/// Attempt to remove and return the response of query with ID `query_id`.
+	fn take_response(id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber>;
+
+	/// Makes sure to expect a response with the given id.
+	#[cfg(feature = "runtime-benchmarks")]
+	fn expect_response(id: Self::QueryId, response: Response);
 }

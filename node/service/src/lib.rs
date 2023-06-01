@@ -903,7 +903,6 @@ where
 
 	let approval_voting_config = ApprovalVotingConfig {
 		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
@@ -927,7 +926,6 @@ where
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
 		col_dispute_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 	};
 
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
@@ -1167,15 +1165,11 @@ where
 
 		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
 
-		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
+		// BEEFY currently only runs on testnets, if it fails we'll
 		// bring the node down with it to make sure it is noticed.
-		if chain_spec.is_wococo() {
-			task_manager
-				.spawn_essential_handle()
-				.spawn_blocking("beefy-gadget", None, gadget);
-		} else {
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
-		}
+		task_manager
+			.spawn_essential_handle()
+			.spawn_blocking("beefy-gadget", None, gadget);
 
 		if is_offchain_indexing_enabled {
 			task_manager.spawn_handle().spawn_blocking(
@@ -1525,7 +1519,6 @@ fn revert_chain_selection(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::R
 fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
 	let config = approval_voting_subsystem::Config {
 		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: Default::default(),
 	};
 

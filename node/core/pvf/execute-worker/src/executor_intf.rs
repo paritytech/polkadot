@@ -16,13 +16,16 @@
 
 //! Interface to the Substrate Executor
 
-use polkadot_primitives::{ExecutorParam, ExecutorParams};
+use polkadot_node_core_pvf_common::executor_intf::{
+	params_to_wasmtime_semantics, DEFAULT_CONFIG, NATIVE_STACK_MAX,
+};
+use polkadot_primitives::ExecutorParams;
 use sc_executor_common::{
 	error::WasmError,
 	runtime_blob::RuntimeBlob,
-	wasm_runtime::{HeapAllocStrategy, InvokeMethod, WasmModule as _},
+	wasm_runtime::{InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics, WasmtimeRuntime};
+use sc_executor_wasmtime::{Config, WasmtimeRuntime};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use sp_externalities::MultiRemovalResults;
 use std::any::{Any, TypeId};
@@ -62,119 +65,6 @@ use std::any::{Any, TypeId};
 // The default Rust thread stack limit 2 MiB + 256 MiB wasm stack.
 /// The stack size for the execute thread.
 pub const EXECUTE_THREAD_STACK_SIZE: usize = 2 * 1024 * 1024 + NATIVE_STACK_MAX as usize;
-
-// Memory configuration
-//
-// When Substrate Runtime is instantiated, a number of WASM pages are allocated for the Substrate
-// Runtime instance's linear memory. The exact number of pages is a sum of whatever the WASM blob
-// itself requests (by default at least enough to hold the data section as well as have some space
-// left for the stack; this is, of course, overridable at link time when compiling the runtime)
-// plus the number of pages specified in the `extra_heap_pages` passed to the executor.
-//
-// By default, rustc (or `lld` specifically) should allocate 1 MiB for the shadow stack, or 16 pages.
-// The data section for runtimes are typically rather small and can fit in a single digit number of
-// WASM pages, so let's say an extra 16 pages. Thus let's assume that 32 pages or 2 MiB are used for
-// these needs by default.
-const DEFAULT_HEAP_PAGES_ESTIMATE: u32 = 32;
-const EXTRA_HEAP_PAGES: u32 = 2048;
-
-/// The number of bytes devoted for the stack during wasm execution of a PVF.
-const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
-
-// VALUES OF THE DEFAULT CONFIGURATION SHOULD NEVER BE CHANGED
-// They are used as base values for the execution environment parametrization.
-// To overwrite them, add new ones to `EXECUTOR_PARAMS` in the `session_info` pallet and perform
-// a runtime upgrade to make them active.
-const DEFAULT_CONFIG: Config = Config {
-	allow_missing_func_imports: true,
-	cache_path: None,
-	semantics: Semantics {
-		heap_alloc_strategy: sc_executor_common::wasm_runtime::HeapAllocStrategy::Dynamic {
-			maximum_pages: Some(DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES),
-		},
-
-		instantiation_strategy:
-			sc_executor_wasmtime::InstantiationStrategy::RecreateInstanceCopyOnWrite,
-
-		// Enable deterministic stack limit to pin down the exact number of items the wasmtime stack
-		// can contain before it traps with stack overflow.
-		//
-		// Here is how the values below were chosen.
-		//
-		// At the moment of writing, the default native stack size limit is 1 MiB. Assuming a logical item
-		// (see the docs about the field and the instrumentation algorithm) is 8 bytes, 1 MiB can
-		// fit 2x 65536 logical items.
-		//
-		// Since reaching the native stack limit is undesirable, we halve the logical item limit and
-		// also increase the native 256x. This hopefully should preclude wasm code from reaching
-		// the stack limit set by the wasmtime.
-		deterministic_stack_limit: Some(DeterministicStackLimit {
-			logical_max: 65536,
-			native_stack_max: NATIVE_STACK_MAX,
-		}),
-		canonicalize_nans: true,
-		// Rationale for turning the multi-threaded compilation off is to make the preparation time
-		// easily reproducible and as deterministic as possible.
-		//
-		// Currently the prepare queue doesn't distinguish between precheck and prepare requests.
-		// On the one hand, it simplifies the code, on the other, however, slows down compile times
-		// for execute requests. This behavior may change in future.
-		parallel_compilation: false,
-
-		// WASM extensions. Only those that are meaningful to us may be controlled here. By default,
-		// we're using WASM MVP, which means all the extensions are disabled. Nevertheless, some
-		// extensions (e.g., sign extension ops) are enabled by Wasmtime and cannot be disabled.
-		wasm_reference_types: false,
-		wasm_simd: false,
-		wasm_bulk_memory: false,
-		wasm_multi_value: false,
-	},
-};
-
-/// Runs the prevalidation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
-pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error::WasmError> {
-	let blob = RuntimeBlob::new(code)?;
-	// It's assumed this function will take care of any prevalidation logic
-	// that needs to be done.
-	//
-	// Do nothing for now.
-	Ok(blob)
-}
-
-/// Runs preparation on the given runtime blob. If successful, it returns a serialized compiled
-/// artifact which can then be used to pass into `Executor::execute` after writing it to the disk.
-pub fn prepare(
-	blob: RuntimeBlob,
-	executor_params: &ExecutorParams,
-) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
-	let semantics = params_to_wasmtime_semantics(executor_params)
-		.map_err(|e| sc_executor_common::error::WasmError::Other(e))?;
-	sc_executor_wasmtime::prepare_runtime_artifact(blob, &semantics)
-}
-
-fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, String> {
-	let mut sem = DEFAULT_CONFIG.semantics.clone();
-	let mut stack_limit = if let Some(stack_limit) = sem.deterministic_stack_limit.clone() {
-		stack_limit
-	} else {
-		return Err("No default stack limit set".to_owned())
-	};
-
-	for p in par.iter() {
-		match p {
-			ExecutorParam::MaxMemoryPages(max_pages) =>
-				sem.heap_alloc_strategy =
-					HeapAllocStrategy::Dynamic { maximum_pages: Some(*max_pages) },
-			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
-			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
-			ExecutorParam::WasmExtBulkMemory => sem.wasm_bulk_memory = true,
-			ExecutorParam::PrecheckingMaxMemory(_) => (), // TODO: Not implemented yet
-			ExecutorParam::PvfPrepTimeout(_, _) | ExecutorParam::PvfExecTimeout(_, _) => (), // Not used here
-		}
-	}
-	sem.deterministic_stack_limit = Some(stack_limit);
-	Ok(sem)
-}
 
 #[derive(Clone)]
 pub struct Executor {
