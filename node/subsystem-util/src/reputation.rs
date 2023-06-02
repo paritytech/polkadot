@@ -21,16 +21,18 @@ use polkadot_node_subsystem::{
 	messages::{NetworkBridgeTxMessage, ReportPeerMessage},
 	overseer,
 };
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 /// Default delay for sending reputation changes
 pub const REPUTATION_CHANGE_INTERVAL: Duration = Duration::from_secs(30);
+
+type BatchReputationChange = HashMap<PeerId, i32>;
 
 /// Collects reputation changes and sends them in one batch to relieve network channels
 #[derive(Debug, Clone)]
 pub struct ReputationAggregator {
 	send_immediately_if: fn(UnifiedReputationChange) -> bool,
-	by_peer: std::collections::HashMap<PeerId, i32>,
+	by_peer: BatchReputationChange,
 }
 
 impl Default for ReputationAggregator {
@@ -57,6 +59,10 @@ impl ReputationAggregator {
 		&mut self,
 		sender: &mut impl overseer::SubsystemSender<NetworkBridgeTxMessage>,
 	) {
+		if self.by_peer.is_empty() {
+			return
+		}
+
 		sender
 			.send_message(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(
 				self.by_peer.clone(),
@@ -96,10 +102,16 @@ impl ReputationAggregator {
 	}
 
 	fn add(&mut self, peer_id: PeerId, rep: UnifiedReputationChange) {
-		let cost = rep.cost_or_benefit();
-		self.by_peer
-			.entry(peer_id)
-			.and_modify(|v| *v = v.saturating_add(cost))
-			.or_insert(cost);
+		add_reputation(&mut self.by_peer, peer_id, rep)
 	}
+}
+
+/// Add a reputation change to an existing collection.
+pub fn add_reputation(
+	acc: &mut BatchReputationChange,
+	peer_id: PeerId,
+	rep: UnifiedReputationChange,
+) {
+	let cost = rep.cost_or_benefit();
+	acc.entry(peer_id).and_modify(|v| *v = v.saturating_add(cost)).or_insert(cost);
 }

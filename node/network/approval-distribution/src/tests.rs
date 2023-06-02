@@ -26,9 +26,11 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::approval::{
 	AssignmentCertKind, VrfOutput, VrfProof, VrfSignature, RELAY_VRF_MODULO_CONTEXT,
 };
-use polkadot_node_subsystem::messages::{network_bridge_event, AllMessages, ApprovalCheckError};
+use polkadot_node_subsystem::messages::{
+	network_bridge_event, AllMessages, ApprovalCheckError, ReportPeerMessage,
+};
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_node_subsystem_util::TimeoutExt as _;
+use polkadot_node_subsystem_util::{reputation::add_reputation, TimeoutExt as _};
 use polkadot_primitives::{AuthorityDiscoveryId, BlakeTwo256, HashT};
 use polkadot_primitives_test_helpers::dummy_signature;
 use rand::SeedableRng;
@@ -272,47 +274,39 @@ fn fake_assignment_cert(block_hash: Hash, validator: ValidatorIndex) -> Indirect
 	}
 }
 
-async fn expect_reputation_change_by_value(
-	virtual_overseer: &mut VirtualOverseer,
-	peer_id: &PeerId,
-	expected_value: i32,
-) {
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::NetworkBridgeTx(
-			NetworkBridgeTxMessage::ReportPeer(
-				rep_peer,
-				rep,
-			)
-		) => {
-			assert_eq!(peer_id, &rep_peer);
-			assert_eq!(expected_value, rep.value);
-		}
-	);
-}
-
 async fn expect_reputation_change(
 	virtual_overseer: &mut VirtualOverseer,
 	peer_id: &PeerId,
-	expected_reputation_change: Rep,
+	rep: Rep,
 ) {
-	expect_reputation_change_by_value(
-		virtual_overseer,
-		peer_id,
-		expected_reputation_change.cost_or_benefit(),
-	)
-	.await;
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
+			ReportPeerMessage::Single(p, r),
+		)) => {
+			assert_eq!(p, *peer_id);
+			assert_eq!(r, rep.into());
+		}
+	);
 }
 
 async fn expect_reputation_changes(
 	virtual_overseer: &mut VirtualOverseer,
 	peer_id: &PeerId,
-	expected_reputation_changes: Vec<Rep>,
+	reps: Vec<Rep>,
 ) {
-	let change = expected_reputation_changes
-		.iter()
-		.fold(0_i32, |acc, rep| acc.saturating_add(rep.cost_or_benefit()));
-	expect_reputation_change_by_value(virtual_overseer, peer_id, change).await;
+	let mut acc = HashMap::new();
+	for rep in reps {
+		add_reputation(&mut acc, *peer_id, rep);
+	}
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
+			ReportPeerMessage::Batch(v),
+		)) => {
+			assert_eq!(v, acc);
+		}
+	);
 }
 
 fn state_without_reputation_delay() -> State {
