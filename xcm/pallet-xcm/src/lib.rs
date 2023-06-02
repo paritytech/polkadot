@@ -40,7 +40,7 @@ use sp_runtime::{
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
 use xcm::{latest::QueryResponseInfo, prelude::*};
-use xcm_executor::traits::{Convert, ConvertOrigin, Properties};
+use xcm_executor::traits::{RevFallRefConvert, ConvertOrigin, Properties};
 
 use frame_support::{
 	dispatch::{Dispatchable, GetDispatchInfo},
@@ -247,7 +247,7 @@ pub mod pallet {
 		type TrustedLockers: ContainsPair<MultiLocation, MultiAsset>;
 
 		/// How to get an `AccountId` value from a `MultiLocation`, useful for handling asset locks.
-		type SovereignAccountOf: Convert<MultiLocation, Self::AccountId>;
+		type SovereignAccountOf: RevFallRefConvert<MultiLocation, Self::AccountId>;
 
 		/// The maximum number of local XCM locks that a single account may have.
 		type MaxLockers: Get<u32>;

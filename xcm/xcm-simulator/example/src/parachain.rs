@@ -47,7 +47,7 @@ use xcm_builder::{
 	SovereignSignedViaLocation,
 };
 use xcm_executor::{
-	traits::{Convert, JustTry},
+	traits::{RevFallRefConvert, JustTry},
 	Config, XcmExecutor,
 };
 

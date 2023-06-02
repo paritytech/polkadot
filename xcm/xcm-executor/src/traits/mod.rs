@@ -18,8 +18,10 @@
 
 mod conversion;
 pub use conversion::{
-	CallDispatcher, Convert, ConvertOrigin, Decoded, Encoded, Identity, JustTry, WithOriginFilter,
+	CallDispatcher, RevFallRefConvert, ConvertOrigin, Decoded, Encoded, Identity, JustTry, WithOriginFilter,
 };
+#[allow(deprecated)]
+pub use conversion::Convert;
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
 mod asset_lock;
@@ -48,10 +50,12 @@ pub use weight::{WeightBounds, WeightTrader};
 
 pub mod prelude {
 	pub use super::{
-		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, Convert, ConvertOrigin,
+		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, RevFallRefConvert, ConvertOrigin,
 		Decoded, DropAssets, Enact, Encoded, Error, ExportXcm, FeeManager, FeeReason, Identity,
 		JustTry, LockError, MatchesFungible, MatchesFungibles, MatchesNonFungible,
 		MatchesNonFungibles, OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier,
 		WeightBounds, WeightTrader, WithOriginFilter,
 	};
+	#[allow(deprecated)]
+	pub use super::Convert;
 }

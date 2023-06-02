@@ -47,7 +47,7 @@ impl xcm_executor::traits::OnResponse for DevNull {
 }
 
 pub struct AccountIdConverter;
-impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
+impl xcm_executor::traits::RevFallRefConvert<MultiLocation, u64> for AccountIdConverter {
 	fn convert(ml: MultiLocation) -> Result<u64, MultiLocation> {
 		match ml {
 			MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { id, .. }) } =>

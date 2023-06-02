@@ -19,7 +19,7 @@
 use frame_support::traits::{Contains, Get};
 use sp_std::{borrow::Borrow, marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, MatchesNonFungibles};
+use xcm_executor::traits::{RevFallRefConvert, Error as MatchError, MatchesFungibles, MatchesNonFungibles};
 
 /// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
 /// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
@@ -27,8 +27,8 @@ use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, Match
 pub struct AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>(
 	PhantomData<(Prefix, AssetId, ConvertAssetId)>,
 );
-impl<Prefix: Get<MultiLocation>, AssetId: Clone, ConvertAssetId: Convert<u128, AssetId>>
-	Convert<MultiLocation, AssetId> for AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>
+impl<Prefix: Get<MultiLocation>, AssetId: Clone, ConvertAssetId: RevFallRefConvert<u128, AssetId>>
+	RevFallRefConvert<MultiLocation, AssetId> for AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>
 {
 	fn convert_ref(id: impl Borrow<MultiLocation>) -> result::Result<AssetId, ()> {
 		let prefix = Prefix::get();
@@ -61,8 +61,8 @@ pub struct ConvertedConcreteId<AssetId, Balance, ConvertAssetId, ConvertOther>(
 impl<
 		AssetId: Clone,
 		Balance: Clone,
-		ConvertAssetId: Convert<MultiLocation, AssetId>,
-		ConvertBalance: Convert<u128, Balance>,
+		ConvertAssetId: RevFallRefConvert<MultiLocation, AssetId>,
+		ConvertBalance: RevFallRefConvert<u128, Balance>,
 	> MatchesFungibles<AssetId, Balance>
 	for ConvertedConcreteId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
@@ -81,8 +81,8 @@ impl<
 impl<
 		ClassId: Clone,
 		InstanceId: Clone,
-		ConvertClassId: Convert<MultiLocation, ClassId>,
-		ConvertInstanceId: Convert<AssetInstance, InstanceId>,
+		ConvertClassId: RevFallRefConvert<MultiLocation, ClassId>,
+		ConvertInstanceId: RevFallRefConvert<AssetInstance, InstanceId>,
 	> MatchesNonFungibles<ClassId, InstanceId>
 	for ConvertedConcreteId<ClassId, InstanceId, ConvertClassId, ConvertInstanceId>
 {
@@ -105,8 +105,8 @@ pub struct ConvertedAbstractId<AssetId, Balance, ConvertAssetId, ConvertOther>(
 impl<
 		AssetId: Clone,
 		Balance: Clone,
-		ConvertAssetId: Convert<[u8; 32], AssetId>,
-		ConvertBalance: Convert<u128, Balance>,
+		ConvertAssetId: RevFallRefConvert<[u8; 32], AssetId>,
+		ConvertBalance: RevFallRefConvert<u128, Balance>,
 	> MatchesFungibles<AssetId, Balance>
 	for ConvertedAbstractId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
@@ -125,8 +125,8 @@ impl<
 impl<
 		ClassId: Clone,
 		InstanceId: Clone,
-		ConvertClassId: Convert<[u8; 32], ClassId>,
-		ConvertInstanceId: Convert<AssetInstance, InstanceId>,
+		ConvertClassId: RevFallRefConvert<[u8; 32], ClassId>,
+		ConvertInstanceId: RevFallRefConvert<AssetInstance, InstanceId>,
 	> MatchesNonFungibles<ClassId, InstanceId>
 	for ConvertedAbstractId<ClassId, InstanceId, ConvertClassId, ConvertInstanceId>
 {
@@ -155,8 +155,8 @@ impl<
 		AssetId: Clone,
 		Balance: Clone,
 		MatchAssetId: Contains<MultiLocation>,
-		ConvertAssetId: Convert<MultiLocation, AssetId>,
-		ConvertBalance: Convert<u128, Balance>,
+		ConvertAssetId: RevFallRefConvert<MultiLocation, AssetId>,
+		ConvertBalance: RevFallRefConvert<u128, Balance>,
 	> MatchesFungibles<AssetId, Balance>
 	for MatchedConvertedConcreteId<AssetId, Balance, MatchAssetId, ConvertAssetId, ConvertBalance>
 {
@@ -176,8 +176,8 @@ impl<
 		ClassId: Clone,
 		InstanceId: Clone,
 		MatchClassId: Contains<MultiLocation>,
-		ConvertClassId: Convert<MultiLocation, ClassId>,
-		ConvertInstanceId: Convert<AssetInstance, InstanceId>,
+		ConvertClassId: RevFallRefConvert<MultiLocation, ClassId>,
+		ConvertInstanceId: RevFallRefConvert<AssetInstance, InstanceId>,
 	> MatchesNonFungibles<ClassId, InstanceId>
 	for MatchedConvertedConcreteId<ClassId, InstanceId, MatchClassId, ConvertClassId, ConvertInstanceId>
 {
@@ -286,7 +286,7 @@ mod tests {
 
 		// ConvertedConcreteId cfg
 		struct ClassInstanceIdConverter;
-		impl Convert<AssetInstance, ClassInstanceId> for ClassInstanceIdConverter {
+		impl RevFallRefConvert<AssetInstance, ClassInstanceId> for ClassInstanceIdConverter {
 			fn convert_ref(value: impl Borrow<AssetInstance>) -> Result<ClassInstanceId, ()> {
 				value.borrow().clone().try_into().map_err(|_| ())
 			}

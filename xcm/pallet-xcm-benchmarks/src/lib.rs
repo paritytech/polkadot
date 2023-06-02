@@ -22,7 +22,7 @@ use codec::Encode;
 use frame_benchmarking::{account, BenchmarkError};
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
-use xcm_executor::{traits::Convert, Config as XcmConfig};
+use xcm_executor::{traits::RevFallRefConvert, Config as XcmConfig};
 
 pub mod fungible;
 pub mod generic;
@@ -39,7 +39,7 @@ pub trait Config: frame_system::Config {
 	type XcmConfig: XcmConfig;
 
 	/// A converter between a multi-location to a sovereign account.
-	type AccountIdConverter: Convert<MultiLocation, Self::AccountId>;
+	type AccountIdConverter: RevFallRefConvert<MultiLocation, Self::AccountId>;
 
 	/// Does any necessary setup to create a valid destination for XCM messages.
 	/// Returns that destination's multi-location to be used in benchmarks.

@@ -24,7 +24,7 @@ use frame_support::{
 use sp_runtime::traits::{Bounded, Zero};
 use sp_std::{prelude::*, vec};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, TransactAsset};
+use xcm_executor::traits::{RevFallRefConvert, TransactAsset};
 
 benchmarks_instance_pallet! {
 	where_clause { where

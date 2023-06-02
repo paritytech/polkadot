@@ -21,10 +21,32 @@ use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput, Convert as SimpleConvert};
 use sp_std::{prelude::*, borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::Convert;
+use xcm_executor::traits::RevFallRefConvert;
 
+/// Means of converting a location into an account identifier.
+pub trait ConvertLocation<AccountId> {
+	/// Convert the `location` into `Some` account ID, or `None` if not possible.
+	fn convert_location(location: &MultiLocation) -> Option<AccountId>;
+}
+
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl<AccountId> ConvertLocation<AccountId> for Tuple {
+	fn convert_location(l: &MultiLocation) -> Option<AccountId> {
+		for_tuples!( #(
+			match Tuple::convert_location(l) {
+				Some(result) => return Some(result),
+				None => {},
+			}
+		)* );
+		None
+	}
+}
+
+/// Means of converting a location into a stable and unique descriptive identifier.
 pub trait DescribeLocation {
-	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>>;
+	/// Create a description of the given `location` if possible. No two locations should have the
+	/// same descriptor.
+	fn describe_location(location: &MultiLocation) -> Option<Vec<u8>>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
@@ -115,7 +137,7 @@ impl<Suffix: DescribeLocation> DescribeLocation for DescribeFamily<Suffix> {
 }
 
 pub struct HashedDescription<AccountId, Describe>(PhantomData<(AccountId, Describe)>);
-impl<AccountId: From<[u8; 32]> + Clone, Describe: DescribeLocation> Convert<MultiLocation, AccountId>
+impl<AccountId: From<[u8; 32]> + Clone, Describe: DescribeLocation> RevFallRefConvert<MultiLocation, AccountId>
 	for HashedDescription<AccountId, Describe>
 {
 	fn convert_ref(value: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
@@ -248,7 +270,7 @@ pub type ForeignChainAliasAccount<AccountId> = HashedDescription<AccountId, Lega
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
-	Convert<MultiLocation, AccountId> for Account32Hash<Network, AccountId>
+RevFallRefConvert<MultiLocation, AccountId> for Account32Hash<Network, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		Ok(("multiloc", location.borrow()).using_encoded(blake2_256).into())
@@ -263,7 +285,7 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]>
 /// A [`MultiLocation`] consisting of a single `Parent` [`Junction`] will be converted to the
 /// parent `AccountId`.
 pub struct ParentIsPreset<AccountId>(PhantomData<AccountId>);
-impl<AccountId: Decode + Eq + Clone> Convert<MultiLocation, AccountId>
+impl<AccountId: Decode + Eq + Clone> RevFallRefConvert<MultiLocation, AccountId>
 	for ParentIsPreset<AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
@@ -290,7 +312,7 @@ impl<AccountId: Decode + Eq + Clone> Convert<MultiLocation, AccountId>
 
 pub struct ChildParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
 impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: Clone>
-	Convert<MultiLocation, AccountId> for ChildParachainConvertsVia<ParaId, AccountId>
+	RevFallRefConvert<MultiLocation, AccountId> for ChildParachainConvertsVia<ParaId, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		match location.borrow() {
@@ -311,7 +333,7 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 
 pub struct SiblingParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
 impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: Clone>
-	Convert<MultiLocation, AccountId> for SiblingParachainConvertsVia<ParaId, AccountId>
+	RevFallRefConvert<MultiLocation, AccountId> for SiblingParachainConvertsVia<ParaId, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		match location.borrow() {
@@ -333,7 +355,7 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 /// Extracts the `AccountId32` from the passed `location` if the network matches.
 pub struct AccountId32Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
-	Convert<MultiLocation, AccountId> for AccountId32Aliases<Network, AccountId>
+	RevFallRefConvert<MultiLocation, AccountId> for AccountId32Aliases<Network, AccountId>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let id = match location {
@@ -366,7 +388,7 @@ impl<'a, Network: Get<Option<NetworkId>>, AccountId: Clone + Into<[u8; 32]> + Cl
 
 pub struct AccountKey20Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone>
-	Convert<MultiLocation, AccountId> for AccountKey20Aliases<Network, AccountId>
+	RevFallRefConvert<MultiLocation, AccountId> for AccountKey20Aliases<Network, AccountId>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let key = match location {
@@ -404,7 +426,7 @@ pub struct GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>(
 	PhantomData<(UniversalLocation, AccountId)>,
 );
 impl<UniversalLocation: Get<InteriorMultiLocation>, AccountId: From<[u8; 32]> + Clone>
-	Convert<MultiLocation, AccountId>
+	RevFallRefConvert<MultiLocation, AccountId>
 	for GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {

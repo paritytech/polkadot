@@ -23,7 +23,7 @@ use frame_support::{
 };
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, Error as MatchError, MatchesNonFungibles, TransactAsset};
+use xcm_executor::traits::{RevFallRefConvert, Error as MatchError, MatchesNonFungibles, TransactAsset};
 
 const LOG_TARGET: &str = "xcm::nonfungibles_adapter";
 
@@ -33,7 +33,7 @@ pub struct NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, Acco
 impl<
 		Assets: nonfungibles::Transfer<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: RevFallRefConvert<MultiLocation, AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 	> TransactAsset for NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>
 {
@@ -73,7 +73,7 @@ pub struct NonFungiblesMutateAdapter<
 impl<
 		Assets: nonfungibles::Mutate<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: RevFallRefConvert<MultiLocation, AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
@@ -115,7 +115,7 @@ impl<
 impl<
 		Assets: nonfungibles::Mutate<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: RevFallRefConvert<MultiLocation, AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
@@ -254,7 +254,7 @@ pub struct NonFungiblesAdapter<
 impl<
 		Assets: nonfungibles::Mutate<AccountId> + nonfungibles::Transfer<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: RevFallRefConvert<MultiLocation, AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,

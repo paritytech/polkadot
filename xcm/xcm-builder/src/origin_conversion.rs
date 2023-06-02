@@ -21,14 +21,14 @@ use frame_system::RawOrigin as SystemRawOrigin;
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::marker::PhantomData;
 use xcm::latest::{BodyId, BodyPart, Junction, Junctions::*, MultiLocation, NetworkId, OriginKind};
-use xcm_executor::traits::{Convert, ConvertOrigin};
+use xcm_executor::traits::{RevFallRefConvert, ConvertOrigin};
 
 /// Sovereign accounts use the system's `Signed` origin with an account ID derived from the `LocationConverter`.
 pub struct SovereignSignedViaLocation<LocationConverter, RuntimeOrigin>(
 	PhantomData<(LocationConverter, RuntimeOrigin)>,
 );
 impl<
-		LocationConverter: Convert<MultiLocation, RuntimeOrigin::AccountId>,
+		LocationConverter: RevFallRefConvert<MultiLocation, RuntimeOrigin::AccountId>,
 		RuntimeOrigin: OriginTrait,
 	> ConvertOrigin<RuntimeOrigin> for SovereignSignedViaLocation<LocationConverter, RuntimeOrigin>
 where
@@ -244,7 +244,7 @@ where
 
 /// `EnsureOrigin` barrier to convert from dispatch origin to XCM origin, if one exists.
 pub struct EnsureXcmOrigin<RuntimeOrigin, Conversion>(PhantomData<(RuntimeOrigin, Conversion)>);
-impl<RuntimeOrigin: OriginTrait + Clone, Conversion: Convert<RuntimeOrigin, MultiLocation>>
+impl<RuntimeOrigin: OriginTrait + Clone, Conversion: RevFallRefConvert<RuntimeOrigin, MultiLocation>>
 	EnsureOrigin<RuntimeOrigin> for EnsureXcmOrigin<RuntimeOrigin, Conversion>
 where
 	RuntimeOrigin::PalletsOrigin: PartialEq,
@@ -281,7 +281,7 @@ impl<
 		RuntimeOrigin: OriginTrait + Clone,
 		AccountId: Into<[u8; 32]>,
 		Network: Get<Option<NetworkId>>,
-	> Convert<RuntimeOrigin, MultiLocation> for SignedToAccountId32<RuntimeOrigin, AccountId, Network>
+	> RevFallRefConvert<RuntimeOrigin, MultiLocation> for SignedToAccountId32<RuntimeOrigin, AccountId, Network>
 where
 	RuntimeOrigin::PalletsOrigin: From<SystemRawOrigin<AccountId>>
 		+ TryInto<SystemRawOrigin<AccountId>, Error = RuntimeOrigin::PalletsOrigin>,
@@ -305,7 +305,7 @@ pub struct BackingToPlurality<RuntimeOrigin, COrigin, Body>(
 	PhantomData<(RuntimeOrigin, COrigin, Body)>,
 );
 impl<RuntimeOrigin: OriginTrait + Clone, COrigin: GetBacking, Body: Get<BodyId>>
-	Convert<RuntimeOrigin, MultiLocation> for BackingToPlurality<RuntimeOrigin, COrigin, Body>
+RevFallRefConvert<RuntimeOrigin, MultiLocation> for BackingToPlurality<RuntimeOrigin, COrigin, Body>
 where
 	RuntimeOrigin::PalletsOrigin:
 		From<COrigin> + TryInto<COrigin, Error = RuntimeOrigin::PalletsOrigin>,
@@ -331,7 +331,7 @@ pub struct OriginToPluralityVoice<RuntimeOrigin, EnsureBodyOrigin, Body>(
 	PhantomData<(RuntimeOrigin, EnsureBodyOrigin, Body)>,
 );
 impl<RuntimeOrigin: Clone, EnsureBodyOrigin: EnsureOrigin<RuntimeOrigin>, Body: Get<BodyId>>
-	Convert<RuntimeOrigin, MultiLocation>
+RevFallRefConvert<RuntimeOrigin, MultiLocation>
 	for OriginToPluralityVoice<RuntimeOrigin, EnsureBodyOrigin, Body>
 {
 	fn convert(o: RuntimeOrigin) -> Result<MultiLocation, RuntimeOrigin> {

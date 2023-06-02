@@ -19,7 +19,7 @@ mod relay_chain;
 
 use frame_support::sp_tracing;
 use xcm::prelude::*;
-use xcm_executor::traits::Convert;
+use xcm_executor::traits::RevFallRefConvert;
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain, TestExt};
 
 pub const ALICE: sp_runtime::AccountId32 = sp_runtime::AccountId32::new([0u8; 32]);

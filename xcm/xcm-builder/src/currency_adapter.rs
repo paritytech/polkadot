@@ -22,7 +22,7 @@ use sp_runtime::traits::CheckedSub;
 use sp_std::{marker::PhantomData, result};
 use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result, XcmContext};
 use xcm_executor::{
-	traits::{Convert, MatchesFungible, TransactAsset},
+	traits::{RevFallRefConvert, MatchesFungible, TransactAsset},
 	Assets,
 };
 
@@ -64,7 +64,7 @@ impl From<Error> for XcmError {
 ///     pub CheckingAccount: AccountId = PalletId(*b"checking").into_account_truncating();
 /// }
 ///
-/// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept
+/// /// Some items that implement `RevFallRefConvert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept
 /// /// messages from the parent (relay chain).
 /// pub type LocationConverter = (ParentIsPreset<AccountId>);
 ///
@@ -92,7 +92,7 @@ pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, Che
 impl<
 		Currency: frame_support::traits::Currency<AccountId>,
 		Matcher: MatchesFungible<Currency::Balance>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: RevFallRefConvert<MultiLocation, AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckedAccount: Get<Option<(AccountId, MintLocation)>>,
 	> CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, CheckedAccount>
@@ -133,7 +133,7 @@ impl<
 impl<
 		Currency: frame_support::traits::Currency<AccountId>,
 		Matcher: MatchesFungible<Currency::Balance>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: RevFallRefConvert<MultiLocation, AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckedAccount: Get<Option<(AccountId, MintLocation)>>,
 	> TransactAsset
