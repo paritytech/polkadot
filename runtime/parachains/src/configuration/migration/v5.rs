@@ -260,10 +260,8 @@ impl<BlockNumber: Default + From<u32>> Default for V5HostConfiguration<BlockNumb
 pub struct MigrateToV5<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToV5<T> {
 	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+	fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
 		log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
-
-		ensure!(StorageVersion::get::<Pallet<T>>() == 4, "The migration requires version 4");
 		Ok(Vec::new())
 	}
 
@@ -282,11 +280,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV5<T> {
 	}
 
 	#[cfg(feature = "try-runtime")]
-	fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+	fn post_upgrade(_state: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
 		log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
 		ensure!(
-			StorageVersion::get::<Pallet<T>>() == 5,
-			"Storage version should be 5 after the migration"
+			StorageVersion::get::<Pallet<T>>() >= 5,
+			"Storage version should be greater or equal to 5 after the migration"
 		);
 
 		Ok(())

@@ -19,7 +19,7 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use crate::{inclusion::MAX_UPWARD_MESSAGE_SIZE_BOUND, shared};
-use frame_support::pallet_prelude::*;
+use frame_support::{pallet_prelude::*, DefaultNoBound};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
@@ -44,8 +44,16 @@ pub use pallet::*;
 const LOG_TARGET: &str = "runtime::configuration";
 
 /// All configuration of the runtime with respect to parachains and parathreads.
-#[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug, scale_info::TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[derive(
+	Clone,
+	Encode,
+	Decode,
+	PartialEq,
+	sp_core::RuntimeDebug,
+	scale_info::TypeInfo,
+	serde::Serialize,
+	serde::Deserialize,
+)]
 pub struct HostConfiguration<BlockNumber> {
 	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
 	// special treatment.
@@ -438,7 +446,6 @@ pub trait WeightInfo {
 	fn set_config_with_block_number() -> Weight;
 	fn set_config_with_u32() -> Weight;
 	fn set_config_with_option_u32() -> Weight;
-	fn set_config_with_weight() -> Weight;
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
 	fn set_config_with_executor_params() -> Weight;
@@ -453,9 +460,6 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn set_config_with_option_u32() -> Weight {
-		Weight::MAX
-	}
-	fn set_config_with_weight() -> Weight {
 		Weight::MAX
 	}
 	fn set_config_with_balance() -> Weight {
@@ -473,8 +477,20 @@ impl WeightInfo for TestWeightInfo {
 pub mod pallet {
 	use super::*;
 
+	/// The current storage version.
+	///
+	/// v0-v1: <https://github.com/paritytech/polkadot/pull/3575>
+	/// v1-v2: <https://github.com/paritytech/polkadot/pull/4420>
+	/// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
+	/// v3-v4: <https://github.com/paritytech/polkadot/pull/6345>
+	/// v4-v5: <https://github.com/paritytech/polkadot/pull/6937>
+	///      + <https://github.com/paritytech/polkadot/pull/6961>
+	///      + <https://github.com/paritytech/polkadot/pull/6934>
+	/// v5-v6: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(6);
+
 	#[pallet::pallet]
-	#[pallet::storage_version(migration::STORAGE_VERSION)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -513,15 +529,9 @@ pub mod pallet {
 	pub(crate) type BypassConsistencyCheck<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
 		pub config: HostConfiguration<T::BlockNumber>,
-	}
-
-	#[cfg(feature = "std")]
-	impl<T: Config> Default for GenesisConfig<T> {
-		fn default() -> Self {
-			GenesisConfig { config: Default::default() }
-		}
 	}
 
 	#[pallet::genesis_build]

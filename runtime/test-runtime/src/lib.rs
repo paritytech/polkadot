@@ -218,7 +218,7 @@ impl pallet_balances::Config for Runtime {
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = ();
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<0>;
 	type MaxFreezes = ConstU32<0>;
@@ -546,6 +546,7 @@ pub mod pallet_test_notifier {
 	use pallet_xcm::ensure_response;
 	use sp_runtime::DispatchResult;
 	use xcm::latest::prelude::*;
+	use xcm_executor::traits::QueryHandler as XcmQueryHandler;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -581,7 +582,7 @@ pub mod pallet_test_notifier {
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
-			let qid = pallet_xcm::Pallet::<T>::new_query(
+			let qid = <pallet_xcm::Pallet<T> as XcmQueryHandler>::new_query(
 				Junction::AccountId32 { network: None, id },
 				100u32.into(),
 				Here,
