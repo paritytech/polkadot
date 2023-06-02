@@ -54,31 +54,33 @@ impl LandlockStatus {
 pub mod landlock {
 	use landlock::{Access, AccessFs, Ruleset, RulesetAttr, RulesetError, RulesetStatus, ABI};
 
-	/// Landlock ABI version. Use the latest version supported by our reference kernel version.
+	/// Landlock ABI version. We use ABI V1 because:
+	///
+	/// 1. It is supported by our reference kernel version.
+	/// 2. Later versions do not (yet) provide additional security.
 	///
 	/// # Versions (June 2023)
 	///
-	/// - Reference kernel version: 5.16+
-	/// - ABI V1: 5.13
-	/// - ABI V2: 5.19
-	///
-	/// Please update these values if they are out-of-date, and bump the ABI version to the minimum
-	/// ABI supported by the reference kernel version.
+	/// - Polkadot reference kernel version: 5.16+
+	/// - ABI V1: 5.13 - introduces	landlock, including full restrictions on file reads
+	/// - ABI V2: 5.19 - adds ability to configure file renaming (not used by us)
 	///
 	/// # Determinism
 	///
-	/// You may wonder whether we could always use the latest ABI instead of the ABI supported by
-	/// the reference kernel version. It seems plausible, since landlock provides a best-effort
+	/// You may wonder whether we could always use the latest ABI instead of only the ABI supported
+	/// by the reference kernel version. It seems plausible, since landlock provides a best-effort
 	/// approach to enabling sandboxing. For example, if the reference version only supported V1 and
 	/// we were on V2, then landlock would use V2 if it was supported on the current machine, and
 	/// just fall back to V1 if not.
 	///
 	/// The issue with this is indeterminacy. If half of validators were on V2 and half were on V1,
 	/// they may have different semantics on some PVFs. So a malicious PVF now has a new attack
-	/// vector: they can exploit this indeterminism between landlock ABIs! But this is exactly the
-	/// kind of thing we want to prevent! So, we have to stick only to the latest ABI supported by
-	/// our reference kernel version (in this example ABI V1). And if a validator's machine does not
-	/// *fully* support it, we can't let them run as a secure validator.
+	/// vector: they can exploit this indeterminism between landlock ABIs!
+	///
+	/// On the other hand we do want validators to be as secure as possible and protect their keys
+	/// from attackers. And, the risk with indeterminacy is low and there are other indeterminacy
+	/// vectors anyway. So we will only upgrade to a new ABI if either the reference kernel version
+	/// supports it or if it introduces some new feature that is beneficial to security.
 	pub const LANDLOCK_ABI: ABI = ABI::V1;
 
 	// TODO: <https://github.com/landlock-lsm/rust-landlock/issues/36>
