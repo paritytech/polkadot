@@ -94,7 +94,7 @@ impl<const M: u32> BenchmarkingConfiguration for BenchConfig<M> {
 /// Validator disabling hooks
 pub trait ValidatorDisablingHandler<BlockNumber> {
 	/// Called on a new slash. Inserts all the validators in the offenders list.
-	fn on_slash(
+	fn report_offender(
 		validators: impl IntoIterator<Item = ValidatorIndex>,
 		offence_kind: SlashingOffenceKind,
 	);
@@ -110,7 +110,7 @@ pub trait ValidatorDisablingHandler<BlockNumber> {
 }
 
 impl<BlockNumber> ValidatorDisablingHandler<BlockNumber> for () {
-	fn on_slash(
+	fn report_offender(
 		_validators: impl IntoIterator<Item = ValidatorIndex>,
 		_offence_kind: SlashingOffenceKind,
 	) {
@@ -286,7 +286,7 @@ where
 			let _ = T::HandleReports::report_offence(offence);
 
 			// Notify `DisablingStrategy` for the punished validators
-			T::DisablingStrategy::on_slash(to_punish.clone(), kind);
+			T::DisablingStrategy::report_offender(to_punish.clone(), kind);
 
 			return
 		}
@@ -332,7 +332,7 @@ where
 		// NOTE: changing that requires modifying `do_punish` implementation
 
 		// but report the offenders to the `DisablingStrategy`
-		T::DisablingStrategy::on_slash(losers, SlashingOffenceKind::AgainstValid);
+		T::DisablingStrategy::report_offender(losers, SlashingOffenceKind::AgainstValid);
 	}
 
 	fn initializer_initialize(now: T::BlockNumber) -> Weight {
@@ -554,7 +554,10 @@ pub mod pallet {
 
 			<T::HandleReports as HandleReports<T>>::report_offence(offence)
 				.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
-			T::DisablingStrategy::on_slash(vec![dispute_proof.validator_index], dispute_proof.kind);
+			T::DisablingStrategy::report_offender(
+				vec![dispute_proof.validator_index],
+				dispute_proof.kind,
+			);
 
 			Ok(Pays::No.into())
 		}

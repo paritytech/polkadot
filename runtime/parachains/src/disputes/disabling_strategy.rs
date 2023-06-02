@@ -15,12 +15,18 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A pallet implementing a strategy for validator disabling
+//!
+//! We can't disable more than f validators otherwise we will break the security model. For this
+//! reason the pallet contains two storage items:
+//! * `DisabledValidators` which holds the indexes of all disabled validators at the moment
+//! * `Offenders` which holds all slashed validators with their corresponding offence
+//!
 //! TODO: add more details
 
 use super::slashing::ValidatorDisablingHandler;
 use frame_support::weights::Weight;
 use primitives::{vstaging::slashing::SlashingOffenceKind, SessionIndex, ValidatorIndex};
-
+use sp_std::prelude::*;
 pub struct ValidatorDisabling<C> {
 	_phantom: sp_std::marker::PhantomData<C>,
 }
@@ -29,10 +35,16 @@ impl<T> ValidatorDisablingHandler<T::BlockNumber> for ValidatorDisabling<Pallet<
 where
 	T: pallet::Config,
 {
-	fn on_slash(
+	fn report_offender(
 		_validators: impl IntoIterator<Item = ValidatorIndex>,
 		_offence_kind: SlashingOffenceKind,
 	) {
+		// Add to offenders
+
+		// Add to disabled validators, if there is enough space
+
+		// Else - reshuffle
+
 		todo!()
 	}
 
@@ -49,12 +61,57 @@ where
 	}
 }
 
+struct Offender {
+	index: ValidatorIndex,
+	offence: SlashingOffenceKind,
+}
+
+impl Offender {
+	fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+		use SlashingOffenceKind::{AgainstValid, ForInvalid};
+
+		let Offender { index, offence } = self;
+		match (offence, other.offence) {
+			(AgainstValid, AgainstValid) | (ForInvalid, ForInvalid) => index.cmp(&other.index),
+			(AgainstValid, ForInvalid) => core::cmp::Ordering::Less,
+			(ForInvalid, AgainstValid) => core::cmp::Ordering::Greater,
+		}
+	}
+}
+impl PartialEq for Offender {
+	fn eq(&self, other: &Self) -> bool {
+		let Offender { index, offence } = self;
+		*index == other.index && *offence == other.offence
+	}
+}
+
+impl Eq for Offender {}
+
+impl PartialOrd for Offender {
+	fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl Ord for Offender {
+	fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+		use SlashingOffenceKind::{AgainstValid, ForInvalid};
+
+		let Offender { index, offence } = self;
+		match (offence, other.offence) {
+			(AgainstValid, AgainstValid) | (ForInvalid, ForInvalid) => index.cmp(&other.index),
+			(AgainstValid, ForInvalid) => core::cmp::Ordering::Less,
+			(ForInvalid, AgainstValid) => core::cmp::Ordering::Greater,
+		}
+	}
+}
+
 pub use pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::traits::Hooks;
+	use frame_support::{pallet_prelude::*, traits::Hooks};
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::config]
@@ -64,7 +121,14 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-	// TODO: a list of validators that have been slashed, sorted by slash amount
+	// Disabled validators at the moment
+	#[pallet::storage]
+	#[pallet::getter(fn disabled_validators)]
+	type DisabledValidators<T> = StorageValue<_, Vec<ValidatorIndex>, ValueQuery>;
+
+	// All offenders reported during the current session
+	#[pallet::storage]
+	type Offenders<T> = StorageMap<_, Twox64Concat, ValidatorIndex, SlashingOffenceKind>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
