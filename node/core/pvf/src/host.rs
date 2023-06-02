@@ -879,7 +879,7 @@ fn warn_if_no_landlock() {
 	#[cfg(not(target_os = "linux"))]
 	gum::warn!(
 		target: LOG_TARGET,
-		"Cannot enable landlock, a Linux kernel security feature. Running validation of PVF code has a higher risk of compromising this machine. Consider running on Linux with landlock support for maximum security."
+		"Cannot enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider running on Linux with landlock support for maximum security."
 	);
 }
 
