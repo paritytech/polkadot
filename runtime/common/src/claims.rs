@@ -26,7 +26,6 @@ pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::ValidityError;
 use scale_info::TypeInfo;
-#[cfg(feature = "std")]
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 use sp_io::{crypto::secp256k1_ecdsa_recover, hashing::keccak_256};
 use sp_runtime::{
@@ -36,6 +35,8 @@ use sp_runtime::{
 	},
 	RuntimeDebug,
 };
+#[cfg(not(feature = "std"))]
+use sp_std::alloc::{format, string::String};
 use sp_std::{fmt::Debug, prelude::*};
 
 type CurrencyOf<T> = <<T as Config>::VestingSchedule as VestingSchedule<
@@ -71,8 +72,9 @@ impl WeightInfo for TestWeightInfo {
 }
 
 /// The kind of statement an account needs to make for a claim to be valid.
-#[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(
+	Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug, TypeInfo, Serialize, Deserialize,
+)]
 pub enum StatementKind {
 	/// Statement required to be made by non-SAFT holders.
 	Regular,
@@ -108,7 +110,6 @@ impl Default for StatementKind {
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default, RuntimeDebug, TypeInfo)]
 pub struct EthereumAddress([u8; 20]);
 
-#[cfg(feature = "std")]
 impl Serialize for EthereumAddress {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
@@ -119,7 +120,6 @@ impl Serialize for EthereumAddress {
 	}
 }
 
-#[cfg(feature = "std")]
 impl<'de> Deserialize<'de> for EthereumAddress {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
