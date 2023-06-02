@@ -29,10 +29,11 @@ pub mod test_utils;
 mod location_conversion;
 pub use location_conversion::{
 	Account32Hash, AccountId32Aliases, AccountKey20Aliases, AliasesIntoAccountId32,
-	ChildParachainConvertsVia, GlobalConsensusParachainConvertsFor, ParentIsPreset,
-	SiblingParachainConvertsVia, DescribeAccountId32Terminal, DescribeAllTerminal,
-	ForeignChainAliasAccount, DescribeAccountIdTerminal, DescribeAccountKey20Terminal,
-	DescribeFamily, DescribeLocation, DescribePalletTerminal, DescribeTerminus, HashedDescription,
+	ChildParachainConvertsVia, DescribeAccountId32Terminal, DescribeAccountIdTerminal,
+	DescribeAccountKey20Terminal, DescribeAllTerminal, DescribeFamily, DescribeLocation,
+	DescribePalletTerminal, DescribeTerminus, ForeignChainAliasAccount,
+	GlobalConsensusParachainConvertsFor, HashedDescription, ParentIsPreset,
+	SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;

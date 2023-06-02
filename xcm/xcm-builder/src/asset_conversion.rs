@@ -19,7 +19,9 @@
 use frame_support::traits::{Contains, Get};
 use sp_std::{borrow::Borrow, marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{RevFallRefConvert, Error as MatchError, MatchesFungibles, MatchesNonFungibles};
+use xcm_executor::traits::{
+	Error as MatchError, MatchesFungibles, MatchesNonFungibles, RevFallRefConvert,
+};
 
 /// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
 /// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
@@ -27,8 +29,12 @@ use xcm_executor::traits::{RevFallRefConvert, Error as MatchError, MatchesFungib
 pub struct AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>(
 	PhantomData<(Prefix, AssetId, ConvertAssetId)>,
 );
-impl<Prefix: Get<MultiLocation>, AssetId: Clone, ConvertAssetId: RevFallRefConvert<u128, AssetId>>
-	RevFallRefConvert<MultiLocation, AssetId> for AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>
+impl<
+		Prefix: Get<MultiLocation>,
+		AssetId: Clone,
+		ConvertAssetId: RevFallRefConvert<u128, AssetId>,
+	> RevFallRefConvert<MultiLocation, AssetId>
+	for AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>
 {
 	fn convert_ref(id: impl Borrow<MultiLocation>) -> result::Result<AssetId, ()> {
 		let prefix = Prefix::get();

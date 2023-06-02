@@ -17,11 +17,12 @@
 //! Various traits used in configuring the executor.
 
 mod conversion;
+#[deprecated = "This type is no longer in use; use `RevFallRefConvert` or `ConvertLocation`"]
+pub use conversion::RevFallRefConvert as Convert;
 pub use conversion::{
-	CallDispatcher, RevFallRefConvert, ConvertOrigin, Decoded, Encoded, Identity, JustTry, WithOriginFilter,
+	CallDispatcher, ConvertLocation, ConvertOrigin, Decoded, Encoded, Identity, JustTry,
+	RevFallRefConvert, WithOriginFilter,
 };
-#[allow(deprecated)]
-pub use conversion::Convert;
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
 mod asset_lock;
@@ -49,13 +50,13 @@ mod weight;
 pub use weight::{WeightBounds, WeightTrader};
 
 pub mod prelude {
-	pub use super::{
-		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, RevFallRefConvert, ConvertOrigin,
-		Decoded, DropAssets, Enact, Encoded, Error, ExportXcm, FeeManager, FeeReason, Identity,
-		JustTry, LockError, MatchesFungible, MatchesFungibles, MatchesNonFungible,
-		MatchesNonFungibles, OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier,
-		WeightBounds, WeightTrader, WithOriginFilter,
-	};
 	#[allow(deprecated)]
 	pub use super::Convert;
+	pub use super::{
+		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, Decoded,
+		DropAssets, Enact, Encoded, Error, ExportXcm, FeeManager, FeeReason, Identity, JustTry,
+		LockError, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
+		OnResponse, RevFallRefConvert, ShouldExecute, TransactAsset, VersionChangeNotifier,
+		WeightBounds, WeightTrader, WithOriginFilter,
+	};
 }
