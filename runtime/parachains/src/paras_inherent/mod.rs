@@ -462,8 +462,6 @@ impl<T: Config> Pallet<T> {
 			<scheduler::Pallet<T>>::free_cores(freed_disputed.clone());
 		}
 
-		// The following 3 calls are equiv to a call to `process_bitfields`
-		// but we can retain access to `bitfields`.
 		let bitfields = sanitize_bitfields::<T>(
 			bitfields,
 			disputed_bitfield,
