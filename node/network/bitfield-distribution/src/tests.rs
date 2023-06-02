@@ -28,9 +28,10 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem::{
 	jaeger,
 	jaeger::{PerLeafSpan, Span},
+	messages::ReportPeerMessage,
 };
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_subsystem_util::{reputation::add_reputation, TimeoutExt};
 use polkadot_primitives::{AvailabilityBitfield, Signed, ValidatorIndex};
 use rand_chacha::ChaCha12Rng;
 use sp_application_crypto::AppCrypto;
@@ -236,7 +237,7 @@ fn receive_invalid_signature() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, COST_SIGNATURE_INVALID.cost_or_benefit())
@@ -300,7 +301,7 @@ fn receive_invalid_validator_index() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, COST_VALIDATOR_INDEX_INVALID.cost_or_benefit())
@@ -379,7 +380,7 @@ fn receive_duplicate_messages() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
@@ -398,7 +399,7 @@ fn receive_duplicate_messages() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_a);
 				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE.cost_or_benefit())
@@ -417,7 +418,7 @@ fn receive_duplicate_messages() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, COST_PEER_DUPLICATE_MESSAGE.cost_or_benefit())
@@ -515,17 +516,16 @@ fn delay_reputation_change() {
 		// Wait enough to fire reputation delay
 		futures_timer::Delay::new(reputation_interval).await;
 
-		let expected_change = vec![BENEFIT_VALID_MESSAGE_FIRST, COST_PEER_DUPLICATE_MESSAGE]
-			.iter()
-			.fold(0_i32, |acc, rep| acc.saturating_add(rep.cost_or_benefit()));
-
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer_id, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(v))
 			) => {
-				assert_eq!(peer_id, peer);
-				assert_eq!(rep.value, expected_change)
+				let mut expected_change = HashMap::new();
+				for rep in vec![BENEFIT_VALID_MESSAGE_FIRST, COST_PEER_DUPLICATE_MESSAGE] {
+					add_reputation(&mut expected_change, peer, rep)
+				}
+				assert_eq!(v, expected_change)
 			}
 		);
 
@@ -741,7 +741,7 @@ fn changing_view() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
@@ -773,7 +773,7 @@ fn changing_view() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, COST_PEER_DUPLICATE_MESSAGE.cost_or_benefit())
@@ -805,7 +805,7 @@ fn changing_view() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_a);
 				assert_eq!(rep.value, COST_NOT_IN_VIEW.cost_or_benefit())
@@ -891,7 +891,7 @@ fn do_not_send_message_back_to_origin() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
@@ -1013,7 +1013,7 @@ fn topology_test() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peers_x[0]);
 				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
