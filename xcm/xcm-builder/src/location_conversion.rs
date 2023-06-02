@@ -237,18 +237,11 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]>
 /// network (provided by `Network`) and the `AccountId`'s `[u8; 32]` datum for the `id`.
 pub struct AliasesIntoAccountId32<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<'a, Network: Get<Option<NetworkId>>, AccountId: Clone + Into<[u8; 32]> + Clone>
-	Convert<&'a AccountId, MultiLocation> for AliasesIntoAccountId32<Network, AccountId>
+	sp_runtime::traits::Convert<&'a AccountId, MultiLocation>
+	for AliasesIntoAccountId32<Network, AccountId>
 {
-	fn convert(who: &AccountId) -> Result<MultiLocation, &'a AccountId> {
-		Ok(AccountId32 { network: Network::get(), id: who.clone().into() }.into())
-	}
-}
-
-impl<Network: Get<Option<NetworkId>>, AccountId: Into<[u8; 32]> + Clone>
-	Convert<AccountId, MultiLocation> for AliasesIntoAccountId32<Network, AccountId>
-{
-	fn convert(who: AccountId) -> Result<MultiLocation, AccountId> {
-		Ok(AccountId32 { network: Network::get(), id: who.into() }.into())
+	fn convert(who: &AccountId) -> MultiLocation {
+		AccountId32 { network: Network::get(), id: who.clone().into() }.into()
 	}
 }
 
@@ -313,7 +306,8 @@ impl<UniversalLocation: Get<InteriorMultiLocation>, AccountId: From<[u8; 32]> + 
 	}
 
 	fn reverse_ref(_: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
-		// if this will be needed, we could implement some kind of guessing, if we have configuration for supported networkId+paraId
+		// if this is ever be needed, we could implement some kind of guessing, if we have
+		// configuration for supported networkId+paraId
 		Err(())
 	}
 }
