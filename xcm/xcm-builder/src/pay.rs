@@ -28,8 +28,11 @@ use xcm_executor::traits::{QueryHandler, QueryResponseStatus};
 /// Implementation of the `frame_support::traits::tokens::Pay` trait, to allow
 /// for XCM-based payments of a given `Balance` of some asset ID existing on some chain under
 /// ownership of some `Interior` location of the local chain to a particular `Beneficiary`. The
-/// `AssetKind` value can be converted into both the XCM `AssetId` (via and `Into` bound) and the
-/// the destination chain's location, via the `AssetKindToLocatableAsset` type parameter.
+/// `AssetKind` value is not itself bounded (to avoid the issue of needing to wrap some preexisting
+/// datatype), however a converter type `AssetKindToLocatableAsset` must be provided in order to
+/// translate it into a `LocatableAsset`, which comprises both an XCM `MultiLocation` describing
+/// the XCM endpoint on which the asset to be paid resides and an XCM `AssetId` to identify the
+/// specific asset at that endpoint.
 ///
 /// This relies on the XCM `TransferAsset` instruction. A trait `BeneficiaryRefToLocation` must be
 /// provided in order to convert the `Beneficiary` reference into a location usable by
@@ -200,6 +203,3 @@ impl<Location: Get<MultiLocation>, AssetKind: Into<AssetId>> Convert<AssetKind, 
 		LocatableAssetId { asset_id: value.into(), location: Location::get() }
 	}
 }
-
-#[test]
-fn it_builds() {}
