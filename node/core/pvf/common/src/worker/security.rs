@@ -136,7 +136,7 @@ pub mod landlock {
 		#[test]
 		fn restricted_thread_cannot_access_fs() {
 			// TODO: This would be nice: <https://github.com/rust-lang/rust/issues/68007>.
-			if !is_fully_enabled() {
+			if !check_is_fully_enabled() {
 				return
 			}
 
