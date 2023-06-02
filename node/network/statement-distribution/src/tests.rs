@@ -31,7 +31,9 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{network_bridge_event, AllMessages, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{
+		network_bridge_event, AllMessages, ReportPeerMessage, RuntimeApiMessage, RuntimeApiRequest,
+	},
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
@@ -47,6 +49,7 @@ use sp_authority_discovery::AuthorityPair;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{Keystore, KeystorePtr};
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
+use util::reputation::add_reputation;
 
 // Some deterministic genesis hash for protocol names
 const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
@@ -863,8 +866,8 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r.value == BENEFIT_VALID_STATEMENT_FIRST.cost_or_benefit() => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => {}
 		);
 
 		assert_matches!(
@@ -1228,8 +1231,8 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_bad && r.value == COST_WRONG_HASH.cost_or_benefit() => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_bad && r == COST_WRONG_HASH.into() => {}
 		);
 
 		// a is tried again (retried in reverse order):
@@ -1279,22 +1282,22 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r.value == COST_FETCH_FAIL.cost_or_benefit() => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_a && r == COST_FETCH_FAIL.into() => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_c && r.value == BENEFIT_VALID_RESPONSE.cost_or_benefit() => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_c && r == BENEFIT_VALID_RESPONSE.into() => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r.value == BENEFIT_VALID_STATEMENT_FIRST.cost_or_benefit() => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => {}
 		);
 
 		assert_matches!(
@@ -1800,32 +1803,25 @@ fn delay_reputation_changes() {
 
 		// Wait enough to fire reputation delay
 		futures_timer::Delay::new(reputation_interval).await;
-		let aggregated_change = |v: Vec<Rep>| {
-			v.iter().fold(0_i32, |acc, rep| acc.saturating_add(rep.cost_or_benefit()))
-		};
 
-		for report in vec![handle.recv().await, handle.recv().await, handle.recv().await] {
-			if let AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r)) = report {
-				if p == peer_a {
-					assert_eq!(
-						r.value,
-						aggregated_change(vec![COST_FETCH_FAIL, BENEFIT_VALID_STATEMENT_FIRST])
-					);
-				} else if p == peer_c {
-					assert_eq!(
-						r.value,
-						aggregated_change(vec![BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT])
-					);
-				} else if p == peer_bad {
-					assert_eq!(
-						r.value,
-						aggregated_change(vec![COST_WRONG_HASH, BENEFIT_VALID_STATEMENT])
-					);
-				} else {
-					panic!("Messages should contain only peer reports");
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(v))
+			) => {
+				let mut expected_change = HashMap::new();
+				for rep in vec![COST_FETCH_FAIL, BENEFIT_VALID_STATEMENT_FIRST] {
+					add_reputation(&mut expected_change, peer_a, rep)
 				}
+				for rep in vec![BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT] {
+					add_reputation(&mut expected_change, peer_c, rep)
+				}
+				for rep in vec![COST_WRONG_HASH, BENEFIT_VALID_STATEMENT] {
+					add_reputation(&mut expected_change, peer_bad, rep)
+				}
+				assert_eq!(v, expected_change);
 			}
-		}
+		);
 
 		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -2319,9 +2315,9 @@ fn peer_cant_flood_with_large_statements() {
 					requested = true;
 				},
 
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r.value == COST_APPARENT_FLOOD.cost_or_benefit() =>
-				{
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
+					ReportPeerMessage::Single(p, r),
+				)) if p == peer_a && r == COST_APPARENT_FLOOD.into() => {
 					punished = true;
 				},
 
@@ -2583,10 +2579,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_a);
-				assert_eq!(r.value, BENEFIT_VALID_STATEMENT_FIRST.cost_or_benefit());
+				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST.into());
 			}
 		);
 
@@ -2635,10 +2631,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_b);
-				assert_eq!(r.value, BENEFIT_VALID_STATEMENT.cost_or_benefit());
+				assert_eq!(r, BENEFIT_VALID_STATEMENT.into());
 			}
 		);
 
@@ -2684,10 +2680,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_a);
-				assert_eq!(r.value, BENEFIT_VALID_STATEMENT_FIRST.cost_or_benefit());
+				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST.into());
 			}
 		);
 
@@ -2737,10 +2733,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_b);
-				assert_eq!(r.value, BENEFIT_VALID_STATEMENT.cost_or_benefit());
+				assert_eq!(r, BENEFIT_VALID_STATEMENT.into());
 			}
 		);
 
