@@ -1,4 +1,4 @@
-# DMP Module
+# DMP Pallet
 
 A module responsible for Downward Message Processing (DMP). See [Messaging Overview](../messaging.md) for more details.
 

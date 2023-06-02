@@ -549,7 +549,7 @@ fn find_local_validator_state(
 
 	let our_group = groups.by_validator_index(validator_index)?;
 
-	// note: this won't work well for parathreads because it only works
+	// note: this won't work well for on-demand parachains because it only works
 	// when core assignments to paras are static throughout the session.
 
 	let core = group_rotation_info.core_for_group(our_group, availability_cores.len());
@@ -1708,7 +1708,7 @@ fn group_for_para(
 	group_rotation_info: &GroupRotationInfo,
 	para_id: ParaId,
 ) -> Option<GroupIndex> {
-	// Note: this won't work well for parathreads as it assumes that core assignments are fixed
+	// Note: this won't work well for on-demand parachains as it assumes that core assignments are fixed
 	// across blocks.
 	let core_index = availability_cores.iter().position(|c| c.para_id() == Some(para_id));
 

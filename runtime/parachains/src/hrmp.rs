@@ -331,7 +331,7 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, HrmpChannelId, HrmpOpenChannelRequest>;
 
 	// NOTE: could become bounded, but we don't have a global maximum for this.
-	// `HRMP_MAX_INBOUND_CHANNELS_BOUND` are per parachain/parathread, while this storage tracks the
+	// `HRMP_MAX_INBOUND_CHANNELS_BOUND` are per parachain, while this storage tracks the
 	// global state.
 	#[pallet::storage]
 	pub type HrmpOpenChannelRequestsList<T: Config> =

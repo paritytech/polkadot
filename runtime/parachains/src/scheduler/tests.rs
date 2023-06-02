@@ -170,7 +170,7 @@ fn add_parathread_claim_works() {
 			);
 		}
 
-		// claims on non-live parathreads have no effect.
+		// claims on non-live parathreads (on-demand parachains) have no effect.
 		{
 			let thread_id2 = ParaId::from(11);
 			Scheduler::add_parathread_claim(ParathreadClaim(thread_id2, collator.clone()));
@@ -276,7 +276,7 @@ fn session_change_prunes_cores_beyond_retries_and_those_from_non_live_parathread
 				4,
 			);
 
-			// Will be pruned: not a live parathread.
+			// Will be pruned: not a live parathread (on-demand parachain).
 			queue.enqueue_entry(
 				ParathreadEntry { claim: ParathreadClaim(thread_d, collator.clone()), retries: 0 },
 				4,
@@ -450,11 +450,11 @@ fn schedule_schedules() {
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().parathread_cores, 3);
 
-		// register 2 parachains
+		// register 2 lease holding parachains
 		schedule_blank_para(chain_a, ParaKind::Parachain);
 		schedule_blank_para(chain_b, ParaKind::Parachain);
 
-		// and 3 parathreads
+		// and 3 parathreads (on-demand parachains)
 		schedule_blank_para(thread_a, ParaKind::Parathread);
 		schedule_blank_para(thread_b, ParaKind::Parathread);
 		schedule_blank_para(thread_c, ParaKind::Parathread);
@@ -498,7 +498,7 @@ fn schedule_schedules() {
 			);
 		}
 
-		// add a couple of parathread claims.
+		// add a couple of parathread (on-demand parachain) claims.
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
 
@@ -571,11 +571,11 @@ fn schedule_schedules_including_just_freed() {
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().parathread_cores, 3);
 
-		// register 2 parachains
+		// register 2 lease holding parachains
 		schedule_blank_para(chain_a, ParaKind::Parachain);
 		schedule_blank_para(chain_b, ParaKind::Parachain);
 
-		// and 5 parathreads
+		// and 5 parathreads (on-demand parachains)
 		schedule_blank_para(thread_a, ParaKind::Parathread);
 		schedule_blank_para(thread_b, ParaKind::Parathread);
 		schedule_blank_para(thread_c, ParaKind::Parathread);
@@ -598,7 +598,7 @@ fn schedule_schedules_including_just_freed() {
 			_ => None,
 		});
 
-		// add a couple of parathread claims now that the parathreads are live.
+		// add a couple of parathread (on-demand parachain) claims now that the on-demand parachains are live.
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
 
@@ -621,9 +621,9 @@ fn schedule_schedules_including_just_freed() {
 			assert!(Scheduler::scheduled().is_empty());
 		}
 
-		// add a couple more parathread claims - the claim on `b` will go to the 3rd parathread core (4)
-		// and the claim on `d` will go back to the 1st parathread core (2). The claim on `e` then
-		// will go for core `3`.
+		// add a couple more parathread (on-demand parachain) claims - the claim on `b` will go to
+		// the 3rd on-demand core (4) and the claim on `d` will go back to the 1st on-demand
+		// core (2). The claim on `e` then will go for core `3`.
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_d, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_e, collator.clone()));
@@ -633,8 +633,8 @@ fn schedule_schedules_including_just_freed() {
 		{
 			let scheduled = Scheduler::scheduled();
 
-			// cores 0 and 1 are occupied by parachains. cores 2 and 3 are occupied by parathread
-			// claims. core 4 was free.
+			// cores 0 and 1 are occupied by lease holding parachains. cores 2 and 3 are occupied by
+			// on-demand parachain claims. core 4 was free.
 			assert_eq!(scheduled.len(), 1);
 			assert_eq!(
 				scheduled[0],
@@ -812,7 +812,7 @@ fn schedule_rotates_groups() {
 	let config = {
 		let mut config = default_config();
 
-		// make sure parathread requests don't retry-out
+		// make sure parathread (on-demand parachain) requests don't retry-out
 		config.parathread_retries = config.group_rotation_frequency * 3;
 		config.parathread_cores = 2;
 		config

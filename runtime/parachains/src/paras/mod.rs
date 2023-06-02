@@ -18,15 +18,15 @@
 //!
 //! # Tracking State of Paras
 //!
-//! The most important responsibility of this module is to track which parachains and parathreads
+//! The most important responsibility of this module is to track which parachains
 //! are active and what their current state is. The current state of a para consists of the current
 //! head data and the current validation code (AKA Parachain Validation Function (PVF)).
 //!
 //! A para is not considered live until it is registered and activated in this pallet.
 //!
-//! The set of parachains and parathreads cannot change except at session boundaries. This is
-//! primarily to ensure that the number and meaning of bits required for the availability bitfields
-//! does not change except at session boundaries.
+//! The set of parachains cannot change except at session boundaries. This is primarily to ensure
+//! that the number and meaning of bits required for the availability bitfields does not change
+//! except at session boundaries.
 //!
 //! # Validation Code Upgrades
 //!
@@ -61,7 +61,8 @@
 //!
 //! # Para Lifecycle Management
 //!
-//! A para can be in one of the two stable states: it is either a parachain or a parathread.
+//! A para can be in one of the two stable states: it is either a lease holding parachain or an
+//! on-demand parachain.
 //!
 //! However, in order to get into one of those two states, it must first be onboarded. Onboarding
 //! can be only enacted at session boundaries. Onboarding must take at least one full session.
@@ -181,17 +182,17 @@ pub struct ParaPastCodeMeta<N> {
 /// state will be used to determine the state transition to apply to the para.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub enum ParaLifecycle {
-	/// Para is new and is onboarding as a Parathread or Parachain.
+	/// Para is new and is onboarding as an on-demand or lease holding Parachain.
 	Onboarding,
-	/// Para is a Parathread.
+	/// Para is a Parathread (on-demand parachain).
 	Parathread,
-	/// Para is a Parachain.
+	/// Para is a lease holding Parachain.
 	Parachain,
-	/// Para is a Parathread which is upgrading to a Parachain.
+	/// Para is a Parathread (on-demand parachain) which is upgrading to a lease holding Parachain.
 	UpgradingParathread,
-	/// Para is a Parachain which is downgrading to a Parathread.
+	/// Para is a lease holding Parachain which is downgrading to an on-demand parachain.
 	DowngradingParachain,
-	/// Parathread is queued to be offboarded.
+	/// Parathread (on-demand parachain) is queued to be offboarded.
 	OffboardingParathread,
 	/// Parachain is queued to be offboarded.
 	OffboardingParachain,
@@ -199,14 +200,14 @@ pub enum ParaLifecycle {
 
 impl ParaLifecycle {
 	/// Returns true if parachain is currently onboarding. To learn if the
-	/// parachain is onboarding as a parachain or parathread, look at the
+	/// parachain is onboarding as a lease holding or on-demand parachain, look at the
 	/// `UpcomingGenesis` storage item.
 	pub fn is_onboarding(&self) -> bool {
 		matches!(self, ParaLifecycle::Onboarding)
 	}
 
 	/// Returns true if para is in a stable state, i.e. it is currently
-	/// a parachain or parathread, and not in any transition state.
+	/// a lease holding or on-demand parachain, and not in any transition state.
 	pub fn is_stable(&self) -> bool {
 		matches!(self, ParaLifecycle::Parathread | ParaLifecycle::Parachain)
 	}
@@ -223,7 +224,7 @@ impl ParaLifecycle {
 		)
 	}
 
-	/// Returns true if para is currently treated as a parathread.
+	/// Returns true if para is currently treated as a parathread (on-demand parachain).
 	/// This also includes transitioning states, so you may want to combine
 	/// this check with `is_stable` if you specifically want `Paralifecycle::Parathread`.
 	pub fn is_parathread(&self) -> bool {
@@ -297,12 +298,12 @@ pub struct ParaGenesisArgs {
 	pub genesis_head: HeadData,
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
-	/// Parachain or Parathread.
+	/// Lease holding or on-demand parachain.
 	#[cfg_attr(feature = "std", serde(rename = "parachain"))]
 	pub para_kind: ParaKind,
 }
 
-/// Distinguishes between Parachain and Parathread
+/// Distinguishes between lease holding Parachain and Parathread (on-demand parachain)
 #[derive(PartialEq, Eq, Clone, RuntimeDebug)]
 pub enum ParaKind {
 	Parathread,
@@ -602,9 +603,9 @@ pub mod pallet {
 		CannotOnboard,
 		/// Para cannot be offboarded at this time.
 		CannotOffboard,
-		/// Para cannot be upgraded to a parachain.
+		/// Para cannot be upgraded to a lease holding parachain.
 		CannotUpgrade,
-		/// Para cannot be downgraded to a parathread.
+		/// Para cannot be downgraded to an on-demand parachain.
 		CannotDowngrade,
 		/// The statement for PVF pre-checking is stale.
 		PvfCheckStatementStale,
@@ -640,7 +641,7 @@ pub mod pallet {
 	pub(super) type PvfActiveVoteList<T: Config> =
 		StorageValue<_, Vec<ValidationCodeHash>, ValueQuery>;
 
-	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
+	/// All lease holding parachains. Ordered ascending by `ParaId`. On demand parachains are not included.
 	///
 	/// Consider using the [`ParachainsCache`] type of modifying.
 	#[pallet::storage]
@@ -1219,7 +1220,7 @@ impl<T: Config> Pallet<T> {
 	// The actions to take are based on the lifecycle of of the paras.
 	//
 	// The final state of any para after the actions queue should be as a
-	// parachain, parathread, or not registered. (stable states)
+	// lease holding parachain, on-demand parachain, or not registered. (stable states)
 	//
 	// Returns the list of outgoing paras from the actions queue.
 	fn apply_actions_queue(session: SessionIndex) -> Vec<ParaId> {
@@ -1238,17 +1239,17 @@ impl<T: Config> Pallet<T> {
 						Self::initialize_para_now(&mut parachains, para, &genesis_data);
 					}
 				},
-				// Upgrade a parathread to a parachain
+				// Upgrade an on-demand parachain to a lease holding parachain
 				Some(ParaLifecycle::UpgradingParathread) => {
 					parachains.add(para);
 					ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parachain);
 				},
-				// Downgrade a parachain to a parathread
+				// Downgrade a lease holding parachain to an on-demand parachain
 				Some(ParaLifecycle::DowngradingParachain) => {
 					parachains.remove(para);
 					ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parathread);
 				},
-				// Offboard a parathread or parachain from the system
+				// Offboard a lease holding or on-demand parachain from the system
 				Some(ParaLifecycle::OffboardingParachain) |
 				Some(ParaLifecycle::OffboardingParathread) => {
 					parachains.remove(para);
@@ -1688,7 +1689,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Will return error if either is true:
 	///
-	/// - para is not a stable parachain or parathread (i.e. [`ParaLifecycle::is_stable`] is `false`)
+	/// - para is not a stable parachain (i.e. [`ParaLifecycle::is_stable`] is `false`)
 	/// - para has a pending upgrade.
 	/// - para has unprocessed messages in its UMP queue.
 	///
@@ -1738,7 +1739,7 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Schedule a parathread to be upgraded to a parachain.
+	/// Schedule a parathread (on-demand parachain) to be upgraded to a lease holding parachain.
 	///
 	/// Will return error if `ParaLifecycle` is not `Parathread`.
 	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> DispatchResult {
@@ -1757,7 +1758,7 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Schedule a parachain to be downgraded to a parathread.
+	/// Schedule a lease holding parachain to be downgraded to an on-demand parachain.
 	///
 	/// Noop if `ParaLifecycle` is not `Parachain`.
 	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> DispatchResult {
@@ -2036,9 +2037,9 @@ impl<T: Config> Pallet<T> {
 		ParaLifecycles::<T>::get(&id).map_or(false, |state| state.is_offboarding())
 	}
 
-	/// Whether a para ID corresponds to any live parachain.
+	/// Whether a para ID corresponds to any live lease holding parachain.
 	///
-	/// Includes parachains which will downgrade to a parathread in the future.
+	/// Includes lease holding parachains which will downgrade to a on-demand parachains in the future.
 	pub fn is_parachain(id: ParaId) -> bool {
 		if let Some(state) = ParaLifecycles::<T>::get(&id) {
 			state.is_parachain()
@@ -2047,9 +2048,9 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// Whether a para ID corresponds to any live parathread.
+	/// Whether a para ID corresponds to any live parathread (on-demand parachain).
 	///
-	/// Includes parathreads which will upgrade to parachains in the future.
+	/// Includes on-demand parachains which will upgrade to lease holding parachains in the future.
 	pub fn is_parathread(id: ParaId) -> bool {
 		if let Some(state) = ParaLifecycles::<T>::get(&id) {
 			state.is_parathread()
