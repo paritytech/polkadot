@@ -129,7 +129,6 @@ use sp_runtime::{
 };
 use sp_std::{cmp, collections::btree_set::BTreeSet, mem, prelude::*};
 
-#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 pub use crate::Origin as ParachainOrigin;
@@ -290,15 +289,14 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 }
 
 /// Arguments for initializing a para.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, Serialize, Deserialize)]
 pub struct ParaGenesisArgs {
 	/// The initial head data to use.
 	pub genesis_head: HeadData,
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
 	/// Parachain or Parathread.
-	#[cfg_attr(feature = "std", serde(rename = "parachain"))]
+	#[serde(rename = "parachain")]
 	pub para_kind: ParaKind,
 }
 
@@ -309,7 +307,6 @@ pub enum ParaKind {
 	Parachain,
 }
 
-#[cfg(feature = "std")]
 impl Serialize for ParaKind {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
@@ -322,7 +319,6 @@ impl Serialize for ParaKind {
 	}
 }
 
-#[cfg(feature = "std")]
 impl<'de> Deserialize<'de> for ParaKind {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
