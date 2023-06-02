@@ -16,12 +16,155 @@
 
 use crate::universal_exports::ensure_is_remote;
 use frame_support::traits::Get;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Compact};
 use sp_io::hashing::blake2_256;
-use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
-use sp_std::{borrow::Borrow, marker::PhantomData};
+use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput, Convert as SimpleConvert};
+use sp_std::{prelude::*, borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::Convert;
+
+pub trait DescribeLocation {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>>;
+}
+
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl DescribeLocation for Tuple {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		for_tuples!( #(
+			match Tuple::describe_location(l) {
+				Some(result) => return Some(result),
+				None => {},
+			}
+		)* );
+		None
+	}
+}
+
+pub struct DescribeTerminus;
+impl DescribeLocation for DescribeTerminus {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, &l.interior) {
+			(0, Here) => Some(Vec::new()),
+			_ => return None,
+		}
+	}
+}
+
+pub struct DescribePalletTerminal;
+impl DescribeLocation for DescribePalletTerminal {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, &l.interior) {
+			(0, X1(PalletInstance(i))) => Some((b"Pallet", Compact::<u32>::from(*i as u32)).encode()),
+			_ => return None,
+		}
+	}
+}
+
+pub struct DescribeAccountId32Terminal;
+impl DescribeLocation for DescribeAccountId32Terminal {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, &l.interior) {
+			(0, X1(AccountId32 { id, .. })) => Some((b"AccountId32", id).encode()),
+			_ => return None,
+		}
+	}
+}
+
+pub struct DescribeAccountKey20Terminal;
+impl DescribeLocation for DescribeAccountKey20Terminal {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, &l.interior) {
+			(0, X1(AccountKey20 { key, .. })) => Some((b"AccountKey20", key).encode()),
+			_ => return None,
+		}
+	}
+}
+
+pub type DescribeAccountIdTerminal = (DescribeAccountId32Terminal, DescribeAccountKey20Terminal);
+
+pub type DescribeAllTerminal = (
+	DescribeTerminus,
+	DescribePalletTerminal,
+	DescribeAccountId32Terminal,
+	DescribeAccountKey20Terminal,
+);
+
+pub struct DescribeFamily<DescribeInterior>(PhantomData<DescribeInterior>);
+impl<Suffix: DescribeLocation> DescribeLocation for DescribeFamily<Suffix> {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, l.interior.first()) {
+			(0, Some(Parachain(index))) => {
+				let tail = l.interior.clone().split_first().0;
+				let interior = Suffix::describe_location(&tail.into())?;
+				Some((b"ChildChain", Compact::<u32>::from(*index), interior).encode())
+			},
+			(1, Some(Parachain(index))) => {
+				let tail = l.interior.clone().split_first().0;
+				let interior = Suffix::describe_location(&tail.into())?;
+				Some((b"SiblingChain", Compact::<u32>::from(*index), interior).encode())
+			},
+			(1, _) => {
+				let tail = l.interior.clone().into();
+				let interior = Suffix::describe_location(&tail)?;
+				Some((b"ParentChain", interior).encode())
+			},
+			_ => return None,
+		}
+	}
+
+}
+
+pub struct HashedDescription<AccountId, Describe>(PhantomData<(AccountId, Describe)>);
+impl<AccountId: From<[u8; 32]> + Clone, Describe: DescribeLocation> Convert<MultiLocation, AccountId>
+	for HashedDescription<AccountId, Describe>
+{
+	fn convert_ref(value: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
+		Ok(blake2_256(&Describe::describe_location(value.borrow()).ok_or(())?).into())
+	}
+	fn reverse_ref(_: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
+		Err(())
+	}
+}
+
+/// This is a describer for legacy support of the `ForeignChainAliasAccount` preimage. New chains
+/// are recommended to use the more extensible `HashedDescription` type.
+pub struct LegacyDescribeForeignChainAccount;
+impl DescribeLocation for LegacyDescribeForeignChainAccount {
+	fn describe_location(location: &MultiLocation) -> Option<Vec<u8>> {
+		Some(match location {
+			// Used on the relay chain for sending paras that use 32 byte accounts
+			MultiLocation {
+				parents: 0,
+				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
+			} => LegacyDescribeForeignChainAccount::from_para_32(para_id, id, 0),
+
+			// Used on the relay chain for sending paras that use 20 byte accounts
+			MultiLocation {
+				parents: 0,
+				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
+			} => LegacyDescribeForeignChainAccount::from_para_20(para_id, key, 0),
+
+			// Used on para-chain for sending paras that use 32 byte accounts
+			MultiLocation {
+				parents: 1,
+				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
+			} => LegacyDescribeForeignChainAccount::from_para_32(para_id, id, 1),
+
+			// Used on para-chain for sending paras that use 20 byte accounts
+			MultiLocation {
+				parents: 1,
+				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
+			} => LegacyDescribeForeignChainAccount::from_para_20(para_id, key, 1),
+
+			// Used on para-chain for sending from the relay chain
+			MultiLocation { parents: 1, interior: X1(AccountId32 { id, .. }) } =>
+				LegacyDescribeForeignChainAccount::from_relay_32(id, 1),
+
+			// No other conversions provided
+			_ => return None,
+		})
+	}
+}
 
 /// Prefix for generating alias account for accounts coming
 /// from chains that use 32 byte long representations.
@@ -35,6 +178,39 @@ pub const FOREIGN_CHAIN_PREFIX_PARA_20: [u8; 37] = *b"ForeignChainAliasAccountPr
 /// from the relay chain using 32 byte long representations.
 pub const FOREIGN_CHAIN_PREFIX_RELAY: [u8; 36] = *b"ForeignChainAliasAccountPrefix_Relay";
 
+impl LegacyDescribeForeignChainAccount {
+	fn from_para_32(para_id: &u32, id: &[u8; 32], parents: u8) -> Vec<u8> {
+		(FOREIGN_CHAIN_PREFIX_PARA_32, para_id, id, parents).encode()
+	}
+
+	fn from_para_20(para_id: &u32, id: &[u8; 20], parents: u8) -> Vec<u8> {
+		(FOREIGN_CHAIN_PREFIX_PARA_20, para_id, id, parents).encode()
+	}
+
+	fn from_relay_32(id: &[u8; 32], parents: u8) -> Vec<u8> {
+		(FOREIGN_CHAIN_PREFIX_RELAY, id, parents).encode()
+	}
+}
+
+/// This is deprecated in favour of the more modular `HashedDescription` converter. If
+/// your chain has previously used this, then you can retain backwards compatibility using
+/// `HashedDescription` and a tuple with `LegacyDescribeForeignChainAccount` as the first
+/// element. For example:
+///
+/// ```nocompile
+/// pub type LocationToAccount = HashedDescription<
+///   // Legacy conversion - MUST BE FIRST!
+///   LegacyDescribeForeignChainAccount,
+///   // Other conversions
+///   DescribeTerminus,
+///   DescribePalletTerminal,
+/// >;
+/// ```
+///
+/// This type is equivalent to the above but without any other conversions.
+///
+/// ### Old documentation
+///
 /// This converter will for a given `AccountId32`/`AccountKey20`
 /// always generate the same "remote" account for a specific
 /// sending chain.
@@ -68,65 +244,7 @@ pub const FOREIGN_CHAIN_PREFIX_RELAY: [u8; 36] = *b"ForeignChainAliasAccountPref
 ///
 /// Note that the alias accounts have overlaps but never on the same
 /// chain when the sender comes from different chains.
-pub struct ForeignChainAliasAccount<AccountId>(PhantomData<AccountId>);
-impl<AccountId: From<[u8; 32]> + Clone> Convert<MultiLocation, AccountId>
-	for ForeignChainAliasAccount<AccountId>
-{
-	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		let entropy = match location.borrow() {
-			// Used on the relay chain for sending paras that use 32 byte accounts
-			MultiLocation {
-				parents: 0,
-				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_32(para_id, id, 0),
-
-			// Used on the relay chain for sending paras that use 20 byte accounts
-			MultiLocation {
-				parents: 0,
-				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_20(para_id, key, 0),
-
-			// Used on para-chain for sending paras that use 32 byte accounts
-			MultiLocation {
-				parents: 1,
-				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_32(para_id, id, 1),
-
-			// Used on para-chain for sending paras that use 20 byte accounts
-			MultiLocation {
-				parents: 1,
-				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_20(para_id, key, 1),
-
-			// Used on para-chain for sending from the relay chain
-			MultiLocation { parents: 1, interior: X1(AccountId32 { id, .. }) } =>
-				ForeignChainAliasAccount::<AccountId>::from_relay_32(id, 1),
-
-			// No other conversions provided
-			_ => return Err(()),
-		};
-
-		Ok(entropy.into())
-	}
-
-	fn reverse_ref(_: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
-		Err(())
-	}
-}
-
-impl<AccountId> ForeignChainAliasAccount<AccountId> {
-	fn from_para_32(para_id: &u32, id: &[u8; 32], parents: u8) -> [u8; 32] {
-		(FOREIGN_CHAIN_PREFIX_PARA_32, para_id, id, parents).using_encoded(blake2_256)
-	}
-
-	fn from_para_20(para_id: &u32, id: &[u8; 20], parents: u8) -> [u8; 32] {
-		(FOREIGN_CHAIN_PREFIX_PARA_20, para_id, id, parents).using_encoded(blake2_256)
-	}
-
-	fn from_relay_32(id: &[u8; 32], parents: u8) -> [u8; 32] {
-		(FOREIGN_CHAIN_PREFIX_RELAY, id, parents).using_encoded(blake2_256)
-	}
-}
+pub type ForeignChainAliasAccount<AccountId> = HashedDescription<AccountId, LegacyDescribeForeignChainAccount>;
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
@@ -140,6 +258,7 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]>
 		Err(())
 	}
 }
+
 
 /// A [`MultiLocation`] consisting of a single `Parent` [`Junction`] will be converted to the
 /// parent `AccountId`.
@@ -237,7 +356,7 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]>
 /// network (provided by `Network`) and the `AccountId`'s `[u8; 32]` datum for the `id`.
 pub struct AliasesIntoAccountId32<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<'a, Network: Get<Option<NetworkId>>, AccountId: Clone + Into<[u8; 32]> + Clone>
-	sp_runtime::traits::Convert<&'a AccountId, MultiLocation>
+	SimpleConvert<&'a AccountId, MultiLocation>
 	for AliasesIntoAccountId32<Network, AccountId>
 {
 	fn convert(who: &AccountId) -> MultiLocation {
