@@ -10584,7 +10584,6 @@ dependencies = [
  "futures-timer",
  "linked-hash-map",
  "log",
- "num-traits",
  "parity-scale-codec",
  "parking_lot 0.12.1",
  "sc-client-api",
@@ -14813,7 +14812,7 @@ version = "4.0.0-dev"
 
 [[patch.unused]]
 name = "pallet-contracts-primitives"
-version = "7.0.0"
+version = "24.0.0"
 
 [[patch.unused]]
 name = "pallet-contracts-proc-macro"

@@ -158,8 +158,8 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 	}
 }
 
-pub use sp_runtime::traits::TryConvertInto as JustTry;
-pub use sp_runtime::traits::Identity;
+// TODO : Move usages into TryConvertInto
+pub use sp_runtime::traits::{Identity, TryConvertInto as JustTry};
 
 /// A converter `trait` for origin types.
 ///

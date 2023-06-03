@@ -56,7 +56,7 @@ pub mod prelude {
 		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, Decoded,
 		DropAssets, Enact, Encoded, Error, ExportXcm, FeeManager, FeeReason, Identity, JustTry,
 		LockError, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
-		OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier,
-		WeightBounds, WeightTrader, WithOriginFilter,
+		OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds,
+		WeightTrader, WithOriginFilter,
 	};
 }

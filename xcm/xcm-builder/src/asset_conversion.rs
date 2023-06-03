@@ -17,12 +17,10 @@
 //! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
 
 use frame_support::traits::{Contains, Get};
-use sp_std::{marker::PhantomData, prelude::*, result};
 use sp_runtime::traits::MaybeEquivalence;
+use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{
-	Error as MatchError, MatchesFungibles, MatchesNonFungibles,
-};
+use xcm_executor::traits::{Error as MatchError, MatchesFungibles, MatchesNonFungibles};
 
 /// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
 /// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
@@ -77,10 +75,9 @@ impl<
 			(Fungible(ref amount), Concrete(ref id)) => (amount, id),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertAssetId::convert(id).ok_or(MatchError::AssetIdConversionFailed)?;
-		let amount = ConvertBalance::convert(amount)
-			.ok_or(MatchError::AmountToBalanceConversionFailed)?;
+		let what = ConvertAssetId::convert(id).ok_or(MatchError::AssetIdConversionFailed)?;
+		let amount =
+			ConvertBalance::convert(amount).ok_or(MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
 	}
 }
@@ -97,10 +94,9 @@ impl<
 			(NonFungible(ref instance), Concrete(ref class)) => (instance, class),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertClassId::convert(class).ok_or(MatchError::AssetIdConversionFailed)?;
-		let instance = ConvertInstanceId::convert(instance)
-			.ok_or(MatchError::InstanceConversionFailed)?;
+		let what = ConvertClassId::convert(class).ok_or(MatchError::AssetIdConversionFailed)?;
+		let instance =
+			ConvertInstanceId::convert(instance).ok_or(MatchError::InstanceConversionFailed)?;
 		Ok((what, instance))
 	}
 }
@@ -121,10 +117,9 @@ impl<
 			(Fungible(ref amount), Abstract(ref id)) => (amount, id),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertAssetId::convert(id).ok_or(MatchError::AssetIdConversionFailed)?;
-		let amount = ConvertBalance::convert(amount)
-			.ok_or(MatchError::AmountToBalanceConversionFailed)?;
+		let what = ConvertAssetId::convert(id).ok_or(MatchError::AssetIdConversionFailed)?;
+		let amount =
+			ConvertBalance::convert(amount).ok_or(MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
 	}
 }
@@ -141,10 +136,9 @@ impl<
 			(NonFungible(ref instance), Abstract(ref class)) => (instance, class),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertClassId::convert(class).ok_or(MatchError::AssetIdConversionFailed)?;
-		let instance = ConvertInstanceId::convert(instance)
-			.ok_or(MatchError::InstanceConversionFailed)?;
+		let what = ConvertClassId::convert(class).ok_or(MatchError::AssetIdConversionFailed)?;
+		let instance =
+			ConvertInstanceId::convert(instance).ok_or(MatchError::InstanceConversionFailed)?;
 		Ok((what, instance))
 	}
 }
@@ -171,10 +165,9 @@ impl<
 			(Fungible(ref amount), Concrete(ref id)) if MatchAssetId::contains(id) => (amount, id),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertAssetId::convert(id).ok_or(MatchError::AssetIdConversionFailed)?;
-		let amount = ConvertBalance::convert(amount)
-			.ok_or(MatchError::AmountToBalanceConversionFailed)?;
+		let what = ConvertAssetId::convert(id).ok_or(MatchError::AssetIdConversionFailed)?;
+		let amount =
+			ConvertBalance::convert(amount).ok_or(MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
 	}
 }
@@ -193,10 +186,9 @@ impl<
 				(instance, class),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertClassId::convert(class).ok_or(MatchError::AssetIdConversionFailed)?;
-		let instance = ConvertInstanceId::convert(instance)
-			.ok_or(MatchError::InstanceConversionFailed)?;
+		let what = ConvertClassId::convert(class).ok_or(MatchError::AssetIdConversionFailed)?;
+		let instance =
+			ConvertInstanceId::convert(instance).ok_or(MatchError::InstanceConversionFailed)?;
 		Ok((what, instance))
 	}
 }

@@ -28,7 +28,7 @@ use frame_system::EnsureRoot;
 use sp_core::{ConstU32, H256};
 use sp_runtime::{
 	testing::Header,
-	traits::{Get, Hash, IdentityLookup},
+	traits::{Get, Hash, IdentityLookup, MaybeEquivalence},
 	AccountId32,
 };
 use sp_std::prelude::*;
@@ -47,7 +47,7 @@ use xcm_builder::{
 	SovereignSignedViaLocation,
 };
 use xcm_executor::{
-	traits::{JustTry, MaybeEquivalence},
+	traits::{ConvertLocation, JustTry},
 	Config, XcmExecutor,
 };
 
@@ -160,7 +160,7 @@ impl EnsureOriginWithArg<RuntimeOrigin, MultiLocation> for ForeignCreators {
 		if !a.starts_with(&origin_location) {
 			return Err(o)
 		}
-		SovereignAccountOf::convert(origin_location).map_err(|_| o)
+		SovereignAccountOf::convert_location(&origin_location).ok_or(o)
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
