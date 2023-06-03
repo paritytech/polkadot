@@ -53,7 +53,7 @@ impl<AccountId> ConvertLocation<AccountId> for Tuple {
 ///
 /// Can be amalgamated into tuples. If any of the tuple elements converts into `Ok(_)` it short circuits. Otherwise returns
 /// the `Err(_)` of the last failing conversion (or `Err(())` for ref conversions).
-pub trait RevFallRefConvert<A: Clone, B: Clone> {
+pub trait Convert<A: Clone, B: Clone> {
 	/// Convert from `value` (of type `A`) into an equivalent value of type `B`, `Err` if not possible.
 	fn convert(value: A) -> Result<B, A> {
 		Self::convert_ref(&value).map_err(|_| value)
@@ -71,7 +71,7 @@ pub trait RevFallRefConvert<A: Clone, B: Clone> {
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
-impl<A: Clone, B: Clone> RevFallRefConvert<A, B> for Tuple {
+impl<A: Clone, B: Clone> Convert<A, B> for Tuple {
 	fn convert(value: A) -> Result<B, A> {
 		for_tuples!( #(
 			let value = match Tuple::convert(value) {
@@ -111,10 +111,10 @@ impl<A: Clone, B: Clone> RevFallRefConvert<A, B> for Tuple {
 		Err(())
 	}
 }
-
+/*
 /// Simple pass-through which implements `BytesConversion` while not doing any conversion.
 pub struct Identity;
-impl<T: Clone> RevFallRefConvert<T, T> for Identity {
+impl<T: Clone> Convert<T, T> for Identity {
 	fn convert(value: T) -> Result<T, T> {
 		Ok(value)
 	}
@@ -125,7 +125,7 @@ impl<T: Clone> RevFallRefConvert<T, T> for Identity {
 
 /// Implementation of `Convert` trait using `TryFrom`.
 pub struct JustTry;
-impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> RevFallRefConvert<Source, Dest>
+impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> Convert<Source, Dest>
 	for JustTry
 {
 	fn convert(value: Source) -> Result<Dest, Source> {
@@ -135,10 +135,10 @@ impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> RevFallRefCon
 		Source::try_from(value.clone()).map_err(|_| value)
 	}
 }
-
+*/
 /// Implementation of `Convert<_, Vec<u8>>` using the parity scale codec.
 pub struct Encoded;
-impl<T: Clone + Encode + Decode> RevFallRefConvert<T, Vec<u8>> for Encoded {
+impl<T: Clone + Encode + Decode> Convert<T, Vec<u8>> for Encoded {
 	fn convert_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> {
 		Ok(value.borrow().encode())
 	}
@@ -149,7 +149,7 @@ impl<T: Clone + Encode + Decode> RevFallRefConvert<T, Vec<u8>> for Encoded {
 
 /// Implementation of `Convert<Vec<u8>, _>` using the parity scale codec.
 pub struct Decoded;
-impl<T: Clone + Encode + Decode> RevFallRefConvert<Vec<u8>, T> for Decoded {
+impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 	fn convert_ref(bytes: impl Borrow<Vec<u8>>) -> Result<T, ()> {
 		T::decode(&mut &bytes.borrow()[..]).map_err(|_| ())
 	}
@@ -157,6 +157,9 @@ impl<T: Clone + Encode + Decode> RevFallRefConvert<Vec<u8>, T> for Decoded {
 		Ok(value.borrow().encode())
 	}
 }
+
+pub use sp_runtime::traits::TryConvertInto as JustTry;
+pub use sp_runtime::traits::Identity;
 
 /// A converter `trait` for origin types.
 ///

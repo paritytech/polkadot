@@ -17,11 +17,11 @@
 //! Various traits used in configuring the executor.
 
 mod conversion;
-#[deprecated = "This type is no longer in use; use `RevFallRefConvert` or `ConvertLocation`"]
-pub use conversion::RevFallRefConvert as Convert;
+#[deprecated = "This type is no longer in use; use `MaybeEquivalence` or `ConvertLocation`"]
+pub use conversion::Convert;
 pub use conversion::{
 	CallDispatcher, ConvertLocation, ConvertOrigin, Decoded, Encoded, Identity, JustTry,
-	RevFallRefConvert, WithOriginFilter,
+	WithOriginFilter,
 };
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
@@ -56,7 +56,7 @@ pub mod prelude {
 		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, Decoded,
 		DropAssets, Enact, Encoded, Error, ExportXcm, FeeManager, FeeReason, Identity, JustTry,
 		LockError, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
-		OnResponse, RevFallRefConvert, ShouldExecute, TransactAsset, VersionChangeNotifier,
+		OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier,
 		WeightBounds, WeightTrader, WithOriginFilter,
 	};
 }
