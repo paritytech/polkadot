@@ -17,12 +17,7 @@
 //! Various traits used in configuring the executor.
 
 mod conversion;
-#[deprecated = "This type is no longer in use; use `MaybeEquivalence` or `ConvertLocation`"]
-pub use conversion::Convert;
-pub use conversion::{
-	CallDispatcher, ConvertLocation, ConvertOrigin, Decoded, Encoded, Identity, JustTry,
-	WithOriginFilter,
-};
+pub use conversion::{CallDispatcher, ConvertLocation, ConvertOrigin, WithOriginFilter};
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
 mod asset_lock;
@@ -47,16 +42,17 @@ pub use should_execute::{CheckSuspension, Properties, ShouldExecute};
 mod transact_asset;
 pub use transact_asset::TransactAsset;
 mod weight;
+#[deprecated = "Use `sp_runtime::traits::` instead"]
+pub use sp_runtime::traits::{Identity, TryConvertInto as JustTry};
 pub use weight::{WeightBounds, WeightTrader};
 
 pub mod prelude {
-	#[allow(deprecated)]
-	pub use super::Convert;
 	pub use super::{
-		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, Decoded,
-		DropAssets, Enact, Encoded, Error, ExportXcm, FeeManager, FeeReason, Identity, JustTry,
-		LockError, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
-		OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds,
-		WeightTrader, WithOriginFilter,
+		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin,
+		DropAssets, Enact, Error, ExportXcm, FeeManager, FeeReason, LockError, MatchesFungible,
+		MatchesFungibles, MatchesNonFungible, MatchesNonFungibles, OnResponse, ShouldExecute,
+		TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader, WithOriginFilter,
 	};
+	#[allow(deprecated)]
+	pub use super::{Identity, JustTry};
 }
