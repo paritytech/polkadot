@@ -101,6 +101,11 @@ pub fn worker_event_loop<F, Fut>(
 		}
 	}
 
+	// Delete env vars to prevent malicious code from accessing them.
+	for (key, _) in std::env::vars() {
+		std::env::remove_var(key);
+	}
+
 	// Run the main worker loop.
 	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
 	let err = rt
