@@ -96,8 +96,6 @@ pub mod landlock {
 
 	/// Basaed on the given `status`, returns a single bool indicating whether the given landlock
 	/// ABI is fully enabled on the current Linux environment.
-	///
-	/// NOTE: Secure validators must be *fully* enabled. See "Determinism" in [`LANDLOCK_ABI`].
 	pub fn status_is_fully_enabled(
 		status: &Result<RulesetStatus, Box<dyn std::error::Error>>,
 	) -> bool {
@@ -106,8 +104,6 @@ pub mod landlock {
 
 	/// Runs a check for landlock and returns a single bool indicating whether the given landlock
 	/// ABI is fully enabled on the current Linux environment.
-	///
-	/// NOTE: Secure validators must be *fully* enabled. See "Determinism" in [`LANDLOCK_ABI`].
 	pub fn check_is_fully_enabled() -> bool {
 		status_is_fully_enabled(&get_status())
 	}
