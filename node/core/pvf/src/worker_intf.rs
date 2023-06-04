@@ -217,7 +217,15 @@ impl WorkerHandle {
 		extra_args: &[&str],
 		socket_path: impl AsRef<Path>,
 	) -> io::Result<Self> {
-		let mut child = process::Command::new(program.as_ref())
+		// Clear all env vars from the spawned process.
+		let mut command = process::Command::new(program.as_ref());
+		command.env_clear();
+		// Add back any env vars we want to keep.
+		if let Ok(env) = std::env::var("RUST_LOG") {
+			command.env("RUST_LOG", env);
+		}
+
+		let mut child = command
 			.args(extra_args)
 			.arg("--socket-path")
 			.arg(socket_path.as_ref().as_os_str())
