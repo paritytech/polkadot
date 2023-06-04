@@ -106,13 +106,13 @@ impl<
 		let query_id = Querier::new_query(asset_location, Timeout::get(), Interior::get());
 
 		let message = Xcm(vec![
+			DescendOrigin(Interior::get()),
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
 				destination,
 				query_id,
 				max_weight: Weight::zero(),
 			})])),
-			DescendOrigin(Interior::get()),
 			TransferAsset {
 				beneficiary,
 				assets: vec![MultiAsset { id: asset_id, fun: Fungibility::Fungible(amount) }]
