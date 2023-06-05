@@ -98,7 +98,7 @@ impl<Suffix: DescribeLocation> DescribeLocation for DescribeFamily<Suffix> {
 	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
 		match (l.parents, l.interior.first()) {
 			(0, Some(Parachain(index))) => {
-				let tail = l.interior.clone().split_first().0;
+				let tail = l.interior.split_first().0;
 				let interior = Suffix::describe_location(&tail.into())?;
 				Some((b"ChildChain", Compact::<u32>::from(*index), interior).encode())
 			},
