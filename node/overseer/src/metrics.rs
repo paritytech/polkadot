@@ -17,6 +17,7 @@
 //! Prometheus metrics related to the overseer and its channels.
 
 use super::*;
+use polkadot_node_metrics::metrics::prometheus::exponential_buckets;
 pub use polkadot_node_metrics::metrics::{self, prometheus, Metrics as MetricsTrait};
 
 /// Overseer Prometheus metrics.
@@ -165,6 +166,10 @@ impl MetricsTrait for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_parachain_subsystem_bounded_tof",
 						"Duration spent in a particular channel from entrance to removal",
+					)
+					.buckets(
+						exponential_buckets(0.0001, 4.0, 9)
+							.expect("function parameters are constant and always valid; qed"),
 					),
 					&["subsystem_name"],
 				)?,
@@ -205,6 +210,10 @@ impl MetricsTrait for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_parachain_subsystem_unbounded_tof",
 						"Duration spent in a particular channel from entrance to removal",
+					)
+					.buckets(
+						exponential_buckets(0.0001, 4.0, 9)
+							.expect("function parameters are constant and always valid; qed"),
 					),
 					&["subsystem_name"],
 				)?,
