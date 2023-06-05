@@ -73,6 +73,11 @@ pub use nonfungibles_adapter::{
 	NonFungiblesAdapter, NonFungiblesMutateAdapter, NonFungiblesTransferAdapter,
 };
 
+mod nonfungibles_v2_adapter;
+pub use nonfungibles_v2_adapter::{
+	NonFungiblesV2Adapter, NonFungiblesV2MutateAdapter, NonFungiblesV2TransferAdapter,
+};
+
 mod weight;
 pub use weight::{
 	FixedRateOfFungible, FixedWeightBounds, TakeRevenue, UsingComponents, WeightInfoBounds,
