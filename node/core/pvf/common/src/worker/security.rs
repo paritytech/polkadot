@@ -186,3 +186,98 @@ pub mod landlock {
 		}
 	}
 }
+
+// TODO: Add a check for whether seccomp is supported and warn if not, like we do for landlock.
+//       Ideally we would have <https://github.com/rust-vmm/seccompiler/issues/51>.
+//       In lieu of that we can try restricting a dummy thread like we do for landlock.
+/// Process sandboxing using seccomp, a Linux facility for blocking syscall execution.
+///
+/// Currently we only block two syscalls, `socket` and `socketpair`, to effectively disable
+/// networking.
+///
+/// # Action on Caught Syscall
+///
+/// TODO: Update with the action and explain why given action was chosen.
+#[cfg(target_os = "linux")]
+pub mod seccomp {
+	use seccompiler::*;
+	use std::collections::BTreeMap;
+
+	/// The action to take on caught syscalls.
+	#[cfg(not(test))]
+	const CAUGHT_ACTION: SeccompAction = SeccompAction::KillProcess;
+	/// Don't kill the process when testing...
+	#[cfg(test)]
+	const CAUGHT_ACTION: SeccompAction = SeccompAction::Errno(libc::EACCES as u32);
+
+	#[derive(thiserror::Error, Debug)]
+	pub enum Error {
+		#[error(transparent)]
+		Seccomp(#[from] seccompiler::Error),
+
+		#[error(transparent)]
+		Backend(#[from] seccompiler::BackendError),
+	}
+
+	pub type Result<T> = std::result::Result<T, Error>;
+
+	// TODO: Compile the filter at build-time rather than runtime.
+	/// Applies a `seccomp` filter to disable networking for the PVF threads.
+	pub fn try_restrict_thread() -> Result<()> {
+		// Build a `seccomp` filter which by default allows all syscalls except those blocked in the
+		// blacklist.
+		let mut blacklisted_rules = BTreeMap::default();
+
+		blacklisted_rules.insert(libc::SYS_socketpair, vec![]);
+		blacklisted_rules.insert(libc::SYS_socket, vec![]);
+
+		let filter = SeccompFilter::new(
+			blacklisted_rules,
+			// Mismatch action: what to do if not in rule list.
+			SeccompAction::Allow,
+			// Match action: what to do if in rule list.
+			CAUGHT_ACTION,
+			std::env::consts::ARCH.try_into().unwrap(),
+		)?;
+
+		// TODO: Check if action available?
+
+		let bpf_prog: BpfProgram = filter.try_into()?;
+
+		// Applies filter (runs seccomp) to the calling thread.
+		seccompiler::apply_filter(&bpf_prog)?;
+
+		Ok(())
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use std::{io::ErrorKind, net::TcpListener, thread};
+
+		#[test]
+		fn sandboxed_thread_cannot_do_networking() {
+			// TODO: Return early if seccomp is not supported in the test environment.
+			// TODO: This would be nice: <https://github.com/rust-lang/rust/issues/68007>.
+
+			// Restricted thread cannot open sockets.
+			let handle = thread::spawn(|| {
+				// TODO:Open a socket, this should succeed before seccomp is applied.
+				TcpListener::bind("127.0.0.1:7070").unwrap();
+
+				let status = try_restrict_thread();
+				if !matches!(status, Ok(())) {
+					panic!("Ruleset should be enforced since we checked if seccomp is enabled");
+				}
+
+				// Try to open a socket after seccomp.
+				assert!(matches!(
+					TcpListener::bind("127.0.0.1:8080"),
+					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
+				));
+			});
+
+			assert!(handle.join().is_ok());
+		}
+	}
+}

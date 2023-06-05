@@ -28,6 +28,8 @@ use crate::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 use crate::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
 use parity_scale_codec::{Decode, Encode};
+#[cfg(target_os = "linux")]
+use polkadot_node_core_pvf_common::worker::security::{landlock, seccomp};
 use polkadot_node_core_pvf_common::{
 	error::{PrepareError, PrepareResult},
 	executor_intf::Executor,
@@ -159,11 +161,23 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				move || {
 					// Try to enable landlock.
 					#[cfg(target_os = "linux")]
-					let landlock_status = polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread()
+					let landlock_status = landlock::try_restrict_thread()
 						.map(LandlockStatus::from_ruleset_status)
 						.map_err(|e| e.to_string());
 					#[cfg(not(target_os = "linux"))]
 					let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
+
+					// Try to enable seccomp.
+					#[cfg(target_os = "linux")]
+					if let Err(err) = seccomp::try_restrict_thread() {
+						return (
+							Err(PrepareError::IoErr(format!(
+								"sandboxing the thread failed: {}",
+								err.to_string(),
+							))),
+							landlock_status,
+						)
+					}
 
 					#[allow(unused_mut)]
 					let mut result = prepare_artifact(pvf, cpu_time_start);
