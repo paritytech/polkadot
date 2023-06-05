@@ -244,6 +244,7 @@ impl LegacyDescribeForeignChainAccount {
 ///
 /// Note that the alias accounts have overlaps but never on the same
 /// chain when the sender comes from different chains.
+#[deprecated = "Use `HashedDescription<AccountId, LegacyDescribeForeignChainAccount>` instead"]
 pub type ForeignChainAliasAccount<AccountId> =
 	HashedDescription<AccountId, LegacyDescribeForeignChainAccount>;
 
