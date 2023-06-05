@@ -25,7 +25,6 @@ const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 pub mod v1 {
 	use crate::{CurrentMigration, VersionMigrationStage};
-
 	use super::*;
 
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
