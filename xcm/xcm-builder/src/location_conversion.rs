@@ -395,6 +395,9 @@ impl<UniversalLocation, AccountId>
 mod tests {
 	use super::*;
 
+	pub type ForeignChainAliasAccount<AccountId> =
+		HashedDescription<AccountId, LegacyDescribeForeignChainAccount>;
+
 	use frame_support::parameter_types;
 	use xcm::latest::Junction;
 
