@@ -334,7 +334,7 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 	ConvertLocation<AccountId> for AccountKey20Aliases<Network, AccountId>
 {
 	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
-		let key = match location.clone() {
+		let key = match *location {
 			MultiLocation { parents: 0, interior: X1(AccountKey20 { key, network: None }) } => key,
 			MultiLocation { parents: 0, interior: X1(AccountKey20 { key, network }) }
 				if network == Network::get() =>
