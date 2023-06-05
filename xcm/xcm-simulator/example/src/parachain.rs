@@ -47,7 +47,7 @@ use xcm_builder::{
 	SovereignSignedViaLocation,
 };
 use xcm_executor::{
-	traits::{Convert, JustTry},
+	traits::{ConvertLocation, JustTry},
 	Config, XcmExecutor,
 };
 
@@ -160,7 +160,7 @@ impl EnsureOriginWithArg<RuntimeOrigin, MultiLocation> for ForeignCreators {
 		if !a.starts_with(&origin_location) {
 			return Err(o)
 		}
-		SovereignAccountOf::convert(origin_location).map_err(|_| o)
+		SovereignAccountOf::convert_location(&origin_location).ok_or(o)
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
