@@ -108,7 +108,7 @@ impl<Suffix: DescribeLocation> DescribeLocation for DescribeFamily<Suffix> {
 				Some((b"SiblingChain", Compact::<u32>::from(*index), interior).encode())
 			},
 			(1, _) => {
-				let tail = l.interior.clone().into();
+				let tail = l.interior.into();
 				let interior = Suffix::describe_location(&tail)?;
 				Some((b"ParentChain", interior).encode())
 			},
