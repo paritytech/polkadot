@@ -373,7 +373,7 @@ impl<UniversalLocation: Get<InteriorMultiLocation>, AccountId: From<[u8; 32]> + 
 			"GlobalConsensusParachainConvertsFor universal_source: {:?}, location: {:?}",
 			universal_source, location,
 		);
-		let devolved = ensure_is_remote(universal_source, location.clone()).ok()?;
+		let devolved = ensure_is_remote(universal_source, *location).ok()?;
 		let (remote_network, remote_location) = devolved;
 
 		match remote_location {
