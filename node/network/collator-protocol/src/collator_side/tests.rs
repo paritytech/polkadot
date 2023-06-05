@@ -38,11 +38,11 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{AllMessages, ReportPeerMessage, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_subsystem_util::{reputation::add_reputation, TimeoutExt};
 use polkadot_primitives::{
 	AuthorityDiscoveryId, CollatorPair, GroupIndex, GroupRotationInfo, IndexedVec, ScheduledCore,
 	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
@@ -525,7 +525,7 @@ fn advertise_and_send_collation() {
 	test_harness(
 		local_peer_id,
 		collator_pair,
-		ReputationAggregator::new(|_| false),
+		ReputationAggregator::new(|_| true),
 		|test_harness| async move {
 			let mut virtual_overseer = test_harness.virtual_overseer;
 			let mut req_cfg = test_harness.req_cfg;
@@ -599,7 +599,7 @@ fn advertise_and_send_collation() {
 					.unwrap();
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
-					AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(bad_peer, _)) => {
+					AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(bad_peer, _))) => {
 						assert_eq!(bad_peer, peer);
 					}
 				);
@@ -715,53 +715,54 @@ fn delay_reputation_change() {
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent)
 				.await;
 
-			let payload = CollationFetchingRequest {
-				relay_parent: test_state.relay_parent,
-				para_id: test_state.para_id,
-			}
-			.encode();
-
 			// Request a collation.
-			let (pending_response, _) = oneshot::channel();
+			let (pending_response, _rx) = oneshot::channel();
 			req_cfg
 				.inbound_queue
 				.as_mut()
 				.unwrap()
-				.send(RawIncomingRequest { peer, payload: payload.clone(), pending_response })
+				.send(RawIncomingRequest {
+					peer,
+					payload: CollationFetchingRequest {
+						relay_parent: test_state.relay_parent,
+						para_id: test_state.para_id,
+					}
+					.encode(),
+					pending_response,
+				})
 				.await
 				.unwrap();
-
-			// The next two request by same validator should get dropped and peer reported:
+			// Second request by same validator should get dropped and peer reported:
 			{
-				let (pending_response, _) = oneshot::channel();
-				req_cfg
-					.inbound_queue
-					.as_mut()
-					.unwrap()
-					.send(RawIncomingRequest { peer, payload: payload.clone(), pending_response })
-					.await
-					.unwrap();
+				let (pending_response, _rx) = oneshot::channel();
 
-				let (pending_response, _) = oneshot::channel();
 				req_cfg
 					.inbound_queue
 					.as_mut()
 					.unwrap()
-					.send(RawIncomingRequest { peer, payload: payload.clone(), pending_response })
+					.send(RawIncomingRequest {
+						peer,
+						payload: CollationFetchingRequest {
+							relay_parent: test_state.relay_parent,
+							para_id: test_state.para_id,
+						}
+						.encode(),
+						pending_response,
+					})
 					.await
 					.unwrap();
 
 				// Wait enough to fire reputation delay
 				futures_timer::Delay::new(REPUTATION_CHANGE_TEST_INTERVAL).await;
 
-				let expected_change = vec![COST_APPARENT_FLOOD, COST_UNEXPECTED_MESSAGE]
-					.iter()
-					.fold(0_i32, |acc, rep| acc.saturating_add(rep.cost_or_benefit()));
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
-					AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r)) => {
-						assert_eq!(p, peer);
-						assert_eq!(r.value, expected_change);
+					AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(v))) => {
+						let mut expected_change = HashMap::new();
+						for rep in vec![COST_APPARENT_FLOOD] {
+							add_reputation(&mut expected_change, peer, rep);
+						}
+						assert_eq!(v, expected_change);
 					}
 				);
 			}

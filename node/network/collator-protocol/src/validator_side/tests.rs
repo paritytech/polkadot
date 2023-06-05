@@ -29,9 +29,11 @@ use polkadot_node_network_protocol::{
 	ObservedRole,
 };
 use polkadot_node_primitives::BlockData;
-use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
+use polkadot_node_subsystem::messages::{
+	AllMessages, ReportPeerMessage, RuntimeApiMessage, RuntimeApiRequest,
+};
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_subsystem_util::{reputation::add_reputation, TimeoutExt};
 use polkadot_primitives::{
 	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
 	ValidatorId, ValidatorIndex,
@@ -439,7 +441,7 @@ fn collator_reporting_works() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep),
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep)),
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, COST_REPORT_BAD.cost_or_benefit());
@@ -489,7 +491,7 @@ fn collator_authentication_verification_works() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep),
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep)),
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, COST_INVALID_SIGNATURE.cost_or_benefit());
@@ -715,8 +717,7 @@ fn reject_connection_to_next_group() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
-				peer,
-				rep,
+				ReportPeerMessage::Single(peer, rep),
 			)) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, COST_UNNEEDED_COLLATOR.cost_or_benefit());
@@ -808,8 +809,7 @@ fn fetch_next_collation_on_invalid_collation() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
-				peer,
-				rep,
+				ReportPeerMessage::Single(peer, rep),
 			)) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, COST_REPORT_BAD.cost_or_benefit());
@@ -1023,8 +1023,7 @@ fn disconnect_if_wrong_declare() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
-				peer,
-				rep,
+				ReportPeerMessage::Single(peer, rep),
 			)) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep.value, COST_UNNEEDED_COLLATOR.cost_or_benefit());
@@ -1098,19 +1097,20 @@ fn delay_reputation_change() {
 		// Wait enough to fire reputation delay
 		futures_timer::Delay::new(REPUTATION_CHANGE_TEST_INTERVAL).await;
 
-		let expected_change = vec![COST_UNNEEDED_COLLATOR, COST_UNNEEDED_COLLATOR]
-			.iter()
-			.fold(0_i32, |acc, rep| acc.saturating_add(rep.cost_or_benefit()));
-
 		loop {
 			match overseer_recv(&mut virtual_overseer).await {
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::DisconnectPeer(_, _)) => {
 					gum::trace!("`Disconnecting inactive peer` message skipped");
 					continue
 				},
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(peer, rep)) => {
-					assert_eq!(peer, peer_b);
-					assert_eq!(rep.value, expected_change);
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
+					ReportPeerMessage::Batch(v),
+				)) => {
+					let mut expected_change = HashMap::new();
+					for rep in vec![COST_UNNEEDED_COLLATOR, COST_UNNEEDED_COLLATOR] {
+						add_reputation(&mut expected_change, peer_b, rep);
+					}
+					assert_eq!(v, expected_change);
 					break
 				},
 				_ => panic!("Message should be either `DisconnectPeer` or `ReportPeer`"),
