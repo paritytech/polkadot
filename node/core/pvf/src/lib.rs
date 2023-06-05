@@ -113,7 +113,7 @@ pub use worker_intf::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
 // Re-export some common types.
 pub use polkadot_node_core_pvf_common::{
 	error::{InternalValidationError, PrepareError},
-	prepare::PrepareStats,
+	prepare::{PrepareJobKind, PrepareStats},
 	pvf::PvfPrepData,
 };
 

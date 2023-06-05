@@ -8,20 +8,20 @@ edition.workspace = true
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 hex-literal = "0.4.1"
 parity-scale-codec = { version = "3.4.0", default-features = false, features = ["bit-vec", "derive"] }
-scale-info = { version = "2.5.0", default-features = false, features = ["bit-vec", "derive"] }
-serde = { version = "1.0.163", optional = true, features = ["derive"] }
+scale-info = { version = "2.5.0", default-features = false, features = ["bit-vec", "derive", "serde"] }
+serde = { version = "1.0.163", default-features = false, features = ["derive", "alloc"] }
 
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["serde"] }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["serde"] }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["serde"] }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["serde"] }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true , features = ["serde"]}
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["serde"] }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
@@ -44,7 +44,7 @@ std = [
 	"sp-staking/std",
 	"sp-arithmetic/std",
 	"runtime_primitives/std",
-	"serde",
+	"serde/std",
 	"polkadot-parachain/std",
 	"polkadot-core-primitives/std",
 	"bitvec/std",
