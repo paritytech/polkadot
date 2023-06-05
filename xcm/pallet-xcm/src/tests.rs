@@ -1166,7 +1166,10 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		AdvertisedXcmVersion::set(3);
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		use crate::migration::v1::MigrateToV1;
+		use frame_support::traits::OnRuntimeUpgrade;
+		MigrateToV1::<Test>::on_runtime_upgrade();
+
 		let mut maybe_migration = CurrentMigration::<Test>::take();
 		let mut counter = 0;
 		while let Some(migration) = maybe_migration.take() {
