@@ -24,8 +24,8 @@ use frame_support::{
 const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 pub mod v1 {
-	use crate::{CurrentMigration, VersionMigrationStage};
 	use super::*;
+	use crate::{CurrentMigration, VersionMigrationStage};
 
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
