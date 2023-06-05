@@ -31,6 +31,8 @@ use xcm_executor::{
 	traits::{Properties, QueryHandler, QueryResponseStatus, ShouldExecute},
 	XcmExecutor,
 };
+use crate::migration::v1::MigrateToV1;
+use frame_support::traits::OnRuntimeUpgrade;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -897,7 +899,7 @@ fn subscription_side_works() {
 		assert_eq!(take_sent_xcm(), vec![(remote.clone(), Xcm(vec![instr]))]);
 
 		// A runtime upgrade which doesn't alter the version sends no notifications.
-		XcmPallet::on_runtime_upgrade();
+		MigrateToV1::<Test>::on_runtime_upgrade();
 		XcmPallet::on_initialize(1);
 		assert_eq!(take_sent_xcm(), vec![]);
 
@@ -905,7 +907,7 @@ fn subscription_side_works() {
 		AdvertisedXcmVersion::set(2);
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		MigrateToV1::<Test>::on_runtime_upgrade();
 		XcmPallet::on_initialize(2);
 		let instr = QueryResponse {
 			query_id: 0,
@@ -932,7 +934,7 @@ fn subscription_side_upgrades_work_with_notify() {
 		AdvertisedXcmVersion::set(3);
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		MigrateToV1::<Test>::on_runtime_upgrade();
 		XcmPallet::on_initialize(1);
 
 		let instr1 = QueryResponse {
@@ -982,7 +984,7 @@ fn subscription_side_upgrades_work_without_notify() {
 		VersionNotifyTargets::<Test>::insert(3, v3_location, (72, Weight::zero(), 2));
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		MigrateToV1::<Test>::on_runtime_upgrade();
 		XcmPallet::on_initialize(1);
 
 		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
@@ -1166,8 +1168,6 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		AdvertisedXcmVersion::set(3);
 
 		// A runtime upgrade which alters the version does send notifications.
-		use crate::migration::v1::MigrateToV1;
-		use frame_support::traits::OnRuntimeUpgrade;
 		MigrateToV1::<Test>::on_runtime_upgrade();
 
 		let mut maybe_migration = CurrentMigration::<Test>::take();
