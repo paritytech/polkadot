@@ -1023,7 +1023,9 @@ fn availability_predicate_works() {
 
 			// Chains and threads are handled equally
 			assert!(pred(CoreIndex(0), would_be_timed_out)); // chains can't be timed out now.
-			assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
+
+			// Commented out as on-demand assigner is not merged, yet
+			//assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
 		}
 	});
 }
