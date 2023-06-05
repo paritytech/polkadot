@@ -109,7 +109,7 @@ impl Default for TestState {
 			}),
 			CoreState::Scheduled(ScheduledCore {
 				para_id: thread_a,
-				collator_restrictions: CollatorRestrictions::none(), // FIXME: Should be collator's PeerId
+				collator_restrictions: CollatorRestrictions::none(),
 			}),
 		];
 

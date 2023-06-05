@@ -24,8 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InternalValidationError, InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats,
-	PvfPrepData, ValidationError, ValidationHost,
+	InternalValidationError, InvalidCandidate as WasmInvalidCandidate, PrepareError,
+	PrepareJobKind, PrepareStats, PvfPrepData, ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -356,7 +356,12 @@ where
 		&validation_code.0,
 		VALIDATION_CODE_BOMB_LIMIT,
 	) {
-		Ok(code) => PvfPrepData::from_code(code.into_owned(), executor_params, timeout),
+		Ok(code) => PvfPrepData::from_code(
+			code.into_owned(),
+			executor_params,
+			timeout,
+			PrepareJobKind::Prechecking,
+		),
 		Err(e) => {
 			gum::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 			return PreCheckOutcome::Invalid
@@ -727,7 +732,12 @@ trait ValidationBackend {
 	) -> Result<WasmValidationResult, ValidationError> {
 		let prep_timeout = pvf_prep_timeout(&executor_params, PvfPrepTimeoutKind::Lenient);
 		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
-		let pvf = PvfPrepData::from_code(raw_validation_code, executor_params, prep_timeout);
+		let pvf = PvfPrepData::from_code(
+			raw_validation_code,
+			executor_params,
+			prep_timeout,
+			PrepareJobKind::Compilation,
+		);
 		// We keep track of the total time that has passed and stop retrying if we are taking too long.
 		let total_time_start = Instant::now();
 
