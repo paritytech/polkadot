@@ -22,6 +22,8 @@ const LOG_TARGET: &str = "parachain::pvf-execute-worker";
 
 use cpu_time::ProcessTime;
 use parity_scale_codec::{Decode, Encode};
+#[cfg(target_os = "linux")]
+use polkadot_node_core_pvf_common::worker::security::{landlock, seccomp};
 use polkadot_node_core_pvf_common::{
 	error::InternalValidationError,
 	execute::{Handshake, Response},
@@ -174,11 +176,22 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				move || {
 					// Try to enable landlock.
 					#[cfg(target_os = "linux")]
-					let landlock_status = polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread()
+					let landlock_status = landlock::try_restrict_thread()
 						.map(LandlockStatus::from_ruleset_status)
 						.map_err(|e| e.to_string());
 					#[cfg(not(target_os = "linux"))]
 					let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
+
+					#[cfg(target_os = "linux")]
+					if let Err(err) = seccomp::try_restrict_thread() {
+						return (
+							Response::InternalError(InternalValidationError::Seccomp(format!(
+								"sandboxing the thread failed: {}",
+								err.to_string()
+							))),
+							landlock_status,
+						)
+					}
 
 					(
 						validate_using_artifact(

@@ -93,6 +93,9 @@ pub enum InternalValidationError {
 	CpuTimeMonitorThread(String),
 	/// Some non-deterministic preparation error occurred.
 	NonDeterministicPrepareError(PrepareError),
+	/// There was an error enabling seccomp.
+	#[cfg(target_os = "linux")]
+	Seccomp(String),
 }
 
 impl fmt::Display for InternalValidationError {
@@ -106,6 +109,8 @@ impl fmt::Display for InternalValidationError {
 			CpuTimeMonitorThread(err) =>
 				write!(f, "validation: an error occurred in the CPU time monitor thread: {}", err),
 			NonDeterministicPrepareError(err) => write!(f, "validation: prepare: {}", err),
+			#[cfg(target_os = "linux")]
+			Seccomp(err) => write!(f, "validation: could not enable seccomp sandboxing: {}", err),
 		}
 	}
 }
