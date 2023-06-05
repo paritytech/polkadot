@@ -150,16 +150,21 @@ where
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
 	match msg {
-		NetworkBridgeTxMessage::ReportPeer(msg) => {
-			let reports = match msg {
-				ReportPeerMessage::Single(peer, rep) => vec![(peer, rep)],
-				ReportPeerMessage::Batch(batch) => batch
-					.iter()
-					.map(|(&peer, &score)| {
-						(peer, ReputationChange::new(score, "Aggregated reputation change"))
-					})
-					.collect(),
-			};
+		NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep)) => {
+			if !rep.value.is_positive() {
+				gum::debug!(target: LOG_TARGET, ?peer, ?rep, action = "ReportPeer");
+			}
+
+			metrics.on_report_event();
+			network_service.report_peer(peer, rep);
+		},
+		NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(batch)) => {
+			let reports = batch
+				.iter()
+				.map(|(&peer, &score)| {
+					(peer, ReputationChange::new(score, "Aggregated reputation change"))
+				})
+				.collect();
 
 			for (peer, rep) in reports {
 				if !rep.value.is_positive() {
