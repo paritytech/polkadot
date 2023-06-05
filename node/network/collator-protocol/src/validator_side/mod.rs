@@ -953,6 +953,18 @@ async fn process_incoming_peer_message<Context>(
 				Some(p) => p,
 			};
 
+			if !state.view.contains(&relay_parent) {
+				gum::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?relay_parent,
+					"Advertise collation out of view",
+				);
+
+				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+				return
+			}
+
 			if !can_collate(&relay_parent, &origin, &para_id, ctx.sender()).await {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -963,18 +975,6 @@ async fn process_incoming_peer_message<Context>(
 				);
 				modify_reputation(ctx.sender(), origin, COST_REPORT_BAD).await;
 
-				return
-			}
-
-			if !state.view.contains(&relay_parent) {
-				gum::debug!(
-					target: LOG_TARGET,
-					peer_id = ?origin,
-					?relay_parent,
-					"Advertise collation out of view",
-				);
-
-				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
 				return
 			}
 

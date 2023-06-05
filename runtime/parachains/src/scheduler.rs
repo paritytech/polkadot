@@ -141,7 +141,7 @@ impl<T: Config> Pallet<T> {
 	/// `pending_cores` is a map from `CoreIndex` to `T::BlockNumber` which depicts when the `CoreIndex` was occupied.
 	pub(crate) fn pre_new_session(pending_cores: BTreeMap<CoreIndex, T::BlockNumber>) {
 		Self::push_claimqueue_items_to_assignment_provider();
-		Self::push_occupied_cores_to_assignment_provider(pending_cores);
+		Self::try_push_occupied_cores_to_assignment_provider(pending_cores);
 	}
 
 	/// Called by the initializer to note that a new session has started.
@@ -400,19 +400,19 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
-	/// Checks if `core_idx` occupied since `pending_since` will timeout after `after`.
-	fn timesout_after(
+	/// Checks if `core_idx` occupied since `pending_since` will timeout at or after `block_number`.
+	fn timesout_at_or_after(
 		core_idx: CoreIndex,
 		pending_since: T::BlockNumber,
-		after: T::BlockNumber,
+		block_number: T::BlockNumber,
 	) -> bool {
 		let availability_period = T::AssignmentProvider::get_availability_period(core_idx);
-		after.saturating_sub(pending_since) >= availability_period
+		block_number.saturating_sub(pending_since) >= availability_period
 	}
 
-	// on new session
+	/// Pushes occupied cores to the assignment provider in case the core would not timeout at or after the new session boundary.
 	/// `pending_cores` is a map from `CoreIndex` to `T::BlockNumber` which depicts when the `CoreIndex` was occupied.
-	fn push_occupied_cores_to_assignment_provider(
+	fn try_push_occupied_cores_to_assignment_provider(
 		pending_cores: BTreeMap<CoreIndex, T::BlockNumber>,
 	) {
 		let new_session_start = <frame_system::Pallet<T>>::block_number() + One::one();
@@ -424,13 +424,13 @@ impl<T: Config> Pallet<T> {
 						let core_idx = CoreIndex::from(core_idx as u32);
 						match pending_cores.get(&core_idx) {
 							Some(pending_since)
-								if Self::timesout_after(
+								if Self::timesout_at_or_after(
 									core_idx,
 									*pending_since,
 									new_session_start,
 								) =>
 							{
-								todo!("We do need to tell the provider about this, right?")
+								log::info!(target: LOG_TARGET, "[try_push_occupied_cores_to_assignment_provider] dropping core at idx {}", core_idx.0);
 							},
 							None | Some(_) => Self::push_assignment(core_idx, entry.clone()),
 						}
@@ -453,8 +453,8 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	/// Push assignments back to the provider on session change unless the paras has already been tried to run before.
 	fn push_assignment(core_idx: CoreIndex, pe: ParasEntry) {
-		// We do not push back on session change if paras have already been tried to run before
 		if pe.retries == 0 {
 			T::AssignmentProvider::push_assignment_for_core(core_idx, pe.assignment);
 		}
@@ -517,7 +517,8 @@ impl<T: Config> Pallet<T> {
 						Self::add_to_claimqueue(core_idx, entry);
 					} else {
 						// Consider max retried parathreads as concluded for the assignment provider
-						debug_assert!(concluded_paras.insert(core_idx, entry.para_id()).is_none());
+						let ret = concluded_paras.insert(core_idx, entry.para_id());
+						debug_assert!(ret.is_none());
 					}
 				}
 
