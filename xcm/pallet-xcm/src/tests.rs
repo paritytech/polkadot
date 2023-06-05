@@ -15,12 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	mock::*, AssetTraps, CurrentMigration, Error, LatestVersionedMultiLocation, Queries,
-	QueryStatus, VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets,
+	migration::v1::MigrateToV1, mock::*, AssetTraps, CurrentMigration, Error,
+	LatestVersionedMultiLocation, Queries, QueryStatus, VersionDiscoveryQueue, VersionNotifiers,
+	VersionNotifyTargets,
 };
 use frame_support::{
 	assert_noop, assert_ok,
-	traits::{Currency, Hooks},
+	traits::{Currency, Hooks, OnRuntimeUpgrade},
 	weights::Weight,
 };
 use polkadot_parachain::primitives::Id as ParaId;
@@ -31,8 +32,6 @@ use xcm_executor::{
 	traits::{Properties, QueryHandler, QueryResponseStatus, ShouldExecute},
 	XcmExecutor,
 };
-use crate::migration::v1::MigrateToV1;
-use frame_support::traits::OnRuntimeUpgrade;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
