@@ -16,7 +16,7 @@
 
 use frame_support::traits::{Contains, OriginTrait};
 use sp_runtime::{traits::Dispatchable, DispatchErrorWithPostInfo};
-use sp_std::{borrow::Borrow, marker::PhantomData, result::Result};
+use sp_std::{marker::PhantomData, result::Result};
 use xcm::latest::prelude::*;
 
 /// Means of converting a location into an account identifier.
