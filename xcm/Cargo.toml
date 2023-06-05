@@ -12,7 +12,7 @@ impl-trait-for-tuples = "0.2.2"
 log = { version = "0.4.17", default-features = false }
 parity-scale-codec = { version = "3.4.0", default-features = false, features = [ "derive", "max-encoded-len" ] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive", "serde"] }
-sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, feature = ["serde "] }
+sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["serde"] }
 serde = { version = "1.0.163", default-features = false, features = ["alloc", "derive"] }
 xcm-procedural = { path = "procedural" }
 
