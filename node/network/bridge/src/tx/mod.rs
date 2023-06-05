@@ -159,7 +159,7 @@ where
 			network_service.report_peer(peer, rep);
 		},
 		NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(batch)) => {
-			let reports = batch
+			let reports: Vec<(PeerId, ReputationChange)> = batch
 				.iter()
 				.map(|(&peer, &score)| {
 					(peer, ReputationChange::new(score, "Aggregated reputation change"))
