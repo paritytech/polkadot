@@ -23,11 +23,6 @@ use xcm::latest::prelude::*;
 pub trait ConvertLocation<AccountId> {
 	/// Convert the `location` into `Some` account ID, or `None` if not possible.
 	fn convert_location(location: &MultiLocation) -> Option<AccountId>;
-
-	#[deprecated = "Use convert_location instead"]
-	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		Self::convert_location(location.borrow()).ok_or(())
-	}
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
