@@ -725,6 +725,21 @@ impl State {
 	) where
 		R: CryptoRng + Rng,
 	{
+		let _span = self
+			.spans
+			.get(&assignment.block_hash)
+			.map(|span| {
+				span.child(if source.peer_id().is_some() {
+					"peer-import-and-distribute-assignment"
+				} else {
+					"local-import-and-distribute-assignment"
+				})
+			})
+			.unwrap_or_else(|| jaeger::Span::new(&assignment.block_hash, "distribute-assignment"))
+			.with_string_tag("block-hash", format!("{:?}", assignment.block_hash))
+			.with_optional_peer_id(source.peer_id().as_ref())
+			.with_stage(jaeger::Stage::ApprovalDistribution);
+
 		let block_hash = assignment.block_hash;
 		let validator_index = assignment.validator;
 
@@ -985,6 +1000,21 @@ impl State {
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
 	) {
+		let _span = self
+			.spans
+			.get(&vote.block_hash)
+			.map(|span| {
+				span.child(if source.peer_id().is_some() {
+					"peer-import-and-distribute-approval"
+				} else {
+					"local-import-and-distribute-approval"
+				})
+			})
+			.unwrap_or_else(|| jaeger::Span::new(&vote.block_hash, "distribute-approval"))
+			.with_string_tag("block-hash", format!("{:?}", vote.block_hash))
+			.with_optional_peer_id(source.peer_id().as_ref())
+			.with_stage(jaeger::Stage::ApprovalDistribution);
+
 		let block_hash = vote.block_hash;
 		let validator_index = vote.validator;
 		let candidate_index = vote.candidate_index;
@@ -1724,14 +1754,6 @@ impl ApprovalDistribution {
 				state.handle_new_blocks(ctx, metrics, metas, rng).await;
 			},
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index) => {
-				let _span = state
-					.spans
-					.get(&cert.block_hash)
-					.map(|span| span.child("import-and-distribute-assignment"))
-					.unwrap_or_else(|| jaeger::Span::new(&cert.block_hash, "distribute-assignment"))
-					.with_string_tag("block-hash", format!("{:?}", cert.block_hash))
-					.with_stage(jaeger::Stage::ApprovalDistribution);
-
 				gum::debug!(
 					target: LOG_TARGET,
 					"Distributing our assignment on candidate (block={}, index={})",
@@ -1751,14 +1773,6 @@ impl ApprovalDistribution {
 					.await;
 			},
 			ApprovalDistributionMessage::DistributeApproval(vote) => {
-				let _span = state
-					.spans
-					.get(&vote.block_hash)
-					.map(|span| span.child("import-and-distribute-approval"))
-					.unwrap_or_else(|| jaeger::Span::new(&vote.block_hash, "distribute-approval"))
-					.with_string_tag("block-hash", format!("{:?}", vote.block_hash))
-					.with_stage(jaeger::Stage::ApprovalDistribution);
-
 				gum::debug!(
 					target: LOG_TARGET,
 					"Distributing our approval vote on candidate (block={}, index={})",

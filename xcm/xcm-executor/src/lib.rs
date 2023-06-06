@@ -914,7 +914,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.context.topic = None;
 				Ok(())
 			},
-			AliasOrigin(_) => Err(XcmError::NoPermission),
+			AliasOrigin(target) => {
+				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
+				if Config::Aliasers::contains(origin, &target) {
+					self.context.origin = Some(target);
+					Ok(())
+				} else {
+					Err(XcmError::NoPermission)
+				}
+			},
 			UnpaidExecution { check_origin, .. } => {
 				ensure!(
 					check_origin.is_none() || self.context.origin == check_origin,
