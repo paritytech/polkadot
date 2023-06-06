@@ -78,51 +78,6 @@ where
 	}
 }
 
-struct Offender {
-	index: ValidatorIndex,
-	offence: SlashingOffenceKind,
-}
-
-impl Offender {
-	fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-		use SlashingOffenceKind::{AgainstValid, ForInvalid};
-
-		let Offender { index, offence } = self;
-		match (offence, other.offence) {
-			(AgainstValid, AgainstValid) | (ForInvalid, ForInvalid) => index.cmp(&other.index),
-			(AgainstValid, ForInvalid) => core::cmp::Ordering::Less,
-			(ForInvalid, AgainstValid) => core::cmp::Ordering::Greater,
-		}
-	}
-}
-impl PartialEq for Offender {
-	fn eq(&self, other: &Self) -> bool {
-		let Offender { index, offence } = self;
-		*index == other.index && *offence == other.offence
-	}
-}
-
-impl Eq for Offender {}
-
-impl PartialOrd for Offender {
-	fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-		Some(self.cmp(other))
-	}
-}
-
-impl Ord for Offender {
-	fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-		use SlashingOffenceKind::{AgainstValid, ForInvalid};
-
-		let Offender { index, offence } = self;
-		match (offence, other.offence) {
-			(AgainstValid, AgainstValid) | (ForInvalid, ForInvalid) => index.cmp(&other.index),
-			(AgainstValid, ForInvalid) => core::cmp::Ordering::Less,
-			(ForInvalid, AgainstValid) => core::cmp::Ordering::Greater,
-		}
-	}
-}
-
 pub use pallet::*;
 
 #[frame_support::pallet]
