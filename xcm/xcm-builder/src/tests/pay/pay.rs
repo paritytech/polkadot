@@ -16,11 +16,34 @@
 
 //! Tests for making sure `PayOverXcm::pay` generates the correct message and sends it to the correct destination
 
-use super::{super::*, *};
+use super::*;
 use frame_support::{assert_ok, traits::tokens::Pay};
 
-type BlockNumber = u64;
 type AccountId = u64;
+type BlockNumber = u64;
+
+/// Type representing both a location and an asset that is held at that location.
+/// The id of the held asset is relative to the location where it is being held.
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq)]
+pub struct AssetKind {
+	destination: MultiLocation,
+	asset_id: AssetId,
+}
+
+pub struct LocatableAssetKindConverter;
+impl sp_runtime::traits::Convert<AssetKind, LocatableAssetId> for LocatableAssetKindConverter {
+	fn convert(value: AssetKind) -> LocatableAssetId {
+		LocatableAssetId { asset_id: value.asset_id, location: value.destination }
+	}
+}
+
+/// Simple converter to turn a u64 into a MultiLocation using the AccountIndex64 junction and no parents
+pub struct AliasesIntoAccountIndex64;
+impl<'a> sp_runtime::traits::Convert<&'a AccountId, MultiLocation> for AliasesIntoAccountIndex64 {
+	fn convert(who: &AccountId) -> MultiLocation {
+		AccountIndex64 { network: None, index: who.clone().into() }.into()
+	}
+}
 
 parameter_types! {
 	pub InteriorAccount: InteriorMultiLocation = AccountIndex64 { index: 3u64, network: None }.into();
@@ -51,13 +74,13 @@ fn pay_over_xcm_works() {
 	>::pay(&who, asset_kind, amount));
 
 	let expected_message = Xcm(vec![
+		DescendOrigin(AccountIndex64 { index: 3, network: None }.into()),
 		UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 		SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
 			destination: (Parent, Parachain(42)).into(),
 			query_id: 1,
 			max_weight: Weight::zero(),
 		})])),
-		DescendOrigin(AccountIndex64 { index: 3, network: None }.into()),
 		TransferAsset {
 			assets: (Here, 1000u128).into(),
 			beneficiary: AccountIndex64 { index: 5, network: None }.into(),
@@ -90,13 +113,13 @@ fn pay_over_xcm_governance_body() {
 	>::pay(&who, asset_kind, amount));
 
 	let expected_message = Xcm(vec![
+		DescendOrigin(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into()),
 		UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 		SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
 			destination: (Parent, Parachain(42)).into(),
 			query_id: 1,
 			max_weight: Weight::zero(),
 		})])),
-		DescendOrigin(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into()),
 		TransferAsset {
 			assets: (Parent, 500u128).into(),
 			beneficiary: AccountIndex64 { index: 7, network: None }.into(),

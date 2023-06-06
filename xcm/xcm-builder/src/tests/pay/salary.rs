@@ -16,119 +16,25 @@
 
 //! Tests for the integration between `PayOverXcm` and the salary pallet
 
-use super::{super::*, *};
-
-use frame_support::{assert_ok, macro_magic::use_attr};
-
-#[use_attr]
-use frame_support::derive_impl;
+use super::{mock::*, *};
 
 use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{ConstU32, Everything},
+	assert_ok,
+	traits::{
+		fungibles::{Create, Mutate},
+		tokens::{ConvertRank, GetSalary},
+		RankedMembers,
+	},
 };
-use polkadot_test_runtime::xcm_config::{LocalOriginToLocation, XcmConfig};
-use sp_runtime::AccountId32;
-use xcm_executor::XcmExecutor;
-
-pub type Address = sp_runtime::MultiAddress<AccountId, AccountIndex>;
-pub type UncheckedExtrinsic =
-	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
-pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
-pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-
-type BlockNumber = u64;
-type AccountId = u64;
-
-construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = primitives::Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
-	{
-		System: frame_system,
-		Balances: pallet_balances,
-		Salary: pallet_salary,
-		XcmPallet: pallet_xcm,
-	}
-);
-
-#[derive_impl(frame_system::config_preludes::TestDefaultConfig as frame_system::DefaultConfig)]
-impl frame_system::Config for Test {
-	type BaseCallFilter = frame_support::traits::Everything;
-	type RuntimeOrigin = RuntimeOrigin;
-	type RuntimeCall = RuntimeCall;
-	type RuntimeEvent = RuntimeEvent;
-	type PalletInfo = PalletInfo;
-	type OnSetCode = ();
-}
-
-pub type Balance = u128;
-
-parameter_types! {
-	pub const ExistentialDeposit: Balance = 1;
-}
-
-impl pallet_balances::Config for Test {
-	type MaxLocks = ConstU32<0>;
-	type Balance = Balance;
-	type RuntimeEvent = RuntimeEvent;
-	type DustRemoval = ();
-	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = System;
-	type WeightInfo = ();
-	type MaxReserves = ();
-	type ReserveIdentifier = [u8; 8];
-	type RuntimeHoldReason = RuntimeHoldReason;
-	type FreezeIdentifier = ();
-	type MaxHolds = ConstU32<0>;
-	type MaxFreezes = ConstU32<0>;
-}
-
-parameter_types! {
-	pub const RelayLocation: MultiLocation = Here.into_location();
-	pub const AnyNetwork: Option<NetworkId> = None;
-	pub UniversalLocation: InteriorMultiLocation = Here;
-	pub UnitWeightCost: u64 = 1_000;
-	pub static AdvertisedXcmVersion: u32 = 3;
-	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000, 1_000);
-	pub CurrencyPerSecondPerByte: (AssetId, u128, u128) = (Concrete(RelayLocation::get()), 1, 1);
-	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
-	pub const MaxInstructions: u32 = 100;
-	pub const MaxAssetsIntoHolding: u32 = 64;
-}
-
-impl pallet_xcm::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-	type SendXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
-	type XcmRouter = TestMessageSender;
-	type ExecuteXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
-	type XcmExecuteFilter = Everything;
-	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
-	type UniversalLocation = UniversalLocation;
-	type RuntimeOrigin = RuntimeOrigin;
-	type RuntimeCall = RuntimeCall;
-	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
-	type AdvertisedXcmVersion = AdvertisedXcmVersion;
-	type TrustedLockers = ();
-	type SovereignAccountOf = AccountId32Aliases<(), AccountId32>;
-	type Currency = Balances;
-	type CurrencyMatcher = IsConcrete<RelayLocation>;
-	type MaxLockers = frame_support::traits::ConstU32<8>;
-	type MaxRemoteLockConsumers = frame_support::traits::ConstU32<0>;
-	type RemoteLockConsumerIdentifier = ();
-	type WeightInfo = pallet_xcm::TestWeightInfo;
-	#[cfg(feature = "runtime-benchmarks")]
-	type ReachableDest = ReachableDest;
-	type AdminOrigin = EnsureRoot<AccountId>;
-}
+use sp_runtime::{traits::ConvertToValue, DispatchResult};
 
 parameter_types! {
 	pub Interior: InteriorMultiLocation = Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into();
 	pub Timeout: BlockNumber = 5;
+	pub AssetHub: MultiLocation = (Parent, Parachain(1)).into();
+	pub AssetIdGeneralIndex: u128 = 100;
+	pub AssetHubAssetId: AssetId = (PalletInstance(1), GeneralIndex(AssetIdGeneralIndex::get())).into();
+	pub LocatableAsset: LocatableAssetId = LocatableAssetId { asset_id: AssetHubAssetId::get(), location: AssetHub::get() };
 }
 
 type SalaryPayOverXcm = PayOverXcm<
@@ -137,12 +43,12 @@ type SalaryPayOverXcm = PayOverXcm<
 	TestQueryHandler<TestConfig, BlockNumber>,
 	Timeout,
 	AccountId,
-	AssetKind,
-	LocatableAssetKindConverter,
-	AliasesIntoAccountIndex64,
+	(),
+	ConvertToValue<LocatableAsset>,
+	AliasesIntoAccountId32<AnyNetwork, AccountId>,
 >;
 
-type Rank = u64;
+type Rank = u128;
 
 thread_local! {
 	pub static CLUB: RefCell<BTreeMap<AccountId, Rank>> = RefCell::new(BTreeMap::new());
@@ -160,11 +66,13 @@ impl RankedMembers for TestClub {
 		CLUB.with(|club| club.borrow().get(who).cloned())
 	}
 	fn induct(who: &Self::AccountId) -> DispatchResult {
-		CLUB.with(|club| club.borrow_mut().insert(*who, 0));
+		CLUB.with(|club| club.borrow_mut().insert(who.clone(), 0));
 		Ok(())
 	}
 	fn promote(who: &Self::AccountId) -> DispatchResult {
-		CLUB.with(|club| club.borrow_mut().entry(*who).and_modify(|rank| *rank += 1));
+		CLUB.with(|club| {
+			club.borrow_mut().entry(who.clone()).and_modify(|rank| *rank += 1);
+		});
 		Ok(())
 	}
 	fn demote(who: &Self::AccountId) -> DispatchResult {
@@ -175,17 +83,29 @@ impl RankedMembers for TestClub {
 				Ok(())
 			},
 			Some(_) => {
-				club.borrow_mut().entry(*who).and_modify(|rank| *rank += 1);
+				club.borrow_mut().entry(who.clone()).and_modify(|rank| *rank += 1);
 				Ok(())
 			},
 		})
 	}
 }
 
+fn set_rank(who: AccountId, rank: u128) {
+	CLUB.with(|club| club.borrow_mut().insert(who, rank));
+}
+
 parameter_types! {
-	pub const RegistrationPeriod: u64 = 2;
-	pub const PayoutPeriod: u64 = 2;
-	pub static Budget: u64 = 10;
+	pub const RegistrationPeriod: BlockNumber = 2;
+	pub const PayoutPeriod: BlockNumber = 2;
+	pub const FixedSalaryAmount: Balance = 10_000;
+	pub static Budget: Balance = FixedSalaryAmount::get();
+}
+
+pub struct FixedSalary;
+impl GetSalary<Rank, AccountId, Balance> for FixedSalary {
+	fn get_salary(rank: Rank, who: &AccountId) -> Balance {
+		FixedSalaryAmount::get()
+	}
 }
 
 impl pallet_salary::Config for Test {
@@ -193,7 +113,7 @@ impl pallet_salary::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Paymaster = SalaryPayOverXcm;
 	type Members = TestClub;
-	type Salary = ConvertRank<Identity>;
+	type Salary = FixedSalary;
 	type RegistrationPeriod = RegistrationPeriod;
 	type PayoutPeriod = PayoutPeriod;
 	type Budget = Budget;
@@ -210,7 +130,7 @@ fn next_block() {
 	System::set_block_number(System::block_number() + 1);
 }
 
-fn run_to(block_number: u64) {
+fn run_to(block_number: BlockNumber) {
 	while System::block_number() < block_number {
 		next_block();
 	}
@@ -218,13 +138,64 @@ fn run_to(block_number: u64) {
 
 #[test]
 fn salary_pay_over_xcm_works() {
-	new_test_ext().execute_with(|| {
-		assert_ok!(Salary::init(RuntimeOrigin::signed(1)));
-		assert_ok!(Salary::induct(RuntimeOrigin::signed(1)));
-		assert_ok!(Salary::register(RuntimeOrigin::signed(1)));
-		run_to(3);
-		assert_ok!(Salary::payout(RuntimeOrigin::signed(1)));
-	});
+	let admin_account_id = AccountId::new([0u8; 32]);
+	let account_id = AccountId::new([1u8; 32]);
+	let asset_id: u128 = 100;
 
-	dbg!(&sent_xcm());
+	new_test_ext().execute_with(|| {
+		// Create the asset and give enought to the sender
+		assert_ok!(<mock::Assets as Create<_>>::create(
+			asset_id,
+			admin_account_id.clone(),
+			true,
+			FixedSalaryAmount::get() / 2,
+		));
+		assert_ok!(<mock::Assets as Mutate<_>>::mint_into(
+			asset_id,
+			&TreasuryAccountId::get(),
+			FixedSalaryAmount::get() * 2
+		));
+
+		// Set the recipient as a member of a ranked collective
+		set_rank(account_id.clone(), 1);
+
+		// Check starting balance
+		assert_eq!(mock::Assets::balance(AssetIdGeneralIndex::get(), &account_id), 0);
+
+		// Use salary pallet to call `PayOverXcm::pay`
+		assert_ok!(Salary::init(RuntimeOrigin::signed(account_id.clone())));
+		run_to(5);
+		assert_ok!(Salary::induct(RuntimeOrigin::signed(account_id.clone())));
+		assert_ok!(Salary::bump(RuntimeOrigin::signed(account_id.clone())));
+		assert_ok!(Salary::register(RuntimeOrigin::signed(account_id.clone())));
+		run_to(7);
+		assert_ok!(Salary::payout(RuntimeOrigin::signed(account_id.clone())));
+
+		// TODO: Should take the message sent by the salary pallet.
+		// But `sent_xcm` returns `Xcm<()>` and I need `Xcm<RuntimeCall>`
+		// let (_, message, hash) = sent_xcm().first().unwrap();
+		let message: Xcm<RuntimeCall> = Xcm::<RuntimeCall>(vec![
+			DescendOrigin(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into()),
+			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
+				destination: (Parent, Parachain(42)).into(),
+				query_id: 1,
+				max_weight: Weight::zero(),
+			})])),
+			TransferAsset {
+				assets: (AssetHubAssetId::get(), FixedSalaryAmount::get()).into(),
+				beneficiary: AccountId32 { id: account_id.clone().into(), network: None }.into(),
+			},
+		]);
+		let hash = fake_message_hash(&message);
+
+		// Execute message as the asset hub
+		XcmExecutor::<XcmConfig>::execute_xcm((Parent, Parachain(42)), message, hash, Weight::MAX);
+
+		// Recipient receives the payment
+		assert_eq!(
+			mock::Assets::balance(AssetIdGeneralIndex::get(), &account_id),
+			FixedSalaryAmount::get()
+		);
+	});
 }

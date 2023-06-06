@@ -410,8 +410,6 @@ pub fn response(query_id: u64) -> Option<Response> {
 	})
 }
 
-// TODO: Add counter for query ids
-// TODO: Add more information in QUERIES
 pub struct TestQueryHandler<T, BlockNumber>(core::marker::PhantomData<(T, BlockNumber)>);
 impl<T: Config, BlockNumber: sp_runtime::traits::Zero> QueryHandler
 	for TestQueryHandler<T, BlockNumber>
