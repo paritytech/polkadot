@@ -467,6 +467,7 @@ pub trait WeightInfo {
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
 	fn set_config_with_executor_params() -> Weight;
+	fn set_config_with_perbill() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -490,6 +491,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn set_config_with_executor_params() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_perbill() -> Weight {
 		Weight::MAX
 	}
 }
@@ -1200,7 +1204,7 @@ pub mod pallet {
 		/// Set the on demand (parathreads) base fee.
 		#[pallet::call_index(47)]
 		#[pallet::weight((
-			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			T::WeightInfo::set_config_with_balance(),
 			DispatchClass::Operational,
 		))]
 		pub fn set_on_demand_base_fee(origin: OriginFor<T>, new: Balance) -> DispatchResult {
@@ -1213,7 +1217,7 @@ pub mod pallet {
 		/// Set the on demand (parathreads) fee variability.
 		#[pallet::call_index(48)]
 		#[pallet::weight((
-			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			T::WeightInfo::set_config_with_perbill(),
 			DispatchClass::Operational,
 		))]
 		pub fn set_on_demand_fee_variability(origin: OriginFor<T>, new: Perbill) -> DispatchResult {
@@ -1226,7 +1230,7 @@ pub mod pallet {
 		/// Set the on demand (parathreads) queue max size.
 		#[pallet::call_index(49)]
 		#[pallet::weight((
-			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			T::WeightInfo::set_config_with_option_u32(),
 			DispatchClass::Operational,
 		))]
 		pub fn set_on_demand_queue_max_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
@@ -1238,7 +1242,7 @@ pub mod pallet {
 		/// Set the on demand (parathreads) fee variability.
 		#[pallet::call_index(50)]
 		#[pallet::weight((
-			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			T::WeightInfo::set_config_with_perbill(),
 			DispatchClass::Operational,
 		))]
 		pub fn set_on_demand_target_queue_utilization(
