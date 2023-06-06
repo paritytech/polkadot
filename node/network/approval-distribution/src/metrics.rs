@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_metrics::metrics::{prometheus, Metrics as MetricsTrait};
-use polkadot_node_subsystem::prometheus::exponential_buckets;
 
 /// Approval Distribution metrics.
 #[derive(Default, Clone)]
@@ -135,14 +134,14 @@ impl MetricsTrait for Metrics {
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_time_import_pending_now_known",
 					"Time spent on importing pending assignments and approvals.",
-				).buckets(exponential_buckets(0.0001, 4.0, 9).expect("function parameters are constant and always valid; qed")))?,
+				).buckets(vec![0.0001, 0.0004, 0.0016, 0.0064, 0.0256, 0.1024, 0.4096, 1.6384, 3.2768, 4.9152, 6.5536,]))?,
 				registry,
 			)?,
 			time_awaiting_approval_voting: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_time_awaiting_approval_voting",
 					"Time spent awaiting a reply from the Approval Voting Subsystem.",
-				).buckets(exponential_buckets(0.0001, 4.0, 9).expect("function parameters are constant and always valid; qed")))?,
+				).buckets(vec![0.0001, 0.0004, 0.0016, 0.0064, 0.0256, 0.1024, 0.4096, 1.6384, 3.2768, 4.9152, 6.5536,]))?,
 				registry,
 			)?,
 		};
