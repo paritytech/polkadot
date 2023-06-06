@@ -1053,15 +1053,6 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
-	/// Collects a mapping between the `CoreIndex` and the block since that core has been occupied.
-	/// Used in the scheduler to determine how to handle occupied cores just before a new session starts.
-	pub(crate) fn collect_pending_pre_session(
-	) -> sp_std::collections::btree_map::BTreeMap<CoreIndex, T::BlockNumber> {
-		<PendingAvailability<T>>::iter()
-			.map(|(_, pending_record)| (pending_record.core, pending_record.backed_in_number))
-			.collect()
-	}
-
 	/// Cleans up all paras pending availability that the predicate returns true for.
 	///
 	/// The predicate accepts the index of the core and the block number the core has been occupied

@@ -136,10 +136,9 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_finalize() {}
 
 	/// Called before the initializer notifies of a new session.
-	/// `pending_cores` is a map from `CoreIndex` to `T::BlockNumber` which depicts when the `CoreIndex` was occupied.
-	pub(crate) fn pre_new_session(pending_cores: BTreeMap<CoreIndex, T::BlockNumber>) {
+	pub(crate) fn pre_new_session() {
 		Self::push_claimqueue_items_to_assignment_provider();
-		Self::try_push_occupied_cores_to_assignment_provider(pending_cores);
+		Self::push_occupied_cores_to_assignment_provider();
 	}
 
 	/// Called by the initializer to note that a new session has started.
@@ -398,43 +397,17 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
-	/// Checks if `core_idx` occupied since `pending_since` will timeout at or after `block_number`.
-	fn timesout_at_or_after(
-		core_idx: CoreIndex,
-		pending_since: T::BlockNumber,
-		block_number: T::BlockNumber,
-	) -> bool {
-		let availability_period = T::AssignmentProvider::get_availability_period(core_idx);
-		block_number.saturating_sub(pending_since) >= availability_period
-	}
-
-	/// Pushes occupied cores to the assignment provider in case the core would not timeout at or after the new session boundary.
-	/// `pending_cores` is a map from `CoreIndex` to `T::BlockNumber` which depicts when the `CoreIndex` was occupied.
-	fn try_push_occupied_cores_to_assignment_provider(
-		pending_cores: BTreeMap<CoreIndex, T::BlockNumber>,
-	) {
-		let new_session_start = <frame_system::Pallet<T>>::block_number() + One::one();
+	/// Pushes occupied cores to the assignment provider.
+	fn push_occupied_cores_to_assignment_provider() {
 		AvailabilityCores::<T>::mutate(|cores| {
 			for (core_idx, core) in cores.iter_mut().enumerate() {
 				match core {
 					CoreOccupied::Free => continue,
 					CoreOccupied::Paras(entry) => {
 						let core_idx = CoreIndex::from(core_idx as u32);
-						match pending_cores.get(&core_idx) {
-							Some(pending_since)
-								if Self::timesout_at_or_after(
-									core_idx,
-									*pending_since,
-									new_session_start,
-								) =>
-							{
-								log::info!(target: LOG_TARGET, "[try_push_occupied_cores_to_assignment_provider] dropping core at idx {}", core_idx.0);
-							},
-							None | Some(_) => Self::push_assignment(core_idx, entry.clone()),
-						}
+						Self::maybe_push_assignment(core_idx, entry.clone());
 					},
 				}
-
 				*core = CoreOccupied::Free;
 			}
 		});
@@ -446,13 +419,13 @@ impl<T: Config> Pallet<T> {
 			// Push back in reverse order so that when we pop from the provider again,
 			// the entries in the claimqueue are in the same order as they are right now.
 			for pe in cqv.into_iter().flatten().rev() {
-				Self::push_assignment(core_idx, pe);
+				Self::maybe_push_assignment(core_idx, pe);
 			}
 		}
 	}
 
 	/// Push assignments back to the provider on session change unless the paras has already been tried to run before.
-	fn push_assignment(core_idx: CoreIndex, pe: ParasEntry) {
+	fn maybe_push_assignment(core_idx: CoreIndex, pe: ParasEntry) {
 		if pe.retries == 0 {
 			T::AssignmentProvider::push_assignment_for_core(core_idx, pe.assignment);
 		}
