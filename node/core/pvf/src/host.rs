@@ -52,6 +52,9 @@ pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_millis(200);
 /// The amount of times we will retry failed prepare jobs.
 pub const NUM_PREPARE_RETRIES: u32 = 5;
 
+const PREPARE_BINARY_NAME: &str = "polkadot-prepare-worker";
+const EXECUTE_BINARY_NAME: &str = "polkadot-execute-worker";
+
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
 
@@ -162,18 +165,25 @@ pub struct Config {
 
 impl Config {
 	/// Create a new instance of the configuration.
-	pub fn new(cache_path: std::path::PathBuf, program_path: std::path::PathBuf) -> Self {
+	pub fn new(cache_path: std::path::PathBuf, program_path: Option<std::path::PathBuf>) -> Self {
 		// Do not contaminate the other parts of the codebase with the types from `tokio`.
 		let cache_path = PathBuf::from(cache_path);
-		let program_path = PathBuf::from(program_path);
+		let program_path = program_path.map(PathBuf::from);
+
+		// If the worker directory is given, get the binaries from that directory. Otherwise, expect
+		// that they are in $PATH.
+		let (prepare_worker_program_path, execute_worker_program_path) = match program_path {
+			Some(p) => (p.join(PREPARE_BINARY_NAME), p.join(EXECUTE_BINARY_NAME)),
+			None => (PREPARE_BINARY_NAME.into(), EXECUTE_BINARY_NAME.into()),
+		};
 
 		Self {
 			cache_path,
-			prepare_worker_program_path: program_path.clone(),
+			prepare_worker_program_path,
 			prepare_worker_spawn_timeout: Duration::from_secs(3),
 			prepare_workers_soft_max_num: 1,
 			prepare_workers_hard_max_num: 1,
-			execute_worker_program_path: program_path,
+			execute_worker_program_path,
 			execute_worker_spawn_timeout: Duration::from_secs(3),
 			execute_workers_max_num: 2,
 		}

@@ -676,6 +676,7 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 	col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
 };
 
+// TODO: This function seems to be public? How to not break backwards compatibility?
 /// Create a new full node of arbitrary runtime and executor.
 ///
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
@@ -684,6 +685,12 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 /// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
 /// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
 /// still determined based on the role of the node. Likewise for authority discovery.
+///
+/// `program_path` and `worker_directory_path` are used to get the PVF worker locations. First,
+/// `program_path` is considered, and if it is passed then that location will be used for both the
+/// binaries. If it is not passed, `worker_directory_path` is considered, and if it is passed then
+/// the binaries from that directory will be used. If neither is passed, the binaries will be taken
+/// from `$PATH`. `program_path` is a deprecated option and is present for backwards compatibility.
 #[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	mut config: Configuration,
@@ -693,6 +700,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
+	worker_directory_path: Option<std::path::PathBuf>,
 	overseer_enable_anyways: bool,
 	overseer_gen: OverseerGenerator,
 	overseer_message_channel_capacity_override: Option<usize>,
@@ -905,10 +913,7 @@ where
 			.path()
 			.ok_or(Error::DatabasePathRequired)?
 			.join("pvf-artifacts"),
-		program_path: match program_path {
-			None => std::env::current_exe()?,
-			Some(p) => p,
-		},
+		program_path,
 	};
 
 	let chain_selection_config = ChainSelectionConfig {

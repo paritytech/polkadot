@@ -2,6 +2,14 @@
 name = "polkadot"
 path = "src/main.rs"
 
+[[bin]]
+name = "polkadot-execute-worker"
+path = "node/core/pvf/execute-worker/src/main.rs"
+
+[[bin]]
+name = "polkadot-prepare-worker"
+path = "node/core/pvf/prepare-worker/src/main.rs"
+
 [package]
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
