@@ -20,6 +20,7 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
+use frame_support::pallet_prelude::StorageVersion;
 use pallet_nis::WithMaximumOf;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
@@ -1499,6 +1500,10 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 	}
 }
 
+parameter_types! {
+	pub const V5ToV6: StorageVersion = StorageVersion::new(5);
+}
+
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
@@ -1530,7 +1535,12 @@ pub mod migrations {
 	pub type Unreleased = (
 		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
+		frame_support::migrations::VersionedRuntimeUpgrade<
+			V5ToV6,
+			parachains_configuration::migration::v6::MigrateToV6<Runtime>,
+			Configuration,
+			RocksDbWeight,
+		>,
 		ump_migrations::UpdateUmpLimits,
 	);
 
