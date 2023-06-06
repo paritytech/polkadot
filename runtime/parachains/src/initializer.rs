@@ -239,9 +239,7 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// inform about upcoming new session
-		scheduler::Pallet::<T>::pre_new_session(
-			inclusion::Pallet::<T>::collect_pending_pre_session(),
-		);
+		scheduler::Pallet::<T>::pre_new_session();
 
 		let configuration::SessionChangeOutcome { prev_config, new_config } =
 			configuration::Pallet::<T>::initializer_on_new_session(&session_index);

@@ -462,16 +462,13 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 
+			let validator_set_count = key_owner_proof.validator_count() as ValidatorSetCount;
 			// check the membership proof to extract the offender's id
 			let key = (primitives::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
 			let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof)
 				.ok_or(Error::<T>::InvalidKeyOwnershipProof)?;
 
 			let session_index = dispute_proof.time_slot.session_index;
-			let validator_set_count = crate::session_info::Pallet::<T>::session_info(session_index)
-				.ok_or(Error::<T>::InvalidSessionIndex)?
-				.discovery_keys
-				.len() as ValidatorSetCount;
 
 			// check that there is a pending slash for the given
 			// validator index and candidate hash
@@ -705,22 +702,26 @@ where
 		};
 
 		match SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()) {
-			Ok(()) => log::info!(
-				target: LOG_TARGET,
-				"Submitted dispute slashing report, session({}), index({}), kind({:?})",
-				session_index,
-				validator_index,
-				kind,
-			),
-			Err(()) => log::error!(
-				target: LOG_TARGET,
-				"Error submitting dispute slashing report, session({}), index({}), kind({:?})",
-				session_index,
-				validator_index,
-				kind,
-			),
+			Ok(()) => {
+				log::info!(
+					target: LOG_TARGET,
+					"Submitted dispute slashing report, session({}), index({}), kind({:?})",
+					session_index,
+					validator_index,
+					kind,
+				);
+				Ok(())
+			},
+			Err(()) => {
+				log::error!(
+					target: LOG_TARGET,
+					"Error submitting dispute slashing report, session({}), index({}), kind({:?})",
+					session_index,
+					validator_index,
+					kind,
+				);
+				Err(sp_runtime::DispatchError::Other(""))
+			},
 		}
-
-		Ok(())
 	}
 }
