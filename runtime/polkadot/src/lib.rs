@@ -2190,6 +2190,11 @@ sp_api::impl_runtime_apis! {
 					// Polkadot doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}
+
+				fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
+					// The XCM executor of Polkadot doesn't have a configured `Aliasers`
+					Err(BenchmarkError::Skip)
+				}
 			}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
