@@ -155,23 +155,17 @@ where
 				gum::debug!(target: LOG_TARGET, ?peer, ?rep, action = "ReportPeer");
 			}
 
-			metrics.on_report_event();
+			metrics.on_report_event(1);
 			network_service.report_peer(peer, rep);
 		},
 		NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(batch)) => {
-			let reports: Vec<(PeerId, ReputationChange)> = batch
-				.iter()
-				.map(|(&peer, &score)| {
-					(peer, ReputationChange::new(score, "Aggregated reputation change"))
-				})
-				.collect();
-
-			for (peer, rep) in reports {
+			for (peer, (score, counter)) in batch {
+				let rep = ReputationChange::new(score, "Aggregated reputation change");
 				if !rep.value.is_positive() {
 					gum::debug!(target: LOG_TARGET, ?peer, ?rep, action = "ReportPeer");
 				}
 
-				metrics.on_report_event();
+				metrics.on_report_event(counter);
 				network_service.report_peer(peer, rep);
 			}
 		},

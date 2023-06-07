@@ -310,7 +310,7 @@ pub enum ReportPeerMessage {
 	/// Single peer report about malicious actions which should be sent right away
 	Single(PeerId, ReputationChange),
 	/// Delayed report for other actions.
-	Batch(HashMap<PeerId, i32>),
+	Batch(HashMap<PeerId, (i32, u64)>),
 }
 
 /// Messages received from other subsystems by the network bridge subsystem.

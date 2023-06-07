@@ -26,7 +26,13 @@ use std::{collections::HashMap, time::Duration};
 /// Default delay for sending reputation changes
 pub const REPUTATION_CHANGE_INTERVAL: Duration = Duration::from_secs(30);
 
-type BatchReputationChange = HashMap<PeerId, i32>;
+type BatchReputationChange = HashMap<
+	PeerId,
+	(
+		i32, // Aggregated value
+		u64, // Counter
+	),
+>;
 
 /// Collects reputation changes and sends them in one batch to relieve network channels
 #[derive(Debug, Clone)]
@@ -113,5 +119,7 @@ pub fn add_reputation(
 	rep: UnifiedReputationChange,
 ) {
 	let cost = rep.cost_or_benefit();
-	acc.entry(peer_id).and_modify(|v| *v = v.saturating_add(cost)).or_insert(cost);
+	acc.entry(peer_id)
+		.and_modify(|v| *v = (v.0.saturating_add(cost), v.1 + 1))
+		.or_insert((cost, 1));
 }
