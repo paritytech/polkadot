@@ -388,7 +388,7 @@ impl<AccountId: Decode + Clone> ConvertLocation<AccountId>
 						// Index from which the multisig account is derived.
 						GeneralIndex(id),
 					),
-			} => derive_tinkernet_multisig(*id).unwrap_or(None),
+			} => derive_tinkernet_multisig(*id).ok(),
 			_ => None,
 		}
 	}
@@ -851,7 +851,7 @@ mod tests {
 				97, 160, 244, 60, 133, 145, 170, 26, 202, 108, 203, 156, 114, 116, 175, 30, 156,
 				195, 43, 101, 243, 51, 193, 162, 152, 188, 30, 165, 244, 81, 70, 90
 			],
-			TinkernetMultisigAsAccountId::<[u8; 32]>::convert(mul).unwrap()
+			TinkernetMultisigAsAccountId::<[u8; 32]>::convert_location(&mul).unwrap()
 		);
 	}
 }
