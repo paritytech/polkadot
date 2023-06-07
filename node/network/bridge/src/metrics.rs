@@ -103,10 +103,9 @@ impl Metrics {
 		});
 	}
 
-	pub fn on_report_event(&self, by: u64) {
+	pub fn on_report_event(&self) {
 		if let Some(metrics) = self.0.as_ref() {
-			metrics.report_events.inc();
-			metrics.aggregated_report_events.inc_by(by);
+			metrics.report_events.inc()
 		}
 	}
 }
@@ -118,7 +117,6 @@ pub(crate) struct MetricsInner {
 	disconnected_events: prometheus::CounterVec<prometheus::U64>,
 	desired_peer_count: prometheus::GaugeVec<prometheus::U64>,
 	report_events: prometheus::Counter<prometheus::U64>,
-	aggregated_report_events: prometheus::Counter<prometheus::U64>,
 
 	notifications_received: prometheus::CounterVec<prometheus::U64>,
 	notifications_sent: prometheus::CounterVec<prometheus::U64>,
@@ -176,13 +174,6 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"polkadot_parachain_network_report_events_total",
 					"The amount of reputation changes issued by subsystems",
-				)?,
-				registry,
-			)?,
-			aggregated_report_events: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_network_aggregated_report_events_total",
-					"The amount of original reputation changes issued by subsystems",
 				)?,
 				registry,
 			)?,
