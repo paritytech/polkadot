@@ -17,10 +17,14 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
+use frame_support::traits::Randomness;
+use pallet_babe::ParentBlockRandomness;
 use primitives::{Id as ParaId, PersistedValidationData, ValidatorIndex};
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 use crate::{configuration, hrmp, paras};
+
+const LOG_TARGET: &str = "runtime::parachains";
 
 /// Make the persisted validation data for a particular parachain, a specified relay-parent and it's
 /// storage root.
@@ -64,7 +68,7 @@ pub fn split_active_subset<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> (V
 
 	if active_result.len() != active.len() {
 		log::warn!(
-			target: "runtime::parachains",
+			target: LOG_TARGET,
 			"Took active validators from set with wrong size.",
 		);
 	}
@@ -95,6 +99,29 @@ pub fn take_active_subset<T: Clone>(active: &[ValidatorIndex], set: &[T]) -> Vec
 	}
 
 	subset
+}
+
+/// Derive entropy from babe provided per block randomness.
+///
+/// In the odd case none is available, uses the `parent_hash` and
+/// a const value, while emitting a warning.
+pub fn compute_entropy<T: pallet_babe::Config>(parent_hash: T::Hash) -> [u8; 32] {
+	const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
+	// NOTE: this is slightly gameable since this randomness was already public
+	// by the previous block, while for the block author this randomness was
+	// known 2 epochs ago. it is marginally better than using the parent block
+	// hash since it's harder to influence the VRF output than the block hash.
+	let vrf_random = ParentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
+	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT;
+	if let Some(vrf_random) = vrf_random {
+		entropy.as_mut().copy_from_slice(vrf_random.as_ref());
+	} else {
+		// in case there is no VRF randomness present, we utilize the relay parent
+		// as seed, it's better than a static value.
+		log::warn!(target: LOG_TARGET, "ParentBlockRandomness did not provide entropy");
+		entropy.as_mut().copy_from_slice(parent_hash.as_ref());
+	}
+	entropy
 }
 
 #[cfg(test)]
