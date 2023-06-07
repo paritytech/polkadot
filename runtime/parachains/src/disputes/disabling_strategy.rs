@@ -26,6 +26,7 @@
 use super::slashing::ValidatorDisablingHandler;
 use frame_support::weights::Weight;
 use primitives::{vstaging::slashing::SlashingOffenceKind, SessionIndex, ValidatorIndex};
+use rand::{seq::SliceRandom, SeedableRng};
 use sp_std::prelude::*;
 
 // TODO: set this based on the number of validators
@@ -87,7 +88,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {}
+	pub trait Config: frame_system::Config + pallet_babe::Config {}
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
@@ -174,7 +175,11 @@ impl<T: Config> Pallet<T> {
 
 	fn random_selection(input: &mut Vec<ValidatorIndex>, capacity: usize) -> Vec<ValidatorIndex> {
 		debug_assert!(input.len() > capacity);
-		// TODO: source of randomness?!
+
+		let entropy = crate::util::compute_entropy::<T>(<frame_system::Pallet<T>>::parent_hash());
+		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
+		input.shuffle(&mut rng);
+
 		input.split_off(capacity)
 	}
 }
