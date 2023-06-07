@@ -38,7 +38,7 @@ type BatchReputationChange = HashMap<
 #[derive(Debug, Clone)]
 pub struct ReputationAggregator {
 	send_immediately_if: fn(UnifiedReputationChange) -> bool,
-	by_peer: BatchReputationChange,
+	by_peer: Option<BatchReputationChange>,
 }
 
 impl Default for ReputationAggregator {
@@ -65,17 +65,11 @@ impl ReputationAggregator {
 		&mut self,
 		sender: &mut impl overseer::SubsystemSender<NetworkBridgeTxMessage>,
 	) {
-		if self.by_peer.is_empty() {
-			return
+		if let Some(by_peer) = self.by_peer.take() {
+			sender
+				.send_message(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(by_peer)))
+				.await;
 		}
-
-		sender
-			.send_message(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(
-				self.by_peer.clone(),
-			)))
-			.await;
-
-		self.by_peer.clear();
 	}
 
 	/// Adds reputation change to inner state
@@ -108,7 +102,12 @@ impl ReputationAggregator {
 	}
 
 	fn add(&mut self, peer_id: PeerId, rep: UnifiedReputationChange) {
-		add_reputation(&mut self.by_peer, peer_id, rep)
+		if self.by_peer.is_none() {
+			self.by_peer = Some(HashMap::new());
+		}
+		if let Some(ref mut by_peer) = self.by_peer {
+			add_reputation(by_peer, peer_id, rep)
+		}
 	}
 }
 
