@@ -39,7 +39,7 @@ use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
-	vstaging, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	slashing, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
 	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
 	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
@@ -58,9 +58,7 @@ use runtime_parachains::{
 	inclusion::{AggregateMessageOrigin, UmpQueueId},
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::{
-		v4 as parachains_runtime_api_impl, vstaging as parachains_runtime_api_impl_staging,
-	},
+	runtime_api_impl::v5 as parachains_runtime_api_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared,
 };
@@ -1582,25 +1580,25 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn unapplied_slashes(
-		) -> Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)> {
-			parachains_runtime_api_impl_staging::unapplied_slashes::<Runtime>()
+		) -> Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)> {
+			parachains_runtime_api_impl::unapplied_slashes::<Runtime>()
 		}
 
 		fn key_ownership_proof(
 			validator_id: ValidatorId,
-		) -> Option<vstaging::slashing::OpaqueKeyOwnershipProof> {
+		) -> Option<slashing::OpaqueKeyOwnershipProof> {
 			use parity_scale_codec::Encode;
 
 			Historical::prove((PARACHAIN_KEY_TYPE_ID, validator_id))
 				.map(|p| p.encode())
-				.map(vstaging::slashing::OpaqueKeyOwnershipProof::new)
+				.map(slashing::OpaqueKeyOwnershipProof::new)
 		}
 
 		fn submit_report_dispute_lost(
-			dispute_proof: vstaging::slashing::DisputeProof,
-			key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+			dispute_proof: slashing::DisputeProof,
+			key_ownership_proof: slashing::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
-			parachains_runtime_api_impl_staging::submit_unsigned_slashing_report::<Runtime>(
+			parachains_runtime_api_impl::submit_unsigned_slashing_report::<Runtime>(
 				dispute_proof,
 				key_ownership_proof,
 			)
