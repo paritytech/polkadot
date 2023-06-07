@@ -34,7 +34,7 @@ type LocalInnerRouter =
 	UnpaidExecutingRouter<UniversalLocation, ParaBridgeUniversalLocation, RelayExporter>;
 type LocalBridgingRouter =
 	UnpaidRemoteExporter<NetworkExportTable<BridgeTable>, LocalInnerRouter, UniversalLocation>;
-type LocalRouter = (LocalInnerRouter, LocalBridgingRouter);
+type LocalRouter = TestTopic<(LocalInnerRouter, LocalBridgingRouter)>;
 
 /// ```nocompile
 ///  local                                    |                                      remote
@@ -48,18 +48,40 @@ type LocalRouter = (LocalInnerRouter, LocalBridgingRouter);
 /// ```
 #[test]
 fn sending_to_bridged_chain_works() {
-	let msg = Xcm(vec![Trap(1)]);
-	assert_eq!(
-		send_xcm::<LocalRouter>((Parent, Remote::get(), Parachain(1)).into(), msg)
-			.unwrap()
-			.1,
-		MultiAssets::new()
-	);
-	assert_eq!(TheBridge::service(), 1);
-	assert_eq!(
-		take_received_remote_messages(),
-		vec![(Here.into(), Xcm(vec![UniversalOrigin(Local::get().into()), Trap(1)]))]
-	);
+	maybe_with_topic(|| {
+		let msg = Xcm(vec![Trap(1)]);
+		assert_eq!(
+			send_xcm::<LocalRouter>((Parent, Remote::get(), Parachain(1)).into(), msg)
+				.unwrap()
+				.1,
+			MultiAssets::new()
+		);
+		assert_eq!(TheBridge::service(), 1);
+		let expected = vec![(
+			Here.into(),
+			xcm_with_topic([0; 32], vec![UniversalOrigin(Local::get().into()), Trap(1)]),
+		)];
+		assert_eq!(take_received_remote_messages(), expected);
+		let entry = LogEntry {
+			local: UniversalLocation::get(),
+			remote: ParaBridgeUniversalLocation::get(),
+			id: maybe_forward_id_for(&[0; 32]),
+			message: xcm_with_topic(
+				maybe_forward_id_for(&[0; 32]),
+				vec![
+					UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+					ExportMessage {
+						network: ByGenesis([1; 32]),
+						destination: Parachain(1).into(),
+						xcm: xcm_with_topic([0; 32], vec![Trap(1)]),
+					},
+				],
+			),
+			outcome: Outcome::Complete(test_weight(2)),
+			paid: false,
+		};
+		assert_eq!(RoutingLog::take(), vec![entry]);
+	});
 }
 
 /// ```nocompile
@@ -74,15 +96,36 @@ fn sending_to_bridged_chain_works() {
 /// ```
 #[test]
 fn sending_to_sibling_of_bridged_chain_works() {
-	let msg = Xcm(vec![Trap(1)]);
-	let dest = (Parent, Remote::get(), Parachain(1000)).into();
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, MultiAssets::new());
-	assert_eq!(TheBridge::service(), 1);
-	let expected = vec![(
-		(Parent, Parachain(1000)).into(),
-		Xcm(vec![UniversalOrigin(Local::get().into()), Trap(1)]),
-	)];
-	assert_eq!(take_received_remote_messages(), expected);
+	maybe_with_topic(|| {
+		let msg = Xcm(vec![Trap(1)]);
+		let dest = (Parent, Remote::get(), Parachain(1000)).into();
+		assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, MultiAssets::new());
+		assert_eq!(TheBridge::service(), 1);
+		let expected = vec![(
+			(Parent, Parachain(1000)).into(),
+			xcm_with_topic([0; 32], vec![UniversalOrigin(Local::get().into()), Trap(1)]),
+		)];
+		assert_eq!(take_received_remote_messages(), expected);
+		let entry = LogEntry {
+			local: UniversalLocation::get(),
+			remote: ParaBridgeUniversalLocation::get(),
+			id: maybe_forward_id_for(&[0; 32]),
+			message: xcm_with_topic(
+				maybe_forward_id_for(&[0; 32]),
+				vec![
+					UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+					ExportMessage {
+						network: ByGenesis([1; 32]),
+						destination: Parachain(1000).into(),
+						xcm: xcm_with_topic([0; 32], vec![Trap(1)]),
+					},
+				],
+			),
+			outcome: Outcome::Complete(test_weight(2)),
+			paid: false,
+		};
+		assert_eq!(RoutingLog::take(), vec![entry]);
+	});
 }
 
 /// ```nocompile
@@ -97,10 +140,34 @@ fn sending_to_sibling_of_bridged_chain_works() {
 /// ```
 #[test]
 fn sending_to_relay_of_bridged_chain_works() {
-	let msg = Xcm(vec![Trap(1)]);
-	let dest = (Parent, Remote::get()).into();
-	assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, MultiAssets::new());
-	assert_eq!(TheBridge::service(), 1);
-	let expected = vec![(Parent.into(), Xcm(vec![UniversalOrigin(Local::get().into()), Trap(1)]))];
-	assert_eq!(take_received_remote_messages(), expected);
+	maybe_with_topic(|| {
+		let msg = Xcm(vec![Trap(1)]);
+		let dest = (Parent, Remote::get()).into();
+		assert_eq!(send_xcm::<LocalRouter>(dest, msg).unwrap().1, MultiAssets::new());
+		assert_eq!(TheBridge::service(), 1);
+		let expected = vec![(
+			Parent.into(),
+			xcm_with_topic([0; 32], vec![UniversalOrigin(Local::get().into()), Trap(1)]),
+		)];
+		assert_eq!(take_received_remote_messages(), expected);
+		let entry = LogEntry {
+			local: UniversalLocation::get(),
+			remote: ParaBridgeUniversalLocation::get(),
+			id: maybe_forward_id_for(&[0; 32]),
+			message: xcm_with_topic(
+				maybe_forward_id_for(&[0; 32]),
+				vec![
+					UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+					ExportMessage {
+						network: ByGenesis([1; 32]),
+						destination: Here,
+						xcm: xcm_with_topic([0; 32], vec![Trap(1)]),
+					},
+				],
+			),
+			outcome: Outcome::Complete(test_weight(2)),
+			paid: false,
+		};
+		assert_eq!(RoutingLog::take(), vec![entry]);
+	});
 }

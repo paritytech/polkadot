@@ -26,9 +26,9 @@ use std::{
 
 use assert_matches::assert_matches;
 use futures::{
-	channel::{mpsc, oneshot},
+	channel::oneshot,
 	future::{poll_fn, ready},
-	pin_mut, Future, SinkExt,
+	pin_mut, Future,
 };
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
@@ -590,14 +590,14 @@ fn dispute_retries_and_works_across_session_boundaries() {
 }
 
 async fn send_network_dispute_request(
-	req_tx: &mut mpsc::Sender<sc_network::config::IncomingRequest>,
+	req_tx: &mut async_channel::Sender<sc_network::config::IncomingRequest>,
 	peer: PeerId,
 	message: DisputeRequest,
 ) -> oneshot::Receiver<sc_network::config::OutgoingResponse> {
 	let (pending_response, rx_response) = oneshot::channel();
 	let req =
 		sc_network::config::IncomingRequest { peer, payload: message.encode(), pending_response };
-	req_tx.feed(req).await.unwrap();
+	req_tx.send(req).await.unwrap();
 	rx_response
 }
 
@@ -606,7 +606,7 @@ async fn send_network_dispute_request(
 /// Passed in function will be called while votes are still being imported.
 async fn nested_network_dispute_request<'a, F, O>(
 	handle: &'a mut TestSubsystemContextHandle<DisputeDistributionMessage>,
-	req_tx: &'a mut mpsc::Sender<sc_network::config::IncomingRequest>,
+	req_tx: &'a mut async_channel::Sender<sc_network::config::IncomingRequest>,
 	peer: PeerId,
 	message: DisputeRequest,
 	import_result: ImportStatementsResult,
@@ -615,7 +615,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 ) where
 	F: FnOnce(
 			&'a mut TestSubsystemContextHandle<DisputeDistributionMessage>,
-			&'a mut mpsc::Sender<sc_network::config::IncomingRequest>,
+			&'a mut async_channel::Sender<sc_network::config::IncomingRequest>,
 			DisputeRequest,
 		) -> O
 		+ 'a,

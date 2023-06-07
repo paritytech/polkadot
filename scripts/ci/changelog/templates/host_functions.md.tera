@@ -1,4 +1,5 @@
 {%- import "change.md.tera" as m_c -%}
+
 {%- set_global host_fn_count = 0 -%}
 {%- set_global upgrade_first = 0 -%}
 
@@ -22,7 +23,7 @@
 
 {%- if upgrade_first != 0 %}
 ## Node upgrade required
-⚠️ There is a runtime change that will require nodes to be upgraded BEFORE the runtime upgrade.  
+⚠️ There is a runtime change that will require nodes to be upgraded BEFORE the runtime upgrade.
 
 ⚠️ It is critical that you update your client before the chain switches to the new runtime.
 {%- endif %}
@@ -32,10 +33,12 @@
 ## Host functions
 
 {% if host_fn_count == 0 %}
-ℹ️ This release does not contain any new host functions.
+ℹ️ This release does not contain any change related to host functions.
 {% elif host_fn_count == 1 -%}
 {# ---- #}
-ℹ️ The runtimes in this release contain one new **host function**.
+ℹ️ The runtimes in this release contain one change related to **host function**s:
+{% include "host_functions-list.md.tera" -%}
 {%- else -%}
-ℹ️ The runtimes in this release contain {{ host_fn_count }} new **host function{{ host_fn_count | pluralize }}**.
+ℹ️ The runtimes in this release contain {{ host_fn_count }} changes related to **host function**s:
+{% include "host_functions-list.md.tera" -%}
 {%- endif %}

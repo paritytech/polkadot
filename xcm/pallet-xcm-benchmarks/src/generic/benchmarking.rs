@@ -209,7 +209,7 @@ benchmarks! {
 			assets.clone().into(),
 			&XcmContext {
 				origin: Some(origin.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		);
@@ -266,7 +266,7 @@ benchmarks! {
 			max_response_weight,
 			&XcmContext {
 				origin: Some(origin.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		).map_err(|_| "Could not start subscription")?;
@@ -617,6 +617,19 @@ benchmarks! {
 		let xcm = Xcm(vec![instruction]);
 	}: {
 		executor.bench_process(xcm)?;
+	}
+
+	alias_origin {
+		let (origin, target) = T::alias_origin().map_err(|_| BenchmarkError::Skip)?;
+
+		let mut executor = new_executor::<T>(origin);
+
+		let instruction = Instruction::AliasOrigin(target.clone());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert_eq!(executor.origin(), &Some(target));
 	}
 
 	impl_benchmark_test_suite!(
