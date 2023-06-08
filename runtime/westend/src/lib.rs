@@ -1989,6 +1989,11 @@ sp_api::impl_runtime_apis! {
 					// Westend doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}
+
+				fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
+					// The XCM executor of Westend doesn't have a configured `Aliasers`
+					Err(BenchmarkError::Skip)
+				}
 			}
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;

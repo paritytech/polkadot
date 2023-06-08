@@ -44,8 +44,16 @@ pub use pallet::*;
 const LOG_TARGET: &str = "runtime::configuration";
 
 /// All configuration of the runtime with respect to parachains and parathreads.
-#[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug, scale_info::TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[derive(
+	Clone,
+	Encode,
+	Decode,
+	PartialEq,
+	sp_core::RuntimeDebug,
+	scale_info::TypeInfo,
+	serde::Serialize,
+	serde::Deserialize,
+)]
 pub struct HostConfiguration<BlockNumber> {
 	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
 	// special treatment.
@@ -438,7 +446,6 @@ pub trait WeightInfo {
 	fn set_config_with_block_number() -> Weight;
 	fn set_config_with_u32() -> Weight;
 	fn set_config_with_option_u32() -> Weight;
-	fn set_config_with_weight() -> Weight;
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
 	fn set_config_with_executor_params() -> Weight;
@@ -453,9 +460,6 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn set_config_with_option_u32() -> Weight {
-		Weight::MAX
-	}
-	fn set_config_with_weight() -> Weight {
 		Weight::MAX
 	}
 	fn set_config_with_balance() -> Weight {

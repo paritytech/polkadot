@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::prepare::PrepareJobKind;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationCodeHash;
 use polkadot_primitives::ExecutorParams;
@@ -39,6 +40,8 @@ pub struct PvfPrepData {
 	executor_params: Arc<ExecutorParams>,
 	/// Preparation timeout
 	prep_timeout: Duration,
+	/// The kind of preparation job.
+	prep_kind: PrepareJobKind,
 }
 
 impl PvfPrepData {
@@ -47,11 +50,12 @@ impl PvfPrepData {
 		code: Vec<u8>,
 		executor_params: ExecutorParams,
 		prep_timeout: Duration,
+		prep_kind: PrepareJobKind,
 	) -> Self {
 		let code = Arc::new(code);
 		let code_hash = blake2_256(&code).into();
 		let executor_params = Arc::new(executor_params);
-		Self { code, code_hash, executor_params, prep_timeout }
+		Self { code, code_hash, executor_params, prep_timeout, prep_kind }
 	}
 
 	/// Returns validation code hash for the PVF
@@ -74,17 +78,36 @@ impl PvfPrepData {
 		self.prep_timeout
 	}
 
+	/// Returns preparation kind.
+	pub fn prep_kind(&self) -> PrepareJobKind {
+		self.prep_kind
+	}
+
 	/// Creates a structure for tests.
 	#[doc(hidden)]
 	pub fn from_discriminator_and_timeout(num: u32, timeout: Duration) -> Self {
 		let descriminator_buf = num.to_le_bytes().to_vec();
-		Self::from_code(descriminator_buf, ExecutorParams::default(), timeout)
+		Self::from_code(
+			descriminator_buf,
+			ExecutorParams::default(),
+			timeout,
+			PrepareJobKind::Compilation,
+		)
 	}
 
 	/// Creates a structure for tests.
 	#[doc(hidden)]
 	pub fn from_discriminator(num: u32) -> Self {
 		Self::from_discriminator_and_timeout(num, crate::tests::TEST_PREPARATION_TIMEOUT)
+	}
+
+	/// Creates a structure for tests.
+	#[doc(hidden)]
+	pub fn from_discriminator_precheck(num: u32) -> Self {
+		let mut pvf =
+			Self::from_discriminator_and_timeout(num, crate::tests::TEST_PREPARATION_TIMEOUT);
+		pvf.prep_kind = PrepareJobKind::Prechecking;
+		pvf
 	}
 }
 
