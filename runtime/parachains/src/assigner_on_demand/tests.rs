@@ -25,7 +25,10 @@ use crate::{
 	paras::{ParaGenesisArgs, ParaKind},
 };
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
-use primitives::{v4::Assignment, Balance, BlockNumber, SessionIndex};
+use primitives::{
+	v4::{Assignment, ValidationCode},
+	Balance, BlockNumber, SessionIndex,
+};
 use sp_std::collections::btree_map::BTreeMap;
 
 fn default_genesis_config() -> MockGenesisConfig {
@@ -38,14 +41,17 @@ fn default_genesis_config() -> MockGenesisConfig {
 }
 
 fn schedule_blank_para(id: ParaId, parakind: ParaKind) {
+	let validation_code: ValidationCode = vec![1, 2, 3].into();
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		ParaGenesisArgs {
 			genesis_head: Vec::new().into(),
-			validation_code: vec![1, 2, 3].into(),
+			validation_code: validation_code.clone(),
 			para_kind: parakind,
 		}
 	));
+
+	assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), validation_code));
 }
 
 fn run_to_block(
@@ -193,18 +199,18 @@ fn sustained_target_increases_spot_traffic() {
 
 #[test]
 fn place_order_works() {
-	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-		let alice = 1u64;
-		let amt = 10_000_000u128;
-		let para_a = ParaId::from(111);
-		let collator = OpaquePeerId::new(vec![0u8]);
+	let alice = 1u64;
+	let amt = 10_000_000u128;
+	let para_a = ParaId::from(111);
+	let collator = OpaquePeerId::new(vec![0u8]);
 
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		// Initialize the parathread and wait for it to be ready.
 		schedule_blank_para(para_a, ParaKind::Parathread);
 
 		assert!(!Paras::is_parathread(para_a));
 
-		run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
+		run_to_block(100, |n| if n == 100 { Some(Default::default()) } else { None });
 
 		assert!(Paras::is_parathread(para_a));
 
@@ -249,7 +255,7 @@ fn spotqueue_push_directions() {
 		schedule_blank_para(para_b, ParaKind::Parathread);
 		schedule_blank_para(para_c, ParaKind::Parathread);
 
-		run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
+		run_to_block(11, |n| if n == 11 { Some(Default::default()) } else { None });
 
 		let assignment_a =
 			Assignment { para_id: para_a, collator_restrictions: CollatorRestrictions::none() };

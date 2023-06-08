@@ -23,7 +23,7 @@ use primitives::{
 	BlockNumber, CollatorId, SessionIndex, ValidationCode, ValidatorId,
 };
 use sp_core::{ByteArray, OpaquePeerId};
-use sp_std::collections::btree_map::BTreeMap;
+use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 
 use crate::{
 	configuration::HostConfiguration,
@@ -144,6 +144,7 @@ fn add_parathread_claim_works() {
 	let thread_id = ParaId::from(10);
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 	let core_index = CoreIndex::from(0);
+	let entry_ttl = 10_000;
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(thread_id, ParaKind::Parathread);
@@ -154,13 +155,16 @@ fn add_parathread_claim_works() {
 
 		assert!(Paras::is_parathread(thread_id));
 
-		let pe = ParasEntry::new(Assignment::new(
-			thread_id,
-			CollatorRestrictions::new(
-				[OpaquePeerId::new(collator.to_raw_vec())].into_iter().collect(),
-				CollatorRestrictionKind::Preferred,
+		let pe = ParasEntry::new(
+			Assignment::new(
+				thread_id,
+				CollatorRestrictions::new(
+					[OpaquePeerId::new(collator.to_raw_vec())].into_iter().collect(),
+					CollatorRestrictionKind::Preferred,
+				),
 			),
-		));
+			entry_ttl,
+		);
 		Scheduler::add_to_claimqueue(core_index, pe.clone());
 
 		let cq = Scheduler::claimqueue();
@@ -781,15 +785,22 @@ fn schedule_clears_availability_cores() {
 			let claimqueue = Scheduler::claimqueue();
 			let claimqueue_0 = claimqueue.get(&CoreIndex(0)).unwrap().clone();
 			let claimqueue_2 = claimqueue.get(&CoreIndex(2)).unwrap().clone();
+			let entry_ttl = 10_000;
 			assert_eq!(claimqueue_0.len(), 1);
 			assert_eq!(claimqueue_2.len(), 1);
 			assert_eq!(
 				claimqueue_0,
-				vec![Some(ParasEntry::new(Assignment::new(chain_a, CollatorRestrictions::none())))],
+				vec![Some(ParasEntry::new(
+					Assignment::new(chain_a, CollatorRestrictions::none()),
+					5
+				))],
 			);
 			assert_eq!(
 				claimqueue_2,
-				vec![Some(ParasEntry::new(Assignment::new(chain_c, CollatorRestrictions::none())))],
+				vec![Some(ParasEntry::new(
+					Assignment::new(chain_c, CollatorRestrictions::none()),
+					5
+				))],
 			);
 
 			// The freed cores should be `Free` in `AvailabilityCores`.
@@ -980,11 +991,12 @@ fn availability_predicate_works() {
 
 		// assign some availability cores.
 		{
+			let entry_ttl = 10_000;
 			AvailabilityCores::<Test>::mutate(|cores| {
-				cores[0] = CoreOccupied::Paras(ParasEntry::new(Assignment::new(
-					chain_a,
-					CollatorRestrictions::none(),
-				)));
+				cores[0] = CoreOccupied::Paras(ParasEntry::new(
+					Assignment::new(chain_a, CollatorRestrictions::none()),
+					entry_ttl,
+				));
 				//	cores[1] = CoreOccupied::Parathread(ParathreadEntry {
 				//		claim: ParathreadClaim(thread_a, Some(collator)),
 				//		retries: 0,
@@ -1315,6 +1327,8 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		let chain_a = ParaId::from(1_u32);
 		let chain_b = ParaId::from(2_u32);
 
+		let entry_ttl = 10_000;
+
 		// ensure that we have 5 groups by registering 2 parachains.
 		schedule_blank_para(chain_a, ParaKind::Parachain);
 		schedule_blank_para(chain_b, ParaKind::Parachain);
@@ -1367,9 +1381,12 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			Scheduler::claimqueue(),
 			vec![(
 				CoreIndex(0),
-				vec![Some(ParasEntry::new(Assignment::new(chain_a, CollatorRestrictions::none())))]
-					.into_iter()
-					.collect()
+				vec![Some(ParasEntry::new(
+					Assignment::new(chain_a, CollatorRestrictions::none()),
+					entry_ttl
+				))]
+				.into_iter()
+				.collect()
 			)]
 			.into_iter()
 			.collect()
@@ -1408,19 +1425,19 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			vec![
 				(
 					CoreIndex(0),
-					vec![Some(ParasEntry::new(Assignment::new(
-						chain_a,
-						CollatorRestrictions::none()
-					)))]
+					vec![Some(ParasEntry::new(
+						Assignment::new(chain_a, CollatorRestrictions::none()),
+						entry_ttl
+					))]
 					.into_iter()
 					.collect()
 				),
 				(
 					CoreIndex(1),
-					vec![Some(ParasEntry::new(Assignment::new(
-						chain_b,
-						CollatorRestrictions::none()
-					)))]
+					vec![Some(ParasEntry::new(
+						Assignment::new(chain_b, CollatorRestrictions::none()),
+						entry_ttl
+					))]
 					.into_iter()
 					.collect()
 				),
@@ -1429,6 +1446,31 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			.collect()
 		);
 	});
+}
+
+#[cfg(test)]
+pub(crate) fn claimqueue_contains_only_none() -> bool {
+	let mut cq = Scheduler::claimqueue();
+	//let mut cq = ClaimQueue::<T>::get();
+	for (_, v) in cq.iter_mut() {
+		v.retain(|e| e.is_some());
+	}
+
+	cq.iter().map(|(_, v)| v.len()).sum::<usize>() == 0
+}
+
+#[cfg(test)]
+pub(crate) fn claimqueue_contains_para_ids(pids: Vec<ParaId>) -> bool {
+	let set: BTreeSet<ParaId> = ClaimQueue::<T>::get()
+		.into_iter()
+		.flat_map(|(_, assignments)| {
+			assignments
+				.into_iter()
+				.filter_map(|assignment| assignment.and_then(|pe| Some(pe.para_id())))
+		})
+		.collect();
+
+	pids.into_iter().all(|pid| set.contains(&pid))
 }
 
 //#[test]

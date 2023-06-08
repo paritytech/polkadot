@@ -1171,15 +1171,19 @@ mod sanitizers {
 		let has_concluded_invalid =
 			|_idx: usize, _backed_candidate: &BackedCandidate| -> bool { false };
 
+		let entry_ttl = 10_000;
 		let scheduled = (0_usize..2)
 			.into_iter()
 			.map(|idx| {
 				let core_idx = CoreIndex::from(idx as u32);
 				let ca = CoreAssignment {
-					paras_entry: ParasEntry::new(Assignment::new(
-						ParaId::from(1_u32 + idx as u32),
-						CollatorRestrictions::none(),
-					)),
+					paras_entry: ParasEntry::new(
+						Assignment::new(
+							ParaId::from(1_u32 + idx as u32),
+							CollatorRestrictions::none(),
+						),
+						entry_ttl,
+					),
 					group_idx: GroupIndex::from(idx as u32),
 					core: core_idx,
 				};

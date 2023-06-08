@@ -329,6 +329,7 @@ fn setting_pending_config_members() {
 			on_demand_base_fee: 10_000_000u128,
 			on_demand_fee_variability: Perbill::from_percent(3),
 			on_demand_target_queue_utilization: Perbill::from_percent(25),
+			on_demand_ttl: 5u32,
 		};
 
 		Configuration::set_validation_upgrade_cooldown(

@@ -1094,7 +1094,7 @@ fn sanitize_backed_candidates<
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	scheduled: &[CoreAssignment],
+	scheduled: &[CoreAssignment<T::BlockNumber>],
 ) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
 	// This does not assume sorting.
@@ -1104,7 +1104,7 @@ fn sanitize_backed_candidates<
 
 	let scheduled_paras_to_core_idx = scheduled
 		.into_iter()
-		.map(|core_assignment| (core_assignment.para_id(), core_assignment.core))
+		.map(|core_assignment| (core_assignment.paras_entry.para_id(), core_assignment.core))
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
 
 	// Assure the backed candidate's `ParaId`'s core is free.
@@ -1139,7 +1139,7 @@ pub(crate) fn assure_sanity_backed_candidates<
 	relay_parent: T::Hash,
 	backed_candidates: &[BackedCandidate<T::Hash>],
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	scheduled: &[CoreAssignment],
+	scheduled: &[CoreAssignment<T::BlockNumber>],
 ) -> Result<(), crate::inclusion::Error<T>> {
 	use crate::inclusion::Error;
 
@@ -1158,7 +1158,7 @@ pub(crate) fn assure_sanity_backed_candidates<
 
 	let scheduled_paras_to_core_idx = scheduled
 		.into_iter()
-		.map(|core_assignment| (core_assignment.para_id(), core_assignment.core))
+		.map(|core_assignment| (core_assignment.paras_entry.para_id(), core_assignment.core))
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
 
 	if !IsSortedBy::is_sorted_by(backed_candidates, |x, y| {

@@ -970,28 +970,38 @@ fn candidate_checks() {
 			.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		let entry_ttl = 10_000;
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			paras_entry: ParasEntry::new(Assignment::new(chain_a, CollatorRestrictions::none())),
+			paras_entry: ParasEntry::new(
+				Assignment::new(chain_a, CollatorRestrictions::none()),
+				entry_ttl,
+			),
 			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
-			paras_entry: ParasEntry::new(Assignment::new(chain_b, CollatorRestrictions::none())),
+			paras_entry: ParasEntry::new(
+				Assignment::new(chain_b, CollatorRestrictions::none()),
+				entry_ttl,
+			),
 			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
-			paras_entry: ParasEntry::new(Assignment::new(
-				thread_a,
-				CollatorRestrictions::new(
-					[OpaquePeerId::new(thread_collator.encode_as())].into_iter().collect(),
-					CollatorRestrictionKind::Required,
+			paras_entry: ParasEntry::new(
+				Assignment::new(
+					thread_a,
+					CollatorRestrictions::new(
+						[OpaquePeerId::new(thread_collator.encode_as())].into_iter().collect(),
+						CollatorRestrictionKind::Required,
+					),
 				),
-			)),
+				entry_ttl,
+			),
 			group_idx: GroupIndex::from(2),
 		};
 
@@ -1523,27 +1533,38 @@ fn backing_works() {
 
 		let thread_peer_id = OpaquePeerId::default();
 
+		let entry_ttl = 10_000;
+
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			paras_entry: ParasEntry::new(Assignment::new(chain_a, CollatorRestrictions::none())),
+			paras_entry: ParasEntry::new(
+				Assignment::new(chain_a, CollatorRestrictions::none()),
+				entry_ttl,
+			),
 			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
-			paras_entry: ParasEntry::new(Assignment::new(chain_b, CollatorRestrictions::none())),
+			paras_entry: ParasEntry::new(
+				Assignment::new(chain_b, CollatorRestrictions::none()),
+				entry_ttl,
+			),
 			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
-			paras_entry: ParasEntry::new(Assignment::new(
-				thread_a,
-				CollatorRestrictions::new(
-					[thread_peer_id].into_iter().collect(),
-					CollatorRestrictionKind::Required,
+			paras_entry: ParasEntry::new(
+				Assignment::new(
+					thread_a,
+					CollatorRestrictions::new(
+						[thread_peer_id].into_iter().collect(),
+						CollatorRestrictionKind::Required,
+					),
 				),
-			)),
+				entry_ttl,
+			),
 			group_idx: GroupIndex::from(2),
 		};
 
@@ -1806,9 +1827,14 @@ fn can_include_candidate_with_ok_code_upgrade() {
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		let entry_ttl = 10_000;
+
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			paras_entry: ParasEntry::new(Assignment::new(chain_a, CollatorRestrictions::none())),
+			paras_entry: ParasEntry::new(
+				Assignment::new(chain_a, CollatorRestrictions::none()),
+				entry_ttl,
+			),
 			group_idx: GroupIndex::from(0),
 		};
 
