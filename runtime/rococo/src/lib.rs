@@ -1825,7 +1825,7 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::availability_cores::<Runtime>()
 		}
 
-		fn availability_cores_on_demand() -> Vec<vstaging::CoreState<Hash, BlockNumber>> {
+		fn availability_cores_vstaging() -> Vec<vstaging::CoreState<Hash, BlockNumber>> {
 			runtime_parachains::runtime_api_impl::vstaging::availability_cores::<Runtime>()
 		}
 
