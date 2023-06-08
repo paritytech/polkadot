@@ -128,7 +128,7 @@ pub mod v1 {
 		}
 	}
 
-	pub fn migrate_to_v1<T: crate::scheduler::Config>() -> Weight {
+	pub fn migrate_to_v1<T: Config>() -> Weight {
 		let mut weight: Weight = Weight::zero();
 
 		let pq = ParathreadQueue::<T>::take();
@@ -139,10 +139,14 @@ pub mod v1 {
 
 		let scheduled = Scheduled::<T>::take();
 		let sched_len = scheduled.len() as u64;
+		let config = <configuration::Pallet<T>>::config();
 		for core_assignment in scheduled {
 			let core_idx = core_assignment.core;
 			let assignment = Assignment::new(core_assignment.para_id, CollatorRestrictions::none());
-			let pe = ParasEntry::new(assignment);
+			// NOTE: on_runtime_upgrade runs before block initialization and therefore should be one block behind.
+			let now_plus_one = <frame_system::Pallet<T>>::block_number() + One::one();
+			let pe =
+				ParasEntry::<T::BlockNumber>::new(assignment, now_plus_one + config.on_demand_ttl);
 			Pallet::<T>::add_to_claimqueue(core_idx, pe);
 		}
 

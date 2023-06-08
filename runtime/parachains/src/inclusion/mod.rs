@@ -641,7 +641,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn process_candidates<GV>(
 		parent_storage_root: T::Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
-		scheduled: Vec<CoreAssignment>,
+		scheduled: Vec<CoreAssignment<T::BlockNumber>>,
 		group_validators: GV,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
@@ -672,15 +672,16 @@ impl<T: Config> Pallet<T> {
 			let mut core_indices_and_backers = Vec::with_capacity(candidates.len());
 			let mut last_core = None;
 
-			let mut check_assignment_in_order = |assignment: &CoreAssignment| -> DispatchResult {
-				ensure!(
-					last_core.map_or(true, |core| assignment.core > core),
-					Error::<T>::ScheduledOutOfOrder,
-				);
+			let mut check_assignment_in_order =
+				|assignment: &CoreAssignment<T::BlockNumber>| -> DispatchResult {
+					ensure!(
+						last_core.map_or(true, |core| assignment.core > core),
+						Error::<T>::ScheduledOutOfOrder,
+					);
 
-				last_core = Some(assignment.core);
-				Ok(())
-			};
+					last_core = Some(assignment.core);
+					Ok(())
+				};
 
 			let signing_context =
 				SigningContext { parent_hash, session_index: shared::Pallet::<T>::session_index() };
@@ -725,7 +726,7 @@ impl<T: Config> Pallet<T> {
 				for (i, core_assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(core_assignment)?;
 
-					if para_id == core_assignment.para_id() {
+					if para_id == core_assignment.paras_entry.para_id() {
 						ensure!(
 							<PendingAvailability<T>>::get(&para_id).is_none() &&
 								<PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),
@@ -787,7 +788,7 @@ impl<T: Config> Pallet<T> {
 						}
 
 						core_indices_and_backers.push((
-							(core_assignment.core, core_assignment.para_id()),
+							(core_assignment.core, core_assignment.paras_entry.para_id()),
 							backers,
 							core_assignment.group_idx,
 						));

@@ -888,25 +888,16 @@ pub enum CollatorRestrictionKind {
 
 /// An entry tracking a paras
 #[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
-pub struct ParasEntry {
+pub struct ParasEntry<N = BlockNumber> {
 	/// The `Assignment`
 	pub assignment: Assignment,
 	/// Number of times this has been retried.
 	pub retries: u32,
+	/// Block height when this entry was added to the claim queue.
+	pub ttl: N,
 }
 
-impl From<Assignment> for ParasEntry {
-	fn from(assignment: Assignment) -> Self {
-		ParasEntry { assignment, retries: 0 }
-	}
-}
-
-impl ParasEntry {
-	/// Create a new `ParasEntry`.
-	pub fn new(assignment: Assignment) -> Self {
-		ParasEntry { assignment, retries: 0 }
-	}
-
+impl<N> ParasEntry<N> {
 	/// Return `Id` from the underlying `Assignment`.
 	pub fn para_id(&self) -> Id {
 		self.assignment.para_id
@@ -916,19 +907,23 @@ impl ParasEntry {
 	pub fn collator_restrictions(&self) -> &CollatorRestrictions {
 		&self.assignment.collator_restrictions
 	}
+	/// Create a new `ParasEntry`.
+	pub fn new(assignment: Assignment, now: N) -> Self {
+		ParasEntry { assignment, retries: 0, ttl: now }
+	}
 }
 
 /// What is occupying a specific availability core.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
-pub enum CoreOccupied {
+pub enum CoreOccupied<N> {
 	/// The core is not occupied.
 	Free,
 	/// A paras.
-	Paras(ParasEntry),
+	Paras(ParasEntry<N>),
 }
 
-impl CoreOccupied {
+impl<N> CoreOccupied<N> {
 	/// Is core free?
 	pub fn is_free(&self) -> bool {
 		match self {

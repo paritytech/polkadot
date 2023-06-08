@@ -184,6 +184,9 @@ pub struct HostConfiguration<BlockNumber> {
 	pub on_demand_fee_variability: Perbill,
 	/// The minimum amount needed to claim a slot in the spot pricing queue.
 	pub on_demand_base_fee: Balance,
+	/// The number of blocks an on demand claim stays in the scheduler's claimqueue before getting cleared.
+	/// This number should go reasonably higher than the number of blocks in the async backing lookahead.
+	pub on_demand_ttl: BlockNumber,
 	/// How often parachain groups should be rotated across parachains.
 	///
 	/// Must be non-zero.
@@ -308,6 +311,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			on_demand_base_fee: 10_000_000u128,
 			on_demand_fee_variability: Perbill::from_percent(3),
 			on_demand_target_queue_utilization: Perbill::from_percent(25),
+			on_demand_ttl: 5u32.into(),
 		}
 	}
 }
@@ -1226,6 +1230,18 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.on_demand_target_queue_utilization = new;
+			})
+		}
+		/// Set the on demand (parathreads) ttl in the claimqueue.
+		#[pallet::call_index(51)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_block_number(),
+			DispatchClass::Operational
+		))]
+		pub fn set_on_demand_ttl(origin: OriginFor<T>, new: BlockNumberFor<T>) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.on_demand_ttl = new;
 			})
 		}
 	}

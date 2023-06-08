@@ -687,16 +687,18 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		);
 		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), used_cores as usize,);
 
+		let config = <configuration::Pallet<T>>::config();
+		let now = <frame_system::Pallet<T>>::block_number() + One::one();
 		// Mark all the used cores as occupied. We expect that their are `backed_and_concluding_cores`
 		// that are pending availability and that there are `used_cores - backed_and_concluding_cores `
 		// which are about to be disputed.
 		let cores = (0..used_cores)
 			.into_iter()
 			.map(|i| {
-				CoreOccupied::Paras(ParasEntry::new(Assignment::new(
-					ParaId::from(i as u32),
-					CollatorRestrictions::none(),
-				)))
+				CoreOccupied::Paras(ParasEntry::new(
+					Assignment::new(ParaId::from(i as u32), CollatorRestrictions::none()),
+					now + config.on_demand_ttl,
+				))
 			})
 			.collect();
 		scheduler::AvailabilityCores::<T>::set(cores);

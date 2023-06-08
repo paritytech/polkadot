@@ -71,20 +71,20 @@ pub trait AssignmentProvider<BlockNumber> {
 /// How a free core is scheduled to be assigned.
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub struct CoreAssignment {
+pub struct CoreAssignment<BlockNumber> {
 	/// The core that is assigned.
 	pub core: CoreIndex,
-	/// The kind of the assignment.
-	pub paras_entry: ParasEntry,
+	/// The parachain information needed to ba
+	pub paras_entry: ParasEntry<BlockNumber>,
 	/// The index of the validator group assigned to the core.
 	pub group_idx: GroupIndex,
 }
 
-impl CoreAssignment {
+impl<BlockNumber> CoreAssignment<BlockNumber> {
 	pub fn para_id(&self) -> ParaId {
-		self.paras_entry.assignment.para_id
+		self.paras_entry.para_id()
 	}
-	pub fn to_paras_entry(self) -> ParasEntry {
+	pub fn to_paras_entry(self) -> ParasEntry<BlockNumber> {
 		self.paras_entry
 	}
 }
