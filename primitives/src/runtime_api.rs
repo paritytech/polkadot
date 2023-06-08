@@ -140,7 +140,7 @@ sp_api::decl_runtime_apis! {
 		/// Yields information on all availability cores as relevant to the child block.
 		/// Cores are either free or occupied. Free cores can have paras assigned to them.
 		#[api_version(5)]
-		fn availability_cores_on_demand() -> Vec<vstaging::CoreState<H, N>>;
+		fn availability_cores_vstaging() -> Vec<vstaging::CoreState<H, N>>;
 
 		/// Yields the persisted validation data for the given `ParaId` along with an assumption that
 		/// should be used if the para currently occupies a core.

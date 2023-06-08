@@ -258,7 +258,7 @@ where
 			.unwrap_or_default()
 			.unwrap_or_default();
 		if version >= 5 {
-			self.runtime_api().availability_cores_on_demand(at)
+			self.runtime_api().availability_cores_vstaging(at)
 		} else {
 			self.runtime_api()
 				.availability_cores(at)
