@@ -130,6 +130,31 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 	}
 }
 
+#[cfg(test)]
+pub(crate) fn claimqueue_contains_only_none() -> bool {
+	let mut cq = Scheduler::claimqueue();
+	//let mut cq = ClaimQueue::<T>::get();
+	for (_, v) in cq.iter_mut() {
+		v.retain(|e| e.is_some());
+	}
+
+	cq.iter().map(|(_, v)| v.len()).sum::<usize>() == 0
+}
+
+#[cfg(test)]
+pub(crate) fn claimqueue_contains_para_ids<T: Config>(pids: Vec<ParaId>) -> bool {
+	let set: BTreeSet<ParaId> = ClaimQueue::<T>::get()
+		.into_iter()
+		.flat_map(|(_, assignments)| {
+			assignments
+				.into_iter()
+				.filter_map(|assignment| assignment.and_then(|pe| Some(pe.para_id())))
+		})
+		.collect();
+
+	pids.into_iter().all(|pid| set.contains(&pid))
+}
+
 // Pretty useless here. Should be on parathread assigner... if at all
 #[test]
 fn add_parathread_claim_works() {
@@ -464,7 +489,7 @@ fn fill_claimqueue_fills() {
 			//let cq = Scheduler::claimqueue();
 
 			// Cannot assert on indices anymore as they depend on the assignment providers
-			assert!(Scheduler::claimqueue_contains_para_ids(vec![chain_a, chain_b]));
+			assert!(claimqueue_contains_para_ids::<Test>(vec![chain_a, chain_b]));
 			// TODO: checks for group indices?
 			//assert_eq!(
 			//	scheduled[0],
@@ -768,7 +793,7 @@ fn schedule_clears_availability_cores() {
 			assert_eq!(cores[1].is_free(), false);
 			assert_eq!(cores[2].is_free(), false);
 
-			assert!(Scheduler::claimqueue_contains_only_none());
+			assert!(claimqueue_contains_only_none());
 		}
 
 		run_to_block(3, |_| None);
@@ -785,21 +810,21 @@ fn schedule_clears_availability_cores() {
 			let claimqueue = Scheduler::claimqueue();
 			let claimqueue_0 = claimqueue.get(&CoreIndex(0)).unwrap().clone();
 			let claimqueue_2 = claimqueue.get(&CoreIndex(2)).unwrap().clone();
-			let entry_ttl = 10_000;
+			let entry_ttl = 8;
 			assert_eq!(claimqueue_0.len(), 1);
 			assert_eq!(claimqueue_2.len(), 1);
 			assert_eq!(
 				claimqueue_0,
 				vec![Some(ParasEntry::new(
 					Assignment::new(chain_a, CollatorRestrictions::none()),
-					5
+					entry_ttl
 				))],
 			);
 			assert_eq!(
 				claimqueue_2,
 				vec![Some(ParasEntry::new(
 					Assignment::new(chain_c, CollatorRestrictions::none()),
-					5
+					entry_ttl
 				))],
 			);
 
@@ -1318,7 +1343,10 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 	let mut config = default_config();
 	config.scheduling_lookahead = 1;
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig { config, ..Default::default() },
+		configuration: crate::configuration::GenesisConfig {
+			config: config.clone(),
+			..Default::default()
+		},
 		..Default::default()
 	};
 
@@ -1326,8 +1354,6 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 	new_test_ext(genesis_config).execute_with(|| {
 		let chain_a = ParaId::from(1_u32);
 		let chain_b = ParaId::from(2_u32);
-
-		let entry_ttl = 10_000;
 
 		// ensure that we have 5 groups by registering 2 parachains.
 		schedule_blank_para(chain_a, ParaKind::Parachain);
@@ -1383,7 +1409,8 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 				CoreIndex(0),
 				vec![Some(ParasEntry::new(
 					Assignment::new(chain_a, CollatorRestrictions::none()),
-					entry_ttl
+					// At end of block 2
+					config.on_demand_ttl + 2
 				))]
 				.into_iter()
 				.collect()
@@ -1427,7 +1454,8 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 					CoreIndex(0),
 					vec![Some(ParasEntry::new(
 						Assignment::new(chain_a, CollatorRestrictions::none()),
-						entry_ttl
+						// At block 3
+						config.on_demand_ttl + 3
 					))]
 					.into_iter()
 					.collect()
@@ -1436,7 +1464,8 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 					CoreIndex(1),
 					vec![Some(ParasEntry::new(
 						Assignment::new(chain_b, CollatorRestrictions::none()),
-						entry_ttl
+						// At block 3
+						config.on_demand_ttl + 3
 					))]
 					.into_iter()
 					.collect()
@@ -1446,31 +1475,6 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			.collect()
 		);
 	});
-}
-
-#[cfg(test)]
-pub(crate) fn claimqueue_contains_only_none() -> bool {
-	let mut cq = Scheduler::claimqueue();
-	//let mut cq = ClaimQueue::<T>::get();
-	for (_, v) in cq.iter_mut() {
-		v.retain(|e| e.is_some());
-	}
-
-	cq.iter().map(|(_, v)| v.len()).sum::<usize>() == 0
-}
-
-#[cfg(test)]
-pub(crate) fn claimqueue_contains_para_ids(pids: Vec<ParaId>) -> bool {
-	let set: BTreeSet<ParaId> = ClaimQueue::<T>::get()
-		.into_iter()
-		.flat_map(|(_, assignments)| {
-			assignments
-				.into_iter()
-				.filter_map(|assignment| assignment.and_then(|pe| Some(pe.para_id())))
-		})
-		.collect();
-
-	pids.into_iter().all(|pid| set.contains(&pid))
 }
 
 //#[test]
