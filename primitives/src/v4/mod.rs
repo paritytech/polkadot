@@ -20,7 +20,6 @@ use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{
-	collections::btree_set::BTreeSet,
 	marker::PhantomData,
 	prelude::*,
 	slice::{Iter, IterMut},
@@ -29,7 +28,7 @@ use sp_std::{
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
-use primitives::{OpaquePeerId, RuntimeDebug};
+use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Header as HeaderT};
 use sp_arithmetic::traits::{BaseArithmetic, Saturating};
 
@@ -49,9 +48,6 @@ pub use polkadot_parachain::primitives::{
 };
 
 use serde::{Deserialize, Serialize};
-
-#[cfg(feature = "std")]
-use sc_network::PeerId;
 
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 pub use sp_consensus_slots::Slot;
@@ -818,121 +814,14 @@ pub struct ParathreadEntry {
 	pub retries: u32,
 }
 
-/// An Assignemnt for a paras going to produce a paras block.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
-pub struct Assignment {
-	/// Assignment's ParaId
-	pub para_id: Id,
-	/// Assignment's CollatorRestrictions
-	pub collator_restrictions: CollatorRestrictions,
-}
-
-impl Assignment {
-	/// Create a new `Assignment`.
-	pub fn new(para_id: Id, collator_restrictions: CollatorRestrictions) -> Self {
-		Assignment { para_id, collator_restrictions }
-	}
-}
-
-/// Restrictions on collators for a specific paras block.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
-pub struct CollatorRestrictions {
-	/// Collators to prefer/allow.
-	/// Empty set means no restrictions.
-	collator_peer_ids: BTreeSet<OpaquePeerId>,
-	restriction_kind: CollatorRestrictionKind,
-}
-
-impl CollatorRestrictions {
-	/// Specialised new function for parachains.
-	pub fn none() -> Self {
-		CollatorRestrictions {
-			collator_peer_ids: BTreeSet::new(),
-			restriction_kind: CollatorRestrictionKind::Preferred,
-		}
-	}
-
-	/// Create a new `CollatorRestrictions`.
-	pub fn new(
-		collator_peer_ids: BTreeSet<OpaquePeerId>,
-		restriction_kind: CollatorRestrictionKind,
-	) -> Self {
-		CollatorRestrictions { collator_peer_ids, restriction_kind }
-	}
-
-	/// Is peer_id allowed to collate?
-	#[cfg(feature = "std")]
-	pub fn can_collate(&self, peer_id: &PeerId) -> bool {
-		self.collator_peer_ids.is_empty() ||
-			match self.restriction_kind {
-				CollatorRestrictionKind::Preferred => true,
-				CollatorRestrictionKind::Required => {
-					let peer_id = OpaquePeerId(peer_id.to_bytes());
-					self.collator_peer_ids.contains(&peer_id)
-				},
-			}
-	}
-}
-
-/// How to apply the collator restrictions.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
-pub enum CollatorRestrictionKind {
-	/// peer ids mentioned will be preferred in connections, but others are still allowed.
-	Preferred,
-	/// Any collator with a `PeerId` not in the set of `CollatorRestrictions` will be rejected.
-	Required,
-}
-
-/// An entry tracking a paras
-#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
-pub struct ParasEntry {
-	/// The `Assignment`
-	pub assignment: Assignment,
-	/// Number of times this has been retried.
-	pub retries: u32,
-}
-
-impl From<Assignment> for ParasEntry {
-	fn from(assignment: Assignment) -> Self {
-		ParasEntry { assignment, retries: 0 }
-	}
-}
-
-impl ParasEntry {
-	/// Create a new `ParasEntry`.
-	pub fn new(assignment: Assignment) -> Self {
-		ParasEntry { assignment, retries: 0 }
-	}
-
-	/// Return `Id` from the underlying `Assignment`.
-	pub fn para_id(&self) -> Id {
-		self.assignment.para_id
-	}
-
-	/// Return `CollatorRestrictions` from the underlying `Assignment`.
-	pub fn collator_restrictions(&self) -> &CollatorRestrictions {
-		&self.assignment.collator_restrictions
-	}
-}
-
 /// What is occupying a specific availability core.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreOccupied {
-	/// The core is not occupied.
-	Free,
-	/// A paras.
-	Paras(ParasEntry),
-}
-
-impl CoreOccupied {
-	/// Is core free?
-	pub fn is_free(&self) -> bool {
-		match self {
-			Self::Free => true,
-			Self::Paras(_) => false,
-		}
-	}
+	/// A parathread.
+	Parathread(ParathreadEntry),
+	/// A parachain.
+	Parachain,
 }
 
 /// A helper data-type for tracking validator-group rotations.
@@ -1062,11 +951,10 @@ impl<H, N> OccupiedCore<H, N> {
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct ScheduledCore {
-	// TODO: Is the same as Assignment
 	/// The ID of a para scheduled.
 	pub para_id: Id,
-	/// The collator restrictions.
-	pub collator_restrictions: CollatorRestrictions,
+	/// The collator required to author the block, if any.
+	pub collator: Option<CollatorId>,
 }
 
 /// The state of a particular availability core.

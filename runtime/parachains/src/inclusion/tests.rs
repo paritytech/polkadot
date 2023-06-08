@@ -30,7 +30,7 @@ use frame_support::assert_noop;
 use keyring::Sr25519Keyring;
 use parity_scale_codec::DecodeAll;
 use primitives::{
-	v4::{Assignment, CollatorRestrictionKind, CollatorRestrictions, ParasEntry},
+	vstaging::{Assignment, CollatorRestrictionKind, CollatorRestrictions, ParasEntry},
 	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
 	CompactStatement as Statement, EncodeAs, Hash, SignedAvailabilityBitfield, SignedStatement,
 	UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,

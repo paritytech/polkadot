@@ -891,7 +891,7 @@ mod sanitizers {
 	use crate::mock::Test;
 	use keyring::Sr25519Keyring;
 	use primitives::{
-		v4::{Assignment, CollatorRestrictions, ParasEntry},
+		vstaging::{Assignment, CollatorRestrictions, ParasEntry},
 		PARACHAIN_KEY_TYPE_ID,
 	};
 	use sc_keystore::LocalKeystore;

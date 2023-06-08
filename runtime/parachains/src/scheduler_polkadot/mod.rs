@@ -16,7 +16,7 @@
 
 use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 pub use pallet::*;
-use primitives::{v4::Assignment, CoreIndex, Id as ParaId};
+use primitives::{vstaging::Assignment, CoreIndex, Id as ParaId};
 
 #[frame_support::pallet]
 pub mod pallet {

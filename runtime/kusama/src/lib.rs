@@ -24,10 +24,10 @@ use pallet_nis::WithMaximumOf;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
-	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, LOWEST_PUBLIC_ID,
+	CommittedCandidateReceipt, DisputeState, ExecutorParams, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, LOWEST_PUBLIC_ID,
 };
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
@@ -1730,7 +1730,7 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::validator_groups::<Runtime>()
 		}
 
-		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
+		fn availability_cores() -> Vec<primitives::v4::CoreState<Hash, BlockNumber>> {
 			parachains_runtime_api_impl::availability_cores::<Runtime>()
 		}
 

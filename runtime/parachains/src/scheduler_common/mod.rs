@@ -37,7 +37,7 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	v4::{Assignment, ParasEntry},
+	vstaging::{Assignment, ParasEntry},
 	CoreIndex, GroupIndex, Id as ParaId,
 };
 use scale_info::TypeInfo;

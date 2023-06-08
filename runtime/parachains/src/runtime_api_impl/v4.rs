@@ -18,14 +18,14 @@
 //! functions.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
-	session_info, shared,
+	disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler, session_info,
+	shared,
 };
 use primitives::{
 	AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreIndex,
-	CoreOccupied, CoreState, DisputeState, ExecutorParams, GroupIndex, GroupRotationInfo, Hash,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	CoreOccupied, DisputeState, ExecutorParams, GroupIndex, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::traits::One;
@@ -48,32 +48,8 @@ pub fn validator_groups<T: initializer::Config>(
 }
 
 /// Implementation for the `availability_cores` function of the runtime API.
-pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
-	let cores = <scheduler::Pallet<T>>::availability_cores();
-	let config = <configuration::Pallet<T>>::config();
-	let now = <frame_system::Pallet<T>>::block_number() + One::one();
-	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
-
-	let time_out_at = |backed_in_number, availability_period| {
-		let time_out_at = backed_in_number + availability_period;
-
-		let current_window = rotation_info.last_rotation_at() + availability_period;
-		let next_rotation = rotation_info.next_rotation_at();
-
-		// If we are within `period` blocks of rotation, timeouts are being checked
-		// actively. We could even time out this block.
-		if time_out_at < current_window {
-			time_out_at
-		} else if time_out_at <= next_rotation {
-			// Otherwise, it will time out at the sooner of the next rotation
-			next_rotation
-		} else {
-			// or the scheduled time-out. This is by definition within `period` blocks
-			// of `next_rotation` and is thus a valid timeout block.
-			time_out_at
-		}
-	};
-
+pub fn availability_cores<T: initializer::Config>(
+) -> Vec<primitives::v4::CoreState<T::Hash, T::BlockNumber>> {
 	let group_responsible_for =
 		|backed_in_number, core_index| match <scheduler::Pallet<T>>::group_assigned_to_core(
 			core_index,
@@ -91,6 +67,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 			},
 		};
 
+	let cores = <scheduler::Pallet<T>>::availability_cores();
 	let mut core_states: Vec<_> = cores
 		.into_iter()
 		.enumerate()
@@ -101,15 +78,17 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 						.expect("Occupied core always has pending availability; qed");
 
 				let backed_in_number = *pending_availability.backed_in_number();
-				CoreState::Occupied(OccupiedCore {
-					next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(CoreIndex(
-						i as u32,
-					)),
+				let core_index = CoreIndex::from(i as u32);
+				primitives::v4::CoreState::Occupied(primitives::v4::OccupiedCore {
+					next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(core_index)
+						.map(ScheduledCore::to_v4),
 					occupied_since: backed_in_number,
-					time_out_at: time_out_at(backed_in_number, config.chain_availability_period),
-					next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(CoreIndex(
-						i as u32,
-					)),
+					time_out_at: <scheduler::Pallet<T>>::calc_time_out_at(
+						backed_in_number,
+						core_index,
+					),
+					next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(core_index)
+						.map(ScheduledCore::to_v4),
 					availability: pending_availability.availability_votes().clone(),
 					group_responsible: group_responsible_for(
 						backed_in_number,
@@ -119,16 +98,18 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 					candidate_descriptor: pending_availability.candidate_descriptor().clone(),
 				})
 			},
-			CoreOccupied::Free => CoreState::Free,
+			CoreOccupied::Free => primitives::v4::CoreState::Free,
 		})
 		.collect();
 
+	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
 	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue(now) {
-		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(primitives::ScheduledCore {
-			para_id: scheduled.paras_entry.para_id(),
-			collator_restrictions: scheduled.paras_entry.collator_restrictions().clone(),
-		});
+		core_states[scheduled.core.0 as usize] =
+			primitives::v4::CoreState::Scheduled(primitives::v4::ScheduledCore {
+				para_id: scheduled.paras_entry.para_id(),
+				collator: None,
+			});
 	}
 
 	core_states

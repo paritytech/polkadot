@@ -24,11 +24,11 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use primitives::{
 	collator_signature_payload,
-	v4::{Assignment, CollatorRestrictions, ParasEntry},
+	vstaging::{Assignment, CollatorRestrictions, CoreOccupied, ParasEntry},
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
 	CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt, CompactStatement,
-	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
-	Id as ParaId, IndexedVec, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
+	CoreIndex, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId,
+	IndexedVec, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
 	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
 	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
 };

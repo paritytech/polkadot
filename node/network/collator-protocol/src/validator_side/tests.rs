@@ -33,8 +33,8 @@ use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeA
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{
-	v4::CollatorRestrictionKind, vstaging::CollatorRestrictions, CollatorPair, CoreState,
-	GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore, ValidatorId, ValidatorIndex,
+	CollatorPair, CollatorRestrictionKind, CollatorRestrictions, CoreState, GroupIndex,
+	GroupRotationInfo, OccupiedCore, ScheduledCore, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,

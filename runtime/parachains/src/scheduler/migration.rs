@@ -7,10 +7,18 @@ pub mod v1 {
 	use frame_support::{
 		pallet_prelude::ValueQuery, storage_alias, traits::OnRuntimeUpgrade, weights::Weight,
 	};
-	use primitives::{v4::CollatorRestrictions, vstaging::Assignment, CollatorId};
+	use primitives::{
+		v4,
+		vstaging::{Assignment, CollatorRestrictions},
+		CollatorId,
+	};
 
 	#[storage_alias]
 	pub(super) type Scheduled<T: Config> = StorageValue<Pallet<T>, Vec<CoreAssignment>, ValueQuery>;
+
+	#[storage_alias]
+	pub(crate) type AvailabilityCores<T: Config> =
+		StorageValue<Pallet<T>, Vec<Option<primitives::v4::CoreOccupied>>, ValueQuery>;
 
 	#[derive(Encode, Decode)]
 	pub struct QueuedParathread {
@@ -98,7 +106,7 @@ pub mod v1 {
 			);
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() == 0,
-				"Storage version should be less than `1` before the migration",
+				"Storage version should be `0` before the migration",
 			);
 
 			let bytes = u32::to_be_bytes(Scheduled::<T>::get().len() as u32);
@@ -146,6 +154,32 @@ pub mod v1 {
 			Pallet::<T>::add_to_claimqueue(core_idx, pe);
 		}
 
+		let cores = AvailabilityCores::<T>::take();
+		let cores_len = cores.len() as u64;
+		let parachains = <paras::Pallet<T>>::parachains();
+		let new_cores = cores
+			.iter()
+			.enumerate()
+			.map(|(idx, core)| match core {
+				None => CoreOccupied::Free,
+				Some(v4::CoreOccupied::Parachain) => {
+					let para_id = parachains[idx];
+					let pe =
+						ParasEntry::from(Assignment::new(para_id, CollatorRestrictions::none()));
+
+					CoreOccupied::Paras(pe)
+				},
+				Some(v4::CoreOccupied::Parathread(_entry)) => {
+					panic!("There are no parathreads pre-v5")
+				},
+			})
+			.collect();
+
+		Pallet::<T>::set_availability_cores(new_cores);
+
+		// 2x as once for reading AvailabilityCores and for writing new ones
+		weight =
+			weight.saturating_add(T::DbWeight::get().reads_writes(2 * cores_len, 2 * cores_len));
 		// 2x as once for Scheduled and once for Claimqueue
 		weight =
 			weight.saturating_add(T::DbWeight::get().reads_writes(2 * sched_len, 2 * sched_len));

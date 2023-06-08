@@ -252,7 +252,18 @@ where
 		&self,
 		at: Hash,
 	) -> Result<Vec<CoreState<Hash, BlockNumber>>, ApiError> {
-		self.runtime_api().availability_cores(at)
+		let version = self
+			.api_version_parachain_host(at)
+			.await
+			.unwrap_or_default()
+			.unwrap_or_default();
+		if version >= 5 {
+			self.runtime_api().availability_cores_vstaging(at)
+		} else {
+			self.runtime_api()
+				.availability_cores(at)
+				.map(|css| css.into_iter().map(vstaging::corestate_from_v4).collect())
+		}
 	}
 
 	async fn persisted_validation_data(

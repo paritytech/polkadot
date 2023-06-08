@@ -41,22 +41,26 @@ pub use v4::{
 	CandidateCommitments, CandidateDescriptor, CandidateEvent, CandidateHash, CandidateIndex,
 	CandidateReceipt, CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CollatorId,
 	CollatorSignature, CommittedCandidateReceipt, CompactStatement, ConsensusLog, CoreIndex,
-	CoreOccupied, CoreState, DisputeState, DisputeStatement, DisputeStatementSet, DownwardMessage,
-	EncodeAs, ExecutorParam, ExecutorParams, ExecutorParamsHash, ExplicitDisputeStatement,
-	GroupIndex, GroupRotationInfo, Hash, HashT, HeadData, Header, HrmpChannelId, Id,
-	InboundDownwardMessage, InboundHrmpMessage, IndexedVec, InherentData,
-	InvalidDisputeStatementKind, Moment, MultiDisputeStatementSet, Nonce, OccupiedCore,
+	DisputeState, DisputeStatement, DisputeStatementSet, DownwardMessage, EncodeAs, ExecutorParam,
+	ExecutorParams, ExecutorParamsHash, ExplicitDisputeStatement, GroupIndex, GroupRotationInfo,
+	Hash, HashT, HeadData, Header, HrmpChannelId, Id, InboundDownwardMessage, InboundHrmpMessage,
+	IndexedVec, InherentData, InvalidDisputeStatementKind, Moment, MultiDisputeStatementSet, Nonce,
 	OccupiedCoreAssumption, OutboundHrmpMessage, ParathreadClaim, ParathreadEntry,
 	PersistedValidationData, PvfCheckStatement, PvfExecTimeoutKind, PvfPrepTimeoutKind,
 	RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues, RuntimeMetricLabels,
-	RuntimeMetricOp, RuntimeMetricUpdate, ScheduledCore, ScrapedOnChainVotes, SessionIndex,
-	SessionInfo, Signature, Signed, SignedAvailabilityBitfield, SignedAvailabilityBitfields,
-	SignedStatement, SigningContext, Slot, UncheckedSigned, UncheckedSignedAvailabilityBitfield,
+	RuntimeMetricOp, RuntimeMetricUpdate, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	Signature, Signed, SignedAvailabilityBitfield, SignedAvailabilityBitfields, SignedStatement,
+	SigningContext, Slot, UncheckedSigned, UncheckedSignedAvailabilityBitfield,
 	UncheckedSignedAvailabilityBitfields, UncheckedSignedStatement, UpgradeGoAhead,
 	UpgradeRestriction, UpwardMessage, ValidDisputeStatementKind, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 	ValidityError, ASSIGNMENT_KEY_TYPE_ID, LOWEST_PUBLIC_ID, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE,
 	MAX_POV_SIZE, PARACHAINS_INHERENT_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
+};
+
+pub use vstaging::{
+	CollatorRestrictionKind, CollatorRestrictions, CoreOccupied, CoreState, OccupiedCore,
+	ScheduledCore,
 };
 
 #[cfg(feature = "std")]

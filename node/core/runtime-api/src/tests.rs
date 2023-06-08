@@ -21,11 +21,11 @@ use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfigurati
 use polkadot_node_subsystem::SpawnGlue;
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::{
-	runtime_api::ParachainHost, AuthorityDiscoveryId, Block, CandidateEvent,
-	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
-	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	runtime_api::ParachainHost, v4::CoreState, vstaging, AuthorityDiscoveryId, Block,
+	CandidateEvent, CommittedCandidateReceipt, GroupRotationInfo, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_api::ProvideRuntimeApi;
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -42,6 +42,7 @@ struct MockRuntimeApi {
 	validators: Vec<ValidatorId>,
 	validator_groups: Vec<Vec<ValidatorIndex>>,
 	availability_cores: Vec<CoreState>,
+	availability_cores_vstaging: Vec<vstaging::CoreState>,
 	availability_cores_wait: Arc<Mutex<()>>,
 	validation_data: HashMap<ParaId, PersistedValidationData>,
 	session_index_for_child: SessionIndex,
@@ -88,6 +89,11 @@ sp_api::mock_impl_runtime_apis! {
 		fn availability_cores(&self) -> Vec<CoreState> {
 			let _lock = self.availability_cores_wait.lock().unwrap();
 			self.availability_cores.clone()
+		}
+
+		fn availability_cores_vstaging(&self) -> Vec<vstaging::CoreState> {
+			let _lock = self.availability_cores_wait.lock().unwrap();
+			self.availability_cores_vstaging.clone()
 		}
 
 		fn persisted_validation_data(
@@ -334,7 +340,7 @@ fn requests_availability_cores() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.availability_cores);
+		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.availability_cores_vstaging);
 
 		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -891,7 +897,7 @@ fn multiple_requests_in_parallel_are_working() {
 
 		join.await
 			.into_iter()
-			.for_each(|r| assert_eq!(r.unwrap().unwrap(), runtime_api.availability_cores));
+			.for_each(|r| assert_eq!(r.unwrap().unwrap(), runtime_api.availability_cores_vstaging));
 
 		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
