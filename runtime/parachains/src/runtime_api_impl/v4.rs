@@ -50,9 +50,6 @@ pub fn validator_groups<T: initializer::Config>(
 /// Implementation for the `availability_cores` function of the runtime API.
 pub fn availability_cores<T: initializer::Config>(
 ) -> Vec<primitives::v4::CoreState<T::Hash, T::BlockNumber>> {
-	let cores = <scheduler::Pallet<T>>::availability_cores();
-	let now = <frame_system::Pallet<T>>::block_number() + One::one();
-
 	let group_responsible_for =
 		|backed_in_number, core_index| match <scheduler::Pallet<T>>::group_assigned_to_core(
 			core_index,
@@ -70,6 +67,7 @@ pub fn availability_cores<T: initializer::Config>(
 			},
 		};
 
+	let cores = <scheduler::Pallet<T>>::availability_cores();
 	let mut core_states: Vec<_> = cores
 		.into_iter()
 		.enumerate()
@@ -85,8 +83,10 @@ pub fn availability_cores<T: initializer::Config>(
 					next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(core_index)
 						.map(ScheduledCore::to_v4),
 					occupied_since: backed_in_number,
-					time_out_at: backed_in_number +
-						<scheduler::Pallet<T>>::availability_period(core_index),
+					time_out_at: <scheduler::Pallet<T>>::calc_time_out_at(
+						backed_in_number,
+						core_index,
+					),
 					next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(core_index)
 						.map(ScheduledCore::to_v4),
 					availability: pending_availability.availability_votes().clone(),
@@ -102,6 +102,7 @@ pub fn availability_cores<T: initializer::Config>(
 		})
 		.collect();
 
+	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
 	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue(now) {
 		core_states[scheduled.core.0 as usize] =

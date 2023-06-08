@@ -40,7 +40,7 @@ use primitives::{
 	vstaging::{CoreOccupied, ParasEntry, ScheduledCore},
 	CoreIndex, GroupIndex, GroupRotationInfo, Id as ParaId, ValidatorIndex,
 };
-use sp_runtime::traits::{One, Saturating};
+use sp_runtime::traits::One;
 use sp_std::{
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet, vec_deque::VecDeque},
 	prelude::*,
@@ -344,19 +344,21 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn availability_timeout_predicate() -> Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>
 	{
 		let predicate = move |core_index: CoreIndex, pending_since| {
-			let availability_period = Self::availability_period(core_index);
+			let time_out_at = Self::calc_time_out_at(pending_since, core_index);
 			let now = <frame_system::Pallet<T>>::block_number();
-			now.saturating_sub(pending_since) >= availability_period
+
+			now >= time_out_at
 		};
 
 		Box::new(predicate)
 	}
 
-	/// Returns the `availability_period` at `core_index`.
-	///
-	/// The availability period describes for how many blocks a parachain can occupy a core before being timedout.
-	pub(crate) fn availability_period(core_index: CoreIndex) -> T::BlockNumber {
-		T::AssignmentProvider::get_availability_period(core_index)
+	/// Returns the block at which a parachain that has occupied a core at `core_index` since `backed_in` gets timed out.
+	pub(crate) fn calc_time_out_at(
+		backed_in: T::BlockNumber,
+		core_index: CoreIndex,
+	) -> T::BlockNumber {
+		backed_in + T::AssignmentProvider::get_availability_period(core_index)
 	}
 
 	/// Returns a helper for determining group rotation.

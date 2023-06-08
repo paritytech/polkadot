@@ -49,9 +49,6 @@ pub fn submit_unsigned_slashing_report<T: disputes::slashing::Config>(
 /// Implementation for the `availability_cores_staging` function of the runtime API.
 pub fn availability_cores<T: initializer::Config>(
 ) -> Vec<vstaging::CoreState<T::Hash, T::BlockNumber>> {
-	let cores = <scheduler::Pallet<T>>::availability_cores();
-	let now = <frame_system::Pallet<T>>::block_number() + One::one();
-
 	let group_responsible_for =
 		|backed_in_number, core_index| match <scheduler::Pallet<T>>::group_assigned_to_core(
 			core_index,
@@ -69,6 +66,7 @@ pub fn availability_cores<T: initializer::Config>(
 			},
 		};
 
+	let cores = <scheduler::Pallet<T>>::availability_cores();
 	let mut core_states: Vec<_> = cores
 		.into_iter()
 		.enumerate()
@@ -83,8 +81,10 @@ pub fn availability_cores<T: initializer::Config>(
 				vstaging::CoreState::Occupied(vstaging::OccupiedCore {
 					next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(core_index),
 					occupied_since: backed_in_number,
-					time_out_at: backed_in_number +
-						<scheduler::Pallet<T>>::availability_period(core_index),
+					time_out_at: <scheduler::Pallet<T>>::calc_time_out_at(
+						backed_in_number,
+						core_index,
+					),
 					next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(core_index),
 					availability: pending_availability.availability_votes().clone(),
 					group_responsible: group_responsible_for(
@@ -99,6 +99,7 @@ pub fn availability_cores<T: initializer::Config>(
 		})
 		.collect();
 
+	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 	// TODO: update to use claimqueue
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
 	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue(now) {
