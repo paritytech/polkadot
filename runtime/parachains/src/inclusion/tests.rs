@@ -1021,7 +1021,12 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
-					vec![chain_b_assignment.clone()],
+					[(
+						chain_b_assignment.core,
+						[Some(chain_b_assignment.clone())].into_iter().collect()
+					)]
+					.into_iter()
+					.collect(),
 					&group_validators,
 				),
 				Error::<Test>::UnscheduledCandidate
@@ -1076,7 +1081,18 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed_b, backed_a],
-					vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
+					[
+						(
+							chain_a_assignment.core,
+							[Some(chain_a_assignment.clone())].into_iter().collect()
+						),
+						(
+							chain_b_assignment.core,
+							[Some(chain_b_assignment.clone())].into_iter().collect()
+						)
+					]
+					.into_iter()
+					.collect(),
 					&group_validators,
 				),
 				Error::<Test>::UnscheduledCandidate
@@ -1109,7 +1125,12 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
-					vec![chain_a_assignment.clone()],
+					[(
+						chain_a_assignment.core,
+						[Some(chain_a_assignment.clone())].into_iter().collect()
+					)]
+					.into_iter()
+					.collect(),
 					&group_validators,
 				),
 				Error::<Test>::InsufficientBacking
@@ -1144,7 +1165,12 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
-					vec![chain_a_assignment.clone()],
+					[(
+						chain_a_assignment.core,
+						[Some(chain_a_assignment.clone())].into_iter().collect()
+					)]
+					.into_iter()
+					.collect(),
 					&group_validators,
 				),
 				Error::<Test>::CandidateNotInParentContext
@@ -1223,7 +1249,9 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
-					vec![thread_a_assignment.clone()],
+					[(CoreIndex(0), [Some(thread_a_assignment.clone())].into_iter().collect())]
+						.into_iter()
+						.collect(),
 					&group_validators,
 				),
 				Error::<Test>::NotCollatorSigned
@@ -1273,7 +1301,12 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
-					vec![chain_a_assignment.clone()],
+					[(
+						chain_a_assignment.core,
+						[Some(chain_a_assignment.clone())].into_iter().collect()
+					)]
+					.into_iter()
+					.collect(),
 					&group_validators,
 				),
 				Error::<Test>::CandidateScheduledBeforeParaFree
@@ -1313,7 +1346,12 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
-					vec![chain_a_assignment.clone()],
+					[(
+						chain_a_assignment.core,
+						[Some(chain_a_assignment.clone())].into_iter().collect()
+					)]
+					.into_iter()
+					.collect(),
 					&group_validators,
 				),
 				Error::<Test>::CandidateScheduledBeforeParaFree
@@ -1357,7 +1395,12 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
-					vec![chain_a_assignment.clone()],
+					[(
+						chain_a_assignment.core,
+						[Some(chain_a_assignment.clone())].into_iter().collect()
+					)]
+					.into_iter()
+					.collect(),
 					&group_validators,
 				),
 				Error::<Test>::PrematureCodeUpgrade
@@ -1391,7 +1434,12 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
-					vec![chain_a_assignment.clone()],
+					[(
+						chain_a_assignment.core,
+						[Some(chain_a_assignment.clone())].into_iter().collect()
+					)]
+					.into_iter()
+					.collect(),
 					&group_validators,
 				),
 				Err(Error::<Test>::ValidationDataHashMismatch.into()),
@@ -1426,7 +1474,12 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
-					vec![chain_a_assignment.clone()],
+					[(
+						chain_a_assignment.core,
+						[Some(chain_a_assignment.clone())].into_iter().collect()
+					)]
+					.into_iter()
+					.collect(),
 					&group_validators,
 				),
 				Error::<Test>::InvalidValidationCodeHash
@@ -1461,7 +1514,12 @@ fn candidate_checks() {
 				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed],
-					vec![chain_a_assignment.clone()],
+					[(
+						chain_a_assignment.core,
+						[Some(chain_a_assignment.clone())].into_iter().collect()
+					)]
+					.into_iter()
+					.collect(),
 					&group_validators,
 				),
 				Error::<Test>::ParaHeadMismatch
@@ -1633,11 +1691,16 @@ fn backing_works() {
 		} = ParaInclusion::process_candidates(
 			Default::default(),
 			backed_candidates.clone(),
-			vec![
-				chain_a_assignment.clone(),
-				chain_b_assignment.clone(),
-				thread_a_assignment.clone(),
-			],
+			[
+				(chain_a_assignment.core, [Some(chain_a_assignment.clone())].into_iter().collect()),
+				(chain_b_assignment.core, [Some(chain_b_assignment.clone())].into_iter().collect()),
+				(
+					thread_a_assignment.core,
+					[Some(thread_a_assignment.clone())].into_iter().collect(),
+				),
+			]
+			.into_iter()
+			.collect(),
 			&group_validators,
 		)
 		.expect("candidates scheduled, in order, and backed");
@@ -1837,7 +1900,12 @@ fn can_include_candidate_with_ok_code_upgrade() {
 			ParaInclusion::process_candidates(
 				Default::default(),
 				vec![backed_a],
-				vec![chain_a_assignment.clone()],
+				[(
+					chain_a_assignment.core,
+					[Some(chain_a_assignment.clone())].into_iter().collect(),
+				)]
+				.into_iter()
+				.collect(),
 				&group_validators,
 			)
 			.expect("candidates scheduled, in order, and backed");

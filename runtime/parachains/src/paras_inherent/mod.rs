@@ -54,7 +54,7 @@ use scale_info::TypeInfo;
 use sp_runtime::traits::{Header as HeaderT, One};
 use sp_std::{
 	cmp::Ordering,
-	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet, vec_deque::VecDeque},
 	prelude::*,
 	vec::Vec,
 };
@@ -488,7 +488,7 @@ impl<T: Config> Pallet<T> {
 		// are only relevant for retries but disputed cores should not be retried
 		freed.append(&mut freed_disputed.into_iter().collect());
 		log::debug!(target: LOG_TARGET, "update_claimqueue() at {:?} in enter_inner", now);
-		let scheduled = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
+		let claimqueue = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
 
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
@@ -499,7 +499,7 @@ impl<T: Config> Pallet<T> {
 				<T>::DisputesHandler::concluded_invalid(current_session, backed_candidate.hash())
 				// `fn process_candidates` does the verification checks
 			},
-			&scheduled[..],
+			&claimqueue,
 		)?;
 
 		METRICS.on_candidates_sanitized(backed_candidates.len() as u64);
@@ -512,7 +512,7 @@ impl<T: Config> Pallet<T> {
 		} = <inclusion::Pallet<T>>::process_candidates(
 			parent_storage_root,
 			backed_candidates,
-			scheduled,
+			claimqueue,
 			<scheduler::Pallet<T>>::group_validators,
 		)?;
 
@@ -689,7 +689,7 @@ impl<T: Config> Pallet<T> {
 				"update_claimqueue() at {:?} in create_inherent_inner",
 				now
 			);
-			let scheduled = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
+			let claimqueue = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
 
 			let relay_parent_number = now - One::one();
 			let parent_storage_root = *parent_header.state_root();
@@ -711,7 +711,7 @@ impl<T: Config> Pallet<T> {
 								.verify_backed_candidate(parent_hash, parent_storage_root, candidate_idx, backed_candidate)
 								.is_err()
 				},
-				&scheduled[..],
+				claimqueue,
 			);
 
 			frame_support::storage::TransactionOutcome::Rollback((
@@ -1094,7 +1094,7 @@ fn sanitize_backed_candidates<
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	scheduled: &[CoreAssignment],
+	claimqueue: BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>>,
 ) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
 	// This does not assume sorting.
@@ -1102,10 +1102,7 @@ fn sanitize_backed_candidates<
 		!candidate_has_concluded_invalid_dispute_or_is_invalid(candidate_idx, backed_candidate)
 	});
 
-	let scheduled_paras_to_core_idx = scheduled
-		.into_iter()
-		.map(|core_assignment| (core_assignment.para_id(), core_assignment.core))
-		.collect::<BTreeMap<ParaId, CoreIndex>>();
+	let claimqueue_paras_to_core_idx = claimqueue_to_paras_core_idx_map(&claimqueue);
 
 	// Assure the backed candidate's `ParaId`'s core is free.
 	// This holds under the assumption that `Scheduler::schedule` is called _before_.
@@ -1114,7 +1111,7 @@ fn sanitize_backed_candidates<
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
 		desc.relay_parent == relay_parent &&
-			scheduled_paras_to_core_idx.get(&desc.para_id).is_some()
+			claimqueue_paras_to_core_idx.get(&desc.para_id).is_some()
 	});
 
 	// Sort the `Vec` last, once there is a guarantee that these
@@ -1124,11 +1121,26 @@ fn sanitize_backed_candidates<
 	// but also allows this to be done in place.
 	backed_candidates.sort_by(|x, y| {
 		// Never panics, since we filtered all panic arguments out in the previous `fn retain`.
-		scheduled_paras_to_core_idx[&x.descriptor().para_id]
-			.cmp(&scheduled_paras_to_core_idx[&y.descriptor().para_id])
+		claimqueue_paras_to_core_idx[&x.descriptor().para_id]
+			.cmp(&claimqueue_paras_to_core_idx[&y.descriptor().para_id])
 	});
 
 	backed_candidates
+}
+
+fn claimqueue_to_paras_core_idx_map(
+	claimqueue: &scheduler::ClaimQueueValues,
+) -> BTreeMap<ParaId, CoreIndex> {
+	claimqueue
+		.into_iter()
+		.flat_map(|(_core_index, deque)| {
+			deque.into_iter().filter_map(|core_assignment| {
+				core_assignment
+					.clone()
+					.map(|core_assignment| (core_assignment.para_id(), core_assignment.core))
+			})
+		})
+		.collect()
 }
 
 /// Assumes sorted candidates.
@@ -1139,7 +1151,7 @@ pub(crate) fn assure_sanity_backed_candidates<
 	relay_parent: T::Hash,
 	backed_candidates: &[BackedCandidate<T::Hash>],
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	scheduled: &[CoreAssignment],
+	claimqueue: &BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>>,
 ) -> Result<(), crate::inclusion::Error<T>> {
 	use crate::inclusion::Error;
 
@@ -1156,15 +1168,11 @@ pub(crate) fn assure_sanity_backed_candidates<
 		}
 	}
 
-	let scheduled_paras_to_core_idx = scheduled
-		.into_iter()
-		.map(|core_assignment| (core_assignment.para_id(), core_assignment.core))
-		.collect::<BTreeMap<ParaId, CoreIndex>>();
-
+	let claimqueue_paras_to_core_idx = claimqueue_to_paras_core_idx_map(claimqueue);
 	if !IsSortedBy::is_sorted_by(backed_candidates, |x, y| {
 		// Never panics, since we would have early returned on those in the above loop.
-		scheduled_paras_to_core_idx[&x.descriptor().para_id]
-			.cmp(&scheduled_paras_to_core_idx[&y.descriptor().para_id])
+		claimqueue_paras_to_core_idx[&x.descriptor().para_id]
+			.cmp(&claimqueue_paras_to_core_idx[&y.descriptor().para_id])
 	}) {
 		return Err(Error::<T>::UnsortedOrDuplicateBackedCandidates)
 	}

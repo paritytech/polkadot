@@ -126,6 +126,7 @@ pub mod pallet {
 type PositionInClaimqueue = u32;
 type TimedoutParas = BTreeMap<CoreIndex, ParasEntry>;
 type ConcludedParas = BTreeMap<CoreIndex, ParaId>;
+pub type ClaimQueueValues = BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>>;
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the scheduler pallet.
@@ -443,7 +444,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn update_claimqueue(
 		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
 		now: T::BlockNumber,
-	) -> Vec<CoreAssignment> {
+	) -> ClaimQueueValues {
 		Self::move_claimqueue_forward();
 		Self::free_cores_and_fill_claimqueue(just_freed_cores, now)
 	}
@@ -467,13 +468,13 @@ impl<T: Config> Pallet<T> {
 	fn free_cores_and_fill_claimqueue(
 		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
 		now: T::BlockNumber,
-	) -> Vec<CoreAssignment> {
+	) -> ClaimQueueValues {
 		let (mut concluded_paras, mut timedout_paras) = Self::free_cores(just_freed_cores);
 
 		// This can only happen on new sessions at which we move all assignments back to the provider.
 		// Hence, there's nothing we need to do here.
 		if ValidatorGroups::<T>::get().is_empty() {
-			vec![]
+			BTreeMap::new()
 		} else {
 			let n_lookahead = Self::claimqueue_lookahead();
 			let n_session_cores = T::AssignmentProvider::session_core_count();
@@ -510,7 +511,7 @@ impl<T: Config> Pallet<T> {
 			debug_assert!(timedout_paras.is_empty());
 			debug_assert!(concluded_paras.is_empty());
 
-			Self::scheduled_claimqueue(now)
+			Self::scheduled_claimqueue_ab(now)
 		}
 	}
 
@@ -555,7 +556,29 @@ impl<T: Config> Pallet<T> {
 		Ok((pos as u32, pe))
 	}
 
-	// TODO: Temporary to imitate the old schedule() call. Will be adjusted when we make the scheduler AB ready
+	pub(crate) fn scheduled_claimqueue_ab(
+		now: T::BlockNumber,
+	) -> BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>> {
+		let claimqueue = ClaimQueue::<T>::get();
+
+		claimqueue
+			.into_iter()
+			.map(|(core_idx, v)| {
+				(
+					core_idx,
+					v.into_iter()
+						.map(|pe| {
+							pe.and_then(|pe| {
+								Self::paras_entry_to_core_assignment(now, core_idx, pe)
+							})
+						})
+						.collect(),
+				)
+			})
+			.collect()
+	}
+
+	// TODO: Temporary to imitate the old schedule() call. Will be removed in favour of `scheduled_claimqueue_ab`
 	pub(crate) fn scheduled_claimqueue(now: T::BlockNumber) -> Vec<CoreAssignment> {
 		let claimqueue = ClaimQueue::<T>::get();
 

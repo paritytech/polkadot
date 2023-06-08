@@ -1171,7 +1171,7 @@ mod sanitizers {
 		let has_concluded_invalid =
 			|_idx: usize, _backed_candidate: &BackedCandidate| -> bool { false };
 
-		let scheduled = (0_usize..2)
+		let claimqueue: BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>> = (0_usize..2)
 			.into_iter()
 			.map(|idx| {
 				let core_idx = CoreIndex::from(idx as u32);
@@ -1183,9 +1183,9 @@ mod sanitizers {
 					group_idx: GroupIndex::from(idx as u32),
 					core: core_idx,
 				};
-				ca
+				(core_idx, [Some(ca)].into_iter().collect())
 			})
-			.collect::<Vec<_>>();
+			.collect();
 
 		let group_validators = |group_index: GroupIndex| {
 			match group_index {
@@ -1230,19 +1230,19 @@ mod sanitizers {
 				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
-				&scheduled
+				claimqueue.clone()
 			),
 			backed_candidates
 		);
 
 		// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
 		{
-			let scheduled = &Vec::new();
+			let claimqueue = BTreeMap::new();
 			assert!(sanitize_backed_candidates::<Test, _>(
 				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
-				scheduled
+				claimqueue
 			)
 			.is_empty());
 		}
@@ -1254,7 +1254,7 @@ mod sanitizers {
 				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
-				&scheduled
+				claimqueue.clone()
 			)
 			.is_empty());
 		}
@@ -1278,7 +1278,7 @@ mod sanitizers {
 					relay_parent,
 					backed_candidates.clone(),
 					has_concluded_invalid,
-					&scheduled
+					claimqueue.clone()
 				)
 				.len(),
 				backed_candidates.len() / 2
