@@ -107,9 +107,14 @@
 //! ```
 //!
 
-use crate::{configuration, initializer::SessionChangeNotification, shared};
+use crate::{
+	configuration,
+	inclusion::{QueueFootprinter, UmpQueueId},
+	initializer::SessionChangeNotification,
+	shared,
+};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
+use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation, DefaultNoBound};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
@@ -124,7 +129,6 @@ use sp_runtime::{
 };
 use sp_std::{cmp, collections::btree_set::BTreeSet, mem, prelude::*};
 
-#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 pub use crate::Origin as ParachainOrigin;
@@ -285,15 +289,14 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 }
 
 /// Arguments for initializing a para.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, Serialize, Deserialize)]
 pub struct ParaGenesisArgs {
 	/// The initial head data to use.
 	pub genesis_head: HeadData,
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
 	/// Parachain or Parathread.
-	#[cfg_attr(feature = "std", serde(rename = "parachain"))]
+	#[serde(rename = "parachain")]
 	pub para_kind: ParaKind,
 }
 
@@ -304,7 +307,6 @@ pub enum ParaKind {
 	Parachain,
 }
 
-#[cfg(feature = "std")]
 impl Serialize for ParaKind {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
@@ -317,7 +319,6 @@ impl Serialize for ParaKind {
 	}
 }
 
-#[cfg(feature = "std")]
 impl<'de> Deserialize<'de> for ParaKind {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
@@ -551,6 +552,12 @@ pub mod pallet {
 
 		type NextSessionRotation: EstimateNextSessionRotation<Self::BlockNumber>;
 
+		/// Retrieve how many UMP messages are enqueued for this para-chain.
+		///
+		/// This is used to judge whether or not a para-chain can offboard. Per default this should
+		/// be set to the `ParaInclusion` pallet.
+		type QueueFootprinter: QueueFootprinter<Origin = UmpQueueId>;
+
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 	}
@@ -760,15 +767,9 @@ pub mod pallet {
 		StorageMap<_, Identity, ValidationCodeHash, ValidationCode>;
 
 	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig {
 		pub paras: Vec<(ParaId, ParaGenesisArgs)>,
-	}
-
-	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
-		fn default() -> Self {
-			GenesisConfig { paras: Default::default() }
-		}
 	}
 
 	#[pallet::genesis_build]
@@ -1653,12 +1654,13 @@ impl<T: Config> Pallet<T> {
 	///
 	/// - para is not a stable parachain or parathread (i.e. [`ParaLifecycle::is_stable`] is `false`)
 	/// - para has a pending upgrade.
+	/// - para has unprocessed messages in its UMP queue.
 	///
 	/// No-op if para is not registered at all.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
 		// Disallow offboarding in case there is a PVF pre-checking in progress.
 		//
-		// This is not a fundamential limitation but rather simplification: it allows us to get
+		// This is not a fundamental limitation but rather simplification: it allows us to get
 		// away without introducing additional logic for pruning and, more importantly, enacting
 		// ongoing PVF pre-checking votes. It also removes some nasty edge cases.
 		//
@@ -1683,7 +1685,7 @@ impl<T: Config> Pallet<T> {
 			Some(ParaLifecycle::Parachain) => {
 				ParaLifecycles::<T>::insert(&id, ParaLifecycle::OffboardingParachain);
 			},
-			_ => return Err(Error::<T>::CannotOffboard)?,
+			_ => return Err(Error::<T>::CannotOffboard.into()),
 		}
 
 		let scheduled_session = Self::scheduled_session();
@@ -1692,6 +1694,10 @@ impl<T: Config> Pallet<T> {
 				v.insert(i, id);
 			}
 		});
+
+		if <T as Config>::QueueFootprinter::message_count(UmpQueueId::Para(id)) != 0 {
+			return Err(Error::<T>::CannotOffboard.into())
+		}
 
 		Ok(())
 	}
@@ -1984,6 +1990,13 @@ impl<T: Config> Pallet<T> {
 		} else {
 			false
 		}
+	}
+
+	/// Returns whether the given ID refers to a para that is offboarding.
+	///
+	/// An invalid or non-offboarding para ID will return `false`.
+	pub fn is_offboarding(id: ParaId) -> bool {
+		ParaLifecycles::<T>::get(&id).map_or(false, |state| state.is_offboarding())
 	}
 
 	/// Whether a para ID corresponds to any live parachain.

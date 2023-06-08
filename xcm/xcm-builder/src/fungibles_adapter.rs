@@ -24,7 +24,7 @@ use frame_support::traits::{
 };
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, TransactAsset};
+use xcm_executor::traits::{ConvertLocation, Error as MatchError, MatchesFungibles, TransactAsset};
 
 /// `TransactAsset` implementation to convert a `fungibles` implementation to become usable in XCM.
 pub struct FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
@@ -33,7 +33,7 @@ pub struct FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, Account
 impl<
 		Assets: fungibles::Mutate<AccountId>,
 		Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 	> TransactAsset for FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>
 {
@@ -50,10 +50,10 @@ impl<
 		);
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
-		let source = AccountIdConverter::convert_ref(from)
-			.map_err(|()| MatchError::AccountIdConversionFailed)?;
-		let dest = AccountIdConverter::convert_ref(to)
-			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		let source = AccountIdConverter::convert_location(from)
+			.ok_or(MatchError::AccountIdConversionFailed)?;
+		let dest = AccountIdConverter::convert_location(to)
+			.ok_or(MatchError::AccountIdConversionFailed)?;
 		Assets::transfer(asset_id, &source, &dest, amount, Preserve)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())
@@ -149,7 +149,7 @@ pub struct FungiblesMutateAdapter<
 impl<
 		Assets: fungibles::Mutate<AccountId>,
 		Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::AssetId>,
 		CheckingAccount: Get<AccountId>,
@@ -184,7 +184,7 @@ impl<
 impl<
 		Assets: fungibles::Mutate<AccountId>,
 		Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::AssetId>,
 		CheckingAccount: Get<AccountId>,
@@ -282,8 +282,8 @@ impl<
 		);
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
-		let who = AccountIdConverter::convert_ref(who)
-			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		let who = AccountIdConverter::convert_location(who)
+			.ok_or(MatchError::AccountIdConversionFailed)?;
 		Assets::mint_into(asset_id, &who, amount)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(())
@@ -301,8 +301,8 @@ impl<
 		);
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
-		let who = AccountIdConverter::convert_ref(who)
-			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		let who = AccountIdConverter::convert_location(who)
+			.ok_or(MatchError::AccountIdConversionFailed)?;
 		Assets::burn_from(asset_id, &who, amount, Exact, Polite)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())
@@ -320,7 +320,7 @@ pub struct FungiblesAdapter<
 impl<
 		Assets: fungibles::Mutate<AccountId>,
 		Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::AssetId>,
 		CheckingAccount: Get<AccountId>,
