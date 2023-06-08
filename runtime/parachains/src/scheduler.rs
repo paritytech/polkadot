@@ -344,12 +344,19 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn availability_timeout_predicate() -> Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>
 	{
 		let predicate = move |core_index: CoreIndex, pending_since| {
-			let availability_period = T::AssignmentProvider::get_availability_period(core_index);
+			let availability_period = Self::availability_period(core_index);
 			let now = <frame_system::Pallet<T>>::block_number();
 			now.saturating_sub(pending_since) >= availability_period
 		};
 
 		Box::new(predicate)
+	}
+
+	/// Returns the `availability_period` at `core_index`.
+	///
+	/// The availability period describes for how many blocks a parachain can occupy a core before being timedout.
+	pub(crate) fn availability_period(core_index: CoreIndex) -> T::BlockNumber {
+		T::AssignmentProvider::get_availability_period(core_index)
 	}
 
 	/// Returns a helper for determining group rotation.

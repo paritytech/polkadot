@@ -116,7 +116,7 @@ impl CollatorRestrictions {
 		CollatorRestrictions { collator_peer_ids, restriction_kind }
 	}
 
-	/// Is peer_id allowed to collate?
+	/// Is `peer_id` allowed to collate?
 	#[cfg(feature = "std")]
 	pub fn can_collate(&self, peer_id: &PeerId) -> bool {
 		self.collator_peer_ids.is_empty() ||
@@ -181,17 +181,17 @@ pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	pub next_up_on_available: Option<ScheduledCore>,
 	/// The relay-chain block number this began occupying the core at.
 	pub occupied_since: N,
-	/// The relay-chain block this will time-out at, if any.
+	/// The relay-chain block this will time-out at.
 	pub time_out_at: N,
 	/// If this core is freed by being timed-out, this is the assignment that is next up on this
-	/// core. None if there is nothing queued for this core or there is no possibility of timing
-	/// out.
+	/// core. None if there is nothing queued for this core or the currently occupying assignment
+	/// already has exhausted its retry counter.
 	pub next_up_on_time_out: Option<ScheduledCore>,
 	/// A bitfield with 1 bit for each validator in the set. `1` bits mean that the corresponding
 	/// validators has attested to availability on-chain. A 2/3+ majority of `1` bits means that
 	/// this will be available.
 	pub availability: BitVec<u8, bitvec::order::Lsb0>,
-	/// The group assigned to distribute availability pieces of this candidate.
+	/// The group assigned to distribute availability pieces and backing of this candidate.
 	pub group_responsible: GroupIndex,
 	/// The hash of the candidate occupying the core.
 	pub candidate_hash: CandidateHash,
@@ -260,8 +260,8 @@ pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// variant.
 	#[codec(index = 1)]
 	Scheduled(ScheduledCore),
-	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
-	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
+	/// The core is currently free and there is nothing scheduled. This can be the case for on-demand parachains
+	/// cores when there are no on-demand blocks queued. Leased parachain cores will never be left idle.
 	#[codec(index = 2)]
 	Free,
 }
