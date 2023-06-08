@@ -2299,6 +2299,11 @@ sp_api::impl_runtime_apis! {
 					// Rococo doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}
+
+				fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
+					// The XCM executor of Rococo doesn't have a configured `Aliasers`
+					Err(BenchmarkError::Skip)
+				}
 			}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
