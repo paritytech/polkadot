@@ -298,22 +298,6 @@ async fn assert_fetch_collation_request(
 	})
 }
 
-/// Assert that a availbility_cores request was send.
-async fn assert_availability_cores_request(
-	virtual_overseer: &mut VirtualOverseer,
-	test_state: &TestState,
-) {
-	assert_matches!(
-	overseer_recv(virtual_overseer).await,
-	AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		_,
-		RuntimeApiRequest::AvailabilityCores(tx),
-	)) => {
-		let _ = tx.send(Ok(test_state.cores.clone()));
-	}
-	);
-}
-
 /// Connect and declare a collator
 async fn connect_and_declare_collator(
 	virtual_overseer: &mut VirtualOverseer,
@@ -394,8 +378,6 @@ fn act_on_advertisement() {
 		.await;
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
-
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 
 		assert_fetch_collation_request(
 			&mut virtual_overseer,
@@ -557,7 +539,6 @@ fn fetch_one_collation_at_a_time() {
 		.await;
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		advertise_collation(&mut virtual_overseer, peer_c.clone(), test_state.relay_parent).await;
 
 		let response_channel = assert_fetch_collation_request(
@@ -567,7 +548,6 @@ fn fetch_one_collation_at_a_time() {
 		)
 		.await;
 
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		assert!(
 			overseer_recv_with_timeout(&mut &mut virtual_overseer, Duration::from_millis(30)).await.is_none(),
 			"There should not be sent any other PoV request while the first one wasn't finished or timed out.",
@@ -653,15 +633,11 @@ fn fetches_next_collation() {
 		.await;
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), second).await;
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		advertise_collation(&mut virtual_overseer, peer_c.clone(), second).await;
 		// Dropping the response channel should lead to fetching the second collation.
 		assert_fetch_collation_request(&mut virtual_overseer, second, test_state.chain_ids[0])
 			.await;
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		advertise_collation(&mut virtual_overseer, peer_d.clone(), second).await;
-
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 
 		let response_channel_non_exclusive =
 			assert_fetch_collation_request(&mut virtual_overseer, second, test_state.chain_ids[0])
@@ -790,7 +766,6 @@ fn collation_not_in_preferred_rejected() {
 		.await;
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -848,7 +823,6 @@ fn fetch_next_collation_on_invalid_collation() {
 		.await;
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		advertise_collation(&mut virtual_overseer, peer_c.clone(), test_state.relay_parent).await;
 
 		let response_channel = assert_fetch_collation_request(
@@ -857,7 +831,6 @@ fn fetch_next_collation_on_invalid_collation() {
 			test_state.chain_ids[0],
 		)
 		.await;
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 
 		let pov = PoV { block_data: BlockData(vec![]) };
 		let mut candidate_a =
@@ -940,7 +913,6 @@ fn inactive_disconnected() {
 		.await;
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
 
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		assert_fetch_collation_request(
 			&mut virtual_overseer,
 			test_state.relay_parent,
@@ -995,7 +967,6 @@ fn activity_extends_life() {
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_a).await;
 
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		assert_fetch_collation_request(&mut virtual_overseer, hash_a, test_state.chain_ids[0])
 			.await;
 
@@ -1003,7 +974,6 @@ fn activity_extends_life() {
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_b).await;
 
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		assert_fetch_collation_request(&mut virtual_overseer, hash_b, test_state.chain_ids[0])
 			.await;
 
@@ -1011,7 +981,6 @@ fn activity_extends_life() {
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_c).await;
 
-		assert_availability_cores_request(&mut virtual_overseer, &test_state).await;
 		assert_fetch_collation_request(&mut virtual_overseer, hash_c, test_state.chain_ids[0])
 			.await;
 

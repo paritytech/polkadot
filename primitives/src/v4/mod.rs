@@ -1103,6 +1103,14 @@ impl<N> CoreState<N> {
 	pub fn is_occupied(&self) -> bool {
 		matches!(self, Self::Occupied(_))
 	}
+
+	/// If this core has `collator_restrictions`, return them.
+	pub fn collator_restrictions(&self) -> Option<CollatorRestrictions> {
+		match self {
+			Self::Free | Self::Occupied(_) => None,
+			Self::Scheduled(sc) => Some(sc.collator_restrictions.clone()),
+		}
+	}
 }
 
 /// An assumption being made about the state of an occupied core.

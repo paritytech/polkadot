@@ -53,7 +53,9 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::{CandidateReceipt, CollatorId, CoreState, Hash, Id as ParaId};
+use polkadot_primitives::{
+	vstaging::CollatorRestrictions, CandidateReceipt, CollatorId, Hash, Id as ParaId,
+};
 
 use crate::error::Result;
 
@@ -361,6 +363,7 @@ struct GroupAssignments {
 struct ActiveParas {
 	relay_parent_assignments: HashMap<Hash, GroupAssignments>,
 	current_assignments: HashMap<ParaId, usize>,
+	current_collator_restrictions: HashMap<ParaId, CollatorRestrictions>,
 }
 
 impl ActiveParas {
@@ -402,7 +405,7 @@ impl ActiveParas {
 				},
 			};
 
-			let para_now =
+			let (para_now, collator_restrictions) =
 				match polkadot_node_subsystem_util::signing_key_and_index(&validators, keystore)
 					.and_then(|(_, index)| {
 						polkadot_node_subsystem_util::find_validator_group(&groups, index)
@@ -410,7 +413,10 @@ impl ActiveParas {
 					Some(group) => {
 						let core_now = rotation_info.core_for_group(group, cores.len());
 
-						cores.get(core_now.0 as usize).and_then(|c| c.para_id())
+						cores
+							.get(core_now.0 as usize)
+							.and_then(|c| Some((c.para_id(), c.collator_restrictions())))
+							.unzip()
 					},
 					None => {
 						gum::trace!(target: LOG_TARGET, ?relay_parent, "Not a validator");
@@ -419,6 +425,8 @@ impl ActiveParas {
 					},
 				};
 
+			let para_now = para_now.flatten();
+			let collator_restrictions = collator_restrictions.flatten();
 			// This code won't work well, if at all for parathreads. For parathreads we'll
 			// have to be aware of which core the parathread claim is going to be multiplexed
 			// onto. The parathread claim will also have a known collator, and we should always
@@ -437,6 +445,10 @@ impl ActiveParas {
 						para_id = ?para_now,
 						"Assigned to a parachain",
 					);
+				}
+
+				if let Some(collator_restrictions) = collator_restrictions {
+					self.current_collator_restrictions.insert(para_now, collator_restrictions);
 				}
 			}
 
@@ -469,6 +481,14 @@ impl ActiveParas {
 
 	fn is_current(&self, id: &ParaId) -> bool {
 		self.current_assignments.contains_key(id)
+	}
+
+	/// Check if `peer_id` can collate for `para_id`.
+	async fn can_collate(&self, peer_id: &PeerId, para_id: &ParaId) -> bool {
+		match self.current_collator_restrictions.get(para_id) {
+			None => false,
+			Some(restrictions) => restrictions.can_collate(peer_id),
+		}
 	}
 }
 
@@ -629,49 +649,6 @@ async fn disconnect_peer(sender: &mut impl overseer::CollatorProtocolSenderTrait
 	sender
 		.send_message(NetworkBridgeTxMessage::DisconnectPeer(peer_id, PeerSet::Collation))
 		.await
-}
-
-/// Check if `PendingCollation` can be collated.
-async fn can_collate(
-	relay_parent: &Hash,
-	peer_id: &PeerId,
-	para_id: &ParaId,
-	sender: &mut impl overseer::CollatorProtocolSenderTrait,
-) -> bool {
-	let mc = polkadot_node_subsystem_util::request_availability_cores(*relay_parent, sender)
-		.await
-		.await
-		.ok()
-		.and_then(|x| x.ok());
-
-	let cores = match mc {
-		Some(c) => c,
-		None => {
-			gum::debug!(
-				target: LOG_TARGET,
-				?relay_parent,
-				"Failed to query runtime API for relay-parent",
-			);
-
-			return false
-		},
-	};
-
-	for core in cores {
-		match core {
-			CoreState::Scheduled(sc) if sc.para_id == *para_id =>
-				return sc.collator_restrictions.can_collate(peer_id),
-			CoreState::Scheduled(_) | CoreState::Occupied(_) | CoreState::Free => continue,
-		}
-	}
-
-	gum::warn!(
-		target: LOG_TARGET,
-		?para_id,
-		"[can_collate] PendingCollation para_id not found on availability core.",
-	);
-
-	return false
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
@@ -965,7 +942,7 @@ async fn process_incoming_peer_message<Context>(
 				return
 			}
 
-			if !can_collate(&relay_parent, &origin, &para_id, ctx.sender()).await {
+			if !state.active_paras.can_collate(&origin, &para_id).await {
 				gum::warn!(
 					target: LOG_TARGET,
 					?origin,
