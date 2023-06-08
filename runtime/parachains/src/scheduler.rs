@@ -280,7 +280,8 @@ impl<T: Config> Pallet<T> {
 
 	// TODO: tests
 	/// Iterates through every element in all claim queues and tries to add new assignments from the
-	/// `AssignmentProvider`. Expiry is defined by the `ParaEntry`'s `ttl` field
+	/// `AssignmentProvider`. A claim is considered expired if it's `ttl` field is lower than the
+	/// current block height.
 	fn drop_expired_claims_from_claimqueue() {
 		let now = <frame_system::Pallet<T>>::block_number();
 		let availability_cores = AvailabilityCores::<T>::get();
@@ -296,19 +297,23 @@ impl<T: Config> Pallet<T> {
 							core_claimqueue.retain_mut(|maybe_entry| {
 								let mut should_retain = true;
 								if let Some(entry) = maybe_entry {
-									if entry.ttl <= now {
-										if let Some(assignment) =
-											T::AssignmentProvider::pop_assignment_for_core(
-												core_idx,
-												Some(entry.para_id()),
-											) {
-											let ttl =
-												<configuration::Pallet<T>>::config().on_demand_ttl;
-											*entry = ParasEntry::new(assignment.clone(), now + ttl);
-										} else {
-											// Only case where it's okay to drop claims is when there exists Some(entry)
-											// for which the `ttl` is higher or equal to `now` and
-											should_retain = false
+									if entry.ttl < now {
+										match T::AssignmentProvider::pop_assignment_for_core(
+											core_idx,
+											Some(entry.para_id()),
+										) {
+											Some(assignment) => {
+												let ttl = <configuration::Pallet<T>>::config()
+													.on_demand_ttl;
+												*entry =
+													ParasEntry::new(assignment.clone(), now + ttl);
+											},
+											None => {
+												// The only case where it's okay to drop claims is when there exists some entry
+												// for which the ttl is lower than the current blockheight and there is nothing
+												// queued in the assignmentprovider for the core.
+												should_retain = false
+											},
 										}
 									}
 								}
