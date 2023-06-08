@@ -635,6 +635,7 @@ fn fetches_next_collation() {
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), second).await;
 		advertise_collation(&mut virtual_overseer, peer_c.clone(), second).await;
 		advertise_collation(&mut virtual_overseer, peer_d.clone(), second).await;
+
 		// Dropping the response channel should lead to fetching the second collation.
 		assert_fetch_collation_request(&mut virtual_overseer, second, test_state.chain_ids[0])
 			.await;

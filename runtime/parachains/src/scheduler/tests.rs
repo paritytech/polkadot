@@ -1021,7 +1021,6 @@ fn availability_predicate_works() {
 			let pred = Scheduler::availability_timeout_predicate();
 			let would_be_timed_out = System::block_number() - thread_availability_period;
 
-			// Chains and threads are handled equally
 			assert!(pred(CoreIndex(0), would_be_timed_out)); // chains can't be timed out now.
 
 			// Commented out as on-demand assigner is not merged, yet
