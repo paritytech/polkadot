@@ -474,7 +474,6 @@ mod tests {
 			Some((PeerSet::Validation, TestVersion(2).into())),
 		);
 
-
 		let validation_legacy =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/validation/1";
 
@@ -494,10 +493,7 @@ mod tests {
 			Some((PeerSet::Collation, TestVersion(1).into())),
 		);
 
-		assert_eq!(
-			protocol_names.get_fallback_names(PeerSet::Collation),
-			vec![],
-		);
+		assert_eq!(protocol_names.get_fallback_names(PeerSet::Collation), vec![],);
 	}
 
 	#[test]
