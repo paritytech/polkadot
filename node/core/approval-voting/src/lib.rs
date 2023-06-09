@@ -883,8 +883,7 @@ where
 			}
 		};
 		let start = Instant::now();
-
-		if handle_actions(
+		let (result, labels) = handle_actions(
 			&mut ctx,
 			&state,
 			&mut overlayed_db,
@@ -896,14 +895,14 @@ where
 			&mut subsystem.mode,
 			actions,
 		)
-		.await?
-		{
+		.await?;
+		if result {
 			break
 		}
 		process_actions.0 += start.elapsed().as_micros();
 		process_actions.1 += 1;
 		if let Some(duration) = print_if_above_threshold2(&start) {
-			gum::warn!(target: LOG_TARGET, "too_long: handle actions {:}", duration);
+			gum::warn!(target: LOG_TARGET, "too_long: handle actions {:} {:?}", duration, labels);
 		}
 		let start = Instant::now();
 
@@ -975,13 +974,15 @@ async fn handle_actions<Context>(
 	approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
 	mode: &mut Mode,
 	actions: Vec<Action>,
-) -> SubsystemResult<bool> {
+) -> SubsystemResult<(bool, Vec<String>)> {
 	let mut conclude = false;
+	let mut res = Vec::new();
 	let mut actions_iter = actions.into_iter();
 	while let Some(action) = actions_iter.next() {
 		match action {
 			Action::ScheduleWakeup { block_hash, block_number, candidate_hash, tick } => {
 				wakeups.schedule(block_hash, block_number, candidate_hash, tick);
+				res.push("schedule_wakeup".to_string());
 			},
 			Action::IssueApproval(candidate_hash, approval_request) => {
 				// Note that the IssueApproval action will create additional
@@ -995,6 +996,8 @@ async fn handle_actions<Context>(
 				//
 				// Note that chaining these iterators is O(n) as we must consume
 				// the prior iterator.
+				res.push("issue_approval".to_string());
+
 				let next_actions: Vec<Action> = issue_approval(
 					ctx,
 					state,
@@ -1026,6 +1029,7 @@ async fn handle_actions<Context>(
 				if let Mode::Syncing(_) = *mode {
 					continue
 				}
+				res.push("launch_approval".to_string());
 
 				let mut launch_approval_span = state
 					.spans
@@ -1084,6 +1088,8 @@ async fn handle_actions<Context>(
 				}
 			},
 			Action::NoteApprovedInChainSelection(block_hash) => {
+				res.push("note_approved".to_string());
+
 				let _span = state
 					.spans
 					.get(&block_hash)
@@ -1096,6 +1102,8 @@ async fn handle_actions<Context>(
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
 			},
 			Action::BecomeActive => {
+				res.push("become_active".to_string());
+
 				*mode = Mode::Active;
 
 				let messages = distribution_messages_for_activation(overlayed_db, state)?;
@@ -1108,7 +1116,7 @@ async fn handle_actions<Context>(
 		}
 	}
 
-	Ok(conclude)
+	Ok((conclude, res))
 }
 
 fn distribution_messages_for_activation(
@@ -1883,6 +1891,7 @@ where
 			)),
 	};
 
+	let start = Instant::now();
 	let session_info = match get_session_info(
 		session_info_provider,
 		sender,
@@ -1900,6 +1909,10 @@ where
 				Vec::new(),
 			)),
 	};
+
+	if let Some(duration) = print_if_above_threshold2(&start) {
+		gum::warn!(target: LOG_TARGET, "too_long: get_session_info {:}", duration);
+	}
 
 	let (claimed_core_index, assigned_candidate_hash) =
 		match block_entry.candidate(candidate_index as usize) {
@@ -1946,6 +1959,7 @@ where
 				)),
 		};
 
+		let start = Instant::now();
 		let res = state.assignment_criteria.check_assignment_cert(
 			claimed_core_index,
 			assignment.validator,
@@ -1954,6 +1968,10 @@ where
 			&assignment.cert,
 			approval_entry.backing_group(),
 		);
+
+		if let Some(duration) = print_if_above_threshold(&start) {
+			gum::warn!(target: LOG_TARGET, "too_long: check_assignment_cert {:} {:?}", duration, assignment.cert.kind);
+		}
 
 		let tranche = match res {
 			Err(crate::criteria::InvalidAssignment(reason)) =>
@@ -2095,6 +2113,7 @@ where
 		)),
 	};
 
+	let start = Instant::now();
 	// Signature check:
 	match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
 		&pubkey,
@@ -2107,6 +2126,10 @@ where
 		),)),
 		Ok(()) => {},
 	};
+
+	if let Some(duration) = print_if_above_threshold(&start) {
+		gum::warn!(target: LOG_TARGET, "too_long: approval_import {:} ", duration);
+	}
 
 	let candidate_entry = match db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,
