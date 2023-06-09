@@ -153,7 +153,7 @@ where
 		+ Subsystem<OverseerSubsystemContext<ProvisionerMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<Box<ApprovalDistributionMessage>>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<DisputeCoordinatorMessage>, SubsystemError>

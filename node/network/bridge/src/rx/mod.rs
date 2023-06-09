@@ -873,7 +873,7 @@ fn dispatch_validation_event_to_all_unbounded(
 		.focus()
 		.ok()
 		.map(ApprovalDistributionMessage::from)
-		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
+		.and_then(|msg| Some(sender.send_unbounded_message(Box::new(msg))));
 	event
 		.focus()
 		.ok()
@@ -902,7 +902,9 @@ async fn dispatch_validation_events_to_all<I>(
 			.send_messages(event.focus().map(StatementDistributionMessage::from))
 			.await;
 		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;
-		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
+		sender
+			.send_messages(event.focus().map(|e| Box::new(ApprovalDistributionMessage::from(e))))
+			.await;
 		sender.send_messages(event.focus().map(GossipSupportMessage::from)).await;
 	}
 }

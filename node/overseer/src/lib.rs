@@ -532,7 +532,7 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(blocking, NetworkBridgeRxMessage, sends: [
 		BitfieldDistributionMessage,
 		StatementDistributionMessage,
-		ApprovalDistributionMessage,
+		Box<ApprovalDistributionMessage>,
 		GossipSupportMessage,
 		DisputeDistributionMessage,
 		CollationGenerationMessage,
@@ -559,14 +559,14 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(blocking, message_capacity: 64000, ApprovalDistributionMessage, sends: [
+	#[subsystem(blocking, message_capacity: 64000, Box<ApprovalDistributionMessage>, sends: [
 		NetworkBridgeTxMessage,
 		ApprovalVotingMessage,
 	])]
 	approval_distribution: ApprovalDistribution,
 
 	#[subsystem(blocking, ApprovalVotingMessage, sends: [
-		ApprovalDistributionMessage,
+		Box<ApprovalDistributionMessage>,
 		AvailabilityRecoveryMessage,
 		CandidateValidationMessage,
 		ChainApiMessage,

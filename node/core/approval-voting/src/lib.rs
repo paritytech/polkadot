@@ -984,9 +984,11 @@ async fn handle_actions<Context>(
 				launch_approval_span.add_string_tag("block-hash", format!("{:?}", block_hash));
 				let validator_index = indirect_cert.validator;
 
-				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
-					indirect_cert,
-					candidate_index,
+				ctx.send_unbounded_message(Box::new(
+					ApprovalDistributionMessage::DistributeAssignment(
+						indirect_cert,
+						candidate_index,
+					),
 				));
 
 				match approvals_cache.get(&candidate_hash) {
@@ -1057,13 +1059,13 @@ async fn handle_actions<Context>(
 fn distribution_messages_for_activation(
 	db: &OverlayedBackend<'_, impl Backend>,
 	state: &State,
-) -> SubsystemResult<Vec<ApprovalDistributionMessage>> {
+) -> SubsystemResult<Vec<Box<ApprovalDistributionMessage>>> {
 	let all_blocks: Vec<Hash> = db.load_all_blocks()?;
 
 	let mut approval_meta = Vec::with_capacity(all_blocks.len());
 	let mut messages = Vec::new();
 
-	messages.push(ApprovalDistributionMessage::NewBlocks(Vec::new())); // dummy value.
+	messages.push(Box::new(ApprovalDistributionMessage::NewBlocks(Vec::new()))); // dummy value.
 
 	for block_hash in all_blocks {
 		let mut distribution_message_span = state
@@ -1118,32 +1120,38 @@ fn distribution_messages_for_activation(
 					match approval_entry.local_statements() {
 						(None, None) | (None, Some(_)) => {}, // second is impossible case.
 						(Some(assignment), None) => {
-							messages.push(ApprovalDistributionMessage::DistributeAssignment(
-								IndirectAssignmentCert {
-									block_hash,
-									validator: assignment.validator_index(),
-									cert: assignment.cert().clone(),
-								},
-								i as _,
+							messages.push(Box::new(
+								ApprovalDistributionMessage::DistributeAssignment(
+									IndirectAssignmentCert {
+										block_hash,
+										validator: assignment.validator_index(),
+										cert: assignment.cert().clone(),
+									},
+									i as _,
+								),
 							));
 						},
 						(Some(assignment), Some(approval_sig)) => {
-							messages.push(ApprovalDistributionMessage::DistributeAssignment(
-								IndirectAssignmentCert {
-									block_hash,
-									validator: assignment.validator_index(),
-									cert: assignment.cert().clone(),
-								},
-								i as _,
+							messages.push(Box::new(
+								ApprovalDistributionMessage::DistributeAssignment(
+									IndirectAssignmentCert {
+										block_hash,
+										validator: assignment.validator_index(),
+										cert: assignment.cert().clone(),
+									},
+									i as _,
+								),
 							));
 
-							messages.push(ApprovalDistributionMessage::DistributeApproval(
-								IndirectSignedApprovalVote {
-									block_hash,
-									candidate_index: i as _,
-									validator: assignment.validator_index(),
-									signature: approval_sig,
-								},
+							messages.push(Box::new(
+								ApprovalDistributionMessage::DistributeApproval(
+									IndirectSignedApprovalVote {
+										block_hash,
+										candidate_index: i as _,
+										validator: assignment.validator_index(),
+										signature: approval_sig,
+									},
+								),
 							))
 						},
 					}
@@ -1160,7 +1168,7 @@ fn distribution_messages_for_activation(
 		}
 	}
 
-	messages[0] = ApprovalDistributionMessage::NewBlocks(approval_meta);
+	messages[0] = Box::new(ApprovalDistributionMessage::NewBlocks(approval_meta));
 	Ok(messages)
 }
 
@@ -1390,9 +1398,8 @@ async fn get_approval_signatures_for_candidate<Context>(
 	let mut sender = ctx.sender().clone();
 	let get_approvals = async move {
 		let (tx_distribution, rx_distribution) = oneshot::channel();
-		sender.send_unbounded_message(ApprovalDistributionMessage::GetApprovalSignatures(
-			candidate_indices,
-			tx_distribution,
+		sender.send_unbounded_message(Box::new(
+			ApprovalDistributionMessage::GetApprovalSignatures(candidate_indices, tx_distribution),
 		));
 
 		// Because of the unbounded sending and the nature of the call (just fetching data from state),
@@ -2775,14 +2782,14 @@ async fn issue_approval<Context>(
 	metrics.on_approval_produced();
 
 	// dispatch to approval distribution.
-	ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeApproval(
+	ctx.send_unbounded_message(Box::new(ApprovalDistributionMessage::DistributeApproval(
 		IndirectSignedApprovalVote {
 			block_hash,
 			candidate_index: candidate_index as _,
 			validator: validator_index,
 			signature: sig,
 		},
-	));
+	)));
 
 	Ok(actions)
 }

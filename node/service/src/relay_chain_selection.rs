@@ -479,7 +479,7 @@ where
 			let lag_update_task = async move {
 				overseer_handle
 					.send_msg(
-						ApprovalDistributionMessage::ApprovalCheckingLagUpdate(lag),
+						Box::new(ApprovalDistributionMessage::ApprovalCheckingLagUpdate(lag)),
 						std::any::type_name::<Self>(),
 					)
 					.await;

@@ -1246,16 +1246,16 @@ impl State {
 		indices: HashSet<(Hash, CandidateIndex)>,
 	) -> HashMap<ValidatorIndex, ValidatorSignature> {
 		let mut all_sigs = HashMap::new();
-		for (hash, index) in indices {
+		for (hash, index) in &indices {
 			let _span = self
 				.spans
-				.get(&hash)
+				.get(hash)
 				.map(|span| span.child("get-approval-signatures"))
-				.unwrap_or_else(|| jaeger::Span::new(&hash, "get-approval-signatures"))
+				.unwrap_or_else(|| jaeger::Span::new(hash, "get-approval-signatures"))
 				.with_string_tag("block-hash", format!("{:?}", hash))
 				.with_stage(jaeger::Stage::ApprovalDistribution);
 
-			let block_entry = match self.blocks.get(&hash) {
+			let block_entry = match self.blocks.get(hash) {
 				None => {
 					gum::debug!(
 						target: LOG_TARGET,
@@ -1267,7 +1267,7 @@ impl State {
 				Some(e) => e,
 			};
 
-			let candidate_entry = match block_entry.candidates.get(index as usize) {
+			let candidate_entry = match block_entry.candidates.get(*index as usize) {
 				None => {
 					gum::debug!(
 					target: LOG_TARGET,
@@ -1308,8 +1308,8 @@ impl State {
 		let mut approvals_to_send = Vec::new();
 
 		let view_finalized_number = view.finalized_number;
-		for head in view.into_iter() {
-			let mut block = head;
+		for head in view.iter() {
+			let mut block = *head;
 			loop {
 				let entry = match entries.get_mut(&block) {
 					Some(entry) if entry.number > view_finalized_number => entry,
@@ -1712,11 +1712,11 @@ impl ApprovalDistribution {
 	async fn handle_incoming<Context>(
 		ctx: &mut Context,
 		state: &mut State,
-		msg: ApprovalDistributionMessage,
+		msg: Box<ApprovalDistributionMessage>,
 		metrics: &Metrics,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
-		match msg {
+		match *msg {
 			ApprovalDistributionMessage::NetworkBridgeUpdate(event) => {
 				state.handle_network_msg(ctx, metrics, event, rng).await;
 			},
