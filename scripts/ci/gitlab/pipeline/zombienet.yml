@@ -178,7 +178,7 @@ zombienet-tests-parachains-max-tranche0-approvals:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
       --github-remote-dir="${GH_DIR}"
-      --test="0004-parachains-max-tranche0.zndsl"
+      --test="0005-parachains-max-tranche0.zndsl"
   allow_failure: false
   retry: 2
   tags:

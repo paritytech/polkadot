@@ -1,5 +1,5 @@
 Description: Test if parachains make progress with most of approvals being tranch0
-Network: ./0004-parachains-max-tranche0.toml
+Network: ./0005-parachains-max-tranche0.toml
 Creds: config
 
 # Check authority status.
