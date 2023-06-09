@@ -28,9 +28,7 @@ use sc_network::{
 };
 
 use polkadot_node_network_protocol::{
-	peer_set::{
-		CollationVersion, PeerSet, PeerSetProtocolNames, ProtocolVersion, ValidationVersion,
-	},
+	peer_set::{PeerSet, PeerSetProtocolNames},
 	request_response::{OutgoingRequest, Recipient, ReqProtocolNames, Requests},
 	v1 as protocol_v1, vstaging as protocol_vstaging, PeerId, UnifiedReputationChange as Rep,
 };

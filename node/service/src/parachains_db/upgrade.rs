@@ -140,7 +140,7 @@ fn migrate_from_version_1_to_2(path: &Path, db_kind: DatabaseKind) -> Result<(),
 // Migrade approval voting database. `OurAssignment` has been changed to support the v2 assignments.
 // As these are backwards compatible, we'll convert the old entries in the new format.
 fn migrate_from_version_3_to_4(path: &Path, db_kind: DatabaseKind) -> Result<(), Error> {
-	gum::info!(target: LOG_TARGET, "Migrating parachains db from version 2 to version 3 ...");
+	gum::info!(target: LOG_TARGET, "Migrating parachains db from version 3 to version 4 ...");
 	use polkadot_node_subsystem_util::database::{
 		kvdb_impl::DbAdapter as RocksDbAdapter, paritydb_impl::DbAdapter as ParityDbAdapter,
 	};
@@ -152,7 +152,7 @@ fn migrate_from_version_3_to_4(path: &Path, db_kind: DatabaseKind) -> Result<(),
 	let result = match db_kind {
 		DatabaseKind::ParityDB => {
 			let db = ParityDbAdapter::new(
-				parity_db::Db::open(&paritydb_version_2_config(path))
+				parity_db::Db::open(&paritydb_version_3_config(path))
 					.map_err(|e| other_io_error(format!("Error opening db {:?}", e)))?,
 				super::columns::v3::ORDERED_COL,
 			);
@@ -165,7 +165,7 @@ fn migrate_from_version_3_to_4(path: &Path, db_kind: DatabaseKind) -> Result<(),
 				.to_str()
 				.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
 			let db_cfg =
-				kvdb_rocksdb::DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
+				kvdb_rocksdb::DatabaseConfig::with_columns(super::columns::v3::NUM_COLUMNS);
 			let db = RocksDbAdapter::new(
 				kvdb_rocksdb::Database::open(&db_cfg, db_path)?,
 				&super::columns::v3::ORDERED_COL,
@@ -525,17 +525,20 @@ mod tests {
 		use polkadot_node_core_approval_voting::approval_db::v2::migrate_approval_db_v1_to_v2_sanity_check;
 		use polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter;
 
+		let db_dir = tempfile::tempdir().unwrap();
+		let db_path = db_dir.path().to_str().unwrap();
+		let db_cfg: DatabaseConfig = DatabaseConfig::with_columns(super::columns::v3::NUM_COLUMNS);
+
 		let approval_cfg = ApprovalDbConfig {
 			col_approval_data: crate::parachains_db::REAL_COLUMNS.col_approval_data,
-			col_session_data: crate::parachains_db::REAL_COLUMNS.col_session_window_data,
 		};
 
 		// We need to properly set db version for upgrade to work.
-		fs::write(version_file_path(db_dir.path()), "2").expect("Failed to write DB version");
+		fs::write(version_file_path(db_dir.path()), "3").expect("Failed to write DB version");
 		let expected_candidates = {
 			let db = Database::open(&db_cfg, db_path.clone()).unwrap();
-			assert_eq!(db.num_columns(), super::columns::v2::NUM_COLUMNS as u32);
-			let db = DbAdapter::new(db, columns::v2::ORDERED_COL);
+			assert_eq!(db.num_columns(), super::columns::v3::NUM_COLUMNS as u32);
+			let db = DbAdapter::new(db, columns::v3::ORDERED_COL);
 			// Fill the approval voting column with test data.
 			migrate_approval_db_v1_to_v2_fill_test_data(
 				std::sync::Arc::new(db),
@@ -546,9 +549,9 @@ mod tests {
 
 		try_upgrade_db(&db_dir.path(), DatabaseKind::RocksDB).unwrap();
 
-		let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
+		let db_cfg = DatabaseConfig::with_columns(super::columns::v3::NUM_COLUMNS);
 		let db = Database::open(&db_cfg, db_path).unwrap();
-		let db = DbAdapter::new(db, columns::v2::ORDERED_COL);
+		let db = DbAdapter::new(db, columns::v3::ORDERED_COL);
 
 		migrate_approval_db_v1_to_v2_sanity_check(
 			std::sync::Arc::new(db),
@@ -558,6 +561,7 @@ mod tests {
 		.unwrap();
 	}
 
+	#[test]
 	fn test_paritydb_migrate_2_to_3() {
 		use parity_db::Db;
 
