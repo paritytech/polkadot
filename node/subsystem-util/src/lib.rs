@@ -89,6 +89,16 @@ pub fn print_if_above_threshold(start: &Instant) -> Option<u128> {
 		None
 	}
 }
+
+pub fn print_if_above_threshold2(start: &Instant) -> Option<u128> {
+	let duration = start.elapsed().as_micros();
+
+	if duration > 600 {
+		Some(duration)
+	} else {
+		None
+	}
+}
 #[cfg(test)]
 mod tests;
 

@@ -45,7 +45,7 @@ use polkadot_node_subsystem_util::{
 	self,
 	database::Database,
 	metrics::{self, prometheus},
-	print_if_above_threshold,
+	print_if_above_threshold, print_if_above_threshold2,
 	runtime::{Config as RuntimeInfoConfig, RuntimeInfo},
 	TimeoutExt,
 };
@@ -890,7 +890,7 @@ where
 		}
 		process_actions.0 += start.elapsed().as_micros();
 		process_actions.1 += 1;
-		if let Some(duration) = print_if_above_threshold(&start) {
+		if let Some(duration) = print_if_above_threshold2(&start) {
 			gum::warn!(target: LOG_TARGET, "too_long: handle actions {:}", duration);
 		}
 		let start = Instant::now();
@@ -904,7 +904,7 @@ where
 		dbs.0 += start.elapsed().as_micros();
 		dbs.1 += 1;
 
-		if let Some(duration) = print_if_above_threshold(&start) {
+		if let Some(duration) = print_if_above_threshold2(&start) {
 			gum::warn!(target: LOG_TARGET, "too_long: db flush {:}", duration);
 		}
 
