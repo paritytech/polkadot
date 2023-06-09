@@ -927,8 +927,9 @@ where
 			wakeups_time.0 > 100000
 		{
 			gum::warn!(target: LOG_TARGET,
-			 "too_long: break_down_in_ops wakeups_time wakeups_time {:?} handles_from_overseers {:?} currently_checking {:?} process_actions {:?} dbs {:?}",
-			 wakeups_time, handles_from_overseers, currently_checking, process_actions, dbs
+			 "too_long: break_down_in_ops wakeups_time wakeups_time {:?} handles_from_overseers
+			 {:?} currently_checking {:?} process_actions {:?} dbs {:?} statistics {:?}",
+			 wakeups_time, handles_from_overseers, currently_checking, process_actions, dbs, state.statistics
 			);
 
 			wakeups_time = (0, 0);
