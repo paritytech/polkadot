@@ -845,6 +845,7 @@ impl State {
 			}
 
 			let (tx, rx) = oneshot::channel();
+			let start = Instant::now();
 
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment.clone(),
@@ -854,7 +855,6 @@ impl State {
 			.await;
 
 			let timer = metrics.time_awaiting_approval_voting();
-			let start = Instant::now();
 
 			let result = match rx.await {
 				Ok(result) => result,
@@ -1130,12 +1130,12 @@ impl State {
 			}
 
 			let (tx, rx) = oneshot::channel();
+			let start = Instant::now();
 
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
 				.await;
 
 			let timer = metrics.time_awaiting_approval_voting();
-			let start = Instant::now();
 
 			let result = match rx.await {
 				Ok(result) => result,
