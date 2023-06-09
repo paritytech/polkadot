@@ -657,12 +657,23 @@ where
 	}
 }
 
+#[derive(Debug, Default)]
+
+struct Statistics {
+	pub active_leaves: u64,
+	pub block_finalized: u64,
+	pub import_assignment: u64,
+	pub import_approval: u64,
+	pub approved_ancestor: u64,
+	pub get_approval_signatures: u64,
+}
 struct State {
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 	spans: HashMap<Hash, jaeger::PerLeafSpan>,
+	statistics: Statistics,
 }
 
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
@@ -764,6 +775,7 @@ where
 		clock,
 		assignment_criteria,
 		spans: HashMap::new(),
+		statistics: Default::default(),
 	};
 
 	// `None` on start-up. Gets initialized/updated on leaf update
@@ -924,6 +936,7 @@ where
 			currently_checking = (0, 0);
 			process_actions = (0, 0);
 			dbs = (0, 0);
+			state.statistics = Default::default();
 		}
 	}
 
@@ -1222,6 +1235,7 @@ async fn handle_from_overseer<Context>(
 	let actions = match x {
 		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let start = Instant::now();
+			state.statistics.active_leaves += 1;
 			let message = update.clone();
 			let mut actions = Vec::new();
 			if let Some(activated) = update.activated {
@@ -1293,6 +1307,8 @@ async fn handle_from_overseer<Context>(
 		FromOrchestra::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
 			let start = Instant::now();
 			gum::debug!(target: LOG_TARGET, ?block_hash, ?block_number, "Block finalized");
+			state.statistics.block_finalized += 1;
+
 			*last_finalized_height = Some(block_number);
 
 			crate::ops::canonicalize(db, block_number, block_hash)
@@ -1316,6 +1332,8 @@ async fn handle_from_overseer<Context>(
 			let start = Instant::now();
 			let result = match msg {
 				ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
+					state.statistics.import_assignment += 1;
+
 					let (check_outcome, actions) = check_and_import_assignment(
 						ctx.sender(),
 						state,
@@ -1332,6 +1350,8 @@ async fn handle_from_overseer<Context>(
 					actions
 				},
 				ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
+					state.statistics.import_approval += 1;
+
 					let res = check_and_import_approval(
 						ctx.sender(),
 						state,
@@ -1351,6 +1371,8 @@ async fn handle_from_overseer<Context>(
 					res
 				},
 				ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res) => {
+					state.statistics.approved_ancestor += 1;
+
 					let mut approved_ancestor_span = state
 						.spans
 						.get(&target)
@@ -1383,6 +1405,8 @@ async fn handle_from_overseer<Context>(
 				},
 				ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx) => {
 					metrics.on_candidate_signatures_request();
+					state.statistics.get_approval_signatures += 1;
+
 					get_approval_signatures_for_candidate(ctx, db, candidate_hash, tx).await?;
 					if let Some(duration) = print_if_above_threshold(&start) {
 						gum::warn!(target: LOG_TARGET, "too_long: GetApprovalSignaturesForCandidate {:}", duration);
