@@ -585,6 +585,9 @@ impl State {
 					num = assignments.len(),
 					"Processing assignments from a peer",
 				);
+				let start = Instant::now();
+				let len = assignments.len();
+				let mut max = 0;
 				for (assignment, claimed_index) in assignments.into_iter() {
 					if let Some(pending) = self.pending_known.get_mut(&assignment.block_hash) {
 						let message_subject = MessageSubject(
@@ -605,6 +608,7 @@ impl State {
 
 						continue
 					}
+					let start1 = Instant::now();
 
 					self.import_and_circulate_assignment(
 						ctx,
@@ -615,6 +619,12 @@ impl State {
 						rng,
 					)
 					.await;
+					let elapsed = start1.elapsed().as_micros();
+					max = std::cmp::max(elapsed, max);
+				}
+
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: assignment peer {:} {:?} len {:} max {:}", duration, start, len, max);
 				}
 			},
 			protocol_v1::ApprovalDistributionMessage::Approvals(approvals) => {
@@ -624,6 +634,9 @@ impl State {
 					num = approvals.len(),
 					"Processing approvals from a peer",
 				);
+				let start = Instant::now();
+				let len = approvals.len();
+				let mut max = 0;
 				for approval_vote in approvals.into_iter() {
 					if let Some(pending) = self.pending_known.get_mut(&approval_vote.block_hash) {
 						let message_subject = MessageSubject(
@@ -643,7 +656,7 @@ impl State {
 
 						continue
 					}
-
+					let start1 = Instant::now();
 					self.import_and_circulate_approval(
 						ctx,
 						metrics,
@@ -651,6 +664,11 @@ impl State {
 						approval_vote,
 					)
 					.await;
+					let elapsed = start1.elapsed().as_micros();
+					max = std::cmp::max(elapsed, max);
+				}
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: approvals peer {:} {:?} len {:} max {:}", duration, start, len, max);
 				}
 			},
 		}
@@ -1837,7 +1855,7 @@ impl ApprovalDistribution {
 					);
 				}
 				if let Some(duration) = print_if_above_threshold(&start) {
-					gum::warn!(target: LOG_TARGET, "too_long: get approval signatures {:} {:?}", duration, start);
+					gum::warn!(target: LOG_TARGET, "too_long: get approval {:} {:?}", duration, start);
 				}
 			},
 			ApprovalDistributionMessage::ApprovalCheckingLagUpdate(lag) => {
