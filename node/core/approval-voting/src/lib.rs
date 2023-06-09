@@ -71,7 +71,7 @@ use std::{
 	},
 	num::NonZeroUsize,
 	sync::Arc,
-	time::Duration,
+	time::{Duration, Instant},
 };
 
 use approval_checking::RequiredTranches;
@@ -742,6 +742,15 @@ enum Action {
 	Conclude,
 }
 
+pub fn print_if_above_threshold(start: &Instant) -> Option<u128> {
+	let duration = start.elapsed().as_micros();
+
+	if duration > 2000 {
+		Some(duration)
+	} else {
+		None
+	}
+}
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 async fn run<B, Context>(
 	mut ctx: Context,
@@ -790,8 +799,9 @@ where
 		let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
 			(_tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
+				let start = Instant::now();
 				subsystem.metrics.on_wakeup();
-				process_wakeup(
+				let res = process_wakeup(
 					&mut ctx,
 					&state,
 					&mut overlayed_db,
@@ -799,7 +809,12 @@ where
 					woken_block,
 					woken_candidate,
 					&subsystem.metrics,
-				).await?
+				).await?;
+
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: process_wakeup {:}", duration);
+				}
+				res
 			}
 			next_msg = ctx.recv().fuse() => {
 				let mut actions = handle_from_overseer(
@@ -819,10 +834,10 @@ where
 						actions.insert(0, Action::BecomeActive)
 					}
 				}
-
 				actions
 			}
 			approval_state = currently_checking_set.next(&mut approvals_cache).fuse() => {
+				let start = Instant::now();
 				let mut actions = Vec::new();
 				let (
 					relay_block_hashes,
@@ -848,10 +863,13 @@ where
 						.collect();
 					actions.append(&mut approvals);
 				}
-
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: currently checking {:}", duration);
+				}
 				actions
 			}
 		};
+		let start = Instant::now();
 
 		if handle_actions(
 			&mut ctx,
@@ -870,10 +888,18 @@ where
 			break
 		}
 
+		if let Some(duration) = print_if_above_threshold(&start) {
+			gum::warn!(target: LOG_TARGET, "too_long: handle actions {:}", duration);
+		}
+		let start = Instant::now();
+
 		if !overlayed_db.is_empty() {
 			let _timer = subsystem.metrics.time_db_transaction();
 			let ops = overlayed_db.into_write_ops();
 			backend.write(ops)?;
+		}
+		if let Some(duration) = print_if_above_threshold(&start) {
+			gum::warn!(target: LOG_TARGET, "too_long: db flush {:}", duration);
 		}
 	}
 
@@ -1171,6 +1197,8 @@ async fn handle_from_overseer<Context>(
 ) -> SubsystemResult<Vec<Action>> {
 	let actions = match x {
 		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
+			let start = Instant::now();
+			let message = update.clone();
 			let mut actions = Vec::new();
 			if let Some(activated) = update.activated {
 				let head = activated.hash;
@@ -1233,9 +1261,13 @@ async fn handle_from_overseer<Context>(
 				}
 			}
 
+			if let Some(duration) = print_if_above_threshold(&start) {
+				gum::warn!(target: LOG_TARGET, "too_long: active_leaves {:}: {:?}", duration, message);
+			}
 			actions
 		},
 		FromOrchestra::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+			let start = Instant::now();
 			gum::debug!(target: LOG_TARGET, ?block_hash, ?block_number, "Block finalized");
 			*last_finalized_height = Some(block_number);
 
@@ -1248,75 +1280,93 @@ async fn handle_from_overseer<Context>(
 			// // `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans accordingly.
 			// let hash_set = wakeups.block_numbers.values().flatten().collect::<HashSet<_>>();
 			// state.spans.retain(|hash, _| hash_set.contains(hash));
-
+			if let Some(duration) = print_if_above_threshold(&start) {
+				gum::warn!(target: LOG_TARGET, "too_long: finalized {:}: {:?} {:?}", duration, block_hash, block_number);
+			}
 			Vec::new()
 		},
 		FromOrchestra::Signal(OverseerSignal::Conclude) => {
 			vec![Action::Conclude]
 		},
-		FromOrchestra::Communication { msg } => match msg {
-			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
-				let (check_outcome, actions) = check_and_import_assignment(
-					ctx.sender(),
-					state,
-					db,
-					session_info_provider,
-					a,
-					claimed_core,
-				)
-				.await?;
-				let _ = res.send(check_outcome);
-
-				actions
-			},
-			ApprovalVotingMessage::CheckAndImportApproval(a, res) =>
-				check_and_import_approval(
-					ctx.sender(),
-					state,
-					db,
-					session_info_provider,
-					metrics,
-					a,
-					|r| {
-						let _ = res.send(r);
-					},
-				)
-				.await?
-				.0,
-			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res) => {
-				let mut approved_ancestor_span = state
-					.spans
-					.get(&target)
-					.map(|span| span.child("approved-ancestor"))
-					.unwrap_or_else(|| jaeger::Span::new(target, "approved-ancestor"))
-					.with_stage(jaeger::Stage::ApprovalChecking)
-					.with_string_tag("leaf", format!("{:?}", target));
-				match handle_approved_ancestor(
-					ctx,
-					db,
-					target,
-					lower_bound,
-					wakeups,
-					&mut approved_ancestor_span,
-				)
-				.await
-				{
-					Ok(v) => {
-						let _ = res.send(v);
-					},
-					Err(e) => {
-						let _ = res.send(None);
-						return Err(e)
-					},
-				}
-
-				Vec::new()
-			},
-			ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx) => {
-				metrics.on_candidate_signatures_request();
-				get_approval_signatures_for_candidate(ctx, db, candidate_hash, tx).await?;
-				Vec::new()
-			},
+		FromOrchestra::Communication { msg } => {
+			let start = Instant::now();
+			let result = match msg {
+				ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
+					let (check_outcome, actions) = check_and_import_assignment(
+						ctx.sender(),
+						state,
+						db,
+						session_info_provider,
+						a,
+						claimed_core,
+					)
+					.await?;
+					let _ = res.send(check_outcome);
+					if let Some(duration) = print_if_above_threshold(&start) {
+						gum::warn!(target: LOG_TARGET, "too_long: CheckAndImportAssignment {:}", duration);
+					}
+					actions
+				},
+				ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
+					let res = check_and_import_approval(
+						ctx.sender(),
+						state,
+						db,
+						session_info_provider,
+						metrics,
+						a,
+						|r| {
+							let _ = res.send(r);
+						},
+					)
+					.await?
+					.0;
+					if let Some(duration) = print_if_above_threshold(&start) {
+						gum::warn!(target: LOG_TARGET, "too_long: CheckAndImportApproval {:}", duration);
+					}
+					res
+				},
+				ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res) => {
+					let mut approved_ancestor_span = state
+						.spans
+						.get(&target)
+						.map(|span| span.child("approved-ancestor"))
+						.unwrap_or_else(|| jaeger::Span::new(target, "approved-ancestor"))
+						.with_stage(jaeger::Stage::ApprovalChecking)
+						.with_string_tag("leaf", format!("{:?}", target));
+					match handle_approved_ancestor(
+						ctx,
+						db,
+						target,
+						lower_bound,
+						wakeups,
+						&mut approved_ancestor_span,
+					)
+					.await
+					{
+						Ok(v) => {
+							let _ = res.send(v);
+						},
+						Err(e) => {
+							let _ = res.send(None);
+							return Err(e)
+						},
+					}
+					if let Some(duration) = print_if_above_threshold(&start) {
+						gum::warn!(target: LOG_TARGET, "too_long: ApprovedAncestor {:}", duration);
+					}
+					Vec::new()
+				},
+				ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx) => {
+					metrics.on_candidate_signatures_request();
+					get_approval_signatures_for_candidate(ctx, db, candidate_hash, tx).await?;
+					if let Some(duration) = print_if_above_threshold(&start) {
+						gum::warn!(target: LOG_TARGET, "too_long: GetApprovalSignaturesForCandidate {:}", duration);
+					}
+					Vec::new()
+				},
+			};
+			result
 		},
 	};
 
