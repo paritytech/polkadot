@@ -23,14 +23,9 @@ use bounded_collections::{BoundedVec, ConstU32};
 use frame_support::weights::Weight;
 use parity_scale_codec::{CompactAs, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use sp_core::{RuntimeDebug, TypeId};
-use sp_runtime::traits::Hash as _;
-
-#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
-
-#[cfg(feature = "std")]
-use sp_core::bytes;
+use sp_core::{bytes, RuntimeDebug, TypeId};
+use sp_runtime::traits::Hash as _;
 
 use polkadot_core_primitives::{Hash, OutboundHrmpMessage};
 
@@ -39,10 +34,21 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(
-	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
+	PartialEq,
+	Eq,
+	Clone,
+	PartialOrd,
+	Ord,
+	Encode,
+	Decode,
+	RuntimeDebug,
+	derive_more::From,
+	TypeInfo,
+	Serialize,
+	Deserialize,
 )]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, Default))]
-pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
+#[cfg_attr(feature = "std", derive(Hash, Default))]
+pub struct HeadData(#[serde(with = "bytes")] pub Vec<u8>);
 
 impl HeadData {
 	/// Returns the hash of this head data.
@@ -52,9 +58,20 @@ impl HeadData {
 }
 
 /// Parachain validation code.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
-pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
+#[derive(
+	PartialEq,
+	Eq,
+	Clone,
+	Encode,
+	Decode,
+	RuntimeDebug,
+	derive_more::From,
+	TypeInfo,
+	Serialize,
+	Deserialize,
+)]
+#[cfg_attr(feature = "std", derive(Hash))]
+pub struct ValidationCode(#[serde(with = "bytes")] pub Vec<u8>);
 
 impl ValidationCode {
 	/// Get the blake2-256 hash of the validation code bytes.
@@ -129,9 +146,11 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec
 	PartialEq,
 	PartialOrd,
 	RuntimeDebug,
+	serde::Serialize,
+	serde::Deserialize,
 	TypeInfo,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, derive_more::Display))]
+#[cfg_attr(feature = "std", derive(derive_more::Display))]
 pub struct Id(u32);
 
 impl TypeId for Id {

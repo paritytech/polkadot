@@ -30,7 +30,7 @@ use polkadot_runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, runtime_api_impl::v4 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
-	shared as parachains_shared, ump as parachains_ump,
+	shared as parachains_shared,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -218,7 +218,7 @@ impl pallet_balances::Config for Runtime {
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = ();
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<0>;
 	type MaxFreezes = ConstU32<0>;
@@ -477,6 +477,8 @@ impl parachains_inclusion::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = ParasDisputes;
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
+	type MessageQueue = ();
+	type WeightInfo = ();
 }
 
 impl parachains_disputes::Config for Runtime {
@@ -508,6 +510,7 @@ impl parachains_paras::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = parachains_paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
+	type QueueFootprinter = ParaInclusion;
 	type NextSessionRotation = Babe;
 }
 
@@ -515,14 +518,6 @@ impl parachains_dmp::Config for Runtime {}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;
-}
-
-impl parachains_ump::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type UmpSink = ();
-	type FirstMessageFactorPercent = FirstMessageFactorPercent;
-	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
-	type WeightInfo = parachains_ump::TestWeightInfo;
 }
 
 impl parachains_hrmp::Config for Runtime {
@@ -551,6 +546,7 @@ pub mod pallet_test_notifier {
 	use pallet_xcm::ensure_response;
 	use sp_runtime::DispatchResult;
 	use xcm::latest::prelude::*;
+	use xcm_executor::traits::QueryHandler as XcmQueryHandler;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -586,7 +582,7 @@ pub mod pallet_test_notifier {
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
-			let qid = pallet_xcm::Pallet::<T>::new_query(
+			let qid = <pallet_xcm::Pallet<T> as XcmQueryHandler>::new_query(
 				Junction::AccountId32 { network: None, id },
 				100u32.into(),
 				Here,
@@ -672,7 +668,6 @@ construct_runtime! {
 		ParasOrigin: parachains_origin::{Pallet, Origin},
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>},
-		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Dmp: parachains_dmp::{Pallet, Storage},
 		Xcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
