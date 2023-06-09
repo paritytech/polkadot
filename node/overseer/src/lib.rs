@@ -714,6 +714,32 @@ where
 	///
 	/// Logging any errors.
 	pub async fn run(self) {
+		// TODO: remove when finished messages converting
+		gum::info!(target: LOG_TARGET, "TEST, message size: {}", std::mem::size_of::<AllMessages>());
+
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<ApprovalDistributionMessage>(), std::mem::size_of::<AllMessages>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<ApprovalVotingMessage>(), std::mem::size_of::<ApprovalVotingMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<AvailabilityDistributionMessage>(), std::mem::size_of::<AvailabilityDistributionMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<AvailabilityRecoveryMessage>(), std::mem::size_of::<AvailabilityRecoveryMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<AvailabilityStoreMessage>(), std::mem::size_of::<AvailabilityStoreMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<BitfieldDistributionMessage>(), std::mem::size_of::<BitfieldDistributionMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<CandidateBackingMessage>(), std::mem::size_of::<CandidateBackingMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<CandidateValidationMessage>(), std::mem::size_of::<CandidateValidationMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<ChainApiMessage>(), std::mem::size_of::<ChainApiMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<ChainSelectionMessage>(), std::mem::size_of::<ChainSelectionMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<CollationGenerationMessage>(), std::mem::size_of::<CollationGenerationMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<CollatorProtocolMessage>(), std::mem::size_of::<CollatorProtocolMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<DisputeCoordinatorMessage>(), std::mem::size_of::<DisputeCoordinatorMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<DisputeDistributionMessage>(), std::mem::size_of::<DisputeDistributionMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<GossipSupportMessage>(), std::mem::size_of::<GossipSupportMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<NetworkBridgeRxMessage>(), std::mem::size_of::<NetworkBridgeRxMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<NetworkBridgeTxMessage>(), std::mem::size_of::<NetworkBridgeTxMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<ProvisionerMessage>(), std::mem::size_of::<ProvisionerMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<RuntimeApiMessage>(), std::mem::size_of::<RuntimeApiMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<StatementDistributionMessage>(), std::mem::size_of::<StatementDistributionMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<BitfieldSigningMessage>(), std::mem::size_of::<BitfieldSigningMessage>());
+		gum::info!(target: LOG_TARGET, "TEST, message type: {}; size: {}", std::any::type_name::<PvfCheckerMessage>(), std::mem::size_of::<PvfCheckerMessage>());
+
 		if let Err(err) = self.run_inner().await {
 			gum::error!(target: LOG_TARGET, ?err, "Overseer exited with error");
 		}
