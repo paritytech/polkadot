@@ -786,7 +786,11 @@ where
 			},
 		}
 	};
-
+	let mut wakeups_time = (0, 0);
+	let mut handles_from_overseers = (0, 0);
+	let mut currently_checking = (0, 0);
+	let mut process_actions = (0, 0);
+	let mut dbs = (0, 0);
 	loop {
 		let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
@@ -802,13 +806,15 @@ where
 					woken_candidate,
 					&subsystem.metrics,
 				).await?;
-
+				wakeups_time.0 += start.elapsed().as_micros();
+				wakeups_time.1 += 1;
 				if let Some(duration) = print_if_above_threshold(&start) {
 					gum::warn!(target: LOG_TARGET, "too_long: process_wakeup {:}", duration);
 				}
 				res
 			}
 			next_msg = ctx.recv().fuse() => {
+				let start = Instant::now();
 				let mut actions = handle_from_overseer(
 					&mut ctx,
 					&mut state,
@@ -819,7 +825,8 @@ where
 					&mut last_finalized_height,
 					&mut wakeups,
 				).await?;
-
+				handles_from_overseers.0 += start.elapsed().as_micros();
+				handles_from_overseers.1 += 1;
 				if let Mode::Syncing(ref mut oracle) = subsystem.mode {
 					if !oracle.is_major_syncing() {
 						// note that we're active before processing other actions.
@@ -855,6 +862,8 @@ where
 						.collect();
 					actions.append(&mut approvals);
 				}
+				currently_checking.0 += start.elapsed().as_micros();
+				currently_checking.1 += 1;
 				if let Some(duration) = print_if_above_threshold(&start) {
 					gum::warn!(target: LOG_TARGET, "too_long: currently checking {:}", duration);
 				}
@@ -879,7 +888,8 @@ where
 		{
 			break
 		}
-
+		process_actions.0 += start.elapsed().as_micros();
+		process_actions.1 += 1;
 		if let Some(duration) = print_if_above_threshold(&start) {
 			gum::warn!(target: LOG_TARGET, "too_long: handle actions {:}", duration);
 		}
@@ -890,8 +900,30 @@ where
 			let ops = overlayed_db.into_write_ops();
 			backend.write(ops)?;
 		}
+
+		dbs.0 += start.elapsed().as_micros();
+		dbs.1 += 1;
+
 		if let Some(duration) = print_if_above_threshold(&start) {
 			gum::warn!(target: LOG_TARGET, "too_long: db flush {:}", duration);
+		}
+
+		if dbs.0 > 100000 ||
+			process_actions.0 > 100000 ||
+			currently_checking.0 > 100000 ||
+			handles_from_overseers.0 > 100000 ||
+			wakeups_time.0 > 100000
+		{
+			gum::warn!(target: LOG_TARGET,
+			 "too_long: break_down_in_ops wakeups_time wakeups_time {:?} handles_from_overseers {:?} currently_checking {:?} process_actions {:?} dbs {:?}",
+			 wakeups_time, handles_from_overseers, currently_checking, process_actions, dbs
+			);
+
+			wakeups_time = (0, 0);
+			handles_from_overseers = (0, 0);
+			currently_checking = (0, 0);
+			process_actions = (0, 0);
+			dbs = (0, 0);
 		}
 	}
 
