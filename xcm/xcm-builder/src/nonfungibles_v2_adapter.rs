@@ -19,14 +19,16 @@
 use crate::{AssetChecking, MintLocation};
 use frame_support::{
 	ensure,
-	traits::{tokens::nonfungibles_v2, Get},
+	traits::{tokens::nonfungibles_v2, Get}
 };
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, Error as MatchError, MatchesNonFungibles, TransactAsset};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
+use pallet_nfts::Incrementable;
 
 const LOG_TARGET: &str = "xcm::nonfungibles_v2_adapter";
-
 pub struct NonFungiblesV2TransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,
 );
@@ -69,7 +71,8 @@ pub struct NonFungiblesV2MutateAdapter<
 	CheckAsset,
 	CheckingAccount,
 	ItemConfig,
->(PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount, ItemConfig)>);
+>(PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount, ItemConfig)>)
+where ItemConfig: Default;
 
 impl<
 		Assets: nonfungibles_v2::Mutate<AccountId, ItemConfig>,
@@ -78,7 +81,7 @@ impl<
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
-		ItemConfig: Clone,
+		ItemConfig: Default,
 	>
 	NonFungiblesV2MutateAdapter<
 		Assets,
@@ -105,7 +108,7 @@ impl<
 	}
 	fn accrue_checked(class: Assets::CollectionId, instance: Assets::ItemId) {
 		if let Some(checking_account) = CheckingAccount::get() {
-			let ok = Assets::mint_into(&class, &instance, &checking_account, ItemConfig, true).is_ok();
+			let ok = Assets::mint_into(&class, &instance, &checking_account, &ItemConfig::default(), true).is_ok();
 			debug_assert!(ok, "`mint_into` cannot generally fail; qed");
 		}
 	}
@@ -122,7 +125,7 @@ impl<
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
-		ItemConfig: Clone,
+		ItemConfig: Default,
 	> TransactAsset
 	for NonFungiblesV2MutateAdapter<
 		Assets,
@@ -222,7 +225,8 @@ impl<
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
 		let who = AccountIdConverter::convert_ref(who)
 			.map_err(|()| MatchError::AccountIdConversionFailed)?;
-		Assets::mint_into(&class, &instance, &who)
+
+		Assets::mint_into(&class, &instance, &who, &ItemConfig::default(), true)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))
 	}
 
@@ -256,7 +260,8 @@ pub struct NonFungiblesV2Adapter<
 	CheckAsset,
 	CheckingAccount,
 	ItemConfig,
->(PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount, ItemConfig)>);
+>(PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount, ItemConfig)>)
+where ItemConfig: Default;
 impl<
 		Assets: nonfungibles_v2::Mutate<AccountId, ItemConfig> + nonfungibles_v2::Transfer<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
@@ -264,7 +269,7 @@ impl<
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
-		ItemConfig: Clone,
+		ItemConfig: Default,
 	> TransactAsset
 	for NonFungiblesV2Adapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount, ItemConfig>
 {
@@ -353,5 +358,54 @@ impl<
 		NonFungiblesV2TransferAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::transfer_asset(
 			what, from, to, context,
 		)
+	}
+}
+
+
+#[derive(
+	Copy,
+	Clone,
+	Decode,
+	Encode,
+	Eq,
+	PartialEq,
+	Ord,
+	PartialOrd,
+	Debug,
+	TypeInfo,
+	MaxEncodedLen,
+)]
+pub struct MultiLocationCollectionId(MultiLocation);
+impl MultiLocationCollectionId {
+	/// Consume `self` and return the inner MultiLocation.
+	pub fn into_inner(self) -> MultiLocation {
+		self.0
+	}
+
+	/// Return a reference to the inner MultiLocation.
+	pub fn inner(&self) -> &MultiLocation {
+		&self.0
+	}
+}
+// Should eventually move to frame_support::traits::incrementable
+impl Incrementable for MultiLocationCollectionId {
+	fn increment(&self) -> Self {
+		MultiLocation {parents: 0, interior: Here}.into()
+	}
+
+	fn initial_value() -> Self {
+		MultiLocation {parents: 0, interior: Here}.into()
+	}
+}
+
+impl From<MultiLocation> for MultiLocationCollectionId {
+	fn from(value: MultiLocation) -> Self {
+		MultiLocationCollectionId(value)
+	}
+}
+
+impl Into<MultiLocation> for MultiLocationCollectionId {
+	fn into(self) -> MultiLocation {
+		self.into_inner()
 	}
 }

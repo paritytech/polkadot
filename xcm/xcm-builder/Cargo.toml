@@ -19,6 +19,7 @@ sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-nfts = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 log = { version = "0.4.17", default-features = false }
 
 # Polkadot dependencies
@@ -54,4 +55,5 @@ std = [
 	"frame-system/std",
 	"polkadot-parachain/std",
 	"pallet-transaction-payment/std",
+	"pallet-nfts/std",
 ]

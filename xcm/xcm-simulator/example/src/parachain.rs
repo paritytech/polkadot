@@ -25,11 +25,12 @@ use frame_support::{
 };
 
 use frame_system::EnsureRoot;
-use sp_core::{ConstU32, H256};
+use sp_core::{ConstU32, ConstU64, H256};
 use sp_runtime::{
 	testing::Header,
-	traits::{Get, Hash, IdentityLookup},
+	traits::{Get, Hash, IdentityLookup, Verify},
 	AccountId32,
+	MultiSignature
 };
 use sp_std::prelude::*;
 
@@ -42,14 +43,16 @@ use xcm::{latest::prelude::*, VersionedXcm};
 use xcm_builder::{
 	Account32Hash, AccountId32Aliases, AllowUnpaidExecutionFrom, ConvertedConcreteId,
 	CurrencyAdapter as XcmCurrencyAdapter, EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds,
-	IsConcrete, NativeAsset, NoChecking, NonFungiblesAdapter, ParentIsPreset,
+	IsConcrete, NativeAsset, NoChecking, ParentIsPreset,
 	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation,
+	SovereignSignedViaLocation, MultiLocationCollectionId, NonFungiblesV2Adapter,
 };
 use xcm_executor::{
 	traits::{Convert, JustTry},
 	Config, XcmExecutor,
 };
+
+use pallet_nfts::{PalletFeatures, ItemConfig};
 
 pub type SovereignAccountOf = (
 	SiblingParachainConvertsVia<Sibling, AccountId>,
@@ -113,51 +116,18 @@ impl pallet_balances::Config for Runtime {
 	type MaxFreezes = ConstU32<0>;
 }
 
-#[cfg(feature = "runtime-benchmarks")]
-pub struct UniquesHelper;
-#[cfg(feature = "runtime-benchmarks")]
-impl pallet_uniques::BenchmarkHelper<MultiLocation, AssetInstance> for UniquesHelper {
-	fn collection(i: u16) -> MultiLocation {
-		GeneralIndex(i as u128).into()
-	}
-	fn item(i: u16) -> AssetInstance {
-		AssetInstance::Index(i as u128)
-	}
-}
-
-impl pallet_uniques::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type CollectionId = MultiLocation;
-	type ItemId = AssetInstance;
-	type Currency = Balances;
-	type CreateOrigin = ForeignCreators;
-	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
-	type CollectionDeposit = frame_support::traits::ConstU128<1_000>;
-	type ItemDeposit = frame_support::traits::ConstU128<1_000>;
-	type MetadataDepositBase = frame_support::traits::ConstU128<1_000>;
-	type AttributeDepositBase = frame_support::traits::ConstU128<1_000>;
-	type DepositPerByte = frame_support::traits::ConstU128<1>;
-	type StringLimit = ConstU32<64>;
-	type KeyLimit = ConstU32<64>;
-	type ValueLimit = ConstU32<128>;
-	type Locker = ();
-	type WeightInfo = ();
-	#[cfg(feature = "runtime-benchmarks")]
-	type Helper = UniquesHelper;
-}
-
 // `EnsureOriginWithArg` impl for `CreateOrigin` which allows only XCM origins
 // which are locations containing the class location.
-pub struct ForeignCreators;
-impl EnsureOriginWithArg<RuntimeOrigin, MultiLocation> for ForeignCreators {
+pub struct ForeignCreatorsNFTs;
+impl EnsureOriginWithArg<RuntimeOrigin, MultiLocationCollectionId> for ForeignCreatorsNFTs {
 	type Success = AccountId;
 
 	fn try_origin(
 		o: RuntimeOrigin,
-		a: &MultiLocation,
+		a: &MultiLocationCollectionId,
 	) -> sp_std::result::Result<Self::Success, RuntimeOrigin> {
 		let origin_location = pallet_xcm::EnsureXcm::<Everything>::try_origin(o.clone())?;
-		if !a.starts_with(&origin_location) {
+		if !a.inner().starts_with(&origin_location) {
 			return Err(o)
 		}
 		SovereignAccountOf::convert(origin_location).map_err(|_| o)
@@ -203,14 +173,16 @@ parameter_types! {
 
 pub type LocalAssetTransactor = (
 	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, LocationToAccountId, AccountId, ()>,
-	NonFungiblesAdapter<
-		ForeignUniques,
-		ConvertedConcreteId<MultiLocation, AssetInstance, JustTry, JustTry>,
+	NonFungiblesV2Adapter<
+		ForeignNfts, 
+		ConvertedConcreteId<MultiLocationCollectionId, AssetInstance, JustTry, JustTry>,
 		SovereignAccountOf,
 		AccountId,
 		NoChecking,
 		(),
+		ItemConfig
 	>,
+	
 );
 
 pub type XcmRouter = super::ParachainXcmRouter<MsgQueue>;
@@ -448,6 +420,41 @@ impl pallet_xcm::Config for Runtime {
 	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
+parameter_types! {
+	pub storage Features: PalletFeatures = PalletFeatures::all_enabled();
+}
+
+
+pub type Signature = MultiSignature;
+pub type AccountPublic = <Signature as Verify>::Signer;
+
+impl pallet_nfts::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type CollectionId = MultiLocationCollectionId;
+	type ItemId = AssetInstance;
+	type Currency = Balances;
+	type CreateOrigin = ForeignCreatorsNFTs;
+	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+	type CollectionDeposit = frame_support::traits::ConstU128<1_000>;
+	type ItemDeposit = frame_support::traits::ConstU128<1_000>;
+	type MetadataDepositBase = frame_support::traits::ConstU128<1_000>;
+	type AttributeDepositBase = frame_support::traits::ConstU128<1_000>;
+	type DepositPerByte = frame_support::traits::ConstU128<1>;
+	type StringLimit = ConstU32<64>;
+	type KeyLimit = ConstU32<64>;
+	type ValueLimit = ConstU32<128>;
+	type ApprovalsLimit = ConstU32<10>;
+	type ItemAttributesApprovalsLimit = ConstU32<2>;
+	type MaxTips = ConstU32<10>;
+	type MaxDeadlineDuration = ConstU64<10000>;
+	type MaxAttributesPerCall = ConstU32<2>;
+	type Features = Features;
+	type OffchainSignature = Signature;
+	type OffchainPublic = AccountPublic;
+	type Locker = ();
+	type WeightInfo = ();
+}
+
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
 type Block = frame_system::mocking::MockBlock<Runtime>;
 
@@ -461,6 +468,6 @@ construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		MsgQueue: mock_msg_queue::{Pallet, Storage, Event<T>},
 		PolkadotXcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
-		ForeignUniques: pallet_uniques::{Pallet, Call, Storage, Event<T>},
+		ForeignNfts: pallet_nfts::{Pallet, Call, Storage, Event<T>},
 	}
 );
