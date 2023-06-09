@@ -853,7 +853,7 @@ impl State {
 				tx,
 			))
 			.await;
-
+			let just_sending_the_message = start.elapsed().as_micros();
 			let timer = metrics.time_awaiting_approval_voting();
 
 			let result = match rx.await {
@@ -864,7 +864,7 @@ impl State {
 				},
 			};
 			if let Some(duration) = print_if_above_threshold(&start) {
-				gum::warn!(target: LOG_TARGET, "too_long: import_and_circlate assignment {:} {:?}", duration, start);
+				gum::warn!(target: LOG_TARGET, "too_long: import_and_circlate assignment {:} just_sending_the_message {:} {:?}", duration, just_sending_the_message, start);
 			}
 			drop(timer);
 
@@ -1136,7 +1136,7 @@ impl State {
 				.await;
 
 			let timer = metrics.time_awaiting_approval_voting();
-
+			let just_sending_the_message = start.elapsed().as_micros();
 			let result = match rx.await {
 				Ok(result) => result,
 				Err(_) => {
@@ -1145,7 +1145,7 @@ impl State {
 				},
 			};
 			if let Some(duration) = print_if_above_threshold(&start) {
-				gum::warn!(target: LOG_TARGET, "too_long: import_and_circlate approval {:} {:?}", duration, start);
+				gum::warn!(target: LOG_TARGET, "too_long: import_and_circlate approval {:} just_sending_the_message {:} {:?}", duration, just_sending_the_message, start);
 			}
 			drop(timer);
 
