@@ -383,9 +383,9 @@ parameter_types! {
 	pub const SignedMaxSubmissions: u32 = 16;
 	pub const SignedMaxRefunds: u32 = 16 / 4;
 	// 40 DOTs fixed deposit..
-	pub const SignedDepositBase: Balance = deposit(2, 0);
+	pub const SignedFixedDeposit: Balance = deposit(2, 0);
 	// Signed deposit base is constant with the number of signed submissions per election.
-	pub SignedDepositBaseIncreaseFactor: Percent = Zero::zero();
+	pub SignedDepositIncreaseFactor: Percent = Zero::zero();
 	// 0.01 DOT per KB of solution data.
 	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1 DOT as reward
@@ -459,8 +459,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SignedMaxRefunds = SignedMaxRefunds;
 	type SignedRewardBase = SignedRewardBase;
 	type SignedDepositBase = GeometricDepositBase<Runtime>;
-	type SignedFixedDepositBase = SignedDepositBase;
-	type SignedDepositBaseIncreaseFactor = SignedDepositBaseIncreaseFactor;
+	type SignedFixedDeposit = SignedFixedDeposit;
+	type SignedDepositIncreaseFactor = SignedDepositIncreaseFactor;
 	type SignedDepositByte = SignedDepositByte;
 	type SignedDepositWeight = ();
 	type SignedMaxWeight =
@@ -2310,7 +2310,7 @@ mod test_fees {
 	fn signed_deposit_is_sensible() {
 		// ensure this number does not change, or that it is checked after each change.
 		// a 1 MB solution should take (40 + 10) DOTs of deposit.
-		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
+		let deposit = SignedFixedDeposit::get() + (SignedDepositByte::get() * 1024 * 1024);
 		assert_eq_error_rate!(deposit, 50 * DOLLARS, DOLLARS);
 	}
 }
