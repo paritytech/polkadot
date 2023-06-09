@@ -25,9 +25,9 @@ use std::collections::HashSet;
 use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName};
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSetProtocolNames,
+	peer_set::{PeerSetProtocolNames, ValidationVersion},
 	request_response::{outgoing::Requests, ReqProtocolNames},
-	ObservedRole, Versioned,
+	v1 as protocol_v1, vstaging as protocol_vstaging, ObservedRole, Versioned,
 };
 use polkadot_node_subsystem::{FromOrchestra, OverseerSignal};
 use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
