@@ -38,11 +38,16 @@ use polkadot_node_subsystem::{
 	},
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
+
+use polkadot_node_subsystem_util::print_if_above_threshold;
 use polkadot_primitives::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 use rand::{CryptoRng, Rng, SeedableRng};
-use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
+use std::{
+	collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque},
+	time::Instant,
+};
 
 use self::metrics::Metrics;
 
@@ -351,6 +356,7 @@ impl State {
 				})
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
+				let start = Instant::now();
 				self.handle_new_session_topology(
 					ctx,
 					topology.session,
@@ -358,9 +364,18 @@ impl State {
 					topology.local_index,
 				)
 				.await;
+
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: new gossip topology {:} {:?}", duration, start);
+				}
 			},
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
+				let start = Instant::now();
+
 				self.handle_peer_view_change(ctx, metrics, peer_id, view, rng).await;
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: peer view change {:} {:?}", duration, start);
+				}
 			},
 			NetworkBridgeEvent::OurViewChange(view) => {
 				gum::trace!(target: LOG_TARGET, ?view, "Own view change");
@@ -383,7 +398,12 @@ impl State {
 				});
 			},
 			NetworkBridgeEvent::PeerMessage(peer_id, Versioned::V1(msg)) => {
+				let start = Instant::now();
+
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg, rng).await;
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: peer message {:} {:?}", duration, start);
+				}
 			},
 		}
 	}
@@ -816,6 +836,8 @@ impl State {
 			.await;
 
 			let timer = metrics.time_awaiting_approval_voting();
+			let start = Instant::now();
+
 			let result = match rx.await {
 				Ok(result) => result,
 				Err(_) => {
@@ -823,6 +845,9 @@ impl State {
 					return
 				},
 			};
+			if let Some(duration) = print_if_above_threshold(&start) {
+				gum::warn!(target: LOG_TARGET, "too_long: import_and_circlate assignment {:} {:?}", duration, start);
+			}
 			drop(timer);
 
 			gum::trace!(
@@ -1092,6 +1117,8 @@ impl State {
 				.await;
 
 			let timer = metrics.time_awaiting_approval_voting();
+			let start = Instant::now();
+
 			let result = match rx.await {
 				Ok(result) => result,
 				Err(_) => {
@@ -1099,6 +1126,9 @@ impl State {
 					return
 				},
 			};
+			if let Some(duration) = print_if_above_threshold(&start) {
+				gum::warn!(target: LOG_TARGET, "too_long: import_and_circlate approval {:} {:?}", duration, start);
+			}
 			drop(timer);
 
 			gum::trace!(
@@ -1751,7 +1781,11 @@ impl ApprovalDistribution {
 				state.handle_network_msg(ctx, metrics, event, rng).await;
 			},
 			ApprovalDistributionMessage::NewBlocks(metas) => {
+				let start = Instant::now();
 				state.handle_new_blocks(ctx, metrics, metas, rng).await;
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: new block {:} {:?}", duration, start);
+				}
 			},
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index) => {
 				gum::debug!(
@@ -1760,6 +1794,7 @@ impl ApprovalDistribution {
 					cert.block_hash,
 					candidate_index,
 				);
+				let start = Instant::now();
 
 				state
 					.import_and_circulate_assignment(
@@ -1771,6 +1806,9 @@ impl ApprovalDistribution {
 						rng,
 					)
 					.await;
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: local assignment {:} {:?}", duration, start);
+				}
 			},
 			ApprovalDistributionMessage::DistributeApproval(vote) => {
 				gum::debug!(
@@ -1779,18 +1817,27 @@ impl ApprovalDistribution {
 					vote.block_hash,
 					vote.candidate_index,
 				);
+				let start = Instant::now();
 
 				state
 					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote)
 					.await;
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: local approval {:} {:?}", duration, start);
+				}
 			},
 			ApprovalDistributionMessage::GetApprovalSignatures(indices, tx) => {
+				let start = Instant::now();
+
 				let sigs = state.get_approval_signatures(indices);
 				if let Err(_) = tx.send(sigs) {
 					gum::debug!(
 						target: LOG_TARGET,
 						"Sending back approval signatures failed, oneshot got closed"
 					);
+				}
+				if let Some(duration) = print_if_above_threshold(&start) {
+					gum::warn!(target: LOG_TARGET, "too_long: get approval signatures {:} {:?}", duration, start);
 				}
 			},
 			ApprovalDistributionMessage::ApprovalCheckingLagUpdate(lag) => {

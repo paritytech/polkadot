@@ -52,7 +52,7 @@ pub use rand;
 use sp_application_crypto::AppCrypto;
 use sp_core::ByteArray;
 use sp_keystore::{Error as KeystoreError, KeystorePtr};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use thiserror::Error;
 
 pub use metered;
@@ -79,6 +79,16 @@ pub mod nesting_sender;
 
 mod determine_new_blocks;
 
+/// Return if above threshold
+pub fn print_if_above_threshold(start: &Instant) -> Option<u128> {
+	let duration = start.elapsed().as_micros();
+
+	if duration > 2000 {
+		Some(duration)
+	} else {
+		None
+	}
+}
 #[cfg(test)]
 mod tests;
 

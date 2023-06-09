@@ -45,6 +45,7 @@ use polkadot_node_subsystem_util::{
 	self,
 	database::Database,
 	metrics::{self, prometheus},
+	print_if_above_threshold,
 	runtime::{Config as RuntimeInfoConfig, RuntimeInfo},
 	TimeoutExt,
 };
@@ -742,15 +743,6 @@ enum Action {
 	Conclude,
 }
 
-pub fn print_if_above_threshold(start: &Instant) -> Option<u128> {
-	let duration = start.elapsed().as_micros();
-
-	if duration > 2000 {
-		Some(duration)
-	} else {
-		None
-	}
-}
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 async fn run<B, Context>(
 	mut ctx: Context,
