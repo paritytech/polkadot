@@ -90,6 +90,7 @@ pub fn print_if_above_threshold(start: &Instant) -> Option<u128> {
 	}
 }
 
+/// Different threshold
 pub fn print_if_above_threshold2(start: &Instant) -> Option<u128> {
 	let duration = start.elapsed().as_micros();
 
