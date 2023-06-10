@@ -70,7 +70,7 @@ pub use {
 #[cfg(feature = "full-node")]
 use polkadot_node_subsystem::jaeger;
 
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration, path::PathBuf};
 
 use prometheus_endpoint::Registry;
 #[cfg(feature = "full-node")]
@@ -686,11 +686,10 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 /// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
 /// still determined based on the role of the node. Likewise for authority discovery.
 ///
-/// `program_path` and `worker_directory_path` are used to get the PVF worker locations. First,
-/// `program_path` is considered, and if it is passed then that location will be used for both the
-/// binaries. If it is not passed, `worker_directory_path` is considered, and if it is passed then
-/// the binaries from that directory will be used. If neither is passed, the binaries will be taken
-/// from `$PATH`. `program_path` is a deprecated option and is present for backwards compatibility.
+/// `workers_path` is used to get the PVF worker locations. First, `workers_path` is considered,
+/// and if it is passed then that location will be used for both the binaries. If it is not passed,
+/// current exe's directory is considered and checked for pinaries presence. If not found, the
+/// binaries will be taken from `$PATH`.
 #[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	mut config: Configuration,
@@ -699,8 +698,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
-	program_path: Option<std::path::PathBuf>,
-	worker_directory_path: Option<std::path::PathBuf>,
+	workers_path: Option<std::path::PathBuf>,
 	overseer_enable_anyways: bool,
 	overseer_gen: OverseerGenerator,
 	overseer_message_channel_capacity_override: Option<usize>,
@@ -907,13 +905,33 @@ where
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
+	let workers_path = if workers_path.is_some() {
+		log::trace!("Using explicitly provided workers path {:?}", workers_path);
+		workers_path
+	} else {
+		let mut exe_path = std::env::current_exe()?;
+		let _ = exe_path.pop();
+		let mut prep_worker = exe_path.clone();
+		prep_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
+		let mut exec_worker = exe_path.clone();
+		exec_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
+
+		if prep_worker.exists() && exec_worker.exists() {
+			log::trace!("Using current exe path as workers path: {:?}", exe_path);
+			Some(exe_path)
+		} else {
+			log::trace!("Workers path not found, considering `$PATH`");
+			None
+		}
+	};
+
 	let candidate_validation_config = CandidateValidationConfig {
 		artifacts_cache_path: config
 			.database
 			.path()
 			.ok_or(Error::DatabasePathRequired)?
 			.join("pvf-artifacts"),
-		program_path,
+		workers_path,
 	};
 
 	let chain_selection_config = ChainSelectionConfig {
@@ -1351,6 +1369,7 @@ pub fn build_full(
 	grandpa_pause: Option<(u32, u32)>,
 	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
+	workers_path: Option<PathBuf>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
@@ -1370,7 +1389,7 @@ pub fn build_full(
 			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
-			None,
+			workers_path,
 			overseer_enable_anyways,
 			overseer_gen,
 			overseer_message_channel_override,
@@ -1389,7 +1408,7 @@ pub fn build_full(
 			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
-			None,
+			workers_path,
 			overseer_enable_anyways,
 			overseer_gen,
 			overseer_message_channel_override,
@@ -1408,7 +1427,7 @@ pub fn build_full(
 			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
-			None,
+			workers_path,
 			overseer_enable_anyways,
 			overseer_gen,
 			overseer_message_channel_override,
@@ -1427,7 +1446,7 @@ pub fn build_full(
 			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
-			None,
+			workers_path,
 			overseer_enable_anyways,
 			overseer_gen,
 			overseer_message_channel_override.map(|capacity| {

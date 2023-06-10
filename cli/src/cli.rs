@@ -16,6 +16,7 @@
 
 //! Polkadot CLI library.
 
+use std::path::PathBuf;
 use clap::Parser;
 
 #[allow(missing_docs)]
@@ -148,6 +149,11 @@ pub struct RunCmd {
 	/// **Dangerous!** Do not touch unless explicitly adviced to.
 	#[arg(long)]
 	pub overseer_channel_capacity_override: Option<usize>,
+
+	/// Path to auxiliary worker binaries. If not specified, the main binary's directory is
+	/// searched first, and then the `$PATH` is considered.
+	#[arg(long, value_name = "PATH")]
+	pub workers_path: Option<PathBuf>,
 }
 
 #[allow(missing_docs)]

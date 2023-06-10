@@ -345,6 +345,7 @@ where
 			grandpa_pause,
 			enable_beefy,
 			jaeger_agent,
+			cli.run.workers_path,
 			None,
 			false,
 			overseer_gen,
