@@ -1286,7 +1286,7 @@ macro_rules! chain_ops {
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
 pub fn new_chain_ops(
-	mut config: &mut Configuration,
+	config: &mut Configuration,
 	jaeger_agent: Option<std::net::SocketAddr>,
 ) -> Result<
 	(
