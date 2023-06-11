@@ -58,8 +58,8 @@ pub(crate) type V6PendingConfigs<T: Config> = StorageValue<
 	OptionQuery,
 >;
 
-pub struct UnversionedMigrateV5ToV6<T>(sp_std::marker::PhantomData<T>);
-impl<T: Config> OnRuntimeUpgrade for UnversionedMigrateV5ToV6<T> {
+pub struct VersionUncheckedMigrateV5ToV6<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> OnRuntimeUpgrade for VersionUncheckedMigrateV5ToV6<T> {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
 		log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
@@ -82,10 +82,10 @@ impl<T: Config> OnRuntimeUpgrade for UnversionedMigrateV5ToV6<T> {
 	}
 }
 
-pub type VersionedMigrateV5ToV6<Runtime, Pallet, DbWeight> = VersionedRuntimeUpgrade<
+pub type VersionCheckedMigrateV5ToV6<Runtime, Pallet, DbWeight> = VersionedRuntimeUpgrade<
 	ConstU16<5>,
 	ConstU16<6>,
-	UnversionedMigrateV5ToV6<Runtime>,
+	VersionUncheckedMigrateV5ToV6<Runtime>,
 	Pallet,
 	DbWeight,
 >;
