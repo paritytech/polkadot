@@ -80,6 +80,7 @@ parity-db = { version = "0.4.8", optional = true }
 async-trait = "0.1.57"
 lru = "0.9"
 log = "0.4.17"
+is_executable = "1.0.1"
 
 # Polkadot
 polkadot-node-core-parachains-inherent = { path = "../core/parachains-inherent" }

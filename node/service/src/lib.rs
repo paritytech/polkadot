@@ -36,6 +36,7 @@ mod tests;
 use {
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	gum::info,
+	is_executable::IsExecutable,
 	polkadot_node_core_approval_voting::{
 		self as approval_voting_subsystem, Config as ApprovalVotingConfig,
 	},
@@ -70,7 +71,7 @@ pub use {
 #[cfg(feature = "full-node")]
 use polkadot_node_subsystem::jaeger;
 
-use std::{sync::Arc, time::Duration, path::PathBuf};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use prometheus_endpoint::Registry;
 #[cfg(feature = "full-node")]
@@ -905,9 +906,18 @@ where
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
-	let workers_path = if workers_path.is_some() {
-		log::trace!("Using explicitly provided workers path {:?}", workers_path);
-		workers_path
+	let (prep_worker_path, exec_worker_path) = if workers_path.is_some() {
+		let path = workers_path.expect("Workers path is checked to be provided");
+		log::trace!("Using explicitly provided workers path {:?}", path);
+		if path.is_executable() {
+			(path.clone(), path)
+		} else {
+			let mut prep_worker = path.clone();
+			let mut exec_worker = path.clone();
+			prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
+			exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
+			(prep_worker, exec_worker)
+		}
 	} else {
 		let mut exe_path = std::env::current_exe()?;
 		let _ = exe_path.pop();
@@ -918,10 +928,13 @@ where
 
 		if prep_worker.exists() && exec_worker.exists() {
 			log::trace!("Using current exe path as workers path: {:?}", exe_path);
-			Some(exe_path)
+			(prep_worker, exec_worker)
 		} else {
 			log::trace!("Workers path not found, considering `$PATH`");
-			None
+			(
+				PathBuf::from(polkadot_node_core_pvf::EXECUTE_BINARY_NAME),
+				PathBuf::from(polkadot_node_core_pvf::PREPARE_BINARY_NAME),
+			)
 		}
 	};
 
@@ -931,7 +944,8 @@ where
 			.path()
 			.ok_or(Error::DatabasePathRequired)?
 			.join("pvf-artifacts"),
-		workers_path,
+		prep_worker_path,
+		exec_worker_path,
 	};
 
 	let chain_selection_config = ChainSelectionConfig {

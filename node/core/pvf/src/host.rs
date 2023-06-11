@@ -168,14 +168,11 @@ pub struct Config {
 
 impl Config {
 	/// Create a new instance of the configuration.
-	pub fn new(cache_path: std::path::PathBuf, workers_path: Option<std::path::PathBuf>) -> Self {
-		// If the worker directory is given, get the binaries from that directory. Otherwise, expect
-		// that they are in $PATH.
-		let (prepare_worker_program_path, execute_worker_program_path) = match workers_path {
-			Some(p) => (p.join(PREPARE_BINARY_NAME), p.join(EXECUTE_BINARY_NAME)),
-			None => (PREPARE_BINARY_NAME.into(), EXECUTE_BINARY_NAME.into()),
-		};
-
+	pub fn new(
+		cache_path: PathBuf,
+		prepare_worker_program_path: PathBuf,
+		execute_worker_program_path: PathBuf,
+	) -> Self {
 		Self {
 			cache_path,
 			prepare_worker_program_path,

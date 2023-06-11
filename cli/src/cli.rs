@@ -16,8 +16,8 @@
 
 //! Polkadot CLI library.
 
-use std::path::PathBuf;
 use clap::Parser;
+use std::path::PathBuf;
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
@@ -150,8 +150,8 @@ pub struct RunCmd {
 	#[arg(long)]
 	pub overseer_channel_capacity_override: Option<usize>,
 
-	/// Path to auxiliary worker binaries. If not specified, the main binary's directory is
-	/// searched first, and then the `$PATH` is considered.
+	/// Path to directory where auxiliary worker binaries reside. If not specified, the main
+	/// binary's directory is searched first, and then the `$PATH` is considered.
 	#[arg(long, value_name = "PATH")]
 	pub workers_path: Option<PathBuf>,
 }
