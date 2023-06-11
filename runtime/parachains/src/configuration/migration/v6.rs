@@ -18,11 +18,13 @@
 
 use crate::configuration::{self, Config, Pallet};
 use frame_support::{
+	migrations::VersionedRuntimeUpgrade,
 	pallet_prelude::*,
 	traits::{Defensive, StorageVersion},
 	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
+use sp_core::ConstU16;
 use sp_std::vec::Vec;
 
 use frame_support::traits::OnRuntimeUpgrade;
@@ -56,8 +58,8 @@ pub(crate) type V6PendingConfigs<T: Config> = StorageValue<
 	OptionQuery,
 >;
 
-pub struct MigrateToV6<T>(sp_std::marker::PhantomData<T>);
-impl<T: Config> OnRuntimeUpgrade for MigrateToV6<T> {
+pub struct UnversionedMigrateV5ToV6<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> OnRuntimeUpgrade for UnversionedMigrateV5ToV6<T> {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
 		log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
@@ -65,30 +67,28 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV6<T> {
 	}
 
 	fn on_runtime_upgrade() -> Weight {
-		if StorageVersion::get::<Pallet<T>>() == 5 {
-			let weight_consumed = migrate_to_v6::<T>();
+		let weight_consumed = migrate_to_v6::<T>();
 
-			log::info!(target: configuration::LOG_TARGET, "MigrateToV6 executed successfully");
-			StorageVersion::new(6).put::<Pallet<T>>();
+		log::info!(target: configuration::LOG_TARGET, "MigrateToV6 executed successfully");
+		StorageVersion::new(6).put::<Pallet<T>>();
 
-			weight_consumed
-		} else {
-			log::warn!(target: configuration::LOG_TARGET, "MigrateToV6 should be removed.");
-			T::DbWeight::get().reads(1)
-		}
+		weight_consumed
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade(_state: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
 		log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
-		ensure!(
-			StorageVersion::get::<Pallet<T>>() >= 6,
-			"Storage version should be >= 6 after the migration"
-		);
-
 		Ok(())
 	}
 }
+
+pub type VersionedMigrateV5ToV6<Runtime, Pallet, DbWeight> = VersionedRuntimeUpgrade<
+	ConstU16<5>,
+	ConstU16<6>,
+	UnversionedMigrateV5ToV6<Runtime>,
+	Pallet,
+	DbWeight,
+>;
 
 fn migrate_to_v6<T: Config>() -> Weight {
 	// Unusual formatting is justified:

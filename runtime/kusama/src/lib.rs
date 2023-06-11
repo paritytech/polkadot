@@ -1535,12 +1535,7 @@ pub mod migrations {
 	pub type Unreleased = (
 		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-		frame_support::migrations::VersionedRuntimeUpgrade<
-			V5ToV6,
-			parachains_configuration::migration::v6::MigrateToV6<Runtime>,
-			Configuration,
-			RocksDbWeight,
-		>,
+		parachains_configuration::migration::v6::VersionedMigrateV5ToV6<Runtime, Configuration, RocksDbWeight>,
 		ump_migrations::UpdateUmpLimits,
 	);
 
