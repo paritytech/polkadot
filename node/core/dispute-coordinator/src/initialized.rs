@@ -217,62 +217,61 @@ impl Initialized {
 			gum::trace!(target: LOG_TARGET, "Waiting for message");
 			let mut overlay_db = OverlayedBackend::new(backend);
 			let default_confirm = Box::new(|| Ok(()));
-			let confirm_write = match MuxedMessage::receive(ctx, &mut self.participation_receiver)
-				.await?
-			{
-				MuxedMessage::Participation(msg) => {
-					gum::trace!(target: LOG_TARGET, "MuxedMessage::Participation");
-					let ParticipationStatement {
-						session,
-						candidate_hash,
-						candidate_receipt,
-						outcome,
-					} = self.participation.get_participation_result(ctx, msg).await?;
-					if let Some(valid) = outcome.validity() {
-						gum::trace!(
-							target: LOG_TARGET,
-							?session,
-							?candidate_hash,
-							?valid,
-							"Issuing local statement based on participation outcome."
-						);
-						self.issue_local_statement(
-							ctx,
-							&mut overlay_db,
+			let confirm_write =
+				match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
+					MuxedMessage::Participation(msg) => {
+						gum::trace!(target: LOG_TARGET, "MuxedMessage::Participation");
+						let ParticipationStatement {
+							session,
 							candidate_hash,
 							candidate_receipt,
-							session,
-							valid,
-							clock.now(),
-						)
-						.await?;
-					} else {
-						gum::warn!(target: LOG_TARGET, ?outcome, "Dispute participation failed");
-					}
-					default_confirm
-				},
-				MuxedMessage::Subsystem(msg) => match msg {
-					FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
-					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-						gum::trace!(target: LOG_TARGET, "OverseerSignal::ActiveLeaves");
-						self.process_active_leaves_update(
-							ctx,
-							&mut overlay_db,
-							update,
-							clock.now(),
-						)
-						.await?;
+							outcome,
+						} = self.participation.get_participation_result(ctx, msg).await?;
+						if let Some(valid) = outcome.validity() {
+							gum::trace!(
+								target: LOG_TARGET,
+								?session,
+								?candidate_hash,
+								?valid,
+								"Issuing local statement based on participation outcome."
+							);
+							self.issue_local_statement(
+								ctx,
+								&mut overlay_db,
+								candidate_hash,
+								candidate_receipt,
+								session,
+								valid,
+								clock.now(),
+							)
+							.await?;
+						} else {
+							gum::warn!(target: LOG_TARGET, ?outcome, "Dispute participation failed");
+						}
 						default_confirm
 					},
-					FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, n)) => {
-						gum::trace!(target: LOG_TARGET, "OverseerSignal::BlockFinalized");
-						self.scraper.process_finalized_block(&n);
-						default_confirm
+					MuxedMessage::Subsystem(msg) => match msg {
+						FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
+							gum::trace!(target: LOG_TARGET, "OverseerSignal::ActiveLeaves");
+							self.process_active_leaves_update(
+								ctx,
+								&mut overlay_db,
+								update,
+								clock.now(),
+							)
+							.await?;
+							default_confirm
+						},
+						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, n)) => {
+							gum::trace!(target: LOG_TARGET, "OverseerSignal::BlockFinalized");
+							self.scraper.process_finalized_block(&n);
+							default_confirm
+						},
+						FromOrchestra::Communication { msg } =>
+							self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?,
 					},
-					FromOrchestra::Communication { msg } =>
-						self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?,
-				},
-			};
+				};
 
 			if !overlay_db.is_empty() {
 				let ops = overlay_db.into_write_ops();
