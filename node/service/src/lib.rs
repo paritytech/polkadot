@@ -906,8 +906,7 @@ where
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
-	let (prep_worker_path, exec_worker_path) = if workers_path.is_some() {
-		let path = workers_path.expect("Workers path is checked to be provided");
+	let (prep_worker_path, exec_worker_path) = if let Some(path) = workers_path {
 		log::trace!("Using explicitly provided workers path {:?}", path);
 		if path.is_executable() {
 			(path.clone(), path)
@@ -1323,7 +1322,7 @@ macro_rules! chain_ops {
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
 pub fn new_chain_ops(
-	mut config: &mut Configuration,
+	config: &mut Configuration,
 	jaeger_agent: Option<std::net::SocketAddr>,
 ) -> Result<
 	(
