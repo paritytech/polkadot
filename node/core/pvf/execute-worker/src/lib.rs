@@ -14,28 +14,68 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{
-	common::{
+pub use polkadot_node_core_pvf_common::executor_intf::Executor;
+
+// NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
+//       separate spawned processes. Run with e.g. `RUST_LOG=parachain::pvf-execute-worker=trace`.
+const LOG_TARGET: &str = "parachain::pvf-execute-worker";
+
+use cpu_time::ProcessTime;
+use parity_scale_codec::{Decode, Encode};
+use polkadot_node_core_pvf_common::{
+	error::InternalValidationError,
+	execute::{Handshake, Response},
+	executor_intf::NATIVE_STACK_MAX,
+	framed_recv, framed_send,
+	worker::{
 		bytes_to_path, cpu_time_monitor_loop, stringify_panic_payload,
 		thread::{self, WaitOutcome},
 		worker_event_loop,
 	},
-	executor_intf::{Executor, EXECUTE_THREAD_STACK_SIZE},
-	LOG_TARGET,
-};
-use cpu_time::ProcessTime;
-use parity_scale_codec::{Decode, Encode};
-use polkadot_node_core_pvf::{
-	framed_recv, framed_send, ExecuteHandshake as Handshake, ExecuteResponse as Response,
-	InternalValidationError,
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
-	path::{Path, PathBuf},
+	path::PathBuf,
 	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
+
+// Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
+// That native code does not create any stacks and just reuses the stack of the thread that
+// wasmtime was invoked from.
+//
+// Also, we configure the executor to provide the deterministic stack and that requires
+// supplying the amount of the native stack space that wasm is allowed to use. This is
+// realized by supplying the limit into `wasmtime::Config::max_wasm_stack`.
+//
+// There are quirks to that configuration knob:
+//
+// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check
+//    that the stack space is actually available.
+//
+//    That means, if the calling thread has 1 MiB of stack space left and the wasm code consumes
+//    more, then the wasmtime limit will **not** trigger. Instead, the wasm code will hit the
+//    guard page and the Rust stack overflow handler will be triggered. That leads to an
+//    **abort**.
+//
+// 2. It cannot and does not limit the stack space consumed by Rust code.
+//
+//    Meaning that if the wasm code leaves no stack space for Rust code, then the Rust code
+//    will abort and that will abort the process as well.
+//
+// Typically on Linux the main thread gets the stack size specified by the `ulimit` and
+// typically it's configured to 8 MiB. Rust's spawned threads are 2 MiB. OTOH, the
+// NATIVE_STACK_MAX is set to 256 MiB. Not nearly enough.
+//
+// Hence we need to increase it. The simplest way to fix that is to spawn a thread with the desired
+// stack limit.
+//
+// The reasoning why we pick this particular size is:
+//
+// The default Rust thread stack limit 2 MiB + 256 MiB wasm stack.
+/// The stack size for the execute thread.
+pub const EXECUTE_THREAD_STACK_SIZE: usize = 2 * 1024 * 1024 + NATIVE_STACK_MAX as usize;
 
 async fn recv_handshake(stream: &mut UnixStream) -> io::Result<Handshake> {
 	let handshake_enc = framed_recv(stream).await?;
@@ -97,6 +137,20 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				artifact_path.display(),
 			);
 
+			// Get the artifact bytes.
+			//
+			// We do this outside the thread so that we can lock down filesystem access there.
+			let compiled_artifact_blob = match std::fs::read(artifact_path) {
+				Ok(bytes) => bytes,
+				Err(err) => {
+					let response = Response::InternalError(
+						InternalValidationError::CouldNotOpenFile(err.to_string()),
+					);
+					send_response(&mut stream, response).await?;
+					continue
+				},
+			};
+
 			// Conditional variable to notify us when a thread is done.
 			let condvar = thread::get_condvar();
 
@@ -116,7 +170,12 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let execute_thread = thread::spawn_worker_thread_with_stack_size(
 				"execute thread",
 				move || {
-					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
+					validate_using_artifact(
+						&compiled_artifact_blob,
+						&params,
+						executor_2,
+						cpu_time_start,
+					)
 				},
 				Arc::clone(&condvar),
 				WaitOutcome::Finished,
@@ -167,23 +226,16 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 }
 
 fn validate_using_artifact(
-	artifact_path: &Path,
+	compiled_artifact_blob: &[u8],
 	params: &[u8],
 	executor: Executor,
 	cpu_time_start: ProcessTime,
 ) -> Response {
-	// Check here if the file exists, because the error from Substrate is not match-able.
-	// TODO: Re-evaluate after <https://github.com/paritytech/substrate/issues/13860>.
-	let file_metadata = std::fs::metadata(artifact_path);
-	if let Err(err) = file_metadata {
-		return Response::InternalError(InternalValidationError::CouldNotOpenFile(err.to_string()))
-	}
-
 	let descriptor_bytes = match unsafe {
 		// SAFETY: this should be safe since the compiled artifact passed here comes from the
 		//         file created by the prepare workers. These files are obtained by calling
 		//         [`executor_intf::prepare`].
-		executor.execute(artifact_path.as_ref(), params)
+		executor.execute(compiled_artifact_blob, params)
 	} {
 		Err(err) => return Response::format_invalid("execute", &err),
 		Ok(d) => d,

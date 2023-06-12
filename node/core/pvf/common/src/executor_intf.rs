@@ -18,52 +18,14 @@
 
 use polkadot_primitives::{ExecutorParam, ExecutorParams};
 use sc_executor_common::{
+	error::WasmError,
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{HeapAllocStrategy, InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
+use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics, WasmtimeRuntime};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use sp_externalities::MultiRemovalResults;
-use std::{
-	any::{Any, TypeId},
-	path::Path,
-};
-
-// Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
-// That native code does not create any stacks and just reuses the stack of the thread that
-// wasmtime was invoked from.
-//
-// Also, we configure the executor to provide the deterministic stack and that requires
-// supplying the amount of the native stack space that wasm is allowed to use. This is
-// realized by supplying the limit into `wasmtime::Config::max_wasm_stack`.
-//
-// There are quirks to that configuration knob:
-//
-// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check
-//    that the stack space is actually available.
-//
-//    That means, if the calling thread has 1 MiB of stack space left and the wasm code consumes
-//    more, then the wasmtime limit will **not** trigger. Instead, the wasm code will hit the
-//    guard page and the Rust stack overflow handler will be triggered. That leads to an
-//    **abort**.
-//
-// 2. It cannot and does not limit the stack space consumed by Rust code.
-//
-//    Meaning that if the wasm code leaves no stack space for Rust code, then the Rust code
-//    will abort and that will abort the process as well.
-//
-// Typically on Linux the main thread gets the stack size specified by the `ulimit` and
-// typically it's configured to 8 MiB. Rust's spawned threads are 2 MiB. OTOH, the
-// NATIVE_STACK_MAX is set to 256 MiB. Not nearly enough.
-//
-// Hence we need to increase it. The simplest way to fix that is to spawn a thread with the desired
-// stack limit.
-//
-// The reasoning why we pick this particular size is:
-//
-// The default Rust thread stack limit 2 MiB + 256 MiB wasm stack.
-/// The stack size for the execute thread.
-pub const EXECUTE_THREAD_STACK_SIZE: usize = 2 * 1024 * 1024 + NATIVE_STACK_MAX as usize;
+use std::any::{Any, TypeId};
 
 // Memory configuration
 //
@@ -81,13 +43,13 @@ const DEFAULT_HEAP_PAGES_ESTIMATE: u32 = 32;
 const EXTRA_HEAP_PAGES: u32 = 2048;
 
 /// The number of bytes devoted for the stack during wasm execution of a PVF.
-const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
+pub const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
 
 // VALUES OF THE DEFAULT CONFIGURATION SHOULD NEVER BE CHANGED
 // They are used as base values for the execution environment parametrization.
 // To overwrite them, add new ones to `EXECUTOR_PARAMS` in the `session_info` pallet and perform
 // a runtime upgrade to make them active.
-const DEFAULT_CONFIG: Config = Config {
+pub const DEFAULT_CONFIG: Config = Config {
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
@@ -133,28 +95,7 @@ const DEFAULT_CONFIG: Config = Config {
 	},
 };
 
-/// Runs the prevalidation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
-pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error::WasmError> {
-	let blob = RuntimeBlob::new(code)?;
-	// It's assumed this function will take care of any prevalidation logic
-	// that needs to be done.
-	//
-	// Do nothing for now.
-	Ok(blob)
-}
-
-/// Runs preparation on the given runtime blob. If successful, it returns a serialized compiled
-/// artifact which can then be used to pass into `Executor::execute` after writing it to the disk.
-pub fn prepare(
-	blob: RuntimeBlob,
-	executor_params: &ExecutorParams,
-) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
-	let semantics = params_to_wasmtime_semantics(executor_params)
-		.map_err(|e| sc_executor_common::error::WasmError::Other(e))?;
-	sc_executor_wasmtime::prepare_runtime_artifact(blob, &semantics)
-}
-
-fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, String> {
+pub fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, String> {
 	let mut sem = DEFAULT_CONFIG.semantics.clone();
 	let mut stack_limit = if let Some(stack_limit) = sem.deterministic_stack_limit.clone() {
 		stack_limit
@@ -170,7 +111,8 @@ fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, Strin
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
 			ExecutorParam::WasmExtBulkMemory => sem.wasm_bulk_memory = true,
-			ExecutorParam::PrecheckingMaxMemory(_) => (), // TODO: Not implemented yet
+			// TODO: Not implemented yet; <https://github.com/paritytech/polkadot/issues/6472>.
+			ExecutorParam::PrecheckingMaxMemory(_) => (),
 			ExecutorParam::PvfPrepTimeout(_, _) | ExecutorParam::PvfExecTimeout(_, _) => (), // Not used here
 		}
 	}
@@ -178,6 +120,8 @@ fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, Strin
 	Ok(sem)
 }
 
+/// A WASM executor with a given configuration. It is instantiated once per execute worker and is
+/// specific to that worker.
 #[derive(Clone)]
 pub struct Executor {
 	config: Config,
@@ -198,15 +142,12 @@ impl Executor {
 	///
 	/// The caller must ensure that the compiled artifact passed here was:
 	///   1) produced by [`prepare`],
-	///   2) written to the disk as a file,
-	///   3) was not modified,
-	///   4) will not be modified while any runtime using this artifact is alive, or is being
-	///      instantiated.
+	///   2) was not modified,
 	///
 	/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
 	pub unsafe fn execute(
 		&self,
-		compiled_artifact_path: &Path,
+		compiled_artifact_blob: &[u8],
 		params: &[u8],
 	) -> Result<Vec<u8>, String> {
 		let mut extensions = sp_externalities::Extensions::new();
@@ -216,10 +157,7 @@ impl Executor {
 		let mut ext = ValidationExternalities(extensions);
 
 		match sc_executor::with_externalities_safe(&mut ext, || {
-			let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
-				compiled_artifact_path,
-				self.config.clone(),
-			)?;
+			let runtime = self.create_runtime_from_bytes(compiled_artifact_blob)?;
 			runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
 		}) {
 			Ok(Ok(ok)) => Ok(ok),
@@ -227,8 +165,34 @@ impl Executor {
 		}
 		.map_err(|err| format!("execute error: {:?}", err))
 	}
+
+	/// Constructs the runtime for the given PVF, given the artifact bytes.
+	///
+	/// # Safety
+	///
+	/// The caller must ensure that the compiled artifact passed here was:
+	///   1) produced by [`prepare`],
+	///   2) was not modified,
+	///
+	/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
+	pub unsafe fn create_runtime_from_bytes(
+		&self,
+		compiled_artifact_blob: &[u8],
+	) -> Result<WasmtimeRuntime, WasmError> {
+		sc_executor_wasmtime::create_runtime_from_artifact_bytes::<HostFunctions>(
+			compiled_artifact_blob,
+			self.config.clone(),
+		)
+	}
 }
 
+/// Available host functions. We leave out:
+///
+/// 1. storage related stuff (PVF doesn't have a notion of a persistent storage/trie)
+/// 2. tracing
+/// 3. off chain workers (PVFs do not have such a notion)
+/// 4. runtime tasks
+/// 5. sandbox
 type HostFunctions = (
 	sp_io::misc::HostFunctions,
 	sp_io::crypto::HostFunctions,
@@ -238,7 +202,8 @@ type HostFunctions = (
 	sp_io::trie::HostFunctions,
 );
 
-/// The validation externalities that will panic on any storage related access.
+/// The validation externalities that will panic on any storage related access. (PVFs should not
+/// have a notion of a persistent storage/trie.)
 struct ValidationExternalities(sp_externalities::Extensions);
 
 impl sp_externalities::Externalities for ValidationExternalities {

@@ -17,17 +17,20 @@
 //! Host interface to the prepare worker.
 
 use crate::{
-	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
-	prepare::PrepareStats,
-	pvf::PvfPrepData,
-	worker_common::{
-		framed_recv, framed_send, path_to_bytes, spawn_with_program_path, tmpfile_in, IdleWorker,
-		SpawnErr, WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
+	worker_intf::{
+		path_to_bytes, spawn_with_program_path, tmpfile_in, IdleWorker, SpawnErr, WorkerHandle,
+		JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 	},
 	LOG_TARGET,
 };
 use parity_scale_codec::{Decode, Encode};
+use polkadot_node_core_pvf_common::{
+	error::{PrepareError, PrepareResult},
+	framed_recv, framed_send,
+	prepare::PrepareStats,
+	pvf::PvfPrepData,
+};
 
 use sp_core::hexdisplay::HexDisplay;
 use std::{

@@ -1,0 +1,45 @@
+[settings]
+timeout = 1000
+bootnode = true
+
+[relaychain.genesis.runtime.configuration.config]
+  max_validators_per_core = 1
+  needed_approvals = 3
+  group_rotation_frequency = 4
+
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "westend-local" # using westend-local to enable slashing
+default_command = "polkadot"
+
+[relaychain.default_resources]
+limits = { memory = "4G", cpu = "2" }
+requests = { memory = "2G", cpu = "1" }
+
+  [[relaychain.nodes]]
+  name = "alice"
+  invulnerable = true # it will go offline, we don't want to disable it
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.node_groups]]
+  name = "honest-validator"
+  count = 2
+  args = ["-lruntime=debug,sync=trace"]
+
+  [[relaychain.node_groups]]
+  image = "{{MALUS_IMAGE}}"
+  name = "malus-validator"
+  command = "malus suggest-garbage-candidate"
+  args = ["-lMALUS=trace"]
+  count = 1
+
+[[parachains]]
+id = 1000
+cumulus_based = true
+
+  [parachains.collator]
+  name = "collator"
+  command = "polkadot-parachain"
+  image = "docker.io/parity/polkadot-parachain:latest"
+  # image = "{{COL_IMAGE}}"
+  args = ["-lparachain=debug"]

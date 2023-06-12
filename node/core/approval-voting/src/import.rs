@@ -609,12 +609,10 @@ pub(crate) mod tests {
 	use crate::{approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry};
 
 	const DATA_COL: u32 = 0;
-	const SESSION_DATA_COL: u32 = 1;
 
-	const NUM_COLUMNS: u32 = 2;
+	const NUM_COLUMNS: u32 = 1;
 
-	const TEST_CONFIG: DatabaseConfig =
-		DatabaseConfig { col_approval_data: DATA_COL, col_session_data: SESSION_DATA_COL };
+	const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_approval_data: DATA_COL };
 	#[derive(Default)]
 	struct MockClock;
 

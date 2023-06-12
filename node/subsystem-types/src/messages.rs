@@ -39,7 +39,7 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
+	slashing, AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
 	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
 	DisputeState, ExecutorParams, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
@@ -606,6 +606,21 @@ pub enum RuntimeApiRequest {
 	),
 	/// Returns all on-chain disputes at given block number. Available in `v3`.
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
+	/// Returns a list of validators that lost a past session dispute and need to be slashed.
+	/// `V5`
+	UnappliedSlashes(
+		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)>>,
+	),
+	/// Returns a merkle proof of a validator session key.
+	/// `V5`
+	KeyOwnershipProof(ValidatorId, RuntimeApiSender<Option<slashing::OpaqueKeyOwnershipProof>>),
+	/// Submits an unsigned extrinsic to slash validator who lost a past session dispute.
+	/// `V5`
+	SubmitReportDisputeLost(
+		slashing::DisputeProof,
+		slashing::OpaqueKeyOwnershipProof,
+		RuntimeApiSender<Option<()>>,
+	),
 }
 
 impl RuntimeApiRequest {
@@ -616,6 +631,15 @@ impl RuntimeApiRequest {
 
 	/// `ExecutorParams`
 	pub const EXECUTOR_PARAMS_RUNTIME_REQUIREMENT: u32 = 4;
+
+	/// `UnappliedSlashes`
+	pub const UNAPPLIED_SLASHES_RUNTIME_REQUIREMENT: u32 = 5;
+
+	/// `KeyOwnershipProof`
+	pub const KEY_OWNERSHIP_PROOF_RUNTIME_REQUIREMENT: u32 = 5;
+
+	/// `SubmitReportDisputeLost`
+	pub const SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT: u32 = 5;
 }
 
 /// A message to the Runtime API subsystem.
