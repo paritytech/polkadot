@@ -29,7 +29,7 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	overseer, SubsystemSender,
 };
-use polkadot_primitives::ExecutorParams;
+use polkadot_primitives::{slashing, ExecutorParams};
 
 pub use overseer::{
 	gen::{OrchestraError as OverseerError, Timeout},
@@ -42,8 +42,8 @@ use futures::channel::{mpsc, oneshot};
 use parity_scale_codec::Encode;
 
 use polkadot_primitives::{
-	vstaging, AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
-	CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+	AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreState,
+	EncodeAs, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
 	SigningContext, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 	ValidatorSignature,
@@ -212,9 +212,9 @@ specialize_requests! {
 		-> Option<ValidationCodeHash>; ValidationCodeHash;
 	fn request_on_chain_votes() -> Option<ScrapedOnChainVotes>; FetchOnChainVotes;
 	fn request_session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>;SessionExecutorParams;
-	fn request_unapplied_slashes() -> Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>; UnappliedSlashes;
-	fn request_key_ownership_proof(validator_id: ValidatorId) -> Option<vstaging::slashing::OpaqueKeyOwnershipProof>; KeyOwnershipProof;
-	fn request_submit_report_dispute_lost(dp: vstaging::slashing::DisputeProof, okop: vstaging::slashing::OpaqueKeyOwnershipProof) -> Option<()>; SubmitReportDisputeLost;
+	fn request_unapplied_slashes() -> Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)>; UnappliedSlashes;
+	fn request_key_ownership_proof(validator_id: ValidatorId) -> Option<slashing::OpaqueKeyOwnershipProof>; KeyOwnershipProof;
+	fn request_submit_report_dispute_lost(dp: slashing::DisputeProof, okop: slashing::OpaqueKeyOwnershipProof) -> Option<()>; SubmitReportDisputeLost;
 }
 
 /// Requests executor parameters from the runtime effective at given relay-parent. First obtains

@@ -16,7 +16,7 @@
 
 //! Primitives types used for dispute slashing.
 
-use crate::v4::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
+use crate::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
