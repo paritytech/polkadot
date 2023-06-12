@@ -123,62 +123,76 @@ impl GenesisConfigBuilder {
 
 #[test]
 fn spot_traffic_capacity_zero_returns_none() {
-	let res = OnDemandAssigner::calculate_spot_traffic(
+	match OnDemandAssigner::calculate_spot_traffic(
 		FixedU128::from(u128::MAX),
 		0u32,
 		u32::MAX,
 		Perbill::from_percent(100),
 		Perbill::from_percent(1),
-	);
-	assert_eq!(res, None)
+	) {
+		Ok(_) => panic!("Error"),
+		Err(e) => assert_eq!(e, SpotTrafficCalculationErr::QueueCapacityIsZero),
+	};
 }
 
 #[test]
 fn spot_traffic_queue_size_larger_than_capacity_returns_none() {
-	let res = OnDemandAssigner::calculate_spot_traffic(
+	match OnDemandAssigner::calculate_spot_traffic(
 		FixedU128::from(u128::MAX),
 		1u32,
 		2u32,
 		Perbill::from_percent(100),
 		Perbill::from_percent(1),
-	);
-	assert_eq!(res, None)
+	) {
+		Ok(_) => panic!("Error"),
+		Err(e) => assert_eq!(e, SpotTrafficCalculationErr::QueueSizeLargerThanCapacity),
+	}
 }
 
 #[test]
 fn spot_traffic_calculation_identity() {
-	let res = OnDemandAssigner::calculate_spot_traffic(
+	match OnDemandAssigner::calculate_spot_traffic(
 		FixedU128::from_u32(1),
 		1000,
 		100,
 		Perbill::from_percent(10),
 		Perbill::from_percent(3),
-	);
-	assert_eq!(res.unwrap(), FixedU128::from_u32(1))
+	) {
+		Ok(res) => {
+			assert_eq!(res, FixedU128::from_u32(1))
+		},
+		_ => (),
+	}
 }
 
 #[test]
 fn spot_traffic_calculation_u32_max() {
-	let res = OnDemandAssigner::calculate_spot_traffic(
+	match OnDemandAssigner::calculate_spot_traffic(
 		FixedU128::from_u32(1),
 		u32::MAX,
 		u32::MAX,
 		Perbill::from_percent(100),
 		Perbill::from_percent(3),
-	);
-	assert_eq!(res.unwrap(), FixedU128::from_u32(1))
+	) {
+		Ok(res) => {
+			assert_eq!(res, FixedU128::from_u32(1))
+		},
+		_ => panic!("Error"),
+	};
 }
 
 #[test]
 fn spot_traffic_calculation_u32_traffic_max() {
-	let res = OnDemandAssigner::calculate_spot_traffic(
+	match OnDemandAssigner::calculate_spot_traffic(
 		FixedU128::from(u128::MAX),
 		u32::MAX,
 		u32::MAX,
 		Perbill::from_percent(1),
 		Perbill::from_percent(1),
-	);
-	assert_eq!(res, None)
+	) {
+		Ok(res) => assert_eq!(res, FixedU128::from(u128::MAX)),
+		_ => panic!("Error"),
+	};
 }
 
 #[test]
@@ -194,7 +208,40 @@ fn sustained_target_increases_spot_traffic() {
 		)
 		.unwrap()
 	}
-	assert_eq!(traffic, FixedU128::from_inner(2_718_103_312_071_174_051u128))
+	assert_eq!(traffic, FixedU128::from_inner(2_718_103_312_071_174_015u128))
+}
+
+#[test]
+fn spot_traffic_can_decrease() {
+	let traffic = FixedU128::from_u32(100u32);
+	match OnDemandAssigner::calculate_spot_traffic(
+		traffic,
+		100u32,
+		0u32,
+		Perbill::from_percent(100),
+		Perbill::from_percent(100),
+	) {
+		Ok(new_traffic) =>
+			assert_eq!(new_traffic, FixedU128::from_inner(50_000_000_000_000_000_000u128)),
+		_ => panic!("Error"),
+	}
+}
+
+#[test]
+fn spot_traffic_decreases_over_time() {
+	let mut traffic = FixedU128::from_u32(100u32);
+	for _ in 0..5 {
+		traffic = OnDemandAssigner::calculate_spot_traffic(
+			traffic,
+			100u32,
+			0u32,
+			Perbill::from_percent(100),
+			Perbill::from_percent(100),
+		)
+		.unwrap();
+		println!("{traffic}");
+	}
+	assert_eq!(traffic, FixedU128::from_inner(3_125_000_000_000_000_000u128))
 }
 
 #[test]

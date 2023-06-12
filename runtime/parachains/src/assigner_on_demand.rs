@@ -36,8 +36,8 @@ use primitives::{
 };
 use sp_core::OpaquePeerId;
 use sp_runtime::{
-	traits::{CheckedAdd, CheckedSub, SaturatedConversion},
-	FixedPointNumber, FixedPointOperand, FixedU128, Perbill,
+	traits::{One, SaturatedConversion},
+	FixedPointNumber, FixedPointOperand, FixedU128, Perbill, Saturating,
 };
 
 use sp_std::{
@@ -71,6 +71,18 @@ pub enum QueuePushDirection {
 /// Shorthand for the Balance type the runtime is using.
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+/// Errors that can happen during spot traffic calculation.
+#[derive(PartialEq)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub enum SpotTrafficCalculationErr {
+	/// The order queue capacity is at 0.
+	QueueCapacityIsZero,
+	/// The queue size is larger than the queue capacity.
+	QueueSizeLargerThanCapacity,
+	/// Arithmetic error during division, most likely division by 0.
+	Division,
+}
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -151,18 +163,20 @@ pub mod pallet {
 			let config = <configuration::Pallet<T>>::config();
 			// Calculate spot price multiplier and store it.
 			let traffic = SpotTraffic::<T>::get();
-			let spot_traffic = Self::calculate_spot_traffic(
+			match Self::calculate_spot_traffic(
 				traffic,
 				config.on_demand_queue_max_size,
 				Self::queue_size(),
 				config.on_demand_target_queue_utilization,
 				config.on_demand_fee_variability,
-			);
+			) {
+				Ok(spot_traffic) => {
+					SpotTraffic::<T>::set(spot_traffic);
+					Pallet::<T>::deposit_event(Event::<T>::SpotTrafficSet { traffic: spot_traffic })
+				},
+				Err(_) => {},
+			};
 
-			if let Some(new_traffic) = spot_traffic {
-				SpotTraffic::<T>::set(new_traffic);
-				Pallet::<T>::deposit_event(Event::<T>::SpotTrafficSet { traffic: new_traffic })
-			}
 			//TODO this has some weight
 			Weight::zero()
 		}
@@ -262,7 +276,7 @@ where
 	/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#setting-transaction-fees
 	///
 	/// Returns:
-	/// - An `Option<FixedU128>` in the range of 1.0 - `FixedU128::MAX`
+	/// - A `Result<FixedU128, SpotTrafficCalculationError>` in the range of  `Config::TrafficDefaultValue` - `FixedU128::MAX`
 	/// Parameters:
 	/// - `traffic`: The previously calculated multiplier, can never go below 1.0.
 	/// - `queue_capacity`: The max size of the order book.
@@ -278,27 +292,47 @@ where
 		queue_size: u32,
 		target_queue_utilisation: Perbill,
 		variability: Perbill,
-	) -> Option<FixedU128> {
-		if queue_capacity > 0 {
-			// (queue_size / queue_capacity) - target_queue_utilisation
-			let queue_util_diff =
-				FixedU128::from_rational(queue_size.into(), queue_capacity.into())
-					.checked_sub(&target_queue_utilisation.into())?;
-			// variability * queue_util_diff
-			let var_times_qud = queue_util_diff.const_checked_mul(variability.into())?;
-			// variability^2 * queue_util_diff^2
-			let var_times_qud_pow = var_times_qud.const_checked_mul(var_times_qud)?;
-			// (variability^2 * queue_util_diff^2)/2
-			let div_by_two = var_times_qud_pow.const_checked_div(2.into())?;
-			// traffic * (1 + queue_util_diff) + div_by_two
-			let vtq_add_one = var_times_qud.checked_add(&FixedU128::from_u32(1))?;
-			let inner_add = vtq_add_one.checked_add(&div_by_two)?;
-			match traffic.const_checked_mul(inner_add) {
-				Some(t) => return Some(t.max(FixedU128::from_u32(1))),
-				None => {},
-			}
+	) -> Result<FixedU128, SpotTrafficCalculationErr> {
+		// Return early if queue has no capacity.
+		if queue_capacity == 0 {
+			return Err(SpotTrafficCalculationErr::QueueCapacityIsZero)
 		}
-		None
+
+		// Return early if queue size is greater than capacity.
+		if queue_size > queue_capacity {
+			return Err(SpotTrafficCalculationErr::QueueSizeLargerThanCapacity)
+		}
+
+		// (queue_size / queue_capacity) - target_queue_utilisation
+		let queue_util_ratio = FixedU128::from_rational(queue_size.into(), queue_capacity.into());
+		let positive = queue_util_ratio >= target_queue_utilisation.into();
+		let queue_util_diff = queue_util_ratio.max(target_queue_utilisation.into()) -
+			queue_util_ratio.min(target_queue_utilisation.into());
+
+		// variability * queue_util_diff
+		let var_times_qud = queue_util_diff.saturating_mul(variability.into());
+
+		// variability^2 * queue_util_diff^2
+		let var_times_qud_pow = var_times_qud.saturating_mul(var_times_qud);
+
+		// (variability^2 * queue_util_diff^2)/2
+		let div_by_two: FixedU128;
+		match var_times_qud_pow.const_checked_div(2.into()) {
+			Some(dbt) => div_by_two = dbt,
+			None => return Err(SpotTrafficCalculationErr::Division),
+		}
+
+		// traffic * (1 + queue_util_diff) + div_by_two
+		if positive {
+			let new_traffic = queue_util_diff
+				.saturating_add(div_by_two)
+				.saturating_add(One::one())
+				.saturating_mul(traffic);
+			Ok(new_traffic.max(<T as Config>::TrafficDefaultValue::get()))
+		} else {
+			let new_traffic = queue_util_diff.saturating_sub(div_by_two).saturating_mul(traffic);
+			Ok(new_traffic.max(<T as Config>::TrafficDefaultValue::get()))
+		}
 	}
 
 	/// Adds an assignment to the on demand queue.
