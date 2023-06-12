@@ -1503,6 +1503,8 @@ pub type Migrations =
 pub mod migrations {
 	use super::*;
 	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
+	use pallet_society::migrations::from_raw_past_payouts;
+	use hex_literal::hex;
 
 	pub type V0940 = (
 		pallet_nomination_pools::migration::v4::MigrateToV4<
@@ -1518,12 +1520,19 @@ pub mod migrations {
 		runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
 	);
 
+	parameter_types! {
+		pub PastPayouts: Vec<(AccountId, Balance)> = from_raw_past_payouts::<Runtime, ()>(vec![
+			(hex!["1234567890123456789012345678901234567890123456789012345678901234"], 0u128),
+		].into_iter());
+	}
+
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
 		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
+		pallet_society::migrations::MigrateToV2<Runtime, (), PastPayouts>,
 	);
 
 	/// Migrations that set `StorageVersion`s we missed to set.

@@ -6223,6 +6223,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "hex-literal 0.3.4",
+ "log",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "scale-info",

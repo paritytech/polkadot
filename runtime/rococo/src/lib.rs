@@ -1619,6 +1619,7 @@ pub mod migrations {
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
+		pallet_society::migrations::MigrateToV2<Runtime, (), ()>,
 	);
 }
 
