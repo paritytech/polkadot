@@ -811,8 +811,12 @@ where
 	let mut dbs = (0, 0);
 	loop {
 		let mut overlayed_db = OverlayedBackend::new(&backend);
+		let start2 = Instant::now();
 		let actions = futures::select! {
 			(_tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
+				if let Some(duration) = print_if_above_threshold(&start2) {
+					gum::warn!(target: LOG_TARGET, "too_long: to select {:}", duration);
+				}
 				let start = Instant::now();
 				subsystem.metrics.on_wakeup();
 				let res = process_wakeup(
@@ -832,6 +836,9 @@ where
 				res
 			}
 			next_msg = ctx.recv().fuse() => {
+				if let Some(duration) = print_if_above_threshold(&start2) {
+					gum::warn!(target: LOG_TARGET, "too_long: to select {:}", duration);
+				}
 				let start = Instant::now();
 				let mut actions = handle_from_overseer(
 					&mut ctx,
@@ -854,6 +861,9 @@ where
 				actions
 			}
 			approval_state = currently_checking_set.next(&mut approvals_cache).fuse() => {
+				if let Some(duration) = print_if_above_threshold(&start2) {
+					gum::warn!(target: LOG_TARGET, "too_long: to select {:}", duration);
+				}
 				let start = Instant::now();
 				let mut actions = Vec::new();
 				let (
