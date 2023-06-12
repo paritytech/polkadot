@@ -364,7 +364,7 @@ pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 /// * checking updates to this stored runtime configuration do not exceed this limit
 /// * when detecting a code decompression bomb in the client
 // NOTE: This value is used in the runtime so be careful when changing it.
-pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
+pub const MAX_CODE_SIZE: u32 = 10 * 1024 * 1024; // FAIL-CI dnm
 
 /// Maximum head data size we support right now.
 ///
