@@ -406,6 +406,10 @@ parameter_types! {
 	/// Setup election pallet to support maximum winners upto 2000. This will mean Staking Pallet
 	/// cannot have active validators higher than this count.
 	pub const MaxActiveValidators: u32 = 2000;
+
+	// Minimum untrusted score auto updates at every 10 elections.
+	pub const MinimumUntrustedScoreUpdateInterval: Option<u32> = Some(10);
+	pub const MinimumUntrustedScoreMargin: Percent = Percent::from_percent(50);
 }
 
 generate_solution_type!(
@@ -495,6 +499,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
 	type MaxWinners = MaxActiveValidators;
+	type MinimumUntrustedScoreUpdateInterval = MinimumUntrustedScoreUpdateInterval;
+	type MinimumUntrustedScoreMargin = MinimumUntrustedScoreMargin;
 }
 
 parameter_types! {
