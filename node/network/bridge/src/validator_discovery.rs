@@ -236,8 +236,13 @@ mod tests {
 			Ok(())
 		}
 
-		async fn remove_from_peers_set(&mut self, _protocol: ProtocolName, peers: Vec<PeerId>) {
+		async fn remove_from_peers_set(
+			&mut self,
+			_protocol: ProtocolName,
+			peers: Vec<PeerId>,
+		) -> Result<(), String> {
 			self.peers_set.retain(|elem| !peers.contains(elem));
+			Ok(())
 		}
 
 		async fn start_request<AD: AuthorityDiscovery>(
