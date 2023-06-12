@@ -68,6 +68,7 @@ pub enum QueuePushDirection {
 	Front,
 }
 
+/// Shorthand for the Balance type the runtime is using.
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -88,16 +89,18 @@ pub mod pallet {
 		/// The runtime's definition of a Currency.
 		type Currency: Currency<Self::AccountId>;
 
-		/// The default value for the traffic multiplier.
+		/// The default value for the spot traffic multiplier.
 		#[pallet::constant]
 		type TrafficDefaultValue: Get<FixedU128>;
 	}
 
+	/// Creates an empty spot traffic value if one isn't present in storage already.
 	#[pallet::type_value]
 	pub fn SpotTrafficOnEmpty<T: Config>() -> FixedU128 {
 		T::TrafficDefaultValue::get()
 	}
 
+	/// Creates an empty on demand queue if one isn't present in storage already.
 	#[pallet::type_value]
 	pub fn OnDemandQueueOnEmpty<T: Config>() -> VecDeque<Assignment> {
 		VecDeque::new()
@@ -115,7 +118,7 @@ pub mod pallet {
 		StorageValue<_, VecDeque<Assignment>, ValueQuery, OnDemandQueueOnEmpty<T>>;
 
 	/// Maps a `ParaId` to `CoreIndex` and keeps track of how many assignments the scheduler has in it's
-	/// lookahead. Keeping track of this affinity prevents parallel execution of two or more `ParaId`s on different
+	/// lookahead. Keeping track of this affinity prevents parallel execution of the same `ParaId` on two or more
 	/// `CoreIndex`es.
 	#[pallet::storage]
 	pub(super) type ParaIdAffinity<T: Config> =
@@ -124,18 +127,22 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		/// An order was placed at some spot price amount.
 		OnDemandOrderPlaced { spot_price: BalanceOf<T> },
+		/// The value of the spot traffic multiplier changed.
 		SpotTrafficSet { traffic: FixedU128 },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// Insufficient funds to place an on demand order based on the current spot price.
 		InsufficientFunds,
+		/// The `ParaId` supplied to the `place_order` call is not a valid `ParaThread`.
 		InvalidParaId,
+		/// The order queue is full, `place_order` will not continue.
 		QueueFull,
-		SpotBaseFeeNotAvailable,
+		/// The current spot price is higher than the max amount specified in the `place_order` call.
 		SpotPriceHigherThanMaxAmount,
-		SpotTrafficNotAvailable,
 	}
 
 	#[pallet::hooks]
@@ -171,11 +178,16 @@ pub mod pallet {
 		/// Parameters:
 		/// - `origin`: The sender of the call, funds will be withdrawn from this account.
 		/// - `max_amount`: The maximum balance to withdraw from the origin to place an order.
-		/// - `para_id`: The parathread id that should be added to the queue.
+		/// - `para_id`: A `ParaId` the origin wants to provide blockspace for.
+		/// - `keep_alive`: Should the transfer from the origin use the existential deposit keep alive checks.
+		/// - `allowed_collators`: An optional set of peer-ids that restricts who is eligible to provide collation for this specific order.
+		///                        Skipping this option allows anyone that can provide a valid collation for a specific `ParaId` to do so.
 		///
 		/// Errors:
 		/// - `InsufficientFunds`
-		/// - `SpotTrafficNotAvailable`
+		/// - `InvalidParaId`
+		/// - `QueueFull`
+		/// - `SpotPriceHigherThanMaxAmount`
 		///
 		/// Events:
 		/// - `SpotOrderPlaced`
