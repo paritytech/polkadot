@@ -935,11 +935,11 @@ where
 			gum::warn!(target: LOG_TARGET, "too_long: db flush {:}", duration);
 		}
 
-		if dbs.0 > 100000 ||
-			process_actions.0 > 100000 ||
-			currently_checking.0 > 100000 ||
-			handles_from_overseers.0 > 100000 ||
-			wakeups_time.0 > 100000
+		if dbs.0 > 1000_000 ||
+			process_actions.0 > 1000_000 ||
+			currently_checking.0 > 1000_000 ||
+			handles_from_overseers.0 > 1000_000 ||
+			wakeups_time.0 > 1000_000
 		{
 			gum::warn!(target: LOG_TARGET,
 			 "too_long: break_down_in_ops wakeups_time wakeups_time {:?} handles_from_overseers
