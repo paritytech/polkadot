@@ -6,7 +6,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-bounded-collections = { version = "0.1.7", default-features = false, features = ["serde"] }
+bounded-collections = { version = "0.1.8", default-features = false, features = ["serde"] }
 derivative = { version = "2.2.0", default-features = false, features = [ "use_core" ] }
 impl-trait-for-tuples = "0.2.2"
 log = { version = "0.4.17", default-features = false }
