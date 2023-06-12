@@ -1503,8 +1503,8 @@ pub type Migrations =
 pub mod migrations {
 	use super::*;
 	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
-	use pallet_society::migrations::from_raw_past_payouts;
 	use hex_literal::hex;
+	use pallet_society::migrations::from_raw_past_payouts;
 
 	pub type V0940 = (
 		pallet_nomination_pools::migration::v4::MigrateToV4<
