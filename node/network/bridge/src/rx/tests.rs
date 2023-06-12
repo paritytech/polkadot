@@ -117,7 +117,13 @@ impl Network for TestNetwork {
 		Ok(())
 	}
 
-	async fn remove_from_peers_set(&mut self, _protocol: ProtocolName, _: Vec<PeerId>) {}
+	async fn remove_from_peers_set(
+		&mut self,
+		_protocol: ProtocolName,
+		_: Vec<PeerId>,
+	) -> Result<(), String> {
+		Ok(())
+	}
 
 	async fn start_request<AD: AuthorityDiscovery>(
 		&self,
