@@ -661,11 +661,17 @@ where
 
 struct Statistics {
 	pub active_leaves: u64,
+	pub time_activate_leaves: u64,
 	pub block_finalized: u64,
+	pub time_block_finalized: u64,
 	pub import_assignment: u64,
+	pub time_import_assignment: u64,
 	pub import_approval: u64,
+	pub time_import_approval: u64,
 	pub approved_ancestor: u64,
+	pub time_approved_ancestor: u64,
 	pub get_approval_signatures: u64,
+	pub time_get_approval_signatures: u64,
 }
 struct State {
 	keystore: Arc<LocalKeystore>,
@@ -1308,9 +1314,12 @@ async fn handle_from_overseer<Context>(
 				}
 			}
 
+			state.statistics.time_activate_leaves = start.elapsed().as_micros() as u64;
+
 			if let Some(duration) = print_if_above_threshold(&start) {
 				gum::warn!(target: LOG_TARGET, "too_long: active_leaves {:}: {:?}", duration, message);
 			}
+
 			actions
 		},
 		FromOrchestra::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
@@ -1329,6 +1338,8 @@ async fn handle_from_overseer<Context>(
 			// // `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans accordingly.
 			// let hash_set = wakeups.block_numbers.values().flatten().collect::<HashSet<_>>();
 			// state.spans.retain(|hash, _| hash_set.contains(hash));
+			state.statistics.time_block_finalized = start.elapsed().as_micros() as u64;
+
 			if let Some(duration) = print_if_above_threshold(&start) {
 				gum::warn!(target: LOG_TARGET, "too_long: finalized {:}: {:?} {:?}", duration, block_hash, block_number);
 			}
@@ -1353,6 +1364,8 @@ async fn handle_from_overseer<Context>(
 					)
 					.await?;
 					let _ = res.send(check_outcome);
+					state.statistics.time_import_assignment = start.elapsed().as_micros() as u64;
+
 					if let Some(duration) = print_if_above_threshold(&start) {
 						gum::warn!(target: LOG_TARGET, "too_long: CheckAndImportAssignment {:}", duration);
 					}
@@ -1374,6 +1387,8 @@ async fn handle_from_overseer<Context>(
 					)
 					.await?
 					.0;
+					state.statistics.time_import_approval = start.elapsed().as_micros() as u64;
+
 					if let Some(duration) = print_if_above_threshold(&start) {
 						gum::warn!(target: LOG_TARGET, "too_long: CheckAndImportApproval {:}", duration);
 					}
@@ -1407,6 +1422,8 @@ async fn handle_from_overseer<Context>(
 							return Err(e)
 						},
 					}
+					state.statistics.time_approved_ancestor = start.elapsed().as_micros() as u64;
+
 					if let Some(duration) = print_if_above_threshold(&start) {
 						gum::warn!(target: LOG_TARGET, "too_long: ApprovedAncestor {:}", duration);
 					}
@@ -1417,6 +1434,9 @@ async fn handle_from_overseer<Context>(
 					state.statistics.get_approval_signatures += 1;
 
 					get_approval_signatures_for_candidate(ctx, db, candidate_hash, tx).await?;
+					state.statistics.time_get_approval_signatures =
+						start.elapsed().as_micros() as u64;
+
 					if let Some(duration) = print_if_above_threshold(&start) {
 						gum::warn!(target: LOG_TARGET, "too_long: GetApprovalSignaturesForCandidate {:}", duration);
 					}
