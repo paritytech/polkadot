@@ -2851,6 +2851,8 @@ async fn issue_approval<Context>(
 	};
 
 	let session = block_entry.session();
+	let start = Instant::now();
+
 	let sig = match sign_approval(&state.keystore, &validator_pubkey, candidate_hash, session) {
 		Some(sig) => sig,
 		None => {
@@ -2865,6 +2867,10 @@ async fn issue_approval<Context>(
 			return Ok(Vec::new())
 		},
 	};
+
+	if let Some(duration) = print_if_above_threshold2(&start) {
+		gum::warn!(target: LOG_TARGET, "too_long: sign_approval {:}", duration);
+	}
 
 	gum::trace!(
 		target: LOG_TARGET,
