@@ -51,7 +51,7 @@ pub mod v1 {
 				// Return the weight consumed by the migration.
 				T::DbWeight::get().reads_writes(1, 3)
 			} else {
-				log::info!(target: LOG_TARGET, "assigned_slots::MigrateToV1 should be removed");
+				log::info!(target: LOG_TARGET, "MigrateToV1 should be removed");
 
 				Weight::zero()
 			}
