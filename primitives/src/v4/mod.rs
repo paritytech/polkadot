@@ -887,7 +887,8 @@ pub enum CollatorRestrictionKind {
 }
 
 /// An entry tracking a paras
-#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct ParasEntry<N = BlockNumber> {
 	/// The `Assignment`
 	pub assignment: Assignment,
