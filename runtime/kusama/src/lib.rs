@@ -1567,7 +1567,7 @@ pub mod migrations {
 		// https://github.com/paritytech/polkadot/issues/6749
 		pallet_elections_phragmen::migrations::unlock_and_unreserve_all_funds::UnlockAndUnreserveAllFunds<Runtime>,
 		pallet_democracy::migrations::unlock_and_unreserve_all_funds::UnlockAndUnreserveAllFunds<Runtime>,
-		pallet_tips::migrations::unreserve_all_funds::UnreserveAllFunds<Runtime, ()>,
+		pallet_tips::migrations::unreserve_deposits::UnreserveDeposits<Runtime, ()>,
 
 		// RemovePallets only after they have been removed from the runtime. Otherwise, the on-chain
 		// storage version is removed for active pallets causing try-runtime to fail. The below code
