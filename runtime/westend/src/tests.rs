@@ -97,14 +97,8 @@ fn check_whitelist() {
 	assert!(whitelist.contains("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850"));
 	// System events
 	assert!(whitelist.contains("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7"));
-	// Treasury account
-	assert!(
-		whitelist.contains("26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da95ecffd7b6c0f78751baa9d281e0bfa3a6d6f646c70792f74727372790000000000000000000000000000000000000000")
-	);
 	// Configuration ActiveConfig
 	assert!(whitelist.contains("06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385"));
-	// Transactional storage limit
-	assert!(whitelist.contains("3a7472616e73616374696f6e5f6c6576656c3a"));
 	// XcmPallet VersionDiscoveryQueue
 	assert!(whitelist.contains("1405f2411d0af5a7ff397e7c9dc68d194a222ba0333561192e474c59ed8e30e1"));
 	// XcmPallet SafeXcmVersion

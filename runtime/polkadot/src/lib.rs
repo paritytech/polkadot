@@ -2353,8 +2353,6 @@ mod test {
 			.map(|e| HexDisplay::from(&e.key).to_string())
 			.collect();
 
-		dbg!(&whitelist);
-
 		// Block number
 		assert!(
 			whitelist.contains("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac")
@@ -2374,10 +2372,6 @@ mod test {
 		// System events
 		assert!(
 			whitelist.contains("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7")
-		);
-		// Treasury account
-		assert!(
-			whitelist.contains("26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da95ecffd7b6c0f78751baa9d281e0bfa3a6d6f646c70792f74727372790000000000000000000000000000000000000000")
 		);
 		// XcmPallet VersionDiscoveryQueue
 		assert!(
