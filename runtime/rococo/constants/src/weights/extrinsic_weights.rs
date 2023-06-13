@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2023-04-28 (Y/M/D)
-//! HOSTNAME: `bm4`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
+//! DATE: 2023-05-26 (Y/M/D)
+//! HOSTNAME: `bm5`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //!
 //! SHORT-NAME: `extrinsic`, LONG-NAME: `ExtrinsicBase`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -43,17 +43,17 @@ parameter_types! {
 	/// Calculated by multiplying the *Average* with `1.0` and adding `0`.
 	///
 	/// Stats nanoseconds:
-	///   Min, Max: 97_150, 99_010
-	///   Average:  97_618
-	///   Median:   97_524
-	///   Std-Dev:  330.47
+	///   Min, Max: 97_574, 100_119
+	///   Average:  98_236
+	///   Median:   98_179
+	///   Std-Dev:  394.9
 	///
 	/// Percentiles nanoseconds:
-	///   99th: 98_640
-	///   95th: 98_346
-	///   75th: 97_735
+	///   99th: 99_893
+	///   95th: 98_850
+	///   75th: 98_318
 	pub const ExtrinsicBaseWeight: Weight =
-		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(97_618), 0);
+		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(98_236), 0);
 }
 
 #[cfg(test)]
