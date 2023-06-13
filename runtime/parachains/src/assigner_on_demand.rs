@@ -19,6 +19,12 @@
 //! Implements a mechanism for taking in orders for pay as you go (PAYG) or on demand
 //! parachain (previously parathreads) assignments. This module is not handled by the
 //! initializer but is instead instantiated in the `construct_runtime` macro.
+//!
+//! The module currently limits parallel execution of blocks from the same `ParaId` via
+//! a core affinity mechanism. As long as there exists an affinity for a `CoreIndex` for
+//! a specific `ParaId`, orders for blockspace for that `ParaId` will only be assigned to
+//! that `CoreIndex`. This affinity mechanism can be removed if it can be shown that parallel
+//! execution is valid.
 
 use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 
@@ -147,13 +153,13 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Insufficient funds to place an on demand order based on the current spot price.
+		/// Insufficient funds to place an on demand order based on the current spot price, making the call invalid.
 		InsufficientFunds,
-		/// The `ParaId` supplied to the `place_order` call is not a valid `ParaThread`.
+		/// The `ParaId` supplied to the `place_order` call is not a valid `ParaThread`, making the call is invalid.
 		InvalidParaId,
 		/// The order queue is full, `place_order` will not continue.
 		QueueFull,
-		/// The current spot price is higher than the max amount specified in the `place_order` call.
+		/// The current spot price is higher than the max amount specified in the `place_order` call, making it invalid.
 		SpotPriceHigherThanMaxAmount,
 	}
 
