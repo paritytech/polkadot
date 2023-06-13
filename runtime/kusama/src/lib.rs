@@ -130,13 +130,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9410,
+	spec_version: 9430,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 21,
+	transaction_version: 23,
 	state_version: 0,
 };
 
@@ -1495,8 +1495,13 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
-pub type Migrations =
-	(migrations::V0940, migrations::V0941, migrations::V0942, migrations::Unreleased);
+pub type Migrations = (
+	migrations::V0940,
+	migrations::V0941,
+	migrations::V0942,
+	migrations::V0943,
+	migrations::Unreleased,
+);
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
@@ -1520,6 +1525,13 @@ pub mod migrations {
 		runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
 	);
 
+	pub type V0943 = (
+		SetStorageVersions,
+		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
+		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
+		ump_migrations::UpdateUmpLimits,
+	);
+
 	parameter_types! {
 		pub PastPayouts: Vec<(AccountId, Balance)> = from_raw_past_payouts::<Runtime, ()>(vec![
 			(hex!["1234567890123456789012345678901234567890123456789012345678901234"], 0u128),
@@ -1528,10 +1540,6 @@ pub mod migrations {
 
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
-		SetStorageVersions,
-		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
-		ump_migrations::UpdateUmpLimits,
 		pallet_society::migrations::MigrateToV2<Runtime, (), PastPayouts>,
 	);
 
