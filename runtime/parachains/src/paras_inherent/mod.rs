@@ -298,13 +298,13 @@ impl<T: Config> Pallet<T> {
 	/// Process inherent data.
 	///
 	/// The given inherent data is processed and state is altered accordingly. If any data could
-	/// not be applied (inconsitencies, weight limit, ...) if is removed.
+	/// not be applied (inconsitencies, weight limit, ...) it is removed.
 	///
 	/// This function can both be called on block creation in `create_inherent` and on block import
 	/// in `enter`. The mutation of `data` is only useful in the `create_inherent` case as it
 	/// avoids overweight blocks for example.
 	///
-	/// Returns: Result containing processed inherent data and weight the processed inherent would
+	/// Returns: Result containing processed inherent data and weight, the processed inherent would
 	/// consume.
 	fn process_inherent_data(
 		data: ParachainsInherentData<T::Header>,
@@ -375,16 +375,21 @@ impl<T: Config> Pallet<T> {
 				&mut rng,
 			);
 
+
 		// Assure the maximum block weight is adhered, by limiting bitfields and backed
 		// candidates. Dispute statement sets were already limited before.
-		let actual_weight = apply_weight_limit::<T>(
+		let non_disputes_weight = apply_weight_limit::<T>(
 			&mut backed_candidates,
 			&mut bitfields,
 			max_block_weight.saturating_sub(checked_disputes_sets_consumed_weight),
 			&mut rng,
 		);
 
-		if actual_weight.any_gt(max_block_weight) {
+		let full_weight = non_disputes_weight.saturating_add(checked_disputes_sets_consumed_weight);
+
+		METRICS.on_after_filter(full_weight.ref_time());
+
+		if full_weight.any_gt(max_block_weight) {
 			log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large.");
 		}
 
@@ -547,9 +552,6 @@ impl<T: Config> Pallet<T> {
 			.into_iter()
 			.map(|checked| checked.into())
 			.collect::<Vec<_>>();
-
-		let full_weight = actual_weight.saturating_add(checked_disputes_sets_consumed_weight);
-		METRICS.on_after_filter(full_weight.ref_time());
 
 		let bitfields = bitfields.into_iter().map(|v| v.into_unchecked()).collect();
 
