@@ -53,7 +53,7 @@ pub mod v1 {
 			} else {
 				log::info!(target: LOG_TARGET, "MigrateToV1 should be removed");
 
-				Weight::zero()
+				T::DbWeight::get().reads(1)
 			}
 		}
 
