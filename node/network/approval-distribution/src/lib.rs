@@ -192,6 +192,42 @@ struct State {
 
 	/// Current approval checking finality lag.
 	approval_checking_lag: BlockNumber,
+	/// Statistics
+	statistics: Statistics,
+}
+
+#[derive(Debug, Default)]
+
+struct Statistics {
+	pub num_network_message: u64,
+	pub num_wakes_up: u64,
+	pub time_doing_usefull_work: u128,
+	pub peer_connected: PeerStatistics,
+	pub peer_disconnected: PeerStatistics,
+	pub new_session_topology: PeerStatistics,
+	pub peer_view_change: PeerStatistics,
+	pub our_view_change: PeerStatistics,
+	pub incoming_peer_message: PeerStatistics,
+	pub import_assignment: PeerStatistics,
+	pub gossip_assinment: PeerStatistics,
+	pub waiting_assignment: PeerStatistics,
+	pub import_approval: PeerStatistics,
+	pub gossip_approval: PeerStatistics,
+	pub waiting_approval: PeerStatistics,
+	pub get_approval_signatures: PeerStatistics,
+}
+
+#[derive(Debug, Default)]
+struct PeerStatistics {
+	time: u128,
+	num: u64,
+}
+
+impl PeerStatistics {
+	pub fn add_time(&mut self, start: &Instant) {
+		self.num += 1;
+		self.time += start.elapsed().as_micros();
+	}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -342,18 +378,22 @@ impl State {
 		event: NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
+		self.statistics.num_network_message += 1;
+		let start = Instant::now();
 		match event {
 			NetworkBridgeEvent::PeerConnected(peer_id, role, _, _) => {
 				// insert a blank view if none already present
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?role, "Peer connected");
 				self.peer_views.entry(peer_id).or_default();
+				self.statistics.peer_connected.add_time(&start);
 			},
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
 				gum::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
 				self.peer_views.remove(&peer_id);
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
-				})
+				});
+				self.statistics.peer_connected.add_time(&start);
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
 				let start = Instant::now();
@@ -364,6 +404,7 @@ impl State {
 					topology.local_index,
 				)
 				.await;
+				self.statistics.new_session_topology.add_time(&start);
 
 				if let Some(duration) = print_if_above_threshold(&start) {
 					gum::warn!(target: LOG_TARGET, "too_long: new gossip topology {:} {:?}", duration, start);
@@ -376,6 +417,7 @@ impl State {
 				if let Some(duration) = print_if_above_threshold(&start) {
 					gum::warn!(target: LOG_TARGET, "too_long: peer view change {:} {:?}", duration, start);
 				}
+				self.statistics.peer_view_change.add_time(&start);
 			},
 			NetworkBridgeEvent::OurViewChange(view) => {
 				gum::trace!(target: LOG_TARGET, ?view, "Own view change");
@@ -396,6 +438,7 @@ impl State {
 					}
 					live
 				});
+				self.statistics.our_view_change.add_time(&start);
 			},
 			NetworkBridgeEvent::PeerMessage(peer_id, Versioned::V1(msg)) => {
 				let start = Instant::now();
@@ -404,6 +447,7 @@ impl State {
 				if let Some(duration) = print_if_above_threshold(&start) {
 					gum::warn!(target: LOG_TARGET, "too_long: peer message {:} {:?}", duration, start);
 				}
+				self.statistics.incoming_peer_message.add_time(&start);
 			},
 		}
 	}
@@ -763,6 +807,7 @@ impl State {
 	) where
 		R: CryptoRng + Rng,
 	{
+		let start_import = Instant::now();
 		let _span = self
 			.spans
 			.get(&assignment.block_hash)
@@ -863,9 +908,12 @@ impl State {
 					return
 				},
 			};
+			self.statistics.waiting_assignment.add_time(&start);
+
 			if let Some(duration) = print_if_above_threshold(&start) {
 				gum::warn!(target: LOG_TARGET, "too_long: import_and_circlate assignment {:} just_sending_the_message {:} {:?}", duration, just_sending_the_message, start);
 			}
+
 			drop(timer);
 
 			gum::trace!(
@@ -938,7 +986,7 @@ impl State {
 				);
 			}
 		}
-
+		self.statistics.import_assignment.add_time(&start_import);
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the assignment.
 		metrics.on_assignment_imported();
 
@@ -1034,6 +1082,7 @@ impl State {
 			))
 			.await;
 		}
+		self.statistics.gossip_assinment.add_time(&start_import);
 	}
 
 	async fn import_and_circulate_approval<Context>(
@@ -1043,6 +1092,8 @@ impl State {
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
 	) {
+		let start_approval = Instant::now();
+
 		let _span = self
 			.spans
 			.get(&vote.block_hash)
@@ -1144,6 +1195,7 @@ impl State {
 					return
 				},
 			};
+			self.statistics.waiting_approval.add_time(&start);
 			if let Some(duration) = print_if_above_threshold(&start) {
 				gum::warn!(target: LOG_TARGET, "too_long: import_and_circlate approval {:} just_sending_the_message {:} {:?}", duration, just_sending_the_message, start);
 			}
@@ -1196,7 +1248,7 @@ impl State {
 
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
 		metrics.on_approval_imported();
-
+		self.statistics.import_approval.add_time(&start_approval);
 		let required_routing = match entry.candidates.get_mut(candidate_index as usize) {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Approved
@@ -1316,6 +1368,7 @@ impl State {
 			))
 			.await;
 		}
+		self.statistics.gossip_approval.add_time(&start_approval);
 	}
 
 	/// Retrieve approval signatures from state for the given relay block/indices:
@@ -1762,6 +1815,9 @@ impl ApprovalDistribution {
 					return
 				},
 			};
+			let start = Instant::now();
+			state.statistics.num_wakes_up += 1;
+
 			match message {
 				FromOrchestra::Communication { msg } =>
 					Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
@@ -1783,6 +1839,11 @@ impl ApprovalDistribution {
 					state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
 				},
 				FromOrchestra::Signal(OverseerSignal::Conclude) => return,
+			}
+			state.statistics.time_doing_usefull_work += start.elapsed().as_micros();
+			if state.statistics.time_doing_usefull_work >= 1000_000 {
+				gum::warn!(target: LOG_TARGET, "too_long: statistics approval_distribution {:?}", state.statistics);
+				state.statistics = Default::default();
 			}
 		}
 	}
@@ -1854,6 +1915,7 @@ impl ApprovalDistribution {
 						"Sending back approval signatures failed, oneshot got closed"
 					);
 				}
+				state.statistics.get_approval_signatures.add_time(&start);
 				if let Some(duration) = print_if_above_threshold(&start) {
 					gum::warn!(target: LOG_TARGET, "too_long: get approval {:} {:?}", duration, start);
 				}
