@@ -1,4 +1,4 @@
-// Copyright 2017-2023 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use honggfuzz::fuzz;
 use polkadot_erasure_coding::*;
 use primitives::AvailableData;
-use honggfuzz::fuzz;
 
 fn main() {
 	loop {
@@ -24,7 +24,7 @@ fn main() {
 			let (num_validators, chunk_input) = data;
 			let reconstructed: Result<AvailableData, _> = reconstruct_v1(
 				num_validators,
-				chunk_input.iter().map(|t| (&*t.0, t.1)).collect::<Vec<(&[u8], usize)>>()
+				chunk_input.iter().map(|t| (&*t.0, t.1)).collect::<Vec<(&[u8], usize)>>(),
 			);
 			println!("reconstructed {:?}", reconstructed);
 		});

@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -107,9 +107,14 @@
 //! ```
 //!
 
-use crate::{configuration, initializer::SessionChangeNotification, shared};
+use crate::{
+	configuration,
+	inclusion::{QueueFootprinter, UmpQueueId},
+	initializer::SessionChangeNotification,
+	shared,
+};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
+use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation, DefaultNoBound};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
@@ -124,7 +129,6 @@ use sp_runtime::{
 };
 use sp_std::{cmp, collections::btree_set::BTreeSet, mem, prelude::*};
 
-#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 pub use crate::Origin as ParachainOrigin;
@@ -285,15 +289,14 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 }
 
 /// Arguments for initializing a para.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, Serialize, Deserialize)]
 pub struct ParaGenesisArgs {
 	/// The initial head data to use.
 	pub genesis_head: HeadData,
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
 	/// Parachain or Parathread.
-	#[cfg_attr(feature = "std", serde(rename = "parachain"))]
+	#[serde(rename = "parachain")]
 	pub para_kind: ParaKind,
 }
 
@@ -304,7 +307,6 @@ pub enum ParaKind {
 	Parachain,
 }
 
-#[cfg(feature = "std")]
 impl Serialize for ParaKind {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
@@ -317,7 +319,6 @@ impl Serialize for ParaKind {
 	}
 }
 
-#[cfg(feature = "std")]
 impl<'de> Deserialize<'de> for ParaKind {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
@@ -501,7 +502,8 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn add_trusted_validation_code(_c: u32) -> Weight {
-		Weight::MAX
+		// Called during integration tests for para initialization.
+		Weight::zero()
 	}
 	fn poke_unused_validation_code() -> Weight {
 		Weight::MAX
@@ -549,6 +551,12 @@ pub mod pallet {
 		type UnsignedPriority: Get<TransactionPriority>;
 
 		type NextSessionRotation: EstimateNextSessionRotation<Self::BlockNumber>;
+
+		/// Retrieve how many UMP messages are enqueued for this para-chain.
+		///
+		/// This is used to judge whether or not a para-chain can offboard. Per default this should
+		/// be set to the `ParaInclusion` pallet.
+		type QueueFootprinter: QueueFootprinter<Origin = UmpQueueId>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -602,9 +610,6 @@ pub mod pallet {
 		PvfCheckDoubleVote,
 		/// The given PVF does not exist at the moment of process a vote.
 		PvfCheckSubjectInvalid,
-		/// The PVF pre-checking statement cannot be included since the PVF pre-checking mechanism
-		/// is disabled.
-		PvfCheckDisabled,
 		/// Parachain cannot currently schedule a code upgrade.
 		CannotUpgradeCode,
 	}
@@ -762,15 +767,9 @@ pub mod pallet {
 		StorageMap<_, Identity, ValidationCodeHash, ValidationCode>;
 
 	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig {
 		pub paras: Vec<(ParaId, ParaGenesisArgs)>,
-	}
-
-	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
-		fn default() -> Self {
-			GenesisConfig { paras: Default::default() }
-		}
 	}
 
 	#[pallet::genesis_build]
@@ -970,12 +969,6 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 
-			// Make sure that PVF pre-checking is enabled.
-			ensure!(
-				configuration::Pallet::<T>::config().pvf_checking_enabled,
-				Error::<T>::PvfCheckDisabled,
-			);
-
 			let validators = shared::Pallet::<T>::active_validator_keys();
 			let current_session = shared::Pallet::<T>::session_index();
 			if stmt.session_index < current_session {
@@ -1062,10 +1055,6 @@ pub mod pallet {
 				_ => return InvalidTransaction::Call.into(),
 			};
 
-			if !configuration::Pallet::<T>::config().pvf_checking_enabled {
-				return InvalidTransaction::Custom(INVALID_TX_PVF_CHECK_DISABLED).into()
-			}
-
 			let current_session = shared::Pallet::<T>::session_index();
 			if stmt.session_index < current_session {
 				return InvalidTransaction::Stale.into()
@@ -1126,7 +1115,6 @@ pub mod pallet {
 const INVALID_TX_BAD_VALIDATOR_IDX: u8 = 1;
 const INVALID_TX_BAD_SUBJECT: u8 = 2;
 const INVALID_TX_DOUBLE_VOTE: u8 = 3;
-const INVALID_TX_PVF_CHECK_DISABLED: u8 = 4;
 
 impl<T: Config> Pallet<T> {
 	/// This is a call to schedule code upgrades for parachains which is safe to be called
@@ -1666,12 +1654,13 @@ impl<T: Config> Pallet<T> {
 	///
 	/// - para is not a stable parachain or parathread (i.e. [`ParaLifecycle::is_stable`] is `false`)
 	/// - para has a pending upgrade.
+	/// - para has unprocessed messages in its UMP queue.
 	///
 	/// No-op if para is not registered at all.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
 		// Disallow offboarding in case there is a PVF pre-checking in progress.
 		//
-		// This is not a fundamential limitation but rather simplification: it allows us to get
+		// This is not a fundamental limitation but rather simplification: it allows us to get
 		// away without introducing additional logic for pruning and, more importantly, enacting
 		// ongoing PVF pre-checking votes. It also removes some nasty edge cases.
 		//
@@ -1696,7 +1685,7 @@ impl<T: Config> Pallet<T> {
 			Some(ParaLifecycle::Parachain) => {
 				ParaLifecycles::<T>::insert(&id, ParaLifecycle::OffboardingParachain);
 			},
-			_ => return Err(Error::<T>::CannotOffboard)?,
+			_ => return Err(Error::<T>::CannotOffboard.into()),
 		}
 
 		let scheduled_session = Self::scheduled_session();
@@ -1705,6 +1694,10 @@ impl<T: Config> Pallet<T> {
 				v.insert(i, id);
 			}
 		});
+
+		if <T as Config>::QueueFootprinter::message_count(UmpQueueId::Para(id)) != 0 {
+			return Err(Error::<T>::CannotOffboard.into())
+		}
 
 		Ok(())
 	}
@@ -1828,9 +1821,7 @@ impl<T: Config> Pallet<T> {
 	/// Makes sure that the given code hash has passed pre-checking.
 	///
 	/// If the given code hash has already passed pre-checking, then the approval happens
-	/// immediately. Similarly, if the pre-checking is turned off, the update is scheduled immediately
-	/// as well. In this case, the behavior is similar to the previous, i.e. the upgrade sequence
-	/// is purely time-based.
+	/// immediately.
 	///
 	/// If the code is unknown, but the pre-checking for that PVF is already running then we perform
 	/// "coalescing". We save the cause for this PVF pre-check request and just add it to the
@@ -1859,12 +1850,9 @@ impl<T: Config> Pallet<T> {
 				let known_code = CodeByHash::<T>::contains_key(&code_hash);
 				weight += T::DbWeight::get().reads(1);
 
-				if !cfg.pvf_checking_enabled || known_code {
-					// Either:
-					// - the code is known and there is no active PVF vote for it meaning it is
-					//   already checked, or
-					// - the PVF checking is diabled
-					// In any case: fast track the PVF checking into the accepted state
+				if known_code {
+					// The code is known and there is no active PVF vote for it meaning it is
+					// already checked -- fast track the PVF checking into the accepted state.
 					weight += T::DbWeight::get().reads(1);
 					let now = <frame_system::Pallet<T>>::block_number();
 					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, cfg);
@@ -2002,6 +1990,13 @@ impl<T: Config> Pallet<T> {
 		} else {
 			false
 		}
+	}
+
+	/// Returns whether the given ID refers to a para that is offboarding.
+	///
+	/// An invalid or non-offboarding para ID will return `false`.
+	pub fn is_offboarding(id: ParaId) -> bool {
+		ParaLifecycles::<T>::get(&id).map_or(false, |state| state.is_offboarding())
 	}
 
 	/// Whether a para ID corresponds to any live parachain.

@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -25,11 +25,14 @@ use lru::LruCache;
 use polkadot_node_primitives::{DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION, MAX_FINALITY_LAG};
 use polkadot_node_subsystem::{
 	messages::ChainApiMessage, overseer, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError,
-	SubsystemSender,
+	RuntimeApiError, SubsystemSender,
 };
-use polkadot_node_subsystem_util::runtime::{get_candidate_events, get_on_chain_votes};
+use polkadot_node_subsystem_util::runtime::{
+	self, get_candidate_events, get_on_chain_votes, get_unapplied_slashes,
+};
 use polkadot_primitives::{
-	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, ScrapedOnChainVotes,
+	slashing::PendingSlashes, BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash,
+	ScrapedOnChainVotes, SessionIndex,
 };
 
 use crate::{
@@ -64,11 +67,16 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 pub struct ScrapedUpdates {
 	pub on_chain_votes: Vec<ScrapedOnChainVotes>,
 	pub included_receipts: Vec<CandidateReceipt>,
+	pub unapplied_slashes: Vec<(SessionIndex, CandidateHash, PendingSlashes)>,
 }
 
 impl ScrapedUpdates {
 	pub fn new() -> Self {
-		Self { on_chain_votes: Vec::new(), included_receipts: Vec::new() }
+		Self {
+			on_chain_votes: Vec::new(),
+			included_receipts: Vec::new(),
+			unapplied_slashes: Vec::new(),
+		}
 	}
 }
 
@@ -120,7 +128,7 @@ impl Inclusions {
 			.retain(|_, blocks_including| blocks_including.keys().len() > 0);
 	}
 
-	pub fn get(&mut self, candidate: &CandidateHash) -> Vec<(BlockNumber, Hash)> {
+	pub fn get(&self, candidate: &CandidateHash) -> Vec<(BlockNumber, Hash)> {
 		let mut inclusions_as_vec: Vec<(BlockNumber, Hash)> = Vec::new();
 		if let Some(blocks_including) = self.inclusions_inner.get(candidate) {
 			for (height, blocks_at_height) in blocks_including.iter() {
@@ -151,7 +159,10 @@ impl Inclusions {
 /// `process_active_leaves_update` any scraped votes.
 ///
 /// Scraped candidates are available `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` more blocks
-/// after finalization as a precaution not to prune them prematurely.
+/// after finalization as a precaution not to prune them prematurely. Besides the newly scraped
+/// candidates `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` finalized blocks are parsed as
+/// another precaution to have their `CandidateReceipts` available in case a dispute is raised on
+/// them,
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
 	included_candidates: candidates::ScrapedCandidates,
@@ -228,9 +239,10 @@ impl ChainScraper {
 			None => return Ok(ScrapedUpdates::new()),
 		};
 
-		// Fetch ancestry up to last finalized block.
+		// Fetch ancestry up to `SCRAPED_FINALIZED_BLOCKS_COUNT` blocks beyond
+		// the last finalized one
 		let ancestors = self
-			.get_unfinalized_block_ancestors(sender, activated.hash, activated.number)
+			.get_relevant_block_ancestors(sender, activated.hash, activated.number)
 			.await?;
 
 		// Ancestors block numbers are consecutive in the descending order.
@@ -250,6 +262,29 @@ impl ChainScraper {
 			if let Some(votes) = get_on_chain_votes(sender, block_hash).await? {
 				scraped_updates.on_chain_votes.push(votes);
 			}
+		}
+
+		// for unapplied slashes, we only look at the latest activated hash,
+		// it should accumulate them all
+		match get_unapplied_slashes(sender, activated.hash).await {
+			Ok(unapplied_slashes) => {
+				scraped_updates.unapplied_slashes = unapplied_slashes;
+			},
+			Err(runtime::Error::RuntimeRequest(RuntimeApiError::NotSupported { .. })) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					block_hash = ?activated.hash,
+					"Fetching unapplied slashes not yet supported.",
+				);
+			},
+			Err(error) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					block_hash = ?activated.hash,
+					?error,
+					"Error fetching unapplied slashes.",
+				);
+			},
 		}
 
 		self.last_observed_blocks.put(activated.hash, ());
@@ -330,10 +365,11 @@ impl ChainScraper {
 	}
 
 	/// Returns ancestors of `head` in the descending order, stopping
-	/// either at the block present in cache or at the last finalized block.
+	/// either at the block present in cache or at `SCRAPED_FINALIZED_BLOCKS_COUNT -1` blocks after
+	/// the last finalized one (called `target_ancestor`).
 	///
-	/// Both `head` and the latest finalized block are **not** included in the result.
-	async fn get_unfinalized_block_ancestors<Sender>(
+	/// Both `head` and the `target_ancestor` blocks are **not** included in the result.
+	async fn get_relevant_block_ancestors<Sender>(
 		&mut self,
 		sender: &mut Sender,
 		mut head: Hash,
@@ -342,7 +378,9 @@ impl ChainScraper {
 	where
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
-		let target_ancestor = get_finalized_block_number(sender).await?;
+		let target_ancestor = get_finalized_block_number(sender)
+			.await?
+			.saturating_sub(DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION);
 
 		let mut ancestors = Vec::new();
 
@@ -396,7 +434,7 @@ impl ChainScraper {
 	}
 
 	pub fn get_blocks_including_candidate(
-		&mut self,
+		&self,
 		candidate: &CandidateHash,
 	) -> Vec<(BlockNumber, Hash)> {
 		self.inclusions.get(candidate)

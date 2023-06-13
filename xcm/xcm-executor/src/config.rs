@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -44,6 +44,10 @@ pub trait Config {
 
 	/// Combinations of (Asset, Location) pairs which we trust as teleporters.
 	type IsTeleporter: ContainsPair<MultiAsset, MultiLocation>;
+
+	/// A list of (Origin, Target) pairs allowing a given Origin to be substituted with its
+	/// corresponding Target pair.
+	type Aliasers: ContainsPair<MultiLocation, MultiLocation>;
 
 	/// This chain's Universal Location.
 	type UniversalLocation: Get<InteriorMultiLocation>;

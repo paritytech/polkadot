@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -23,7 +23,11 @@ use frame_support::{
 };
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, Error as MatchError, MatchesNonFungibles, TransactAsset};
+use xcm_executor::traits::{
+	ConvertLocation, Error as MatchError, MatchesNonFungibles, TransactAsset,
+};
+
+const LOG_TARGET: &str = "xcm::nonfungibles_adapter";
 
 pub struct NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,
@@ -31,7 +35,7 @@ pub struct NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, Acco
 impl<
 		Assets: nonfungibles::Transfer<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 	> TransactAsset for NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>
 {
@@ -42,14 +46,17 @@ impl<
 		context: &XcmContext,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		log::trace!(
-			target: "xcm::non_fungibles_adapter",
+			target: LOG_TARGET,
 			"transfer_asset what: {:?}, from: {:?}, to: {:?}, context: {:?}",
-			what, from, to, context,
+			what,
+			from,
+			to,
+			context,
 		);
 		// Check we handle this asset.
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
-		let destination = AccountIdConverter::convert_ref(to)
-			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		let destination = AccountIdConverter::convert_location(to)
+			.ok_or(MatchError::AccountIdConversionFailed)?;
 		Assets::transfer(&class, &instance, &destination)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())
@@ -68,7 +75,7 @@ pub struct NonFungiblesMutateAdapter<
 impl<
 		Assets: nonfungibles::Mutate<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
@@ -110,7 +117,7 @@ impl<
 impl<
 		Assets: nonfungibles::Mutate<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
@@ -126,9 +133,11 @@ impl<
 {
 	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset, context: &XcmContext) -> XcmResult {
 		log::trace!(
-			target: "xcm::fungibles_adapter",
+			target: LOG_TARGET,
 			"can_check_in origin: {:?}, what: {:?}, context: {:?}",
-			_origin, what, context,
+			_origin,
+			what,
+			context,
 		);
 		// Check we handle this asset.
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
@@ -143,9 +152,11 @@ impl<
 
 	fn check_in(_origin: &MultiLocation, what: &MultiAsset, context: &XcmContext) {
 		log::trace!(
-			target: "xcm::fungibles_adapter",
+			target: LOG_TARGET,
 			"check_in origin: {:?}, what: {:?}, context: {:?}",
-			_origin, what, context,
+			_origin,
+			what,
+			context,
 		);
 		if let Ok((class, instance)) = Matcher::matches_nonfungibles(what) {
 			match CheckAsset::asset_checking(&class) {
@@ -160,9 +171,11 @@ impl<
 
 	fn can_check_out(_dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) -> XcmResult {
 		log::trace!(
-			target: "xcm::fungibles_adapter",
+			target: LOG_TARGET,
 			"can_check_out dest: {:?}, what: {:?}, context: {:?}",
-			_dest, what, context,
+			_dest,
+			what,
+			context,
 		);
 		// Check we handle this asset.
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
@@ -177,9 +190,11 @@ impl<
 
 	fn check_out(_dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) {
 		log::trace!(
-			target: "xcm::fungibles_adapter",
+			target: LOG_TARGET,
 			"check_out dest: {:?}, what: {:?}, context: {:?}",
-			_dest, what, context,
+			_dest,
+			what,
+			context,
 		);
 		if let Ok((class, instance)) = Matcher::matches_nonfungibles(what) {
 			match CheckAsset::asset_checking(&class) {
@@ -194,14 +209,16 @@ impl<
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation, context: &XcmContext) -> XcmResult {
 		log::trace!(
-			target: "xcm::fungibles_adapter",
+			target: LOG_TARGET,
 			"deposit_asset what: {:?}, who: {:?}, context: {:?}",
-			what, who, context,
+			what,
+			who,
+			context,
 		);
 		// Check we handle this asset.
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
-		let who = AccountIdConverter::convert_ref(who)
-			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		let who = AccountIdConverter::convert_location(who)
+			.ok_or(MatchError::AccountIdConversionFailed)?;
 		Assets::mint_into(&class, &instance, &who)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))
 	}
@@ -212,13 +229,15 @@ impl<
 		maybe_context: Option<&XcmContext>,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		log::trace!(
-			target: "xcm::fungibles_adapter",
+			target: LOG_TARGET,
 			"withdraw_asset what: {:?}, who: {:?}, maybe_context: {:?}",
-			what, who, maybe_context,
+			what,
+			who,
+			maybe_context,
 		);
 		// Check we handle this asset.
-		let who = AccountIdConverter::convert_ref(who)
-			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		let who = AccountIdConverter::convert_location(who)
+			.ok_or(MatchError::AccountIdConversionFailed)?;
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
 		Assets::burn(&class, &instance, Some(&who))
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
@@ -237,7 +256,7 @@ pub struct NonFungiblesAdapter<
 impl<
 		Assets: nonfungibles::Mutate<AccountId> + nonfungibles::Transfer<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,

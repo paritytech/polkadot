@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -540,6 +540,7 @@ fn candidate_validation_bad_return_is_invalid() {
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
 }
 
+// Test that we vote valid if we get `AmbiguousWorkerDeath`, retry, and then succeed.
 #[test]
 fn candidate_validation_one_ambiguous_error_is_valid() {
 	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
@@ -670,6 +671,118 @@ fn candidate_validation_multiple_ambiguous_errors_is_invalid() {
 	.unwrap();
 
 	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::ExecutionError(_)));
+}
+
+// Test that we retry on internal errors.
+#[test]
+fn candidate_validation_retry_internal_errors() {
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+	let pov = PoV { block_data: BlockData(vec![1; 32]) };
+	let validation_code = ValidationCode(vec![2; 16]);
+
+	let descriptor = make_valid_candidate_descriptor(
+		ParaId::from(1_u32),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice,
+	);
+
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
+	assert!(check.is_ok());
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result_list(vec![
+				Err(InternalValidationError::HostCommunication("foo".into()).into()),
+				// Throw an AWD error, we should still retry again.
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
+				// Throw another internal error.
+				Err(InternalValidationError::HostCommunication("bar".into()).into()),
+			]),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	});
+
+	assert_matches!(v, Err(ValidationFailed(s)) if s.contains("bar"));
+}
+
+// Test that we retry on panic errors.
+#[test]
+fn candidate_validation_retry_panic_errors() {
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+	let pov = PoV { block_data: BlockData(vec![1; 32]) };
+	let validation_code = ValidationCode(vec![2; 16]);
+
+	let descriptor = make_valid_candidate_descriptor(
+		ParaId::from(1_u32),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice,
+	);
+
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
+	assert!(check.is_ok());
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result_list(vec![
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Panic("foo".into()))),
+				// Throw an AWD error, we should still retry again.
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
+				// Throw another panic error.
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Panic("bar".into()))),
+			]),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	});
+
+	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(s))) if s == "bar".to_string());
 }
 
 #[test]

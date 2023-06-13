@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -15,6 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Version 1 of the DB schema.
+//!
+//! Note that the version here differs from the actual version of the parachains
+//! database (check `CURRENT_VERSION` in `node/service/src/parachains_db/upgrade.rs`).
+//! The code in this module implements the way approval voting works with
+//! its data in the database. Any breaking changes here will still
+//! require a db migration (check `node/service/src/parachains_db/upgrade.rs`).
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{AssignmentCert, DelayTranche};
@@ -154,8 +160,6 @@ pub type Bitfield = BitVec<u8, BitOrderLsb0>;
 pub struct Config {
 	/// The column family in the database where data is stored.
 	pub col_approval_data: u32,
-	/// The column of the database where rolling session window data is stored.
-	pub col_session_data: u32,
 }
 
 /// Details pertaining to our assignment on a block.

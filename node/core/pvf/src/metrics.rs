@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 //! Prometheus metrics related to the validation host.
 
-use crate::prepare::MemoryStats;
+use polkadot_node_core_pvf_common::prepare::MemoryStats;
 use polkadot_node_metrics::metrics::{self, prometheus};
 
 /// Validation host metrics.

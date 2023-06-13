@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -397,7 +397,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				&XcmContext::with_message_hash([0; 32]),
+				&XcmContext::with_message_id([0; 32]),
 			),
 			Err(XcmError::AssetNotFound)
 		);
@@ -411,7 +411,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				&XcmContext::with_message_hash([0; 32]),
+				&XcmContext::with_message_id([0; 32]),
 			),
 			Ok(())
 		);
@@ -425,7 +425,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				&XcmContext::with_message_hash([0; 32]),
+				&XcmContext::with_message_id([0; 32]),
 			),
 			Err(XcmError::Overflow)
 		);
@@ -439,7 +439,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				&XcmContext::with_message_hash([0; 32]),
+				&XcmContext::with_message_id([0; 32]),
 			),
 			Ok(()),
 		);

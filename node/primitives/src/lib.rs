@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@
 
 #![deny(missing_docs)]
 
-use std::pin::Pin;
+use std::{num::NonZeroUsize, pin::Pin};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
@@ -65,7 +65,7 @@ pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
 pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
 
 /// How many blocks after finalization an information about backed/included candidate should be
-/// kept.
+/// pre-loaded (when scraoing onchain votes) and kept locally (when pruning).
 ///
 /// We don't want to remove scraped candidates on finalization because we want to
 /// be sure that disputes will conclude on abandoned forks.
@@ -73,6 +73,12 @@ pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
 /// avoid slashing. If a bad fork is abandoned too quickly because another
 /// better one gets finalized the entries for the bad fork will be pruned and we
 /// might never participate in a dispute for it.
+///
+/// Why pre-load finalized blocks? I dispute might be raised against finalized candidate. In most
+/// of the cases it will conclude valid (otherwise we are in big trouble) but never the less the
+/// node must participate. It's possible to see a vote for such dispute onchain before we have it
+/// imported by `dispute-distribution`. In this case we won't have `CandidateReceipt` and the import
+/// will fail unless we keep them preloaded.
 ///
 /// This value should consider the timeout we allow for participation in approval-voting. In
 /// particular, the following condition should hold:
@@ -134,6 +140,12 @@ impl SessionWindowSize {
 	#[doc(hidden)]
 	pub const fn unchecked_new(size: SessionIndex) -> Self {
 		Self(size)
+	}
+}
+
+impl From<SessionWindowSize> for NonZeroUsize {
+	fn from(value: SessionWindowSize) -> Self {
+		NonZeroUsize::new(value.get() as usize).expect("SessionWindowSize can't be 0. qed.")
 	}
 }
 

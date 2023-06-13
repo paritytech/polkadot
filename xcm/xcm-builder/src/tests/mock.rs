@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,10 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{barriers::AllowSubscriptionsFrom, test_utils::*};
+use crate::{
+	barriers::{AllowSubscriptionsFrom, RespectSuspension, TrailingSetTopicAsId},
+	test_utils::*,
+};
 pub use crate::{
-	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, TakeWeightCredit,
+	AliasForeignAccountId32, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
+	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, FixedRateOfFungible,
+	FixedWeightBounds, TakeWeightCredit,
 };
 use frame_support::traits::{ContainsPair, Everything};
 pub use frame_support::{
@@ -25,23 +29,24 @@ pub use frame_support::{
 		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, GetDispatchInfo,
 		Parameter, PostDispatchInfo,
 	},
-	ensure, parameter_types,
+	ensure, match_types, parameter_types,
 	sp_runtime::DispatchErrorWithPostInfo,
-	traits::{Contains, Get, IsInVec},
+	traits::{ConstU32, Contains, Get, IsInVec},
 };
 pub use parity_scale_codec::{Decode, Encode};
 pub use sp_io::hashing::blake2_256;
 pub use sp_std::{
-	cell::RefCell,
+	cell::{Cell, RefCell},
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
 	fmt::Debug,
 	marker::PhantomData,
 };
 pub use xcm::latest::{prelude::*, Weight};
+use xcm_executor::traits::Properties;
 pub use xcm_executor::{
 	traits::{
-		AssetExchange, AssetLock, ConvertOrigin, Enact, ExportXcm, FeeManager, FeeReason,
-		LockError, OnResponse, TransactAsset,
+		AssetExchange, AssetLock, CheckSuspension, ConvertOrigin, Enact, ExportXcm, FeeManager,
+		FeeReason, LockError, OnResponse, TransactAsset,
 	},
 	Assets, Config,
 };
@@ -128,6 +133,7 @@ thread_local! {
 		) -> Result<XcmHash, SendError>,
 	)>> = RefCell::new(None);
 	pub static SEND_PRICE: RefCell<MultiAssets> = RefCell::new(MultiAssets::new());
+	pub static SUSPENDED: Cell<bool> = Cell::new(false);
 }
 pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm, XcmHash)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
@@ -236,6 +242,9 @@ pub fn asset_list(who: impl Into<MultiLocation>) -> Vec<MultiAsset> {
 }
 pub fn add_asset(who: impl Into<MultiLocation>, what: impl Into<MultiAsset>) {
 	ASSETS.with(|a| a.borrow_mut().entry(who.into()).or_insert(Assets::new()).subsume(what.into()));
+}
+pub fn clear_assets(who: impl Into<MultiLocation>) {
+	ASSETS.with(|a| a.borrow_mut().remove(&who.into()));
 }
 
 pub struct TestAssetTransactor;
@@ -417,6 +426,24 @@ parameter_types! {
 	pub static WeightPrice: (AssetId, u128, u128) =
 		(From::from(Here), 1_000_000_000_000, 1024 * 1024);
 	pub static MaxInstructions: u32 = 100;
+}
+
+pub struct TestSuspender;
+impl CheckSuspension for TestSuspender {
+	fn is_suspended<Call>(
+		_origin: &MultiLocation,
+		_instructions: &mut [Instruction<Call>],
+		_max_weight: Weight,
+		_properties: &mut Properties,
+	) -> bool {
+		SUSPENDED.with(|s| s.get())
+	}
+}
+
+impl TestSuspender {
+	pub fn set_suspended(suspended: bool) {
+		SUSPENDED.with(|s| s.set(suspended));
+	}
 }
 
 pub type TestBarrier = (
@@ -620,6 +647,18 @@ impl AssetExchange for TestAssetExchange {
 	}
 }
 
+match_types! {
+	pub type SiblingPrefix: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 1, interior: X1(Parachain(_)) }
+	};
+	pub type ChildPrefix: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+	pub type ParentPrefix: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 1, interior: Here }
+	};
+}
+
 pub struct TestConfig;
 impl Config for TestConfig {
 	type RuntimeCall = TestCall;
@@ -629,7 +668,7 @@ impl Config for TestConfig {
 	type IsReserve = TestIsReserve;
 	type IsTeleporter = TestIsTeleporter;
 	type UniversalLocation = ExecutorUniversalLocation;
-	type Barrier = TestBarrier;
+	type Barrier = TrailingSetTopicAsId<RespectSuspension<TestBarrier, TestSuspender>>;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
@@ -645,6 +684,7 @@ impl Config for TestConfig {
 	type MessageExporter = TestMessageExporter;
 	type CallDispatcher = TestCall;
 	type SafeCallFilter = Everything;
+	type Aliasers = AliasForeignAccountId32<SiblingPrefix>;
 }
 
 pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {

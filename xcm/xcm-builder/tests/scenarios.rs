@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,7 +16,6 @@
 
 mod mock;
 
-use frame_support::weights::Weight;
 use mock::{
 	fake_message_hash, kusama_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight,
 	System, XcmConfig, CENTS,

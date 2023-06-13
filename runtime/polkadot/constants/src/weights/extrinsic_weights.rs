@@ -1,4 +1,4 @@
-// Copyright 2017-2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -13,9 +13,10 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2023-03-16 (Y/M/D)
-//! HOSTNAME: `bm4`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
+//! DATE: 2023-05-26 (Y/M/D)
+//! HOSTNAME: `bm6`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //!
 //! SHORT-NAME: `extrinsic`, LONG-NAME: `ExtrinsicBase`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -42,17 +43,17 @@ parameter_types! {
 	/// Calculated by multiplying the *Average* with `1.0` and adding `0`.
 	///
 	/// Stats nanoseconds:
-	///   Min, Max: 103_764, 105_485
-	///   Average:  104_371
-	///   Median:   104_324
-	///   Std-Dev:  336.27
+	///   Min, Max: 106_778, 108_997
+	///   Average:  107_648
+	///   Median:   107_566
+	///   Std-Dev:  356.3
 	///
 	/// Percentiles nanoseconds:
-	///   99th: 105_475
-	///   95th: 105_028
-	///   75th: 104_509
+	///   99th: 108_865
+	///   95th: 108_344
+	///   75th: 107_744
 	pub const ExtrinsicBaseWeight: Weight =
-		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(104_371), 0);
+		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(107_648), 0);
 }
 
 #[cfg(test)]

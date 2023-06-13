@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -29,11 +29,11 @@
 //!
 //! Then using the handle the client can send three types of requests:
 //!
-//! (a) PVF pre-checking. This takes the PVF [code][`Pvf`] and tries to prepare it (verify and
+//! (a) PVF pre-checking. This takes the `Pvf` code and tries to prepare it (verify and
 //! compile) in order to pre-check its validity.
 //!
 //! (b) PVF execution. This accepts the PVF [`params`][`polkadot_parachain::primitives::ValidationParams`]
-//!     and the PVF [code][`Pvf`], prepares (verifies and compiles) the code, and then executes PVF
+//!     and the `Pvf` code, prepares (verifies and compiles) the code, and then executes PVF
 //!     with the `params`.
 //!
 //! (c) Heads up. This request allows to signal that the given PVF may be needed soon and that it
@@ -72,14 +72,12 @@
 //! ## Artifacts
 //!
 //! An artifact is the final product of preparation. If the preparation succeeded, then the artifact
-//! will contain the compiled code usable for quick execution by a worker later on.
-//!
-//! If the preparation failed, then the worker will still write the artifact with the error message.
-//! We save the artifact with the error so that we don't try to prepare the artifacts that are broken
-//! repeatedly.
+//! will contain the compiled code usable for quick execution by a worker later on. If the
+//! preparation failed, then no artifact is created.
 //!
 //! The artifact is saved on disk and is also tracked by an in memory table. This in memory table
-//! doesn't contain the artifact contents though, only a flag that the given artifact is compiled.
+//! doesn't contain the artifact contents though, only a flag for the state of the given artifact
+//! and some associated data. If the artifact failed to process, this also includes the error.
 //!
 //! A pruning task will run at a fixed interval of time. This task will remove all artifacts that
 //! weren't used or received a heads up signal for a while.
@@ -93,36 +91,35 @@
 mod artifacts;
 mod error;
 mod execute;
-mod executor_intf;
 mod host;
 mod metrics;
 mod prepare;
 mod priority;
-mod pvf;
-mod worker_common;
+mod worker_intf;
 
 #[doc(hidden)]
 pub mod testing;
 
+// Used by `decl_puppet_worker_main!`.
 #[doc(hidden)]
 pub use sp_tracing;
 
-pub use error::{InvalidCandidate, PrepareError, PrepareResult, ValidationError};
-pub use prepare::PrepareStats;
-pub use priority::Priority;
-pub use pvf::PvfPrepData;
-
+pub use error::{InvalidCandidate, ValidationError};
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
-pub(crate) use worker_common::kill_parent_node_in_emergency;
-pub use worker_common::JOB_TIMEOUT_WALL_CLOCK_FACTOR;
+pub use priority::Priority;
+pub use worker_intf::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
 
-pub use execute::worker_entrypoint as execute_worker_entrypoint;
-pub use prepare::worker_entrypoint as prepare_worker_entrypoint;
+// Re-export some common types.
+pub use polkadot_node_core_pvf_common::{
+	error::{InternalValidationError, PrepareError},
+	prepare::{PrepareJobKind, PrepareStats},
+	pvf::PvfPrepData,
+};
 
-pub use executor_intf::{prepare, prevalidate};
+// Re-export worker entrypoints.
+pub use polkadot_node_core_pvf_execute_worker::worker_entrypoint as execute_worker_entrypoint;
+pub use polkadot_node_core_pvf_prepare_worker::worker_entrypoint as prepare_worker_entrypoint;
 
-pub use sc_executor_common;
-pub use sp_maybe_compressed_blob;
-
-const LOG_TARGET: &str = "parachain::pvf";
+/// The log target for this crate.
+pub const LOG_TARGET: &str = "parachain::pvf";

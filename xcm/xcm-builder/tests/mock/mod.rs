@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -34,7 +34,7 @@ use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds,
-	IsChildSystemParachain, IsConcrete, MintLocation, SignedAccountId32AsNative,
+	IsChildSystemParachain, IsConcrete, MintLocation, RespectSuspension, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 };
 
@@ -117,7 +117,7 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = ();
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<0>;
 	type MaxFreezes = ConstU32<0>;
@@ -187,7 +187,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = TrustedTeleporters;
 	type UniversalLocation = UniversalLocation;
-	type Barrier = Barrier;
+	type Barrier = RespectSuspension<Barrier, XcmPallet>;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<KsmPerSecondPerByte, ()>;
 	type ResponseHandler = XcmPallet;
@@ -203,6 +203,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
+	type Aliasers = Nothing;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, KusamaNetwork>;
@@ -233,6 +234,8 @@ impl pallet_xcm::Config for Runtime {
 	type Currency = Balances;
 	type CurrencyMatcher = IsConcrete<KsmLocation>;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type MaxRemoteLockConsumers = frame_support::traits::ConstU32<0>;
+	type RemoteLockConsumerIdentifier = ();
 	type WeightInfo = pallet_xcm::TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;

@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -31,9 +31,10 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use polkadot_node_primitives::{
 	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
 };
-use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
+use polkadot_node_subsystem::overseer;
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
-	CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, SessionInfo,
+	CandidateReceipt, DisputeStatement, Hash, IndexedVec, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
@@ -50,18 +51,29 @@ pub struct CandidateEnvironment<'a> {
 	controlled_indices: HashSet<ValidatorIndex>,
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 impl<'a> CandidateEnvironment<'a> {
 	/// Create `CandidateEnvironment`.
 	///
 	/// Return: `None` in case session is outside of session window.
-	pub fn new(
+	pub async fn new<Context>(
 		keystore: &LocalKeystore,
-		session_window: &'a RollingSessionWindow,
+		ctx: &mut Context,
+		runtime_info: &'a mut RuntimeInfo,
 		session_index: SessionIndex,
-	) -> Option<Self> {
-		let session = session_window.session_info(session_index)?;
-		let controlled_indices = find_controlled_validator_indices(keystore, &session.validators);
-		Some(Self { session_index, session, controlled_indices })
+		relay_parent: Hash,
+	) -> Option<CandidateEnvironment<'a>> {
+		let session_info = match runtime_info
+			.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
+			.await
+		{
+			Ok(extended_session_info) => &extended_session_info.session_info,
+			Err(_) => return None,
+		};
+
+		let controlled_indices =
+			find_controlled_validator_indices(keystore, &session_info.validators);
+		Some(Self { session_index, session: session_info, controlled_indices })
 	}
 
 	/// Validators in the candidate's session.
@@ -97,7 +109,7 @@ pub enum OwnVoteState {
 }
 
 impl OwnVoteState {
-	fn new<'a>(votes: &CandidateVotes, env: &CandidateEnvironment<'a>) -> Self {
+	fn new(votes: &CandidateVotes, env: &CandidateEnvironment<'_>) -> Self {
 		let controlled_indices = env.controlled_indices();
 		if controlled_indices.is_empty() {
 			return Self::CannotVote
@@ -167,6 +179,9 @@ pub struct CandidateVoteState<Votes> {
 
 	/// Current dispute status, if there is any.
 	dispute_status: Option<DisputeStatus>,
+
+	/// Are there `byzantine threshold + 1` invalid votes
+	byzantine_threshold_against: bool,
 }
 
 impl CandidateVoteState<CandidateVotes> {
@@ -179,7 +194,12 @@ impl CandidateVoteState<CandidateVotes> {
 			valid: ValidCandidateVotes::new(),
 			invalid: BTreeMap::new(),
 		};
-		Self { votes, own_vote: OwnVoteState::CannotVote, dispute_status: None }
+		Self {
+			votes,
+			own_vote: OwnVoteState::CannotVote,
+			dispute_status: None,
+			byzantine_threshold_against: false,
+		}
 	}
 
 	/// Create a new `CandidateVoteState` from already existing votes.
@@ -193,7 +213,7 @@ impl CandidateVoteState<CandidateVotes> {
 		// We have a dispute, if we have votes on both sides:
 		let is_disputed = !votes.invalid.is_empty() && !votes.valid.raw().is_empty();
 
-		let dispute_status = if is_disputed {
+		let (dispute_status, byzantine_threshold_against) = if is_disputed {
 			let mut status = DisputeStatus::active();
 			let byzantine_threshold = polkadot_primitives::byzantine_threshold(n_validators);
 			let is_confirmed = votes.voted_indices().len() > byzantine_threshold;
@@ -209,12 +229,12 @@ impl CandidateVoteState<CandidateVotes> {
 			if concluded_against {
 				status = status.conclude_against(now);
 			};
-			Some(status)
+			(Some(status), votes.invalid.len() > byzantine_threshold)
 		} else {
-			None
+			(None, false)
 		};
 
-		Self { votes, own_vote, dispute_status }
+		Self { votes, own_vote, dispute_status, byzantine_threshold_against }
 	}
 
 	/// Import fresh statements.
@@ -316,8 +336,12 @@ impl CandidateVoteState<CandidateVotes> {
 
 	/// Extract `CandidateVotes` for handling import of new statements.
 	fn into_old_state(self) -> (CandidateVotes, CandidateVoteState<()>) {
-		let CandidateVoteState { votes, own_vote, dispute_status } = self;
-		(votes, CandidateVoteState { votes: (), own_vote, dispute_status })
+		let CandidateVoteState { votes, own_vote, dispute_status, byzantine_threshold_against } =
+			self;
+		(
+			votes,
+			CandidateVoteState { votes: (), own_vote, dispute_status, byzantine_threshold_against },
+		)
 	}
 }
 
@@ -463,6 +487,13 @@ impl ImportResult {
 	/// Whether or not any dispute just concluded either invalid or valid due to the import.
 	pub fn is_freshly_concluded(&self) -> bool {
 		self.is_freshly_concluded_against() || self.is_freshly_concluded_for()
+	}
+
+	/// Whether or not the invalid vote count for the dispute went beyond the byzantine threshold
+	/// after the last import
+	pub fn has_fresh_byzantine_threshold_against(&self) -> bool {
+		!self.old_state().byzantine_threshold_against &&
+			self.new_state().byzantine_threshold_against
 	}
 
 	/// Modify this `ImportResult`s, by importing additional approval votes.

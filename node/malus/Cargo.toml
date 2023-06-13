@@ -20,9 +20,10 @@ polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator" }
 polkadot-node-core-candidate-validation = { path = "../core/candidate-validation" }
 polkadot-node-core-backing = { path = "../core/backing" }
+polkadot-node-core-pvf-execute-worker = { path = "../core/pvf/execute-worker" }
+polkadot-node-core-pvf-prepare-worker = { path = "../core/pvf/prepare-worker" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
-polkadot-node-core-pvf = { path = "../core/pvf" }
 color-eyre = { version = "0.6.1", default-features = false }
 assert_matches = "1.5"
 async-trait = "0.1.57"
@@ -37,6 +38,7 @@ rand = "0.8.5"
 
 [features]
 default = []
+fast-runtime = ["polkadot-cli/fast-runtime"]
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }

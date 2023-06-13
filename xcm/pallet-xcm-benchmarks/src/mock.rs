@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -47,17 +47,13 @@ impl xcm_executor::traits::OnResponse for DevNull {
 }
 
 pub struct AccountIdConverter;
-impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
-	fn convert(ml: MultiLocation) -> Result<u64, MultiLocation> {
+impl xcm_executor::traits::ConvertLocation<u64> for AccountIdConverter {
+	fn convert_location(ml: &MultiLocation) -> Option<u64> {
 		match ml {
 			MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { id, .. }) } =>
-				Ok(<u64 as codec::Decode>::decode(&mut &*id.to_vec()).unwrap()),
-			_ => Err(ml),
+				Some(<u64 as codec::Decode>::decode(&mut &*id.to_vec()).unwrap()),
+			_ => None,
 		}
-	}
-
-	fn reverse(acc: u64) -> Result<MultiLocation, u64> {
-		Err(acc)
 	}
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,9 +30,20 @@ pub(crate) const MAX_JUNCTIONS: usize = 8;
 /// Parent junctions cannot be constructed with this type. Refer to `MultiLocation` for
 /// instructions on constructing parent junctions.
 #[derive(
-	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,
+	Copy,
+	Clone,
+	Eq,
+	PartialEq,
+	Ord,
+	PartialOrd,
+	Encode,
+	Decode,
+	Debug,
+	TypeInfo,
+	MaxEncodedLen,
+	serde::Serialize,
+	serde::Deserialize,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Junctions {
 	/// The interpreting consensus system.
 	Here,

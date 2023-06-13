@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use codec::Encode;
 use frame_benchmarking::{account, BenchmarkError};
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
-use xcm_executor::{traits::Convert, Config as XcmConfig};
+use xcm_executor::{traits::ConvertLocation, Config as XcmConfig};
 
 pub mod fungible;
 pub mod generic;
@@ -39,7 +39,7 @@ pub trait Config: frame_system::Config {
 	type XcmConfig: XcmConfig;
 
 	/// A converter between a multi-location to a sovereign account.
-	type AccountIdConverter: Convert<MultiLocation, Self::AccountId>;
+	type AccountIdConverter: ConvertLocation<Self::AccountId>;
 
 	/// Does any necessary setup to create a valid destination for XCM messages.
 	/// Returns that destination's multi-location to be used in benchmarks.
@@ -104,7 +104,7 @@ fn account_id_junction<T: frame_system::Config>(index: u32) -> Junction {
 
 pub fn account_and_location<T: Config>(index: u32) -> (T::AccountId, MultiLocation) {
 	let location: MultiLocation = account_id_junction::<T>(index).into();
-	let account = T::AccountIdConverter::convert(location.clone()).unwrap();
+	let account = T::AccountIdConverter::convert_location(&location).unwrap();
 
 	(account, location)
 }

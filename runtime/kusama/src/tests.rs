@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -24,6 +24,11 @@ use parity_scale_codec::Encode;
 use runtime_common::MinimumMultiplier;
 use separator::Separatable;
 use sp_runtime::FixedPointNumber;
+
+#[test]
+fn nis_hold_reason_encoding_is_correct() {
+	assert_eq!(RuntimeHoldReason::Nis(pallet_nis::HoldReason::NftReceipt).encode(), [38, 0]);
+}
 
 #[test]
 fn remove_keys_weight_is_sensible() {
@@ -140,4 +145,12 @@ fn nominator_limit() {
 #[test]
 fn call_size() {
 	RuntimeCall::assert_size_under(230);
+}
+
+#[test]
+fn max_upward_message_size() {
+	assert_eq!(
+		ump_migrations::MAX_UPWARD_MESSAGE_SIZE,
+		pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
+	);
 }

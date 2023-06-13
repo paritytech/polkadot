@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -553,7 +553,7 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
-		type HoldIdentifier = ();
+		type RuntimeHoldReason = RuntimeHoldReason;
 		type FreezeIdentifier = ();
 		type MaxHolds = ConstU32<1>;
 		type MaxFreezes = ConstU32<1>;
