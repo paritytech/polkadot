@@ -33,7 +33,7 @@ use runtime_parachains::{
 	inclusion::{AggregateMessageOrigin, UmpQueueId},
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v4 as parachains_runtime_api_impl,
+	runtime_api_impl::v5 as parachains_runtime_api_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared,
 };
@@ -57,11 +57,12 @@ use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	slashing, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
 	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
 	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature,
 	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, LOWEST_PUBLIC_ID,
+	PARACHAIN_KEY_TYPE_ID,
 };
 use sp_core::OpaqueMetadata;
 use sp_mmr_primitives as mmr;
@@ -1834,6 +1835,31 @@ sp_api::impl_runtime_apis! {
 
 		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
 			parachains_runtime_api_impl::get_session_disputes::<Runtime>()
+		}
+
+		fn unapplied_slashes(
+		) -> Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)> {
+			parachains_runtime_api_impl::unapplied_slashes::<Runtime>()
+		}
+
+		fn key_ownership_proof(
+			validator_id: ValidatorId,
+		) -> Option<slashing::OpaqueKeyOwnershipProof> {
+			use parity_scale_codec::Encode;
+
+			Historical::prove((PARACHAIN_KEY_TYPE_ID, validator_id))
+				.map(|p| p.encode())
+				.map(slashing::OpaqueKeyOwnershipProof::new)
+		}
+
+		fn submit_report_dispute_lost(
+			dispute_proof: slashing::DisputeProof,
+			key_ownership_proof: slashing::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			parachains_runtime_api_impl::submit_unsigned_slashing_report::<Runtime>(
+				dispute_proof,
+				key_ownership_proof,
+			)
 		}
 	}
 

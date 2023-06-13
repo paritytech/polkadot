@@ -25,13 +25,13 @@ use lru::LruCache;
 use polkadot_node_primitives::{DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION, MAX_FINALITY_LAG};
 use polkadot_node_subsystem::{
 	messages::ChainApiMessage, overseer, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError,
-	SubsystemSender,
+	RuntimeApiError, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::{
-	get_candidate_events, get_on_chain_votes, get_unapplied_slashes,
+	self, get_candidate_events, get_on_chain_votes, get_unapplied_slashes,
 };
 use polkadot_primitives::{
-	vstaging, BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash,
+	slashing::PendingSlashes, BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash,
 	ScrapedOnChainVotes, SessionIndex,
 };
 
@@ -67,7 +67,7 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 pub struct ScrapedUpdates {
 	pub on_chain_votes: Vec<ScrapedOnChainVotes>,
 	pub included_receipts: Vec<CandidateReceipt>,
-	pub unapplied_slashes: Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>,
+	pub unapplied_slashes: Vec<(SessionIndex, CandidateHash, PendingSlashes)>,
 }
 
 impl ScrapedUpdates {
@@ -270,8 +270,15 @@ impl ChainScraper {
 			Ok(unapplied_slashes) => {
 				scraped_updates.unapplied_slashes = unapplied_slashes;
 			},
-			Err(error) => {
+			Err(runtime::Error::RuntimeRequest(RuntimeApiError::NotSupported { .. })) => {
 				gum::debug!(
+					target: LOG_TARGET,
+					block_hash = ?activated.hash,
+					"Fetching unapplied slashes not yet supported.",
+				);
+			},
+			Err(error) => {
+				gum::warn!(
 					target: LOG_TARGET,
 					block_hash = ?activated.hash,
 					?error,
