@@ -93,14 +93,15 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	/// Proof Skipped: ParasShared CurrentSessionIndex (max_values: Some(1), max_size: None, mode: Measured)
 	fn set_config_with_option_u32() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `443`
-		//  Estimated: `1928`
-		// Minimum execution time: 13_714_000 picoseconds.
-		Weight::from_parts(14_088_000, 0)
-			.saturating_add(Weight::from_parts(0, 1928))
+		//  Measured:  `393`
+		//  Estimated: `1878`
+		// Minimum execution time: 13_139_000 picoseconds.
+		Weight::from_parts(13_547_000, 0)
+			.saturating_add(Weight::from_parts(0, 1878))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
+
 	/// Storage: Benchmark Override (r:0 w:0)
 	/// Proof Skipped: Benchmark Override (max_values: None, max_size: None, mode: Measured)
 	fn set_hrmp_open_request_ttl() -> Weight {
