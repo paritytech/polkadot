@@ -385,6 +385,12 @@ impl TestState {
 					})))
 					.unwrap();
 				},
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_new_leaf,
+					RuntimeApiRequest::UnappliedSlashes(tx),
+				)) => {
+					tx.send(Ok(Vec::new())).unwrap();
+				},
 				AllMessages::ChainApi(ChainApiMessage::Ancestors { hash, k, response_channel }) => {
 					let target_header = self
 						.headers

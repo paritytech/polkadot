@@ -11,7 +11,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! A module exporting runtime API implementation functions for all runtime APIs using v2
+//! A module exporting runtime API implementation functions for all runtime APIs using v5
 //! primitives.
 //!
 //! Runtimes implementing the v2 runtime API are recommended to forward directly to these
@@ -22,12 +22,12 @@ use crate::{
 	session_info, shared,
 };
 use primitives::{
-	AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreIndex,
-	CoreOccupied, CoreState, DisputeState, ExecutorParams, GroupIndex, GroupRotationInfo, Hash,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex,
-	SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	slashing, AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
+	CoreIndex, CoreOccupied, CoreState, DisputeState, ExecutorParams, GroupIndex,
+	GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	OccupiedCore, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+	ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -424,4 +424,23 @@ pub fn session_executor_params<T: session_info::Config>(
 		Some(ep) => Some(ep),
 		None => Some(ExecutorParams::default()),
 	}
+}
+
+/// Implementation of `unapplied_slashes` runtime API
+pub fn unapplied_slashes<T: disputes::slashing::Config>(
+) -> Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)> {
+	<disputes::slashing::Pallet<T>>::unapplied_slashes()
+}
+
+/// Implementation of `submit_report_dispute_lost` runtime API
+pub fn submit_unsigned_slashing_report<T: disputes::slashing::Config>(
+	dispute_proof: slashing::DisputeProof,
+	key_ownership_proof: slashing::OpaqueKeyOwnershipProof,
+) -> Option<()> {
+	let key_ownership_proof = key_ownership_proof.decode()?;
+
+	<disputes::slashing::Pallet<T>>::submit_unsigned_slashing_report(
+		dispute_proof,
+		key_ownership_proof,
+	)
 }
