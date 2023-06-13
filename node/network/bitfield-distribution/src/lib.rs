@@ -364,10 +364,10 @@ async fn relay_message<Context>(
 
 	let _span = span.child("provisionable");
 	// notify the overseer about a new and valid signed bitfield
-	ctx.send_message(ProvisionerMessage::ProvisionableData(
+	ctx.send_message(Box::new(ProvisionerMessage::ProvisionableData(
 		relay_parent,
 		ProvisionableData::Bitfield(relay_parent, message.signed_availability.clone()),
-	))
+	)))
 	.await;
 
 	drop(_span);

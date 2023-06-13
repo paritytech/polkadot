@@ -150,7 +150,7 @@ where
 		+ Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<NetworkBridgeRxMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<NetworkBridgeTxMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<ProvisionerMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<Box<ProvisionerMessage>>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<Box<ApprovalDistributionMessage>>, SubsystemError>

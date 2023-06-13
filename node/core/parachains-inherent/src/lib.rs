@@ -76,7 +76,7 @@ impl<C: sp_blockchain::HeaderBackend<Block>> ParachainsInherentDataProvider<C> {
 			);
 			overseer
 				.send_msg(
-					ProvisionerMessage::RequestInherentData(parent, sender),
+					Box::new(ProvisionerMessage::RequestInherentData(parent, sender)),
 					std::any::type_name::<Self>(),
 				)
 				.await;

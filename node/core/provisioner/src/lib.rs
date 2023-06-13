@@ -197,10 +197,10 @@ fn handle_active_leaves_update(
 async fn handle_communication<Context>(
 	ctx: &mut Context,
 	per_relay_parent: &mut HashMap<Hash, PerRelayParent>,
-	message: ProvisionerMessage,
+	message: Box<ProvisionerMessage>,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
-	match message {
+	match *message {
 		ProvisionerMessage::RequestInherentData(relay_parent, return_sender) => {
 			gum::trace!(target: LOG_TARGET, ?relay_parent, "Inherent data got requested.");
 

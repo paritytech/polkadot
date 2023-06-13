@@ -470,7 +470,7 @@ pub struct Overseer<SupportsParachains> {
 		AvailabilityDistributionMessage,
 		AvailabilityStoreMessage,
 		StatementDistributionMessage,
-		ProvisionerMessage,
+		Box<ProvisionerMessage>,
 		RuntimeApiMessage,
 	])]
 	candidate_backing: CandidateBacking,
@@ -508,11 +508,11 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(BitfieldDistributionMessage, sends: [
 		RuntimeApiMessage,
 		NetworkBridgeTxMessage,
-		ProvisionerMessage,
+		Box<ProvisionerMessage>,
 	])]
 	bitfield_distribution: BitfieldDistribution,
 
-	#[subsystem(ProvisionerMessage, sends: [
+	#[subsystem(Box<ProvisionerMessage>, sends: [
 		RuntimeApiMessage,
 		CandidateBackingMessage,
 		ChainApiMessage,

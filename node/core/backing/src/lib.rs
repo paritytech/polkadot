@@ -992,10 +992,10 @@ impl<Context> CandidateBackingJob<Context> {
 			//
 			// Misbehaviors are bounded by the number of validators and
 			// the block production protocol.
-			sender.send_unbounded_message(ProvisionerMessage::ProvisionableData(
+			sender.send_unbounded_message(Box::new(ProvisionerMessage::ProvisionableData(
 				self.parent,
 				ProvisionableData::MisbehaviorReport(self.parent, validator_id, report),
-			));
+			)));
 		}
 	}
 
@@ -1054,7 +1054,7 @@ impl<Context> CandidateBackingJob<Context> {
 						self.parent,
 						ProvisionableData::BackedCandidate(backed.receipt()),
 					);
-					ctx.send_unbounded_message(message);
+					ctx.send_unbounded_message(Box::new(message));
 
 					span.as_ref().map(|s| s.child("backed"));
 					span
