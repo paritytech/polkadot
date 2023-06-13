@@ -21,7 +21,7 @@
 pub mod chain_spec;
 
 pub use chain_spec::*;
-use futures::future::Future;
+use futures::{future::Future, stream::StreamExt};
 use polkadot_node_primitives::{CollationGenerationConfig, CollatorFn};
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_overseer::Handle;
@@ -32,11 +32,12 @@ use polkadot_service::{
 	ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull, PrometheusConfig,
 };
 use polkadot_test_runtime::{
-	ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall, UncheckedExtrinsic,
-	VERSION,
+	ParasCall, ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall,
+	UncheckedExtrinsic, VERSION,
 };
+
 use sc_chain_spec::ChainSpec;
-use sc_client_api::execution_extensions::ExecutionStrategies;
+use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr, NetworkStateInfo,
@@ -54,6 +55,7 @@ use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
 use std::{
+	collections::HashSet,
 	net::{Ipv4Addr, SocketAddr},
 	path::PathBuf,
 	sync::Arc,
@@ -61,7 +63,6 @@ use std::{
 use substrate_test_client::{
 	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
-
 /// Declare an instance of the native executor named `PolkadotTestExecutorDispatch`. Include the wasm binary as the
 /// equivalent wasm code.
 pub struct PolkadotTestExecutorDispatch;
@@ -190,18 +191,15 @@ pub fn node_config(
 			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 		},
-		rpc_http: None,
-		rpc_ws: None,
-		rpc_ipc: None,
-		rpc_max_payload: None,
-		rpc_max_request_size: None,
-		rpc_max_response_size: None,
-		rpc_ws_max_connections: None,
+		rpc_addr: Default::default(),
+		rpc_max_request_size: Default::default(),
+		rpc_max_response_size: Default::default(),
+		rpc_max_connections: Default::default(),
 		rpc_cors: None,
 		rpc_methods: Default::default(),
 		rpc_id_provider: None,
-		rpc_max_subs_per_conn: None,
-		ws_max_out_buffer_capacity: None,
+		rpc_max_subs_per_conn: Default::default(),
+		rpc_port: 9944,
 		prometheus_config: None,
 		telemetry_endpoints: None,
 		default_heap_pages: None,
@@ -214,7 +212,8 @@ pub fn node_config(
 		max_runtime_instances: 8,
 		runtime_cache_size: 2,
 		announce_block: true,
-		base_path: Some(base_path),
+		data_path: root,
+		base_path,
 		informant_output_format: Default::default(),
 	}
 }
@@ -283,6 +282,19 @@ pub struct PolkadotTestNode {
 }
 
 impl PolkadotTestNode {
+	/// Send a sudo call to this node.
+	async fn send_sudo(
+		&self,
+		call: impl Into<polkadot_test_runtime::RuntimeCall>,
+		caller: Sr25519Keyring,
+		nonce: u32,
+	) -> Result<(), RpcTransactionError> {
+		let sudo = SudoCall::sudo { call: Box::new(call.into()) };
+
+		let extrinsic = construct_extrinsic(&*self.client, sudo, caller, nonce);
+		self.rpc_handlers.send_transaction(extrinsic.into()).await.map(drop)
+	}
+
 	/// Send an extrinsic to this node.
 	pub async fn send_extrinsic(
 		&self,
@@ -301,24 +313,41 @@ impl PolkadotTestNode {
 		validation_code: impl Into<ValidationCode>,
 		genesis_head: impl Into<HeadData>,
 	) -> Result<(), RpcTransactionError> {
+		let validation_code: ValidationCode = validation_code.into();
 		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize {
 			id,
 			genesis: ParaGenesisArgs {
 				genesis_head: genesis_head.into(),
-				validation_code: validation_code.into(),
+				validation_code: validation_code.clone(),
 				para_kind: ParaKind::Parachain,
 			},
 		};
 
-		self.send_extrinsic(SudoCall::sudo { call: Box::new(call.into()) }, Sr25519Keyring::Alice)
-			.await
-			.map(drop)
+		self.send_sudo(call, Sr25519Keyring::Alice, 0).await?;
+
+		// Bypass pvf-checking.
+		let call = ParasCall::add_trusted_validation_code { validation_code };
+		self.send_sudo(call, Sr25519Keyring::Alice, 1).await
 	}
 
 	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
 	/// are ever created, thus you should restrict the maximum amount of time of the test execution.
 	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
 		self.client.wait_for_blocks(count)
+	}
+
+	/// Wait for `count` blocks to be finalized and then exit. Similarly with `wait_for_blocks` this function will
+	/// not return if no block are ever finalized.
+	pub async fn wait_for_finalized_blocks(&self, count: usize) {
+		let mut import_notification_stream = self.client.finality_notification_stream();
+		let mut blocks = HashSet::new();
+
+		while let Some(notification) = import_notification_stream.next().await {
+			blocks.insert(notification.hash);
+			if blocks.len() == count {
+				break
+			}
+		}
 	}
 
 	/// Register the collator functionality in the overseer of this node.

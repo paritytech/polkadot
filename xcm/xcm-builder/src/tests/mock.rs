@@ -15,13 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	barriers::{AllowSubscriptionsFrom, RespectSuspension},
+	barriers::{AllowSubscriptionsFrom, RespectSuspension, TrailingSetTopicAsId},
 	test_utils::*,
 };
 pub use crate::{
-	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, FrameTransactionalProcessor,
-	TakeWeightCredit,
+	AliasForeignAccountId32, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
+	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, FixedRateOfFungible,
+	FixedWeightBounds, FrameTransactionalProcessor, TakeWeightCredit,
 };
 use frame_support::traits::{ContainsPair, Everything};
 pub use frame_support::{
@@ -29,9 +29,9 @@ pub use frame_support::{
 		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, GetDispatchInfo,
 		Parameter, PostDispatchInfo,
 	},
-	ensure, parameter_types,
+	ensure, match_types, parameter_types,
 	sp_runtime::DispatchErrorWithPostInfo,
-	traits::{Contains, Get, IsInVec},
+	traits::{ConstU32, Contains, Get, IsInVec},
 };
 pub use parity_scale_codec::{Decode, Encode};
 pub use sp_io::hashing::blake2_256;
@@ -42,6 +42,7 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::{prelude::*, Weight};
+use xcm_executor::traits::Properties;
 pub use xcm_executor::{
 	traits::{
 		AssetExchange, AssetLock, CheckSuspension, ConvertOrigin, Enact, ExportXcm, FeeManager,
@@ -242,6 +243,9 @@ pub fn asset_list(who: impl Into<MultiLocation>) -> Vec<MultiAsset> {
 pub fn add_asset(who: impl Into<MultiLocation>, what: impl Into<MultiAsset>) {
 	ASSETS.with(|a| a.borrow_mut().entry(who.into()).or_insert(Assets::new()).subsume(what.into()));
 }
+pub fn clear_assets(who: impl Into<MultiLocation>) {
+	ASSETS.with(|a| a.borrow_mut().remove(&who.into()));
+}
 
 pub struct TestAssetTransactor;
 impl TransactAsset for TestAssetTransactor {
@@ -430,7 +434,7 @@ impl CheckSuspension for TestSuspender {
 		_origin: &MultiLocation,
 		_instructions: &mut [Instruction<Call>],
 		_max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> bool {
 		SUSPENDED.with(|s| s.get())
 	}
@@ -643,6 +647,18 @@ impl AssetExchange for TestAssetExchange {
 	}
 }
 
+match_types! {
+	pub type SiblingPrefix: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 1, interior: X1(Parachain(_)) }
+	};
+	pub type ChildPrefix: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+	pub type ParentPrefix: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 1, interior: Here }
+	};
+}
+
 pub struct TestConfig;
 impl Config for TestConfig {
 	type RuntimeCall = TestCall;
@@ -652,7 +668,7 @@ impl Config for TestConfig {
 	type IsReserve = TestIsReserve;
 	type IsTeleporter = TestIsTeleporter;
 	type UniversalLocation = ExecutorUniversalLocation;
-	type Barrier = RespectSuspension<TestBarrier, TestSuspender>;
+	type Barrier = TrailingSetTopicAsId<RespectSuspension<TestBarrier, TestSuspender>>;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
@@ -668,6 +684,7 @@ impl Config for TestConfig {
 	type MessageExporter = TestMessageExporter;
 	type CallDispatcher = TestCall;
 	type SafeCallFilter = Everything;
+	type Aliasers = AliasForeignAccountId32<SiblingPrefix>;
 	type TransactionalProcessor = FrameTransactionalProcessor;
 }
 

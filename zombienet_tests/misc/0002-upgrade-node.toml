@@ -9,10 +9,12 @@ chain = "rococo-local"
   [[relaychain.nodes]]
   name = "alice"
   args = [ "-lparachain=debug,runtime=debug", "--db paritydb" ]
+  substrate_cli_args_version = 1
 
   [[relaychain.nodes]]
   name = "bob"
   args = [ "-lparachain=debug,runtime=debug", "--db rocksdb" ]
+  substrate_cli_args_version = 1
 
   [[relaychain.nodes]]
   name = "charlie"

@@ -21,7 +21,7 @@ build-linux-stable:
     # Ensure we run the UI tests.
     RUN_UI_TESTS: 1
   script:
-    - time cargo build --locked --profile testnet --features pyroscope --verbose --bin polkadot
+    - time cargo build --locked --profile testnet --features pyroscope,fast-runtime --verbose --bin polkadot
     # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
