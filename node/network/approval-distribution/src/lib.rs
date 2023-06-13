@@ -393,7 +393,7 @@ impl State {
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
 				});
-				self.statistics.peer_connected.add_time(&start);
+				self.statistics.peer_disconnected.add_time(&start);
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
 				let start = Instant::now();
