@@ -819,7 +819,8 @@ pub struct ParathreadEntry {
 }
 
 /// An Assignemnt for a paras going to produce a paras block.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct Assignment {
 	/// Assignment's ParaId
 	pub para_id: Id,
@@ -835,7 +836,8 @@ impl Assignment {
 }
 
 /// Restrictions on collators for a specific paras block.
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct CollatorRestrictions {
 	/// Collators to prefer/allow.
 	/// Empty set means no restrictions.
