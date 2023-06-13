@@ -44,6 +44,8 @@ pub enum Error {
 	FutureVersion { current: Version, got: Version },
 	#[error("Parachain DB migration failed")]
 	MigrationFailed,
+	#[error("Parachain DB migration would take forever")]
+	MigrationLoop,
 }
 
 impl From<Error> for io::Error {
@@ -61,14 +63,18 @@ pub(crate) fn try_upgrade_db(
 	db_kind: DatabaseKind,
 	target_version: Version,
 ) -> Result<(), Error> {
-	// Loop upgrades until we reach the target version
-	loop {
+	// Ensure we don't loop forever below befcause of a bug.
+	const MAX_MIGRATIONS: u32 = 30;
+
+	// Loop migrations until we reach the target version.
+	for _ in 0..MAX_MIGRATIONS {
 		let version = try_upgrade_db_to_next_version(db_path, db_kind)?;
 		if version == target_version {
-			break
+			return Ok(())
 		}
 	}
-	Ok(())
+
+	Err(Error::MigrationLoop)
 }
 
 /// Try upgrading parachain's database to the next version.
@@ -357,9 +363,8 @@ pub(crate) fn paritydb_version_3_config(path: &Path) -> parity_db::Options {
 #[cfg(test)]
 pub(crate) fn paritydb_version_0_config(path: &Path) -> parity_db::Options {
 	let mut options =
-		parity_db::Options::with_columns(&path, super::columns::v1::NUM_COLUMNS as u8);
+		parity_db::Options::with_columns(&path, super::columns::v0::NUM_COLUMNS as u8);
 	options.columns[super::columns::v4::COL_AVAILABILITY_META as usize].btree_index = true;
-	options.columns[super::columns::v4::COL_CHAIN_SELECTION_DATA as usize].btree_index = true;
 
 	options
 }
@@ -417,17 +422,17 @@ mod tests {
 		{
 			let db = Db::open_or_create(&paritydb_version_0_config(&path)).unwrap();
 
-			db.commit(vec![
-				(COL_DISPUTE_COORDINATOR_DATA as u8, b"1234".to_vec(), Some(b"somevalue".to_vec())),
-				(COL_AVAILABILITY_META as u8, b"5678".to_vec(), Some(b"somevalue".to_vec())),
-			])
+			db.commit(vec![(
+				COL_AVAILABILITY_META as u8,
+				b"5678".to_vec(),
+				Some(b"somevalue".to_vec()),
+			)])
 			.unwrap();
 		}
 
 		try_upgrade_db(&path, DatabaseKind::ParityDB, 1).unwrap();
 
 		let db = Db::open(&paritydb_version_1_config(&path)).unwrap();
-		assert_eq!(db.get(COL_DISPUTE_COORDINATOR_DATA as u8, b"1234").unwrap(), None);
 		assert_eq!(
 			db.get(COL_AVAILABILITY_META as u8, b"5678").unwrap(),
 			Some("somevalue".as_bytes().to_vec())
@@ -586,7 +591,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_migrate_0_to_4() {
+	fn test_rocksdb_migrate_0_to_4() {
 		use kvdb_rocksdb::{Database, DatabaseConfig};
 
 		let db_dir = tempfile::tempdir().unwrap();
@@ -599,6 +604,27 @@ mod tests {
 		let db = Database::open(&db_cfg, db_path).unwrap();
 
 		assert_eq!(db.num_columns(), columns::v4::NUM_COLUMNS);
+	}
+
+	#[test]
+	fn test_paritydb_migrate_0_to_4() {
+		use parity_db::Db;
+
+		let db_dir = tempfile::tempdir().unwrap();
+		let path = db_dir.path();
+
+		// We need to properly set db version for upgrade to work.
+		fs::write(version_file_path(path), "0").expect("Failed to write DB version");
+
+		{
+			let db = Db::open_or_create(&paritydb_version_0_config(&path)).unwrap();
+			assert_eq!(db.num_columns(), columns::v0::NUM_COLUMNS as u8);
+		}
+
+		try_upgrade_db(&path, DatabaseKind::ParityDB, 4).unwrap();
+
+		let db = Db::open(&paritydb_version_3_config(&path)).unwrap();
+		assert_eq!(db.num_columns(), columns::v4::NUM_COLUMNS as u8);
 	}
 
 	#[test]
