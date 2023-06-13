@@ -375,7 +375,6 @@ impl<T: Config> Pallet<T> {
 				&mut rng,
 			);
 
-
 		// Assure the maximum block weight is adhered, by limiting bitfields and backed
 		// candidates. Dispute statement sets were already limited before.
 		let non_disputes_weight = apply_weight_limit::<T>(
