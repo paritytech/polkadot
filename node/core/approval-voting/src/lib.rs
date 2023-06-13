@@ -1374,7 +1374,6 @@ async fn handle_from_overseer<Context>(
 					)
 					.await?;
 					let _ = res.send(check_outcome);
-					state.statistics.time_import_assignment += start.elapsed().as_micros() as u64;
 
 					if let Some(duration) = print_if_above_threshold(&start) {
 						gum::warn!(target: LOG_TARGET, "too_long: CheckAndImportAssignment {:}", duration);
@@ -1397,7 +1396,6 @@ async fn handle_from_overseer<Context>(
 					)
 					.await?
 					.0;
-					state.statistics.time_import_approval += start.elapsed().as_micros() as u64;
 
 					if let Some(duration) = print_if_above_threshold(&start) {
 						gum::warn!(target: LOG_TARGET, "too_long: CheckAndImportApproval {:}", duration);
@@ -1890,7 +1888,7 @@ fn schedule_wakeup_action(
 
 async fn check_and_import_assignment<Sender>(
 	sender: &mut Sender,
-	state: &State,
+	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut RuntimeInfo,
 	assignment: IndirectAssignmentCert,
@@ -1998,6 +1996,7 @@ where
 			&assignment.cert,
 			approval_entry.backing_group(),
 		);
+		state.statistics.time_import_assignment += start.elapsed().as_micros() as u64;
 
 		if let Some(duration) = print_if_above_threshold(&start) {
 			gum::warn!(target: LOG_TARGET, "too_long: check_assignment_cert {:} {:?}", duration, assignment.cert.kind);
@@ -2072,7 +2071,7 @@ where
 
 async fn check_and_import_approval<T, Sender>(
 	sender: &mut Sender,
-	state: &State,
+	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut RuntimeInfo,
 	metrics: &Metrics,
@@ -2156,6 +2155,7 @@ where
 		),)),
 		Ok(()) => {},
 	};
+	state.statistics.time_import_approval += start.elapsed().as_micros() as u64;
 
 	if let Some(duration) = print_if_above_threshold(&start) {
 		gum::warn!(target: LOG_TARGET, "too_long: approval_import {:} ", duration);
