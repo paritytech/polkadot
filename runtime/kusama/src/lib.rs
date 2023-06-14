@@ -1539,9 +1539,7 @@ pub mod migrations {
 	}
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (
-		pallet_society::migrations::MigrateToV2<Runtime, (), PastPayouts>,
-	);
+	pub type Unreleased = (pallet_society::migrations::MigrateToV2<Runtime, (), PastPayouts>,);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;
