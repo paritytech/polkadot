@@ -204,7 +204,7 @@ zombienet-test-parachains-upgrade-smoke-test:
     - echo "${GH_DIR}"
     - export DEBUG=zombie,zombie::network-node
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
-    - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
+    - export COL_IMAGE="docker.io/parity/polkadot-parachain:latest" # Use cumulus lastest image
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
       --github-remote-dir="${GH_DIR}"
