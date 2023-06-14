@@ -685,6 +685,9 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
+// Tips are here purely so locked funds can be released before we purge the storage. It should be
+// removed from the runtime once the migration was confirmed successful, probably in 1.1.
+// See https://github.com/paritytech/polkadot/issues/6749
 impl pallet_tips::Config for Runtime {
 	type MaximumReasonLength = MaximumReasonLength;
 	type DataDepositPerByte = DataDepositPerByte;
@@ -1577,7 +1580,9 @@ pub mod migrations {
 
 		// RemovePallets only after they have been removed from the runtime. Otherwise, the on-chain
 		// storage version is removed for active pallets causing try-runtime to fail. The below code
-		// should be uncommented when the pallets are removed from the runtime.
+		// should be uncommented to fully remove the storage at the same time as the pallets are
+		// removed from the runtime, probably in 1.1.
+		// See https://github.com/paritytech/polkadot/issues/6749
 		// frame_support::migrations::RemovePallet<DemocracyStr, RocksDbWeight>,
 		// frame_support::migrations::RemovePallet<CouncilStr, RocksDbWeight>,
 		// frame_support::migrations::RemovePallet<TechnicalCommitteeStr, RocksDbWeight>,

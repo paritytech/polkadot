@@ -15,6 +15,11 @@
 // along with Polkadot. If not, see <http://www.gnu.org/licenses/>.
 
 //! Old governance configurations for the Kusama runtime.
+//!
+//! Here purely so locked funds can be
+//! released before we purge the storage. It should be removed from the runtime once the migration
+//! was confirmed successful, probably in 1.1. See
+//! https://github.com/paritytech/polkadot/issues/6749
 
 use crate::*;
 use frame_support::{
@@ -22,6 +27,7 @@ use frame_support::{
 	traits::{EitherOfDiverse, LockIdentifier},
 };
 use static_assertions::const_assert;
+use frame_system::EnsureNever;
 
 parameter_types! {
 	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
@@ -65,14 +71,14 @@ impl pallet_democracy::Config for Runtime {
 	type FastTrackVotingPeriod = FastTrackVotingPeriod;
 	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
 	type CancellationOrigin = EitherOfDiverse<
-		EnsureRoot<AccountId>,
+		EnsureNever<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 	>;
-	type BlacklistOrigin = EnsureRoot<AccountId>;
+	type BlacklistOrigin = EnsureNever<AccountId>;
 	// To cancel a proposal before it has been passed, the technical committee must be unanimous or
 	// Root must agree.
 	type CancelProposalOrigin = EitherOfDiverse<
-		EnsureRoot<AccountId>,
+		EnsureNever<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, TechnicalCollective, 1, 1>,
 	>;
 	// Any single technical committee member may veto a coming council proposal, however they can
@@ -105,7 +111,7 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type MaxProposals = CouncilMaxProposals;
 	type MaxMembers = CouncilMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
-	type SetMembersOrigin = EnsureRoot<AccountId>;
+	type SetMembersOrigin = EnsureNever<AccountId>;
 	type WeightInfo = weights::pallet_collective_council::WeightInfo<Runtime>;
 	type MaxProposalWeight = MaxProposalWeight;
 }
@@ -165,18 +171,18 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type MaxProposals = TechnicalMaxProposals;
 	type MaxMembers = TechnicalMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
-	type SetMembersOrigin = EnsureRoot<AccountId>;
+	type SetMembersOrigin = EnsureNever<AccountId>;
 	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
 	type MaxProposalWeight = MaxProposalWeight;
 }
 
 impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type AddOrigin = EnsureRoot<AccountId>;
-	type RemoveOrigin = EnsureRoot<AccountId>;
-	type SwapOrigin = EnsureRoot<AccountId>;
-	type ResetOrigin = EnsureRoot<AccountId>;
-	type PrimeOrigin = EnsureRoot<AccountId>;
+	type AddOrigin = EnsureNever<AccountId>;
+	type RemoveOrigin = EnsureNever<AccountId>;
+	type SwapOrigin = EnsureNever<AccountId>;
+	type ResetOrigin = EnsureNever<AccountId>;
+	type PrimeOrigin = EnsureNever<AccountId>;
 	type MembershipInitialized = TechnicalCommittee;
 	type MembershipChanged = TechnicalCommittee;
 	type MaxMembers = TechnicalMaxMembers;
