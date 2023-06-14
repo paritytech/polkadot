@@ -16,7 +16,12 @@
 
 use crate::PUPPET_EXE;
 use polkadot_node_core_pvf::testing::{spawn_with_program_path, SpawnErr};
-use std::time::Duration;
+use polkadot_node_core_pvf_common::{worker::thread::{get_condvar, WaitOutcome, wait_for_threads_with_timeout, spawn_worker_thread}, execute::Response, ProcessTime};
+use std::{time::Duration, sync::{Arc, Mutex, Condvar}};
+use std::ops::{Add, Sub};
+use std::sync::mpsc::channel;
+use std::time::{Instant, SystemTime};
+use polkadot_node_core_pvf_common::worker::{cpu_time_monitor_loop, stringify_panic_payload};
 
 // Test spawning a program that immediately exits with a failure code.
 #[tokio::test]
@@ -45,4 +50,79 @@ async fn should_connect() {
 	)
 	.await
 	.unwrap();
+}
+
+#[test]
+fn get_condvar_should_be_pending() {
+	let condvar = get_condvar();
+	let outcome = *condvar.0.lock().unwrap();
+	assert!(outcome.is_pending());
+}
+
+#[test]
+fn wait_for_threads_with_timeout_return_none_on_time_out() {
+	let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+    let outcome = wait_for_threads_with_timeout(&condvar, Duration::new(1, 0));
+	assert!(matches!(outcome, None));
+}
+
+#[test]
+fn wait_for_threads_with_timeout_returns_outcome() {
+	let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+	let condvar2 = Arc::clone(&condvar);
+	std::thread::spawn(move || {
+		let (lock, cvar) = &*condvar2;
+		let mut outcome = lock.lock().unwrap();
+		*outcome = WaitOutcome::Finished;
+		cvar.notify_one();
+	});
+	let outcome = wait_for_threads_with_timeout(&condvar, Duration::from_secs(2));
+	assert!(matches!(outcome.unwrap(), WaitOutcome::Finished));
+}
+
+#[test]
+fn spawn_worker_thread_should_notify_on_done() {
+	let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+	let response = spawn_worker_thread("thread", move || {
+		2
+	},
+	Arc::clone(&condvar),
+	WaitOutcome::TimedOut,);
+	let (lock, _) = &*condvar;
+	let r = response.expect("").join().unwrap();
+	assert!(matches!(r, 2));
+	assert!(matches!(*lock.lock().unwrap(), WaitOutcome::TimedOut));
+}
+
+#[test]
+fn spawn_worker_thread_should_not_notify() {
+	let condvar = Arc::new((Mutex::new(WaitOutcome::Finished), Condvar::new()));
+	let response = spawn_worker_thread("thread", move || {
+		2
+	},
+	Arc::clone(&condvar),
+	WaitOutcome::TimedOut,);
+	let (lock, _) = &*condvar;
+	let r = response.unwrap().join().unwrap();
+	assert!(matches!(r, 2));
+	assert!(matches!(*lock.lock().unwrap(), WaitOutcome::Finished));
+}
+
+#[test]
+fn cpu_time_monitor_loop_should_return_time_elapsed() {
+	let cpu_time_start = ProcessTime::now();
+	let timeout = Duration::from_secs(0);
+	let (_tx, rx) = channel();
+	let result = cpu_time_monitor_loop(cpu_time_start, timeout, rx);
+	assert_ne!(result, None);
+}
+
+#[test]
+fn cpu_time_monitor_loop_should_return_none() {
+	let cpu_time_start = ProcessTime::now();
+	let timeout = Duration::from_secs(10);
+	let (tx, rx) = channel();
+	tx.send(()).unwrap();
+	let result = cpu_time_monitor_loop(cpu_time_start, timeout, rx);
+	assert_eq!(result, None);
 }
