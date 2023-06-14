@@ -360,7 +360,7 @@ impl<T: Config> Pallet<T> {
 		let max_block_weight = {
 			let dispatch_class = DispatchClass::Mandatory;
 			let max_block_weight_full = <T as frame_system::Config>::BlockWeights::get();
-			log::debug!(target: LOG_TARGET, "Max block weight: {:?}", max_block_weight_full);
+			log::debug!(target: LOG_TARGET, "Max block weight max block: {}", max_block_weight_full.max_block);
 			// Get max block weight for the mandatory class if defined, otherwise total max weight of
 			// the block.
 			let max_weight = max_block_weight_full
@@ -368,17 +368,16 @@ impl<T: Config> Pallet<T> {
 				.get(dispatch_class)
 				.max_total
 				.unwrap_or(max_block_weight_full.max_block);
-			log::debug!(target: LOG_TARGET, "Used max block time weight: {:?}", max_weight);
+			log::debug!(target: LOG_TARGET, "Used max block time weight: {}", max_weight);
 
 			let max_block_size_full = <T as frame_system::Config>::BlockLength::get();
-			log::debug!(target: LOG_TARGET, "Max block len: {:?}", max_block_size_full);
 			let max_block_size = max_block_size_full.max.get(dispatch_class);
-			log::debug!(target: LOG_TARGET, "Used max block size: {:?}", max_block_size);
+			log::debug!(target: LOG_TARGET, "Used max block size: {}", max_block_size);
 
 			// Adjust proof size to max block size as we are tracking tx size.
 			max_weight.set_proof_size(*max_block_size as u64)
 		};
-		log::debug!(target: LOG_TARGET, "Used max block weight: {:?}", max_block_weight);
+		log::debug!(target: LOG_TARGET, "Used max block weight: {}", max_block_weight);
 
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
