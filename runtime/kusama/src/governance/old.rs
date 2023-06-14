@@ -16,10 +16,9 @@
 
 //! Old governance configurations for the Kusama runtime.
 //!
-//! Here purely so locked funds can be
-//! released before we purge the storage. It should be removed from the runtime once the migration
-//! was confirmed successful, probably in 1.1. See
-//! https://github.com/paritytech/polkadot/issues/6749
+//! Here purely so locked funds can be released before we purge the storage. It should be removed
+//! from the runtime once the migration was confirmed successful, probably in 1.1.
+//! See https://github.com/paritytech/polkadot/issues/6749
 
 use crate::*;
 use frame_support::{
