@@ -21,13 +21,13 @@ build-linux-stable:
     # Ensure we run the UI tests.
     RUN_UI_TESTS: 1
   script:
-    - time cargo build --locked --profile testnet --features pyroscope,fast-runtime --verbose --bin polkadot
+    - time cargo build --locked --profile testnet --features pyroscope,fast-runtime --verbose --bins
     # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - mv ./target/testnet/polkadot ./artifacts/.
-    - mv ./target/testnet/polkadot-prepare-worker ./artifacts/. 2 > /dev/null || true
-    - mv ./target/testnet/polkadot-execute-worker ./artifacts/. 2 > /dev/null || true
+    - mv ./target/testnet/polkadot-prepare-worker ./artifacts/. 2>/dev/null || true
+    - mv ./target/testnet/polkadot-execute-worker ./artifacts/. 2>/dev/null || true
     - pushd artifacts
     - sha256sum polkadot | tee polkadot.sha256
     - shasum -c polkadot.sha256
