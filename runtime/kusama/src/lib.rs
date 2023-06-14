@@ -1391,6 +1391,7 @@ construct_runtime! {
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 12,
 
 		// Old, deprecated governance pallets. Here purely so storage can be migrated.
+		// See https://github.com/paritytech/polkadot/issues/6749
 		Democracy: pallet_democracy exclude_parts {Call} = 13,
 		Council: pallet_collective::<Instance1> exclude_parts {Call} = 14,
 		TechnicalCommittee: pallet_collective::<Instance2> exclude_parts {Call} = 15,
@@ -1523,6 +1524,7 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 }
 
 // Gov V1 pallets pending storage removal using the frame_support RemovePallet migration.
+// See https://github.com/paritytech/polkadot/issues/6749
 parameter_types! {
 	pub const DemocracyStr: &'static str = "Democracy";
 	pub const CouncilStr: &'static str = "Council";
