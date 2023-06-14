@@ -25,7 +25,7 @@ use pallet_transaction_payment::Multiplier;
 use parity_scale_codec::Encode;
 use runtime_common::MinimumMultiplier;
 use separator::Separatable;
-use sp_core::{hexdisplay::HexDisplay, twox_128};
+use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::FixedPointNumber;
 use std::collections::HashSet;
 
