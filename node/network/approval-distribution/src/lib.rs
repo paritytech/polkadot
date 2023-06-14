@@ -215,6 +215,7 @@ struct Statistics {
 	pub gossip_approval: PeerStatistics,
 	pub waiting_approval: PeerStatistics,
 	pub get_approval_signatures: PeerStatistics,
+	pub block_finalized: PeerStatistics,
 }
 
 #[derive(Debug, Default)]
@@ -1835,8 +1836,9 @@ impl ApprovalDistribution {
 					}
 				},
 				FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-					gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
+					gum::debug!(target: LOG_TARGET, number = %number, "finalized signal");
 					state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
+					state.statistics.block_finalized.add_time(&start);
 				},
 				FromOrchestra::Signal(OverseerSignal::Conclude) => return,
 			}
