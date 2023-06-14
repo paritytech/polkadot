@@ -62,6 +62,7 @@ use sp_std::{
 mod misc;
 mod weights;
 
+use self::weights::checked_multi_dispute_statement_sets_weight;
 pub use self::{
 	misc::{IndexedRetain, IsSortedBy},
 	weights::{
@@ -255,8 +256,8 @@ pub mod pallet {
 		#[pallet::weight((
 			paras_inherent_total_weight::<T>(
 				data.backed_candidates.as_slice(),
-				data.bitfields.as_slice(),
-				data.disputes.as_slice(),
+				&data.bitfields,
+				&data.disputes,
 			),
 			DispatchClass::Mandatory,
 		))]
@@ -340,8 +341,8 @@ impl<T: Config> Pallet<T> {
 		let now = <frame_system::Pallet<T>>::block_number();
 
 		let candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
-		let bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
-		let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
+		let bitfields_weight = signed_bitfields_weight::<T>(&bitfields);
+		let disputes_weight = multi_dispute_statement_sets_weight::<T>(&disputes);
 
 		METRICS
 			.on_before_filter((candidates_weight + bitfields_weight + disputes_weight).ref_time());
@@ -349,7 +350,35 @@ impl<T: Config> Pallet<T> {
 		let current_session = <shared::Pallet<T>>::session_index();
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 		let validator_public = shared::Pallet::<T>::active_validator_keys();
-		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+
+		// We are assuming (incorrectly) to have all the weight (for the mandatory class or even
+		// full block) available to us. This can lead to slightly overweight blocks, which still
+		// works as the dispatch class for `enter` is `Mandatory`. By using the `Mandatory`
+		// dispatch class, the upper layers impose no limit on the weight of this inherent, instead
+		// we limit ourselves and make sure to stay within reasonable bounds. It might make sense
+		// to subtract BlockWeights::base_block to reduce chances of becoming overweight.
+		let max_block_weight = {
+			let dispatch_class = DispatchClass::Mandatory;
+			let max_block_weight_full = <T as frame_system::Config>::BlockWeights::get();
+			log::debug!(target: LOG_TARGET, "Max block weight: {:?}", max_block_weight_full);
+			// Get max block weight for the mandatory class if defined, otherwise total max weight of
+			// the block.
+			let max_weight = max_block_weight_full
+				.per_class
+				.get(dispatch_class)
+				.max_total
+				.unwrap_or(max_block_weight_full.max_block);
+			log::debug!(target: LOG_TARGET, "Used max block time weight: {:?}", max_weight);
+
+			let max_block_size_full = <T as frame_system::Config>::BlockLength::get();
+			log::debug!(target: LOG_TARGET, "Max block len: {:?}", max_block_size_full);
+			let max_block_size = max_block_size_full.max.get(dispatch_class);
+			log::debug!(target: LOG_TARGET, "Used max block size: {:?}", max_block_size);
+
+			// Adjust proof size to max block size as we are tracking tx size.
+			max_weight.set_proof_size(*max_block_size as u64)
+		};
+		log::debug!(target: LOG_TARGET, "Used max block weight: {:?}", max_block_weight);
 
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
@@ -661,7 +690,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 ) -> Weight {
 	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice());
 
-	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
+	let total_bitfields_weight = signed_bitfields_weight::<T>(&bitfields);
 
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
@@ -919,7 +948,7 @@ fn limit_and_sanitize_disputes<
 	rng: &mut rand_chacha::ChaChaRng,
 ) -> (Vec<CheckedDisputeStatementSet>, Weight) {
 	// The total weight if all disputes would be included
-	let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
+	let disputes_weight = multi_dispute_statement_sets_weight::<T>(&disputes);
 
 	if disputes_weight.any_gt(max_consumable_weight) {
 		let mut checked_acc = Vec::<CheckedDisputeStatementSet>::with_capacity(disputes.len());
@@ -996,7 +1025,7 @@ fn limit_and_sanitize_disputes<
 			.filter_map(|dss| dispute_statement_set_valid(dss))
 			.collect::<Vec<CheckedDisputeStatementSet>>();
 		// some might have been filtered out, so re-calc the weight
-		let checked_disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&checked);
+		let checked_disputes_weight = checked_multi_dispute_statement_sets_weight::<T>(&checked);
 		(checked, checked_disputes_weight)
 	}
 }

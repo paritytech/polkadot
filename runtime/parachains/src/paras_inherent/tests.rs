@@ -573,9 +573,8 @@ mod enter {
 		use thousands::Separable;
 
 		let multi_dispute_statement_sets_weight =
-			multi_dispute_statement_sets_weight::<Test, _, _>(&inherent_data.disputes);
-		let signed_bitfields_weight =
-			signed_bitfields_weight::<Test>(inherent_data.bitfields.len());
+			multi_dispute_statement_sets_weight::<Test>(&inherent_data.disputes);
+		let signed_bitfields_weight = signed_bitfields_weight::<Test>(&inherent_data.bitfields);
 		let backed_candidates_weight =
 			backed_candidates_weight::<Test>(&inherent_data.backed_candidates);
 
