@@ -1842,8 +1842,8 @@ impl ApprovalDistribution {
 						state.spans.insert(head, approval_distribution_span);
 					}
 				},
-				FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-					gum::debug!(target: LOG_TARGET, number = %number, "finalized signal");
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+					gum::debug!(target: LOG_TARGET, number = %number, "finalized signal {:?}", hash);
 					state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
 					state.statistics.block_finalized.add_time(&start);
 				},
