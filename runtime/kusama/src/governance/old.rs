@@ -25,8 +25,8 @@ use frame_support::{
 	parameter_types,
 	traits::{EitherOfDiverse, LockIdentifier},
 };
-use static_assertions::const_assert;
 use frame_system::EnsureNever;
+use static_assertions::const_assert;
 
 parameter_types! {
 	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
