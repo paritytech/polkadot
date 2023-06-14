@@ -216,6 +216,8 @@ struct Statistics {
 	pub waiting_approval: PeerStatistics,
 	pub get_approval_signatures: PeerStatistics,
 	pub block_finalized: PeerStatistics,
+	pub assignments_by_block_hash: HashMap<Hash, u64>,
+	pub approvals_by_block_hash: HashMap<Hash, u64>,
 }
 
 #[derive(Debug, Default)]
@@ -892,6 +894,11 @@ impl State {
 
 			let (tx, rx) = oneshot::channel();
 			let start = Instant::now();
+			*self
+				.statistics
+				.assignments_by_block_hash
+				.entry(assignment.block_hash)
+				.or_default() += 1;
 
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment.clone(),
@@ -1183,7 +1190,7 @@ impl State {
 
 			let (tx, rx) = oneshot::channel();
 			let start = Instant::now();
-
+			*self.statistics.approvals_by_block_hash.entry(vote.block_hash).or_default() += 1;
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
 				.await;
 
