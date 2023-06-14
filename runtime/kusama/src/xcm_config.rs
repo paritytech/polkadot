@@ -451,7 +451,6 @@ fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
 	let weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut xcm)
 		.expect("weighing XCM failed");
 
-	dbg!(&weight);
 
 	// Test that the weigher gives us a sensible weight but don't exactly hard-code it, otherwise it
 	// will be out of date after each re-run.
