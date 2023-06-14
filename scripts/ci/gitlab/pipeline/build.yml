@@ -26,6 +26,8 @@ build-linux-stable:
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - mv ./target/testnet/polkadot ./artifacts/.
+    - mv ./target/testnet/polkadot-prepare-worker ./artifacts/. 2 > /dev/null || true
+    - mv ./target/testnet/polkadot-execute-worker ./artifacts/. 2 > /dev/null || true
     - pushd artifacts
     - sha256sum polkadot | tee polkadot.sha256
     - shasum -c polkadot.sha256

@@ -37,10 +37,10 @@ use polkadot_node_subsystem::{
 		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
 		DisputeDistributionMessage, ImportStatementsResult,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, RuntimeApiError,
 };
 use polkadot_node_subsystem_util::runtime::{
-	key_ownership_proof, submit_report_dispute_lost, RuntimeInfo,
+	self, key_ownership_proof, submit_report_dispute_lost, RuntimeInfo,
 };
 use polkadot_primitives::{
 	vstaging, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
@@ -424,8 +424,19 @@ impl Initialized {
 							dispute_proofs.push(dispute_proof);
 						},
 						Ok(None) => {},
-						Err(error) => {
+						Err(runtime::Error::RuntimeRequest(RuntimeApiError::NotSupported {
+							..
+						})) => {
 							gum::debug!(
+								target: LOG_TARGET,
+								?session_index,
+								?candidate_hash,
+								?validator_id,
+								"Key ownership proof not yet supported.",
+							);
+						},
+						Err(error) => {
+							gum::warn!(
 								target: LOG_TARGET,
 								?error,
 								?session_index,
@@ -480,6 +491,16 @@ impl Initialized {
 				.await;
 
 				match res {
+					Err(runtime::Error::RuntimeRequest(RuntimeApiError::NotSupported {
+						..
+					})) => {
+						gum::debug!(
+							target: LOG_TARGET,
+							?session_index,
+							?candidate_hash,
+							"Reporting pending slash not yet supported",
+						);
+					},
 					Err(error) => {
 						gum::warn!(
 							target: LOG_TARGET,
