@@ -24,4 +24,3 @@ mod queue;
 mod worker_intf;
 
 pub use queue::{start, PendingExecutionRequest, ToQueue};
-pub use worker_intf::{Handshake as ExecuteHandshake, Response as ExecuteResponse};

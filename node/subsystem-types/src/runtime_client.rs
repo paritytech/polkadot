@@ -16,7 +16,7 @@
 
 use async_trait::async_trait;
 use polkadot_primitives::{
-	runtime_api::ParachainHost, Block, BlockNumber, CandidateCommitments, CandidateEvent,
+	runtime_api::ParachainHost, vstaging, Block, BlockNumber, CandidateCommitments, CandidateEvent,
 	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams,
 	GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage,
 	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
@@ -181,6 +181,34 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
+
+	/// Returns a list of validators that lost a past session dispute and need to be slashed.
+	///
+	/// WARNING: This is a staging method! Do not use on production runtimes!
+	async fn unapplied_slashes(
+		&self,
+		at: Hash,
+	) -> Result<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>, ApiError>;
+
+	/// Returns a merkle proof of a validator session key in a past session.
+	///
+	/// WARNING: This is a staging method! Do not use on production runtimes!
+	async fn key_ownership_proof(
+		&self,
+		at: Hash,
+		validator_id: ValidatorId,
+	) -> Result<Option<vstaging::slashing::OpaqueKeyOwnershipProof>, ApiError>;
+
+	/// Submits an unsigned extrinsic to slash validators who lost a dispute about
+	/// a candidate of a past session.
+	///
+	/// WARNING: This is a staging method! Do not use on production runtimes!
+	async fn submit_report_dispute_lost(
+		&self,
+		at: Hash,
+		dispute_proof: vstaging::slashing::DisputeProof,
+		key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+	) -> Result<Option<()>, ApiError>;
 
 	/// Get the execution environment parameter set by parent hash, if stored
 	async fn session_executor_params(
@@ -373,5 +401,30 @@ where
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError> {
 		self.runtime_api().disputes(at)
+	}
+
+	async fn unapplied_slashes(
+		&self,
+		at: Hash,
+	) -> Result<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>, ApiError> {
+		self.runtime_api().unapplied_slashes(at)
+	}
+
+	async fn key_ownership_proof(
+		&self,
+		at: Hash,
+		validator_id: ValidatorId,
+	) -> Result<Option<vstaging::slashing::OpaqueKeyOwnershipProof>, ApiError> {
+		self.runtime_api().key_ownership_proof(at, validator_id)
+	}
+
+	async fn submit_report_dispute_lost(
+		&self,
+		at: Hash,
+		dispute_proof: vstaging::slashing::DisputeProof,
+		key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+	) -> Result<Option<()>, ApiError> {
+		self.runtime_api()
+			.submit_report_dispute_lost(at, dispute_proof, key_ownership_proof)
 	}
 }

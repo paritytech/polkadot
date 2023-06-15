@@ -15,18 +15,16 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{
-	mock::{
-		new_test_ext, Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared,
-		RuntimeEvent as MockEvent, RuntimeOrigin, System, Test,
-	},
-	paras::ParaKind,
+use crate::mock::{
+	deregister_parachain, new_test_ext, register_parachain, register_parachain_with_balance,
+	Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared, RuntimeEvent as MockEvent,
+	RuntimeOrigin, System, Test,
 };
-use frame_support::{assert_noop, assert_ok, traits::Currency as _};
-use primitives::{BlockNumber, ValidationCode};
+use frame_support::assert_noop;
+use primitives::BlockNumber;
 use std::collections::BTreeMap;
 
-fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 	let config = Configuration::config();
 	while System::block_number() < to {
 		let b = System::block_number();
@@ -127,29 +125,6 @@ fn default_genesis_config() -> MockGenesisConfig {
 		},
 		..Default::default()
 	}
-}
-
-fn register_parachain_with_balance(id: ParaId, balance: Balance) {
-	let validation_code: ValidationCode = vec![1].into();
-	assert_ok!(Paras::schedule_para_initialize(
-		id,
-		crate::paras::ParaGenesisArgs {
-			para_kind: ParaKind::Parachain,
-			genesis_head: vec![1].into(),
-			validation_code: validation_code.clone(),
-		},
-	));
-
-	assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), validation_code));
-	<Test as Config>::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
-}
-
-fn register_parachain(id: ParaId) {
-	register_parachain_with_balance(id, 1000);
-}
-
-fn deregister_parachain(id: ParaId) {
-	assert_ok!(Paras::schedule_para_cleanup(id));
 }
 
 fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
