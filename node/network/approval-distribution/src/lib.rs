@@ -195,9 +195,9 @@ struct State {
 	/// Statistics
 	statistics: Statistics,
 	/// Total num of assignments
-	aggregate_assignments: HashMap<Hash, u64>,
+	aggregate_assignments: HashMap<Hash, PerOperation>,
 	/// Total num of approvals
-	aggregate_approvals: HashMap<Hash, u64>,
+	aggregate_approvals: HashMap<Hash, PerOperation>,
 }
 
 #[derive(Debug, Default)]
@@ -223,7 +223,11 @@ struct Statistics {
 	pub assignments_by_block_hash: HashMap<Hash, u64>,
 	pub approvals_by_block_hash: HashMap<Hash, u64>,
 }
-
+#[derive(Debug, Default, Copy, Clone)]
+struct PerOperation {
+	count: u64,
+	fan_out: u64,
+}
 #[derive(Debug, Default)]
 struct PeerStatistics {
 	time: u128,
@@ -567,6 +571,7 @@ impl State {
 								assignment,
 								claimed_index,
 								rng,
+								1,
 							)
 							.await;
 						},
@@ -576,6 +581,7 @@ impl State {
 								metrics,
 								MessageSource::Peer(peer_id),
 								approval_vote,
+								1,
 							)
 							.await;
 						},
@@ -660,7 +666,7 @@ impl State {
 						continue
 					}
 					let start1 = Instant::now();
-					*self.aggregate_assignments.entry(assignment.block_hash).or_default() += 1;
+					self.aggregate_assignments.entry(assignment.block_hash).or_default().count += 1;
 					self.import_and_circulate_assignment(
 						ctx,
 						metrics,
@@ -668,6 +674,7 @@ impl State {
 						assignment,
 						claimed_index,
 						rng,
+						len as u64,
 					)
 					.await;
 					let elapsed = start1.elapsed().as_micros();
@@ -708,13 +715,15 @@ impl State {
 						continue
 					}
 					let start1 = Instant::now();
-					*self.aggregate_approvals.entry(approval_vote.block_hash).or_default() += 1;
+					self.aggregate_approvals.entry(approval_vote.block_hash).or_default().count +=
+						1;
 
 					self.import_and_circulate_approval(
 						ctx,
 						metrics,
 						MessageSource::Peer(peer_id),
 						approval_vote,
+						len as u64,
 					)
 					.await;
 					let elapsed = start1.elapsed().as_micros();
@@ -813,9 +822,11 @@ impl State {
 		assignment: IndirectAssignmentCert,
 		claimed_candidate_index: CandidateIndex,
 		rng: &mut R,
+		origin_count: u64,
 	) where
 		R: CryptoRng + Rng,
 	{
+		let orig_block_hash = assignment.block_hash;
 		let start_import = Instant::now();
 		let _span = self
 			.spans
@@ -1079,6 +1090,10 @@ impl State {
 		}
 
 		if !peers.is_empty() {
+			if origin_count > 1 {
+				self.aggregate_assignments.entry(orig_block_hash).or_default().fan_out +=
+					peers.len() as u64;
+			}
 			gum::trace!(
 				target: LOG_TARGET,
 				?block_hash,
@@ -1105,6 +1120,7 @@ impl State {
 		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
+		origin_count: u64,
 	) {
 		let start_approval = Instant::now();
 
@@ -1364,6 +1380,10 @@ impl State {
 		}
 
 		if !peers.is_empty() {
+			if origin_count > 1 {
+				self.aggregate_approvals.entry(vote.block_hash).or_default().fan_out +=
+					peers.len() as u64;
+			}
 			let approvals = vec![vote];
 			gum::trace!(
 				target: LOG_TARGET,
@@ -1857,9 +1877,16 @@ impl ApprovalDistribution {
 			}
 			state.statistics.time_doing_usefull_work += start.elapsed().as_micros();
 			if state.statistics.time_doing_usefull_work >= 1000_000 {
-				gum::warn!(target: LOG_TARGET, "too_long: statistics approval_distribution {:?} assignemnts {:?} approvals {:?}",
-					state.statistics, state.aggregate_assignments, state.aggregate_approvals);
+				gum::warn!(target: LOG_TARGET, "too_long: statistics approval_distribution {:?}",
+					state.statistics);
 				state.statistics = Default::default();
+			}
+
+			if state.aggregate_assignments.len() + state.aggregate_approvals.len() > 30 {
+				gum::warn!(target: LOG_TARGET, "too_long: statistics assignemnts {:?} approvals {:?}",
+						state.aggregate_assignments, state.aggregate_approvals);
+				state.aggregate_assignments = Default::default();
+				state.aggregate_approvals = Default::default();
 			}
 		}
 	}
@@ -1899,6 +1926,7 @@ impl ApprovalDistribution {
 						cert,
 						candidate_index,
 						rng,
+						1,
 					)
 					.await;
 				if let Some(duration) = print_if_above_threshold(&start) {
@@ -1915,7 +1943,7 @@ impl ApprovalDistribution {
 				let start = Instant::now();
 
 				state
-					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote)
+					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote, 1)
 					.await;
 				if let Some(duration) = print_if_above_threshold(&start) {
 					gum::warn!(target: LOG_TARGET, "too_long: local approval {:} {:?}", duration, start);
