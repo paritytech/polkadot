@@ -194,6 +194,10 @@ struct State {
 	approval_checking_lag: BlockNumber,
 	/// Statistics
 	statistics: Statistics,
+	/// Total num of assignments
+	aggregate_assignments: HashMap<Hash, u64>,
+	/// Total num of approvals
+	aggregate_approvals: HashMap<Hash, u64>,
 }
 
 #[derive(Debug, Default)]
@@ -656,7 +660,7 @@ impl State {
 						continue
 					}
 					let start1 = Instant::now();
-
+					*self.aggregate_assignments.entry(assignment.block_hash).or_default() += 1;
 					self.import_and_circulate_assignment(
 						ctx,
 						metrics,
@@ -704,6 +708,8 @@ impl State {
 						continue
 					}
 					let start1 = Instant::now();
+					*self.aggregate_approvals.entry(approval_vote.block_hash).or_default() += 1;
+
 					self.import_and_circulate_approval(
 						ctx,
 						metrics,
@@ -1063,7 +1069,7 @@ impl State {
 		};
 
 		let peers = entry.known_by.keys().filter(|p| peer_filter(p)).cloned().collect::<Vec<_>>();
-		
+
 		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
 			// we already filtered peers above, so this should always be Some
@@ -1851,7 +1857,8 @@ impl ApprovalDistribution {
 			}
 			state.statistics.time_doing_usefull_work += start.elapsed().as_micros();
 			if state.statistics.time_doing_usefull_work >= 1000_000 {
-				gum::warn!(target: LOG_TARGET, "too_long: statistics approval_distribution {:?}", state.statistics);
+				gum::warn!(target: LOG_TARGET, "too_long: statistics approval_distribution {:?} assignemnts {:?} approvals {:?}",
+					state.statistics, state.aggregate_assignments, state.aggregate_approvals);
 				state.statistics = Default::default();
 			}
 		}
