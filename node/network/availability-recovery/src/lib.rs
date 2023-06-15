@@ -100,7 +100,8 @@ const TIMEOUT_START_NEW_REQUESTS: Duration = CHUNK_REQUEST_TIMEOUT;
 const TIMEOUT_START_NEW_REQUESTS: Duration = Duration::from_millis(100);
 
 /// PoV size limit in bytes for which prefer fetching from backers.
-const SMALL_POV_LIMIT: usize = 128 * 1024;
+/// 3 MiB.
+const SMALL_POV_LIMIT: usize = 3 * 1024 * 1024;
 
 #[derive(Clone, PartialEq)]
 /// The strategy we use to recover the PoV.
