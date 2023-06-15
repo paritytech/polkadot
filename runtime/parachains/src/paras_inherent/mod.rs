@@ -344,8 +344,11 @@ impl<T: Config> Pallet<T> {
 		let bitfields_weight = signed_bitfields_weight::<T>(&bitfields);
 		let disputes_weight = multi_dispute_statement_sets_weight::<T>(&disputes);
 
-		METRICS
-			.on_before_filter((candidates_weight + bitfields_weight + disputes_weight).ref_time());
+		let all_weight = candidates_weight + bitfields_weight + disputes_weight;
+
+		METRICS.on_before_filter(all_weight.ref_time());
+		log::debug!(target: LOG_TARGET, "Size before filter: {}, candidates + bitfields: {}, disputes: {}", all_weight.proof_size(), candidates_weight.proof_size() + bitfields_weight.proof_size(), disputes_weight.proof_size());
+		log::debug!(target: LOG_TARGET, "Time weight before filter: {}, candidates + bitfields: {}, disputes: {}", all_weight.ref_time(), candidates_weight.ref_time() + bitfields_weight.ref_time(), disputes_weight.ref_time());
 
 		let current_session = <shared::Pallet<T>>::session_index();
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
@@ -415,9 +418,11 @@ impl<T: Config> Pallet<T> {
 		let full_weight = non_disputes_weight.saturating_add(checked_disputes_sets_consumed_weight);
 
 		METRICS.on_after_filter(full_weight.ref_time());
+		log::debug!(target: LOG_TARGET, "Size after filter: {}, candidates + bitfields: {}, disputes: {}", all_weight.proof_size(), non_disputes_weight.proof_size(), checked_disputes_sets_consumed_weight.proof_size());
+		log::debug!(target: LOG_TARGET, "Time weight after filter: {}, candidates + bitfields: {}, disputes: {}", all_weight.ref_time(), non_disputes_weight.ref_time(), checked_disputes_sets_consumed_weight.ref_time());
 
 		if full_weight.any_gt(max_block_weight) {
-			log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large.");
+			log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large, time: {}, size: {}", full_weight.ref_time(), full_weight.proof_size());
 		}
 
 		// Note that `process_checked_multi_dispute_data` will iterate and import each
