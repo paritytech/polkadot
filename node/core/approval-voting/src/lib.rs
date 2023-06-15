@@ -1281,6 +1281,10 @@ async fn handle_from_overseer<Context>(
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
 					Ok(block_imported_candidates) => {
 						// Schedule wakeups for all imported candidates.
+						gum::trace!(
+							target: LOG_TARGET,
+							"too_long: imported candidates {:}", block_imported_candidates.len()
+						);
 						for block_batch in block_imported_candidates {
 							gum::debug!(
 								target: LOG_TARGET,

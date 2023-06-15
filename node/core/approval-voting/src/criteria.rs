@@ -141,13 +141,13 @@ pub(crate) struct Config {
 	/// The groups of validators assigned to each core.
 	validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
-	n_cores: u32,
+	pub n_cores: u32,
 	/// The zeroth delay tranche width.
-	zeroth_delay_tranche_width: u32,
+	pub zeroth_delay_tranche_width: u32,
 	/// The number of samples we do of `relay_vrf_modulo`.
-	relay_vrf_modulo_samples: u32,
+	pub relay_vrf_modulo_samples: u32,
 	/// The number of delay tranches in total.
-	n_delay_tranches: u32,
+	pub n_delay_tranches: u32,
 }
 
 impl<'a> From<&'a SessionInfo> for Config {

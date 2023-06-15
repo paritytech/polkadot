@@ -215,6 +215,11 @@ async fn imported_block_info<Context>(
 
 	let (assignments, slot, relay_vrf_story) = {
 		let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
+		let config_dump = crate::criteria::Config::from(session_info);
+		gum::debug!(
+			target: LOG_TARGET,
+			"babe config {:} {:} {:} {:}", config_dump.n_cores, config_dump.zeroth_delay_tranche_width, config_dump.relay_vrf_modulo_samples, config_dump.n_delay_tranches,
+		);
 
 		match unsafe_vrf {
 			Some(unsafe_vrf) => {
