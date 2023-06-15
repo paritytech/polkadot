@@ -27,7 +27,7 @@ use std::{
 	sync::atomic::{AtomicBool, Ordering},
 };
 
-use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName};
+use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName, ReputationChange};
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSetProtocolNames,
@@ -51,12 +51,12 @@ use polkadot_primitives::{AuthorityDiscoveryId, Hash};
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
 
-use crate::{network::Network, validator_discovery::AuthorityDiscovery, Rep};
+use crate::{network::Network, validator_discovery::AuthorityDiscovery};
 
 #[derive(Debug, PartialEq)]
 pub enum NetworkAction {
 	/// Note a change in reputation for a peer.
-	ReputationChange(PeerId, Rep),
+	ReputationChange(PeerId, ReputationChange),
 	/// Disconnect a peer from the given peer-set.
 	DisconnectPeer(PeerId, PeerSet),
 	/// Write a notification to a given peer on the given peer-set.
@@ -128,10 +128,10 @@ impl Network for TestNetwork {
 	) {
 	}
 
-	fn report_peer(&self, who: PeerId, cost_benefit: Rep) {
+	fn report_peer(&self, who: PeerId, rep: ReputationChange) {
 		self.action_tx
 			.lock()
-			.unbounded_send(NetworkAction::ReputationChange(who, cost_benefit))
+			.unbounded_send(NetworkAction::ReputationChange(who, rep))
 			.unwrap();
 	}
 
@@ -947,7 +947,7 @@ fn relays_collation_protocol_messages() {
 		let actions = network_handle.next_network_actions(3).await;
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::ReputationChange(peer_a.clone(), UNCONNECTED_PEERSET_COST),
+			&NetworkAction::ReputationChange(peer_a.clone(), UNCONNECTED_PEERSET_COST.into()),
 		);
 
 		// peer B has the message relayed.
@@ -1142,7 +1142,7 @@ fn view_finalized_number_can_not_go_down() {
 		let actions = network_handle.next_network_actions(2).await;
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::ReputationChange(peer_a.clone(), MALFORMED_VIEW_COST),
+			&NetworkAction::ReputationChange(peer_a.clone(), MALFORMED_VIEW_COST.into()),
 		);
 		virtual_overseer
 	});
