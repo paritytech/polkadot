@@ -52,6 +52,9 @@ pub type AccountId = <AccountPublic as IdentifyAccount>::AccountId;
 /// The type for looking up accounts. We don't expect more than 4 billion of them.
 pub type AccountIndex = u32;
 
+/// Index of a transaction in the chain.
+pub type Nonce = u32;
+
 /// Identifier for a chain. 32-bit should be plenty.
 pub type ChainId = u32;
 
