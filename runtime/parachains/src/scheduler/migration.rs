@@ -7,7 +7,7 @@ pub mod v1 {
 	use frame_support::{
 		pallet_prelude::ValueQuery, storage_alias, traits::OnRuntimeUpgrade, weights::Weight,
 	};
-	use primitives::{v4::CollatorRestrictions, vstaging::Assignment, CollatorId};
+	use primitives::{vstaging::Assignment, CollatorId};
 
 	#[storage_alias]
 	pub(super) type Scheduled<T: Config> = StorageValue<Pallet<T>, Vec<CoreAssignment>, ValueQuery>;
@@ -142,7 +142,7 @@ pub mod v1 {
 		let config = <configuration::Pallet<T>>::config();
 		for core_assignment in scheduled {
 			let core_idx = core_assignment.core;
-			let assignment = Assignment::new(core_assignment.para_id, CollatorRestrictions::none());
+			let assignment = Assignment::new(core_assignment.para_id);
 			// NOTE: on_runtime_upgrade runs before block initialization and therefore should be one block behind.
 			let now_plus_one = <frame_system::Pallet<T>>::block_number() + One::one();
 			let pe =

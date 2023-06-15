@@ -48,8 +48,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::{
-	vstaging::CollatorRestrictions, CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId,
-	ScheduledCore, SessionInfo, ValidatorIndex,
+	CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionInfo,
+	ValidatorIndex,
 };
 use test_helpers::mock::make_ferdie_keystore;
 
@@ -105,14 +105,8 @@ impl Default for TestState {
 			cores.insert(
 				relay_chain[0],
 				vec![
-					CoreState::Scheduled(ScheduledCore {
-						para_id: chain_ids[0],
-						collator_restrictions: CollatorRestrictions::none(),
-					}),
-					CoreState::Scheduled(ScheduledCore {
-						para_id: chain_ids[1],
-						collator_restrictions: CollatorRestrictions::none(),
-					}),
+					CoreState::Scheduled(ScheduledCore { para_id: chain_ids[0] }),
+					CoreState::Scheduled(ScheduledCore { para_id: chain_ids[1] }),
 				],
 			);
 

@@ -31,8 +31,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::{
-	vstaging::CollatorRestrictions, CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData,
-	PersistedValidationData, PvfExecTimeoutKind, ScheduledCore,
+	CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData, PersistedValidationData,
+	PvfExecTimeoutKind, ScheduledCore,
 };
 use sp_application_crypto::AppCrypto;
 use sp_keyring::Sr25519Keyring;
@@ -99,18 +99,9 @@ impl Default for TestState {
 
 		let _thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 		let availability_cores = vec![
-			CoreState::Scheduled(ScheduledCore {
-				para_id: chain_a,
-				collator_restrictions: CollatorRestrictions::none(),
-			}),
-			CoreState::Scheduled(ScheduledCore {
-				para_id: chain_b,
-				collator_restrictions: CollatorRestrictions::none(),
-			}),
-			CoreState::Scheduled(ScheduledCore {
-				para_id: thread_a,
-				collator_restrictions: CollatorRestrictions::none(), // FIXME: Should be collator's PeerId
-			}),
+			CoreState::Scheduled(ScheduledCore { para_id: chain_a }),
+			CoreState::Scheduled(ScheduledCore { para_id: chain_b }),
+			CoreState::Scheduled(ScheduledCore { para_id: thread_a }),
 		];
 
 		let mut head_data = HashMap::new();
@@ -1201,10 +1192,8 @@ fn backing_works_after_failed_validation() {
 #[test]
 fn backing_doesnt_second_wrong_collator() {
 	let mut test_state = TestState::default();
-	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
-		para_id: ParaId::from(1),
-		collator_restrictions: CollatorRestrictions::none(), // FIXME //Some(Sr25519Keyring::Bob.public().into()),
-	});
+	test_state.availability_cores[0] =
+		CoreState::Scheduled(ScheduledCore { para_id: ParaId::from(1) });
 
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		test_startup(&mut virtual_overseer, &test_state).await;
@@ -1252,10 +1241,8 @@ fn backing_doesnt_second_wrong_collator() {
 #[test]
 fn validation_work_ignores_wrong_collator() {
 	let mut test_state = TestState::default();
-	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
-		para_id: ParaId::from(1),
-		collator_restrictions: CollatorRestrictions::none(), // FIXME //Some(Sr25519Keyring::Bob.public().into()),
-	});
+	test_state.availability_cores[0] =
+		CoreState::Scheduled(ScheduledCore { para_id: ParaId::from(1) });
 
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		test_startup(&mut virtual_overseer, &test_state).await;

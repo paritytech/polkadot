@@ -249,7 +249,6 @@ fn place_order_works() {
 	let alice = 1u64;
 	let amt = 10_000_000u128;
 	let para_a = ParaId::from(111);
-	let collator = OpaquePeerId::new(vec![0u8]);
 
 	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		// Initialize the parathread and wait for it to be ready.
@@ -266,13 +265,7 @@ fn place_order_works() {
 
 		// Does not work unsigned
 		assert_noop!(
-			OnDemandAssigner::place_order(
-				RuntimeOrigin::none(),
-				amt,
-				para_a,
-				Some(collator.clone()),
-				reap_account
-			),
+			OnDemandAssigner::place_order(RuntimeOrigin::none(), amt, para_a, reap_account),
 			BadOrigin
 		);
 
@@ -283,7 +276,6 @@ fn place_order_works() {
 				RuntimeOrigin::signed(alice),
 				low_max_amt,
 				para_a,
-				Some(collator.clone()),
 				reap_account
 			),
 			Error::<Test>::SpotPriceHigherThanMaxAmount,
@@ -304,12 +296,9 @@ fn spotqueue_push_directions() {
 
 		run_to_block(11, |n| if n == 11 { Some(Default::default()) } else { None });
 
-		let assignment_a =
-			Assignment { para_id: para_a, collator_restrictions: CollatorRestrictions::none() };
-		let assignment_b =
-			Assignment { para_id: para_b, collator_restrictions: CollatorRestrictions::none() };
-		let assignment_c =
-			Assignment { para_id: para_c, collator_restrictions: CollatorRestrictions::none() };
+		let assignment_a = Assignment { para_id: para_a };
+		let assignment_b = Assignment { para_id: para_b };
+		let assignment_c = Assignment { para_id: para_c };
 
 		assert_ok!(OnDemandAssigner::add_parathread_assignment(
 			assignment_a.clone(),

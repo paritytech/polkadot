@@ -36,20 +36,13 @@ use frame_support::{
 	},
 };
 use frame_system::pallet_prelude::*;
-use primitives::{
-	v4::{Assignment, CollatorRestrictionKind, CollatorRestrictions},
-	CoreIndex, Id as ParaId,
-};
-use sp_core::OpaquePeerId;
+use primitives::{v4::Assignment, CoreIndex, Id as ParaId};
 use sp_runtime::{
 	traits::{One, SaturatedConversion},
 	FixedPointNumber, FixedPointOperand, FixedU128, Perbill, Saturating,
 };
 
-use sp_std::{
-	collections::{btree_set::BTreeSet, vec_deque::VecDeque},
-	prelude::*,
-};
+use sp_std::{collections::vec_deque::VecDeque, prelude::*};
 
 pub use pallet::*;
 
@@ -146,7 +139,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// An order was placed at some spot price amount.
-		OnDemandOrderPlaced { spot_price: BalanceOf<T> },
+		OnDemandOrderPlaced { para_id: ParaId, spot_price: BalanceOf<T> },
 		/// The value of the spot traffic multiplier changed.
 		SpotTrafficSet { traffic: FixedU128 },
 	}
@@ -168,17 +161,22 @@ pub mod pallet {
 		fn on_initialize(_now: T::BlockNumber) -> Weight {
 			let config = <configuration::Pallet<T>>::config();
 			// Calculate spot price multiplier and store it.
-			let traffic = SpotTraffic::<T>::get();
+			let old_traffic = SpotTraffic::<T>::get();
 			match Self::calculate_spot_traffic(
-				traffic,
+				old_traffic,
 				config.on_demand_queue_max_size,
 				Self::queue_size(),
 				config.on_demand_target_queue_utilization,
 				config.on_demand_fee_variability,
 			) {
-				Ok(spot_traffic) => {
-					SpotTraffic::<T>::set(spot_traffic);
-					Pallet::<T>::deposit_event(Event::<T>::SpotTrafficSet { traffic: spot_traffic })
+				Ok(new_traffic) => {
+					// Only update storage on change
+					if new_traffic != old_traffic {
+						SpotTraffic::<T>::set(new_traffic);
+						Pallet::<T>::deposit_event(Event::<T>::SpotTrafficSet {
+							traffic: new_traffic,
+						})
+					}
 				},
 				Err(_) => {},
 			};
@@ -200,8 +198,6 @@ pub mod pallet {
 		/// - `max_amount`: The maximum balance to withdraw from the origin to place an order.
 		/// - `para_id`: A `ParaId` the origin wants to provide blockspace for.
 		/// - `keep_alive`: Should the transfer from the origin use the existential deposit keep alive checks.
-		/// - `allowed_collators`: An optional set of peer-ids that restricts who is eligible to provide collation for this specific order.
-		///                        Skipping this option allows anyone that can provide a valid collation for a specific `ParaId` to do so.
 		///
 		/// Errors:
 		/// - `InsufficientFunds`
@@ -218,7 +214,6 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_amount: BalanceOf<T>,
 			para_id: ParaId,
-			scheduled_collator: Option<OpaquePeerId>,
 			keep_alive: bool,
 		) -> DispatchResult {
 			// Is tx signed
@@ -249,23 +244,16 @@ pub mod pallet {
 				existence_requirement,
 			)?;
 
-			// TODO All of this needs reworking
-			let mut collator_peer_ids = BTreeSet::new();
-			let mut collator_restriction_kind = CollatorRestrictionKind::Preferred;
-			if let Some(collator) = scheduled_collator {
-				collator_peer_ids.insert(collator);
-				collator_restriction_kind = CollatorRestrictionKind::Required;
-			};
-			let collator_restrictions =
-				CollatorRestrictions::new(collator_peer_ids, collator_restriction_kind);
-
-			let assignment = Assignment::new(para_id, collator_restrictions);
+			let assignment = Assignment::new(para_id);
 
 			let res = Pallet::<T>::add_parathread_assignment(assignment, QueuePushDirection::Back);
 
 			match res {
 				Ok(_) => {
-					Pallet::<T>::deposit_event(Event::<T>::OnDemandOrderPlaced { spot_price });
+					Pallet::<T>::deposit_event(Event::<T>::OnDemandOrderPlaced {
+						para_id,
+						spot_price,
+					});
 					return Ok(())
 				},
 				Err(err) => return Err(err),

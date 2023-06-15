@@ -891,7 +891,7 @@ mod sanitizers {
 	use crate::mock::Test;
 	use keyring::Sr25519Keyring;
 	use primitives::{
-		v4::{Assignment, CollatorRestrictions, ParasEntry},
+		v4::{Assignment, ParasEntry},
 		PARACHAIN_KEY_TYPE_ID,
 	};
 	use sc_keystore::LocalKeystore;
@@ -1178,10 +1178,7 @@ mod sanitizers {
 				let core_idx = CoreIndex::from(idx as u32);
 				let ca = CoreAssignment {
 					paras_entry: ParasEntry::new(
-						Assignment::new(
-							ParaId::from(1_u32 + idx as u32),
-							CollatorRestrictions::none(),
-						),
+						Assignment::new(ParaId::from(1_u32 + idx as u32)),
 						entry_ttl,
 					),
 					group_idx: GroupIndex::from(idx as u32),

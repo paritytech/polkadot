@@ -33,8 +33,7 @@ mod handle_new_activations {
 		subsystem_test_harness, TestSubsystemContextHandle,
 	};
 	use polkadot_primitives::{
-		vstaging::CollatorRestrictions, CollatorPair, Id as ParaId, PersistedValidationData,
-		ScheduledCore, ValidationCode,
+		CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode,
 	};
 	use std::pin::Pin;
 
@@ -85,10 +84,7 @@ mod handle_new_activations {
 	}
 
 	fn scheduled_core_for<Id: Into<ParaId>>(para_id: Id) -> ScheduledCore {
-		ScheduledCore {
-			para_id: para_id.into(),
-			collator_restrictions: CollatorRestrictions::none(),
-		}
+		ScheduledCore { para_id: para_id.into() }
 	}
 
 	#[test]

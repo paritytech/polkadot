@@ -48,10 +48,9 @@ use polkadot_node_subsystem_util::{
 	request_validators, Validator,
 };
 use polkadot_primitives::{
-	vstaging::CollatorRestrictions, BackedCandidate, CandidateCommitments, CandidateHash,
-	CandidateReceipt, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
-	PvfExecTimeoutKind, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature,
-	ValidityAttestation,
+	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt,
+	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PvfExecTimeoutKind,
+	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use sp_keystore::KeystorePtr;
 use statement_table::{
@@ -355,7 +354,7 @@ async fn handle_active_leaves_update<Context>(
 			let group_index = group_rotation_info.group_for_core(core_index, n_cores);
 			if let Some(g) = validator_groups.get(group_index.0 as usize) {
 				if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
-					assignment = Some((scheduled.para_id, scheduled.collator_restrictions));
+					assignment = Some(scheduled.para_id);
 				}
 				groups.insert(scheduled.para_id, g.clone());
 			}
@@ -364,16 +363,15 @@ async fn handle_active_leaves_update<Context>(
 
 	let table_context = TableContext { groups, validators, validator };
 
-	let (assignment, _collator_restrictions) = match assignment {
+	let assignment = match assignment {
 		None => {
 			assignments_span.add_string_tag("assigned", "false");
-			// Is CollatorRestrictions::none() here correct?
-			(None, CollatorRestrictions::none())
+			None
 		},
-		Some((assignment, collator_restrictions)) => {
+		Some(assignment) => {
 			assignments_span.add_string_tag("assigned", "true");
 			assignments_span.add_para_id(assignment);
-			(Some(assignment), collator_restrictions)
+			Some(assignment)
 		},
 	};
 
@@ -383,7 +381,6 @@ async fn handle_active_leaves_update<Context>(
 	let job = CandidateBackingJob {
 		parent,
 		assignment,
-		//collator_restrictions,
 		issued_statements: HashSet::new(),
 		awaiting_validation: HashSet::new(),
 		fallbacks: HashMap::new(),
@@ -414,8 +411,6 @@ struct CandidateBackingJob<Context> {
 	parent: Hash,
 	/// The `ParaId` assigned to this validator
 	assignment: Option<ParaId>,
-	// /// The collator restrictions for authoring the candidate.
-	// collator_restrictions: CollatorRestrictions,
 	/// Spans for all candidates that are not yet backable.
 	unbacked_candidates: HashMap<CandidateHash, jaeger::Span>,
 	/// We issued `Seconded`, `Valid` or `Invalid` statements on about these candidates.

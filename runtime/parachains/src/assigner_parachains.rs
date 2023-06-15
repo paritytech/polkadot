@@ -16,10 +16,7 @@
 
 use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 pub use pallet::*;
-use primitives::{
-	v4::{Assignment, CollatorRestrictions},
-	CoreIndex, Id as ParaId,
-};
+use primitives::{v4::Assignment, CoreIndex, Id as ParaId};
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -45,7 +42,7 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 		<paras::Pallet<T>>::parachains()
 			.get(core_idx.0 as usize)
 			.copied()
-			.map(|para_id| Assignment::new(para_id, CollatorRestrictions::none()))
+			.map(|para_id| Assignment::new(para_id))
 	}
 
 	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}

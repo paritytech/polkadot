@@ -18,11 +18,7 @@ use super::*;
 
 use frame_support::assert_ok;
 use keyring::Sr25519Keyring;
-use primitives::{
-	v4::{Assignment, CollatorRestrictionKind, CollatorRestrictions},
-	BlockNumber, CollatorId, SessionIndex, ValidationCode, ValidatorId,
-};
-use sp_core::{ByteArray, OpaquePeerId};
+use primitives::{v4::Assignment, BlockNumber, SessionIndex, ValidationCode, ValidatorId};
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 
 use crate::{
@@ -167,7 +163,6 @@ fn add_parathread_claim_works() {
 	};
 
 	let thread_id = ParaId::from(10);
-	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 	let core_index = CoreIndex::from(0);
 	let entry_ttl = 10_000;
 
@@ -180,16 +175,7 @@ fn add_parathread_claim_works() {
 
 		assert!(Paras::is_parathread(thread_id));
 
-		let pe = ParasEntry::new(
-			Assignment::new(
-				thread_id,
-				CollatorRestrictions::new(
-					[OpaquePeerId::new(collator.to_raw_vec())].into_iter().collect(),
-					CollatorRestrictionKind::Preferred,
-				),
-			),
-			entry_ttl,
-		);
+		let pe = ParasEntry::new(Assignment::new(thread_id), entry_ttl);
 		Scheduler::add_to_claimqueue(core_index, pe.clone());
 
 		let cq = Scheduler::claimqueue();
@@ -815,17 +801,11 @@ fn schedule_clears_availability_cores() {
 			assert_eq!(claimqueue_2.len(), 1);
 			assert_eq!(
 				claimqueue_0,
-				vec![Some(ParasEntry::new(
-					Assignment::new(chain_a, CollatorRestrictions::none()),
-					entry_ttl
-				))],
+				vec![Some(ParasEntry::new(Assignment::new(chain_a), entry_ttl))],
 			);
 			assert_eq!(
 				claimqueue_2,
-				vec![Some(ParasEntry::new(
-					Assignment::new(chain_c, CollatorRestrictions::none()),
-					entry_ttl
-				))],
+				vec![Some(ParasEntry::new(Assignment::new(chain_c), entry_ttl))],
 			);
 
 			// The freed cores should be `Free` in `AvailabilityCores`.
@@ -1018,10 +998,8 @@ fn availability_predicate_works() {
 		{
 			let entry_ttl = 10_000;
 			AvailabilityCores::<Test>::mutate(|cores| {
-				cores[0] = CoreOccupied::Paras(ParasEntry::new(
-					Assignment::new(chain_a, CollatorRestrictions::none()),
-					entry_ttl,
-				));
+				cores[0] =
+					CoreOccupied::Paras(ParasEntry::new(Assignment::new(chain_a), entry_ttl));
 				//	cores[1] = CoreOccupied::Parathread(ParathreadEntry {
 				//		claim: ParathreadClaim(thread_a, Some(collator)),
 				//		retries: 0,
@@ -1272,10 +1250,7 @@ fn next_up_on_available_is_parachain_always() {
 			// Now that there is an earlier next-up, we use that.
 			assert_eq!(
 				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-				ScheduledCore {
-					para_id: chain_a,
-					collator_restrictions: CollatorRestrictions::none()
-				}
+				ScheduledCore { para_id: chain_a }
 			);
 		}
 	});
@@ -1329,10 +1304,7 @@ fn next_up_on_time_out_is_parachain_always() {
 			// Now that there is an earlier next-up, we use that.
 			assert_eq!(
 				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-				ScheduledCore {
-					para_id: chain_a,
-					collator_restrictions: CollatorRestrictions::none()
-				}
+				ScheduledCore { para_id: chain_a }
 			);
 		}
 	});
@@ -1408,7 +1380,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			vec![(
 				CoreIndex(0),
 				vec![Some(ParasEntry::new(
-					Assignment::new(chain_a, CollatorRestrictions::none()),
+					Assignment::new(chain_a),
 					// At end of block 2
 					config.on_demand_ttl + 2
 				))]
@@ -1453,7 +1425,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 				(
 					CoreIndex(0),
 					vec![Some(ParasEntry::new(
-						Assignment::new(chain_a, CollatorRestrictions::none()),
+						Assignment::new(chain_a),
 						// At block 3
 						config.on_demand_ttl + 3
 					))]
@@ -1463,7 +1435,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 				(
 					CoreIndex(1),
 					vec![Some(ParasEntry::new(
-						Assignment::new(chain_b, CollatorRestrictions::none()),
+						Assignment::new(chain_b),
 						// At block 3
 						config.on_demand_ttl + 3
 					))]
