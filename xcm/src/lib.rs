@@ -243,6 +243,26 @@ versioned_type! {
 }
 
 versioned_type! {
+	/// A single `NetworkId` value, together with its version code.
+	pub enum VersionedNetworkId {
+		#[codec(index = 2)]
+		V2(v2::NetworkId),
+		#[codec(index = 3)]
+		V3(v3::NetworkId),
+	}
+}
+
+versioned_type! {
+	/// A single `Junction` value, together with its version code.
+	pub enum VersionedJunction {
+		#[codec(index = 2)]
+		V2(v2::Junction),
+		#[codec(index = 3)]
+		V3(v3::Junction),
+	}
+}
+
+versioned_type! {
 	/// A single `MultiLocation` value, together with its version code.
 	#[derive(Ord, PartialOrd)]
 	pub enum VersionedMultiLocation {
