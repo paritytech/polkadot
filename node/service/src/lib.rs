@@ -896,7 +896,6 @@ where
 
 	let approval_voting_config = ApprovalVotingConfig {
 		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
@@ -920,7 +919,6 @@ where
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
 		col_dispute_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 	};
 
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
@@ -1288,7 +1286,7 @@ macro_rules! chain_ops {
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
 pub fn new_chain_ops(
-	mut config: &mut Configuration,
+	config: &mut Configuration,
 	jaeger_agent: Option<std::net::SocketAddr>,
 ) -> Result<
 	(
@@ -1512,7 +1510,6 @@ fn revert_chain_selection(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::R
 fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
 	let config = approval_voting_subsystem::Config {
 		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: Default::default(),
 	};
 

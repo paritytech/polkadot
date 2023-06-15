@@ -34,27 +34,35 @@ use super::v5::V5HostConfiguration;
 // Change this once there is V7.
 type V6HostConfiguration<BlockNumber> = configuration::HostConfiguration<BlockNumber>;
 
-#[frame_support::storage_alias]
-pub(crate) type V5ActiveConfig<T: Config> =
-	StorageValue<Pallet<T>, V5HostConfiguration<BlockNumberFor<T>>, OptionQuery>;
+mod v5 {
+	use super::*;
 
-#[frame_support::storage_alias]
-pub(crate) type V5PendingConfigs<T: Config> = StorageValue<
-	Pallet<T>,
-	Vec<(SessionIndex, V5HostConfiguration<BlockNumberFor<T>>)>,
-	OptionQuery,
->;
+	#[frame_support::storage_alias]
+	pub(crate) type ActiveConfig<T: Config> =
+		StorageValue<Pallet<T>, V5HostConfiguration<BlockNumberFor<T>>, OptionQuery>;
 
-#[frame_support::storage_alias]
-pub(crate) type V6ActiveConfig<T: Config> =
-	StorageValue<Pallet<T>, V6HostConfiguration<BlockNumberFor<T>>, OptionQuery>;
+	#[frame_support::storage_alias]
+	pub(crate) type PendingConfigs<T: Config> = StorageValue<
+		Pallet<T>,
+		Vec<(SessionIndex, V5HostConfiguration<BlockNumberFor<T>>)>,
+		OptionQuery,
+	>;
+}
 
-#[frame_support::storage_alias]
-pub(crate) type V6PendingConfigs<T: Config> = StorageValue<
-	Pallet<T>,
-	Vec<(SessionIndex, V6HostConfiguration<BlockNumberFor<T>>)>,
-	OptionQuery,
->;
+mod v6 {
+	use super::*;
+
+	#[frame_support::storage_alias]
+	pub(crate) type ActiveConfig<T: Config> =
+		StorageValue<Pallet<T>, V6HostConfiguration<BlockNumberFor<T>>, OptionQuery>;
+
+	#[frame_support::storage_alias]
+	pub(crate) type PendingConfigs<T: Config> = StorageValue<
+		Pallet<T>,
+		Vec<(SessionIndex, V6HostConfiguration<BlockNumberFor<T>>)>,
+		OptionQuery,
+	>;
+}
 
 pub struct MigrateToV6<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToV6<T> {
@@ -65,6 +73,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV6<T> {
 	}
 
 	fn on_runtime_upgrade() -> Weight {
+		log::info!(target: configuration::LOG_TARGET, "MigrateToV6 started");
 		if StorageVersion::get::<Pallet<T>>() == 5 {
 			let weight_consumed = migrate_to_v6::<T>();
 
@@ -145,24 +154,24 @@ executor_params                          : pre.executor_params,
 		}
 	};
 
-	let v5 = V5ActiveConfig::<T>::get()
+	let v5 = v5::ActiveConfig::<T>::get()
 		.defensive_proof("Could not decode old config")
 		.unwrap_or_default();
 	let v6 = translate(v5);
-	V6ActiveConfig::<T>::set(Some(v6));
+	v6::ActiveConfig::<T>::set(Some(v6));
 
-	let pending_v4 = V5PendingConfigs::<T>::get()
+	let pending_v5 = v5::PendingConfigs::<T>::get()
 		.defensive_proof("Could not decode old pending")
 		.unwrap_or_default();
-	let mut pending_v5 = Vec::new();
+	let mut pending_v6 = Vec::new();
 
-	for (session, v5) in pending_v4.into_iter() {
+	for (session, v5) in pending_v5.into_iter() {
 		let v6 = translate(v5);
-		pending_v5.push((session, v6));
+		pending_v6.push((session, v6));
 	}
-	V6PendingConfigs::<T>::set(Some(pending_v5.clone()));
+	v6::PendingConfigs::<T>::set(Some(pending_v6.clone()));
 
-	let num_configs = (pending_v5.len() + 1) as u64;
+	let num_configs = (pending_v6.len() + 1) as u64;
 	T::DbWeight::get().reads_writes(num_configs, num_configs)
 }
 
@@ -201,6 +210,7 @@ mod tests {
 		assert_eq!(v5.n_delay_tranches, 40);
 		assert_eq!(v5.ump_max_individual_weight, Weight::from_parts(20_000_000_000, 5_242_880));
 		assert_eq!(v5.minimum_validation_upgrade_delay, 15); // This is the last field in the struct.
+		assert_eq!(v5.group_rotation_frequency, 10);
 	}
 
 	#[test]
@@ -230,13 +240,13 @@ mod tests {
 
 		new_test_ext(Default::default()).execute_with(|| {
 			// Implant the v5 version in the state.
-			V5ActiveConfig::<Test>::set(Some(v5));
-			V5PendingConfigs::<Test>::set(Some(pending_configs));
+			v5::ActiveConfig::<Test>::set(Some(v5));
+			v5::PendingConfigs::<Test>::set(Some(pending_configs));
 
 			migrate_to_v6::<Test>();
 
-			let v6 = V6ActiveConfig::<Test>::get().unwrap();
-			let mut configs_to_check = V6PendingConfigs::<Test>::get().unwrap();
+			let v6 = v6::ActiveConfig::<Test>::get().unwrap();
+			let mut configs_to_check = v6::PendingConfigs::<Test>::get().unwrap();
 			configs_to_check.push((0, v6.clone()));
 
 			for (_, v5) in configs_to_check {
