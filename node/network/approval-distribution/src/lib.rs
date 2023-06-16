@@ -20,7 +20,12 @@
 
 #![warn(missing_docs)]
 
-use futures::{channel::oneshot, FutureExt as _};
+use futures::{
+	channel::oneshot::{self, Canceled},
+	select,
+	stream::FuturesUnordered,
+	Future, FutureExt as _, StreamExt,
+};
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_network_protocol::{
 	self as net_protocol,
@@ -46,6 +51,7 @@ use polkadot_primitives::{
 use rand::{CryptoRng, Rng, SeedableRng};
 use std::{
 	collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque},
+	pin::Pin,
 	time::Instant,
 };
 
@@ -198,6 +204,35 @@ struct State {
 	aggregate_assignments: HashMap<Hash, PerOperation>,
 	/// Total num of approvals
 	aggregate_approvals: HashMap<Hash, PerOperation>,
+	/// Approval votes check
+	answers_from_approval_voting: FuturesUnordered<
+		Pin<Box<dyn Future<Output = Result<ApprovalVotingResponse, Canceled>> + Send>>,
+	>,
+}
+
+#[derive(Debug, Clone)]
+enum ApprovalVotingResponse {
+	ApprovalCheck(ApprovalVotingMetadata),
+	AssignmentCheck(AssignmentMetadata),
+}
+
+#[derive(Debug, Clone)]
+struct AssignmentMetadata {
+	result: AssignmentCheckResult,
+	assignment: IndirectAssignmentCert,
+	message_subject: MessageSubject,
+	message_kind: MessageKind,
+	peer_id: PeerId,
+	claimed_candidate_index: CandidateIndex,
+}
+
+#[derive(Debug, Clone)]
+struct ApprovalVotingMetadata {
+	vote: IndirectSignedApprovalVote,
+	message_subject: MessageSubject,
+	message_kind: MessageKind,
+	peer_id: PeerId,
+	result: ApprovalCheckResult,
 }
 
 #[derive(Debug, Default)]
@@ -213,11 +248,8 @@ struct Statistics {
 	pub our_view_change: PeerStatistics,
 	pub incoming_peer_message: PeerStatistics,
 	pub import_assignment: PeerStatistics,
-	pub gossip_assinment: PeerStatistics,
-	pub waiting_assignment: PeerStatistics,
 	pub import_approval: PeerStatistics,
 	pub gossip_approval: PeerStatistics,
-	pub waiting_approval: PeerStatistics,
 	pub get_approval_signatures: PeerStatistics,
 	pub block_finalized: PeerStatistics,
 	pub assignments_by_block_hash: HashMap<Hash, u64>,
@@ -226,7 +258,6 @@ struct Statistics {
 #[derive(Debug, Default, Copy, Clone)]
 struct PerOperation {
 	count: u64,
-	fan_out: u64,
 }
 #[derive(Debug, Default)]
 struct PeerStatistics {
@@ -313,10 +344,16 @@ struct BlockEntry {
 	parent_hash: Hash,
 	/// Our knowledge of messages.
 	knowledge: Knowledge,
+	/// Messages sent to approval voting that we are waiting to be verfied.
+	waiting_to_be_verified: Knowledge,
 	/// A votes entry for each candidate indexed by [`CandidateIndex`].
 	candidates: Vec<CandidateEntry>,
 	/// The session index of this block.
 	session: SessionIndex,
+	/// Store messages that arrive from different peer while the signature was checked in approval voting
+	maybe_needs_checking: HashMap<MessageSubject, Vec<(PeerId, PendingMessage)>>,
+	/// Store messages that arrive from different peer while the signature was checked in approval voting
+	maybe_needs_checking_assignments: HashMap<MessageSubject, Vec<(PeerId, PendingMessage)>>,
 }
 
 #[derive(Debug)]
@@ -494,6 +531,9 @@ impl State {
 						knowledge: Knowledge::default(),
 						candidates,
 						session: meta.session,
+						maybe_needs_checking: Default::default(),
+						waiting_to_be_verified: Default::default(),
+						maybe_needs_checking_assignments: Default::default(),
 					});
 
 					self.topologies.inc_session_refs(meta.session);
@@ -571,7 +611,6 @@ impl State {
 								assignment,
 								claimed_index,
 								rng,
-								1,
 							)
 							.await;
 						},
@@ -581,7 +620,6 @@ impl State {
 								metrics,
 								MessageSource::Peer(peer_id),
 								approval_vote,
-								1,
 							)
 							.await;
 						},
@@ -674,7 +712,6 @@ impl State {
 						assignment,
 						claimed_index,
 						rng,
-						len as u64,
 					)
 					.await;
 					let elapsed = start1.elapsed().as_micros();
@@ -723,7 +760,6 @@ impl State {
 						metrics,
 						MessageSource::Peer(peer_id),
 						approval_vote,
-						len as u64,
 					)
 					.await;
 					let elapsed = start1.elapsed().as_micros();
@@ -822,11 +858,9 @@ impl State {
 		assignment: IndirectAssignmentCert,
 		claimed_candidate_index: CandidateIndex,
 		rng: &mut R,
-		origin_count: u64,
 	) where
 		R: CryptoRng + Rng,
 	{
-		let orig_block_hash = assignment.block_hash;
 		let start_import = Instant::now();
 		let _span = self
 			.spans
@@ -909,13 +943,33 @@ impl State {
 				return
 			}
 
+			// The approval is in process of being verified, nothing to do here, we don't want to check it multiple times
+			// just mark that the peer knew about it, so we don't send it to him again
+			if entry.waiting_to_be_verified.contains(&message_subject, message_kind) {
+				gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "approval is pending verification");
+				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+					peer_knowledge.received.insert(message_subject.clone(), message_kind);
+				}
+
+				// Store this for the situation where the signature turns out it was invalid, so check it from a different peer.
+				entry
+					.maybe_needs_checking_assignments
+					.entry(message_subject)
+					.or_default()
+					.push((
+						peer_id,
+						PendingMessage::Assignment(assignment, claimed_candidate_index),
+					));
+				return
+			}
+
 			let (tx, rx) = oneshot::channel();
-			let start = Instant::now();
 			*self
 				.statistics
 				.assignments_by_block_hash
 				.entry(assignment.block_hash)
 				.or_default() += 1;
+			let _timer = metrics.time_awaiting_approval_voting();
 
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment.clone(),
@@ -923,77 +977,24 @@ impl State {
 				tx,
 			))
 			.await;
-			let just_sending_the_message = start.elapsed().as_micros();
-			let timer = metrics.time_awaiting_approval_voting();
+			entry.waiting_to_be_verified.insert(message_subject.clone(), message_kind);
 
-			let result = match rx.await {
-				Ok(result) => result,
-				Err(_) => {
-					gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
-					return
-				},
-			};
-			self.statistics.waiting_assignment.add_time(&start);
-
-			if let Some(duration) = print_if_above_threshold(&start) {
-				gum::warn!(target: LOG_TARGET, "too_long: import_and_circlate assignment {:} just_sending_the_message {:} {:?}", duration, just_sending_the_message, start);
+			let message_subj_clone = message_subject.clone();
+			let await_future = async move {
+				let result = rx.await?;
+				Ok(ApprovalVotingResponse::AssignmentCheck(AssignmentMetadata {
+					message_subject: message_subj_clone,
+					message_kind,
+					peer_id,
+					result,
+					assignment,
+					claimed_candidate_index,
+				}))
 			}
+			.boxed();
+			self.answers_from_approval_voting.push(await_future);
 
-			drop(timer);
-
-			gum::trace!(
-				target: LOG_TARGET,
-				?source,
-				?message_subject,
-				?result,
-				"Checked assignment",
-			);
-			match result {
-				AssignmentCheckResult::Accepted => {
-					modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE_FIRST).await;
-					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
-					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(message_subject.clone(), message_kind);
-					}
-				},
-				AssignmentCheckResult::AcceptedDuplicate => {
-					// "duplicate" assignments aren't necessarily equal.
-					// There is more than one way each validator can be assigned to each core.
-					// cf. https://github.com/paritytech/polkadot/pull/2160#discussion_r557628699
-					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(message_subject.clone(), message_kind);
-					}
-					gum::debug!(
-						target: LOG_TARGET,
-						hash = ?block_hash,
-						?peer_id,
-						"Got an `AcceptedDuplicate` assignment",
-					);
-					return
-				},
-				AssignmentCheckResult::TooFarInFuture => {
-					gum::debug!(
-						target: LOG_TARGET,
-						hash = ?block_hash,
-						?peer_id,
-						"Got an assignment too far in the future",
-					);
-					modify_reputation(ctx.sender(), peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE)
-						.await;
-					return
-				},
-				AssignmentCheckResult::Bad(error) => {
-					gum::info!(
-						target: LOG_TARGET,
-						hash = ?block_hash,
-						?peer_id,
-						%error,
-						"Got a bad assignment from peer",
-					);
-					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
-					return
-				},
-			}
+			return
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
 				// if we already imported an assignment, there is no need to distribute it again
@@ -1015,8 +1016,147 @@ impl State {
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the assignment.
 		metrics.on_assignment_imported();
 
-		let topology = self.topologies.get_topology(entry.session);
+		self.circulate_assignment(
+			ctx,
+			source,
+			assignment,
+			claimed_candidate_index,
+			message_subject,
+			message_kind,
+			rng,
+		)
+		.await;
+	}
+
+	async fn received_assignment_answer<Context>(
+		&mut self,
+		ctx: &mut Context,
+		asignment_metadata: AssignmentMetadata,
+	) -> Option<AssignmentMetadata> {
+		let message_subject = &asignment_metadata.message_subject;
+		let message_kind = asignment_metadata.message_kind;
+		let peer_id = asignment_metadata.peer_id;
+		let block_hash = asignment_metadata.assignment.block_hash;
+		let entry = match self.blocks.get_mut(&block_hash) {
+			Some(entry) => entry,
+			// TODO: should not happen
+			None => return None,
+		};
+		gum::trace!(
+			target: LOG_TARGET,
+			?peer_id,
+			?message_subject,
+			?asignment_metadata.result,
+			"Checked assignment",
+		);
+
+		match asignment_metadata.result {
+			AssignmentCheckResult::Accepted => {
+				modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE_FIRST).await;
+				entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
+				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+					peer_knowledge.received.insert(message_subject.clone(), message_kind);
+				}
+				entry.maybe_needs_checking_assignments.remove(message_subject);
+				Some(asignment_metadata)
+			},
+			AssignmentCheckResult::AcceptedDuplicate => {
+				// "duplicate" assignments aren't necessarily equal.
+				// There is more than one way each validator can be assigned to each core.
+				// cf. https://github.com/paritytech/polkadot/pull/2160#discussion_r557628699
+				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+					peer_knowledge.received.insert(message_subject.clone(), message_kind);
+				}
+				gum::debug!(
+					target: LOG_TARGET,
+					hash = ?block_hash,
+					?peer_id,
+					"Got an `AcceptedDuplicate` assignment",
+				);
+				return None
+			},
+			AssignmentCheckResult::TooFarInFuture => {
+				gum::debug!(
+					target: LOG_TARGET,
+					hash = ?block_hash,
+					?peer_id,
+					"Got an assignment too far in the future",
+				);
+				modify_reputation(ctx.sender(), peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE)
+					.await;
+				return None
+			},
+			AssignmentCheckResult::Bad(error) => {
+				gum::info!(
+					target: LOG_TARGET,
+					hash = ?block_hash,
+					?peer_id,
+					%error,
+					"Got a bad assignment from peer",
+				);
+				modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
+				// Check if we received some other approval while we were checking this one. If yes, then try to see if that turn out to be valid
+				if let Some((peer_id, assignment)) = entry
+					.maybe_needs_checking_assignments
+					.get_mut(message_subject)
+					.and_then(|val| val.pop())
+				{
+					match assignment {
+						PendingMessage::Assignment(assignment, claimed_candidate_index) => {
+							let (tx, rx) = oneshot::channel();
+
+							ctx.send_message(ApprovalVotingMessage::CheckAndImportAssignment(
+								assignment.clone(),
+								claimed_candidate_index,
+								tx,
+							))
+							.await;
+
+							let assignment_clone = assignment.clone();
+							let message_subj_clone = message_subject.clone();
+							let await_future = async move {
+								let result = rx.await?;
+								Ok(ApprovalVotingResponse::AssignmentCheck(AssignmentMetadata {
+									assignment: assignment_clone,
+									message_subject: message_subj_clone,
+									message_kind,
+									peer_id,
+									result,
+									claimed_candidate_index,
+								}))
+							}
+							.boxed();
+							self.answers_from_approval_voting.push(await_future);
+						},
+						_ => {},
+					}
+				}
+				return None
+			},
+		}
+	}
+
+	async fn circulate_assignment<Context>(
+		&mut self,
+		ctx: &mut Context,
+		source: MessageSource,
+		assignment: IndirectAssignmentCert,
+		claimed_candidate_index: CandidateIndex,
+		message_subject: MessageSubject,
+		message_kind: MessageKind,
+		rng: &mut (impl CryptoRng + Rng),
+	) {
 		let local = source == MessageSource::Local;
+		let block_hash = assignment.block_hash;
+		let validator_index = assignment.validator;
+		let entry = match self.blocks.get_mut(&block_hash) {
+			Some(entry) => entry,
+			None => {
+				// TODO: should not happen
+				return
+			},
+		};
+		let topology = self.topologies.get_topology(entry.session);
 
 		let required_routing = topology.map_or(RequiredRouting::PendingTopology, |t| {
 			t.local_grid_neighbors().required_routing_by_index(validator_index, local)
@@ -1090,10 +1230,6 @@ impl State {
 		}
 
 		if !peers.is_empty() {
-			if origin_count > 1 {
-				self.aggregate_assignments.entry(orig_block_hash).or_default().fan_out +=
-					peers.len() as u64;
-			}
 			gum::trace!(
 				target: LOG_TARGET,
 				?block_hash,
@@ -1111,7 +1247,6 @@ impl State {
 			))
 			.await;
 		}
-		self.statistics.gossip_assinment.add_time(&start_import);
 	}
 
 	async fn import_and_circulate_approval<Context>(
@@ -1120,7 +1255,6 @@ impl State {
 		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
-		origin_count: u64,
 	) {
 		let start_approval = Instant::now();
 
@@ -1210,54 +1344,48 @@ impl State {
 				return
 			}
 
+			// The approval is in process of being verified, nothing to do here, we don't want to check it multiple times
+			// just mark that the peer knew about it, so we don't send it to him again
+			if entry.waiting_to_be_verified.contains(&message_subject, message_kind) {
+				gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "approval is pending verification");
+				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+					peer_knowledge.received.insert(message_subject.clone(), message_kind);
+				}
+
+				// Store this for the situation where the signature turns out it was invalid, so check it from a different peer.
+				entry
+					.maybe_needs_checking
+					.entry(message_subject)
+					.or_default()
+					.push((peer_id, PendingMessage::Approval(vote)));
+				return
+			}
+
+			entry.waiting_to_be_verified.insert(message_subject.clone(), message_kind);
 			let (tx, rx) = oneshot::channel();
-			let start = Instant::now();
 			*self.statistics.approvals_by_block_hash.entry(vote.block_hash).or_default() += 1;
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
 				.await;
 
-			let timer = metrics.time_awaiting_approval_voting();
-			let just_sending_the_message = start.elapsed().as_micros();
-			let result = match rx.await {
-				Ok(result) => result,
-				Err(_) => {
-					gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
-					return
-				},
-			};
-			self.statistics.waiting_approval.add_time(&start);
-			if let Some(duration) = print_if_above_threshold(&start) {
-				gum::warn!(target: LOG_TARGET, "too_long: import_and_circlate approval {:} just_sending_the_message {:} {:?}", duration, just_sending_the_message, start);
+			let vote_clone = vote.clone();
+			let message_subj_clone = message_subject.clone();
+			let await_future = async move {
+				let result = rx.await?;
+				Ok(ApprovalVotingResponse::ApprovalCheck(ApprovalVotingMetadata {
+					vote: vote_clone,
+					message_subject: message_subj_clone,
+					message_kind,
+					peer_id,
+					result,
+				}))
 			}
-			drop(timer);
-
-			gum::trace!(
-				target: LOG_TARGET,
-				?peer_id,
-				?message_subject,
-				?result,
-				"Checked approval",
-			);
-			match result {
-				ApprovalCheckResult::Accepted => {
-					modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE_FIRST).await;
-
-					entry.knowledge.insert(message_subject.clone(), message_kind);
-					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(message_subject.clone(), message_kind);
-					}
-				},
-				ApprovalCheckResult::Bad(error) => {
-					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
-					gum::info!(
-						target: LOG_TARGET,
-						?peer_id,
-						%error,
-						"Got a bad approval from peer",
-					);
-					return
-				},
-			}
+			.boxed();
+			self.answers_from_approval_voting.push(await_future);
+			return
+		// let result = self.answers_from_approval_voting.next().await;
+		// if self.received_approval_voting_answer(ctx, result).await.is_none() {
+		// 	return
+		// }
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
 				// if we already imported an approval, there is no need to distribute it again
@@ -1279,6 +1407,111 @@ impl State {
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
 		metrics.on_approval_imported();
 		self.statistics.import_approval.add_time(&start_approval);
+
+		// Dispatch a ApprovalDistributionV1Message::Approval(vote)
+		// to all peers required by the topology, with the exception of the source peer.
+		self.circulate_approval(ctx, source, message_subject, message_kind, vote).await;
+		self.statistics.gossip_approval.add_time(&start_approval);
+	}
+
+	async fn received_approval_voting_answer<Context>(
+		&mut self,
+		ctx: &mut Context,
+		result: ApprovalVotingMetadata,
+	) -> Option<ApprovalVotingMetadata> {
+		let message_subject = &result.message_subject;
+		let message_kind = result.message_kind;
+		let peer_id = result.peer_id;
+
+		gum::trace!(
+			target: LOG_TARGET,
+			?peer_id,
+			?message_subject,
+			?result,
+			"Checked approval",
+		);
+
+		let entry = match self.blocks.get_mut(&result.vote.block_hash) {
+			Some(entry) if entry.candidates.get(result.vote.candidate_index as usize).is_some() =>
+				entry,
+			_ => return None,
+		};
+
+		match result.result {
+			ApprovalCheckResult::Accepted => {
+				modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE_FIRST).await;
+
+				entry.knowledge.insert(message_subject.clone(), message_kind);
+				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+					peer_knowledge.received.insert(message_subject.clone(), message_kind);
+				}
+
+				entry.maybe_needs_checking.remove(message_subject);
+				Some(result)
+			},
+			ApprovalCheckResult::Bad(error) => {
+				modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
+				gum::info!(
+					target: LOG_TARGET,
+					?peer_id,
+					%error,
+					"Got a bad approval from peer",
+				);
+				// Check if we received some other approval while we were checking this one. If yes, then try to see if that turn out to be valid
+				if let Some((peer_id, vote)) =
+					entry.maybe_needs_checking.get_mut(message_subject).and_then(|val| val.pop())
+				{
+					match vote {
+						PendingMessage::Approval(vote) => {
+							let (tx, rx) = oneshot::channel();
+
+							ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(
+								vote.clone(),
+								tx,
+							))
+							.await;
+							let vote_clone = vote.clone();
+							let message_subj_clone = message_subject.clone();
+							let await_future = async move {
+								let result = rx.await?;
+								Ok(ApprovalVotingResponse::ApprovalCheck(ApprovalVotingMetadata {
+									vote: vote_clone,
+									message_subject: message_subj_clone,
+									message_kind,
+									peer_id,
+									result,
+								}))
+							}
+							.boxed();
+							self.answers_from_approval_voting.push(await_future);
+						},
+						_ => {},
+					}
+				}
+				None
+			},
+		}
+	}
+
+	async fn circulate_approval<Context>(
+		&mut self,
+		ctx: &mut Context,
+		source: MessageSource,
+		message_subject: MessageSubject,
+		message_kind: MessageKind,
+		vote: IndirectSignedApprovalVote,
+	) {
+		let block_hash = vote.block_hash;
+		let validator_index = vote.validator;
+		let candidate_index = vote.candidate_index;
+
+		let entry = match self.blocks.get_mut(&block_hash) {
+			Some(entry) if entry.candidates.get(candidate_index as usize).is_some() => entry,
+			_ => return,
+		};
+
+		// Dispatch a ApprovalDistributionV1Message::Approval(vote)
+		// to all peers required by the topology, with the exception of the source peer.
 		let required_routing = match entry.candidates.get_mut(candidate_index as usize) {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Approved
@@ -1337,9 +1570,6 @@ impl State {
 			},
 		};
 
-		// Dispatch a ApprovalDistributionV1Message::Approval(vote)
-		// to all peers required by the topology, with the exception of the source peer.
-
 		let topology = self.topologies.get_topology(entry.session);
 		let source_peer = source.peer_id();
 
@@ -1380,10 +1610,6 @@ impl State {
 		}
 
 		if !peers.is_empty() {
-			if origin_count > 1 {
-				self.aggregate_approvals.entry(vote.block_hash).or_default().fan_out +=
-					peers.len() as u64;
-			}
 			let approvals = vec![vote];
 			gum::trace!(
 				target: LOG_TARGET,
@@ -1402,7 +1628,6 @@ impl State {
 			))
 			.await;
 		}
-		self.statistics.gossip_approval.add_time(&start_approval);
 	}
 
 	/// Retrieve approval signatures from state for the given relay block/indices:
@@ -1842,51 +2067,78 @@ impl ApprovalDistribution {
 		rng: &mut (impl CryptoRng + Rng),
 	) {
 		loop {
-			let message = match ctx.recv().await {
-				Ok(message) => message,
-				Err(e) => {
-					gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
-					return
-				},
-			};
-			let start = Instant::now();
-			state.statistics.num_wakes_up += 1;
+			select! {
+				message = ctx.recv().fuse() => {
+					let message = match message {
+						Ok(message) => message,
+						Err(e) => {
+							gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
+							return
+						},
+					};
+					let start = Instant::now();
+					state.statistics.num_wakes_up += 1;
 
-			match message {
-				FromOrchestra::Communication { msg } =>
-					Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
-				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
-					// the relay chain blocks relevant to the approval subsystems
-					// are those that are available, but not finalized yet
-					// actived and deactivated heads hence are irrelevant to this subsystem, other than
-					// for tracing purposes.
-					if let Some(activated) = update.activated {
-						let head = activated.hash;
-						let approval_distribution_span =
-							jaeger::PerLeafSpan::new(activated.span, "approval-distribution");
-						state.spans.insert(head, approval_distribution_span);
+					match message {
+						FromOrchestra::Communication { msg } =>
+							Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
+						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
+							gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
+							// the relay chain blocks relevant to the approval subsystems
+							// are those that are available, but not finalized yet
+							// actived and deactivated heads hence are irrelevant to this subsystem, other than
+							// for tracing purposes.
+							if let Some(activated) = update.activated {
+								let head = activated.hash;
+								let approval_distribution_span =
+									jaeger::PerLeafSpan::new(activated.span, "approval-distribution");
+								state.spans.insert(head, approval_distribution_span);
+							}
+						},
+						FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+							gum::debug!(target: LOG_TARGET, number = %number, "finalized signal {:?}", hash);
+							state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
+							state.statistics.block_finalized.add_time(&start);
+						},
+						FromOrchestra::Signal(OverseerSignal::Conclude) => return,
+					}
+					state.statistics.time_doing_usefull_work += start.elapsed().as_micros();
+					if state.statistics.time_doing_usefull_work >= 1000_000 {
+						gum::warn!(target: LOG_TARGET, "too_long: statistics approval_distribution {:?}",
+							state.statistics);
+						state.statistics = Default::default();
+					}
+
+					if state.aggregate_assignments.len() + state.aggregate_approvals.len() > 30 {
+						gum::warn!(target: LOG_TARGET, "too_long: statistics assignemnts {:?} approvals {:?}",
+								state.aggregate_assignments, state.aggregate_approvals);
+						state.aggregate_assignments = Default::default();
+						state.aggregate_approvals = Default::default();
 					}
 				},
-				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
-					gum::debug!(target: LOG_TARGET, number = %number, "finalized signal {:?}", hash);
-					state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
-					state.statistics.block_finalized.add_time(&start);
-				},
-				FromOrchestra::Signal(OverseerSignal::Conclude) => return,
-			}
-			state.statistics.time_doing_usefull_work += start.elapsed().as_micros();
-			if state.statistics.time_doing_usefull_work >= 1000_000 {
-				gum::warn!(target: LOG_TARGET, "too_long: statistics approval_distribution {:?}",
-					state.statistics);
-				state.statistics = Default::default();
-			}
+				result = state.answers_from_approval_voting.select_next_some() => {
+					match result {
+						Ok(ApprovalVotingResponse::ApprovalCheck(result)) => {
+							if let Some(result) = state.received_approval_voting_answer(&mut ctx, result).await {
+								state.circulate_approval(&mut ctx, MessageSource::Peer(result.peer_id),
+									result.message_subject.clone(), result.message_kind, result.vote.clone()).await;
+							} else {
+								println!("WTF just happened")
+							}
+						},
+						Ok(ApprovalVotingResponse::AssignmentCheck(result)) => {
+							if let Some(result) = state.received_assignment_answer(&mut ctx, result).await {
+								state.circulate_assignment(
+									&mut ctx, MessageSource::Peer(result.peer_id), result.assignment,
+									result.claimed_candidate_index,  result.message_subject, result.message_kind, rng).await;
+							}
 
-			if state.aggregate_assignments.len() + state.aggregate_approvals.len() > 30 {
-				gum::warn!(target: LOG_TARGET, "too_long: statistics assignemnts {:?} approvals {:?}",
-						state.aggregate_assignments, state.aggregate_approvals);
-				state.aggregate_assignments = Default::default();
-				state.aggregate_approvals = Default::default();
+						},
+						Err(_) => {
+							gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
+						},
+					}
+				}
 			}
 		}
 	}
@@ -1926,7 +2178,6 @@ impl ApprovalDistribution {
 						cert,
 						candidate_index,
 						rng,
-						1,
 					)
 					.await;
 				if let Some(duration) = print_if_above_threshold(&start) {
@@ -1943,7 +2194,7 @@ impl ApprovalDistribution {
 				let start = Instant::now();
 
 				state
-					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote, 1)
+					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote)
 					.await;
 				if let Some(duration) = print_if_above_threshold(&start) {
 					gum::warn!(target: LOG_TARGET, "too_long: local approval {:} {:?}", duration, start);
