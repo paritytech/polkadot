@@ -1633,7 +1633,7 @@ pub mod migrations {
 	}
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = ();
+	pub type Unreleased = (pallet_im_online::migration::v1::Migration<Runtime>,);
 }
 
 /// Helpers to configure all migrations.
