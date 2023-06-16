@@ -105,6 +105,9 @@ mod weights;
 // Voter bag threshold definitions.
 mod bag_thresholds;
 
+// Historical information of society finances.
+mod past_payouts;
+
 // XCM configurations.
 pub mod xcm_config;
 
@@ -1508,8 +1511,6 @@ pub type Migrations = (
 pub mod migrations {
 	use super::*;
 	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
-	use hex_literal::hex;
-	use pallet_society::migrations::from_raw_past_payouts;
 
 	pub type V0940 = (
 		pallet_nomination_pools::migration::v4::MigrateToV4<
@@ -1532,14 +1533,8 @@ pub mod migrations {
 		ump_migrations::UpdateUmpLimits,
 	);
 
-	parameter_types! {
-		pub PastPayouts: Vec<(AccountId, Balance)> = from_raw_past_payouts::<Runtime, ()>(vec![
-			(hex!["1234567890123456789012345678901234567890123456789012345678901234"], 0u128),
-		].into_iter());
-	}
-
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (pallet_society::migrations::MigrateToV2<Runtime, (), PastPayouts>,);
+	pub type Unreleased = (pallet_society::migrations::MigrateToV2<Runtime, (), past_payouts::PastPayouts>,);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;
