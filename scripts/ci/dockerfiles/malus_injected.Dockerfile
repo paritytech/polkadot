@@ -39,7 +39,7 @@ RUN apt-get update && \
 
 
 # add adder-collator binary to docker image
-COPY ./malus /usr/local/bin
+COPY ./malus ./polkadot-*-worker /usr/local/bin
 
 USER nonroot
 
