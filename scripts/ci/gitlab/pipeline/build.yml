@@ -79,12 +79,12 @@ build-malus:
     - .compiler-info
     - .collect-artifacts
   script:
-    - time cargo build --locked --profile testnet --verbose -p polkadot-test-malus
+    - time cargo build --locked --profile testnet --verbose -p polkadot-test-malus -p polkadot-node-core-pvf-prepare-worker -p polkadot-node-core-pvf-execute-worker
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/malus ./artifacts/.
-    - mv ./target/testnet/polkadot-prepare-worker ./artifacts/. 2>/dev/null || true
-    - mv ./target/testnet/polkadot-execute-worker ./artifacts/. 2>/dev/null || true
+    - mv ./target/testnet/polkadot-node-core-pvf-prepare-worker ./artifacts/polkadot-prepare-worker
+    - mv ./target/testnet/polkadot-node-core-pvf-execute-worker ./artifacts/polkadot-execute-worker
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"

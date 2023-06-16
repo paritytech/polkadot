@@ -8375,9 +8375,6 @@ dependencies = [
  "polkadot-node-core-backing",
  "polkadot-node-core-candidate-validation",
  "polkadot-node-core-dispute-coordinator",
- "polkadot-node-core-pvf-common",
- "polkadot-node-core-pvf-execute-worker",
- "polkadot-node-core-pvf-prepare-worker",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -8387,7 +8384,6 @@ dependencies = [
  "rand 0.8.5",
  "sp-core",
  "sp-keystore",
- "sp-tracing",
  "tracing-gum",
 ]
 
