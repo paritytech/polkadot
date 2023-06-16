@@ -20,23 +20,23 @@ use frame_support::{
 	ensure,
 	traits::{Currency, Get, IsSubType, VestingSchedule},
 	weights::Weight,
+	DefaultNoBound,
 };
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::ValidityError;
 use scale_info::TypeInfo;
-#[cfg(feature = "std")]
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 use sp_io::{crypto::secp256k1_ecdsa_recover, hashing::keccak_256};
-#[cfg(feature = "std")]
-use sp_runtime::traits::Zero;
 use sp_runtime::{
-	traits::{CheckedSub, DispatchInfoOf, SignedExtension},
+	traits::{CheckedSub, DispatchInfoOf, SignedExtension, Zero},
 	transaction_validity::{
 		InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransaction,
 	},
 	RuntimeDebug,
 };
+#[cfg(not(feature = "std"))]
+use sp_std::alloc::{format, string::String};
 use sp_std::{fmt::Debug, prelude::*};
 
 type CurrencyOf<T> = <<T as Config>::VestingSchedule as VestingSchedule<
@@ -72,8 +72,9 @@ impl WeightInfo for TestWeightInfo {
 }
 
 /// The kind of statement an account needs to make for a claim to be valid.
-#[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(
+	Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug, TypeInfo, Serialize, Deserialize,
+)]
 pub enum StatementKind {
 	/// Statement required to be made by non-SAFT holders.
 	Regular,
@@ -109,7 +110,6 @@ impl Default for StatementKind {
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default, RuntimeDebug, TypeInfo)]
 pub struct EthereumAddress([u8; 20]);
 
-#[cfg(feature = "std")]
 impl Serialize for EthereumAddress {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
@@ -120,7 +120,6 @@ impl Serialize for EthereumAddress {
 	}
 }
 
-#[cfg(feature = "std")]
 impl<'de> Deserialize<'de> for EthereumAddress {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
@@ -229,17 +228,11 @@ pub mod pallet {
 	pub(super) type Preclaims<T: Config> = StorageMap<_, Identity, T::AccountId, EthereumAddress>;
 
 	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
 		pub claims:
 			Vec<(EthereumAddress, BalanceOf<T>, Option<T::AccountId>, Option<StatementKind>)>,
 		pub vesting: Vec<(EthereumAddress, (BalanceOf<T>, BalanceOf<T>, T::BlockNumber))>,
-	}
-
-	#[cfg(feature = "std")]
-	impl<T: Config> Default for GenesisConfig<T> {
-		fn default() -> Self {
-			GenesisConfig { claims: Default::default(), vesting: Default::default() }
-		}
 	}
 
 	#[pallet::genesis_build]

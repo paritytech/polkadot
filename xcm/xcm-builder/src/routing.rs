@@ -41,7 +41,7 @@ impl<Inner: SendXcm> SendXcm for WithUniqueTopic<Inner> {
 			*id
 		} else {
 			let unique_id = unique(&message);
-			message.0.push(SetTopic(unique_id.clone()));
+			message.0.push(SetTopic(unique_id));
 			unique_id
 		};
 		let (ticket, assets) = Inner::validate(destination, &mut Some(message))
@@ -86,7 +86,7 @@ impl<Inner: SendXcm, TopicSource: SourceTopic> SendXcm for WithTopicSource<Inner
 			*id
 		} else {
 			let unique_id = TopicSource::source_topic(&message);
-			message.0.push(SetTopic(unique_id.clone()));
+			message.0.push(SetTopic(unique_id));
 			unique_id
 		};
 		let (ticket, assets) = Inner::validate(destination, &mut Some(message))
