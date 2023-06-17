@@ -591,7 +591,7 @@ pub mod pallet {
 		/// Chain's configured limits.
 		///
 		/// Expected use is when one of the `ParaId`s involved in the channel is governed by the
-		/// Relay Chain, e.g. a common good parachain.
+		/// Relay Chain, e.g. a system parachain.
 		#[pallet::call_index(7)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel())]
 		pub fn force_open_hrmp_channel(
@@ -602,6 +602,17 @@ pub mod pallet {
 			max_message_size: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+
+			// Guard against a common footgun where someone makes a channel request to a system
+			// parachain and then makes a proposal to open the channel via governance, which fails
+			// because `init_open_channel` fails if there is an existing request. This check will
+			// clear an existing request such that `init_open_channel` should otherwise succeed.
+			let channel_id = HrmpChannelId { sender, recipient };
+			if HrmpOpenChannelRequests::<T>::get(&channel_id).is_some() {
+				Self::cancel_open_request(sender, channel_id)?;
+			}
+
+			// Now we proceed with normal init/accept.
 			Self::init_open_channel(sender, recipient, max_capacity, max_message_size)?;
 			Self::accept_open_channel(recipient, sender)?;
 			Self::deposit_event(Event::HrmpChannelForceOpened(
