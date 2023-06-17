@@ -117,16 +117,25 @@ pub enum NetworkId {
 	Kusama,
 }
 
-impl TryInto<NetworkId> for Option<NewNetworkId> {
+impl TryFrom<Option<NewNetworkId>> for NetworkId {
 	type Error = ();
-	fn try_into(self) -> result::Result<NetworkId, ()> {
+	fn try_from(new: Option<NewNetworkId>) -> result::Result<NetworkId, ()> {
+		match new {
+			None => Ok(NetworkId::Any),
+			Some(id) => Self::try_from(id),
+		}
+	}
+}
+
+impl TryFrom<NewNetworkId> for NetworkId {
+	type Error = ();
+	fn try_from(new: NewNetworkId) -> result::Result<NetworkId, ()> {
 		use NewNetworkId::*;
-		Ok(match self {
-			None => NetworkId::Any,
-			Some(Polkadot) => NetworkId::Polkadot,
-			Some(Kusama) => NetworkId::Kusama,
-			_ => return Err(()),
-		})
+		match new {
+			Polkadot => Ok(NetworkId::Polkadot),
+			Kusama => Ok(NetworkId::Kusama),
+			_ => Err(()),
+		}
 	}
 }
 
