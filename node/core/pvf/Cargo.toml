@@ -45,3 +45,6 @@ hex-literal = "0.3.4"
 
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
 halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
+
+[features]
+ci-only-tests = []
