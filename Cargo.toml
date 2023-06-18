@@ -236,6 +236,8 @@ license-file = ["LICENSE", "0"]
 maintainer-scripts = "scripts/packaging/deb-maintainer-scripts"
 assets = [
 	["target/release/polkadot", "/usr/bin/", "755"],
+	["target/release/polkadot-prepare-worker", "/usr/libexec/", "755"],
+	["target/release/polkadot-execute-worker", "/usr/libexec/", "755"],
 	["scripts/packaging/polkadot.service", "/lib/systemd/system/", "644"]
 ]
 conf-files = [

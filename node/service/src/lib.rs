@@ -918,26 +918,33 @@ where
 			(prep_worker, exec_worker)
 		}
 	} else {
-		let mut exe_path = std::env::current_exe()?;
-		log::trace!("Exe path: {:?}", exe_path);
-		let _ = exe_path.pop();
-		log::trace!("Truncated exe path: {:?}", exe_path);
-		let mut prep_worker = exe_path.clone();
+		let libexec = PathBuf::from("/usr/libexec");
+		let mut prep_worker = libexec.clone();
 		prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
-		log::trace!("Prep worker path: {:?}", prep_worker);
-		let mut exec_worker = exe_path.clone();
+		let mut exec_worker = libexec.clone();
 		exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
-		log::trace!("Exec worker path: {:?}", exec_worker);
 
 		if prep_worker.exists() && exec_worker.exists() {
-			log::trace!("Using current exe path as workers path: {:?}", exe_path);
+			log::trace!("Using /usr/libexec as workers path");
 			(prep_worker, exec_worker)
 		} else {
-			log::trace!("Workers path not found, considering `$PATH`");
-			(
-				PathBuf::from(polkadot_node_core_pvf::EXECUTE_BINARY_NAME),
-				PathBuf::from(polkadot_node_core_pvf::PREPARE_BINARY_NAME),
-			)
+			let mut exe_path = std::env::current_exe()?;
+			let _ = exe_path.pop();
+			let mut prep_worker = exe_path.clone();
+			prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
+			let mut exec_worker = exe_path.clone();
+			exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
+
+			if prep_worker.exists() && exec_worker.exists() {
+				log::trace!("Using current exe path as workers path: {:?}", exe_path);
+				(prep_worker, exec_worker)
+			} else {
+				log::trace!("Workers path not found, considering `$PATH`");
+				(
+					PathBuf::from(polkadot_node_core_pvf::EXECUTE_BINARY_NAME),
+					PathBuf::from(polkadot_node_core_pvf::PREPARE_BINARY_NAME),
+				)
+			}
 		}
 	};
 
