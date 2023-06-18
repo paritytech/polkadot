@@ -478,50 +478,6 @@ pub fn run() -> Result<()> {
 				))
 			})?)
 		},
-		Some(Subcommand::PvfPrepareWorker(cmd)) => {
-			let mut builder = sc_cli::LoggerBuilder::new("");
-			builder.with_colors(false);
-			let _ = builder.init();
-
-			#[cfg(target_os = "android")]
-			{
-				return Err(sc_cli::Error::Input(
-					"PVF preparation workers are not supported under this platform".into(),
-				)
-				.into())
-			}
-
-			#[cfg(not(target_os = "android"))]
-			{
-				polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
-					&cmd.socket_path,
-					Some(&cmd.node_impl_version),
-				);
-				Ok(())
-			}
-		},
-		Some(Subcommand::PvfExecuteWorker(cmd)) => {
-			let mut builder = sc_cli::LoggerBuilder::new("");
-			builder.with_colors(false);
-			let _ = builder.init();
-
-			#[cfg(target_os = "android")]
-			{
-				return Err(sc_cli::Error::Input(
-					"PVF execution workers are not supported under this platform".into(),
-				)
-				.into())
-			}
-
-			#[cfg(not(target_os = "android"))]
-			{
-				polkadot_node_core_pvf_execute_worker::worker_entrypoint(
-					&cmd.socket_path,
-					Some(&cmd.node_impl_version),
-				);
-				Ok(())
-			}
-		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;

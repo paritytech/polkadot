@@ -43,14 +43,6 @@ pub enum Subcommand {
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
 
-	#[allow(missing_docs)]
-	#[command(name = "prepare-worker", hide = true)]
-	PvfPrepareWorker(ValidationWorkerCommand),
-
-	#[allow(missing_docs)]
-	#[command(name = "execute-worker", hide = true)]
-	PvfExecuteWorker(ValidationWorkerCommand),
-
 	/// Sub-commands concerned with benchmarking.
 	/// The pallet benchmarking moved to the `pallet` sub-command.
 	#[command(subcommand)]
