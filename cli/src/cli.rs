@@ -143,7 +143,7 @@ pub struct RunCmd {
 	pub overseer_channel_capacity_override: Option<usize>,
 
 	/// Path to directory where auxiliary worker binaries reside. If not specified, the main
-	/// binary's directory is searched first, then /usr/libexec is searched, and then the 
+	/// binary's directory is searched first, then `/usr/libexec` is searched, and then the 
 	/// `$PATH` is considered.
 	/// If the path points to an executable rather then directory, that executable is used
 	/// both as preparation and execution worker (that supposed to be used for tests only).
