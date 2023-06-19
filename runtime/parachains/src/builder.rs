@@ -151,7 +151,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Mock header.
 	pub(crate) fn header(block_number: frame_system::BlockNumberOf<T>) -> frame_system::HeaderOf<T> {
-		frame_system::HeaderOf<T>::new(
+		frame_system::HeaderOf::<T>::new(
 			block_number,       // `block_number`,
 			Default::default(), // `extrinsics_root`,
 			Default::default(), // `storage_root`,
@@ -405,7 +405,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			Self::run_to_block(block);
 		}
 
-		let block_number = frame_system::BlockNumberOf<T>::from(block);
+		let block_number = frame_system::BlockNumberOf::<T>::from(block);
 		let header = Self::header(block_number.clone());
 
 		frame_system::Pallet::<T>::reset_events();
