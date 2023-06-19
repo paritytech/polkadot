@@ -171,7 +171,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type VestingSchedule: VestingSchedule<Self::AccountId, Moment = Self::BlockNumber>;
+		type VestingSchedule: VestingSchedule<Self::AccountId, Moment = frame_system::BlockNumberOf<Self>>;
 		#[pallet::constant]
 		type Prefix: Get<&'static [u8]>;
 		type MoveClaimOrigin: EnsureOrigin<Self::RuntimeOrigin>;
@@ -217,7 +217,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn vesting)]
 	pub(super) type Vesting<T: Config> =
-		StorageMap<_, Identity, EthereumAddress, (BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
+		StorageMap<_, Identity, EthereumAddress, (BalanceOf<T>, BalanceOf<T>, frame_system::BlockNumberOf<T>)>;
 
 	/// The statement kind that must be signed, if any.
 	#[pallet::storage]
@@ -232,7 +232,7 @@ pub mod pallet {
 	pub struct GenesisConfig<T: Config> {
 		pub claims:
 			Vec<(EthereumAddress, BalanceOf<T>, Option<T::AccountId>, Option<StatementKind>)>,
-		pub vesting: Vec<(EthereumAddress, (BalanceOf<T>, BalanceOf<T>, T::BlockNumber))>,
+		pub vesting: Vec<(EthereumAddress, (BalanceOf<T>, BalanceOf<T>, frame_system::BlockNumberOf<T>))>,
 	}
 
 	#[pallet::genesis_build]
@@ -336,7 +336,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
-			vesting_schedule: Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>,
+			vesting_schedule: Option<(BalanceOf<T>, BalanceOf<T>, frame_system::BlockNumberOf<T>)>,
 			statement: Option<StatementKind>,
 		) -> DispatchResult {
 			ensure_root(origin)?;

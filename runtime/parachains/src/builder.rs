@@ -69,7 +69,7 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	/// Active validators. Validators should be declared prior to all other setup.
 	validators: Option<IndexedVec<ValidatorIndex, ValidatorId>>,
 	/// Starting block number; we expect it to get incremented on session setup.
-	block_number: T::BlockNumber,
+	block_number: frame_system::BlockNumberOf<T>,
 	/// Starting session; we expect it to get incremented on session setup.
 	session: SessionIndex,
 	/// Session we want the scenario to take place in. We will roll to this session.
@@ -97,9 +97,9 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 /// Paras inherent `enter` benchmark scenario.
 #[cfg(any(feature = "runtime-benchmarks", test))]
 pub(crate) struct Bench<T: paras_inherent::Config> {
-	pub(crate) data: ParachainsInherentData<T::Header>,
+	pub(crate) data: ParachainsInherentData<frame_system::HeaderOf<T>>,
 	pub(crate) _session: u32,
-	pub(crate) _block_number: T::BlockNumber,
+	pub(crate) _block_number: frame_system::BlockNumberOf<T>,
 }
 
 impl<T: paras_inherent::Config> BenchBuilder<T> {
@@ -150,8 +150,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Mock header.
-	pub(crate) fn header(block_number: T::BlockNumber) -> T::Header {
-		T::Header::new(
+	pub(crate) fn header(block_number: frame_system::BlockNumberOf<T>) -> frame_system::HeaderOf<T> {
+		frame_system::HeaderOf<T>::new(
 			block_number,       // `block_number`,
 			Default::default(), // `extrinsics_root`,
 			Default::default(), // `storage_root`,
@@ -260,8 +260,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		core_idx: CoreIndex,
 		candidate_hash: CandidateHash,
 		availability_votes: BitVec<u8, BitOrderLsb0>,
-	) -> inclusion::CandidatePendingAvailability<T::Hash, T::BlockNumber> {
-		inclusion::CandidatePendingAvailability::<T::Hash, T::BlockNumber>::new(
+	) -> inclusion::CandidatePendingAvailability<T::Hash, frame_system::BlockNumberOf<T>> {
+		inclusion::CandidatePendingAvailability::<T::Hash, frame_system::BlockNumberOf<T>>::new(
 			core_idx,                          // core
 			candidate_hash,                    // hash
 			Self::candidate_descriptor_mock(), // candidate descriptor
@@ -405,7 +405,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			Self::run_to_block(block);
 		}
 
-		let block_number = <T as frame_system::Config>::BlockNumber::from(block);
+		let block_number = frame_system::BlockNumberOf<T>::from(block);
 		let header = Self::header(block_number.clone());
 
 		frame_system::Pallet::<T>::reset_events();
@@ -523,7 +523,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				// candidate receipt.
 				paras::Pallet::<T>::heads_insert(&para_id, head_data.clone());
 
-				let mut past_code_meta = paras::ParaPastCodeMeta::<T::BlockNumber>::default();
+				let mut past_code_meta = paras::ParaPastCodeMeta::<frame_system::BlockNumberOf<T>>::default();
 				past_code_meta.note_replacement(0u32.into(), 0u32.into());
 
 				let group_validators = scheduler::Pallet::<T>::group_validators(group_idx).unwrap();

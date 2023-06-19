@@ -35,8 +35,8 @@ use sp_runtime::traits::{CheckedSub, One, Saturating, Zero};
 use sp_std::{mem::swap, prelude::*};
 
 type CurrencyOf<T> =
-	<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::Currency;
-type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::Currency as Currency<
+	<<T as Config>::Leaser as Leaser<frame_system::BlockNumberOf<T>>>::Currency;
+type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<frame_system::BlockNumberOf<T>>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
 
@@ -67,7 +67,7 @@ impl WeightInfo for TestWeightInfo {
 pub type AuctionIndex = u32;
 
 type LeasePeriodOf<T> =
-	<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::LeasePeriod;
+	<<T as Config>::Leaser as Leaser<frame_system::BlockNumberOf<T>>>::LeasePeriod;
 
 // Winning data type. This encodes the top bidders of each range together with their bid.
 type WinningData<T> = [Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)>;
@@ -94,9 +94,9 @@ pub mod pallet {
 
 		/// The type representing the leasing system.
 		type Leaser: Leaser<
-			Self::BlockNumber,
+			frame_system::BlockNumberOf<Self>,
 			AccountId = Self::AccountId,
-			LeasePeriod = Self::BlockNumber,
+			LeasePeriod = frame_system::BlockNumberOf<Self>,
 		>;
 
 		/// The parachain registrar type.
@@ -104,16 +104,16 @@ pub mod pallet {
 
 		/// The number of blocks over which an auction may be retroactively ended.
 		#[pallet::constant]
-		type EndingPeriod: Get<Self::BlockNumber>;
+		type EndingPeriod: Get<frame_system::BlockNumberOf<Self>>;
 
 		/// The length of each sample to take during the ending period.
 		///
 		/// `EndingPeriod` / `SampleLength` = Total # of Samples
 		#[pallet::constant]
-		type SampleLength: Get<Self::BlockNumber>;
+		type SampleLength: Get<frame_system::BlockNumberOf<Self>>;
 
 		/// Something that provides randomness in the runtime.
-		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type Randomness: Randomness<Self::Hash, frame_system::BlockNumberOf<Self>>;
 
 		/// The origin which may initiate auctions.
 		type InitiateOrigin: EnsureOrigin<Self::RuntimeOrigin>;
@@ -130,7 +130,7 @@ pub mod pallet {
 		AuctionStarted {
 			auction_index: AuctionIndex,
 			lease_period: LeasePeriodOf<T>,
-			ending: T::BlockNumber,
+			ending: frame_system::BlockNumberOf<T>,
 		},
 		/// An auction ended. All funds become unreserved.
 		AuctionClosed { auction_index: AuctionIndex },
@@ -151,7 +151,7 @@ pub mod pallet {
 			last_slot: LeasePeriodOf<T>,
 		},
 		/// The winning offset was chosen for an auction. This will map into the `Winning` storage map.
-		WinningOffset { auction_index: AuctionIndex, block_number: T::BlockNumber },
+		WinningOffset { auction_index: AuctionIndex, block_number: frame_system::BlockNumberOf<T> },
 	}
 
 	#[pallet::error]
@@ -184,7 +184,7 @@ pub mod pallet {
 	/// auction will "begin to end", i.e. the first block of the Ending Period of the auction.
 	#[pallet::storage]
 	#[pallet::getter(fn auction_info)]
-	pub type AuctionInfo<T: Config> = StorageValue<_, (LeasePeriodOf<T>, T::BlockNumber)>;
+	pub type AuctionInfo<T: Config> = StorageValue<_, (LeasePeriodOf<T>, frame_system::BlockNumberOf<T>)>;
 
 	/// Amounts currently reserved in the accounts of the bidders currently winning
 	/// (sub-)ranges.
@@ -198,7 +198,7 @@ pub mod pallet {
 	/// first sample of the ending period is 0; the last is `Sample Size - 1`.
 	#[pallet::storage]
 	#[pallet::getter(fn winning)]
-	pub type Winning<T: Config> = StorageMap<_, Twox64Concat, T::BlockNumber, WinningData<T>>;
+	pub type Winning<T: Config> = StorageMap<_, Twox64Concat, frame_system::BlockNumberOf<T>, WinningData<T>>;
 
 	#[pallet::extra_constants]
 	impl<T: Config> Pallet<T> {
@@ -215,7 +215,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(n: T::BlockNumber) -> Weight {
+		fn on_initialize(n: frame_system::BlockNumberOf<T>) -> Weight {
 			let mut weight = T::DbWeight::get().reads(1);
 
 			// If the current auction was in its ending period last block, then ensure that the (sub-)range
@@ -256,7 +256,7 @@ pub mod pallet {
 		#[pallet::weight((T::WeightInfo::new_auction(), DispatchClass::Operational))]
 		pub fn new_auction(
 			origin: OriginFor<T>,
-			#[pallet::compact] duration: T::BlockNumber,
+			#[pallet::compact] duration: frame_system::BlockNumberOf<T>,
 			#[pallet::compact] lease_period_index: LeasePeriodOf<T>,
 		) -> DispatchResult {
 			T::InitiateOrigin::ensure_origin(origin)?;
@@ -313,20 +313,20 @@ pub mod pallet {
 	}
 }
 
-impl<T: Config> Auctioneer<T::BlockNumber> for Pallet<T> {
+impl<T: Config> Auctioneer<frame_system::BlockNumberOf<T>> for Pallet<T> {
 	type AccountId = T::AccountId;
-	type LeasePeriod = T::BlockNumber;
+	type LeasePeriod = frame_system::BlockNumberOf<T>;
 	type Currency = CurrencyOf<T>;
 
 	fn new_auction(
-		duration: T::BlockNumber,
+		duration: frame_system::BlockNumberOf<T>,
 		lease_period_index: LeasePeriodOf<T>,
 	) -> DispatchResult {
 		Self::do_new_auction(duration, lease_period_index)
 	}
 
 	// Returns the status of the auction given the current block number.
-	fn auction_status(now: T::BlockNumber) -> AuctionStatus<T::BlockNumber> {
+	fn auction_status(now: frame_system::BlockNumberOf<T>) -> AuctionStatus<frame_system::BlockNumberOf<T>> {
 		let early_end = match AuctionInfo::<T>::get() {
 			Some((_, early_end)) => early_end,
 			None => return AuctionStatus::NotStarted,
@@ -359,12 +359,12 @@ impl<T: Config> Auctioneer<T::BlockNumber> for Pallet<T> {
 		Self::handle_bid(bidder, para, AuctionCounter::<T>::get(), first_slot, last_slot, amount)
 	}
 
-	fn lease_period_index(b: T::BlockNumber) -> Option<(Self::LeasePeriod, bool)> {
+	fn lease_period_index(b: frame_system::BlockNumberOf<T>) -> Option<(Self::LeasePeriod, bool)> {
 		T::Leaser::lease_period_index(b)
 	}
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
-	fn lease_period_length() -> (T::BlockNumber, T::BlockNumber) {
+	fn lease_period_length() -> (frame_system::BlockNumberOf<T>, frame_system::BlockNumberOf<T>) {
 		T::Leaser::lease_period_length()
 	}
 
@@ -383,7 +383,7 @@ impl<T: Config> Pallet<T> {
 	/// of this auction and the `lease_period_index` of the initial lease period of the four that
 	/// are to be auctioned.
 	fn do_new_auction(
-		duration: T::BlockNumber,
+		duration: frame_system::BlockNumberOf<T>,
 		lease_period_index: LeasePeriodOf<T>,
 	) -> DispatchResult {
 		let maybe_auction = AuctionInfo::<T>::get();
@@ -530,7 +530,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// This mutates the state, cleaning up `AuctionInfo` and `Winning` in the case of an auction
 	/// ending. An immediately subsequent call with the same argument will always return `None`.
-	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
+	fn check_auction_end(now: frame_system::BlockNumberOf<T>) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
 		if let Some((lease_period_index, early_end)) = AuctionInfo::<T>::get() {
 			let ending_period = T::EndingPeriod::get();
 			let late_end = early_end.saturating_add(ending_period);
@@ -542,7 +542,7 @@ impl<T: Config> Pallet<T> {
 
 				if late_end <= known_since {
 					// Our random seed was known only after the auction ended. Good to use.
-					let raw_offset_block_number = <T::BlockNumber>::decode(
+					let raw_offset_block_number = <frame_system::BlockNumberOf<T>>::decode(
 						&mut raw_offset.as_ref(),
 					)
 					.expect("secure hashes should always be bigger than the block number; qed");
@@ -1792,7 +1792,7 @@ mod benchmarking {
 		where_clause { where T: pallet_babe::Config + paras::Config }
 
 		new_auction {
-			let duration = T::BlockNumber::max_value();
+			let duration = frame_system::BlockNumberOf::<T>::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::max_value();
 			let origin =
 				T::InitiateOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
@@ -1801,7 +1801,7 @@ mod benchmarking {
 			assert_last_event::<T>(Event::<T>::AuctionStarted {
 				auction_index: AuctionCounter::<T>::get(),
 				lease_period: LeasePeriodOf::<T>::max_value(),
-				ending: T::BlockNumber::max_value(),
+				ending: frame_system::BlockNumberOf::<T>::max_value(),
 			}.into());
 		}
 
@@ -1812,7 +1812,7 @@ mod benchmarking {
 			frame_system::Pallet::<T>::set_block_number(offset + One::one());
 
 			// Create a new auction
-			let duration = T::BlockNumber::max_value();
+			let duration = frame_system::BlockNumberOf::<T>::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let origin = T::InitiateOrigin::try_successful_origin()
 				.expect("InitiateOrigin has no successful origin required for the benchmark");
@@ -1869,7 +1869,7 @@ mod benchmarking {
 			frame_system::Pallet::<T>::set_block_number(offset + One::one());
 
 			// Create a new auction
-			let duration: T::BlockNumber = lease_length / 2u32.into();
+			let duration: frame_system::BlockNumberOf<T> = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
 			let origin = T::InitiateOrigin::try_successful_origin()
@@ -1878,14 +1878,14 @@ mod benchmarking {
 
 			fill_winners::<T>(lease_period_index);
 
-			for winner in Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap().iter() {
+			for winner in Winning::<T>::get(frame_system::BlockNumberOf::<T>::from(0u32)).unwrap().iter() {
 				assert!(winner.is_some());
 			}
 
-			let winning_data = Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap();
+			let winning_data = Winning::<T>::get(frame_system::BlockNumberOf::<T>::from(0u32)).unwrap();
 			// Make winning map full
 			for i in 0u32 .. (T::EndingPeriod::get() / T::SampleLength::get()).saturated_into() {
-				Winning::<T>::insert(T::BlockNumber::from(i), winning_data.clone());
+				Winning::<T>::insert(frame_system::BlockNumberOf::<T>::from(i), winning_data.clone());
 			}
 
 			// Move ahead to the block we want to initialize
@@ -1914,7 +1914,7 @@ mod benchmarking {
 			frame_system::Pallet::<T>::set_block_number(offset + One::one());
 
 			// Create a new auction
-			let duration: T::BlockNumber = lease_length / 2u32.into();
+			let duration: frame_system::BlockNumberOf<T> = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
 			let origin = T::InitiateOrigin::try_successful_origin()
@@ -1923,14 +1923,14 @@ mod benchmarking {
 
 			fill_winners::<T>(lease_period_index);
 
-			let winning_data = Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap();
+			let winning_data = Winning::<T>::get(frame_system::BlockNumberOf::<T>::from(0u32)).unwrap();
 			for winner in winning_data.iter() {
 				assert!(winner.is_some());
 			}
 
 			// Make winning map full
 			for i in 0u32 .. (T::EndingPeriod::get() / T::SampleLength::get()).saturated_into() {
-				Winning::<T>::insert(T::BlockNumber::from(i), winning_data.clone());
+				Winning::<T>::insert(frame_system::BlockNumberOf::<T>::from(i), winning_data.clone());
 			}
 			assert!(AuctionInfo::<T>::get().is_some());
 		}: _(RawOrigin::Root)

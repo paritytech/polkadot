@@ -79,9 +79,9 @@ use sp_runtime::{
 use sp_std::vec::Vec;
 
 type CurrencyOf<T> =
-	<<T as Config>::Auctioneer as Auctioneer<<T as frame_system::Config>::BlockNumber>>::Currency;
+	<<T as Config>::Auctioneer as Auctioneer<frame_system::BlockNumberOf<T>>>::Currency;
 type LeasePeriodOf<T> = <<T as Config>::Auctioneer as Auctioneer<
-	<T as frame_system::Config>::BlockNumber,
+	frame_system::BlockNumberOf<T>,
 >>::LeasePeriod;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -216,9 +216,9 @@ pub mod pallet {
 
 		/// The type representing the auctioning system.
 		type Auctioneer: Auctioneer<
-			Self::BlockNumber,
+			frame_system::BlockNumberOf<Self>,
 			AccountId = Self::AccountId,
-			LeasePeriod = Self::BlockNumber,
+			LeasePeriod = frame_system::BlockNumberOf<Self>,
 		>;
 
 		/// The maximum length for the memo attached to a crowdloan contribution.
@@ -235,7 +235,7 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		ParaId,
-		FundInfo<T::AccountId, BalanceOf<T>, T::BlockNumber, LeasePeriodOf<T>>,
+		FundInfo<T::AccountId, BalanceOf<T>, frame_system::BlockNumberOf<T>, LeasePeriodOf<T>>,
 	>;
 
 	/// The funds that have had additional contributions during the last block. This is used
@@ -332,7 +332,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(num: T::BlockNumber) -> frame_support::weights::Weight {
+		fn on_initialize(num: frame_system::BlockNumberOf<T>) -> frame_support::weights::Weight {
 			if let Some((sample, sub_sample)) = T::Auctioneer::auction_status(num).is_ending() {
 				// This is the very first block in the ending period
 				if sample.is_zero() && sub_sample.is_zero() {
@@ -377,7 +377,7 @@ pub mod pallet {
 			#[pallet::compact] cap: BalanceOf<T>,
 			#[pallet::compact] first_period: LeasePeriodOf<T>,
 			#[pallet::compact] last_period: LeasePeriodOf<T>,
-			#[pallet::compact] end: T::BlockNumber,
+			#[pallet::compact] end: frame_system::BlockNumberOf<T>,
 			verifier: Option<MultiSigner>,
 		) -> DispatchResult {
 			let depositor = ensure_signed(origin)?;
@@ -594,7 +594,7 @@ pub mod pallet {
 			#[pallet::compact] cap: BalanceOf<T>,
 			#[pallet::compact] first_period: LeasePeriodOf<T>,
 			#[pallet::compact] last_period: LeasePeriodOf<T>,
-			#[pallet::compact] end: T::BlockNumber,
+			#[pallet::compact] end: frame_system::BlockNumberOf<T>,
 			verifier: Option<MultiSigner>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
@@ -725,9 +725,9 @@ impl<T: Config> Pallet<T> {
 	///   trying to bid for has started already.
 	/// * And, if the fund has enough free funds to refund full raised amount.
 	fn ensure_crowdloan_ended(
-		now: T::BlockNumber,
+		now: frame_system::BlockNumberOf<T>,
 		fund_account: &T::AccountId,
-		fund: &FundInfo<T::AccountId, BalanceOf<T>, T::BlockNumber, LeasePeriodOf<T>>,
+		fund: &FundInfo<T::AccountId, BalanceOf<T>, frame_system::BlockNumberOf<T>, LeasePeriodOf<T>>,
 	) -> sp_runtime::DispatchResult {
 		// `fund.end` can represent the end of a failed crowdloan or the beginning of retirement
 		// If the current lease period is past the first period they are trying to bid for, then
@@ -1963,7 +1963,7 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn create_fund<T: Config + paras::Config>(id: u32, end: T::BlockNumber) -> ParaId {
+	fn create_fund<T: Config + paras::Config>(id: u32, end: frame_system::BlockNumberOf<T>) -> ParaId {
 		let cap = BalanceOf::<T>::max_value();
 		let (_, offset) = T::Auctioneer::lease_period_length();
 		// Set to the very beginning of lease period index 0.
@@ -2083,7 +2083,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 			let contributor = account("contributor", 0, 0);
 			contribute_fund::<T>(&contributor, fund_index);
-			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
+			frame_system::Pallet::<T>::set_block_number(frame_system::BlockNumberOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller), contributor.clone(), fund_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::Withdrew { who: contributor, fund_index, amount: T::MinContribution::get() }.into());
@@ -2103,7 +2103,7 @@ mod benchmarking {
 			}
 
 			let caller: T::AccountId = whitelisted_caller();
-			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
+			frame_system::Pallet::<T>::set_block_number(frame_system::BlockNumberOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller), fund_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::AllRefunded { para_id: fund_index }.into());
@@ -2114,7 +2114,7 @@ mod benchmarking {
 			let end = lpl + offset;
 			let fund_index = create_fund::<T>(1337, end);
 			let caller: T::AccountId = whitelisted_caller();
-			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
+			frame_system::Pallet::<T>::set_block_number(frame_system::BlockNumberOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::Dissolved { para_id: fund_index }.into());

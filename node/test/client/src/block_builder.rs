@@ -42,7 +42,7 @@ pub trait InitPolkadotBlockBuilder {
 	/// which should be the parent block of the block that is being build.
 	fn init_polkadot_block_builder_at(
 		&self,
-		hash: <Block as BlockT>::Hash,
+		hash: <Block as sp_runtime::traits::HeaderProvider>::Hash,
 	) -> sc_block_builder::BlockBuilder<Block, Client, FullBackend>;
 }
 
@@ -54,7 +54,7 @@ impl InitPolkadotBlockBuilder for Client {
 
 	fn init_polkadot_block_builder_at(
 		&self,
-		hash: <Block as BlockT>::Hash,
+		hash: <Block as sp_runtime::traits::HeaderProvider>::Hash,
 	) -> BlockBuilder<Block, Client, FullBackend> {
 		let last_timestamp =
 			self.runtime_api().get_last_timestamp(hash).expect("Get last timestamp");

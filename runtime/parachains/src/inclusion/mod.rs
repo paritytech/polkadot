@@ -270,7 +270,7 @@ pub mod pallet {
 		+ configuration::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
+		type DisputesHandler: disputes::DisputesHandler<frame_system::BlockNumberOf<Self>>;
 		type RewardValidators: RewardValidators;
 
 		/// The system message queue.
@@ -365,12 +365,12 @@ pub mod pallet {
 	/// The latest bitfield for each validator, referred to by their index in the validator set.
 	#[pallet::storage]
 	pub(crate) type AvailabilityBitfields<T: Config> =
-		StorageMap<_, Twox64Concat, ValidatorIndex, AvailabilityBitfieldRecord<T::BlockNumber>>;
+		StorageMap<_, Twox64Concat, ValidatorIndex, AvailabilityBitfieldRecord<frame_system::BlockNumberOf<T>>>;
 
 	/// Candidates pending availability by `ParaId`.
 	#[pallet::storage]
 	pub(crate) type PendingAvailability<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, CandidatePendingAvailability<T::Hash, T::BlockNumber>>;
+		StorageMap<_, Twox64Concat, ParaId, CandidatePendingAvailability<T::Hash, frame_system::BlockNumberOf<T>>>;
 
 	/// The commitments of candidates pending availability, by `ParaId`.
 	#[pallet::storage]
@@ -450,7 +450,7 @@ impl fmt::Debug for UmpAcceptanceCheckErr {
 
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: frame_system::BlockNumberOf<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -459,7 +459,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
-		_notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>,
+		_notification: &crate::initializer::SessionChangeNotification<frame_system::BlockNumberOf<T>>,
 		outgoing_paras: &[ParaId],
 	) {
 		// unlike most drain methods, drained elements are not cleared on `Drop` of the iterator
@@ -832,7 +832,7 @@ impl<T: Config> Pallet<T> {
 				&validation_outputs.new_validation_code,
 				validation_outputs.processed_downward_messages,
 				&validation_outputs.upward_messages,
-				T::BlockNumber::from(validation_outputs.hrmp_watermark),
+				frame_system::BlockNumberOf::<T>::from(validation_outputs.hrmp_watermark),
 				&validation_outputs.horizontal_messages,
 			)
 			.is_err()
@@ -849,7 +849,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn enact_candidate(
-		relay_parent_number: T::BlockNumber,
+		relay_parent_number: frame_system::BlockNumberOf<T>,
 		receipt: CommittedCandidateReceipt<T::Hash>,
 		backers: BitVec<u8, BitOrderLsb0>,
 		availability_votes: BitVec<u8, BitOrderLsb0>,
@@ -898,7 +898,7 @@ impl<T: Config> Pallet<T> {
 		));
 		weight.saturating_accrue(<hrmp::Pallet<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
-			T::BlockNumber::from(commitments.hrmp_watermark),
+			frame_system::BlockNumberOf::<T>::from(commitments.hrmp_watermark),
 		));
 		weight.saturating_accrue(<hrmp::Pallet<T>>::queue_outbound_hrmp(
 			receipt.descriptor.para_id,
@@ -921,7 +921,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria.
 	pub(crate) fn check_upward_messages(
-		config: &HostConfiguration<T::BlockNumber>,
+		config: &HostConfiguration<frame_system::BlockNumberOf<T>>,
 		para: ParaId,
 		upward_messages: &[UpwardMessage],
 	) -> Result<(), UmpAcceptanceCheckErr> {
@@ -1020,7 +1020,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Returns a vector of cleaned-up core IDs.
 	pub(crate) fn collect_pending(
-		pred: impl Fn(CoreIndex, T::BlockNumber) -> bool,
+		pred: impl Fn(CoreIndex, frame_system::BlockNumberOf<T>) -> bool,
 	) -> Vec<CoreIndex> {
 		let mut cleaned_up_ids = Vec::new();
 		let mut cleaned_up_cores = Vec::new();
@@ -1115,7 +1115,7 @@ impl<T: Config> Pallet<T> {
 	/// para provided, if any.
 	pub(crate) fn pending_availability(
 		para: ParaId,
-	) -> Option<CandidatePendingAvailability<T::Hash, T::BlockNumber>> {
+	) -> Option<CandidatePendingAvailability<T::Hash, frame_system::BlockNumberOf<T>>> {
 		<PendingAvailability<T>>::get(&para)
 	}
 }
@@ -1162,9 +1162,9 @@ impl<T: Config> OnQueueChanged<AggregateMessageOrigin> for Pallet<T> {
 
 /// A collection of data required for checking a candidate.
 pub(crate) struct CandidateCheckContext<T: Config> {
-	config: configuration::HostConfiguration<T::BlockNumber>,
-	now: T::BlockNumber,
-	relay_parent_number: T::BlockNumber,
+	config: configuration::HostConfiguration<frame_system::BlockNumberOf<T>>,
+	now: frame_system::BlockNumberOf<T>,
+	relay_parent_number: frame_system::BlockNumberOf<T>,
 }
 
 /// An error indicating that creating Persisted Validation Data failed
@@ -1172,7 +1172,7 @@ pub(crate) struct CandidateCheckContext<T: Config> {
 pub(crate) struct FailedToCreatePVD;
 
 impl<T: Config> CandidateCheckContext<T> {
-	pub(crate) fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
+	pub(crate) fn new(now: frame_system::BlockNumberOf<T>, relay_parent_number: frame_system::BlockNumberOf<T>) -> Self {
 		Self { config: <configuration::Pallet<T>>::config(), now, relay_parent_number }
 	}
 
@@ -1244,7 +1244,7 @@ impl<T: Config> CandidateCheckContext<T> {
 			&backed_candidate.candidate.commitments.new_validation_code,
 			backed_candidate.candidate.commitments.processed_downward_messages,
 			&backed_candidate.candidate.commitments.upward_messages,
-			T::BlockNumber::from(backed_candidate.candidate.commitments.hrmp_watermark),
+			frame_system::BlockNumberOf::<T>::from(backed_candidate.candidate.commitments.hrmp_watermark),
 			&backed_candidate.candidate.commitments.horizontal_messages,
 		) {
 			log::debug!(
@@ -1267,9 +1267,9 @@ impl<T: Config> CandidateCheckContext<T> {
 		new_validation_code: &Option<primitives::ValidationCode>,
 		processed_downward_messages: u32,
 		upward_messages: &[primitives::UpwardMessage],
-		hrmp_watermark: T::BlockNumber,
+		hrmp_watermark: frame_system::BlockNumberOf<T>,
 		horizontal_messages: &[primitives::OutboundHrmpMessage<ParaId>],
-	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
+	) -> Result<(), AcceptanceCheckErr<frame_system::BlockNumberOf<T>>> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,
 			AcceptanceCheckErr::HeadDataTooLarge,

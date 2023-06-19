@@ -28,9 +28,9 @@ use crate::{configuration, hrmp, paras};
 /// This ties together the storage of several modules.
 pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 	para_id: ParaId,
-	relay_parent_number: T::BlockNumber,
+	relay_parent_number: frame_system::BlockNumberOf<T>,
 	relay_parent_storage_root: T::Hash,
-) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
+) -> Option<PersistedValidationData<T::Hash, frame_system::BlockNumberOf<T>>> {
 	let config = <configuration::Pallet<T>>::config();
 
 	Some(PersistedValidationData {

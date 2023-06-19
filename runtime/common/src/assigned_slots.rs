@@ -67,11 +67,11 @@ pub struct ParachainTemporarySlot<AccountId, LeasePeriod> {
 	pub lease_count: u32,
 }
 
-type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::Currency as Currency<
+type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<frame_system::BlockNumberOf<T>>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
 type LeasePeriodOf<T> =
-	<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::LeasePeriod;
+	<<T as Config>::Leaser as Leaser<frame_system::BlockNumberOf<T>>>::LeasePeriod;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -91,9 +91,9 @@ pub mod pallet {
 
 		/// The type representing the leasing system.
 		type Leaser: Leaser<
-			Self::BlockNumber,
+			frame_system::BlockNumberOf<Self>,
 			AccountId = Self::AccountId,
-			LeasePeriod = Self::BlockNumber,
+			LeasePeriod = frame_system::BlockNumberOf<Self>,
 		>;
 
 		/// The number of lease periods a permanent parachain slot lasts.
@@ -182,7 +182,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(n: T::BlockNumber) -> Weight {
+		fn on_initialize(n: frame_system::BlockNumberOf<T>) -> Weight {
 			if let Some((lease_period, first_block)) = Self::lease_period_index(n) {
 				// If we're beginning a new lease period then handle that.
 				if first_block {
@@ -213,14 +213,14 @@ pub mod pallet {
 				Error::<T>::SlotAlreadyAssigned
 			);
 
-			let current_lease_period: T::BlockNumber = Self::current_lease_period_index();
+			let current_lease_period: frame_system::BlockNumberOf<T> = Self::current_lease_period_index();
 			ensure!(
 				!T::Leaser::already_leased(
 					id,
 					current_lease_period,
 					// Check current lease & next one
 					current_lease_period.saturating_add(
-						T::BlockNumber::from(2u32)
+						frame_system::BlockNumberOf::<T>::from(2u32)
 							.saturating_mul(T::PermanentSlotLeasePeriodLength::get().into())
 					)
 				),
@@ -276,14 +276,14 @@ pub mod pallet {
 				Error::<T>::SlotAlreadyAssigned
 			);
 
-			let current_lease_period: T::BlockNumber = Self::current_lease_period_index();
+			let current_lease_period: frame_system::BlockNumberOf<T> = Self::current_lease_period_index();
 			ensure!(
 				!T::Leaser::already_leased(
 					id,
 					current_lease_period,
 					// Check current lease & next one
 					current_lease_period.saturating_add(
-						T::BlockNumber::from(2u32)
+						frame_system::BlockNumberOf::<T>::from(2u32)
 							.saturating_mul(T::TemporarySlotLeasePeriodLength::get().into())
 					)
 				),

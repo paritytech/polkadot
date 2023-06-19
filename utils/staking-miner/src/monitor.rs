@@ -390,7 +390,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						);
 
 						let events = match rpc.get_storage_and_decode::<
-							Vec<frame_system::EventRecord<RuntimeEvent, <Block as BlockT>::Hash>>,
+							Vec<frame_system::EventRecord<RuntimeEvent, <Block as sp_runtime::traits::HeaderProvider>::Hash>>,
 						>(&key, Some(hash))
 						.await {
 							Ok(rp) => rp.unwrap_or_default(),

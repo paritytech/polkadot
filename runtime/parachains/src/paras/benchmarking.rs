@@ -44,7 +44,7 @@ fn generate_disordered_pruning<T: Config>() {
 
 	for i in 0..SAMPLE_SIZE {
 		let id = ParaId::from(i);
-		let block_number = T::BlockNumber::from(1000u32);
+		let block_number = frame_system::BlockNumberOf::<T>::from(1000u32);
 		needs_pruning.push((id, block_number));
 	}
 
@@ -57,7 +57,7 @@ pub(crate) fn generate_disordered_upgrades<T: Config>() {
 
 	for i in 0..SAMPLE_SIZE {
 		let id = ParaId::from(i);
-		let block_number = T::BlockNumber::from(1000u32);
+		let block_number = frame_system::BlockNumberOf::<T>::from(1000u32);
 		upgrades.push((id, block_number));
 		cooldowns.push((id, block_number));
 	}
@@ -103,7 +103,7 @@ benchmarks! {
 		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
 		let para_id = ParaId::from(c as u32);
-		let block = T::BlockNumber::from(c);
+		let block = frame_system::BlockNumberOf::<T>::from(c);
 		generate_disordered_upgrades::<T>();
 	}: _(RawOrigin::Root, para_id, new_code, block)
 	verify {
@@ -118,7 +118,7 @@ benchmarks! {
 		// schedule an expired code upgrade for this `para_id` so that force_note_new_head would use
 		// the worst possible code path
 		let expired = frame_system::Pallet::<T>::block_number().saturating_sub(One::one());
-		let config = HostConfiguration::<T::BlockNumber>::default();
+		let config = HostConfiguration::<frame_system::BlockNumberOf<T>>::default();
 		generate_disordered_pruning::<T>();
 		Pallet::<T>::schedule_code_upgrade(para_id, ValidationCode(vec![0]), expired, &config);
 	}: _(RawOrigin::Root, para_id, new_head)

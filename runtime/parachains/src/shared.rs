@@ -73,7 +73,7 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: frame_system::BlockNumberOf<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -86,7 +86,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		session_index: SessionIndex,
 		random_seed: [u8; 32],
-		new_config: &HostConfiguration<T::BlockNumber>,
+		new_config: &HostConfiguration<frame_system::BlockNumberOf<T>>,
 		all_validators: Vec<ValidatorId>,
 	) -> Vec<ValidatorId> {
 		CurrentSessionIndex::<T>::set(session_index);

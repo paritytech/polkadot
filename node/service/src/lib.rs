@@ -141,13 +141,13 @@ where
 	/// Obtain the header for a hash.
 	fn header(
 		&self,
-		hash: <Block as BlockT>::Hash,
-	) -> Result<Option<<Block as BlockT>::Header>, Error>;
+		hash: <Block as sp_runtime::traits::HeaderProvider>::Hash,
+	) -> Result<Option<<Block as sp_runtime::traits::HeaderProvider>::Header>, Error>;
 	/// Obtain the block number for a hash.
 	fn number(
 		&self,
-		hash: <Block as BlockT>::Hash,
-	) -> Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>, Error>;
+		hash: <Block as sp_runtime::traits::HeaderProvider>::Hash,
+	) -> Result<Option<<<Block as sp_runtime::traits::HeaderProvider>::Header as HeaderT>::Number>, Error>;
 }
 
 impl<Block, T> HeaderProvider<Block> for T
@@ -158,13 +158,13 @@ where
 	fn header(
 		&self,
 		hash: Block::Hash,
-	) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
+	) -> sp_blockchain::Result<Option<<Block as sp_runtime::traits::HeaderProvider>::Header>> {
 		<Self as sp_blockchain::HeaderBackend<Block>>::header(self, hash)
 	}
 	fn number(
 		&self,
 		hash: Block::Hash,
-	) -> sp_blockchain::Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>> {
+	) -> sp_blockchain::Result<Option<<<Block as sp_runtime::traits::HeaderProvider>::Header as HeaderT>::Number>> {
 		<Self as sp_blockchain::HeaderBackend<Block>>::number(self, hash)
 	}
 }
@@ -620,7 +620,7 @@ pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
 	pub overseer_handle: Option<Handle>,
-	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
+	pub network: Arc<sc_network::NetworkService<Block, <Block as sp_runtime::traits::HeaderProvider>::Hash>>,
 	pub sync_service: Arc<sc_network_sync::SyncingService<Block>>,
 	pub rpc_handlers: RpcHandlers,
 	pub backend: Arc<FullBackend>,

@@ -125,7 +125,7 @@ impl<T: pallet_authority_discovery::Config> AuthorityDiscoveryConfig for T {
 impl<T: Config> Pallet<T> {
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
-		notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>,
+		notification: &crate::initializer::SessionChangeNotification<frame_system::BlockNumberOf<T>>,
 	) {
 		let config = <configuration::Pallet<T>>::config();
 
@@ -195,7 +195,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Called by the initializer to initialize the session info pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: frame_system::BlockNumberOf<T>) -> Weight {
 		Weight::zero()
 	}
 

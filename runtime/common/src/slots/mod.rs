@@ -37,7 +37,7 @@ use sp_std::prelude::*;
 
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
+type LeasePeriodOf<T> = frame_system::BlockNumberOf<T>;
 
 pub trait WeightInfo {
 	fn force_lease() -> Weight;
@@ -83,11 +83,11 @@ pub mod pallet {
 
 		/// The number of blocks over which a single period lasts.
 		#[pallet::constant]
-		type LeasePeriod: Get<Self::BlockNumber>;
+		type LeasePeriod: Get<frame_system::BlockNumberOf<Self>>;
 
 		/// The number of blocks to offset each lease period by.
 		#[pallet::constant]
-		type LeaseOffset: Get<Self::BlockNumber>;
+		type LeaseOffset: Get<frame_system::BlockNumberOf<Self>>;
 
 		/// The origin which may forcibly create or clear leases. Root can always do this.
 		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
@@ -145,7 +145,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(n: T::BlockNumber) -> Weight {
+		fn on_initialize(n: frame_system::BlockNumberOf<T>) -> Weight {
 			if let Some((lease_period, first_block)) = Self::lease_period_index(n) {
 				// If we're beginning a new lease period then handle that.
 				if first_block {
@@ -333,9 +333,9 @@ impl<T: Config> crate::traits::OnSwap for Pallet<T> {
 	}
 }
 
-impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
+impl<T: Config> Leaser<frame_system::BlockNumberOf<T>> for Pallet<T> {
 	type AccountId = T::AccountId;
-	type LeasePeriod = T::BlockNumber;
+	type LeasePeriod = frame_system::BlockNumberOf<T>;
 	type Currency = T::Currency;
 
 	fn lease_out(
@@ -442,11 +442,11 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 	}
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
-	fn lease_period_length() -> (T::BlockNumber, T::BlockNumber) {
+	fn lease_period_length() -> (frame_system::BlockNumberOf<T>, frame_system::BlockNumberOf<T>) {
 		(T::LeasePeriod::get(), T::LeaseOffset::get())
 	}
 
-	fn lease_period_index(b: T::BlockNumber) -> Option<(Self::LeasePeriod, bool)> {
+	fn lease_period_index(b: frame_system::BlockNumberOf<T>) -> Option<(Self::LeasePeriod, bool)> {
 		// Note that blocks before `LeaseOffset` do not count as any lease period.
 		let offset_block_now = b.checked_sub(&T::LeaseOffset::get())?;
 		let lease_period = offset_block_now / T::LeasePeriod::get();

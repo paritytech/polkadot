@@ -145,7 +145,7 @@ impl frame_system::Config for Runtime {
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = Indices;
-	type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = Version;
@@ -732,7 +732,7 @@ pub type Executive = frame_executive::Executive<
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 
-pub type Hash = <Block as BlockT>::Hash;
+pub type Hash = <Block as sp_runtime::traits::HeaderProvider>::Hash;
 pub type Extrinsic = <Block as BlockT>::Extrinsic;
 
 sp_api::impl_runtime_apis! {
@@ -745,7 +745,7 @@ sp_api::impl_runtime_apis! {
 			Executive::execute_block(block);
 		}
 
-		fn initialize_block(header: &<Block as BlockT>::Header) {
+		fn initialize_block(header: &<Block as sp_runtime::traits::HeaderProvider>::Header) {
 			Executive::initialize_block(header)
 		}
 	}
@@ -769,7 +769,7 @@ sp_api::impl_runtime_apis! {
 			Executive::apply_extrinsic(extrinsic)
 		}
 
-		fn finalize_block() -> <Block as BlockT>::Header {
+		fn finalize_block() -> <Block as sp_runtime::traits::HeaderProvider>::Header {
 			Executive::finalize_block()
 		}
 
@@ -789,14 +789,14 @@ sp_api::impl_runtime_apis! {
 		fn validate_transaction(
 			source: TransactionSource,
 			tx: <Block as BlockT>::Extrinsic,
-			block_hash: <Block as BlockT>::Hash,
+			block_hash: <Block as sp_runtime::traits::HeaderProvider>::Hash,
 		) -> TransactionValidity {
 			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
 
 	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
-		fn offchain_worker(header: &<Block as BlockT>::Header) {
+		fn offchain_worker(header: &<Block as sp_runtime::traits::HeaderProvider>::Header) {
 			Executive::offchain_worker(header)
 		}
 	}
@@ -1008,7 +1008,7 @@ sp_api::impl_runtime_apis! {
 
 		fn submit_report_equivocation_unsigned_extrinsic(
 			_equivocation_proof: fg_primitives::EquivocationProof<
-				<Block as BlockT>::Hash,
+				<Block as sp_runtime::traits::HeaderProvider>::Hash,
 				sp_runtime::traits::NumberFor<Block>,
 			>,
 			_key_owner_proof: fg_primitives::OpaqueKeyOwnershipProof,
@@ -1057,7 +1057,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
-			_equivocation_proof: babe_primitives::EquivocationProof<<Block as BlockT>::Header>,
+			_equivocation_proof: babe_primitives::EquivocationProof<<Block as sp_runtime::traits::HeaderProvider>::Header>,
 			_key_owner_proof: babe_primitives::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
 			None

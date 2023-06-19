@@ -105,7 +105,7 @@ pub mod pallet {
 		/// Vesting Pallet
 		type VestingSchedule: VestingSchedule<
 			Self::AccountId,
-			Moment = Self::BlockNumber,
+			Moment = frame_system::BlockNumberOf<Self>,
 			Currency = Self::Currency,
 		>;
 
@@ -144,7 +144,7 @@ pub mod pallet {
 		/// A new statement was set.
 		StatementUpdated,
 		/// A new statement was set. `[block_number]`
-		UnlockBlockUpdated { block_number: T::BlockNumber },
+		UnlockBlockUpdated { block_number: frame_system::BlockNumberOf<T> },
 	}
 
 	#[pallet::error]
@@ -182,7 +182,7 @@ pub mod pallet {
 
 	// The block where all locked dots will unlock.
 	#[pallet::storage]
-	pub(super) type UnlockBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+	pub(super) type UnlockBlock<T: Config> = StorageValue<_, frame_system::BlockNumberOf<T>, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -403,7 +403,7 @@ pub mod pallet {
 		#[pallet::weight(T::DbWeight::get().writes(1))]
 		pub fn set_unlock_block(
 			origin: OriginFor<T>,
-			unlock_block: T::BlockNumber,
+			unlock_block: frame_system::BlockNumberOf<T>,
 		) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			ensure!(
