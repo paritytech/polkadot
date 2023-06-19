@@ -236,7 +236,7 @@ pub mod pallet {
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			// build `Claims`
 			self.claims.iter().map(|(a, b, _, _)| (*a, *b)).for_each(|(a, b)| {
