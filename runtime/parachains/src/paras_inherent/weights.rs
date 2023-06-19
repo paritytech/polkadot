@@ -21,7 +21,8 @@
 
 use parity_scale_codec::{Encode, WrapperTypeEncode};
 use primitives::{
-	CheckedMultiDisputeStatementSet, MultiDisputeStatementSet, UncheckedSignedAvailabilityBitfields,
+	CheckedMultiDisputeStatementSet, MultiDisputeStatementSet, UncheckedSignedAvailabilityBitfield,
+	UncheckedSignedAvailabilityBitfields,
 };
 
 use super::{BackedCandidate, Config, DisputeStatementSet, Weight};
@@ -134,6 +135,13 @@ pub fn signed_bitfields_weight<T: Config>(
 		<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields()
 			.saturating_mul(bitfields.len() as u64),
 		bitfields,
+	)
+}
+
+pub fn signed_bitfield_weight<T: Config>(bitfield: &UncheckedSignedAvailabilityBitfield) -> Weight {
+	set_proof_size_to_tx_size(
+		<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
+		bitfield,
 	)
 }
 
