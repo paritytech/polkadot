@@ -25,22 +25,22 @@ polkadot-client = { path = "../node/client", optional = true }
 polkadot-node-core-pvf-worker = { path = "../node/core/pvf/worker", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.42" }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.42" }
-sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.42" }
-sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.42" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42-staking-miner" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42-staking-miner" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42-staking-miner" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42-staking-miner" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.42-staking-miner" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.42-staking-miner" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.42-staking-miner" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.42-staking-miner" }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.42" }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.42-staking-miner" }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42-staking-miner" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42-staking-miner" }
+sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42-staking-miner" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42-staking-miner" }
 
 [features]
 default = ["db", "cli", "full-node", "polkadot-native"]
