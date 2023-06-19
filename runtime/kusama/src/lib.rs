@@ -176,7 +176,6 @@ impl frame_system::Config for Runtime {
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
 	type Index = Nonce;
-	type BlockNumber = BlockNumber;
 	type Hash = Hash;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
@@ -1340,10 +1339,7 @@ impl pallet_nomination_pools::Config for Runtime {
 }
 
 construct_runtime! {
-	pub enum Runtime where
-		Block = Block,
-		NodeBlock = primitives::Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
+	pub enum Runtime 
 	{
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
