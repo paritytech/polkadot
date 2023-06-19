@@ -46,3 +46,12 @@ pub struct MemoryAllocationStats {
 	/// Total allocated memory, in bytes.
 	pub allocated: u64,
 }
+
+/// The kind of prepare job.
+#[derive(Copy, Clone, Debug, Encode, Decode)]
+pub enum PrepareJobKind {
+	/// Compilation triggered by a candidate validation request.
+	Compilation,
+	/// A prechecking job.
+	Prechecking,
+}

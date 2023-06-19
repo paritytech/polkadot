@@ -77,7 +77,7 @@ pub struct Extensions {
 
 /// The `ChainSpec` parameterized for the polkadot runtime.
 #[cfg(feature = "polkadot-native")]
-pub type PolkadotChainSpec = service::GenericChainSpec<polkadot::GenesisConfig, Extensions>;
+pub type PolkadotChainSpec = service::GenericChainSpec<polkadot::RuntimeGenesisConfig, Extensions>;
 
 // Dummy chain spec, in case when we don't have the native runtime.
 pub type DummyChainSpec = service::GenericChainSpec<(), Extensions>;
@@ -88,7 +88,7 @@ pub type PolkadotChainSpec = DummyChainSpec;
 
 /// The `ChainSpec` parameterized for the kusama runtime.
 #[cfg(feature = "kusama-native")]
-pub type KusamaChainSpec = service::GenericChainSpec<kusama::GenesisConfig, Extensions>;
+pub type KusamaChainSpec = service::GenericChainSpec<kusama::RuntimeGenesisConfig, Extensions>;
 
 /// The `ChainSpec` parameterized for the kusama runtime.
 // Dummy chain spec, but that is fine when we don't have the native runtime.
@@ -97,7 +97,7 @@ pub type KusamaChainSpec = DummyChainSpec;
 
 /// The `ChainSpec` parameterized for the westend runtime.
 #[cfg(feature = "westend-native")]
-pub type WestendChainSpec = service::GenericChainSpec<westend::GenesisConfig, Extensions>;
+pub type WestendChainSpec = service::GenericChainSpec<westend::RuntimeGenesisConfig, Extensions>;
 
 /// The `ChainSpec` parameterized for the westend runtime.
 // Dummy chain spec, but that is fine when we don't have the native runtime.
@@ -123,7 +123,7 @@ pub type RococoChainSpec = DummyChainSpec;
 #[cfg(feature = "rococo-native")]
 pub struct RococoGenesisExt {
 	/// The runtime genesis config.
-	runtime_genesis_config: rococo::GenesisConfig,
+	runtime_genesis_config: rococo::RuntimeGenesisConfig,
 	/// The session length in blocks.
 	///
 	/// If `None` is supplied, the default value is used.
@@ -301,7 +301,7 @@ fn rococo_session_keys(
 }
 
 #[cfg(feature = "polkadot-native")]
-fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
+fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeGenesisConfig {
 	// subkey inspect "$SECRET"
 	let endowed_accounts = vec![];
 
@@ -319,7 +319,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 	const ENDOWMENT: u128 = 1_000_000 * DOT;
 	const STASH: u128 = 100 * DOT;
 
-	polkadot::GenesisConfig {
+	polkadot::RuntimeGenesisConfig {
 		system: polkadot::SystemConfig { code: wasm_binary.to_vec() },
 		balances: polkadot::BalancesConfig {
 			balances: endowed_accounts
@@ -389,7 +389,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 }
 
 #[cfg(feature = "westend-native")]
-fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::GenesisConfig {
+fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::RuntimeGenesisConfig {
 	use hex_literal::hex;
 	use sp_core::crypto::UncheckedInto;
 
@@ -510,7 +510,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 	const ENDOWMENT: u128 = 1_000_000 * WND;
 	const STASH: u128 = 100 * WND;
 
-	westend::GenesisConfig {
+	westend::RuntimeGenesisConfig {
 		system: westend::SystemConfig { code: wasm_binary.to_vec() },
 		balances: westend::BalancesConfig {
 			balances: endowed_accounts
@@ -574,7 +574,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 }
 
 #[cfg(feature = "kusama-native")]
-fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisConfig {
+fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
 	use hex_literal::hex;
 	use sp_core::crypto::UncheckedInto;
 
@@ -700,7 +700,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 	const ENDOWMENT: u128 = 1_000_000 * KSM;
 	const STASH: u128 = 100 * KSM;
 
-	kusama::GenesisConfig {
+	kusama::RuntimeGenesisConfig {
 		system: kusama::SystemConfig { code: wasm_binary.to_vec() },
 		balances: kusama::BalancesConfig {
 			balances: endowed_accounts
@@ -763,7 +763,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 }
 
 #[cfg(feature = "rococo-native")]
-fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+fn rococo_staging_testnet_config_genesis(
+	wasm_binary: &[u8],
+) -> rococo_runtime::RuntimeGenesisConfig {
 	use hex_literal::hex;
 	use sp_core::crypto::UncheckedInto;
 
@@ -1006,7 +1008,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 	const ENDOWMENT: u128 = 1_000_000 * ROC;
 	const STASH: u128 = 100 * ROC;
 
-	rococo_runtime::GenesisConfig {
+	rococo_runtime::RuntimeGenesisConfig {
 		system: rococo_runtime::SystemConfig { code: wasm_binary.to_vec() },
 		balances: rococo_runtime::BalancesConfig {
 			balances: endowed_accounts
@@ -1286,7 +1288,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 	]
 }
 
-/// Helper function to create polkadot `GenesisConfig` for testing
+/// Helper function to create polkadot `RuntimeGenesisConfig` for testing
 #[cfg(feature = "polkadot-native")]
 pub fn polkadot_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1302,13 +1304,13 @@ pub fn polkadot_testnet_genesis(
 	)>,
 	_root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> polkadot::GenesisConfig {
+) -> polkadot::RuntimeGenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
 
 	const ENDOWMENT: u128 = 1_000_000 * DOT;
 	const STASH: u128 = 100 * DOT;
 
-	polkadot::GenesisConfig {
+	polkadot::RuntimeGenesisConfig {
 		system: polkadot::SystemConfig { code: wasm_binary.to_vec() },
 		indices: polkadot::IndicesConfig { indices: vec![] },
 		balances: polkadot::BalancesConfig {
@@ -1373,7 +1375,7 @@ pub fn polkadot_testnet_genesis(
 	}
 }
 
-/// Helper function to create kusama `GenesisConfig` for testing
+/// Helper function to create kusama `RuntimeGenesisConfig` for testing
 #[cfg(feature = "kusama-native")]
 pub fn kusama_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1389,13 +1391,13 @@ pub fn kusama_testnet_genesis(
 	)>,
 	_root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> kusama::GenesisConfig {
+) -> kusama::RuntimeGenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
 
 	const ENDOWMENT: u128 = 1_000_000 * KSM;
 	const STASH: u128 = 100 * KSM;
 
-	kusama::GenesisConfig {
+	kusama::RuntimeGenesisConfig {
 		system: kusama::SystemConfig { code: wasm_binary.to_vec() },
 		indices: kusama::IndicesConfig { indices: vec![] },
 		balances: kusama::BalancesConfig {
@@ -1453,7 +1455,7 @@ pub fn kusama_testnet_genesis(
 	}
 }
 
-/// Helper function to create westend `GenesisConfig` for testing
+/// Helper function to create westend `RuntimeGenesisConfig` for testing
 #[cfg(feature = "westend-native")]
 pub fn westend_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1469,13 +1471,13 @@ pub fn westend_testnet_genesis(
 	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> westend::GenesisConfig {
+) -> westend::RuntimeGenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
 
 	const ENDOWMENT: u128 = 1_000_000 * WND;
 	const STASH: u128 = 100 * WND;
 
-	westend::GenesisConfig {
+	westend::RuntimeGenesisConfig {
 		system: westend::SystemConfig { code: wasm_binary.to_vec() },
 		indices: westend::IndicesConfig { indices: vec![] },
 		balances: westend::BalancesConfig {
@@ -1534,7 +1536,7 @@ pub fn westend_testnet_genesis(
 	}
 }
 
-/// Helper function to create rococo `GenesisConfig` for testing
+/// Helper function to create rococo `RuntimeGenesisConfig` for testing
 #[cfg(feature = "rococo-native")]
 pub fn rococo_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1551,12 +1553,12 @@ pub fn rococo_testnet_genesis(
 	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> rococo_runtime::GenesisConfig {
+) -> rococo_runtime::RuntimeGenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
 
 	const ENDOWMENT: u128 = 1_000_000 * ROC;
 
-	rococo_runtime::GenesisConfig {
+	rococo_runtime::RuntimeGenesisConfig {
 		system: rococo_runtime::SystemConfig { code: wasm_binary.to_vec() },
 		beefy: Default::default(),
 		indices: rococo_runtime::IndicesConfig { indices: vec![] },
@@ -1619,7 +1621,7 @@ pub fn rococo_testnet_genesis(
 }
 
 #[cfg(feature = "polkadot-native")]
-fn polkadot_development_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
+fn polkadot_development_config_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeGenesisConfig {
 	polkadot_testnet_genesis(
 		wasm_binary,
 		vec![get_authority_keys_from_seed_no_beefy("Alice")],
@@ -1629,7 +1631,7 @@ fn polkadot_development_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisC
 }
 
 #[cfg(feature = "kusama-native")]
-fn kusama_development_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisConfig {
+fn kusama_development_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
 	kusama_testnet_genesis(
 		wasm_binary,
 		vec![get_authority_keys_from_seed_no_beefy("Alice")],
@@ -1639,7 +1641,7 @@ fn kusama_development_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisConfi
 }
 
 #[cfg(feature = "westend-native")]
-fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::GenesisConfig {
+fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::RuntimeGenesisConfig {
 	westend_testnet_genesis(
 		wasm_binary,
 		vec![get_authority_keys_from_seed_no_beefy("Alice")],
@@ -1649,7 +1651,7 @@ fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::GenesisCon
 }
 
 #[cfg(feature = "rococo-native")]
-fn rococo_development_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+fn rococo_development_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
 		vec![get_authority_keys_from_seed("Alice")],
@@ -1786,7 +1788,7 @@ pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
 }
 
 #[cfg(feature = "polkadot-native")]
-fn polkadot_local_testnet_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
+fn polkadot_local_testnet_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeGenesisConfig {
 	polkadot_testnet_genesis(
 		wasm_binary,
 		vec![
@@ -1818,7 +1820,7 @@ pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
 }
 
 #[cfg(feature = "kusama-native")]
-fn kusama_local_testnet_genesis(wasm_binary: &[u8]) -> kusama::GenesisConfig {
+fn kusama_local_testnet_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
 	kusama_testnet_genesis(
 		wasm_binary,
 		vec![
@@ -1850,7 +1852,7 @@ pub fn kusama_local_testnet_config() -> Result<KusamaChainSpec, String> {
 }
 
 #[cfg(feature = "westend-native")]
-fn westend_local_testnet_genesis(wasm_binary: &[u8]) -> westend::GenesisConfig {
+fn westend_local_testnet_genesis(wasm_binary: &[u8]) -> westend::RuntimeGenesisConfig {
 	westend_testnet_genesis(
 		wasm_binary,
 		vec![
@@ -1882,7 +1884,7 @@ pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
 }
 
 #[cfg(feature = "rococo-native")]
-fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
 		vec![get_authority_keys_from_seed("Alice"), get_authority_keys_from_seed("Bob")],
@@ -1916,7 +1918,7 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 
 /// Wococo is a temporary testnet that uses almost the same runtime as rococo.
 #[cfg(feature = "rococo-native")]
-fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
 		vec![
@@ -1955,7 +1957,7 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 
 /// `Versi` is a temporary testnet that uses the same runtime as rococo.
 #[cfg(feature = "rococo-native")]
-fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
 		vec![

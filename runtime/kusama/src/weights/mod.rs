@@ -44,6 +44,7 @@ pub mod pallet_referenda_fellowship_referenda;
 pub mod pallet_referenda_referenda;
 pub mod pallet_scheduler;
 pub mod pallet_session;
+pub mod pallet_society;
 pub mod pallet_staking;
 pub mod pallet_timestamp;
 pub mod pallet_tips;
