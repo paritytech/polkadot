@@ -49,5 +49,3 @@ async fn request_votes(
 }
 
 pub(crate) mod prioritized_selection;
-
-pub(crate) mod random_selection;
