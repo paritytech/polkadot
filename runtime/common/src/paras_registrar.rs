@@ -663,7 +663,7 @@ mod tests {
 		assert_noop, assert_ok,
 		error::BadOrigin,
 		parameter_types,
-		traits::{ConstU32, GenesisBuild, OnFinalize, OnInitialize},
+		traits::{ConstU32, OnFinalize, OnInitialize},
 	};
 	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
@@ -675,7 +675,7 @@ mod tests {
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup},
 		transaction_validity::TransactionPriority,
-		Perbill,
+		BuildStorage, Perbill,
 	};
 	use sp_std::collections::btree_map::BTreeMap;
 
@@ -688,10 +688,10 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-			Parachains: paras::{Pallet, Call, Storage, Config, Event},
+			Parachains: paras::{Pallet, Call, Storage, Config<T>, Event},
 			ParasShared: shared::{Pallet, Call, Storage},
 			Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
 			ParachainsOrigin: origin::{Pallet, Origin},
@@ -799,18 +799,16 @@ mod tests {
 	}
 
 	pub fn new_test_ext() -> TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 
-		GenesisBuild::<Test>::assimilate_storage(
-			&configuration::GenesisConfig {
-				config: configuration::HostConfiguration {
-					max_code_size: 2 * 1024 * 1024,      // 2 MB
-					max_head_data_size: 1 * 1024 * 1024, // 1 MB
-					..Default::default()
-				},
+		configuration::GenesisConfig::<Test> {
+			config: configuration::HostConfiguration {
+				max_code_size: 2 * 1024 * 1024,      // 2 MB
+				max_head_data_size: 1 * 1024 * 1024, // 1 MB
+				..Default::default()
 			},
-			&mut t,
-		)
+		}
+		.assimilate_storage(&mut t)
 		.unwrap();
 
 		pallet_balances::GenesisConfig::<Test> {
