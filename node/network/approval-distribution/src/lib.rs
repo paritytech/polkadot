@@ -20,6 +20,7 @@
 
 #![warn(missing_docs)]
 
+use self::metrics::Metrics;
 use futures::{
 	channel::oneshot::{self, Canceled},
 	select,
@@ -51,10 +52,8 @@ use rand::{CryptoRng, Rng, SeedableRng};
 use std::{
 	collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque},
 	pin::Pin,
-	time::{Duration, Instant},
+	time::Duration,
 };
-
-use self::metrics::Metrics;
 
 mod metrics;
 
@@ -912,7 +911,9 @@ impl State {
 			entry.waiting_to_be_verified.insert(message_subject.clone(), message_kind);
 
 			let message_subj_clone = message_subject.clone();
+			let metrics = metrics.clone();
 			let await_future = async move {
+				let _timer = metrics.time_awaiting_approval_voting();
 				let result = rx.await?;
 				Ok(ApprovalVotingResponse::AssignmentCheck(AssignmentMetadata {
 					message_subject: message_subj_clone,
@@ -1345,6 +1346,7 @@ impl State {
 
 			let vote_clone = vote.clone();
 			let message_subj_clone = message_subject.clone();
+
 			let await_future = async move {
 				let result = rx.await?;
 				Ok(ApprovalVotingResponse::ApprovalCheck(ApprovalVotingMetadata {
