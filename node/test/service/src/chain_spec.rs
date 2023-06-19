@@ -159,7 +159,10 @@ fn polkadot_testnet_genesis(
 			..Default::default()
 		},
 		grandpa: Default::default(),
-		authority_discovery: runtime::AuthorityDiscoveryConfig { keys: vec![], ..Default::default() },
+		authority_discovery: runtime::AuthorityDiscoveryConfig {
+			keys: vec![],
+			..Default::default()
+		},
 		claims: runtime::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: runtime::VestingConfig { vesting: vec![] },
 		sudo: runtime::SudoConfig { key: Some(root_key) },
