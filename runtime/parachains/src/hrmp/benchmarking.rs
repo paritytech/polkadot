@@ -316,16 +316,30 @@ frame_benchmarking::benchmarks! {
 		let capacity = Configuration::<T>::config().hrmp_channel_max_capacity;
 		let message_size = Configuration::<T>::config().hrmp_channel_max_message_size;
 
-		// this will consume more weight if a channel _request_ already exists, because it will need
-		// to clear the request.
-		assert_ok!(Hrmp::<T>::hrmp_init_open_channel(
-			sender_origin.into(),
-			recipient_id,
-			capacity,
-			message_size
-		));
+		let c = [true, false];
 		let channel_id = HrmpChannelId { sender: sender_id, recipient: recipient_id };
-		assert!(HrmpOpenChannelRequests::<T>::get(&channel_id).is_some());
+		for case in c {
+			if case {
+				// this will consume more weight if a channel _request_ already exists, because it
+				// will need to clear the request.
+				assert_ok!(Hrmp::<T>::hrmp_init_open_channel(
+					sender_origin.clone().into(),
+					recipient_id,
+					capacity,
+					message_size
+				));
+				assert!(HrmpOpenChannelRequests::<T>::get(&channel_id).is_some());
+			} else {
+				if HrmpOpenChannelRequests::<T>::get(&channel_id).is_some() {
+					assert_ok!(Hrmp::<T>::hrmp_cancel_open_request(
+						sender_origin.clone().into(),
+						channel_id.clone(),
+						MAX_UNIQUE_CHANNELS,
+					));
+				}
+				assert!(HrmpOpenChannelRequests::<T>::get(&channel_id).is_none());
+			}
+		}
 
 		// but the _channel_ should not exist
 		assert!(HrmpChannels::<T>::get(&channel_id).is_none());
