@@ -34,8 +34,8 @@ use parity_scale_codec::DecodeAll;
 use primitives::{
 	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
 	CompactStatement as Statement, Hash, ParathreadClaim, ParathreadEntry,
-	SignedAvailabilityBitfield, SignedStatement, UncheckedSignedAvailabilityBitfield,
-	ValidationCode, ValidatorId, ValidityAttestation, PARACHAIN_KEY_TYPE_ID,
+	SignedAvailabilityBitfield, SignedStatement, ValidationCode, ValidatorId, ValidityAttestation,
+	PARACHAIN_KEY_TYPE_ID,
 };
 use sc_keystore::LocalKeystore;
 use sp_keystore::{Keystore, KeystorePtr};
