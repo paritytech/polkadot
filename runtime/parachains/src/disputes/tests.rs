@@ -2083,7 +2083,7 @@ fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
 
 	let mut acc = Vec::<CheckedDisputeStatementSet>::new();
 	for dispute_statement in sets {
-		if let Some(checked) = <Pallet<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
+		if let Some(checked) = <Pallet<T> as DisputesHandler<frame_system::BlockNumberOf<T>>>::filter_dispute_data(
 			dispute_statement,
 			post_conclusion_acceptance_period,
 		) {
