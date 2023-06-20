@@ -19,7 +19,7 @@ use super::*;
 use frame_support::assert_ok;
 use keyring::Sr25519Keyring;
 use primitives::{
-	v4::{Assignment, CollatorRestrictionKind, CollatorRestrictions},
+	v5::{Assignment, CollatorRestrictionKind, CollatorRestrictions},
 	BlockNumber, CollatorId, SessionIndex, ValidationCode, ValidatorId,
 };
 use sp_core::{ByteArray, OpaquePeerId};

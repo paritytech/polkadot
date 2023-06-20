@@ -31,9 +31,9 @@ use frame_support::assert_noop;
 use keyring::Sr25519Keyring;
 use parity_scale_codec::DecodeAll;
 use primitives::{
-	v4::{Assignment, CollatorRestrictionKind, CollatorRestrictions, ParasEntry},
+	v5::{Assignment, CollatorRestrictionKind, CollatorRestrictions, ParasEntry},
 	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
-	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
+	CompactStatement as Statement, EncodeAs, Hash, SignedAvailabilityBitfield, SignedStatement,
 	ValidationCode, ValidatorId, ValidityAttestation, PARACHAIN_KEY_TYPE_ID,
 };
 use sc_keystore::LocalKeystore;
