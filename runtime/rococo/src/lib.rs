@@ -45,7 +45,7 @@ use runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
 	runtime_api_impl::v5 as parachains_runtime_api_impl,
-	scheduler, scheduler as parachains_scheduler, scheduler_parachains,
+	scheduler as parachains_scheduler, scheduler_parachains,
 	session_info as parachains_session_info, shared as parachains_shared,
 };
 
@@ -1628,7 +1628,7 @@ pub mod migrations {
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
 		pallet_society::migrations::MigrateToV2<Runtime, (), ()>,
-		scheduler::migration::v1::MigrateToV1<Runtime>,
+		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 	);
 }
 

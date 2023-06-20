@@ -46,7 +46,7 @@ use runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v5 as parachains_runtime_api_impl,
-	scheduler as parachains_scheduler, scheduler, session_info as parachains_session_info,
+	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared,
 };
 
@@ -1532,12 +1532,13 @@ pub mod migrations {
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
-		scheduler::migration::v1::MigrateToV1<Runtime>,
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased =
-		(pallet_society::migrations::MigrateToV2<Runtime, (), past_payouts::PastPayouts>,);
+	pub type Unreleased = (
+		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
+		pallet_society::migrations::MigrateToV2<Runtime, (), past_payouts::PastPayouts>,
+	);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;

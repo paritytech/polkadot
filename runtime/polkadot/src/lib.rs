@@ -34,8 +34,8 @@ use runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v5 as parachains_runtime_api_impl,
-	scheduler, scheduler as parachains_scheduler, scheduler_polkadot,
-	session_info as parachains_session_info, shared as parachains_shared,
+	scheduler as parachains_scheduler, scheduler_polkadot, session_info as parachains_session_info,
+	shared as parachains_shared,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -1523,11 +1523,10 @@ pub mod migrations {
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
-		scheduler::migration::v1::MigrateToV1<Runtime>,
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = ();
+	pub type Unreleased = (parachains_scheduler::migration::v1::MigrateToV1<Runtime>,);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;
