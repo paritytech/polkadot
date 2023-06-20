@@ -29,9 +29,9 @@
 
 #![deny(missing_docs)]
 
-use futures::{channel::mpsc, future::FutureExt, join, select, sink::SinkExt, stream::StreamExt};
+use futures::{channel::{mpsc, oneshot}, future::FutureExt, join, select, sink::SinkExt, stream::StreamExt};
 use parity_scale_codec::Encode;
-use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
+use polkadot_node_primitives::{AvailableData, Collation, CollationGenerationConfig, CollationSecondedSignal, PoV};
 use polkadot_node_subsystem::{
 	messages::{CollationGenerationMessage, CollatorProtocolMessage},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
@@ -44,7 +44,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::{
 	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
 	CoreState, Hash, Id as ParaId, OccupiedCoreAssumption, PersistedValidationData,
-	ValidationCodeHash,
+	ValidationCodeHash, CollatorPair,
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;
@@ -291,14 +291,11 @@ async fn handle_new_activations<Context>(
 			};
 
 			let task_config = config.clone();
-			let mut task_sender = sender.clone();
+			let task_sender = sender.clone();
 			let metrics = metrics.clone();
 			ctx.spawn(
 				"collation-builder",
 				Box::pin(async move {
-					let persisted_validation_data_hash = validation_data.hash();
-					let parent_head_data_hash = validation_data.parent_head.hash();
-
 					let (collation, result_sender) =
 						match (task_config.collator)(relay_parent, &validation_data).await {
 							Some(collation) => collation.into_inner(),
@@ -312,114 +309,160 @@ async fn handle_new_activations<Context>(
 							},
 						};
 
-					// Apply compression to the block data.
-					let pov = {
-						let pov = collation.proof_of_validity.into_compressed();
-						let encoded_size = pov.encoded_size();
-
-						// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
-						// that honest collators never produce a PoV which is uncompressed.
-						//
-						// As such, honest collators never produce an uncompressed PoV which starts with
-						// a compression magic number, which would lead validators to reject the collation.
-						if encoded_size > validation_data.max_pov_size as usize {
-							gum::debug!(
-								target: LOG_TARGET,
-								para_id = %scheduled_core.para_id,
-								size = encoded_size,
-								max_size = validation_data.max_pov_size,
-								"PoV exceeded maximum size"
-							);
-
-							return
-						}
-
-						pov
-					};
-
-					let pov_hash = pov.hash();
-
-					let signature_payload = collator_signature_payload(
-						&relay_parent,
-						&scheduled_core.para_id,
-						&persisted_validation_data_hash,
-						&pov_hash,
-						&validation_code_hash,
-					);
-
-					let erasure_root =
-						match erasure_root(n_validators, validation_data, pov.clone()) {
-							Ok(erasure_root) => erasure_root,
-							Err(err) => {
-								gum::error!(
-									target: LOG_TARGET,
-									para_id = %scheduled_core.para_id,
-									err = ?err,
-									"failed to calculate erasure root",
-								);
-								return
-							},
-						};
-
-					let commitments = CandidateCommitments {
-						upward_messages: collation.upward_messages,
-						horizontal_messages: collation.horizontal_messages,
-						new_validation_code: collation.new_validation_code,
-						head_data: collation.head_data,
-						processed_downward_messages: collation.processed_downward_messages,
-						hrmp_watermark: collation.hrmp_watermark,
-					};
-
-					let ccr = CandidateReceipt {
-						commitments_hash: commitments.hash(),
-						descriptor: CandidateDescriptor {
-							signature: task_config.key.sign(&signature_payload),
-							para_id: scheduled_core.para_id,
+					construct_and_distribute_receipt(
+						PreparedCollation {
+							collation,
+							para_id: task_config.para_id,
 							relay_parent,
-							collator: task_config.key.public(),
-							persisted_validation_data_hash,
-							pov_hash,
-							erasure_root,
-							para_head: commitments.head_data.hash(),
+							validation_data,
 							validation_code_hash,
+							n_validators,
 						},
-					};
-
-					gum::debug!(
-						target: LOG_TARGET,
-						candidate_hash = ?ccr.hash(),
-						?pov_hash,
-						?relay_parent,
-						para_id = %scheduled_core.para_id,
-						"candidate is generated",
-					);
-					metrics.on_collation_generated();
-
-					if let Err(err) = task_sender
-						.send(
-							CollatorProtocolMessage::DistributeCollation(
-								ccr,
-								parent_head_data_hash,
-								pov,
-								result_sender,
-							)
-							.into(),
-						)
-						.await
-					{
-						gum::warn!(
-							target: LOG_TARGET,
-							para_id = %scheduled_core.para_id,
-							err = ?err,
-							"failed to send collation result",
-						);
-					}
-				}),
+						task_config.key.clone(),
+						task_sender,
+						result_sender,
+						&metrics,
+					).await;
+				})
 			)?;
 		}
 	}
 
 	Ok(())
+}
+
+struct PreparedCollation {
+	collation: Collation,
+	para_id: ParaId,
+	relay_parent: Hash,
+	validation_data: PersistedValidationData,
+	validation_code_hash: ValidationCodeHash,
+	n_validators: usize,
+}
+
+/// Takes a prepared collation, along with its context, and produces a candidate receipt
+/// which is distributed to validators.
+async fn construct_and_distribute_receipt(
+	collation: PreparedCollation,
+	key: CollatorPair,
+	mut sender: mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
+	result_sender: Option<oneshot::Sender<CollationSecondedSignal>>,
+	metrics: &Metrics,
+) {
+	let PreparedCollation {
+		collation,
+		para_id,
+		relay_parent,
+		validation_data,
+		validation_code_hash,
+		n_validators,
+	} = collation;
+
+	let persisted_validation_data_hash = validation_data.hash();
+	let parent_head_data_hash = validation_data.parent_head.hash();
+
+	// Apply compression to the block data.
+	let pov = {
+		let pov = collation.proof_of_validity.into_compressed();
+		let encoded_size = pov.encoded_size();
+
+		// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
+		// that honest collators never produce a PoV which is uncompressed.
+		//
+		// As such, honest collators never produce an uncompressed PoV which starts with
+		// a compression magic number, which would lead validators to reject the collation.
+		if encoded_size > validation_data.max_pov_size as usize {
+			gum::debug!(
+				target: LOG_TARGET,
+				para_id = %para_id,
+				size = encoded_size,
+				max_size = validation_data.max_pov_size,
+				"PoV exceeded maximum size"
+			);
+
+			return
+		}
+
+		pov
+	};
+
+	let pov_hash = pov.hash();
+
+	let signature_payload = collator_signature_payload(
+		&relay_parent,
+		&para_id,
+		&persisted_validation_data_hash,
+		&pov_hash,
+		&validation_code_hash,
+	);
+
+	let erasure_root =
+		match erasure_root(n_validators, validation_data, pov.clone()) {
+			Ok(erasure_root) => erasure_root,
+			Err(err) => {
+				gum::error!(
+					target: LOG_TARGET,
+					para_id = %para_id,
+					err = ?err,
+					"failed to calculate erasure root",
+				);
+				return
+			},
+		};
+
+	let commitments = CandidateCommitments {
+		upward_messages: collation.upward_messages,
+		horizontal_messages: collation.horizontal_messages,
+		new_validation_code: collation.new_validation_code,
+		head_data: collation.head_data,
+		processed_downward_messages: collation.processed_downward_messages,
+		hrmp_watermark: collation.hrmp_watermark,
+	};
+
+	let ccr = CandidateReceipt {
+		commitments_hash: commitments.hash(),
+		descriptor: CandidateDescriptor {
+			signature: key.sign(&signature_payload),
+			para_id: para_id,
+			relay_parent,
+			collator: key.public(),
+			persisted_validation_data_hash,
+			pov_hash,
+			erasure_root,
+			para_head: commitments.head_data.hash(),
+			validation_code_hash,
+		},
+	};
+
+	gum::debug!(
+		target: LOG_TARGET,
+		candidate_hash = ?ccr.hash(),
+		?pov_hash,
+		?relay_parent,
+		para_id = %para_id,
+		"candidate is generated",
+	);
+	metrics.on_collation_generated();
+
+	if let Err(err) = sender
+		.send(
+			CollatorProtocolMessage::DistributeCollation(
+				ccr,
+				parent_head_data_hash,
+				pov,
+				result_sender,
+			)
+			.into(),
+		)
+		.await
+	{
+		gum::warn!(
+			target: LOG_TARGET,
+			para_id = %para_id,
+			err = ?err,
+			"failed to send collation result",
+		);
+	}
 }
 
 async fn obtain_current_validation_code_hash(
