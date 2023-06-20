@@ -1302,16 +1302,28 @@ pub mod migrations {
 		pallet_offences::migration::v1::MigrateToV1<Runtime>,
 	);
 	pub type V0943 = (
-		SetStorageVersions,
+		SetStorageVersionsV0943,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
 	);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
-	pub struct SetStorageVersions;
+	/// Migrations that set `StorageVersion`s we missed to set.
+	pub struct SetStorageVersionsUnreleased;
+	impl OnRuntimeUpgrade for SetStorageVersionsUnreleased {
+		fn on_runtime_upgrade() -> Weight {
+			let storage_version = ImOnline::on_chain_storage_version();
+			if storage_version < 1 {
+				StorageVersion::new(1).put::<ImOnline>();
+			}
 
-	impl OnRuntimeUpgrade for SetStorageVersions {
+			RocksDbWeight::get().reads_writes(1, 1)
+		}
+	}
+
+	pub struct SetStorageVersionsV0943;
+	impl OnRuntimeUpgrade for SetStorageVersionsV0943 {
 		fn on_runtime_upgrade() -> Weight {
 			if FastUnstake::on_chain_storage_version() < 1 {
 				StorageVersion::new(1).put::<FastUnstake>();
@@ -1323,7 +1335,7 @@ pub mod migrations {
 	}
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = ();
+	pub type Unreleased = (SetStorageVersionsUnreleased);
 }
 
 /// Helpers to configure all migrations.
