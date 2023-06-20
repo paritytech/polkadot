@@ -2055,7 +2055,7 @@ fn deduplication_and_sorting_works() {
 		let disputes_orig = disputes.clone();
 
 		<Pallet<Test> as DisputesHandler<
-				<Test as frame_system::Config>::BlockNumber,
+				frame_system::BlockNumberOf<Test>
 			>>::deduplicate_and_sort_dispute_data(&mut disputes).unwrap_err();
 
 		// assert ordering of local only disputes, and at the same time, and being free of duplicates
@@ -2159,7 +2159,7 @@ fn filter_removes_duplicates_within_set() {
 
 		let post_conclusion_acceptance_period = 10;
 		let statements = <Pallet<Test> as DisputesHandler<
-			<Test as frame_system::Config>::BlockNumber,
+			frame_system::BlockNumberOf<Test>
 		>>::filter_dispute_data(statements, post_conclusion_acceptance_period);
 
 		assert_eq!(
@@ -2446,7 +2446,7 @@ fn filter_removes_duplicate_statements_sets() {
 
 		// `Err(())` indicates presence of duplicates
 		assert!(<Pallet::<Test> as DisputesHandler<
-			<Test as frame_system::Config>::BlockNumber,
+			frame_system::BlockNumberOf<Test>
 		>>::deduplicate_and_sort_dispute_data(&mut sets)
 		.is_err());
 
