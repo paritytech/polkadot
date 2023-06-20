@@ -131,7 +131,7 @@ mod tests {
 	);
 
 	parameter_types! {
-		pub const BlockHashCount: u64 = 250;
+		pub const BlockHashCount: u32 = 250;
 		pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
 			.base_block(Weight::from_parts(10, 0))
 			.for_class(DispatchClass::all(), |weight| {

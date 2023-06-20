@@ -50,7 +50,7 @@ pub type AccountId = AccountId32;
 pub type Balance = u128;
 
 parameter_types! {
-	pub const BlockHashCount: u64 = 250;
+	pub const BlockHashCount: u32 = 250;
 }
 
 impl frame_system::Config for Runtime {
