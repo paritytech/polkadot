@@ -433,12 +433,12 @@ impl<T: Config> Registrar for Pallet<T> {
 
 	// Apply a lock to the parachain.
 	fn apply_lock(id: ParaId) {
-		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = true));
+		Paras::<T>::mutate(id, |x| x.as_mut().map(|info| info.locked = true));
 	}
 
 	// Remove a lock from the parachain.
 	fn remove_lock(id: ParaId) {
-		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = false));
+		Paras::<T>::mutate(id, |x| x.as_mut().map(|info| info.locked = false));
 	}
 
 	// Register a Para ID under control of `manager`.
