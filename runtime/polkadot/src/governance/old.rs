@@ -114,6 +114,7 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type SetMembersOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_collective_council::WeightInfo<Runtime>;
 	type MaxProposalWeight = MaxProposalWeight;
+	type Preimages = Preimage;
 }
 
 parameter_types! {
@@ -174,6 +175,7 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type SetMembersOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
 	type MaxProposalWeight = MaxProposalWeight;
+	type Preimages = Preimage;
 }
 
 impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
