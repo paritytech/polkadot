@@ -30,9 +30,6 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	{{#each benchmark.component_ranges as |range|}}
 	/// The range of component `{{range.name}}` is `[{{range.min}}, {{range.max}}]`.
 	{{/each}}
-	{{#each benchmark.component_ranges as |range|}}
-	/// The range of component `{{range.name}}` is `[{{range.min}}, {{range.max}}]`.
-	{{/each}}
 	pub fn {{benchmark.name~}}
 	(
 		{{~#each benchmark.components as |c| ~}}
