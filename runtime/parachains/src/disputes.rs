@@ -136,19 +136,6 @@ impl<BlockNumber> SlashingHandler<BlockNumber> for () {
 	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
-/// Binary discriminator to determine if the expensive signature
-/// checks are necessary.
-#[derive(Clone, Copy)]
-pub enum VerifyDisputeSignatures {
-	/// Yes, verify the signatures.
-	Yes,
-	/// No, skip the signature verification.
-	///
-	/// Only done if there exists an invariant that
-	/// can guaranteed the signature was checked before.
-	Skip,
-}
-
 /// Provide a `Ordering` for the two provided dispute statement sets according to the
 /// following prioritization:
 ///  1. Prioritize local disputes over remote disputes
@@ -184,36 +171,6 @@ where
 	}
 }
 
-use super::paras_inherent::IsSortedBy;
-
-/// Returns `true` if duplicate items were found, otherwise `false`.
-///
-/// `check_equal(a: &T, b: &T)` _must_ return `true`, iff `a` and `b` are equal, otherwise `false.
-/// The definition of _equal_ is to be defined by the user.
-///
-/// Attention: Requires the input `iter` to be sorted, such that _equals_
-/// would be adjacent in respect whatever `check_equal` defines as equality!
-fn contains_duplicates_in_sorted_iter<
-	'a,
-	T: 'a,
-	I: 'a + IntoIterator<Item = &'a T>,
-	C: 'static + FnMut(&T, &T) -> bool,
->(
-	iter: I,
-	mut check_equal: C,
-) -> bool {
-	let mut iter = iter.into_iter();
-	if let Some(mut previous) = iter.next() {
-		while let Some(current) = iter.next() {
-			if check_equal(previous, current) {
-				return true
-			}
-			previous = current;
-		}
-	}
-	return false
-}
-
 /// Hook into disputes handling.
 ///
 /// Allows decoupling parachains handling from disputes so that it can
@@ -222,23 +179,6 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 	/// Whether the chain is frozen, if the chain is frozen it will not accept
 	/// any new parachain blocks for backing or inclusion.
 	fn is_frozen() -> bool;
-
-	/// Assure sanity
-	fn assure_deduplicated_and_sorted(statement_sets: &MultiDisputeStatementSet) -> Result<(), ()> {
-		if !IsSortedBy::is_sorted_by(
-			statement_sets.as_slice(),
-			dispute_ordering_compare::<Self, BlockNumber>,
-		) {
-			return Err(())
-		}
-		// Sorted, so according to session and candidate hash, this will detect duplicates.
-		if contains_duplicates_in_sorted_iter(statement_sets, |previous, current| {
-			current.session == previous.session && current.candidate_hash == previous.candidate_hash
-		}) {
-			return Err(())
-		}
-		Ok(())
-	}
 
 	/// Remove dispute statement duplicates and sort the non-duplicates based on
 	/// local (lower indicies) vs remotes (higher indices) and age (older with lower indices).
@@ -274,7 +214,6 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 	fn filter_dispute_data(
 		statement_set: DisputeStatementSet,
 		post_conclusion_acceptance_period: BlockNumber,
-		verify_sigs: VerifyDisputeSignatures,
 	) -> Option<CheckedDisputeStatementSet>;
 
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
@@ -322,7 +261,6 @@ impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 	fn filter_dispute_data(
 		_set: DisputeStatementSet,
 		_post_conclusion_acceptance_period: BlockNumber,
-		_verify_sigs: VerifyDisputeSignatures,
 	) -> Option<CheckedDisputeStatementSet> {
 		None
 	}
@@ -371,14 +309,9 @@ where
 	fn filter_dispute_data(
 		set: DisputeStatementSet,
 		post_conclusion_acceptance_period: T::BlockNumber,
-		verify_sigs: VerifyDisputeSignatures,
 	) -> Option<CheckedDisputeStatementSet> {
-		pallet::Pallet::<T>::filter_dispute_data(
-			&set,
-			post_conclusion_acceptance_period,
-			verify_sigs,
-		)
-		.filter_statement_set(set)
+		pallet::Pallet::<T>::filter_dispute_data(&set, post_conclusion_acceptance_period)
+			.filter_statement_set(set)
 	}
 
 	fn process_checked_multi_dispute_data(
@@ -1005,7 +938,6 @@ impl<T: Config> Pallet<T> {
 	fn filter_dispute_data(
 		set: &DisputeStatementSet,
 		post_conclusion_acceptance_period: <T as frame_system::Config>::BlockNumber,
-		verify_sigs: VerifyDisputeSignatures,
 	) -> StatementSetFilter {
 		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
 
@@ -1068,29 +1000,26 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 
-				// Avoid checking signatures repeatedly.
-				if let VerifyDisputeSignatures::Yes = verify_sigs {
-					// Check signature after attempting import.
-					//
-					// Since we expect that this filter will be applied to
-					// disputes long after they're concluded, 99% of the time,
-					// the duplicate filter above will catch them before needing
-					// to do a heavy signature check.
-					//
-					// This is only really important until the post-conclusion acceptance threshold
-					// is reached, and then no part of this loop will be hit.
-					if let Err(()) = check_signature(
-						&validator_public,
-						set.candidate_hash,
-						set.session,
-						statement,
-						signature,
-					) {
-						importer.undo(undo);
-						filter.remove_index(i);
-						continue
-					}
-				}
+				// Check signature after attempting import.
+				//
+				// Since we expect that this filter will be applied to
+				// disputes long after they're concluded, 99% of the time,
+				// the duplicate filter above will catch them before needing
+				// to do a heavy signature check.
+				//
+				// This is only really important until the post-conclusion acceptance threshold
+				// is reached, and then no part of this loop will be hit.
+				if let Err(()) = check_signature(
+					&validator_public,
+					set.candidate_hash,
+					set.session,
+					statement,
+					signature,
+				) {
+					importer.undo(undo);
+					filter.remove_index(i);
+					continue
+				};
 			}
 
 			importer.finish()

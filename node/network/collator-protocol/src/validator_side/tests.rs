@@ -29,9 +29,11 @@ use polkadot_node_network_protocol::{
 	ObservedRole,
 };
 use polkadot_node_primitives::BlockData;
-use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
+use polkadot_node_subsystem::messages::{
+	AllMessages, ReportPeerMessage, RuntimeApiMessage, RuntimeApiRequest,
+};
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_subsystem_util::{reputation::add_reputation, TimeoutExt};
 use polkadot_primitives::{
 	v4::CollatorRestrictionKind, vstaging::CollatorRestrictions, CollatorPair, CoreState,
 	GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore, ValidatorId, ValidatorIndex,
@@ -42,6 +44,7 @@ use polkadot_primitives_test_helpers::{
 
 const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(500);
 const DECLARE_TIMEOUT: Duration = Duration::from_millis(25);
+const REPUTATION_CHANGE_TEST_INTERVAL: Duration = Duration::from_millis(10);
 
 #[derive(Clone)]
 struct TestState {
@@ -122,7 +125,10 @@ struct TestHarness {
 	virtual_overseer: VirtualOverseer,
 }
 
-fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarness) -> T) {
+fn test_harness<T: Future<Output = VirtualOverseer>>(
+	reputation: ReputationAggregator,
+	test: impl FnOnce(TestHarness) -> T,
+) {
 	let _ = env_logger::builder()
 		.is_test(true)
 		.filter(Some("polkadot_collator_protocol"), log::LevelFilter::Trace)
@@ -141,7 +147,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 		)
 		.unwrap();
 
-	let subsystem = run(
+	let subsystem = run_inner(
 		context,
 		Arc::new(keystore),
 		crate::CollatorEvictionPolicy {
@@ -149,6 +155,8 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 			undeclared: DECLARE_TIMEOUT,
 		},
 		Metrics::default(),
+		reputation,
+		REPUTATION_CHANGE_TEST_INTERVAL,
 	);
 
 	let test_fut = test(TestHarness { virtual_overseer });
@@ -351,7 +359,7 @@ async fn advertise_collation(
 fn act_on_advertisement() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let pair = CollatorPair::generate().0;
@@ -395,7 +403,7 @@ fn act_on_advertisement() {
 fn collator_reporting_works() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		overseer_send(
@@ -436,10 +444,10 @@ fn collator_reporting_works() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep),
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep)),
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REPORT_BAD);
+				assert_eq!(rep.value, COST_REPORT_BAD.cost_or_benefit());
 			}
 		);
 
@@ -452,7 +460,7 @@ fn collator_reporting_works() {
 fn collator_authentication_verification_works() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let peer_b = PeerId::random();
@@ -486,10 +494,10 @@ fn collator_authentication_verification_works() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep),
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep)),
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_INVALID_SIGNATURE);
+				assert_eq!(rep.value, COST_INVALID_SIGNATURE.cost_or_benefit());
 			}
 		);
 		virtual_overseer
@@ -503,7 +511,7 @@ fn collator_authentication_verification_works() {
 fn fetch_one_collation_at_a_time() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let second = Hash::random();
@@ -588,7 +596,7 @@ fn fetch_one_collation_at_a_time() {
 fn fetches_next_collation() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let second = Hash::random();
@@ -686,7 +694,7 @@ fn fetches_next_collation() {
 fn reject_connection_to_next_group() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		overseer_send(
@@ -712,11 +720,10 @@ fn reject_connection_to_next_group() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
-				peer,
-				rep,
+				ReportPeerMessage::Single(peer, rep),
 			)) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_UNNEEDED_COLLATOR);
+				assert_eq!(rep.value, COST_UNNEEDED_COLLATOR.cost_or_benefit());
 			}
 		);
 
@@ -788,7 +795,7 @@ fn collation_not_in_preferred_rejected() {
 fn fetch_next_collation_on_invalid_collation() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let second = Hash::random();
@@ -862,11 +869,10 @@ fn fetch_next_collation_on_invalid_collation() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
-				peer,
-				rep,
+				ReportPeerMessage::Single(peer, rep),
 			)) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REPORT_BAD);
+				assert_eq!(rep.value, COST_REPORT_BAD.cost_or_benefit());
 			}
 		);
 
@@ -886,7 +892,7 @@ fn fetch_next_collation_on_invalid_collation() {
 fn inactive_disconnected() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let pair = CollatorPair::generate().0;
@@ -932,7 +938,7 @@ fn inactive_disconnected() {
 fn activity_extends_life() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let pair = CollatorPair::generate().0;
@@ -997,7 +1003,7 @@ fn activity_extends_life() {
 fn disconnect_if_no_declare() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		overseer_send(
@@ -1033,7 +1039,7 @@ fn disconnect_if_no_declare() {
 fn disconnect_if_wrong_declare() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let pair = CollatorPair::generate().0;
@@ -1077,11 +1083,10 @@ fn disconnect_if_wrong_declare() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
-				peer,
-				rep,
+				ReportPeerMessage::Single(peer, rep),
 			)) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_UNNEEDED_COLLATOR);
+				assert_eq!(rep.value, COST_UNNEEDED_COLLATOR.cost_or_benefit());
 			}
 		);
 
@@ -1092,10 +1097,95 @@ fn disconnect_if_wrong_declare() {
 }
 
 #[test]
+fn delay_reputation_change() {
+	let test_state = TestState::default();
+
+	test_harness(ReputationAggregator::new(|_| false), |test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		let pair = CollatorPair::generate().0;
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
+				our_view![test_state.relay_parent],
+			)),
+		)
+		.await;
+
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+
+		let peer_b = PeerId::random();
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
+				peer_b.clone(),
+				ObservedRole::Full,
+				CollationVersion::V1.into(),
+				None,
+			)),
+		)
+		.await;
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
+					pair.public(),
+					ParaId::from(69),
+					pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+				)),
+			)),
+		)
+		.await;
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
+					pair.public(),
+					ParaId::from(69),
+					pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+				)),
+			)),
+		)
+		.await;
+
+		// Wait enough to fire reputation delay
+		futures_timer::Delay::new(REPUTATION_CHANGE_TEST_INTERVAL).await;
+
+		loop {
+			match overseer_recv(&mut virtual_overseer).await {
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::DisconnectPeer(_, _)) => {
+					gum::trace!("`Disconnecting inactive peer` message skipped");
+					continue
+				},
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
+					ReportPeerMessage::Batch(v),
+				)) => {
+					let mut expected_change = HashMap::new();
+					for rep in vec![COST_UNNEEDED_COLLATOR, COST_UNNEEDED_COLLATOR] {
+						add_reputation(&mut expected_change, peer_b, rep);
+					}
+					assert_eq!(v, expected_change);
+					break
+				},
+				_ => panic!("Message should be either `DisconnectPeer` or `ReportPeer`"),
+			}
+		}
+
+		virtual_overseer
+	})
+}
+
+#[test]
 fn view_change_clears_old_collators() {
 	let mut test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let pair = CollatorPair::generate().0;
