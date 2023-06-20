@@ -491,7 +491,7 @@ mod tests {
 		ArithmeticError, MultiSignature,
 	};
 
-	type Block = frame_system::mocking::MockBlock<Test>;
+	type Block = frame_system::mocking::MockBlockU32<Test>;
 
 	frame_support::construct_runtime!(
 		pub enum Test 

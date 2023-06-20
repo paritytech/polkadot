@@ -31,7 +31,7 @@ use sp_runtime::{
 use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, MintLocation};
 
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame_system::mocking::MockBlockU32<Test>;
 
 // For testing the pallet, we construct a mock runtime.
 frame_support::construct_runtime!(

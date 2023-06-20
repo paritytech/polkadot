@@ -883,7 +883,7 @@ mod tests {
 		DispatchResult,
 	};
 
-	type Block = frame_system::mocking::MockBlock<Test>;
+	type Block = frame_system::mocking::MockBlockU32<Test>;
 
 	frame_support::construct_runtime!(
 		pub enum Test 

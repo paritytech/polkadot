@@ -239,7 +239,7 @@ parameter_types! {
 
 impl origin::Config for Runtime {}
 
-type Block = frame_system::mocking::MockBlock<Runtime>;
+type Block = frame_system::mocking::MockBlockU32<Runtime>;
 
 parameter_types! {
 	/// Amount of weight that can be spent per block to service messages.
