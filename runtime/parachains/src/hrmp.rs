@@ -607,8 +607,8 @@ pub mod pallet {
 			// parachain and then makes a proposal to open the channel via governance, which fails
 			// because `init_open_channel` fails if there is an existing request. This check will
 			// clear an existing request such that `init_open_channel` should otherwise succeed.
-			let cancel_request = HrmpOpenChannelRequests::<T>::get(&channel_id).is_some();
 			let channel_id = HrmpChannelId { sender, recipient };
+			let cancel_request = HrmpOpenChannelRequests::<T>::get(&channel_id).is_some();
 			if cancel_request {
 				Self::cancel_open_request(sender, channel_id)?;
 			}
