@@ -1003,6 +1003,13 @@ impl Initialized {
 
 		gum::trace!(target: LOG_TARGET, ?candidate_hash, ?session, "Loaded votes");
 
+		let controlled_indices = env.controlled_indices();
+		let own_statements = statements
+			.iter()
+			.filter(|(_, index)| controlled_indices.contains(index))
+			.cloned()
+			.collect::<Vec<_>>();
+
 		let import_result = {
 			let intermediate_result = old_state.import_statements(&env, statements, now);
 
@@ -1307,6 +1314,16 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'valid' result",
 			);
+			for (statement, index) in own_statements.iter() {
+				if statement.statement().indicates_invalidity() {
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?index,
+						"Voted against a candidate that was concluded valid.",
+					);
+				}
+			}
 			self.metrics.on_concluded_valid();
 		}
 		if import_result.is_freshly_concluded_against() {
@@ -1316,6 +1333,16 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'invalid' result",
 			);
+			for (statement, index) in own_statements.iter() {
+				if statement.statement().indicates_validity() {
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?index,
+						"Voted approval for a candidate that was concluded invalid.",
+					);
+				}
+			}
 			self.metrics.on_concluded_invalid();
 		}
 
