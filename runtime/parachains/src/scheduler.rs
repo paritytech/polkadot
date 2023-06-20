@@ -37,8 +37,8 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ScheduledCore,
-	ValidatorIndex,
+	v5::ParasEntry, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
+	ScheduledCore, ValidatorIndex,
 };
 use sp_runtime::traits::{One, Saturating};
 use sp_std::{
@@ -54,7 +54,6 @@ use crate::{
 };
 
 pub use pallet::*;
-use primitives::v4::ParasEntry;
 
 #[cfg(test)]
 mod tests;
@@ -68,7 +67,6 @@ pub mod migration;
 pub mod pallet {
 	use super::*;
 	use crate::scheduler_common::AssignmentProvider;
-	use primitives::v4::ParasEntry;
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]

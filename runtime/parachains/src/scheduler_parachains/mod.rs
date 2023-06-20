@@ -17,7 +17,7 @@
 use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 pub use pallet::*;
 use primitives::{
-	v4::{Assignment, CollatorRestrictions},
+	v5::{Assignment, CollatorRestrictions},
 	CoreIndex, Id as ParaId,
 };
 

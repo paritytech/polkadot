@@ -26,8 +26,8 @@ use primitives::{
 	CoreIndex, CoreOccupied, CoreState, DisputeState, ExecutorParams, GroupIndex,
 	GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 	OccupiedCore, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
-	ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};

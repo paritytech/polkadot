@@ -57,7 +57,9 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 	reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL},
 };
-use polkadot_primitives::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
+use polkadot_primitives::{
+	v5::CollatorRestrictions, CandidateReceipt, CollatorId, Hash, Id as ParaId,
+};
 
 use crate::error::Result;
 
@@ -1000,7 +1002,8 @@ async fn process_incoming_peer_message<Context>(
 					?relay_parent,
 					"Peer is not allowed to collate",
 				);
-				modify_reputation(ctx.sender(), origin, COST_REPORT_BAD).await;
+				modify_reputation(&mut state.reputation, ctx.sender(), origin, COST_REPORT_BAD)
+					.await;
 
 				return
 			}

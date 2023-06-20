@@ -7,7 +7,7 @@ pub mod v1 {
 	use frame_support::{
 		pallet_prelude::ValueQuery, storage_alias, traits::OnRuntimeUpgrade, weights::Weight,
 	};
-	use primitives::{v4::CollatorRestrictions, vstaging::Assignment, CollatorId};
+	use primitives::{v5::CollatorRestrictions, vstaging::Assignment, CollatorId};
 
 	#[storage_alias]
 	pub(super) type Scheduled<T: Config> = StorageValue<Pallet<T>, Vec<CoreAssignment>, ValueQuery>;
