@@ -490,7 +490,7 @@ mod tests {
 		ArithmeticError, MultiSignature,
 	};
 
-	type Block = frame_system::mocking::MockBlockU32<Test>;
+	type Block = frame_system::mocking::MockBlock<Test>;
 
 	frame_support::construct_runtime!(
 		pub enum Test 
@@ -505,7 +505,7 @@ mod tests {
 	type AccountId = AccountId32;
 
 	parameter_types! {
-		pub const BlockHashCount: u32 = 250;
+		pub const BlockHashCount: u64 = 250;
 	}
 	impl frame_system::Config for Test {
 		type BaseCallFilter = frame_support::traits::Everything;

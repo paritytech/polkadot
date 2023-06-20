@@ -34,7 +34,7 @@ use frame_support_test::TestRandomness;
 use frame_system::EnsureRoot;
 use parity_scale_codec::Encode;
 use primitives::{
-	BlockNumber, HeadData, Header, Id as ParaId, SessionIndex, ValidationCode, LOWEST_PUBLIC_ID,
+	BlockNumber, HeadData, Id as ParaId, SessionIndex, ValidationCode, LOWEST_PUBLIC_ID,
 };
 use runtime_parachains::{
 	configuration, origin, paras, shared, Origin as ParaOrigin, ParaLifecycle,
