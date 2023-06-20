@@ -35,7 +35,7 @@ use polkadot_node_subsystem::messages::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::{reputation::add_reputation, TimeoutExt};
 use polkadot_primitives::{
-	v4::CollatorRestrictionKind, vstaging::CollatorRestrictions, CollatorPair, CoreState,
+	v5::CollatorRestrictionKind, vstaging::CollatorRestrictions, CollatorPair, CoreState,
 	GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
@@ -747,7 +747,7 @@ fn collation_not_in_preferred_rejected() {
 		),
 	});
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let second = Hash::random();
@@ -778,11 +778,10 @@ fn collation_not_in_preferred_rejected() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
-				peer,
-				rep,
+				ReportPeerMessage::Single(peer, rep),
 			)) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REPORT_BAD);
+				assert_eq!(rep.value, COST_REPORT_BAD.cost_or_benefit());
 			}
 		);
 
