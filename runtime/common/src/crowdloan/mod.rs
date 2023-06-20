@@ -898,7 +898,7 @@ mod tests {
 		pub const BlockHashCount: u32 = 250;
 	}
 
-	type BlockNumber = u64;
+	type BlockNumber = u32;
 
 	impl frame_system::Config for Test {
 		type BaseCallFilter = frame_support::traits::Everything;
