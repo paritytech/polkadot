@@ -112,7 +112,6 @@ mod tests {
 	use primitives::AccountId;
 	use sp_core::{ConstU64, H256};
 	use sp_runtime::{
-		testing::Header,
 		traits::{BlakeTwo256, IdentityLookup},
 		Perbill,
 	};

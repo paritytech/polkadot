@@ -26,7 +26,6 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use sp_core::{ConstU32, H256};
 use sp_runtime::{
-	testing::Header,
 	traits::{Hash, IdentityLookup},
 	AccountId32,
 };

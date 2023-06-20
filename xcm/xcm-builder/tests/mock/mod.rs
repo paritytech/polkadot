@@ -22,7 +22,7 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use parity_scale_codec::Encode;
 use primitive_types::H256;
-use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
+use sp_runtime::{traits::IdentityLookup, AccountId32};
 use sp_std::cell::RefCell;
 
 use polkadot_parachain::primitives::Id as ParaId;
