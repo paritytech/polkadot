@@ -2209,9 +2209,7 @@ sp_api::impl_runtime_apis! {
 				LocalCheckAccount, LocationConverter, Statemine, TokenLocation, XcmConfig,
 			};
 
-			impl frame_system_benchmarking::Config for Runtime {
-				type BenchmarkHelper = ();
-			}
+			impl frame_system_benchmarking::Config for Runtime {}
 			impl frame_benchmarking::baseline::Config for Runtime {}
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
