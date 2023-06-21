@@ -403,7 +403,7 @@ async fn send_inherent_data(
 		"randomized selection no longer supported, please upgrade your runtime!"
 	);
 
-	disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await;
+	let disputes = disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await;
 
 	gum::trace!(
 		target: LOG_TARGET,
