@@ -23,11 +23,11 @@
 use pallet_nis::WithMaximumOf;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	slashing, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
 	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
 	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
 };
 use runtime_common::{
 	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights, impls::ToAuthor,
@@ -44,7 +44,7 @@ use runtime_parachains::{
 	inclusion::{AggregateMessageOrigin, UmpQueueId},
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
-	runtime_api_impl::v4 as parachains_runtime_api_impl,
+	runtime_api_impl::v5 as parachains_runtime_api_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared,
 };
@@ -70,7 +70,6 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
 use sp_core::{ConstU128, OpaqueMetadata, H256};
-use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
@@ -113,13 +112,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9410,
+	spec_version: 9430,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 20,
+	transaction_version: 22,
 	state_version: 1,
 };
 
@@ -287,7 +286,7 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
 	type FreezeIdentifier = ();
 	type MaxFreezes = ConstU32<1>;
-	type HoldIdentifier = RuntimeHoldReason;
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type MaxHolds = ConstU32<1>;
 }
 
@@ -552,7 +551,6 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxKeys: u32 = 10_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
-	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
 type ApproveOrigin = EitherOfDiverse<
@@ -652,7 +650,6 @@ impl pallet_im_online::Config for Runtime {
 	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
 	type MaxKeys = MaxKeys;
 	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
-	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
 parameter_types! {
@@ -812,14 +809,6 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
-	pub const CandidateDeposit: Balance = 1000 * CENTS;
-	pub const WrongSideDeduction: Balance = 200 * CENTS;
-	pub const MaxStrikes: u32 = 10;
-	pub const RotationPeriod: BlockNumber = 7 * DAYS;
-	pub const PeriodSpend: Balance = 50000 * CENTS;
-	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
-	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
-	pub const MaxCandidateIntake: u32 = 1;
 	pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
 }
 
@@ -827,19 +816,17 @@ impl pallet_society::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type CandidateDeposit = CandidateDeposit;
-	type WrongSideDeduction = WrongSideDeduction;
-	type MaxStrikes = MaxStrikes;
-	type PeriodSpend = PeriodSpend;
-	type MembershipChanged = ();
-	type RotationPeriod = RotationPeriod;
-	type MaxLockDuration = MaxLockDuration;
-	type FounderSetOrigin =
-		pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
-	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
-	type ChallengePeriod = ChallengePeriod;
-	type MaxCandidateIntake = MaxCandidateIntake;
+	type GraceStrikes = ConstU32<1>;
+	type PeriodSpend = ConstU128<{ 50_000 * CENTS }>;
+	type VotingPeriod = ConstU32<{ 5 * DAYS }>;
+	type ClaimPeriod = ConstU32<{ 2 * DAYS }>;
+	type MaxLockDuration = ConstU32<{ 36 * 30 * DAYS }>;
+	type FounderSetOrigin = EnsureRoot<AccountId>;
+	type ChallengePeriod = ConstU32<{ 7 * DAYS }>;
+	type MaxPayouts = ConstU32<8>;
+	type MaxBids = ConstU32<512>;
 	type PalletId = SocietyPalletId;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -1225,7 +1212,7 @@ impl pallet_balances::Config<NisCounterpartInstance> for Runtime {
 	type MaxReserves = ConstU32<4>;
 	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = weights::pallet_balances_nis_counterpart_balances::WeightInfo<Runtime>;
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<0>;
 	type MaxFreezes = ConstU32<0>;
@@ -1240,7 +1227,6 @@ parameter_types! {
 	pub const ThawThrottle: (Perquintill, BlockNumber) = (Perquintill::from_percent(25), 5);
 	pub storage NisTarget: Perquintill = Perquintill::zero();
 	pub const NisPalletId: PalletId = PalletId(*b"py/nis  ");
-	pub const NisHoldReason: RuntimeHoldReason = RuntimeHoldReason::Nis(pallet_nis::HoldReason::NftReceipt);
 }
 
 impl pallet_nis::Config for Runtime {
@@ -1264,7 +1250,7 @@ impl pallet_nis::Config for Runtime {
 	type IntakePeriod = IntakePeriod;
 	type MaxIntakeWeight = MaxIntakeWeight;
 	type ThawThrottle = ThawThrottle;
-	type HoldReason = NisHoldReason;
+	type RuntimeHoldReason = RuntimeHoldReason;
 }
 
 parameter_types! {
@@ -1282,12 +1268,19 @@ impl pallet_beefy::Config for Runtime {
 		pallet_beefy::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
-type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;
+/// MMR helper types.
+mod mmr {
+	use super::Runtime;
+	pub use pallet_mmr::primitives::*;
+
+	pub type Leaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
+	pub type Hashing = <Runtime as pallet_mmr::Config>::Hashing;
+	pub type Hash = <Hashing as sp_runtime::traits::Hash>::Output;
+}
 
 impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = mmr::INDEXING_PREFIX;
 	type Hashing = Keccak256;
-	type Hash = MmrHash;
 	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
 	type WeightInfo = ();
 	type LeafData = pallet_beefy_mmr::Pallet<Runtime>;
@@ -1318,7 +1311,7 @@ impl BeefyDataProvider<H256> for ParasProvider {
 			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
 			.collect();
 		para_heads.sort();
-		binary_merkle_tree::merkle_root::<<Runtime as pallet_mmr::Config>::Hashing, _>(
+		binary_merkle_tree::merkle_root::<mmr::Hashing, _>(
 			para_heads.into_iter().map(|pair| pair.encode()),
 		)
 		.into()
@@ -1520,13 +1513,19 @@ pub type UncheckedExtrinsic =
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
-pub type Migrations =
-	(migrations::V0940, migrations::V0941, migrations::V0942, migrations::Unreleased);
+pub type Migrations = (
+	migrations::V0940,
+	migrations::V0941,
+	migrations::V0942,
+	migrations::V0943,
+	migrations::Unreleased,
+);
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
+	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
 
 	pub type V0940 = ();
 	pub type V0941 = (); // Node only release - no migrations.
@@ -1534,13 +1533,97 @@ pub mod migrations {
 		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 		pallet_offences::migration::v1::MigrateToV1<Runtime>,
 	);
-
-	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (
+	pub type V0943 = (
+		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
 	);
+
+	/// Migrations that set `StorageVersion`s we missed to set.
+	///
+	/// It's *possible* that these pallets have not in fact been migrated to the versions being set,
+	/// which we should keep in mind in the future if we notice any strange behavior.
+	/// We opted to not check exactly what on-chain versions each pallet is at, since it would be
+	/// an involved effort, this is testnet, and no one has complained
+	/// (https://github.com/paritytech/polkadot/issues/6657#issuecomment-1552956439).
+	pub struct SetStorageVersions;
+
+	impl OnRuntimeUpgrade for SetStorageVersions {
+		fn on_runtime_upgrade() -> Weight {
+			let mut writes = 0;
+			let mut reads = 0;
+
+			// Council
+			if Council::on_chain_storage_version() < 4 {
+				// Safe to assume Council was created with V4 pallet.
+				StorageVersion::new(4).put::<Council>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Technical Committee
+			if TechnicalCommittee::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<TechnicalCommittee>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// PhragmenElection
+			if PhragmenElection::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<PhragmenElection>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// TechnicalMembership
+			if TechnicalMembership::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<TechnicalMembership>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Scheduler
+			if Scheduler::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<Scheduler>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Bounties
+			if Bounties::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<Bounties>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Tips
+			if Tips::on_chain_storage_version() < 4 {
+				StorageVersion::new(4).put::<Tips>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// NisCounterpartBalances
+			if NisCounterpartBalances::on_chain_storage_version() < 1 {
+				StorageVersion::new(1).put::<NisCounterpartBalances>();
+				writes += 1;
+			}
+			reads += 1;
+
+			// Crowdloan
+			if Crowdloan::on_chain_storage_version() < 2 {
+				StorageVersion::new(2).put::<Crowdloan>();
+				writes += 1;
+			}
+			reads += 1;
+
+			RocksDbWeight::get().reads_writes(reads, writes)
+		}
+	}
+
+	/// Unreleased migrations. Add new ones here:
+	pub type Unreleased = (pallet_society::migrations::MigrateToV2<Runtime, (), ()>,);
 }
 
 /// Helpers to configure all migrations.
@@ -1651,8 +1734,6 @@ mod benches {
 	);
 }
 
-pub type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
-
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -1720,6 +1801,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[api_version(5)]
 	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
@@ -1825,6 +1907,31 @@ sp_api::impl_runtime_apis! {
 		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
 			parachains_runtime_api_impl::get_session_disputes::<Runtime>()
 		}
+
+		fn unapplied_slashes(
+		) -> Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)> {
+			parachains_runtime_api_impl::unapplied_slashes::<Runtime>()
+		}
+
+		fn key_ownership_proof(
+			validator_id: ValidatorId,
+		) -> Option<slashing::OpaqueKeyOwnershipProof> {
+			use parity_scale_codec::Encode;
+
+			Historical::prove((PARACHAIN_KEY_TYPE_ID, validator_id))
+				.map(|p| p.encode())
+				.map(slashing::OpaqueKeyOwnershipProof::new)
+		}
+
+		fn submit_report_dispute_lost(
+			dispute_proof: slashing::DisputeProof,
+			key_ownership_proof: slashing::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			parachains_runtime_api_impl::submit_unsigned_slashing_report::<Runtime>(
+				dispute_proof,
+				key_ownership_proof,
+			)
+		}
 	}
 
 	#[api_version(2)]
@@ -1866,8 +1973,8 @@ sp_api::impl_runtime_apis! {
 	}
 
 	#[api_version(2)]
-	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
-		fn mmr_root() -> Result<Hash, mmr::Error> {
+	impl mmr::MmrApi<Block, mmr::Hash, BlockNumber> for Runtime {
+		fn mmr_root() -> Result<mmr::Hash, mmr::Error> {
 			Ok(Mmr::mmr_root())
 		}
 
@@ -1878,7 +1985,7 @@ sp_api::impl_runtime_apis! {
 		fn generate_proof(
 			block_numbers: Vec<BlockNumber>,
 			best_known_block_number: Option<BlockNumber>,
-		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::Proof<Hash>), mmr::Error> {
+		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::Proof<mmr::Hash>), mmr::Error> {
 			Mmr::generate_proof(block_numbers, best_known_block_number).map(
 				|(leaves, proof)| {
 					(
@@ -1892,24 +1999,23 @@ sp_api::impl_runtime_apis! {
 			)
 		}
 
-		fn verify_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::Proof<Hash>)
+		fn verify_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::Proof<mmr::Hash>)
 			-> Result<(), mmr::Error>
 		{
-			pub type MmrLeaf = <<Runtime as pallet_mmr::Config>::LeafData as mmr::LeafDataProvider>::LeafData;
 			let leaves = leaves.into_iter().map(|leaf|
 				leaf.into_opaque_leaf()
 				.try_decode()
-				.ok_or(mmr::Error::Verify)).collect::<Result<Vec<MmrLeaf>, mmr::Error>>()?;
+				.ok_or(mmr::Error::Verify)).collect::<Result<Vec<mmr::Leaf>, mmr::Error>>()?;
 			Mmr::verify_leaves(leaves, proof)
 		}
 
 		fn verify_proof_stateless(
-			root: Hash,
+			root: mmr::Hash,
 			leaves: Vec<mmr::EncodableOpaqueLeaf>,
-			proof: mmr::Proof<Hash>
+			proof: mmr::Proof<mmr::Hash>
 		) -> Result<(), mmr::Error> {
 			let nodes = leaves.into_iter().map(|leaf|mmr::DataOrHash::Data(leaf.into_opaque_leaf())).collect();
-			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, nodes, proof)
+			pallet_mmr::verify_leaves_proof::<mmr::Hashing, _>(root, nodes, proof)
 		}
 	}
 
@@ -2187,6 +2293,11 @@ sp_api::impl_runtime_apis! {
 					// Rococo doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}
+
+				fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
+					// The XCM executor of Rococo doesn't have a configured `Aliasers`
+					Err(BenchmarkError::Skip)
+				}
 			}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
@@ -2220,7 +2331,7 @@ mod encoding_tests {
 
 	#[test]
 	fn nis_hold_reason_encoding_is_correct() {
-		assert_eq!(NisHoldReason::get().encode(), [38, 0]);
+		assert_eq!(RuntimeHoldReason::Nis(pallet_nis::HoldReason::NftReceipt).encode(), [38, 0]);
 	}
 }
 

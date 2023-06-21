@@ -97,7 +97,7 @@ impl MalusCli {
 
 				#[cfg(not(target_os = "android"))]
 				{
-					polkadot_node_core_pvf_worker::prepare_worker_entrypoint(
+					polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
 						&cmd.socket_path,
 						None,
 					);
@@ -111,7 +111,7 @@ impl MalusCli {
 
 				#[cfg(not(target_os = "android"))]
 				{
-					polkadot_node_core_pvf_worker::execute_worker_entrypoint(
+					polkadot_node_core_pvf_execute_worker::worker_entrypoint(
 						&cmd.socket_path,
 						None,
 					);

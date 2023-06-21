@@ -23,7 +23,7 @@ use parity_scale_codec::{Decode, Encode};
 
 pub mod latest {
 	use super::*;
-	use frame_support::{pallet_prelude::Weight, traits::OnRuntimeUpgrade};
+	use frame_support::{ensure, pallet_prelude::Weight, traits::OnRuntimeUpgrade};
 
 	/// Force update the UMP limits in the parachain host config.
 	// NOTE: `OnRuntimeUpgrade` does not have a `self`, so everything must be compile time.
@@ -51,7 +51,7 @@ pub mod latest {
 		>
 	{
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<sp_std::vec::Vec<u8>, &'static str> {
+		fn pre_upgrade() -> Result<sp_std::vec::Vec<u8>, sp_runtime::TryRuntimeError> {
 			log::info!(target: LOG_TARGET, "pre_upgrade");
 			let mut pending = PendingConfigs::<T>::get();
 			pending.sort_by_key(|(s, _)| *s);
@@ -88,7 +88,7 @@ pub mod latest {
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn post_upgrade(state: sp_std::vec::Vec<u8>) -> Result<(), &'static str> {
+		fn post_upgrade(state: sp_std::vec::Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
 			log::info!(target: LOG_TARGET, "post_upgrade");
 			let old_pending: u32 = Decode::decode(&mut &state[..]).expect("Known good");
 			let mut pending = PendingConfigs::<T>::get();
@@ -99,11 +99,29 @@ pub mod latest {
 				"Last pending HostConfig upgrade:\n\n{:#?}\n",
 				pending.last()
 			);
-			assert_eq!(
-				pending.len(),
-				old_pending as usize + 1,
-				"There must be a new pending upgrade enqueued"
+			let Some(last) = pending.last() else {
+				return Err("There must be a new pending upgrade enqueued".into());
+			};
+			ensure!(
+				pending.len() == old_pending as usize + 1,
+				"There must be exactly one new pending upgrade enqueued"
 			);
+			if let Err(err) = last.1.check_consistency() {
+				log::error!(
+					target: LOG_TARGET,
+					"Last PendingConfig is invalidity {:?}", err,
+				);
+
+				return Err("Pending upgrade must be sane but was not".into())
+			}
+			if let Err(err) = ActiveConfig::<T>::get().check_consistency() {
+				log::error!(
+					target: LOG_TARGET,
+					"ActiveConfig is invalid: {:?}", err,
+				);
+
+				return Err("Active upgrade must be sane but was not".into())
+			}
 
 			Ok(())
 		}
