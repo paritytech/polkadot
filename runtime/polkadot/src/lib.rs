@@ -126,13 +126,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9410,
+	spec_version: 9430,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 22,
+	transaction_version: 24,
 	state_version: 0,
 };
 
@@ -655,7 +655,6 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxKeys: u32 = 10_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
-	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 	pub const RootSpendOriginMaxAmount: Balance = Balance::MAX;
 	pub const CouncilSpendOriginMaxAmount: Balance = Balance::MAX;
 }
@@ -754,7 +753,6 @@ impl pallet_im_online::Config for Runtime {
 	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
 	type MaxKeys = MaxKeys;
 	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
-	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
 parameter_types! {
@@ -1487,6 +1485,7 @@ pub type Migrations = (
 	migrations::V0940,
 	migrations::V0941,
 	migrations::V0942,
+	migrations::V0943,
 	migrations::Unreleased,
 );
 
@@ -1515,14 +1514,15 @@ pub mod migrations {
 		pallet_offences::migration::v1::MigrateToV1<Runtime>,
 		runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
 	);
-
-	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (
+	pub type V0943 = (
 		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
 	);
+
+	/// Unreleased migrations. Add new ones here:
+	pub type Unreleased = ();
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;

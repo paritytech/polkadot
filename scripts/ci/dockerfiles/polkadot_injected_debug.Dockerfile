@@ -33,7 +33,7 @@ RUN apt-get update && \
 	ln -s /data /polkadot/.local/share/polkadot
 
 # add polkadot binary to docker image
-COPY ./polkadot /usr/local/bin
+COPY ./polkadot ./polkadot-*-worker /usr/local/bin
 
 USER polkadot
 
