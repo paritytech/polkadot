@@ -797,7 +797,22 @@ pub mod pallet {
 			new_code: ValidationCode,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::set_current_code(para, new_code)?;
+			let maybe_prior_code_hash = CurrentCodeHash::<T>::get(&para);
+			let new_code_hash = new_code.hash();
+			Self::increase_code_ref(&new_code_hash, &new_code);
+			CurrentCodeHash::<T>::insert(&para, new_code_hash);
+
+			let now = frame_system::Pallet::<T>::block_number();
+			if let Some(prior_code_hash) = maybe_prior_code_hash {
+				Self::note_past_code(para, now, now, prior_code_hash);
+			} else {
+				log::error!(
+					target: LOG_TARGET,
+					"Pallet paras storage is inconsistent, prior code not found {:?}",
+					&para
+				);
+			}
+			Self::deposit_event(Event::CurrentCodeUpdated(para));
 			Ok(())
 		}
 
@@ -1118,30 +1133,6 @@ impl<T: Config> Pallet<T> {
 		let upgrade_block = current_block.saturating_add(config.validation_upgrade_delay);
 		Self::schedule_code_upgrade(id, new_code, upgrade_block, &config);
 		Self::deposit_event(Event::CodeUpgradeScheduled(id));
-		Ok(())
-	}
-
-	/// Set the current code of a parachain.
-	pub(crate) fn set_current_code(
-		para: ParaId,
-		new_code: ValidationCode,
-	) -> DispatchResult {
-		let maybe_prior_code_hash = CurrentCodeHash::<T>::get(&para);
-		let new_code_hash = new_code.hash();
-		Self::increase_code_ref(&new_code_hash, &new_code);
-		CurrentCodeHash::<T>::insert(&para, new_code_hash);
-
-		let now = frame_system::Pallet::<T>::block_number();
-		if let Some(prior_code_hash) = maybe_prior_code_hash {
-			Self::note_past_code(para, now, now, prior_code_hash);
-		} else {
-			log::error!(
-				target: LOG_TARGET,
-				"Pallet paras storage is inconsistent, prior code not found {:?}",
-				&para
-			);
-		}
-		Self::deposit_event(Event::CurrentCodeUpdated(para));
 		Ok(())
 	}
 

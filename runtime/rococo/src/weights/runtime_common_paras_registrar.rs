@@ -192,7 +192,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	/// Storage: Paras CodeByHashRefs (r:1 w:1)
 	/// Proof Skipped: Paras CodeByHashRefs (max_values: None, max_size: None, mode: Measured)
 	/// The range of component `b` is `[1, 3145728]`.
-	fn set_current_code(b: u32, ) -> Weight {
+	fn schedule_code_upgrade(b: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `464`
 		//  Estimated: `3929`

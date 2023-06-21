@@ -61,7 +61,7 @@ pub trait WeightInfo {
 	fn force_register() -> Weight;
 	fn deregister() -> Weight;
 	fn swap() -> Weight;
-	fn set_current_code(b: u32) -> Weight;
+	fn schedule_code_upgrade(b: u32) -> Weight;
 	fn set_current_head(b: u32) -> Weight;
 }
 
@@ -82,7 +82,7 @@ impl WeightInfo for TestWeightInfo {
 	fn swap() -> Weight {
 		Weight::zero()
 	}
-	fn set_current_code(_b: u32) -> Weight {
+	fn schedule_code_upgrade(_b: u32) -> Weight {
 		Weight::zero()
 	}
 	fn set_current_head(_b: u32) -> Weight {
@@ -375,19 +375,19 @@ pub mod pallet {
 			<Self as Registrar>::apply_lock(para);
 			Ok(())
 		}
-	
-		/// Set the parachain's current code.
+
+		/// Schedule a parachain upgrade.
 		///
 		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
 		#[pallet::call_index(7)]
-		#[pallet::weight(<T as Config>::WeightInfo::set_current_code(new_code.0.len() as u32))]
-		pub fn set_current_code(
+		#[pallet::weight(<T as Config>::WeightInfo::schedule_code_upgrade(new_code.0.len() as u32))]
+		pub fn schedule_code_upgrade(
 			origin: OriginFor<T>,
 			para: ParaId,
 			new_code: ValidationCode,
 		) -> DispatchResult {
 			Self::ensure_root_para_or_owner(origin, para)?;
-			runtime_parachains::set_current_code::<T>(para, new_code)?;
+			runtime_parachains::schedule_code_upgrade::<T>(para, new_code)?;
 			Ok(())
 		}
 
@@ -1542,7 +1542,7 @@ mod benchmarking {
 			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parachain));
 		}
 
-		set_current_code {
+		schedule_code_upgrade {
 			let b in 1 .. MAX_CODE_SIZE;
 			let new_code = ValidationCode(vec![0; b as usize]);
 			let para_id = ParaId::from(1000);
