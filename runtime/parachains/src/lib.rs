@@ -96,6 +96,16 @@ pub fn schedule_code_upgrade<T: paras::Config>(
 	paras::Pallet::<T>::schedule_code_upgrade_external(id, new_code)
 }
 
+/// Sets the current parachain code with the given id.
+///
+/// This simply calls [`crate::paras::Pallet::set_current_code`].
+pub fn set_current_code<T: paras::Config>(
+	id: ParaId,
+	new_code: ValidationCode
+) -> DispatchResult {
+	paras::Pallet::<T>::set_current_code(id, new_code)
+}
+
 /// Sets the current parachain head with the given id.
 ///
 /// This simply calls [`crate::paras::Pallet::set_current_head`].
