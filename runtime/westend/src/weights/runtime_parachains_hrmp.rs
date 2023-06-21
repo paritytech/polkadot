@@ -272,7 +272,7 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	/// Proof Skipped: Hrmp HrmpIngressChannelsIndex (max_values: None, max_size: None, mode: Measured)
 	/// Storage: Hrmp HrmpAcceptedChannelRequestCount (r:1 w:1)
 	/// Proof Skipped: Hrmp HrmpAcceptedChannelRequestCount (max_values: None, max_size: None, mode: Measured)
-	fn force_open_hrmp_channel() -> Weight {
+	fn force_open_hrmp_channel(_c: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `307`
 		//  Estimated: `6247`
