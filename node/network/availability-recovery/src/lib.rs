@@ -256,6 +256,7 @@ impl RequestFromBackers {
 						params.validators.len(),
 						&params.erasure_root,
 						&data,
+						&metrics,
 					) {
 						gum::trace!(
 							target: LOG_TARGET,
@@ -587,6 +588,7 @@ impl RequestChunksFromValidators {
 							params.validators.len(),
 							&params.erasure_root,
 							&data,
+							&metrics,
 						) {
 							gum::trace!(
 								target: LOG_TARGET,
@@ -686,7 +688,10 @@ fn reconstructed_data_matches_root(
 	n_validators: usize,
 	expected_root: &Hash,
 	data: &AvailableData,
+	metrics: &Metrics,
 ) -> bool {
+	let _timer = metrics.time_reencode_chunks();
+
 	let chunks = match obtain_chunks_v1(n_validators, data) {
 		Ok(chunks) => chunks,
 		Err(e) => {
