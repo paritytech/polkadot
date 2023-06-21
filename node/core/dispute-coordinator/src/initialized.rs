@@ -1006,7 +1006,10 @@ impl Initialized {
 		let controlled_indices = env.controlled_indices();
 		let own_statements = statements
 			.iter()
-			.filter(|(_, validator_index)| controlled_indices.contains(validator_index))
+			.filter(|(statement, validator_index)| {
+				controlled_indices.contains(validator_index) &&
+					*statement.candidate_hash() == candidate_hash
+			})
 			.cloned()
 			.collect::<Vec<_>>();
 
