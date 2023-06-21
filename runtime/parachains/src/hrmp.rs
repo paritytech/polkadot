@@ -59,7 +59,7 @@ pub trait WeightInfo {
 	fn force_process_hrmp_close(c: u32) -> Weight;
 	fn hrmp_cancel_open_request(c: u32) -> Weight;
 	fn clean_open_channel_requests(c: u32) -> Weight;
-	fn force_open_hrmp_channel(c: bool) -> Weight;
+	fn force_open_hrmp_channel(c: u32) -> Weight;
 }
 
 /// A weight info that is only suitable for testing.
@@ -90,7 +90,7 @@ impl WeightInfo for TestWeightInfo {
 	fn clean_open_channel_requests(_: u32) -> Weight {
 		Weight::MAX
 	}
-	fn force_open_hrmp_channel(_: bool) -> Weight {
+	fn force_open_hrmp_channel(_: u32) -> Weight {
 		Weight::MAX
 	}
 }
@@ -593,7 +593,7 @@ pub mod pallet {
 		/// Expected use is when one of the `ParaId`s involved in the channel is governed by the
 		/// Relay Chain, e.g. a system parachain.
 		#[pallet::call_index(7)]
-		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel(true))]
+		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel(1))]
 		pub fn force_open_hrmp_channel(
 			origin: OriginFor<T>,
 			sender: ParaId,
@@ -608,10 +608,13 @@ pub mod pallet {
 			// because `init_open_channel` fails if there is an existing request. This check will
 			// clear an existing request such that `init_open_channel` should otherwise succeed.
 			let channel_id = HrmpChannelId { sender, recipient };
-			let cancel_request = HrmpOpenChannelRequests::<T>::get(&channel_id).is_some();
-			if cancel_request {
-				Self::cancel_open_request(sender, channel_id)?;
-			}
+			let cancel_request: u32 =
+				if let Some(_open_channel) = HrmpOpenChannelRequests::<T>::get(&channel_id) {
+					Self::cancel_open_request(sender, channel_id)?;
+					1
+				} else {
+					0
+				};
 
 			// Now we proceed with normal init/accept.
 			Self::init_open_channel(sender, recipient, max_capacity, max_message_size)?;
@@ -623,13 +626,7 @@ pub mod pallet {
 				max_message_size,
 			));
 
-			if cancel_request {
-				// We've used the default weight.
-				Ok(().into())
-			} else {
-				// This took the easy path and we can return some weight.
-				Ok(Some(<T as Config>::WeightInfo::force_open_hrmp_channel(false)).into())
-			}
+			Ok(Some(<T as Config>::WeightInfo::force_open_hrmp_channel(cancel_request)).into())
 		}
 	}
 }
