@@ -58,8 +58,6 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
-/// The current storage version
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 const LOG_TARGET: &str = "runtime::scheduler";
 pub mod migration;
 
@@ -67,6 +65,8 @@ pub mod migration;
 pub mod pallet {
 	use super::*;
 	use crate::scheduler_common::AssignmentProvider;
+
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]

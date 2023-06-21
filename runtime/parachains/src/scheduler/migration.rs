@@ -1,14 +1,31 @@
+// Copyright (C) Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! A module that is responsible for migration of storage.
+
 use super::*;
+use frame_support::{
+	pallet_prelude::ValueQuery, storage_alias, traits::OnRuntimeUpgrade, weights::Weight,
+};
+use primitives::{v5::CollatorRestrictions, vstaging::Assignment};
 
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
-
-pub mod v1 {
+mod v0 {
 	use super::*;
-	use frame_support::{
-		pallet_prelude::ValueQuery, storage_alias, traits::OnRuntimeUpgrade, weights::Weight,
-	};
-	use primitives::{v5::CollatorRestrictions, vstaging::Assignment, CollatorId};
 
+	use primitives::CollatorId;
 	#[storage_alias]
 	pub(super) type Scheduled<T: Config> = StorageValue<Pallet<T>, Vec<CoreAssignment>, ValueQuery>;
 
@@ -22,6 +39,13 @@ pub mod v1 {
 	pub struct ParathreadClaimQueue {
 		queue: Vec<QueuedParathread>,
 		next_core_offset: u32,
+	}
+
+	// Only here to facilitate the migration.
+	impl ParathreadClaimQueue {
+		pub fn len(self) -> usize {
+			self.queue.len()
+		}
 	}
 
 	#[storage_alias]
@@ -55,16 +79,13 @@ pub mod v1 {
 		/// The index of the validator group assigned to the core.
 		pub group_idx: GroupIndex,
 	}
+}
 
-	impl CoreAssignment {
-		/// Get the ID of a collator who is required to collate this block.
-		pub fn required_collator(self) -> Option<CollatorId> {
-			match self.kind {
-				AssignmentKind::Parachain => None,
-				AssignmentKind::Parathread(id, _) => Some(id),
-			}
-		}
-	}
+pub mod v1 {
+	use super::*;
+	use frame_support::traits::StorageVersion;
+
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
@@ -94,14 +115,14 @@ pub mod v1 {
 			log::trace!(
 				target: crate::scheduler::LOG_TARGET,
 				"Scheduled before migration: {}",
-				Scheduled::<T>::get().len()
+				v0::Scheduled::<T>::get().len()
 			);
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() == 0,
 				"Storage version should be less than `1` before the migration",
 			);
 
-			let bytes = u32::to_be_bytes(Scheduled::<T>::get().len() as u32);
+			let bytes = u32::to_be_bytes(v0::Scheduled::<T>::get().len() as u32);
 
 			Ok(bytes.to_vec())
 		}
@@ -114,7 +135,7 @@ pub mod v1 {
 				"Storage version should be `1` after the migration"
 			);
 			ensure!(
-				Scheduled::<T>::get().len() == 0,
+				v0::Scheduled::<T>::get().len() == 0,
 				"Scheduled should be empty after the migration"
 			);
 
@@ -127,31 +148,30 @@ pub mod v1 {
 			Ok(())
 		}
 	}
+}
 
-	pub fn migrate_to_v1<T: crate::scheduler::Config>() -> Weight {
-		let mut weight: Weight = Weight::zero();
+pub fn migrate_to_v1<T: crate::scheduler::Config>() -> Weight {
+	let mut weight: Weight = Weight::zero();
 
-		let pq = ParathreadQueue::<T>::take();
-		let pq_len = pq.queue.len() as u64;
+	let pq = v0::ParathreadQueue::<T>::take();
+	let pq_len = pq.len() as u64;
 
-		let pci = ParathreadClaimIndex::<T>::take();
-		let pci_len = pci.len() as u64;
+	let pci = v0::ParathreadClaimIndex::<T>::take();
+	let pci_len = pci.len() as u64;
 
-		let scheduled = Scheduled::<T>::take();
-		let sched_len = scheduled.len() as u64;
-		for core_assignment in scheduled {
-			let core_idx = core_assignment.core;
-			let assignment = Assignment::new(core_assignment.para_id, CollatorRestrictions::none());
-			let pe = ParasEntry::new(assignment);
-			Pallet::<T>::add_to_claimqueue(core_idx, pe);
-		}
-
-		// 2x as once for Scheduled and once for Claimqueue
-		weight =
-			weight.saturating_add(T::DbWeight::get().reads_writes(2 * sched_len, 2 * sched_len));
-		weight = weight.saturating_add(T::DbWeight::get().reads_writes(pq_len, pq_len));
-		weight = weight.saturating_add(T::DbWeight::get().reads_writes(pci_len, pci_len));
-
-		weight
+	let scheduled = v0::Scheduled::<T>::take();
+	let sched_len = scheduled.len() as u64;
+	for core_assignment in scheduled {
+		let core_idx = core_assignment.core;
+		let assignment = Assignment::new(core_assignment.para_id, CollatorRestrictions::none());
+		let pe = ParasEntry::new(assignment);
+		Pallet::<T>::add_to_claimqueue(core_idx, pe);
 	}
+
+	// 2x as once for Scheduled and once for Claimqueue
+	weight = weight.saturating_add(T::DbWeight::get().reads_writes(2 * sched_len, 2 * sched_len));
+	weight = weight.saturating_add(T::DbWeight::get().reads_writes(pq_len, pq_len));
+	weight = weight.saturating_add(T::DbWeight::get().reads_writes(pci_len, pci_len));
+
+	weight
 }
