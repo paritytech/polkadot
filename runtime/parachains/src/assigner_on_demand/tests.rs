@@ -26,7 +26,7 @@ use crate::{
 };
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use primitives::{
-	v4::{Assignment, ValidationCode},
+	v5::{Assignment, ValidationCode},
 	Balance, BlockNumber, SessionIndex,
 };
 use sp_std::collections::btree_map::BTreeMap;

@@ -19,7 +19,6 @@ use super::*;
 use frame_support::assert_ok;
 use keyring::Sr25519Keyring;
 use primitives::{v5::Assignment, BlockNumber, SessionIndex, ValidationCode, ValidatorId};
-use sp_core::{ByteArray, OpaquePeerId};
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 
 use crate::{
