@@ -205,13 +205,13 @@ struct State {
 	>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum ApprovalVotingResponse {
 	ApprovalCheck(ApprovalVotingMetadata),
 	AssignmentCheck(AssignmentMetadata),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct AssignmentMetadata {
 	result: AssignmentCheckResult,
 	assignment: IndirectAssignmentCert,
@@ -912,9 +912,10 @@ impl State {
 
 			let message_subj_clone = message_subject.clone();
 			let metrics = metrics.clone();
+			let timer = metrics.time_awaiting_approval_voting();
 			let await_future = async move {
-				let _timer = metrics.time_awaiting_approval_voting();
 				let result = rx.await?;
+				drop(timer);
 				Ok(ApprovalVotingResponse::AssignmentCheck(AssignmentMetadata {
 					message_subject: message_subj_clone,
 					message_kind,
@@ -1346,9 +1347,11 @@ impl State {
 
 			let vote_clone = vote.clone();
 			let message_subj_clone = message_subject.clone();
+			let timer = metrics.time_awaiting_approval_voting();
 
 			let await_future = async move {
 				let result = rx.await?;
+				drop(timer);
 				Ok(ApprovalVotingResponse::ApprovalCheck(ApprovalVotingMetadata {
 					vote: vote_clone,
 					message_subject: message_subj_clone,
