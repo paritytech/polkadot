@@ -33,6 +33,7 @@ use polkadot_node_subsystem::{
 	messages::{AvailabilityStoreMessage, IfDisconnected, NetworkBridgeTxMessage},
 	overseer,
 };
+use polkadot_node_subsystem_util::{is_frequent, MAX_FREQUENCY_TIMESTAMPS_SIZE};
 use polkadot_primitives::{
 	AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore,
 	SessionIndex,
@@ -47,6 +48,8 @@ use crate::{
 
 #[cfg(test)]
 mod tests;
+
+const NETWORK_ERROR_MAX_RATE: f64 = 1.0;
 
 /// Configuration for a `FetchTask`
 ///
@@ -260,6 +263,8 @@ impl RunningTask {
 		let mut succeeded = false;
 		let mut count: u32 = 0;
 		let mut span = self.span.child("run-fetch-chunk-task").with_relay_parent(self.relay_parent);
+		let mut network_error_timestamps: Vec<u64> =
+			Vec::with_capacity(MAX_FREQUENCY_TIMESTAMPS_SIZE);
 		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
 			// Report retries:
@@ -272,7 +277,7 @@ impl RunningTask {
 				.with_chunk_index(self.request.index.0)
 				.with_stage(jaeger::Stage::AvailabilityDistribution);
 			// Send request:
-			let resp = match self.do_request(&validator).await {
+			let resp = match self.do_request(&validator, &mut network_error_timestamps).await {
 				Ok(resp) => resp,
 				Err(TaskError::ShuttingDown) => {
 					gum::info!(
@@ -342,6 +347,7 @@ impl RunningTask {
 	async fn do_request(
 		&mut self,
 		validator: &AuthorityDiscoveryId,
+		mut network_error_timestamps: &mut Vec<u64>,
 	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		gum::trace!(
 			target: LOG_TARGET,
@@ -397,6 +403,19 @@ impl RunningTask {
 					err = ?err,
 					"Some network error occurred when fetching erasure chunk"
 				);
+				if is_frequent(&mut network_error_timestamps, NETWORK_ERROR_MAX_RATE) {
+					gum::warn!(
+						target: LOG_TARGET,
+						origin = ?validator,
+						relay_parent = ?self.relay_parent,
+						group_index = ?self.group_index,
+						session_index = ?self.session_index,
+						chunk_index = ?self.request.index,
+						candidate_hash = ?self.request.candidate_hash,
+						err = ?err,
+						"Some network error occurred when fetching erasure chunk"
+					);
+				}
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::Canceled(oneshot::Canceled)) => {
@@ -410,6 +429,18 @@ impl RunningTask {
 					candidate_hash = ?self.request.candidate_hash,
 					"Erasure chunk request got canceled"
 				);
+				if is_frequent(&mut network_error_timestamps, NETWORK_ERROR_MAX_RATE) {
+					gum::warn!(
+						target: LOG_TARGET,
+						origin = ?validator,
+						relay_parent = ?self.relay_parent,
+						group_index = ?self.group_index,
+						session_index = ?self.session_index,
+						chunk_index = ?self.request.index,
+						candidate_hash = ?self.request.candidate_hash,
+						"Erasure chunk request got canceled"
+					);
+				}
 				Err(TaskError::PeerError)
 			},
 		}
