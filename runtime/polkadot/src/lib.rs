@@ -1523,10 +1523,11 @@ pub mod migrations {
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
+		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (parachains_scheduler::migration::v1::MigrateToV1<Runtime>,);
+	pub type Unreleased = ();
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;
