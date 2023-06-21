@@ -209,7 +209,7 @@ impl xcm_balances_benchmark::Config for Test {
 #[cfg(feature = "runtime-benchmarks")]
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	use sp_runtime::BuildStorage;
-	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
+	let t = RuntimeGenesisConfig { ..Default::default() }.build_storage().unwrap();
 	sp_tracing::try_init_simple();
 	t.into()
 }

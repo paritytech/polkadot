@@ -15,14 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::pallet_prelude::*;
-use primitives::{v4::Assignment, CoreIndex, Id as ParaId};
+use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
 
-use crate::{
-	configuration,
-	//initializer::SessionChangeNotification,
-	paras,
-	scheduler_common::AssignmentProvider,
-};
+use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 
 pub use pallet::*;
 

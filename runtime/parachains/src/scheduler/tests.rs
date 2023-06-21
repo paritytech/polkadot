@@ -18,7 +18,8 @@ use super::*;
 
 use frame_support::assert_ok;
 use keyring::Sr25519Keyring;
-use primitives::{v4::Assignment, BlockNumber, SessionIndex, ValidationCode, ValidatorId};
+use primitives::{v5::Assignment, BlockNumber, SessionIndex, ValidationCode, ValidatorId};
+use sp_core::{ByteArray, OpaquePeerId};
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 
 use crate::{
@@ -70,7 +71,7 @@ fn run_to_block(
 			if notification_with_session_index.session_index == SessionIndex::default() {
 				notification_with_session_index.session_index = ParasShared::scheduled_session();
 			}
-			Scheduler::pre_new_session(BTreeMap::new());
+			Scheduler::pre_new_session();
 
 			Paras::initializer_on_new_session(&notification_with_session_index);
 			Scheduler::initializer_on_new_session(&notification_with_session_index);
@@ -99,7 +100,7 @@ fn run_to_end_of_block(
 	Paras::initializer_finalize(to);
 
 	if let Some(notification) = new_session(to + 1) {
-		Scheduler::pre_new_session(BTreeMap::new());
+		Scheduler::pre_new_session();
 
 		Paras::initializer_on_new_session(&notification);
 		Scheduler::initializer_on_new_session(&notification);
@@ -1043,9 +1044,10 @@ fn availability_predicate_works() {
 			let pred = Scheduler::availability_timeout_predicate();
 			let would_be_timed_out = System::block_number() - thread_availability_period;
 
-			// Chains and threads are handled equally
 			assert!(pred(CoreIndex(0), would_be_timed_out)); // chains can't be timed out now.
-			                                     //assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
+
+			// Commented out as on-demand assigner is not merged, yet
+			//assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
 		}
 	});
 }
@@ -1298,7 +1300,7 @@ fn next_up_on_time_out_is_parachain_always() {
 			let cores = Scheduler::availability_cores();
 			match &cores[0] {
 				CoreOccupied::Paras(pe) if pe.para_id() == chain_a => {},
-				_ => panic!("with no threads, only core should be a chain core"),
+				_ => panic!("Core should be occupied by chain_a ParaId"),
 			}
 
 			// Now that there is an earlier next-up, we use that.

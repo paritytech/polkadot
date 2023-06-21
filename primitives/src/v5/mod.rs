@@ -57,6 +57,8 @@ pub use sp_staking::SessionIndex;
 mod signed;
 pub use signed::{EncodeAs, Signed, UncheckedSigned};
 
+pub mod slashing;
+
 mod metrics;
 pub use metrics::{
 	metric_definitions, RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues,

@@ -36,7 +36,7 @@ use frame_support::{
 	},
 };
 use frame_system::pallet_prelude::*;
-use primitives::{v4::Assignment, CoreIndex, Id as ParaId};
+use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
 use sp_runtime::{
 	traits::{One, SaturatedConversion},
 	FixedPointNumber, FixedPointOperand, FixedU128, Perbill, Saturating,

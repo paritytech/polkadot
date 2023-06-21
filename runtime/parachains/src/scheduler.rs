@@ -38,8 +38,8 @@
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{
-	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ScheduledCore,
-	ValidatorIndex,
+	v5::ParasEntry, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
+	ScheduledCore, ValidatorIndex,
 };
 use sp_runtime::traits::{One, Saturating};
 use sp_std::{
@@ -55,19 +55,19 @@ use crate::{
 };
 
 pub use pallet::*;
-use primitives::v4::ParasEntry;
 
 #[cfg(test)]
 mod tests;
 
-/// The current storage version
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 const LOG_TARGET: &str = "runtime::parachain_scheduler";
 pub mod migration;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use crate::scheduler_common::AssignmentProvider;
+
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
@@ -140,10 +140,9 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_finalize() {}
 
 	/// Called before the initializer notifies of a new session.
-	/// `pending_cores` is a map from `CoreIndex` to `BlockNumberFor<T>` which depicts when the `CoreIndex` was occupied.
-	pub(crate) fn pre_new_session(pending_cores: BTreeMap<CoreIndex, BlockNumberFor<T>>) {
+	pub(crate) fn pre_new_session() {
 		Self::push_claimqueue_items_to_assignment_provider();
-		Self::push_occupied_cores_to_assignment_provider(pending_cores);
+		Self::push_occupied_cores_to_assignment_provider();
 	}
 
 	/// Called by the initializer to note that a new session has started.
@@ -445,43 +444,17 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
-	/// Checks if `core_idx` occupied since `pending_since` will timeout after `after`.
-	fn timesout_after(
-		core_idx: CoreIndex,
-		pending_since: BlockNumberFor<T>,
-		after: BlockNumberFor<T>,
-	) -> bool {
-		let availability_period = T::AssignmentProvider::get_availability_period(core_idx);
-		after.saturating_sub(pending_since) >= availability_period
-	}
-
-	// on new session
-	/// `pending_cores` is a map from `CoreIndex` to `BlockNumberFor<T>` which depicts when the `CoreIndex` was occupied.
-	fn push_occupied_cores_to_assignment_provider(
-		pending_cores: BTreeMap<CoreIndex, BlockNumberFor<T>>,
-	) {
-		let new_session_start = <frame_system::Pallet<T>>::block_number() + One::one();
+	/// Pushes occupied cores to the assignment provider.
+	fn push_occupied_cores_to_assignment_provider() {
 		AvailabilityCores::<T>::mutate(|cores| {
 			for (core_idx, core) in cores.iter_mut().enumerate() {
 				match core {
 					CoreOccupied::Free => continue,
 					CoreOccupied::Paras(entry) => {
 						let core_idx = CoreIndex::from(core_idx as u32);
-						match pending_cores.get(&core_idx) {
-							Some(pending_since)
-								if Self::timesout_after(
-									core_idx,
-									*pending_since,
-									new_session_start,
-								) =>
-							{
-								todo!("We do need to tell the provider about this, right?")
-							},
-							None | Some(_) => Self::push_assignment(core_idx, entry.clone()),
-						}
+						Self::maybe_push_assignment(core_idx, entry.clone());
 					},
 				}
-
 				*core = CoreOccupied::Free;
 			}
 		});
@@ -489,17 +462,17 @@ impl<T: Config> Pallet<T> {
 
 	// on new session
 	fn push_claimqueue_items_to_assignment_provider() {
-		for (core_idx, cqv) in ClaimQueue::<T>::take() {
+		for (core_idx, core_claimqueue) in ClaimQueue::<T>::take() {
 			// Push back in reverse order so that when we pop from the provider again,
 			// the entries in the claimqueue are in the same order as they are right now.
-			for pe in cqv.into_iter().flatten().rev() {
-				Self::push_assignment(core_idx, pe);
+			for para_entry in core_claimqueue.into_iter().flatten().rev() {
+				Self::maybe_push_assignment(core_idx, para_entry);
 			}
 		}
 	}
 
-	fn push_assignment(core_idx: CoreIndex, pe: ParasEntry<BlockNumberFor<T>>) {
-		// We do not push back on session change if paras have already been tried to run before
+	/// Push assignments back to the provider on session change unless the paras has already been tried to run before.
+	fn maybe_push_assignment(core_idx: CoreIndex, pe: ParasEntry<BlockNumberFor<T>>) {
 		if pe.retries == 0 {
 			T::AssignmentProvider::push_assignment_for_core(core_idx, pe.assignment);
 		}
@@ -565,7 +538,8 @@ impl<T: Config> Pallet<T> {
 						Self::add_to_claimqueue(core_idx, entry);
 					} else {
 						// Consider max retried parathreads as concluded for the assignment provider
-						debug_assert!(concluded_paras.insert(core_idx, entry.para_id()).is_none());
+						let ret = concluded_paras.insert(core_idx, entry.para_id());
+						debug_assert!(ret.is_none());
 					}
 				}
 

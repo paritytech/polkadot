@@ -69,10 +69,10 @@ mod enter {
 	// becoming fully available, the backed candidates will not be filtered out in `create_inherent` and
 	// will not cause `enter` to early.
 	fn include_backed_candidates() {
-		let default = MockGenesisConfig::default();
-		assert!(default.configuration.config.scheduling_lookahead > 0);
+		let config = MockGenesisConfig::default();
+		assert!(config.configuration.config.scheduling_lookahead > 0);
 
-		new_test_ext(default).execute_with(|| {
+		new_test_ext(config).execute_with(|| {
 			let dispute_statements = BTreeMap::new();
 
 			let mut backed_and_concluding = BTreeMap::new();
@@ -114,16 +114,6 @@ mod enter {
 				expected_para_inherent_data
 			);
 
-			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
-			// alter storage, but just double checking for sanity).
-			assert!(<scheduler::Pallet<Test>>::claimqueue_is_empty());
-
-			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
-			// Call enter with our 2 backed candidates
-			assert_ok!(Pallet::<Test>::enter(
-				frame_system::RawOrigin::None.into(),
-				expected_para_inherent_data
-			));
 			assert_eq!(
 				// The length of this vec is equal to the number of candidates, so we know our 2
 				// backed candidates did not get filtered out
@@ -289,12 +279,6 @@ mod enter {
 				&expected_para_inherent_data.disputes[..2],
 			);
 
-			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
-			// alter storage, but just double checking for sanity).
-			assert!(<scheduler::Pallet<Test>>::claimqueue_is_empty());
-
-			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
-			// Call enter with our 2 disputes
 			assert_ok!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				multi_dispute_inherent_data,
@@ -360,12 +344,6 @@ mod enter {
 			assert_eq!(limit_inherent_data.disputes[0].session, 1);
 			assert_eq!(limit_inherent_data.disputes[1].session, 2);
 
-			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
-			// alter storage, but just double checking for sanity).
-			assert!(<scheduler::Pallet<Test>>::claimqueue_is_empty());
-
-			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
-			// Call enter with our 2 disputes
 			assert_ok!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				limit_inherent_data,
@@ -382,51 +360,6 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().session,
 				2
 			);
-		});
-	}
-
-	#[test]
-	// Ensure that when dispute data establishes an over weight block that we abort
-	// due to an over weight block
-	fn limit_dispute_data_overweight() {
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			// Create the inherent data for this block
-			let dispute_statements = BTreeMap::new();
-			// No backed and concluding cores, so all cores will be filled with disputes.
-			let backed_and_concluding = BTreeMap::new();
-
-			let scenario = make_inherent_data(TestConfig {
-				dispute_statements,
-				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
-				backed_and_concluding,
-				num_validators_per_core: 6,
-				code_upgrade: None,
-			});
-
-			let expected_para_inherent_data = scenario.data.clone();
-
-			// Check the para inherent data is as expected:
-			// * 1 bitfield per validator (6 validators per core, 3 disputes => 18 validators)
-			assert_eq!(expected_para_inherent_data.bitfields.len(), 18);
-			// * 0 backed candidate per core
-			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 0);
-			// * 3 disputes.
-			assert_eq!(expected_para_inherent_data.disputes.len(), 3);
-			let mut inherent_data = InherentData::new();
-			inherent_data
-				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
-				.unwrap();
-
-			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert!(<scheduler::Pallet<Test>>::claimqueue_is_empty());
-
-			assert_matches!(Pallet::<Test>::enter(
-				frame_system::RawOrigin::None.into(),
-				expected_para_inherent_data,
-			), Err(e) => { dbg!(e) });
-
-			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
-			assert_eq!(Pallet::<Test>::on_chain_votes(), None,);
 		});
 	}
 
@@ -487,12 +420,6 @@ mod enter {
 			// Ensure that all backed candidates are filtered out as either would make the block over weight
 			assert_eq!(limit_inherent_data.backed_candidates.len(), 0);
 
-			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
-			// alter storage, but just double checking for sanity).
-			assert!(<scheduler::Pallet<Test>>::claimqueue_is_empty());
-
-			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
-			// Call enter with our 2 disputes
 			assert_ok!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				limit_inherent_data,
@@ -510,56 +437,6 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().session,
 				2
 			);
-		});
-	}
-
-	#[test]
-	// Ensure that we abort if we encounter an over weight block for disputes + bitfields
-	fn limit_dispute_data_ignore_backed_candidates_overweight() {
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			// Create the inherent data for this block
-			let dispute_statements = BTreeMap::new();
-
-			let mut backed_and_concluding = BTreeMap::new();
-			// 2 backed candidates shall be scheduled
-			backed_and_concluding.insert(0, 2);
-			backed_and_concluding.insert(1, 2);
-
-			let scenario = make_inherent_data(TestConfig {
-				dispute_statements,
-				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
-				backed_and_concluding,
-				num_validators_per_core: 4,
-				code_upgrade: None,
-			});
-
-			let expected_para_inherent_data = scenario.data.clone();
-
-			// Check the para inherent data is as expected:
-			// * 1 bitfield per validator (4 validators per core, 2 backed candidates, 3 disputes => 4*5 = 20)
-			assert_eq!(expected_para_inherent_data.bitfields.len(), 20);
-			// * 2 backed candidates
-			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
-			// * 3 disputes.
-			assert_eq!(expected_para_inherent_data.disputes.len(), 3);
-			let mut inherent_data = InherentData::new();
-			inherent_data
-				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
-				.unwrap();
-
-			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert!(<scheduler::Pallet<Test>>::claimqueue_is_empty());
-
-			// Ensure that calling enter with 3 disputes and 2 candidates is over weight
-			assert_matches!(Pallet::<Test>::enter(
-				frame_system::RawOrigin::None.into(),
-				expected_para_inherent_data,
-			), Err(e) => {
-				dbg!(e)
-			});
-
-			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
-			assert_eq!(Pallet::<Test>::on_chain_votes(), None,);
 		});
 	}
 
@@ -624,12 +501,6 @@ mod enter {
 			// Ensure that all backed candidates are filtered out as either would make the block over weight
 			assert_eq!(limit_inherent_data.backed_candidates.len(), 0);
 
-			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
-			// alter storage, but just double checking for sanity).
-			assert!(<scheduler::Pallet<Test>>::claimqueue_is_empty());
-
-			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
-			// Call enter with our 2 disputes
 			assert_ok!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				limit_inherent_data,
@@ -651,7 +522,7 @@ mod enter {
 	}
 
 	#[test]
-	// Ensure that when a block is over weight due to disputes and bitfields, we abort
+	// Ensure that when a block is over weight due to disputes and bitfields, we filter.
 	fn limit_bitfields_overweight() {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create the inherent data for this block
@@ -689,18 +560,11 @@ mod enter {
 				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
 				.unwrap();
 
-			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert!(<scheduler::Pallet<Test>>::claimqueue_is_empty());
-
-			assert_matches!(Pallet::<Test>::enter(
-				frame_system::RawOrigin::None.into(),
-				expected_para_inherent_data,
-			), Err(_e) => {
-				/* TODO */
-			});
-
-			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
-			assert_matches!(Pallet::<Test>::on_chain_votes(), None);
+			let limit_inherent_data =
+				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+			assert_eq!(limit_inherent_data.bitfields.len(), 20);
+			assert_eq!(limit_inherent_data.disputes.len(), 2);
+			assert_eq!(limit_inherent_data.backed_candidates.len(), 0);
 		});
 	}
 
@@ -736,12 +600,12 @@ mod enter {
 	}
 
 	#[test]
-	// Ensure that when a block is over weight due to disputes and bitfields, we abort
+	// Ensure that when a block is over weight due to disputes and bitfields, we filter.
 	fn limit_candidates_over_weight_1() {
-		let default = MockGenesisConfig::default();
-		assert!(default.configuration.config.scheduling_lookahead > 0);
+		let config = MockGenesisConfig::default();
+		assert!(config.configuration.config.scheduling_lookahead > 0);
 
-		new_test_ext(default).execute_with(|| {
+		new_test_ext(config).execute_with(|| {
 			// Create the inherent data for this block
 			let mut dispute_statements = BTreeMap::new();
 			// Control the number of statements per dispute to ensure we have enough space
@@ -796,9 +660,6 @@ mod enter {
 			// * 3 disputes.
 			assert_eq!(limit_inherent_data.disputes.len(), 2);
 
-			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert!(<scheduler::Pallet<Test>>::claimqueue_is_empty());
-
 			assert_ok!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				limit_inherent_data,
@@ -816,51 +677,6 @@ mod enter {
 				Pallet::<Test>::on_chain_votes().unwrap().session,
 				2
 			);
-		});
-	}
-
-	#[test]
-	// Ensure that when a block is over weight due to disputes and bitfields, we abort
-	fn limit_candidates_over_weight_0() {
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			// Create the inherent data for this block
-			let mut dispute_statements = BTreeMap::new();
-			// Control the number of statements per dispute to ensure we have enough space
-			// in the block for some (but not all) bitfields
-			dispute_statements.insert(2, 17);
-			dispute_statements.insert(3, 17);
-			dispute_statements.insert(4, 17);
-
-			let mut backed_and_concluding = BTreeMap::new();
-			// 2 backed candidates shall be scheduled
-			backed_and_concluding.insert(0, 16);
-			backed_and_concluding.insert(1, 25);
-
-			let scenario = make_inherent_data(TestConfig {
-				dispute_statements,
-				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
-				backed_and_concluding,
-				num_validators_per_core: 5,
-				code_upgrade: None,
-			});
-
-			let expected_para_inherent_data = scenario.data.clone();
-
-			// Check the para inherent data is as expected:
-			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes => 5*5 = 25)
-			assert_eq!(expected_para_inherent_data.bitfields.len(), 25);
-			// * 2 backed candidates
-			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
-			// * 3 disputes.
-			assert_eq!(expected_para_inherent_data.disputes.len(), 3);
-
-			assert_matches!(Pallet::<Test>::enter(
-				frame_system::RawOrigin::None.into(),
-				expected_para_inherent_data,
-			), Err(e) => { dbg!(e) });
-
-			// The block was not included, as such, `on_chain_votes` _must_ return `None`.
-			assert_matches!(Pallet::<Test>::on_chain_votes(), None);
 		});
 	}
 }
@@ -891,7 +707,7 @@ mod sanitizers {
 	use crate::mock::Test;
 	use keyring::Sr25519Keyring;
 	use primitives::{
-		v4::{Assignment, ParasEntry},
+		v5::{Assignment, ParasEntry},
 		PARACHAIN_KEY_TYPE_ID,
 	};
 	use sc_keystore::LocalKeystore;
@@ -930,7 +746,7 @@ mod sanitizers {
 		}
 		let validator_public = validator_pubkeys(&validators);
 
-		let unchecked_bitfields = [
+		let checked_bitfields = [
 			BitVec::<u8, Lsb0>::repeat(true, expected_bits),
 			BitVec::<u8, Lsb0>::repeat(true, expected_bits),
 			{
@@ -952,9 +768,14 @@ mod sanitizers {
 			)
 			.unwrap()
 			.unwrap()
-			.into_unchecked()
 		})
-		.collect::<Vec<_>>();
+		.collect::<Vec<SignedAvailabilityBitfield>>();
+
+		let unchecked_bitfields = checked_bitfields
+			.iter()
+			.cloned()
+			.map(|v| v.into_unchecked())
+			.collect::<Vec<_>>();
 
 		let disputed_bitfield = DisputedBitfield::zeros(expected_bits);
 
@@ -967,9 +788,8 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Skip,
 				),
-				unchecked_bitfields.clone()
+				checked_bitfields.clone()
 			);
 			assert_eq!(
 				sanitize_bitfields::<Test>(
@@ -979,9 +799,8 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Yes
 				),
-				unchecked_bitfields.clone()
+				checked_bitfields.clone()
 			);
 		}
 
@@ -1000,7 +819,6 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Yes
 				)
 				.len(),
 				1
@@ -1013,7 +831,6 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Skip
 				)
 				.len(),
 				1
@@ -1029,7 +846,6 @@ mod sanitizers {
 				parent_hash,
 				session_index,
 				&validator_public[..],
-				FullCheck::Yes
 			)
 			.is_empty());
 			assert!(sanitize_bitfields::<Test>(
@@ -1039,7 +855,6 @@ mod sanitizers {
 				parent_hash,
 				session_index,
 				&validator_public[..],
-				FullCheck::Skip
 			)
 			.is_empty());
 		}
@@ -1055,9 +870,8 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..shortened],
-					FullCheck::Yes,
 				)[..],
-				&unchecked_bitfields[..shortened]
+				&checked_bitfields[..shortened]
 			);
 			assert_eq!(
 				&sanitize_bitfields::<Test>(
@@ -1067,9 +881,8 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..shortened],
-					FullCheck::Skip,
 				)[..],
-				&unchecked_bitfields[..shortened]
+				&checked_bitfields[..shortened]
 			);
 		}
 
@@ -1078,30 +891,18 @@ mod sanitizers {
 			let mut unchecked_bitfields = unchecked_bitfields.clone();
 			let x = unchecked_bitfields.swap_remove(0);
 			unchecked_bitfields.push(x);
-			assert_eq!(
-				&sanitize_bitfields::<Test>(
-					unchecked_bitfields.clone(),
-					disputed_bitfield.clone(),
-					expected_bits,
-					parent_hash,
-					session_index,
-					&validator_public[..],
-					FullCheck::Yes
-				)[..],
-				&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
-			);
-			assert_eq!(
-				&sanitize_bitfields::<Test>(
-					unchecked_bitfields.clone(),
-					disputed_bitfield.clone(),
-					expected_bits,
-					parent_hash,
-					session_index,
-					&validator_public[..],
-					FullCheck::Skip
-				)[..],
-				&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
-			);
+			let result: UncheckedSignedAvailabilityBitfields = sanitize_bitfields::<Test>(
+				unchecked_bitfields.clone(),
+				disputed_bitfield.clone(),
+				expected_bits,
+				parent_hash,
+				session_index,
+				&validator_public[..],
+			)
+			.into_iter()
+			.map(|v| v.into_unchecked())
+			.collect();
+			assert_eq!(&result, &unchecked_bitfields[..(unchecked_bitfields.len() - 2)]);
 		}
 
 		// check the validators signature
@@ -1122,21 +923,30 @@ mod sanitizers {
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Yes
 				)[..],
-				&unchecked_bitfields[..last_bit_idx]
+				&checked_bitfields[..last_bit_idx]
 			);
+		}
+		// duplicate bitfields
+		{
+			let mut unchecked_bitfields = unchecked_bitfields.clone();
+
+			// insert a bad signature for the last bitfield
+			let last_bit_idx = unchecked_bitfields.len() - 1;
+			unchecked_bitfields
+				.get_mut(last_bit_idx)
+				.and_then(|u| Some(u.set_signature(UncheckedFrom::unchecked_from([1u8; 64]))))
+				.expect("we are accessing a valid index");
 			assert_eq!(
 				&sanitize_bitfields::<Test>(
-					unchecked_bitfields.clone(),
+					unchecked_bitfields.clone().into_iter().chain(unchecked_bitfields).collect(),
 					disputed_bitfield.clone(),
 					expected_bits,
 					parent_hash,
 					session_index,
 					&validator_public[..],
-					FullCheck::Skip
 				)[..],
-				&unchecked_bitfields[..]
+				&checked_bitfields[..last_bit_idx]
 			);
 		}
 	}
