@@ -1006,7 +1006,7 @@ impl Initialized {
 		let controlled_indices = env.controlled_indices();
 		let own_statements = statements
 			.iter()
-			.filter(|(_, index)| controlled_indices.contains(index))
+			.filter(|(_, validator_index)| controlled_indices.contains(validator_index))
 			.cloned()
 			.collect::<Vec<_>>();
 
@@ -1314,12 +1314,12 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'valid' result",
 			);
-			for (statement, index) in own_statements.iter() {
+			for (statement, validator_index) in own_statements.iter() {
 				if statement.statement().indicates_invalidity() {
 					gum::warn!(
 						target: LOG_TARGET,
 						?candidate_hash,
-						?index,
+						?validator_index,
 						"Voted against a candidate that was concluded valid.",
 					);
 				}
@@ -1333,12 +1333,12 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'invalid' result",
 			);
-			for (statement, index) in own_statements.iter() {
+			for (statement, validator_index) in own_statements.iter() {
 				if statement.statement().indicates_validity() {
 					gum::warn!(
 						target: LOG_TARGET,
 						?candidate_hash,
-						?index,
+						?validator_index,
 						"Voted approval for a candidate that was concluded invalid.",
 					);
 				}
