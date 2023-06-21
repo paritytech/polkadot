@@ -90,7 +90,7 @@ parameter_types! {
 		frame_system::limits::BlockWeights::simple_max(
 			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
 		);
-	pub static BlockLength: limits::BlockLength = limits::BlockLength::max_with_normal_ratio(10_000, Perbill::from_percent(75));
+	pub static BlockLength: limits::BlockLength = limits::BlockLength::max_with_normal_ratio(u32::MAX, Perbill::from_percent(75));
 }
 
 pub type AccountId = u64;
