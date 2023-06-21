@@ -59,7 +59,7 @@ pub trait WeightInfo {
 	fn force_process_hrmp_close(c: u32) -> Weight;
 	fn hrmp_cancel_open_request(c: u32) -> Weight;
 	fn clean_open_channel_requests(c: u32) -> Weight;
-	fn force_open_hrmp_channel() -> Weight;
+	fn force_open_hrmp_channel(c: u32) -> Weight;
 }
 
 /// A weight info that is only suitable for testing.
@@ -90,7 +90,7 @@ impl WeightInfo for TestWeightInfo {
 	fn clean_open_channel_requests(_: u32) -> Weight {
 		Weight::MAX
 	}
-	fn force_open_hrmp_channel() -> Weight {
+	fn force_open_hrmp_channel(_: u32) -> Weight {
 		Weight::MAX
 	}
 }
@@ -591,17 +591,32 @@ pub mod pallet {
 		/// Chain's configured limits.
 		///
 		/// Expected use is when one of the `ParaId`s involved in the channel is governed by the
-		/// Relay Chain, e.g. a common good parachain.
+		/// Relay Chain, e.g. a system parachain.
 		#[pallet::call_index(7)]
-		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel())]
+		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel(1))]
 		pub fn force_open_hrmp_channel(
 			origin: OriginFor<T>,
 			sender: ParaId,
 			recipient: ParaId,
 			max_capacity: u32,
 			max_message_size: u32,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
+
+			// Guard against a common footgun where someone makes a channel request to a system
+			// parachain and then makes a proposal to open the channel via governance, which fails
+			// because `init_open_channel` fails if there is an existing request. This check will
+			// clear an existing request such that `init_open_channel` should otherwise succeed.
+			let channel_id = HrmpChannelId { sender, recipient };
+			let cancel_request: u32 =
+				if let Some(_open_channel) = HrmpOpenChannelRequests::<T>::get(&channel_id) {
+					Self::cancel_open_request(sender, channel_id)?;
+					1
+				} else {
+					0
+				};
+
+			// Now we proceed with normal init/accept.
 			Self::init_open_channel(sender, recipient, max_capacity, max_message_size)?;
 			Self::accept_open_channel(recipient, sender)?;
 			Self::deposit_event(Event::HrmpChannelForceOpened(
@@ -610,7 +625,8 @@ pub mod pallet {
 				max_capacity,
 				max_message_size,
 			));
-			Ok(())
+
+			Ok(Some(<T as Config>::WeightInfo::force_open_hrmp_channel(cancel_request)).into())
 		}
 	}
 }
