@@ -255,7 +255,7 @@ impl RequestFromBackers {
 						params.validators.len(),
 						&params.erasure_root,
 						&data,
-						&metrics,
+						&params.metrics,
 					) {
 						gum::trace!(
 							target: LOG_TARGET,
