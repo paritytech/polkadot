@@ -86,11 +86,11 @@ where
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
-	pub BlockWeights: frame_system::limits::BlockWeights =
+	pub static BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
 			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
 		);
-	pub BlockLength: limits::BlockLength = limits::BlockLength::max_with_normal_ratio(10_000, Perbill::from_percent(75));
+	pub static BlockLength: limits::BlockLength = limits::BlockLength::max_with_normal_ratio(10_000, Perbill::from_percent(75));
 }
 
 pub type AccountId = u64;
