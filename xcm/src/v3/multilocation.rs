@@ -52,9 +52,20 @@ use scale_info::TypeInfo;
 ///
 /// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
 #[derive(
-	Copy, Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen,
+	Copy,
+	Clone,
+	Decode,
+	Encode,
+	Eq,
+	PartialEq,
+	Ord,
+	PartialOrd,
+	Debug,
+	TypeInfo,
+	MaxEncodedLen,
+	serde::Serialize,
+	serde::Deserialize,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
 	pub parents: u8,
@@ -599,13 +610,10 @@ mod tests {
 	fn append_with_works() {
 		let acc = AccountIndex64 { network: None, index: 23 };
 		let mut m = MultiLocation { parents: 1, interior: X1(Parachain(42)) };
-		assert_eq!(m.append_with(X2(PalletInstance(3), acc.clone())), Ok(()));
+		assert_eq!(m.append_with(X2(PalletInstance(3), acc)), Ok(()));
 		assert_eq!(
 			m,
-			MultiLocation {
-				parents: 1,
-				interior: X3(Parachain(42), PalletInstance(3), acc.clone())
-			}
+			MultiLocation { parents: 1, interior: X3(Parachain(42), PalletInstance(3), acc) }
 		);
 
 		// cannot append to create overly long multilocation
@@ -614,8 +622,8 @@ mod tests {
 			parents: 254,
 			interior: X5(Parachain(42), OnlyChild, OnlyChild, OnlyChild, OnlyChild),
 		};
-		let suffix: MultiLocation = (PalletInstance(3), acc.clone(), OnlyChild, OnlyChild).into();
-		assert_eq!(m.clone().append_with(suffix.clone()), Err(suffix));
+		let suffix: MultiLocation = (PalletInstance(3), acc, OnlyChild, OnlyChild).into();
+		assert_eq!(m.clone().append_with(suffix), Err(suffix));
 	}
 
 	#[test]
@@ -636,7 +644,7 @@ mod tests {
 		// cannot prepend to create overly long multilocation
 		let mut m = MultiLocation { parents: 254, interior: X1(Parachain(42)) };
 		let prefix = MultiLocation { parents: 2, interior: Here };
-		assert_eq!(m.prepend_with(prefix.clone()), Err(prefix));
+		assert_eq!(m.prepend_with(prefix), Err(prefix));
 
 		let prefix = MultiLocation { parents: 1, interior: Here };
 		assert_eq!(m.prepend_with(prefix), Ok(()));
@@ -658,11 +666,11 @@ mod tests {
 		assert_eq!(second, &Parachain(3));
 
 		let res = Here
-			.pushed_with(first.clone())
+			.pushed_with(*first)
 			.unwrap()
-			.pushed_with(second.clone())
+			.pushed_with(*second)
 			.unwrap()
-			.pushed_with(third.clone())
+			.pushed_with(*third)
 			.unwrap();
 		assert_eq!(m, res);
 

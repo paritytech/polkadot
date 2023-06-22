@@ -405,7 +405,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				Some(&XcmContext::with_message_hash([0; 32])),
+				Some(&XcmContext::with_message_id([0; 32])),
 			),
 			Err(XcmError::AssetNotFound)
 		);
@@ -419,7 +419,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				Some(&XcmContext::with_message_hash([0; 32])),
+				Some(&XcmContext::with_message_id([0; 32])),
 			),
 			Ok(())
 		);
@@ -433,7 +433,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				Some(&XcmContext::with_message_hash([0; 32])),
+				Some(&XcmContext::with_message_id([0; 32])),
 			),
 			Err(XcmError::Overflow)
 		);
@@ -447,7 +447,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				Some(&XcmContext::with_message_hash([0; 32])),
+				Some(&XcmContext::with_message_id([0; 32])),
 			),
 			Ok(()),
 		);

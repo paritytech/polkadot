@@ -14,73 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::prepare::PrepareStats;
-use parity_scale_codec::{Decode, Encode};
-use std::fmt;
-
-/// Result of PVF preparation performed by the validation host. Contains stats about the preparation if
-/// successful
-pub type PrepareResult = Result<PrepareStats, PrepareError>;
-
-/// An error that occurred during the prepare part of the PVF pipeline.
-#[derive(Debug, Clone, Encode, Decode)]
-pub enum PrepareError {
-	/// During the prevalidation stage of preparation an issue was found with the PVF.
-	Prevalidation(String),
-	/// Compilation failed for the given PVF.
-	Preparation(String),
-	/// An unexpected panic has occurred in the preparation worker.
-	Panic(String),
-	/// Failed to prepare the PVF due to the time limit.
-	TimedOut,
-	/// An IO error occurred. This state is reported by either the validation host or by the worker.
-	IoErr(String),
-	/// The temporary file for the artifact could not be created at the given cache path. This state is reported by the
-	/// validation host (not by the worker).
-	CreateTmpFileErr(String),
-	/// The response from the worker is received, but the file cannot be renamed (moved) to the final destination
-	/// location. This state is reported by the validation host (not by the worker).
-	RenameTmpFileErr(String),
-}
-
-impl PrepareError {
-	/// Returns whether this is a deterministic error, i.e. one that should trigger reliably. Those
-	/// errors depend on the PVF itself and the sc-executor/wasmtime logic.
-	///
-	/// Non-deterministic errors can happen spuriously. Typically, they occur due to resource
-	/// starvation, e.g. under heavy load or memory pressure. Those errors are typically transient
-	/// but may persist e.g. if the node is run by overwhelmingly underpowered machine.
-	pub fn is_deterministic(&self) -> bool {
-		use PrepareError::*;
-		match self {
-			Prevalidation(_) | Preparation(_) | Panic(_) => true,
-			TimedOut | IoErr(_) | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
-		}
-	}
-}
-
-impl fmt::Display for PrepareError {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		use PrepareError::*;
-		match self {
-			Prevalidation(err) => write!(f, "prevalidation: {}", err),
-			Preparation(err) => write!(f, "preparation: {}", err),
-			Panic(err) => write!(f, "panic: {}", err),
-			TimedOut => write!(f, "prepare: timeout"),
-			IoErr(err) => write!(f, "prepare: io error while receiving response: {}", err),
-			CreateTmpFileErr(err) => write!(f, "prepare: error creating tmp file: {}", err),
-			RenameTmpFileErr(err) => write!(f, "prepare: error renaming tmp file: {}", err),
-		}
-	}
-}
+use polkadot_node_core_pvf_common::error::{InternalValidationError, PrepareError};
 
 /// A error raised during validation of the candidate.
 #[derive(Debug, Clone)]
 pub enum ValidationError {
 	/// The error was raised because the candidate is invalid.
+	///
+	/// Whenever we are unsure if the error was due to the candidate or not, we must vote invalid.
 	InvalidCandidate(InvalidCandidate),
-	/// This error is raised due to inability to serve the request.
-	InternalError(String),
+	/// Some internal error occurred.
+	InternalError(InternalValidationError),
 }
 
 /// A description of an error raised during executing a PVF and can be attributed to the combination
@@ -103,7 +47,7 @@ pub enum InvalidCandidate {
 	///     an `rlimit` (if set) or, again, invited OOM killer. Another possibility is a bug in
 	///     wasmtime allowed the PVF to gain control over the execution worker.
 	///
-	/// We attribute such an event to an invalid candidate in either case.
+	/// We attribute such an event to an *invalid candidate* in either case.
 	///
 	/// The rationale for this is that a glitch may lead to unfair rejecting candidate by a single
 	/// validator. If the glitch is somewhat more persistent the validator will reject all candidate
@@ -113,6 +57,17 @@ pub enum InvalidCandidate {
 	AmbiguousWorkerDeath,
 	/// PVF execution (compilation is not included) took more time than was allotted.
 	HardTimeout,
+	/// A panic occurred and we can't be sure whether the candidate is really invalid or some internal glitch occurred.
+	/// Whenever we are unsure, we can never treat an error as internal as we would abstain from voting. This is bad
+	/// because if the issue was due to the candidate, then all validators would abstain, stalling finality on the
+	/// chain. So we will first retry the candidate, and if the issue persists we are forced to vote invalid.
+	Panic(String),
+}
+
+impl From<InternalValidationError> for ValidationError {
+	fn from(error: InternalValidationError) -> Self {
+		Self::InternalError(error)
+	}
 }
 
 impl From<PrepareError> for ValidationError {
@@ -120,9 +75,9 @@ impl From<PrepareError> for ValidationError {
 		// Here we need to classify the errors into two errors: deterministic and non-deterministic.
 		// See [`PrepareError::is_deterministic`].
 		if error.is_deterministic() {
-			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
+			Self::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
 		} else {
-			ValidationError::InternalError(error.to_string())
+			Self::InternalError(InternalValidationError::NonDeterministicPrepareError(error))
 		}
 	}
 }
