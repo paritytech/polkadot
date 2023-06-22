@@ -32,8 +32,8 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use polkadot_primitives::{
 	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CollatorPair,
 	CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId,
-	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, ValidationCode, ValidatorIndex,
-	MAX_CODE_SIZE, MAX_POV_SIZE, ValidationCodeHash,
+	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, ValidationCode,
+	ValidationCodeHash, ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
 };
 pub use sp_consensus_babe::{
 	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -510,11 +510,11 @@ impl std::fmt::Debug for CollationGenerationConfig {
 /// such a candidate receipt would be rejected by validators.
 #[derive(Debug, Clone)]
 pub enum ValidationCodeHashHint {
-    /// Contains the number of the relay-chain block used as a relay-parent
-    /// for the collation's parent block.
-    ParentBlockRelayParentNumber(BlockNumber),
-    /// Contains explicitly the validation code hash to use in the candidate receipt.
-    Provided(ValidationCodeHash),
+	/// Contains the number of the relay-chain block used as a relay-parent
+	/// for the collation's parent block.
+	ParentBlockRelayParentNumber(BlockNumber),
+	/// Contains explicitly the validation code hash to use in the candidate receipt.
+	Provided(ValidationCodeHash),
 }
 
 /// Parameters for [`CollationGenerationMessage::SubmitCollation`].
@@ -526,9 +526,9 @@ pub struct SubmitCollationParams {
 	pub collation: Collation,
 	/// The parent block's head-data.
 	pub parent_head: HeadData,
-    /// The validation code hash hint. If no hint is provided, a best effort will be made
-    /// against the relay-parent's state.
-   	pub validation_code_hash_hint: Option<ValidationCodeHashHint>,
+	/// The validation code hash hint. If no hint is provided, a best effort will be made
+	/// against the relay-parent's state.
+	pub validation_code_hash_hint: Option<ValidationCodeHashHint>,
 	/// An optional result sender that should be informed about a successfully seconded collation.
 	///
 	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.

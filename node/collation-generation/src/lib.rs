@@ -29,23 +29,33 @@
 
 #![deny(missing_docs)]
 
-use futures::{channel::{mpsc, oneshot}, future::FutureExt, join, select, sink::SinkExt, stream::StreamExt};
+use futures::{
+	channel::{mpsc, oneshot},
+	future::FutureExt,
+	join, select,
+	sink::SinkExt,
+	stream::StreamExt,
+};
 use parity_scale_codec::Encode;
-use polkadot_node_primitives::{AvailableData, Collation, CollationGenerationConfig, CollationSecondedSignal, PoV, SubmitCollationParams, ValidationCodeHashHint};
+use polkadot_node_primitives::{
+	AvailableData, Collation, CollationGenerationConfig, CollationSecondedSignal, PoV,
+	SubmitCollationParams, ValidationCodeHashHint,
+};
 use polkadot_node_subsystem::{
-	messages::{CollationGenerationMessage, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest},
-	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError, SubsystemResult, RuntimeApiError,
+	messages::{
+		CollationGenerationMessage, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
+	},
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, RuntimeApiError, SpawnedSubsystem,
+	SubsystemContext, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
 	request_validation_code_hash, request_validators,
 };
 use polkadot_primitives::{
-	vstaging::BackingState,
-	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
-	CoreState, Hash, Id as ParaId, OccupiedCoreAssumption, PersistedValidationData,
-	ValidationCodeHash, CollatorPair, HeadData,
+	collator_signature_payload, vstaging::BackingState, CandidateCommitments, CandidateDescriptor,
+	CandidateReceipt, CollatorPair, CoreState, Hash, HeadData, Id as ParaId,
+	OccupiedCoreAssumption, PersistedValidationData, ValidationCodeHash,
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;
@@ -157,13 +167,10 @@ impl CollationGenerationSubsystem {
 				msg: CollationGenerationMessage::SubmitCollation(params),
 			}) => {
 				if let Some(config) = &self.config {
-					if let Err(err) = handle_submit_collation(
-						params,
-						config,
-						ctx,
-						sender.clone(),
-						&self.metrics,
-					).await {
+					if let Err(err) =
+						handle_submit_collation(params, config, ctx, sender.clone(), &self.metrics)
+							.await
+					{
 						gum::error!(target: LOG_TARGET, ?err, "Failed to submit collation");
 					}
 				} else {
@@ -171,7 +178,7 @@ impl CollationGenerationSubsystem {
 				}
 
 				false
-			}
+			},
 			Ok(FromOrchestra::Signal(OverseerSignal::BlockFinalized(..))) => false,
 			Err(err) => {
 				gum::error!(
@@ -210,7 +217,9 @@ async fn handle_new_activations<Context>(
 	// follow the procedure from the guide:
 	// https://paritytech.github.io/polkadot/book/node/collators/collation-generation.html
 
-	if config.collator.is_none() { return Ok(()) }
+	if config.collator.is_none() {
+		return Ok(())
+	}
 
 	let _overall_timer = metrics.time_new_activations();
 
@@ -349,8 +358,9 @@ async fn handle_new_activations<Context>(
 						task_sender,
 						result_sender,
 						&metrics,
-					).await;
-				})
+					)
+					.await;
+				}),
 			)?;
 		}
 	}
@@ -397,7 +407,7 @@ async fn handle_submit_collation<Context>(
 				our_para = %config.para_id,
 				"No validation data for para - does it exist at this relay-parent?",
 			);
-			return Ok(());
+			return Ok(())
 		},
 	};
 
@@ -409,7 +419,9 @@ async fn handle_submit_collation<Context>(
 		code_hint,
 		&validation_data.parent_head,
 		ctx.sender(),
-	).await? {
+	)
+	.await?
+	{
 		None => return Ok(()),
 		Some(v) => v,
 	};
@@ -429,7 +441,8 @@ async fn handle_submit_collation<Context>(
 		sender.clone(),
 		result_sender,
 		metrics,
-	).await;
+	)
+	.await;
 
 	Ok(())
 }
@@ -499,19 +512,18 @@ async fn construct_and_distribute_receipt(
 		&validation_code_hash,
 	);
 
-	let erasure_root =
-		match erasure_root(n_validators, validation_data, pov.clone()) {
-			Ok(erasure_root) => erasure_root,
-			Err(err) => {
-				gum::error!(
-					target: LOG_TARGET,
-					para_id = %para_id,
-					err = ?err,
-					"failed to calculate erasure root",
-				);
-				return
-			},
-		};
+	let erasure_root = match erasure_root(n_validators, validation_data, pov.clone()) {
+		Ok(erasure_root) => erasure_root,
+		Err(err) => {
+			gum::error!(
+				target: LOG_TARGET,
+				para_id = %para_id,
+				err = ?err,
+				"failed to calculate erasure root",
+			);
+			return
+		},
+	};
 
 	let commitments = CandidateCommitments {
 		upward_messages: collation.upward_messages,
@@ -526,7 +538,7 @@ async fn construct_and_distribute_receipt(
 		commitments_hash: commitments.hash(),
 		descriptor: CandidateDescriptor {
 			signature: key.sign(&signature_payload),
-			para_id: para_id,
+			para_id,
 			relay_parent,
 			collator: key.public(),
 			persisted_validation_data_hash,
@@ -583,11 +595,12 @@ async fn obtain_validation_code_hash_with_hint(
 
 	let maybe_backing_state = {
 		let (tx, rx) = oneshot::channel();
-		sender.send_message(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::StagingParaBackingState(para_id, tx),
-		))
-		.await;
+		sender
+			.send_message(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::StagingParaBackingState(para_id, tx),
+			))
+			.await;
 
 		// Failure here means the runtime API doesn't exist.
 		match rx.await? {
@@ -607,7 +620,9 @@ async fn obtain_validation_code_hash_with_hint(
 		// If not explicitly provided, search for the parent's relay-parent number in the
 		// set of candidates pending availability on-chain.
 		let parent_rp_number = parent_rp_number.or_else(|| {
-			pending_availability.iter().find(|c| &c.commitments.head_data == parent_head)
+			pending_availability
+				.iter()
+				.find(|c| &c.commitments.head_data == parent_head)
 				.map(|c| c.relay_parent_number)
 		});
 
@@ -624,7 +639,9 @@ async fn obtain_validation_code_hash_with_hint(
 			para_id,
 			OccupiedCoreAssumption::Free,
 			sender,
-		).await.await??;
+		)
+		.await
+		.await??;
 		Ok(maybe_hash)
 	}
 }

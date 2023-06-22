@@ -36,8 +36,8 @@ use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
 	CollationSecondedSignal, DisputeMessage, DisputeStatus, ErasureChunk, PoV,
-	SignedDisputeStatement, SignedFullStatement, SignedFullStatementWithPVD, ValidationResult,
-	SubmitCollationParams,
+	SignedDisputeStatement, SignedFullStatement, SignedFullStatementWithPVD, SubmitCollationParams,
+	ValidationResult,
 };
 use polkadot_primitives::{
 	vstaging as vstaging_primitives, AuthorityDiscoveryId, BackedCandidate, BlockNumber,

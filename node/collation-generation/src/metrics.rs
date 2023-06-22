@@ -60,12 +60,8 @@ impl Metrics {
 	}
 
 	/// Provide a timer for submitting a collation which updates on drop.
-	pub fn time_submit_collation(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.submit_collation.start_timer())
+	pub fn time_submit_collation(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.submit_collation.start_timer())
 	}
 }
 
