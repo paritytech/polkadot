@@ -1342,7 +1342,7 @@ impl Initialized {
 						target: LOG_TARGET,
 						?candidate_hash,
 						?validator_index,
-						"Voted approval for a candidate that was concluded invalid.",
+						"Voted for a candidate that was concluded invalid.",
 					);
 				}
 			}
