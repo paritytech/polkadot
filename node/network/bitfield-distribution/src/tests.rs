@@ -428,6 +428,8 @@ fn receive_duplicate_messages() {
 }
 
 #[test]
+// FIXME <https://github.com/paritytech/polkadot/issues/7407>
+#[cfg(feature = "enable-flaky")]
 fn delay_reputation_change() {
 	let _ = env_logger::builder()
 		.filter(None, log::LevelFilter::Trace)
