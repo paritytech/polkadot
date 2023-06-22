@@ -65,7 +65,6 @@ check-try-runtime:
       time cargo build --locked -p "$NETWORK"-runtime
       time cargo run --locked -r -p node-template --bin node-template --features try-runtime try-runtime \
           --runtime ./target/release/wbuild/"$NETWORK"-runtime/target/wasm32-unknown-unknown/release/"$NETWORK"_runtime.wasm \
-          -lruntime=debug \
           --chain=${NETWORK}-dev \
           on-runtime-upgrade live --uri wss://${NETWORK}-try-runtime-node.parity-chains.parity.io:443
 
