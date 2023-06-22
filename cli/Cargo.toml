@@ -57,6 +57,7 @@ cli = [
 	"polkadot-client",
 	"polkadot-node-core-pvf-execute-worker",
 	"polkadot-node-core-pvf-prepare-worker",
+	"service",
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
