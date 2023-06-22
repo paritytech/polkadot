@@ -307,7 +307,7 @@ try-runtime = [
 # in WASM.
 disable-runtime-api = []
 
-# A feature that should be enabled when the runtime should be build for on-chain
+# A feature that should be enabled when the runtime should be build for on-chain +1
 # deployment. This will disable stuff that shouldn't be part of the on-chain wasm
 # to make it smaller like logging for example.
 on-chain-release-build = [
