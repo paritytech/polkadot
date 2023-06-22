@@ -128,16 +128,16 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Ksm: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const Statemine: MultiLocation = Parachain(ASSET_HUB_ID).into_location();
+	pub const AssetHub: MultiLocation = Parachain(ASSET_HUB_ID).into_location();
 	pub const Encointer: MultiLocation = Parachain(ENCOINTER_ID).into_location();
 	pub const BridgeHub: MultiLocation = Parachain(BRIDGE_HUB_ID).into_location();
-	pub const KsmForStatemine: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Statemine::get());
+	pub const KsmForAssetHub: (MultiAssetFilter, MultiLocation) = (Ksm::get(), AssetHub::get());
 	pub const KsmForEncointer: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Encointer::get());
 	pub const KsmForBridgeHub: (MultiAssetFilter, MultiLocation) = (Ksm::get(), BridgeHub::get());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 pub type TrustedTeleporters = (
-	xcm_builder::Case<KsmForStatemine>,
+	xcm_builder::Case<KsmForAssetHub>,
 	xcm_builder::Case<KsmForEncointer>,
 	xcm_builder::Case<KsmForBridgeHub>,
 );

@@ -108,7 +108,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Roc: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const Rockmine: MultiLocation = Parachain(ASSET_HUB_ID).into_location();
+	pub const AssetHub: MultiLocation = Parachain(ASSET_HUB_ID).into_location();
 	pub const Contracts: MultiLocation = Parachain(CONTRACTS_ID).into_location();
 	pub const Encointer: MultiLocation = Parachain(ENCOINTER_ID).into_location();
 	pub const BridgeHub: MultiLocation = Parachain(BRIDGE_HUB_ID).into_location();
@@ -118,7 +118,7 @@ parameter_types! {
 	pub const RocForTick: (MultiAssetFilter, MultiLocation) = (Roc::get(), Tick::get());
 	pub const RocForTrick: (MultiAssetFilter, MultiLocation) = (Roc::get(), Trick::get());
 	pub const RocForTrack: (MultiAssetFilter, MultiLocation) = (Roc::get(), Track::get());
-	pub const RocForStatemine: (MultiAssetFilter, MultiLocation) = (Roc::get(), Rockmine::get());
+	pub const RocForAssetHub: (MultiAssetFilter, MultiLocation) = (Roc::get(), AssetHub::get());
 	pub const RocForContracts: (MultiAssetFilter, MultiLocation) = (Roc::get(), Contracts::get());
 	pub const RocForEncointer: (MultiAssetFilter, MultiLocation) = (Roc::get(), Encointer::get());
 	pub const RocForBridgeHub: (MultiAssetFilter, MultiLocation) = (Roc::get(), BridgeHub::get());
@@ -129,7 +129,7 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RocForTick>,
 	xcm_builder::Case<RocForTrick>,
 	xcm_builder::Case<RocForTrack>,
-	xcm_builder::Case<RocForStatemine>,
+	xcm_builder::Case<RocForAssetHub>,
 	xcm_builder::Case<RocForContracts>,
 	xcm_builder::Case<RocForEncointer>,
 	xcm_builder::Case<RocForBridgeHub>,

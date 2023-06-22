@@ -90,11 +90,11 @@ pub type XcmRouter = (
 );
 
 parameter_types! {
-	pub const Westmint: MultiLocation = Parachain(ASSET_HUB_ID).into_location();
+	pub const AssetHub: MultiLocation = Parachain(ASSET_HUB_ID).into_location();
 	pub const Collectives: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
 	pub const BridgeHub: MultiLocation = Parachain(BRIDGE_HUB_ID).into_location();
 	pub const Wnd: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const WndForWestmint: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Westmint::get());
+	pub const WndForAssetHub: (MultiAssetFilter, MultiLocation) = (Wnd::get(), AssetHub::get());
 	pub const WndForCollectives: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Collectives::get());
 	pub const WndForBridgeHub: (MultiAssetFilter, MultiLocation) = (Wnd::get(), BridgeHub::get());
 	pub const MaxInstructions: u32 = 100;
@@ -107,7 +107,7 @@ parameter_types! {
 }
 
 pub type TrustedTeleporters = (
-	xcm_builder::Case<WndForWestmint>,
+	xcm_builder::Case<WndForAssetHub>,
 	xcm_builder::Case<WndForCollectives>,
 	xcm_builder::Case<WndForBridgeHub>,
 );

@@ -111,7 +111,7 @@ pub mod system_parachain {
 		pub type SystemParachains: impl Contains<MultiLocation> = {
 			MultiLocation {
 				parents: 0,
-				interior: X1(Parachain(WESTMINT_ID | COLLECTIVES_ID | BRIDGE_HUB_ID)),
+				interior: X1(Parachain(ASSET_HUB_ID | COLLECTIVES_ID | BRIDGE_HUB_ID)),
 			}
 		};
 	}

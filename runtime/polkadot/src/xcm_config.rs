@@ -136,16 +136,17 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Dot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(STATEMINT_ID).into_location());
+	pub const DotForAssetHub: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(ASSET_HUB_ID).into_location());
 	pub const CollectivesLocation: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
 	pub const DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), CollectivesLocation::get());
 	pub const DotForBridgeHub: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(BRIDGE_HUB_ID).into_location());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
-/// Polkadot Relay recognizes/respects the Statemint chain as a teleporter.
+/// Polkadot Relay recognizes/respects the Asset Hub, Collectives and Bridge hub chains as a
+/// teleporter.
 pub type TrustedTeleporters = (
-	xcm_builder::Case<DotForStatemint>,
+	xcm_builder::Case<DotForAssetHub>,
 	xcm_builder::Case<DotForCollectives>,
 	xcm_builder::Case<DotForBridgeHub>,
 );
