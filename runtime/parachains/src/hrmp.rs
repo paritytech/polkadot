@@ -18,7 +18,7 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	dmp, ensure_parachain, initializer, paras,
 };
-use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
+use frame_support::{pallet_prelude::*, traits::ReservableCurrency, DefaultNoBound};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::HorizontalMessages;
@@ -59,7 +59,7 @@ pub trait WeightInfo {
 	fn force_process_hrmp_close(c: u32) -> Weight;
 	fn hrmp_cancel_open_request(c: u32) -> Weight;
 	fn clean_open_channel_requests(c: u32) -> Weight;
-	fn force_open_hrmp_channel() -> Weight;
+	fn force_open_hrmp_channel(c: u32) -> Weight;
 }
 
 /// A weight info that is only suitable for testing.
@@ -90,7 +90,7 @@ impl WeightInfo for TestWeightInfo {
 	fn clean_open_channel_requests(_: u32) -> Weight {
 		Weight::MAX
 	}
-	fn force_open_hrmp_channel() -> Weight {
+	fn force_open_hrmp_channel(_: u32) -> Weight {
 		Weight::MAX
 	}
 }
@@ -435,15 +435,9 @@ pub mod pallet {
 	///    configuration pallet.
 	/// 2. `sender` and `recipient` must be valid paras.
 	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig {
 		preopen_hrmp_channels: Vec<(ParaId, ParaId, u32, u32)>,
-	}
-
-	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
-		fn default() -> Self {
-			GenesisConfig { preopen_hrmp_channels: Default::default() }
-		}
 	}
 
 	#[pallet::genesis_build]
@@ -597,17 +591,32 @@ pub mod pallet {
 		/// Chain's configured limits.
 		///
 		/// Expected use is when one of the `ParaId`s involved in the channel is governed by the
-		/// Relay Chain, e.g. a common good parachain.
+		/// Relay Chain, e.g. a system parachain.
 		#[pallet::call_index(7)]
-		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel())]
+		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel(1))]
 		pub fn force_open_hrmp_channel(
 			origin: OriginFor<T>,
 			sender: ParaId,
 			recipient: ParaId,
 			max_capacity: u32,
 			max_message_size: u32,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
+
+			// Guard against a common footgun where someone makes a channel request to a system
+			// parachain and then makes a proposal to open the channel via governance, which fails
+			// because `init_open_channel` fails if there is an existing request. This check will
+			// clear an existing request such that `init_open_channel` should otherwise succeed.
+			let channel_id = HrmpChannelId { sender, recipient };
+			let cancel_request: u32 =
+				if let Some(_open_channel) = HrmpOpenChannelRequests::<T>::get(&channel_id) {
+					Self::cancel_open_request(sender, channel_id)?;
+					1
+				} else {
+					0
+				};
+
+			// Now we proceed with normal init/accept.
 			Self::init_open_channel(sender, recipient, max_capacity, max_message_size)?;
 			Self::accept_open_channel(recipient, sender)?;
 			Self::deposit_event(Event::HrmpChannelForceOpened(
@@ -616,12 +625,12 @@ pub mod pallet {
 				max_capacity,
 				max_message_size,
 			));
-			Ok(())
+
+			Ok(Some(<T as Config>::WeightInfo::force_open_hrmp_channel(cancel_request)).into())
 		}
 	}
 }
 
-#[cfg(feature = "std")]
 fn initialize_storage<T: Config>(preopen_hrmp_channels: &[(ParaId, ParaId, u32, u32)]) {
 	let host_config = configuration::Pallet::<T>::config();
 	for &(sender, recipient, max_capacity, max_message_size) in preopen_hrmp_channels {
@@ -634,7 +643,6 @@ fn initialize_storage<T: Config>(preopen_hrmp_channels: &[(ParaId, ParaId, u32, 
 	<Pallet<T>>::process_hrmp_open_channel_requests(&host_config);
 }
 
-#[cfg(feature = "std")]
 fn preopen_hrmp_channel<T: Config>(
 	sender: ParaId,
 	recipient: ParaId,
@@ -889,11 +897,23 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(), HrmpWatermarkAcceptanceErr<T::BlockNumber>> {
 		// First, check where the watermark CANNOT legally land.
 		//
-		// (a) For ensuring that messages are eventually, a rule requires each parablock new
-		//     watermark should be greater than the last one.
+		// (a) For ensuring that messages are eventually processed, we require each parablock's
+		//     watermark to be greater than the last one. The exception to this is if the previous
+		//     watermark was already equal to the current relay-parent number.
 		//
 		// (b) However, a parachain cannot read into "the future", therefore the watermark should
 		//     not be greater than the relay-chain context block which the parablock refers to.
+		if new_hrmp_watermark == relay_chain_parent_number {
+			return Ok(())
+		}
+
+		if new_hrmp_watermark > relay_chain_parent_number {
+			return Err(HrmpWatermarkAcceptanceErr::AheadRelayParent {
+				new_watermark: new_hrmp_watermark,
+				relay_chain_parent_number,
+			})
+		}
+
 		if let Some(last_watermark) = HrmpWatermarks::<T>::get(&recipient) {
 			if new_hrmp_watermark <= last_watermark {
 				return Err(HrmpWatermarkAcceptanceErr::AdvancementRule {
@@ -902,31 +922,21 @@ impl<T: Config> Pallet<T> {
 				})
 			}
 		}
-		if new_hrmp_watermark > relay_chain_parent_number {
-			return Err(HrmpWatermarkAcceptanceErr::AheadRelayParent {
-				new_watermark: new_hrmp_watermark,
-				relay_chain_parent_number,
-			})
-		}
 
 		// Second, check where the watermark CAN land. It's one of the following:
 		//
-		// (a) The relay parent block number.
-		// (b) A relay-chain block in which this para received at least one message.
-		if new_hrmp_watermark == relay_chain_parent_number {
-			Ok(())
-		} else {
-			let digest = HrmpChannelDigests::<T>::get(&recipient);
-			if !digest
-				.binary_search_by_key(&new_hrmp_watermark, |(block_no, _)| *block_no)
-				.is_ok()
-			{
-				return Err(HrmpWatermarkAcceptanceErr::LandsOnBlockWithNoMessages {
-					new_watermark: new_hrmp_watermark,
-				})
-			}
-			Ok(())
+		// (a) The relay parent block number (checked above).
+		// (b) A relay-chain block in which this para received at least one message (checked here)
+		let digest = HrmpChannelDigests::<T>::get(&recipient);
+		if !digest
+			.binary_search_by_key(&new_hrmp_watermark, |(block_no, _)| *block_no)
+			.is_ok()
+		{
+			return Err(HrmpWatermarkAcceptanceErr::LandsOnBlockWithNoMessages {
+				new_watermark: new_hrmp_watermark,
+			})
 		}
+		Ok(())
 	}
 
 	pub(crate) fn check_outbound_hrmp(

@@ -27,9 +27,11 @@ pub mod impls;
 pub mod paras_registrar;
 pub mod paras_sudo_wrapper;
 pub mod purchase;
+pub mod session;
 pub mod slot_range;
 pub mod slots;
 pub mod traits;
+
 #[cfg(feature = "try-runtime")]
 pub mod try_runtime;
 pub mod xcm_sender;
@@ -99,7 +101,7 @@ parameter_types! {
 }
 
 /// Parameterized slow adjusting fee updated based on
-/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#-2.-slow-adjusting-mechanism
+/// https://research.web3.foundation/Polkadot/overview/token-economics#2-slow-adjusting-mechanism
 pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
 	R,
 	TargetBlockFullness,

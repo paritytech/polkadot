@@ -17,8 +17,9 @@
 //! XCM configurations for the Kusama runtime.
 
 use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Fellows, ParaId, Runtime,
-	RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Dmp, Fellows, ParaId, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, TransactionByteFee, WeightToFee,
+	XcmPallet,
 };
 use frame_support::{
 	match_types, parameter_types,
@@ -26,7 +27,12 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::EnsureRoot;
-use runtime_common::{crowdloan, paras_registrar, xcm_sender, ToAuthor};
+use kusama_runtime_constants::currency::CENTS;
+use runtime_common::{
+	crowdloan, paras_registrar,
+	xcm_sender::{ChildParachainRouter, ExponentialPrice},
+	ToAuthor,
+};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -35,8 +41,8 @@ use xcm_builder::{
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WeightInfoBounds,
-	WithComputedOrigin,
+	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
+	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -101,14 +107,22 @@ parameter_types! {
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;
+	/// The asset ID for the asset that we use to pay for message delivery fees.
+	pub FeeAssetId: AssetId = Concrete(TokenLocation::get());
+	/// The base fee for the message delivery fees.
+	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 }
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
-pub type XcmRouter = (
+pub type XcmRouter = WithUniqueTopic<(
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet, ()>,
-);
+	ChildParachainRouter<
+		Runtime,
+		XcmPallet,
+		ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, Dmp>,
+	>,
+)>;
 
 parameter_types! {
 	pub const Ksm: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
@@ -128,7 +142,7 @@ match_types! {
 }
 
 /// The barriers one of which must be passed for an XCM message to be executed.
-pub type Barrier = (
+pub type Barrier = TrailingSetTopicAsId<(
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// Expected responses are OK.
@@ -145,7 +159,7 @@ pub type Barrier = (
 		UniversalLocation,
 		ConstU32<8>,
 	>,
-);
+)>;
 
 /// A call filter for the XCM Transact instruction. This is a temporary measure until we properly
 /// account for proof size weights.
@@ -251,19 +265,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_identity::Call::remove_sub { .. } |
 				pallet_identity::Call::quit_sub { .. },
 			) |
-			RuntimeCall::Society(
-				pallet_society::Call::bid { .. } |
-				pallet_society::Call::unbid { .. } |
-				pallet_society::Call::vouch { .. } |
-				pallet_society::Call::unvouch { .. } |
-				pallet_society::Call::vote { .. } |
-				pallet_society::Call::defender_vote { .. } |
-				pallet_society::Call::payout { .. } |
-				pallet_society::Call::unfound { .. } |
-				pallet_society::Call::judge_suspended_member { .. } |
-				pallet_society::Call::judge_suspended_candidate { .. } |
-				pallet_society::Call::set_max_members { .. },
-			) |
+			RuntimeCall::Society(..) |
 			RuntimeCall::Recovery(..) |
 			RuntimeCall::Vesting(..) |
 			RuntimeCall::Bounties(
@@ -303,7 +305,9 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			) |
 			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
-			}) => true,
+			}) |
+			RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. }) |
+			RuntimeCall::Proxy(..) => true,
 			_ => false,
 		}
 	}
@@ -341,6 +345,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = WithOriginFilter<SafeCallFilter>;
 	type SafeCallFilter = SafeCallFilter;
+	type Aliasers = Nothing;
 }
 
 parameter_types! {
@@ -406,6 +411,8 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = SovereignAccountOf;
 	type MaxLockers = ConstU32<8>;
+	type MaxRemoteLockConsumers = ConstU32<0>;
+	type RemoteLockConsumerIdentifier = ();
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
@@ -414,9 +421,12 @@ impl pallet_xcm::Config for Runtime {
 
 #[test]
 fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
+	use frame_support::dispatch::GetDispatchInfo;
 	use parity_scale_codec::Decode;
 	use xcm::VersionedXcm;
 	use xcm_executor::traits::WeightBounds;
+
+	// should be [WithdrawAsset, BuyExecution, Transact, RefundSurplus, DepositAsset]
 	let blob = hex_literal::hex!("02140004000000000700e40b540213000000000700e40b54020006010700c817a804341801000006010b00c490bf4302140d010003ffffffff000100411f");
 	let Ok(VersionedXcm::V2(old_xcm)) =
 		VersionedXcm::<super::RuntimeCall>::decode(&mut &blob[..]) else { panic!("can't decode XCM blob") };
@@ -425,5 +435,22 @@ fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
 	let weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut xcm)
 		.expect("weighing XCM failed");
 
-	assert_eq!(weight, Weight::from_parts(20_313_281_000, 65536));
+	// Test that the weigher gives us a sensible weight but don't exactly hard-code it, otherwise it
+	// will be out of date after each re-run.
+	assert!(weight.all_lte(Weight::from_parts(30_313_281_000, 65536)));
+
+	let Some(Transact { require_weight_at_most, call, .. }) =
+		xcm.inner_mut().into_iter().find(|inst| matches!(inst, Transact { .. })) else {
+			panic!("no Transact instruction found")
+		};
+	// should be pallet_utility.as_derivative { index: 0, call: pallet_staking::bond_extra { max_additional: 2490000000000 } }
+	let message_call = call.take_decoded().expect("can't decode Transact call");
+	let call_weight = message_call.get_dispatch_info().weight;
+	// Ensure that the Transact instruction is giving a sensible `require_weight_at_most` value
+	assert!(
+		call_weight.all_lte(*require_weight_at_most),
+		"call weight ({:?}) was not less than or equal to require_weight_at_most ({:?})",
+		call_weight,
+		require_weight_at_most
+	);
 }

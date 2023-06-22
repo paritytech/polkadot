@@ -23,7 +23,7 @@ Upon receiving a validation request, the first thing the candidate validation su
   * The [`CandidateDescriptor`](../../types/candidate.md#candidatedescriptor).
   * The [`ValidationData`](../../types/candidate.md#validationdata).
   * The [`PoV`](../../types/availability.md#proofofvalidity).
-  
+
 The second category is for PVF pre-checking. This is primarly used by the [PVF pre-checker](pvf-prechecker.md) subsystem.
 
 ### Determining Parameters
@@ -67,8 +67,22 @@ or time out). We will only retry preparation if another request comes in after
 resolved. We will retry up to 5 times.
 
 If the actual **execution** of the artifact fails, we will retry once if it was
-an ambiguous error after a brief delay, to allow any potential transient
-conditions to clear.
+a possibly transient error, to allow the conditions that led to the error to
+hopefully resolve. We use a more brief delay here (1 second as opposed to 15
+minutes for preparation (see above)), because a successful execution must happen
+in a short amount of time.
+
+We currently know of the following specific cases that will lead to a retried
+execution request:
+
+1. **OOM:** The host might have been temporarily low on memory due to other
+   processes running on the same machine. **NOTE:** This case will lead to
+   voting against the candidate (and possibly a dispute) if the retry is still
+   not successful.
+2. **Artifact missing:** The prepared artifact might have been deleted due to
+   operator error or some bug in the system.
+3. **Panic:** The worker thread panicked for some indeterminate reason, which
+   may or may not be independent of the candidate or PVF.
 
 #### Preparation timeouts
 
@@ -90,5 +104,26 @@ background tasks using CPU time, rather than wall clock time. This is because
 the CPU time of a process is less variable under different system conditions. 
 When the overall system is under heavy load, the wall clock time of a task is 
 affected more than the CPU time.
+
+#### Internal errors
+
+In general, for errors not raising a dispute we have to be very careful. This is
+only sound, if we either:
+
+1. Ruled out that error in pre-checking. If something is not checked in
+   pre-checking, even if independent of the candidate and PVF, we must raise a
+   dispute.
+2. We are 100% confident that it is a hardware/local issue: Like corrupted file,
+   etc.
+
+Reasoning: Otherwise it would be possible to register a PVF where candidates can
+not be checked, but we don't get a dispute - so nobody gets punished. Second, we
+end up with a finality stall that is not going to resolve!
+
+There are some error conditions where we can't be sure whether the candidate is
+really invalid or some internal glitch occurred, e.g. panics. Whenever we are
+unsure, we can never treat an error as internal as we would abstain from voting.
+So we will first retry the candidate, and if the issue persists we are forced to
+vote invalid.
 
 [CVM]: ../../types/overseer-protocol.md#validationrequesttype

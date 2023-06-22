@@ -17,16 +17,21 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, ParaId, Runtime,
-	RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
+	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, Dmp, ParaId, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	parameter_types,
 	traits::{Contains, Everything, Nothing},
 };
 use frame_system::EnsureRoot;
-use runtime_common::{crowdloan, paras_registrar, xcm_sender, ToAuthor};
+use runtime_common::{
+	crowdloan, paras_registrar,
+	xcm_sender::{ChildParachainRouter, ExponentialPrice},
+	ToAuthor,
+};
 use sp_core::ConstU32;
+use westend_runtime_constants::currency::CENTS;
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
@@ -34,7 +39,7 @@ use xcm_builder::{
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, MintLocation,
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	UsingComponents, WeightInfoBounds, WithComputedOrigin,
+	TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
 
@@ -44,6 +49,10 @@ parameter_types! {
 	pub UniversalLocation: InteriorMultiLocation = ThisNetwork::get().into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
+	/// The asset ID for the asset that we use to pay for message delivery fees.
+	pub FeeAssetId: AssetId = Concrete(TokenLocation::get());
+	/// The base fee for the message delivery fees.
+	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 }
 
 pub type LocationConverter =
@@ -71,10 +80,14 @@ type LocalOriginConverter = (
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
-pub type XcmRouter = (
+pub type XcmRouter = WithUniqueTopic<(
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet, ()>,
-);
+	ChildParachainRouter<
+		Runtime,
+		XcmPallet,
+		ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, Dmp>,
+	>,
+)>;
 
 parameter_types! {
 	pub const Westmint: MultiLocation = Parachain(1000).into_location();
@@ -95,7 +108,7 @@ pub type TrustedTeleporters =
 	(xcm_builder::Case<WndForWestmint>, xcm_builder::Case<WndForCollectives>);
 
 /// The barriers one of which must be passed for an XCM message to be executed.
-pub type Barrier = (
+pub type Barrier = TrailingSetTopicAsId<(
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// Expected responses are OK.
@@ -112,7 +125,7 @@ pub type Barrier = (
 		UniversalLocation,
 		ConstU32<8>,
 	>,
-);
+)>;
 
 /// A call filter for the XCM Transact instruction. This is a temporary measure until we
 /// properly account for proof size weights.
@@ -255,6 +268,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = WithOriginFilter<SafeCallFilter>;
 	type SafeCallFilter = SafeCallFilter;
+	type Aliasers = Nothing;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
@@ -287,6 +301,8 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = LocationConverter;
 	type MaxLockers = ConstU32<8>;
+	type MaxRemoteLockConsumers = ConstU32<0>;
+	type RemoteLockConsumerIdentifier = ();
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;

@@ -27,9 +27,14 @@ mod tests;
 pub mod test_utils;
 
 mod location_conversion;
+#[allow(deprecated)]
+pub use location_conversion::ForeignChainAliasAccount;
 pub use location_conversion::{
-	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
-	ParentIsPreset, SiblingParachainConvertsVia,
+	Account32Hash, AccountId32Aliases, AccountKey20Aliases, AliasesIntoAccountId32,
+	ChildParachainConvertsVia, DescribeAccountId32Terminal, DescribeAccountIdTerminal,
+	DescribeAccountKey20Terminal, DescribeAllTerminal, DescribeFamily, DescribeLocation,
+	DescribePalletTerminal, DescribeTerminus, GlobalConsensusParachainConvertsFor,
+	HashedDescription, ParentIsPreset, SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;
@@ -50,9 +55,13 @@ pub use asset_conversion::{ConvertedAbstractAssetId, ConvertedConcreteAssetId};
 mod barriers;
 pub use barriers::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, IsChildSystemParachain,
-	TakeWeightCredit, WithComputedOrigin,
+	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, DenyReserveTransferToRelayChain,
+	DenyThenTry, IsChildSystemParachain, RespectSuspension, TakeWeightCredit, TrailingSetTopicAsId,
+	WithComputedOrigin,
 };
+
+mod process_xcm_message;
+pub use process_xcm_message::ProcessXcmMessage;
 
 mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
@@ -76,12 +85,24 @@ pub use weight::{
 mod matches_token;
 pub use matches_token::{IsAbstract, IsConcrete};
 
+mod matcher;
+pub use matcher::{CreateMatcher, MatchXcm, Matcher};
+
 mod filter_asset_location;
 pub use filter_asset_location::{Case, NativeAsset};
 
+mod routing;
+pub use routing::{WithTopicSource, WithUniqueTopic};
+
 mod universal_exports;
 pub use universal_exports::{
-	BridgeBlobDispatcher, BridgeMessage, DispatchBlob, DispatchBlobError, ExporterFor, HaulBlob,
-	HaulBlobError, HaulBlobExporter, NetworkExportTable, SovereignPaidRemoteExporter,
-	UnpaidLocalExporter, UnpaidRemoteExporter,
+	ensure_is_remote, BridgeBlobDispatcher, BridgeMessage, DispatchBlob, DispatchBlobError,
+	ExporterFor, HaulBlob, HaulBlobError, HaulBlobExporter, NetworkExportTable,
+	SovereignPaidRemoteExporter, UnpaidLocalExporter, UnpaidRemoteExporter,
 };
+
+mod origin_aliases;
+pub use origin_aliases::AliasForeignAccountId32;
+
+mod pay;
+pub use pay::{FixedLocation, LocatableAssetId, PayAccountId32OnChainOverXcm, PayOverXcm};

@@ -69,7 +69,7 @@ check-try-runtime:
         export RUST_LOG=remote-ext=debug,runtime=debug
         echo "---------- Running try-runtime for ${NETWORK} ----------"
         time cargo build --locked --release -p "$NETWORK"-runtime
-        time cargo run ---locked -release --features try-runtime try-runtime \
+        time cargo run --locked --release --features try-runtime try-runtime \
             --runtime ./target/release/wbuild/"$NETWORK"-runtime/target/wasm32-unknown-unknown/release/"$NETWORK"_runtime.wasm \
             -lruntime=debug \
             --chain=${NETWORK}-dev \
@@ -87,6 +87,7 @@ check-runtime-migration-polkadot:
     - .check-runtime-migration
   variables:
     NETWORK: "polkadot"
+  allow_failure: true # FIXME https://github.com/paritytech/substrate/issues/13107
 
 check-runtime-migration-kusama:
   stage: check
@@ -97,6 +98,7 @@ check-runtime-migration-kusama:
     - .check-runtime-migration
   variables:
     NETWORK: "kusama"
+  allow_failure: true # FIXME https://github.com/paritytech/substrate/issues/13107
 
 check-runtime-migration-westend:
   stage: check
@@ -107,7 +109,7 @@ check-runtime-migration-westend:
     - .check-runtime-migration
   variables:
     NETWORK: "westend"
-  allow_failure: true
+  allow_failure: true # FIXME https://github.com/paritytech/substrate/issues/13107
 
 # is broken, need to fix
 check-no-default-features:
