@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot. If not, see <http://www.gnu.org/licenses/>.
 
-//! The Kusama runtime. This can be compiled with `#[no_std]`, ready for Wasm. + 3
+//! The Kusama runtime. This can be compiled with `#[no_std]`, ready for Wasm. + 4
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
