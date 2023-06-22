@@ -460,3 +460,13 @@ fn fallback_when_no_validation_code_hash_api() {
 		_ => panic!("received wrong message type"),
 	}
 }
+
+// TODO [now]: test that `SubmitCollation` is a no-op prior to initialization
+
+// TODO [now]: test that `SubmitCollation` leads to distribution
+
+// TODO [now]: test that `ValidationCodeHashHint::Provided` is used
+
+// TODO [now]: test that missing `ValidationCodeHashHint` works for constraints and without
+
+// TODO [now]: test that provided `ValidationCodeHashHint::ParentRelayParentNumber` works for constraints and without
