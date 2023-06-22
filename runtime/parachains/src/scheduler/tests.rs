@@ -25,7 +25,8 @@ use crate::{
 	configuration::HostConfiguration,
 	initializer::SessionChangeNotification,
 	mock::{
-		new_test_ext, MockGenesisConfig, Paras, ParasShared, RuntimeOrigin, Scheduler, System, Test,
+		new_test_ext, MockGenesisConfig, OnDemandAssigner, Paras, ParasShared, RuntimeOrigin,
+		Scheduler, System, Test,
 	},
 	paras::{ParaGenesisArgs, ParaKind},
 	//scheduler_parathreads::{
@@ -149,6 +150,56 @@ pub(crate) fn claimqueue_contains_para_ids<T: Config>(pids: Vec<ParaId>) -> bool
 		.collect();
 
 	pids.into_iter().all(|pid| set.contains(&pid))
+}
+
+#[test]
+fn claimqueue_ttl_drop_fn_works() {
+	let genesis_config = MockGenesisConfig {
+		configuration: crate::configuration::GenesisConfig {
+			config: default_config(),
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	let para_id = ParaId::from(100);
+	let now = 10;
+
+	new_test_ext(genesis_config).execute_with(|| {
+		// Register and run to a blockheight where the para is in a valid state.
+		schedule_blank_para(para_id, ParaKind::Parathread);
+		run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
+
+		// Add a claim on core 0 with a ttl in the past.
+		let core_idx = CoreIndex::from(0);
+		let paras_entry = ParasEntry::new(Assignment::new(para_id), now - 5);
+		Scheduler::add_to_claimqueue(core_idx, paras_entry.clone());
+
+		// Claim is in queue prior to call.
+		assert!(claimqueue_contains_para_ids::<Test>(vec![para_id]));
+
+		// Claim is dropped post call.
+		Scheduler::drop_expired_claims_from_claimqueue();
+		assert!(!claimqueue_contains_para_ids::<Test>(vec![para_id]));
+
+		// Add a claim on core 0 with a ttl in the future.
+		let core_idx = CoreIndex::from(0);
+		let paras_entry = ParasEntry::new(Assignment::new(para_id), now + 5);
+		Scheduler::add_to_claimqueue(core_idx, paras_entry.clone());
+
+		// Claim is in queue post call.
+		Scheduler::drop_expired_claims_from_claimqueue();
+		assert!(claimqueue_contains_para_ids::<Test>(vec![para_id]));
+
+		// Add a claim on core 0 with a ttl == now
+		let core_idx = CoreIndex::from(0);
+		let paras_entry = ParasEntry::new(Assignment::new(para_id), now);
+		Scheduler::add_to_claimqueue(core_idx, paras_entry.clone());
+
+		// Claim is in queue post call.
+		Scheduler::drop_expired_claims_from_claimqueue();
+		assert!(claimqueue_contains_para_ids::<Test>(vec![para_id]));
+	});
 }
 
 // Pretty useless here. Should be on parathread assigner... if at all
