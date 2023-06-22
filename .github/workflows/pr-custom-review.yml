@@ -37,6 +37,6 @@ jobs:
         if: github.event.pull_request.draft == true
         run: exit 1
       - name: pr-custom-review
-        uses: paritytech/pr-custom-review@action-v3
+        uses: paritytech/pr-custom-review@bullrich/count-pr-owner
         with:
           token: ${{ secrets.TOKEN }}
