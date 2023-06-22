@@ -90,7 +90,7 @@ pub type XcmRouter = (
 );
 
 parameter_types! {
-	pub const Westmint: MultiLocation = Parachain(WESTMINT_ID).into_location();
+	pub const Westmint: MultiLocation = Parachain(ASSET_HUB_ID).into_location();
 	pub const Collectives: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
 	pub const BridgeHub: MultiLocation = Parachain(BRIDGE_HUB_ID).into_location();
 	pub const Wnd: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
@@ -103,7 +103,7 @@ parameter_types! {
 
 #[cfg(feature = "runtime-benchmarks")]
 parameter_types! {
-	pub ReachableDest: Option<MultiLocation> = Some(Parachain(WESTMINT_ID).into());
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(ASSET_HUB_ID).into());
 }
 
 pub type TrustedTeleporters = (

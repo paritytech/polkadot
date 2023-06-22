@@ -128,7 +128,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Ksm: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const Statemine: MultiLocation = Parachain(STATEMINE_ID).into_location();
+	pub const Statemine: MultiLocation = Parachain(ASSET_HUB_ID).into_location();
 	pub const Encointer: MultiLocation = Parachain(ENCOINTER_ID).into_location();
 	pub const BridgeHub: MultiLocation = Parachain(BRIDGE_HUB_ID).into_location();
 	pub const KsmForStatemine: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Statemine::get());
@@ -375,7 +375,7 @@ parameter_types! {
 
 #[cfg(feature = "runtime-benchmarks")]
 parameter_types! {
-	pub ReachableDest: Option<MultiLocation> = Some(Parachain(STATEMINE_ID).into());
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(ASSET_HUB_ID).into());
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location

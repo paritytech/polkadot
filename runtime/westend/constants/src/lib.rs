@@ -100,8 +100,8 @@ pub mod fee {
 pub mod system_parachain {
 	use xcm::latest::prelude::*;
 
-	/// Westmint parachain ID.
-	pub const WESTMINT_ID: u32 = 1000;
+	/// Network's Asset Hub parachain ID.
+	pub const ASSET_HUB_ID: u32 = 1000;
 	/// Collectives parachain ID.
 	pub const COLLECTIVES_ID: u32 = 1001;
 	/// BridgeHub parachain ID.

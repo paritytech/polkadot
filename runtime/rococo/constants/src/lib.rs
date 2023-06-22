@@ -103,8 +103,8 @@ pub mod fee {
 pub mod system_parachain {
 	use xcm::latest::prelude::*;
 
-	/// Rockmine parachain ID.
-	pub const ROCKMINE_ID: u32 = 1000;
+	/// Network's Asset Hub parachain ID.
+	pub const ASSET_HUB_ID: u32 = 1000;
 	/// Contracts parachain ID.
 	pub const CONTRACTS_ID: u32 = 1002;
 	/// Encointer parachain ID.
@@ -114,7 +114,7 @@ pub mod system_parachain {
 
 	frame_support::match_types! {
 		pub type SystemParachains: impl Contains<MultiLocation> = {
-			MultiLocation { parents: 0, interior: X1(Parachain(ROCKMINE_ID | CONTRACTS_ID | ENCOINTER_ID | BRIDGE_HUB_ID)) }
+			MultiLocation { parents: 0, interior: X1(Parachain(ASSET_HUB_ID | CONTRACTS_ID | ENCOINTER_ID | BRIDGE_HUB_ID)) }
 		};
 	}
 }
