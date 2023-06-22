@@ -31,7 +31,7 @@ use polkadot_node_subsystem::{
 	messages::ReportPeerMessage,
 };
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_node_subsystem_util::{reputation::add_reputation, TimeoutExt};
+use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{AvailabilityBitfield, Signed, ValidatorIndex};
 use rand_chacha::ChaCha12Rng;
 use sp_application_crypto::AppCrypto;
@@ -431,6 +431,8 @@ fn receive_duplicate_messages() {
 // FIXME <https://github.com/paritytech/polkadot/issues/7407>
 #[cfg(feature = "enable-flaky")]
 fn delay_reputation_change() {
+	use polkadot_node_subsystem_util::reputation::add_reputation;
+
 	let _ = env_logger::builder()
 		.filter(None, log::LevelFilter::Trace)
 		.is_test(true)
