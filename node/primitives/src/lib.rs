@@ -33,7 +33,7 @@ use polkadot_primitives::{
 	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CollatorPair,
 	CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId,
 	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, ValidationCode, ValidatorIndex,
-	MAX_CODE_SIZE, MAX_POV_SIZE,
+	MAX_CODE_SIZE, MAX_POV_SIZE, ValidationCodeHash,
 };
 pub use sp_consensus_babe::{
 	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -381,6 +381,18 @@ pub enum MaybeCompressedPoV {
 }
 
 #[cfg(not(target_os = "unknown"))]
+impl std::fmt::Debug for MaybeCompressedPoV {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		let (variant, size) = match self {
+			MaybeCompressedPoV::Raw(pov) => ("Raw", pov.block_data.0.len()),
+			MaybeCompressedPoV::Compressed(pov) => ("Compressed", pov.block_data.0.len()),
+		};
+
+		write!(f, "{} PoV ({} bytes)", variant, size)
+	}
+}
+
+#[cfg(not(target_os = "unknown"))]
 impl MaybeCompressedPoV {
 	/// Convert into a compressed [`PoV`].
 	///
@@ -399,7 +411,7 @@ impl MaybeCompressedPoV {
 ///
 /// - does not contain the erasure root; that's computed at the Polkadot level, not at Cumulus
 /// - contains a proof of validity.
-#[derive(Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 #[cfg(not(target_os = "unknown"))]
 pub struct Collation<BlockNumber = polkadot_primitives::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
@@ -475,7 +487,10 @@ pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
 	/// Collation function. See [`CollatorFn`] for more details.
-	pub collator: CollatorFn,
+	///
+	/// If this is `None`, it implies that collations are intended to be submitted
+	/// out-of-band and not pulled out of the function.
+	pub collator: Option<CollatorFn>,
 	/// The parachain that this collator collates for
 	pub para_id: ParaId,
 }
@@ -485,6 +500,41 @@ impl std::fmt::Debug for CollationGenerationConfig {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "CollationGenerationConfig {{ ... }}")
 	}
+}
+
+/// Hints for the collation-generation subsystem to determine the correct
+/// validation code hash to put into the candidate receipt.
+///
+/// Providing an incorrect hint or no hint at all could lead the candidate to have the
+/// wrong code provided, but only in the few blocks surrounding validation code upgrades.
+/// such a candidate receipt would be rejected by validators.
+#[derive(Debug, Clone)]
+pub enum ValidationCodeHashHint {
+    /// Contains the number of the relay-chain block used as a relay-parent
+    /// for the collation's parent block.
+    ParentBlockRelayParentNumber(BlockNumber),
+    /// Contains explicitly the validation code hash to use in the candidate receipt.
+    Provided(ValidationCodeHash),
+}
+
+/// Parameters for [`CollationGenerationMessage::SubmitCollation`].
+#[derive(Debug)]
+pub struct SubmitCollationParams {
+	/// The relay-parent the collation is built against.
+	pub relay_parent: Hash,
+	/// The collation itself (PoV and commitments)
+	pub collation: Collation,
+	/// The parent block's head-data.
+	pub parent_head: HeadData,
+    /// The validation code hash hint. If no hint is provided, a best effort will be made
+    /// against the relay-parent's state.
+   	pub validation_code_hash_hint: Option<ValidationCodeHashHint>,
+	/// An optional result sender that should be informed about a successfully seconded collation.
+	///
+	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
+	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
+	/// collation.
+	pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
 }
 
 /// This is the data we keep available for each candidate included in the relay chain.
