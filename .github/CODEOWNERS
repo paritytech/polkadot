@@ -1,5 +1,5 @@
 # CI
-/.github/ @paritytech/ci @chevdor
+/.github/ @paritytech/ci @paritytech/opstooling
 /scripts/ci/ @paritytech/ci @chevdor
 /.gitlab-ci.yml @paritytech/ci
 # lingua.dic is not managed by CI team
