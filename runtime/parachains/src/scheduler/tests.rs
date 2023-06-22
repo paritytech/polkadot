@@ -29,9 +29,6 @@ use crate::{
 		Scheduler, System, Test,
 	},
 	paras::{ParaGenesisArgs, ParaKind},
-	//scheduler_parathreads::{
-	//	ParathreadClaimIndex, ParathreadClaimQueue, ParathreadQueue, QueuedParathread,
-	//},
 };
 
 fn schedule_blank_para(id: ParaId, parakind: ParaKind) {
@@ -47,13 +44,6 @@ fn schedule_blank_para(id: ParaId, parakind: ParaKind) {
 
 	assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), validation_code));
 }
-
-//fn order_parathread(id: ParaId) {
-//	assert_ok!(OnDemandAssigner::add_parathread_entry(ParathreadEntry {
-//		claim: ParathreadClaim(id, None),
-//		retries: 0,
-//	}));
-//}
 
 fn run_to_block(
 	to: BlockNumber,
