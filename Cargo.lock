@@ -2274,18 +2274,6 @@ dependencies = [
 
 [[package]]
 name = "expander"
-version = "0.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3774182a5df13c3d1690311ad32fbe913feef26baba609fa2dd5f72042bd2ab6"
-dependencies = [
- "blake2",
- "fs-err",
- "proc-macro2",
- "quote",
-]
-
-[[package]]
-name = "expander"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f360349150728553f92e4c997a16af8915f418d3a0f21b440d34c5632f16ed84"
@@ -5483,23 +5471,6 @@ dependencies = [
 
 [[package]]
 name = "orchestra"
-version = "0.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "227585216d05ba65c7ab0a0450a3cf2cbd81a98862a54c4df8e14d5ac6adb015"
-dependencies = [
- "async-trait",
- "dyn-clonable",
- "futures",
- "futures-timer",
- "orchestra-proc-macro 0.0.5",
- "pin-project",
- "prioritized-metered-channel 0.2.0",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "orchestra"
 version = "0.2.1"
 source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-boxed-messages#a8d785da6acf8f29a0f39915dc4d599ce4aebdcd"
 dependencies = [
@@ -5507,26 +5478,11 @@ dependencies = [
  "dyn-clonable",
  "futures",
  "futures-timer",
- "orchestra-proc-macro 0.2.1",
+ "orchestra-proc-macro",
  "pin-project",
- "prioritized-metered-channel 0.4.0",
+ "prioritized-metered-channel 0.4.0 (git+https://github.com/paritytech/orchestra?branch=vstakhov-boxed-messages)",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "orchestra-proc-macro"
-version = "0.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2871aadd82a2c216ee68a69837a526dfe788ecbe74c4c5038a6acdbff6653066"
-dependencies = [
- "expander 0.0.6",
- "itertools",
- "petgraph",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -7704,7 +7660,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-test-service",
- "prioritized-metered-channel 0.2.0",
+ "prioritized-metered-channel 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "prometheus-parse",
  "sc-cli",
  "sc-client-api",
@@ -7797,7 +7753,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "futures",
- "orchestra 0.0.5",
+ "orchestra",
  "polkadot-node-jaeger",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
@@ -7843,7 +7799,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "prioritized-metered-channel 0.2.0",
+ "prioritized-metered-channel 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.8.5",
  "sp-application-crypto",
  "sp-core",
@@ -7863,7 +7819,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "lru 0.9.0",
- "orchestra 0.2.1",
+ "orchestra",
  "parking_lot 0.12.1",
  "polkadot-node-metrics",
  "polkadot-node-network-protocol",
@@ -7871,7 +7827,7 @@ dependencies = [
  "polkadot-node-subsystem-types",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "prioritized-metered-channel 0.2.0",
+ "prioritized-metered-channel 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sc-client-api",
  "sp-api",
  "sp-core",
@@ -8700,10 +8656,11 @@ dependencies = [
 
 [[package]]
 name = "prioritized-metered-channel"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "382698e48a268c832d0b181ed438374a6bb708a82a8ca273bb0f61c74cf209c4"
+checksum = "a3caef72a78ca8e77cbdfa87dd516ebb79d4cbe5b42e3b8435b463a8261339ff"
 dependencies = [
+ "async-channel",
  "coarsetime",
  "crossbeam-queue",
  "derive_more",
