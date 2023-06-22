@@ -53,3 +53,6 @@ ferdie: reports polkadot_parachain_disputes_finality_lag is 0
 eve: reports polkadot_parachain_disputes_finality_lag is 0
 one: reports polkadot_parachain_disputes_finality_lag is 0
 two: reports polkadot_parachain_disputes_finality_lag is 0
+
+# Check participating in the losing side of a dispute logged
+charlie: log line contains "Voted approval for a candidate that was concluded invalid." within 180 seconds
