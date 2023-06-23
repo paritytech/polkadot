@@ -26,23 +26,20 @@ use crate::{
 	paras_inherent::DisputedBitfield,
 	scheduler::AssignmentKind,
 };
-use assert_matches::assert_matches;
+use primitives::{SignedAvailabilityBitfields, UncheckedSignedAvailabilityBitfields};
+
 use frame_support::assert_noop;
 use keyring::Sr25519Keyring;
 use parity_scale_codec::DecodeAll;
 use primitives::{
 	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
 	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
-	UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
-	PARACHAIN_KEY_TYPE_ID,
+	ValidationCode, ValidatorId, ValidityAttestation, PARACHAIN_KEY_TYPE_ID,
 };
 use sc_keystore::LocalKeystore;
 use sp_keystore::{Keystore, KeystorePtr};
 use std::sync::Arc;
-use test_helpers::{
-	dummy_candidate_receipt, dummy_collator, dummy_collator_signature, dummy_hash,
-	dummy_validation_code,
-};
+use test_helpers::{dummy_collator, dummy_collator_signature, dummy_validation_code};
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
@@ -313,6 +310,41 @@ pub(crate) fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
 	Some(persisted_validation_data.hash())
 }
 
+/// Wrapper around `sanitize_bitfields` with less parameters.
+fn simple_sanitize_bitfields(
+	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
+	disputed_bitfield: DisputedBitfield,
+	expected_bits: usize,
+) -> SignedAvailabilityBitfields {
+	let parent_hash = frame_system::Pallet::<Test>::parent_hash();
+	let session_index = shared::Pallet::<Test>::session_index();
+	let validators = shared::Pallet::<Test>::active_validator_keys();
+
+	crate::paras_inherent::sanitize_bitfields::<Test>(
+		unchecked_bitfields,
+		disputed_bitfield,
+		expected_bits,
+		parent_hash,
+		session_index,
+		&validators,
+	)
+}
+/// Process a set of already sanitized bitfields.
+pub(crate) fn process_bitfields(
+	expected_bits: usize,
+	signed_bitfields: SignedAvailabilityBitfields,
+	core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
+) -> Vec<(CoreIndex, CandidateHash)> {
+	let validators = shared::Pallet::<Test>::active_validator_keys();
+
+	ParaInclusion::update_pending_availability_and_get_freed_cores::<_>(
+		expected_bits,
+		&validators[..],
+		signed_bitfields,
+		core_lookup,
+	)
+}
+
 #[test]
 fn collect_pending_cleans_up_pending() {
 	let chain_a = ParaId::from(1_u32);
@@ -419,26 +451,6 @@ fn bitfield_checks() {
 			_ => panic!("out of bounds for testing"),
 		};
 
-		// mark all candidates as pending availability
-		let set_pending_av = || {
-			for (p_id, _) in paras {
-				let receipt = dummy_candidate_receipt(dummy_hash());
-				PendingAvailability::<Test>::insert(
-					p_id,
-					CandidatePendingAvailability {
-						availability_votes: default_availability_votes(),
-						core: CoreIndex(0),
-						hash: receipt.hash(),
-						descriptor: receipt.descriptor,
-						backers: BitVec::default(),
-						relay_parent_number: BlockNumber::from(0_u32),
-						backed_in_number: BlockNumber::from(0_u32),
-						backing_group: GroupIndex(0),
-					},
-				)
-			}
-		};
-
 		// too many bits in bitfield
 		{
 			let mut bare_bitfield = default_bitfield();
@@ -451,15 +463,15 @@ fn bitfield_checks() {
 				&signing_context,
 			);
 
-			assert_matches!(
-				ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					DisputedBitfield::zeros(expected_bits()),
-					&core_lookup,
-					FullCheck::Yes,
-				),
-				Err(Error::<Test>::WrongBitfieldSize)
+			let checked_bitfields = simple_sanitize_bitfields(
+				vec![signed.into()],
+				DisputedBitfield::zeros(expected_bits()),
+				expected_bits(),
+			);
+			assert_eq!(
+				checked_bitfields.len(),
+				0,
+				"Bitfield has wrong size, it should have been filtered."
 			);
 		}
 
@@ -474,126 +486,16 @@ fn bitfield_checks() {
 				&signing_context,
 			);
 
-			assert_matches!(
-				ParaInclusion::process_bitfields(
-					expected_bits() + 1,
-					vec![signed.into()],
-					DisputedBitfield::zeros(expected_bits()),
-					&core_lookup,
-					FullCheck::Yes,
-				),
-				Err(Error::<Test>::WrongBitfieldSize)
+			let checked_bitfields = simple_sanitize_bitfields(
+				vec![signed.into()],
+				DisputedBitfield::zeros(expected_bits()),
+				expected_bits() + 1,
 			);
-		}
-
-		// duplicate.
-		{
-			set_pending_av.clone()();
-			let back_core_0_bitfield = {
-				let mut b = default_bitfield();
-				b.0.set(0, true);
-				b
-			};
-			let signed: UncheckedSignedAvailabilityBitfield = sign_bitfield(
-				&keystore,
-				&validators[0],
-				ValidatorIndex(0),
-				back_core_0_bitfield,
-				&signing_context,
-			)
-			.into();
-
 			assert_eq!(
-				<PendingAvailability<Test>>::get(chain_a)
-					.unwrap()
-					.availability_votes
-					.count_ones(),
-				0
+				checked_bitfields.len(),
+				0,
+				"Bitfield has wrong size, it should have been filtered."
 			);
-
-			// the threshold to free a core is 4 availability votes, but we only expect 1 valid
-			// valid bitfield.
-			assert_matches!(
-				ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.clone(), signed],
-					DisputedBitfield::zeros(expected_bits()),
-					&core_lookup,
-					FullCheck::Yes,
-				),
-				Err(Error::<Test>::UnsortedOrDuplicateValidatorIndices)
-			);
-
-			assert_eq!(
-				<PendingAvailability<Test>>::get(chain_a)
-					.unwrap()
-					.availability_votes
-					.count_ones(),
-				0
-			);
-
-			// clean up
-			#[allow(deprecated)]
-			PendingAvailability::<Test>::remove_all(None);
-		}
-
-		// out of order.
-		{
-			set_pending_av.clone()();
-			let back_core_0_bitfield = {
-				let mut b = default_bitfield();
-				b.0.set(0, true);
-				b
-			};
-			let signed_0 = sign_bitfield(
-				&keystore,
-				&validators[0],
-				ValidatorIndex(0),
-				back_core_0_bitfield.clone(),
-				&signing_context,
-			)
-			.into();
-
-			let signed_1 = sign_bitfield(
-				&keystore,
-				&validators[1],
-				ValidatorIndex(1),
-				back_core_0_bitfield,
-				&signing_context,
-			)
-			.into();
-
-			assert_eq!(
-				<PendingAvailability<Test>>::get(chain_a)
-					.unwrap()
-					.availability_votes
-					.count_ones(),
-				0
-			);
-
-			// the threshold to free a core is 4 availability votes, but we only expect 1 valid
-			// valid bitfield because `signed_0` will get skipped for being out of order.
-			assert_matches!(
-				ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed_1, signed_0],
-					DisputedBitfield::zeros(expected_bits()),
-					&core_lookup,
-					FullCheck::Yes,
-				),
-				Err(Error::<Test>::UnsortedOrDuplicateValidatorIndices)
-			);
-
-			assert_eq!(
-				<PendingAvailability<Test>>::get(chain_a)
-					.unwrap()
-					.availability_votes
-					.count_ones(),
-				0
-			);
-
-			#[allow(deprecated)]
-			PendingAvailability::<Test>::remove_all(None);
 		}
 
 		// non-pending bit set.
@@ -608,13 +510,17 @@ fn bitfield_checks() {
 				&signing_context,
 			);
 
-			assert_matches!(ParaInclusion::process_bitfields(
-				expected_bits(),
+			// the threshold to free a core is 4 availability votes, but we only expect 1 valid
+			// valid bitfield because `signed_0` will get skipped for being out of order.
+			let checked_bitfields = simple_sanitize_bitfields(
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
-				&core_lookup,
-				FullCheck::Yes,
-			), Ok(x) => { assert!(x.is_empty())});
+				expected_bits(),
+			);
+			assert_eq!(checked_bitfields.len(), 1, "No bitfields should have been filtered!");
+
+			let x = process_bitfields(expected_bits(), checked_bitfields, core_lookup);
+			assert!(x.is_empty(), "No core should be freed.");
 		}
 
 		// empty bitfield signed: always ok, but kind of useless.
@@ -627,14 +533,15 @@ fn bitfield_checks() {
 				bare_bitfield,
 				&signing_context,
 			);
-
-			assert_matches!(ParaInclusion::process_bitfields(
-				expected_bits(),
+			let checked_bitfields = simple_sanitize_bitfields(
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
-				&core_lookup,
-				FullCheck::Yes,
-			), Ok(x) => { assert!(x.is_empty())});
+				expected_bits(),
+			);
+			assert_eq!(checked_bitfields.len(), 1, "No bitfields should have been filtered!");
+
+			let x = process_bitfields(expected_bits(), checked_bitfields, core_lookup);
+			assert!(x.is_empty(), "No core should be freed.");
 		}
 
 		// bitfield signed with pending bit signed.
@@ -668,13 +575,15 @@ fn bitfield_checks() {
 				&signing_context,
 			);
 
-			assert_matches!(ParaInclusion::process_bitfields(
-				expected_bits(),
+			let checked_bitfields = simple_sanitize_bitfields(
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
-				&core_lookup,
-				FullCheck::Yes,
-			), Ok(v) => { assert!(v.is_empty())} );
+				expected_bits(),
+			);
+			assert_eq!(checked_bitfields.len(), 1, "No bitfields should have been filtered!");
+
+			let x = process_bitfields(expected_bits(), checked_bitfields, core_lookup);
+			assert!(x.is_empty(), "No core should be freed.");
 
 			<PendingAvailability<Test>>::remove(chain_a);
 			PendingAvailabilityCommitments::<Test>::remove(chain_a);
@@ -710,14 +619,16 @@ fn bitfield_checks() {
 				&signing_context,
 			);
 
-			// no core is freed
-			assert_matches!(ParaInclusion::process_bitfields(
-				expected_bits(),
+			let checked_bitfields = simple_sanitize_bitfields(
 				vec![signed.into()],
 				DisputedBitfield::zeros(expected_bits()),
-				&core_lookup,
-				FullCheck::Yes,
-			), Ok(v) => { assert!(v.is_empty()) });
+				expected_bits(),
+			);
+			assert_eq!(checked_bitfields.len(), 1, "No bitfields should have been filtered!");
+
+			let x = process_bitfields(expected_bits(), checked_bitfields, core_lookup);
+			// no core is freed
+			assert!(x.is_empty(), "No core should be freed.");
 		}
 	});
 }
@@ -862,21 +773,19 @@ fn supermajority_bitfields_trigger_availability() {
 					.into(),
 				)
 			})
-			.collect();
+			.collect::<Vec<_>>();
+
+		let old_len = signed_bitfields.len();
+		let checked_bitfields = simple_sanitize_bitfields(
+			signed_bitfields,
+			DisputedBitfield::zeros(expected_bits()),
+			expected_bits(),
+		);
+		assert_eq!(checked_bitfields.len(), old_len, "No bitfields should have been filtered!");
 
 		// only chain A's core is freed.
-		assert_matches!(
-			ParaInclusion::process_bitfields(
-				expected_bits(),
-				signed_bitfields,
-				DisputedBitfield::zeros(expected_bits()),
-				&core_lookup,
-				FullCheck::Yes,
-			),
-			Ok(v) => {
-				assert_eq!(vec![(CoreIndex(0), candidate_a.hash())], v);
-			}
-		);
+		let v = process_bitfields(expected_bits(), checked_bitfields, core_lookup);
+		assert_eq!(vec![(CoreIndex(0), candidate_a.hash())], v);
 
 		// chain A had 4 signing off, which is >= threshold.
 		// chain B has 3 signing off, which is < threshold.

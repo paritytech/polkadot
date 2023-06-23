@@ -188,6 +188,10 @@ parameter_types! {
 		ChildTeleporter::get(),
 		MultiAsset { id: Concrete(Here.into_location()), fun: Fungible(100) },
 	));
+	pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
+		ChildTeleporter::get(),
+		MultiAsset { id: Concrete(Here.into_location()), fun: Fungible(100) },
+	));
 	pub const TeleportConcreteFungible: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into_location()) }), ChildTeleporter::get());
 	pub const ReserveConcreteFungible: (MultiAssetFilter, MultiLocation) =
@@ -198,6 +202,7 @@ impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
 	type CheckedAccount = CheckingAccount;
 	type TrustedTeleporter = TrustedTeleporter;
+	type TrustedReserve = TrustedReserve;
 
 	fn get_multi_asset() -> MultiAsset {
 		let amount =
@@ -209,7 +214,7 @@ impl xcm_balances_benchmark::Config for Test {
 #[cfg(feature = "runtime-benchmarks")]
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	use sp_runtime::BuildStorage;
-	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
+	let t = RuntimeGenesisConfig { ..Default::default() }.build_storage().unwrap();
 	sp_tracing::try_init_simple();
 	t.into()
 }
