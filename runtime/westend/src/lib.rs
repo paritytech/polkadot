@@ -1333,6 +1333,7 @@ pub mod migrations {
 	pub type Unreleased = (
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
+		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 	);
 }
 
