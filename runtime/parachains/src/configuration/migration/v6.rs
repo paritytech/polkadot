@@ -84,6 +84,11 @@ impl<T: Config> OnRuntimeUpgrade for VersionUncheckedMigrateV5ToV6<T> {
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade(_state: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
 		log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
+		ensure!(
+			StorageVersion::get::<Pallet<T>>() >= 6,
+			"Storage version should be >= 6 after the migration"
+		);
+
 		Ok(())
 	}
 }
