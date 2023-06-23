@@ -167,7 +167,8 @@ struct RequestChunksFromValidators {
 	/// a random shuffling of the validators which indicates the order in which we connect to the validators and
 	/// request the chunk from them.
 	shuffling: VecDeque<ValidatorIndex>,
-	received_chunks: HashMap<ValidatorIndex, ErasureChunk>,
+	/// Chunks received so far.
+	received_chunks: Option<HashMap<ValidatorIndex, ErasureChunk>>,
 	/// Pending chunk requests with soft timeout.
 	requesting_chunks: FuturesUndead<Result<Option<ErasureChunk>, (ValidatorIndex, RequestError)>>,
 	// channel to the erasure task handler.
@@ -214,7 +215,7 @@ enum ErasureTask {
 		oneshot::Sender<Result<AvailableData, ErasureEncodingError>>,
 	),
 	/// Re-encode `AvailableData` into erasure chunks in order to verify the provided root hash of the Merkle tree.
-	Reencode(usize, Hash, AvailableData, oneshot::Sender<bool>),
+	Reencode(usize, Hash, AvailableData, oneshot::Sender<Option<AvailableData>>),
 }
 
 /// A stateful reconstruction of availability data in reference to
@@ -277,20 +278,19 @@ impl RequestFromBackers {
 			match response.await {
 				Ok(req_res::v1::AvailableDataFetchingResponse::AvailableData(data)) => {
 					let (reencode_tx, reencode_rx) = channel();
-					// TODO: don't clone data as it is big, instead use `Option<Data>` instead of bool to send it back.
 					let _ = self
 						.erasure_task_tx
 						.send(ErasureTask::Reencode(
 							params.validators.len(),
 							params.erasure_root,
-							data.clone(),
+							data,
 							reencode_tx,
 						))
 						.await;
 					let reencode_response =
 						reencode_rx.await.map_err(|_| RecoveryError::Internal)?;
 
-					if reencode_response {
+					if let Some(data) = reencode_response {
 						gum::trace!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
@@ -334,7 +334,7 @@ impl RequestChunksFromValidators {
 			error_count: 0,
 			total_received_responses: 0,
 			shuffling: shuffling.into(),
-			received_chunks: HashMap::new(),
+			received_chunks: Some(HashMap::new()),
 			requesting_chunks: FuturesUndead::new(),
 			erasure_task_tx,
 		}
@@ -342,15 +342,31 @@ impl RequestChunksFromValidators {
 
 	fn is_unavailable(&self, params: &RecoveryParams) -> bool {
 		is_unavailable(
-			self.received_chunks.len(),
+			self.chunk_count(),
 			self.requesting_chunks.total_len(),
 			self.shuffling.len(),
 			params.threshold,
 		)
 	}
 
+	fn chunk_count(&self) -> usize {
+		self.received_chunks.as_ref().map_or(0, |chunks| chunks.len())
+	}
+
+	fn insert_chunk(&mut self, validator_index: ValidatorIndex, chunk: ErasureChunk) {
+		// Make sure we have a hashmap.
+		if self.received_chunks.is_none() {
+			self.received_chunks = Some(HashMap::new());
+		}
+
+		self.received_chunks
+			.as_mut()
+			.expect("Just initialized it above; qed")
+			.insert(validator_index, chunk);
+	}
+
 	fn can_conclude(&self, params: &RecoveryParams) -> bool {
-		self.received_chunks.len() >= params.threshold || self.is_unavailable(params)
+		self.chunk_count() >= params.threshold || self.is_unavailable(params)
 	}
 
 	/// Desired number of parallel requests.
@@ -367,7 +383,7 @@ impl RequestChunksFromValidators {
 		// 4. We request more chunks to make up for it ...
 		let max_requests_boundary = std::cmp::min(N_PARALLEL, threshold);
 		// How many chunks are still needed?
-		let remaining_chunks = threshold.saturating_sub(self.received_chunks.len());
+		let remaining_chunks = threshold.saturating_sub(self.chunk_count());
 		// What is the current error rate, so we can make up for it?
 		let inv_error_rate =
 			self.total_received_responses.checked_div(self.error_count).unwrap_or(0);
@@ -468,7 +484,7 @@ impl RequestChunksFromValidators {
 							validator_index = ?chunk.index,
 							"Received valid chunk",
 						);
-						self.received_chunks.insert(chunk.index, chunk);
+						self.insert_chunk(chunk.index, chunk);
 					} else {
 						metrics.on_chunk_request_invalid();
 						self.error_count += 1;
@@ -526,7 +542,7 @@ impl RequestChunksFromValidators {
 				gum::debug!(
 					target: LOG_TARGET,
 					candidate_hash = ?params.candidate_hash,
-					received_chunks_count = ?self.received_chunks.len(),
+					received_chunks_count = ?self.chunk_count(),
 					requested_chunks_count = ?self.requesting_chunks.len(),
 					threshold = ?params.threshold,
 					"Can conclude availability for a candidate",
@@ -568,7 +584,7 @@ impl RequestChunksFromValidators {
 								validator_index = ?chunk.index,
 								"Found valid chunk on disk"
 							);
-							self.received_chunks.insert(chunk.index, chunk);
+							self.insert_chunk(chunk.index, chunk);
 						} else {
 							gum::error!(
 								target: LOG_TARGET,
@@ -595,7 +611,7 @@ impl RequestChunksFromValidators {
 					target: LOG_TARGET,
 					candidate_hash = ?params.candidate_hash,
 					erasure_root = ?params.erasure_root,
-					received = %self.received_chunks.len(),
+					received = %self.chunk_count(),
 					requesting = %self.requesting_chunks.len(),
 					total_requesting = %self.requesting_chunks.total_len(),
 					n_validators = %params.validators.len(),
@@ -613,7 +629,7 @@ impl RequestChunksFromValidators {
 			// If received_chunks has more than threshold entries, attempt to recover the data.
 			// If that fails, or a re-encoding of it doesn't match the expected erasure root,
 			// return Err(RecoveryError::Invalid)
-			if self.received_chunks.len() >= params.threshold {
+			if self.chunk_count() >= params.threshold && self.received_chunks.is_some() {
 				let recovery_duration = metrics.time_erasure_recovery();
 
 				// Send request to reconstruct available data from chunks.
@@ -622,8 +638,7 @@ impl RequestChunksFromValidators {
 					.erasure_task_tx
 					.send(ErasureTask::Reconstruct(
 						params.validators.len(),
-						//TODO: Avoid clone with `Option`.
-						self.received_chunks.clone(),
+						self.received_chunks.take().expect("Just checked it's some above; qed"),
 						avilable_data_tx,
 					))
 					.await;
@@ -639,14 +654,14 @@ impl RequestChunksFromValidators {
 							.send(ErasureTask::Reencode(
 								params.validators.len(),
 								params.erasure_root,
-								data.clone(),
+								data,
 								reencode_tx,
 							))
 							.await;
 						let reencode_response =
 							reencode_rx.await.map_err(|_| RecoveryError::Internal)?;
 
-						if reencode_response {
+						if let Some(data) = reencode_response {
 							gum::trace!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
@@ -1207,12 +1222,18 @@ impl AvailabilityRecoverySubsystem {
 							let metrics = metrics.clone();
 
 							let result = ctx.spawn_blocking("re-encode", Box::pin(async move {
-								let _ = sender.send(reconstructed_data_matches_root(
+								let maybe_data = if reconstructed_data_matches_root(
 									n_validators,
 									&root,
 									&available_data,
 									&metrics,
-								));
+								) {
+									Some(available_data)
+								} else {
+									None
+								};
+
+								let _ = sender.send(maybe_data);
 							}));
 
 							if let Err(e) = result {
