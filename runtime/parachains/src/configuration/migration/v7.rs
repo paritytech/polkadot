@@ -78,13 +78,13 @@ pub struct MigrateToV7<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToV7<T> {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
-		log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
+		log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade() for MigrateToV7");
 		Ok(Vec::new())
 	}
 
 	fn on_runtime_upgrade() -> Weight {
 		log::info!(target: configuration::LOG_TARGET, "MigrateToV7 started");
-		if StorageVersion::get::<Pallet<T>>() == 5 {
+		if StorageVersion::get::<Pallet<T>>() == 6 {
 			let weight_consumed = migrate_to_v7::<T>();
 
 			log::info!(target: configuration::LOG_TARGET, "MigrateToV7 executed successfully");
