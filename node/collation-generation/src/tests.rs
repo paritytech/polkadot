@@ -32,6 +32,37 @@ use polkadot_primitives::{
 };
 use std::pin::Pin;
 
+type VirtualOverseer = TestSubsystemContextHandle<CollationGenerationMessage>;
+
+fn test_harness<T: Future<Output = VirtualOverseer>>(
+	test: impl FnOnce(VirtualOverseer) -> T,
+) {
+	let pool = sp_core::testing::TaskExecutor::new();
+	let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool.clone());
+	let subsystem = async move {
+		let subsystem = crate::CollationGenerationSubsystem::new(Metrics::default());
+
+		subsystem.run(context).await;
+	};
+
+	let test_fut = test(virtual_overseer);
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(subsystem);
+	futures::executor::block_on(futures::future::join(
+		async move {
+			let mut virtual_overseer = test_fut.await;
+			// Ensure we have handled all responses.
+			if let Ok(Some(msg)) = virtual_overseer.rx.try_next() {
+				panic!("Did not handle all responses: {:?}", msg);
+			}
+			// Conclude.
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+		},
+		subsystem,
+	));
+}
+
 fn test_collation() -> Collation {
 	Collation {
 		upward_messages: Default::default(),
@@ -461,7 +492,22 @@ fn fallback_when_no_validation_code_hash_api() {
 	}
 }
 
-// TODO [now]: test that `SubmitCollation` is a no-op prior to initialization
+#[test]
+fn submit_collation_is_no_op_before_initialization() {
+	test_harness(|mut virtual_overseer| async move {
+		virtual_overseer.send(FromOrchestra::Communication {
+			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+				relay_parent: Hash::repeat_byte(0),
+				collation: test_collation(),
+				parent_head: vec![1, 2, 3].into(),
+				validation_code_hash_hint: None,
+				result_sender: None,
+			}),
+		}).await;
+
+		virtual_overseer
+	});
+}
 
 // TODO [now]: test that `SubmitCollation` leads to distribution
 
