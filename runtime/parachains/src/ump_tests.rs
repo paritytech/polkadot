@@ -30,7 +30,7 @@ use frame_support::{
 	traits::{EnqueueMessage, ExecuteOverweightError, ServiceQueues},
 	weights::Weight,
 };
-use primitives::v4::{well_known_keys, Id as ParaId, UpwardMessage};
+use primitives::{well_known_keys, Id as ParaId, UpwardMessage};
 use sp_core::twox_64;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Bounded;
