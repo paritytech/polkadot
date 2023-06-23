@@ -77,7 +77,6 @@ impl<T: Config> OnRuntimeUpgrade for VersionUncheckedMigrateV5ToV6<T> {
 		let weight_consumed = migrate_to_v6::<T>();
 
 		log::info!(target: configuration::LOG_TARGET, "MigrateToV6 executed successfully");
-		StorageVersion::new(6).put::<Pallet<T>>();
 
 		weight_consumed
 	}
