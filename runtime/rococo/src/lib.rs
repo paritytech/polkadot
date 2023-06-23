@@ -1627,7 +1627,7 @@ pub mod migrations {
 	}
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = ();
+	pub type Unreleased = (pallet_society::migrations::MigrateToV2<Runtime, (), ()>,);
 }
 
 /// Helpers to configure all migrations.
