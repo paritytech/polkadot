@@ -16,7 +16,6 @@
 
 use super::*;
 use assert_matches::assert_matches;
-use test_helpers::{dummy_hash, dummy_head_data, dummy_validator};
 use futures::{
 	lock::Mutex,
 	task::{Context as FuturesContext, Poll},
@@ -30,19 +29,20 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{subsystem_test_harness, TestSubsystemContextHandle};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{
-	vstaging::{BackingState, Constraints, CandidatePendingAvailability, InboundHrmpLimitations},
-	BlockNumber, CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode, CandidateHash,
+	vstaging::{BackingState, CandidatePendingAvailability, Constraints, InboundHrmpLimitations},
+	BlockNumber, CandidateHash, CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore,
+	ValidationCode,
 };
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use std::pin::Pin;
+use test_helpers::{dummy_hash, dummy_head_data, dummy_validator};
 
 type VirtualOverseer = TestSubsystemContextHandle<CollationGenerationMessage>;
 
-fn test_harness<T: Future<Output = VirtualOverseer>>(
-	test: impl FnOnce(VirtualOverseer) -> T,
-) {
+fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(VirtualOverseer) -> T) {
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool.clone());
+	let (context, virtual_overseer) =
+		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool.clone());
 	let subsystem = async move {
 		let subsystem = crate::CollationGenerationSubsystem::new(Metrics::default());
 
@@ -92,7 +92,10 @@ fn test_validation_data() -> PersistedValidationData {
 	persisted_validation_data
 }
 
-fn test_backing_constraints(validation_code_hash: ValidationCodeHash, future_code: Option<(BlockNumber, ValidationCodeHash)>) -> Constraints {
+fn test_backing_constraints(
+	validation_code_hash: ValidationCodeHash,
+	future_code: Option<(BlockNumber, ValidationCodeHash)>,
+) -> Constraints {
 	Constraints {
 		min_relay_parent_number: 0,
 		max_pov_size: 1024,
@@ -115,7 +118,7 @@ fn test_candidate_pending_availability(
 	para_id: ParaId,
 	relay_parent_number: BlockNumber,
 	head_data: HeadData,
-	validation_code_hash: ValidationCodeHash
+	validation_code_hash: ValidationCodeHash,
 ) -> CandidatePendingAvailability {
 	let collator_key = CollatorPair::generate().0;
 
@@ -164,7 +167,8 @@ impl Unpin for TestCollator {}
 async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 	const TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2000);
 
-	overseer.recv()
+	overseer
+		.recv()
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is long enough to receive messages", TIMEOUT))
@@ -296,9 +300,15 @@ fn requests_validation_data_for_scheduled_matches() {
 	let (tx, _rx) = mpsc::channel(0);
 
 	subsystem_test_harness(overseer, |mut ctx| async move {
-		handle_new_activations(Arc::new(test_config(16)), activated_hashes, &mut ctx, Metrics(None), &tx)
-			.await
-			.unwrap();
+		handle_new_activations(
+			Arc::new(test_config(16)),
+			activated_hashes,
+			&mut ctx,
+			Metrics(None),
+			&tx,
+		)
+		.await
+		.unwrap();
 	});
 
 	let requested_validation_data = Arc::try_unwrap(requested_validation_data)
@@ -572,15 +582,17 @@ fn fallback_when_no_validation_code_hash_api() {
 #[test]
 fn submit_collation_is_no_op_before_initialization() {
 	test_harness(|mut virtual_overseer| async move {
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-				relay_parent: Hash::repeat_byte(0),
-				collation: test_collation(),
-				parent_head: vec![1, 2, 3].into(),
-				validation_code_hash_hint: None,
-				result_sender: None,
-			}),
-		}).await;
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+					relay_parent: Hash::repeat_byte(0),
+					collation: test_collation(),
+					parent_head: vec![1, 2, 3].into(),
+					validation_code_hash_hint: None,
+					result_sender: None,
+				}),
+			})
+			.await;
 
 		virtual_overseer
 	});
@@ -600,19 +612,25 @@ fn submit_collation_leads_to_distribution() {
 	};
 
 	test_harness(|mut virtual_overseer| async move {
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
-		}).await;
-
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-				relay_parent,
-				collation: test_collation(),
-				parent_head: vec![1, 2, 3].into(),
-				validation_code_hash_hint: Some(ValidationCodeHashHint::Provided(validation_code_hash)),
-				result_sender: None,
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
 			})
-		}).await;
+			.await;
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+					relay_parent,
+					collation: test_collation(),
+					parent_head: vec![1, 2, 3].into(),
+					validation_code_hash_hint: Some(ValidationCodeHashHint::Provided(
+						validation_code_hash,
+					)),
+					result_sender: None,
+				}),
+			})
+			.await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -673,19 +691,23 @@ fn missing_code_hash_hint_with_constraints() {
 	};
 
 	test_harness(|mut virtual_overseer| async move {
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
-		}).await;
-
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-				relay_parent,
-				collation: test_collation(),
-				parent_head: vec![1, 2, 3].into(),
-				validation_code_hash_hint: None,
-				result_sender: None,
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
 			})
-		}).await;
+			.await;
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+					relay_parent,
+					collation: test_collation(),
+					parent_head: vec![1, 2, 3].into(),
+					validation_code_hash_hint: None,
+					result_sender: None,
+				}),
+			})
+			.await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -770,19 +792,23 @@ fn missing_code_hash_hint_with_constraints_no_code_upgrade() {
 	};
 
 	test_harness(|mut virtual_overseer| async move {
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
-		}).await;
-
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-				relay_parent,
-				collation: test_collation(),
-				parent_head: vec![1, 2, 3].into(),
-				validation_code_hash_hint: None,
-				result_sender: None,
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
 			})
-		}).await;
+			.await;
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+					relay_parent,
+					collation: test_collation(),
+					parent_head: vec![1, 2, 3].into(),
+					validation_code_hash_hint: None,
+					result_sender: None,
+				}),
+			})
+			.await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -866,19 +892,23 @@ fn missing_code_hash_hint_without_constraints() {
 	};
 
 	test_harness(|mut virtual_overseer| async move {
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
-		}).await;
-
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-				relay_parent,
-				collation: test_collation(),
-				parent_head: vec![1, 2, 3].into(),
-				validation_code_hash_hint: None,
-				result_sender: None,
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
 			})
-		}).await;
+			.await;
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+					relay_parent,
+					collation: test_collation(),
+					parent_head: vec![1, 2, 3].into(),
+					validation_code_hash_hint: None,
+					result_sender: None,
+				}),
+			})
+			.await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -962,19 +992,25 @@ fn parent_rp_number_code_hash_hint_with_constraints() {
 	let code_upgrade_at = 9;
 
 	test_harness(|mut virtual_overseer| async move {
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
-		}).await;
-
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-				relay_parent,
-				collation: test_collation(),
-				parent_head: vec![1, 2, 3].into(),
-				validation_code_hash_hint: Some(ValidationCodeHashHint::ParentBlockRelayParentNumber(parent_rp_number)),
-				result_sender: None,
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
 			})
-		}).await;
+			.await;
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+					relay_parent,
+					collation: test_collation(),
+					parent_head: vec![1, 2, 3].into(),
+					validation_code_hash_hint: Some(
+						ValidationCodeHashHint::ParentBlockRelayParentNumber(parent_rp_number),
+					),
+					result_sender: None,
+				}),
+			})
+			.await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -1054,19 +1090,25 @@ fn parent_rp_number_code_hash_hint_without_constraints() {
 	let parent_rp_number = 8;
 
 	test_harness(|mut virtual_overseer| async move {
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
-		}).await;
-
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-				relay_parent,
-				collation: test_collation(),
-				parent_head: vec![1, 2, 3].into(),
-				validation_code_hash_hint: Some(ValidationCodeHashHint::ParentBlockRelayParentNumber(parent_rp_number)),
-				result_sender: None,
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
 			})
-		}).await;
+			.await;
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+					relay_parent,
+					collation: test_collation(),
+					parent_head: vec![1, 2, 3].into(),
+					validation_code_hash_hint: Some(
+						ValidationCodeHashHint::ParentBlockRelayParentNumber(parent_rp_number),
+					),
+					result_sender: None,
+				}),
+			})
+			.await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -1150,19 +1192,25 @@ fn parent_rp_number_code_hash_hint_with_constraints_no_upgrade() {
 	let code_upgrade_at = 9;
 
 	test_harness(|mut virtual_overseer| async move {
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
-		}).await;
-
-		virtual_overseer.send(FromOrchestra::Communication {
-			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-				relay_parent,
-				collation: test_collation(),
-				parent_head: vec![1, 2, 3].into(),
-				validation_code_hash_hint: Some(ValidationCodeHashHint::ParentBlockRelayParentNumber(parent_rp_number)),
-				result_sender: None,
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
 			})
-		}).await;
+			.await;
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+					relay_parent,
+					collation: test_collation(),
+					parent_head: vec![1, 2, 3].into(),
+					validation_code_hash_hint: Some(
+						ValidationCodeHashHint::ParentBlockRelayParentNumber(parent_rp_number),
+					),
+					result_sender: None,
+				}),
+			})
+			.await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,

@@ -168,8 +168,7 @@ impl CollationGenerationSubsystem {
 			}) => {
 				if let Some(config) = &self.config {
 					if let Err(err) =
-						handle_submit_collation(params, config, ctx, &self.metrics)
-							.await
+						handle_submit_collation(params, config, ctx, &self.metrics).await
 					{
 						gum::error!(target: LOG_TARGET, ?err, "Failed to submit collation");
 					}
@@ -571,7 +570,8 @@ async fn construct_and_distribute_receipt<F: Future<Output = ()>>(
 		parent_head_data_hash,
 		pov,
 		result_sender,
-	)).await;
+	))
+	.await;
 }
 
 async fn obtain_validation_code_hash_with_hint(
