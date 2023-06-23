@@ -132,8 +132,9 @@ benchmarks_instance_pallet! {
 	}
 
 	reserve_asset_deposited {
+		// If the runtime being benchmarked does not trust any reserve, we default to max weight
 		let (trusted_reserve, transferable_reserve_asset) = T::TrustedReserve::get()
-			.ok_or(BenchmarkError::Skip)?;
+			.ok_or(BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))?;
 
 		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
 
@@ -141,12 +142,7 @@ benchmarks_instance_pallet! {
 		let instruction = Instruction::ReserveAssetDeposited(assets.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.bench_process(xcm).map_err(|_| {
-			// In case the runtime being benchmarked does not trust any reserve
-			BenchmarkError::Override(
-				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
-			)
-		})?;
+		executor.bench_process(xcm)?;
 	} verify {
 		assert!(executor.holding().ensure_contains(&assets).is_ok());
 	}
