@@ -16,12 +16,19 @@
 
 use crate::PUPPET_EXE;
 use polkadot_node_core_pvf::testing::{spawn_with_program_path, SpawnErr};
-use polkadot_node_core_pvf_common::{worker::thread::{get_condvar, WaitOutcome, wait_for_threads_with_timeout, spawn_worker_thread}, execute::Response, ProcessTime};
-use std::{time::Duration, sync::{Arc, Mutex, Condvar}};
-use std::ops::{Add, Sub};
-use std::sync::mpsc::channel;
-use std::time::{Instant, SystemTime};
-use polkadot_node_core_pvf_common::worker::{cpu_time_monitor_loop, stringify_panic_payload};
+use polkadot_node_core_pvf_common::{
+	execute::Response,
+	worker::{
+		cpu_time_monitor_loop, stringify_panic_payload,
+		thread::{get_condvar, spawn_worker_thread, wait_for_threads_with_timeout, WaitOutcome},
+	},
+	ProcessTime,
+};
+use std::{
+	ops::{Add, Sub},
+	sync::{mpsc::channel, Arc, Condvar, Mutex},
+	time::{Duration, Instant, SystemTime},
+};
 
 // Test spawning a program that immediately exits with a failure code.
 #[tokio::test]
@@ -62,7 +69,7 @@ fn get_condvar_should_be_pending() {
 #[test]
 fn wait_for_threads_with_timeout_return_none_on_time_out() {
 	let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
-    let outcome = wait_for_threads_with_timeout(&condvar, Duration::new(1, 0));
+	let outcome = wait_for_threads_with_timeout(&condvar, Duration::new(1, 0));
 	assert!(matches!(outcome, None));
 }
 
@@ -83,11 +90,8 @@ fn wait_for_threads_with_timeout_returns_outcome() {
 #[test]
 fn spawn_worker_thread_should_notify_on_done() {
 	let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
-	let response = spawn_worker_thread("thread", move || {
-		2
-	},
-	Arc::clone(&condvar),
-	WaitOutcome::TimedOut,);
+	let response =
+		spawn_worker_thread("thread", move || 2, Arc::clone(&condvar), WaitOutcome::TimedOut);
 	let (lock, _) = &*condvar;
 	let r = response.expect("").join().unwrap();
 	assert!(matches!(r, 2));
@@ -97,11 +101,8 @@ fn spawn_worker_thread_should_notify_on_done() {
 #[test]
 fn spawn_worker_thread_should_not_notify() {
 	let condvar = Arc::new((Mutex::new(WaitOutcome::Finished), Condvar::new()));
-	let response = spawn_worker_thread("thread", move || {
-		2
-	},
-	Arc::clone(&condvar),
-	WaitOutcome::TimedOut,);
+	let response =
+		spawn_worker_thread("thread", move || 2, Arc::clone(&condvar), WaitOutcome::TimedOut);
 	let (lock, _) = &*condvar;
 	let r = response.unwrap().join().unwrap();
 	assert!(matches!(r, 2));
