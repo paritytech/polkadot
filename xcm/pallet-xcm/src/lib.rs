@@ -1267,10 +1267,7 @@ impl<T: Config> Pallet<T> {
 		let (origin_location, assets) = value;
 		let context = T::UniversalLocation::get();
 		// origin's desired fee asset, means origin wants to be charged in these assets (not reanchoring now)
-		let fees = assets
-			.get(fee_asset_item as usize)
-			.ok_or(Error::<T>::Empty)?
-			.clone();
+		let fees = assets.get(fee_asset_item as usize).ok_or(Error::<T>::Empty)?.clone();
 
 		// resolve what setup we use for `BuyExecution` on destination
 		let buy_execution_setup = T::BuyExecutionSetupResolver::decide_for(&dest, &fees.id);
@@ -1340,7 +1337,7 @@ impl<T: Config> Pallet<T> {
 
 				// TODO: can we leave it here by default or adds according to some configuration?
 				// TODO: think about some `trait RemoteMessageEstimator` stuff, where runtime can customize this?
-				// remote_message.0.push(SetTopic([1; 32]));
+				remote_message.0.push(SetTopic([1; 32]));
 
 				// use local weight for remote message and hope for the best.
 				let remote_weight = T::Weigher::weight(&mut remote_message)
@@ -1353,9 +1350,8 @@ impl<T: Config> Pallet<T> {
 		let mut message = match buy_execution_setup {
 			BuyExecutionSetup::Origin => {
 				// we need to reanchor fees as dest will see it
-				let fees = fees
-					.reanchored(&dest, context)
-					.map_err(|_| Error::<T>::CannotReanchor)?;
+				let fees =
+					fees.reanchored(&dest, context).map_err(|_| Error::<T>::CannotReanchor)?;
 
 				// no, change, everything is like origin wanted before
 				let xcm = Xcm(vec![

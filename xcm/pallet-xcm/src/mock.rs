@@ -36,7 +36,10 @@ use xcm_builder::{
 };
 use xcm_executor::XcmExecutor;
 
-use crate::{self as pallet_xcm, TestWeightInfo, DecideBuyExecutionSetup, BuyExecutionSetup, FeeForBuyExecution};
+use crate::{
+	self as pallet_xcm, BuyExecutionSetup, DecideBuyExecutionSetup, FeeForBuyExecution,
+	TestWeightInfo,
+};
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
