@@ -90,8 +90,8 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for PolkadotXcmWeight<RuntimeCall> 
 	fn withdraw_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
-	fn reserve_asset_deposited(_assets: &MultiAssets) -> Weight {
-		// assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::reserve_asset_deposited())
+	fn reserve_asset_deposited(_: &MultiAssets) -> Weight {
+		// Polkadot doesn't support ReserveAssetDeposited
 		Weight::MAX
 	}
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {

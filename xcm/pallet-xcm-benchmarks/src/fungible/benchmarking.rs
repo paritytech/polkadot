@@ -132,9 +132,9 @@ benchmarks_instance_pallet! {
 	}
 
 	reserve_asset_deposited {
-		// If the runtime being benchmarked does not trust any reserve, we default to max weight
+		// If the runtime being benchmarked does not trust any reserve, we skip
 		let (trusted_reserve, transferable_reserve_asset) = T::TrustedReserve::get()
-			.ok_or(BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))?;
+			.ok_or(BenchmarkError::Skip)?;
 
 		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
 

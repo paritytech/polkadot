@@ -91,15 +91,6 @@ impl<T: frame_system::Config> WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
-	// Storage: Benchmark Override (r:0 w:0)
-	// Proof Skipped: Benchmark Override (max_values: None, max_size: None, mode: Measured)
-	pub fn reserve_asset_deposited() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 2_000_000_000_000 picoseconds.
-		Weight::from_parts(2_000_000_000_000, 0)
-	}
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	// Proof Skipped: Configuration ActiveConfig (max_values: Some(1), max_size: None, mode: Measured)
 	// Storage: XcmPallet SupportedVersion (r:1 w:0)
