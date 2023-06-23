@@ -1323,7 +1323,7 @@ pub mod migrations {
 	}
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (parachains_configuration::migration::v7::MigrateToV7<Runtime>);
+	pub type Unreleased = parachains_configuration::migration::v7::MigrateToV7<Runtime>;
 }
 
 /// Helpers to configure all migrations.
