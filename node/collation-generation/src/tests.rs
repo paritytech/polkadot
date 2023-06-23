@@ -945,4 +945,284 @@ fn missing_code_hash_hint_without_constraints() {
 	});
 }
 
-// TODO [now]: test that provided `ValidationCodeHashHint::ParentRelayParentNumber` works for constraints and without
+#[test]
+fn parent_rp_number_code_hash_hint_with_constraints() {
+	let relay_parent = Hash::repeat_byte(0);
+	let validation_code_hash = ValidationCodeHash::from(Hash::repeat_byte(42));
+	let future_validation_code_hash = ValidationCodeHash::from(Hash::repeat_byte(43));
+	let parent_head = HeadData::from(vec![1, 2, 3]);
+	let para_id = ParaId::from(5);
+	let expected_pvd = PersistedValidationData {
+		parent_head: parent_head.clone(),
+		relay_parent_number: 10,
+		relay_parent_storage_root: Hash::repeat_byte(1),
+		max_pov_size: 1024,
+	};
+	let parent_rp_number = 9;
+	let code_upgrade_at = 9;
+
+	test_harness(|mut virtual_overseer| async move {
+		virtual_overseer.send(FromOrchestra::Communication {
+			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
+		}).await;
+
+		virtual_overseer.send(FromOrchestra::Communication {
+			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+				relay_parent,
+				collation: test_collation(),
+				parent_head: vec![1, 2, 3].into(),
+				validation_code_hash_hint: Some(ValidationCodeHashHint::ParentBlockRelayParentNumber(parent_rp_number)),
+				result_sender: None,
+			})
+		}).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::Validators(tx))) => {
+				assert_eq!(rp, relay_parent);
+				let _ = tx.send(Ok(vec![
+					Sr25519Keyring::Alice.public().into(),
+					Sr25519Keyring::Bob.public().into(),
+					Sr25519Keyring::Charlie.public().into(),
+				]));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::PersistedValidationData(id, a, tx))) => {
+				assert_eq!(rp, relay_parent);
+				assert_eq!(id, para_id);
+				assert_eq!(a, OccupiedCoreAssumption::TimedOut);
+
+				// Candidate receipt should be constructed with the real parent head.
+				let mut pvd = expected_pvd.clone();
+				pvd.parent_head = vec![4, 5, 6].into();
+				let _ = tx.send(Ok(Some(pvd)));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::StagingParaBackingState(id, tx))) => {
+				assert_eq!(rp, relay_parent);
+				assert_eq!(id, para_id);
+
+				// The parent candidate is not on-chain but will have triggered a code upgrade nonetheless,
+				// so our collated candidate should use the future code hash.
+
+				let _ = tx.send(Ok(Some(BackingState {
+					constraints: test_backing_constraints(
+						validation_code_hash,
+						Some((code_upgrade_at, future_validation_code_hash)),
+					),
+					pending_availability: vec![],
+				})));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
+				ccr,
+				parent_head_data_hash,
+				..
+			)) => {
+				assert_eq!(parent_head_data_hash, parent_head.hash());
+				assert_eq!(ccr.descriptor().persisted_validation_data_hash, expected_pvd.hash());
+				assert_eq!(ccr.descriptor().para_head, dummy_head_data().hash());
+				assert_eq!(ccr.descriptor().validation_code_hash, future_validation_code_hash);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn parent_rp_number_code_hash_hint_without_constraints() {
+	let relay_parent = Hash::repeat_byte(0);
+	let validation_code_hash = ValidationCodeHash::from(Hash::repeat_byte(42));
+	let parent_head = HeadData::from(vec![1, 2, 3]);
+	let para_id = ParaId::from(5);
+	let expected_pvd = PersistedValidationData {
+		parent_head: parent_head.clone(),
+		relay_parent_number: 10,
+		relay_parent_storage_root: Hash::repeat_byte(1),
+		max_pov_size: 1024,
+	};
+	let parent_rp_number = 8;
+
+	test_harness(|mut virtual_overseer| async move {
+		virtual_overseer.send(FromOrchestra::Communication {
+			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
+		}).await;
+
+		virtual_overseer.send(FromOrchestra::Communication {
+			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+				relay_parent,
+				collation: test_collation(),
+				parent_head: vec![1, 2, 3].into(),
+				validation_code_hash_hint: Some(ValidationCodeHashHint::ParentBlockRelayParentNumber(parent_rp_number)),
+				result_sender: None,
+			})
+		}).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::Validators(tx))) => {
+				assert_eq!(rp, relay_parent);
+				let _ = tx.send(Ok(vec![
+					Sr25519Keyring::Alice.public().into(),
+					Sr25519Keyring::Bob.public().into(),
+					Sr25519Keyring::Charlie.public().into(),
+				]));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::PersistedValidationData(id, a, tx))) => {
+				assert_eq!(rp, relay_parent);
+				assert_eq!(id, para_id);
+				assert_eq!(a, OccupiedCoreAssumption::TimedOut);
+
+				// Candidate receipt should be constructed with the real parent head.
+				let mut pvd = expected_pvd.clone();
+				pvd.parent_head = vec![4, 5, 6].into();
+				let _ = tx.send(Ok(Some(pvd)));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::StagingParaBackingState(id, tx))) => {
+				assert_eq!(rp, relay_parent);
+				assert_eq!(id, para_id);
+
+				let _ = tx.send(Err(RuntimeApiError::NotSupported { runtime_api_name: "not_important" }));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::ValidationCodeHash(id, a, tx))) => {
+				assert_eq!(rp, relay_parent);
+				assert_eq!(id, para_id);
+				assert_eq!(a, OccupiedCoreAssumption::Free);
+
+				let _ = tx.send(Ok(Some(validation_code_hash)));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
+				ccr,
+				parent_head_data_hash,
+				..
+			)) => {
+				assert_eq!(parent_head_data_hash, parent_head.hash());
+				assert_eq!(ccr.descriptor().persisted_validation_data_hash, expected_pvd.hash());
+				assert_eq!(ccr.descriptor().para_head, dummy_head_data().hash());
+				assert_eq!(ccr.descriptor().validation_code_hash, validation_code_hash);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn parent_rp_number_code_hash_hint_with_constraints_no_upgrade() {
+	let relay_parent = Hash::repeat_byte(0);
+	let validation_code_hash = ValidationCodeHash::from(Hash::repeat_byte(42));
+	let future_validation_code_hash = ValidationCodeHash::from(Hash::repeat_byte(43));
+	let parent_head = HeadData::from(vec![1, 2, 3]);
+	let para_id = ParaId::from(5);
+	let expected_pvd = PersistedValidationData {
+		parent_head: parent_head.clone(),
+		relay_parent_number: 10,
+		relay_parent_storage_root: Hash::repeat_byte(1),
+		max_pov_size: 1024,
+	};
+	let parent_rp_number = 8;
+	let code_upgrade_at = 9;
+
+	test_harness(|mut virtual_overseer| async move {
+		virtual_overseer.send(FromOrchestra::Communication {
+			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
+		}).await;
+
+		virtual_overseer.send(FromOrchestra::Communication {
+			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+				relay_parent,
+				collation: test_collation(),
+				parent_head: vec![1, 2, 3].into(),
+				validation_code_hash_hint: Some(ValidationCodeHashHint::ParentBlockRelayParentNumber(parent_rp_number)),
+				result_sender: None,
+			})
+		}).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::Validators(tx))) => {
+				assert_eq!(rp, relay_parent);
+				let _ = tx.send(Ok(vec![
+					Sr25519Keyring::Alice.public().into(),
+					Sr25519Keyring::Bob.public().into(),
+					Sr25519Keyring::Charlie.public().into(),
+				]));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::PersistedValidationData(id, a, tx))) => {
+				assert_eq!(rp, relay_parent);
+				assert_eq!(id, para_id);
+				assert_eq!(a, OccupiedCoreAssumption::TimedOut);
+
+				// Candidate receipt should be constructed with the real parent head.
+				let mut pvd = expected_pvd.clone();
+				pvd.parent_head = vec![4, 5, 6].into();
+				let _ = tx.send(Ok(Some(pvd)));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::StagingParaBackingState(id, tx))) => {
+				assert_eq!(rp, relay_parent);
+				assert_eq!(id, para_id);
+
+				// The parent candidate is not on-chain and will not have used the code upgrade
+				// so our collated candidate should use the future code hash.
+
+				let _ = tx.send(Ok(Some(BackingState {
+					constraints: test_backing_constraints(
+						validation_code_hash,
+						Some((code_upgrade_at, future_validation_code_hash)),
+					),
+					pending_availability: vec![],
+				})));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
+				ccr,
+				parent_head_data_hash,
+				..
+			)) => {
+				assert_eq!(parent_head_data_hash, parent_head.hash());
+				assert_eq!(ccr.descriptor().persisted_validation_data_hash, expected_pvd.hash());
+				assert_eq!(ccr.descriptor().para_head, dummy_head_data().hash());
+				assert_eq!(ccr.descriptor().validation_code_hash, validation_code_hash);
+			}
+		);
+
+		virtual_overseer
+	});
+}
