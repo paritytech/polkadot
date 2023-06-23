@@ -177,10 +177,10 @@ pub trait DecideBuyExecutionSetup {
 /// Fees holder
 pub struct FeeForBuyExecution {
 	/// Amount of how much of `desired_fee.AssetId` we need to buy for weight.
-	proportional_amount_to_withdraw: MultiAsset,
+	pub proportional_amount_to_withdraw: MultiAsset,
 
 	/// Amount of real fee, which we want to use for `BuyExecution`.
-	proportional_amount_to_buy_execution: MultiAsset,
+	pub proportional_amount_to_buy_execution: MultiAsset,
 }
 
 /// Implementation handles setup as `BuyExecutionSetup::Origin`
