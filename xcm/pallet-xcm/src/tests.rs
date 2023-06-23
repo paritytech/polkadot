@@ -478,7 +478,7 @@ fn unlimited_teleport_assets_works() {
 	});
 }
 
-/// Test `reserve_transfer_assets`
+/// Test `reserve_transfer_assets` (`BuyExecutionSetup::Origin`)
 ///
 /// Asserts that the sender's balance is decreased and the beneficiary's balance
 /// is increased. Verifies the correct message is sent and event is emitted.
@@ -521,6 +521,75 @@ fn reserve_transfer_assets_works() {
 		assert_eq!(
 			last_event(),
 			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
+		);
+	});
+}
+
+/// Test `reserve_transfer_assets` (`BuyExecutionSetup::UniversalLocation`)
+///
+/// Asserts that the sender's balance is decreased and the beneficiary's balance
+/// is increased. Verifies the correct message is sent and event is emitted.
+#[test]
+fn reserve_transfer_assets_for_buy_execution_setup_by_universal_location_works() {
+	let balances = vec![
+		(ALICE, INITIAL_BALANCE),
+		(ParaId::from(DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID).into_account_truncating(), INITIAL_BALANCE),
+		(ParaId::from(SOME_LOCAL_ACCOUNT_AS_PARA_ID).into_account_truncating(), INITIAL_BALANCE),
+	];
+	new_test_ext_with_balances(balances).execute_with(|| {
+		// we expect execute 3 instructions
+		let expected_weight_for_instructions = BaseXcmWeight::get() * 3;
+		let dest_account: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
+
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
+		assert_ok!(XcmPallet::reserve_transfer_assets(
+			RuntimeOrigin::signed(ALICE),
+			Box::new(Parachain(DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID).into()),
+			Box::new(dest_account.clone().into()),
+			Box::new((Here, SEND_AMOUNT).into()),
+			0,
+		));
+		// Alice spent amount
+		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+
+		// Configured local account received part of SEND_AMOUNT that was swapped for different asset
+		let some_local_account: AccountId = ParaId::from(SOME_LOCAL_ACCOUNT_AS_PARA_ID).into_account_truncating();
+		assert_eq!(Balances::free_balance(some_local_account), INITIAL_BALANCE + PROPORTIONAL_SWAPPED_AMOUNT);
+
+		// Destination account (parachain account) has as reserve (SEND_AMOUNT - PROPORTIONAL_SWAPPED_AMOUNT)
+		let dest_para_account: AccountId = ParaId::from(DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID).into_account_truncating();
+		assert_eq!(Balances::free_balance(dest_para_account), INITIAL_BALANCE + SEND_AMOUNT - PROPORTIONAL_SWAPPED_AMOUNT);
+
+		// Check XCM
+		assert_eq!(
+			sent_xcm(),
+			vec![(
+				Parachain(DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID).into(),
+				Xcm(vec![
+					ReserveAssetDeposited((Parent, SEND_AMOUNT - PROPORTIONAL_SWAPPED_AMOUNT).into()),
+					ClearOrigin,
+					// Here - means we are paying with native asset of DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID
+					WithdrawAsset((Here, DIFFERENT_ASSET_AMOUNT).into()),
+					// Here - means we are paying with native asset of DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID
+					buy_limited_execution((Here, DIFFERENT_ASSET_AMOUNT), Weight::from_parts(7000, 7000)),
+					RefundSurplus,
+					// Here - means we are paying with native asset of DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID
+					DepositAsset {
+						assets: Definite(MultiAssets::from(vec![(Here, DIFFERENT_ASSET_AMOUNT).into()])),
+						beneficiary: SomeAccountOnDestination::get(),
+					},
+					DepositAsset {
+						assets: AllCounted(1).into(),
+						beneficiary: dest_account,
+					},
+				]),
+			)]
+		);
+		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
+		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
+		assert_eq!(
+			last_event(),
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(expected_weight_for_instructions) })
 		);
 	});
 }

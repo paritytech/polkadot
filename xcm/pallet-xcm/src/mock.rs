@@ -36,7 +36,7 @@ use xcm_builder::{
 };
 use xcm_executor::XcmExecutor;
 
-use crate::{self as pallet_xcm, TestWeightInfo};
+use crate::{self as pallet_xcm, TestWeightInfo, DecideBuyExecutionSetup, BuyExecutionSetup, FeeForBuyExecution};
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
@@ -253,6 +253,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
 	pub const RelayLocation: MultiLocation = Here.into_location();
 	pub const AnyNetwork: Option<NetworkId> = None;
+	// TODO: add here GlobalConsensus
 	pub UniversalLocation: InteriorMultiLocation = Here;
 	pub UnitWeightCost: u64 = 1_000;
 }
@@ -324,6 +325,52 @@ parameter_types! {
 	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
 }
 
+pub const DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID: u32 = 1234;
+pub const SOME_LOCAL_ACCOUNT_AS_PARA_ID: u32 = 2222;
+pub const SOME_ACCOUNT_ON_DESTINATION_AS_PARA_ID: u32 = 3333;
+pub const PROPORTIONAL_SWAPPED_AMOUNT: u128 = 7;
+pub const DIFFERENT_ASSET_AMOUNT: u128 = 13;
+
+parameter_types! {
+	pub DestinationWithBuyExecutionByDifferentAsset: MultiLocation = Parachain(DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID).into();
+	pub DifferentAsset: MultiAsset = (Parachain(DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID), DIFFERENT_ASSET_AMOUNT).into();
+	pub ProportionalAmountToWithdraw: MultiAsset = (Here, PROPORTIONAL_SWAPPED_AMOUNT).into();
+	pub SomeLocalAccount: MultiLocation = Parachain(SOME_LOCAL_ACCOUNT_AS_PARA_ID).into();
+	pub SomeAccountOnDestination: MultiLocation = Parachain(SOME_ACCOUNT_ON_DESTINATION_AS_PARA_ID).into();
+}
+
+pub struct TestBuyExecutionSetupResolver;
+impl DecideBuyExecutionSetup for TestBuyExecutionSetupResolver {
+	fn decide_for(
+		destination: &MultiLocation,
+		_desired_fee_asset_id: &AssetId,
+	) -> BuyExecutionSetup {
+		if destination.eq(&DestinationWithBuyExecutionByDifferentAsset::get()) {
+			BuyExecutionSetup::UniversalLocation {
+				local_account: SomeLocalAccount::get(),
+				account_on_destination: SomeAccountOnDestination::get(),
+			}
+		} else {
+			BuyExecutionSetup::Origin
+		}
+	}
+
+	fn estimate_fee_for(
+		destination: &MultiLocation,
+		_desired_fee_asset_id: &AssetId,
+		_weight: &WeightLimit,
+	) -> Option<FeeForBuyExecution> {
+		if destination.eq(&DestinationWithBuyExecutionByDifferentAsset::get()) {
+			Some(FeeForBuyExecution {
+				proportional_amount_to_withdraw: ProportionalAmountToWithdraw::get(),
+				proportional_amount_to_buy_execution: DifferentAsset::get(),
+			})
+		} else {
+			None
+		}
+	}
+}
+
 impl pallet_xcm::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
@@ -347,6 +394,7 @@ impl pallet_xcm::Config for Test {
 	type MaxRemoteLockConsumers = frame_support::traits::ConstU32<0>;
 	type RemoteLockConsumerIdentifier = ();
 	type WeightInfo = TestWeightInfo;
+	type BuyExecutionSetupResolver = TestBuyExecutionSetupResolver;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
 	type AdminOrigin = EnsureRoot<AccountId>;
