@@ -24,7 +24,6 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use sp_core::ConstU16;
 use sp_std::vec::Vec;
 
 use frame_support::traits::OnRuntimeUpgrade;
@@ -90,13 +89,8 @@ impl<T: Config> OnRuntimeUpgrade for VersionUncheckedMigrateV5ToV6<T> {
 	}
 }
 
-pub type VersionCheckedMigrateV5ToV6<Runtime, Pallet, DbWeight> = VersionedRuntimeUpgrade<
-	ConstU16<5>,
-	ConstU16<6>,
-	VersionUncheckedMigrateV5ToV6<Runtime>,
-	Pallet,
-	DbWeight,
->;
+pub type VersionCheckedMigrateV5ToV6<Runtime, Pallet, DbWeight> =
+	VersionedRuntimeUpgrade<5, 6, VersionUncheckedMigrateV5ToV6<Runtime>, Pallet, DbWeight>;
 
 fn migrate_to_v6<T: Config>() -> Weight {
 	// Unusual formatting is justified:
