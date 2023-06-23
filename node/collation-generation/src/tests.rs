@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use assert_matches::assert_matches;
 use test_helpers::{dummy_hash, dummy_head_data, dummy_validator};
 use futures::{
 	lock::Mutex,
@@ -27,9 +28,11 @@ use polkadot_node_subsystem::{
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 };
 use polkadot_node_subsystem_test_helpers::{subsystem_test_harness, TestSubsystemContextHandle};
+use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{
 	CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode,
 };
+use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use std::pin::Pin;
 
 type VirtualOverseer = TestSubsystemContextHandle<CollationGenerationMessage>;
@@ -101,12 +104,29 @@ impl Future for TestCollator {
 
 impl Unpin for TestCollator {}
 
-fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
-	Arc::new(CollationGenerationConfig {
+async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
+	const TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2000);
+
+	overseer.recv()
+		.timeout(TIMEOUT)
+		.await
+		.expect(&format!("{:?} is long enough to receive messages", TIMEOUT))
+}
+
+fn test_config<Id: Into<ParaId>>(para_id: Id) -> CollationGenerationConfig {
+	CollationGenerationConfig {
 		key: CollatorPair::generate().0,
 		collator: Some(Box::new(|_: Hash, _vd: &PersistedValidationData| TestCollator.boxed())),
 		para_id: para_id.into(),
-	})
+	}
+}
+
+fn test_config_no_collator<Id: Into<ParaId>>(para_id: Id) -> CollationGenerationConfig {
+	CollationGenerationConfig {
+		key: CollatorPair::generate().0,
+		collator: None,
+		para_id: para_id.into(),
+	}
 }
 
 fn scheduled_core_for<Id: Into<ParaId>>(para_id: Id) -> ScheduledCore {
@@ -142,7 +162,7 @@ fn requests_availability_per_relay_parent() {
 	let subsystem_activated_hashes = activated_hashes.clone();
 	subsystem_test_harness(overseer, |mut ctx| async move {
 		handle_new_activations(
-			test_config(123u32),
+			Arc::new(test_config(123u32)),
 			subsystem_activated_hashes,
 			&mut ctx,
 			Metrics(None),
@@ -219,7 +239,7 @@ fn requests_validation_data_for_scheduled_matches() {
 	let (tx, _rx) = mpsc::channel(0);
 
 	subsystem_test_harness(overseer, |mut ctx| async move {
-		handle_new_activations(test_config(16), activated_hashes, &mut ctx, Metrics(None), &tx)
+		handle_new_activations(Arc::new(test_config(16)), activated_hashes, &mut ctx, Metrics(None), &tx)
 			.await
 			.unwrap();
 	});
@@ -297,7 +317,7 @@ fn sends_distribute_collation_message() {
 		}
 	};
 
-	let config = test_config(16);
+	let config = Arc::new(test_config(16));
 	let subsystem_config = config.clone();
 
 	let (tx, rx) = mpsc::channel(0);
@@ -453,7 +473,7 @@ fn fallback_when_no_validation_code_hash_api() {
 		}
 	};
 
-	let config = test_config(16u32);
+	let config = Arc::new(test_config(16u32));
 	let subsystem_config = config.clone();
 
 	let (tx, rx) = mpsc::channel(0);
@@ -509,7 +529,77 @@ fn submit_collation_is_no_op_before_initialization() {
 	});
 }
 
-// TODO [now]: test that `SubmitCollation` leads to distribution
+#[test]
+fn submit_collation_leads_to_distribution() {
+	let relay_parent = Hash::repeat_byte(0);
+	let validation_code_hash = ValidationCodeHash::from(Hash::repeat_byte(42));
+	let parent_head = HeadData::from(vec![1, 2, 3]);
+	let para_id = ParaId::from(5);
+	let expected_pvd = PersistedValidationData {
+		parent_head: parent_head.clone(),
+		relay_parent_number: 10,
+		relay_parent_storage_root: Hash::repeat_byte(1),
+		max_pov_size: 1024,
+	};
+
+	test_harness(|mut virtual_overseer| async move {
+		virtual_overseer.send(FromOrchestra::Communication {
+			msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
+		}).await;
+
+		virtual_overseer.send(FromOrchestra::Communication {
+			msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
+				relay_parent,
+				collation: test_collation(),
+				parent_head: vec![1, 2, 3].into(),
+				validation_code_hash_hint: Some(ValidationCodeHashHint::Provided(validation_code_hash)),
+				result_sender: None,
+			})
+		}).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::Validators(tx))) => {
+				assert_eq!(rp, relay_parent);
+				let _ = tx.send(Ok(vec![
+					Sr25519Keyring::Alice.public().into(),
+					Sr25519Keyring::Bob.public().into(),
+					Sr25519Keyring::Charlie.public().into(),
+				]));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::PersistedValidationData(id, a, tx))) => {
+				assert_eq!(rp, relay_parent);
+				assert_eq!(id, para_id);
+				assert_eq!(a, OccupiedCoreAssumption::TimedOut);
+
+				// Candidate receipt should be constructed with the real parent head.
+				let mut pvd = expected_pvd.clone();
+				pvd.parent_head = vec![4, 5, 6].into();
+				let _ = tx.send(Ok(Some(pvd)));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
+				ccr,
+				parent_head_data_hash,
+				..
+			)) => {
+				assert_eq!(parent_head_data_hash, parent_head.hash());
+				assert_eq!(ccr.descriptor().persisted_validation_data_hash, expected_pvd.hash());
+				assert_eq!(ccr.descriptor().para_head, dummy_head_data().hash());
+				assert_eq!(ccr.descriptor().validation_code_hash, validation_code_hash);
+			}
+		);
+
+		virtual_overseer
+	});
+}
 
 // TODO [now]: test that `ValidationCodeHashHint::Provided` is used
 
