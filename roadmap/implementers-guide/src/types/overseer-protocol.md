@@ -442,7 +442,7 @@ enum ValidationCodeHashHint {
     Provided(ValidationCodeHash),
 }
 
-/// Parameters for submitting a 
+/// Parameters for submitting a collation
 struct SubmitCollationParams {
     /// The relay-parent the collation is built against.
     relay_parent: Hash,
