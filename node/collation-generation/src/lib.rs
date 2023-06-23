@@ -31,7 +31,7 @@
 
 use futures::{
 	channel::{mpsc, oneshot},
-	future::FutureExt,
+	future::{Future, FutureExt},
 	join, select,
 	sink::SinkExt,
 	stream::StreamExt,
@@ -168,7 +168,7 @@ impl CollationGenerationSubsystem {
 			}) => {
 				if let Some(config) = &self.config {
 					if let Err(err) =
-						handle_submit_collation(params, config, ctx, sender.clone(), &self.metrics)
+						handle_submit_collation(params, config, ctx, &self.metrics)
 							.await
 					{
 						gum::error!(target: LOG_TARGET, ?err, "Failed to submit collation");
@@ -322,7 +322,7 @@ async fn handle_new_activations<Context>(
 			};
 
 			let task_config = config.clone();
-			let task_sender = sender.clone();
+			let mut task_sender = sender.clone();
 			let metrics = metrics.clone();
 			ctx.spawn(
 				"collation-builder",
@@ -355,7 +355,15 @@ async fn handle_new_activations<Context>(
 							n_validators,
 						},
 						task_config.key.clone(),
-						task_sender,
+						|msg| async move {
+							if let Err(err) = task_sender.send(msg.into()).await {
+								gum::warn!(
+									target: LOG_TARGET,
+									?err,
+									"failed to send collation result"
+								);
+							}
+						},
 						result_sender,
 						&metrics,
 					)
@@ -373,7 +381,6 @@ async fn handle_submit_collation<Context>(
 	params: SubmitCollationParams,
 	config: &CollationGenerationConfig,
 	ctx: &mut Context,
-	sender: mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 	metrics: &Metrics,
 ) -> crate::error::Result<()> {
 	let _timer = metrics.time_submit_collation();
@@ -438,7 +445,7 @@ async fn handle_submit_collation<Context>(
 	construct_and_distribute_receipt(
 		collation,
 		config.key.clone(),
-		sender.clone(),
+		|msg| ctx.send_message(msg),
 		result_sender,
 		metrics,
 	)
@@ -458,10 +465,10 @@ struct PreparedCollation {
 
 /// Takes a prepared collation, along with its context, and produces a candidate receipt
 /// which is distributed to validators.
-async fn construct_and_distribute_receipt(
+async fn construct_and_distribute_receipt<F: Future<Output = ()>>(
 	collation: PreparedCollation,
 	key: CollatorPair,
-	mut sender: mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
+	distribute_collation: impl FnOnce(CollatorProtocolMessage) -> F,
 	result_sender: Option<oneshot::Sender<CollationSecondedSignal>>,
 	metrics: &Metrics,
 ) {
@@ -559,25 +566,12 @@ async fn construct_and_distribute_receipt(
 	);
 	metrics.on_collation_generated();
 
-	if let Err(err) = sender
-		.send(
-			CollatorProtocolMessage::DistributeCollation(
-				ccr,
-				parent_head_data_hash,
-				pov,
-				result_sender,
-			)
-			.into(),
-		)
-		.await
-	{
-		gum::warn!(
-			target: LOG_TARGET,
-			para_id = %para_id,
-			err = ?err,
-			"failed to send collation result",
-		);
-	}
+	distribute_collation(CollatorProtocolMessage::DistributeCollation(
+		ccr,
+		parent_head_data_hash,
+		pov,
+		result_sender,
+	)).await;
 }
 
 async fn obtain_validation_code_hash_with_hint(
