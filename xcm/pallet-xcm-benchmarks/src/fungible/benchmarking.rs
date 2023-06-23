@@ -131,22 +131,6 @@ benchmarks_instance_pallet! {
 		// TODO: Check sender queue is not empty. #4426
 	}
 
-	reserve_asset_deposited {
-		// If the runtime being benchmarked does not trust any reserve, we skip
-		let (trusted_reserve, transferable_reserve_asset) = T::TrustedReserve::get()
-			.ok_or(BenchmarkError::Skip)?;
-
-		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
-
-		let mut executor = new_executor::<T>(trusted_reserve);
-		let instruction = Instruction::ReserveAssetDeposited(assets.clone());
-		let xcm = Xcm(vec![instruction]);
-	}: {
-		executor.bench_process(xcm)?;
-	} verify {
-		assert!(executor.holding().ensure_contains(&assets).is_ok());
-	}
-
 	initiate_reserve_withdraw {
 		let holding = T::worst_case_holding(1);
 		let assets_filter = MultiAssetFilter::Definite(holding.clone());
