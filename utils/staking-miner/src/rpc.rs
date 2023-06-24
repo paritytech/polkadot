@@ -17,10 +17,7 @@
 //! JSON-RPC related types and helpers.
 
 use super::*;
-use jsonrpsee::{
-	core::{Error as RpcError},
-	proc_macros::rpc,
-};
+use jsonrpsee::{core::Error as RpcError, proc_macros::rpc};
 use pallet_transaction_payment::RuntimeDispatchInfo;
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::{storage::StorageKey, Bytes};
