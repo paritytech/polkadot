@@ -9,7 +9,7 @@ rules:
     condition:
       include: ^runtime\/(kusama|polkadot)\/src\/.+\.rs$
       exclude: ^runtime\/(kusama|polkadot)\/src\/weights\/.+\.rs$
-    all_distinct:
+    all:
       - min_approvals: 1
         teams:
           - locks-review
