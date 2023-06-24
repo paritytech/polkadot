@@ -122,7 +122,7 @@ pub struct UniversalWeigherAdapter<Weigher, AdditionalInstructions>(
 impl<Weigher: WeightBounds<()>, AdditionalInstructions: ProvideInstructions<()>> UniversalWeigher
 	for UniversalWeigherAdapter<Weigher, AdditionalInstructions>
 {
-	fn weight(dest: impl Into<MultiLocation>, mut message: Xcm<()>) -> Result<Weight, ()> {
+	fn weigh(dest: impl Into<MultiLocation>, mut message: Xcm<()>) -> Result<Weight, ()> {
 		message.0.extend(AdditionalInstructions::provide_for(dest, &message));
 		Weigher::weight(&mut message)
 	}

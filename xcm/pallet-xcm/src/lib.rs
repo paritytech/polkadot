@@ -1228,7 +1228,7 @@ impl<T: Config> Pallet<T> {
 					DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 				]);
 				// estimate remote_message weight
-				let remote_weight = T::DestinationWeigher::weight(dest, remote_message)
+				let remote_weight = T::DestinationWeigher::weigh(dest, remote_message)
 					.map_err(|()| Error::<T>::UnweighableMessage)?;
 				Limited(remote_weight)
 			},
@@ -1288,7 +1288,7 @@ impl<T: Config> Pallet<T> {
 					DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 				]);
 				// estimate remote_message weight
-				let remote_weight = T::DestinationWeigher::weight(dest, remote_message)
+				let remote_weight = T::DestinationWeigher::weigh(dest, remote_message)
 					.map_err(|()| Error::<T>::UnweighableMessage)?;
 				Limited(remote_weight)
 			},
