@@ -23,7 +23,6 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", de
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true , features = ["serde"]}
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["serde"] }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true}
 
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
@@ -36,7 +35,6 @@ std = [
 	"scale-info/std",
 	"primitives/std",
 	"inherents/std",
-	"sc-network",
 	"sp-api/std",
 	"sp-authority-discovery/std",
 	"sp-consensus-slots/std",

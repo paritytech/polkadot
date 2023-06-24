@@ -7877,7 +7877,6 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-core-primitives",
  "polkadot-parachain",
- "sc-network",
  "scale-info",
  "serde",
  "sp-api",
