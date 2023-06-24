@@ -53,7 +53,7 @@ pub use pallet::*;
 use xcm_executor::{
 	traits::{
 		CheckSuspension, ClaimAssets, ConvertLocation, DropAssets, MatchesFungible, OnResponse,
-		QueryHandler, QueryResponseStatus, VersionChangeNotifier, WeightBounds,
+		QueryHandler, QueryResponseStatus, UniversalWeigher, VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -217,6 +217,9 @@ pub mod pallet {
 
 		/// Means of measuring the weight consumed by an XCM message locally.
 		type Weigher: WeightBounds<<Self as SysConfig>::RuntimeCall>;
+
+		/// Means of approximating the weight consumed by an XCM message on destination.
+		type DestinationWeigher: UniversalWeigher;
 
 		/// This chain's Universal Location.
 		type UniversalLocation: Get<InteriorMultiLocation>;
@@ -1218,14 +1221,14 @@ impl<T: Config> Pallet<T> {
 			Some(weight_limit) => weight_limit,
 			None => {
 				let fees = fees.clone();
-				let mut remote_message = Xcm(vec![
+				let remote_message = Xcm(vec![
 					ReserveAssetDeposited(assets.clone()),
 					ClearOrigin,
 					BuyExecution { fees, weight_limit: Limited(Weight::zero()) },
 					DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 				]);
-				// use local weight for remote message and hope for the best.
-				let remote_weight = T::Weigher::weight(&mut remote_message)
+				// estimate remote_message weight
+				let remote_weight = T::DestinationWeigher::weight(dest, remote_message)
 					.map_err(|()| Error::<T>::UnweighableMessage)?;
 				Limited(remote_weight)
 			},
@@ -1278,14 +1281,14 @@ impl<T: Config> Pallet<T> {
 			Some(weight_limit) => weight_limit,
 			None => {
 				let fees = fees.clone();
-				let mut remote_message = Xcm(vec![
+				let remote_message = Xcm(vec![
 					ReceiveTeleportedAsset(assets.clone()),
 					ClearOrigin,
 					BuyExecution { fees, weight_limit: Limited(Weight::zero()) },
 					DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 				]);
-				// use local weight for remote message and hope for the best.
-				let remote_weight = T::Weigher::weight(&mut remote_message)
+				// estimate remote_message weight
+				let remote_weight = T::DestinationWeigher::weight(dest, remote_message)
 					.map_err(|()| Error::<T>::UnweighableMessage)?;
 				Limited(remote_weight)
 			},

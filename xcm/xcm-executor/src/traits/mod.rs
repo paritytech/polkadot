@@ -44,7 +44,7 @@ pub use transact_asset::TransactAsset;
 mod weight;
 #[deprecated = "Use `sp_runtime::traits::` instead"]
 pub use sp_runtime::traits::{Identity, TryConvertInto as JustTry};
-pub use weight::{WeightBounds, WeightTrader};
+pub use weight::{UniversalWeigher, WeightBounds, WeightTrader};
 
 pub mod prelude {
 	pub use super::{
