@@ -43,6 +43,10 @@ use primitives::{
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
+// Only used to link to configuration documentation.
+#[allow(unused)]
+use crate::configuration::HostConfiguration;
+
 /// Reasons a core might be freed
 #[derive(Clone, Copy)]
 pub enum FreedReason {
@@ -53,18 +57,32 @@ pub enum FreedReason {
 }
 
 pub trait AssignmentProvider<BlockNumber> {
+	/// How many cores are allocated to this provider.
 	fn session_core_count() -> u32;
 
+	/// Pops an [`Assignment`] from the provider for a specified [`CoreIndex`].
+	/// The `concluded_para` field makes the caller report back to the provider
+	/// which [`ParaId`] it processed last on the supplied [`CoreIndex`].
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		concluded_para: Option<ParaId>,
 	) -> Option<Assignment>;
 
-	// on session change
+	/// Push back an already popped assignment. Intended for provider implementations
+	/// that need to be able to keep track of assignments over session boundaries,
+	/// such as the on demand assignment provider.
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
+	/// Returns the availability period specified by the implementation.
+	/// See
+	/// [`HostConfiguration::chain_availability_period`] and
+	/// [`HostConfiguration::thread_availability_period`]
+	/// for more information.
 	fn get_availability_period(core_idx: CoreIndex) -> BlockNumber;
 
+	/// How many retries a collator gets to provide a collation in this implementation.
+	/// Zero retries means that the collator has 1 chance as per the bulk (slot auction)
+	/// parachain model.
 	fn get_max_retries(core_idx: CoreIndex) -> u32;
 }
 
@@ -81,9 +99,12 @@ pub struct CoreAssignment<BlockNumber> {
 }
 
 impl<BlockNumber> CoreAssignment<BlockNumber> {
+	/// Returns the [`ParaId`] of the assignment.
 	pub fn para_id(&self) -> ParaId {
 		self.paras_entry.para_id()
 	}
+
+	/// Returns the inner [`ParasEntry`] of the assignment.
 	pub fn to_paras_entry(self) -> ParasEntry<BlockNumber> {
 		self.paras_entry
 	}

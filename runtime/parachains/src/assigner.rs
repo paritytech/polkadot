@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! The Polkadot multiplexing assignment provider.
+//! Provides blockspace assignments for both bulk and on demand parachains.
 use frame_support::pallet_prelude::*;
 use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
 
@@ -56,6 +58,7 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 		parachain_cores.saturating_add(on_demand_cores)
 	}
 
+	/// Pops an `Assignment` from a specified `CoreIndex`
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		concluded_para: Option<ParaId>,

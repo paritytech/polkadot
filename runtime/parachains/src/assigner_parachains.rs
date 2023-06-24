@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! The bulk (parachain slot auction) blockspace assignment provider.
+//! This provider is tightly coupled with the configuration and paras modules.
+
 use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 pub use pallet::*;
 use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
@@ -45,12 +48,16 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 			.map(|para_id| Assignment::new(para_id))
 	}
 
+	/// Bulk assignment has no need to push the assignment back on a session change,
+	/// this is a no-op in the case of a bulk assignment slot.
 	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
 
 	fn get_availability_period(_: CoreIndex) -> T::BlockNumber {
 		<configuration::Pallet<T>>::config().chain_availability_period
 	}
 
+	/// There are retries set up in bulk assignment as the next slot already goes to
+	/// same [`ParaId`].
 	fn get_max_retries(_: CoreIndex) -> u32 {
 		0
 	}
