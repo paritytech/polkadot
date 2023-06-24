@@ -1091,77 +1091,73 @@ fn availability_predicate_works() {
 	});
 }
 
-//#[test]
-//fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
-//	let mut config = default_config();
-//	config.parathread_cores = 1;
-//
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig {
-//			config: config.clone(),
-//			..Default::default()
-//		},
-//		..Default::default()
-//	};
-//
-//	let thread_a = ParaId::from(1_u32);
-//	let thread_b = ParaId::from(2_u32);
-//
-//	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
-//
-//	new_test_ext(genesis_config).execute_with(|| {
-//		schedule_blank_para(thread_a, ParaKind::Parathread);
-//		schedule_blank_para(thread_b, ParaKind::Parathread);
-//
-//		// start a new session to activate, 5 validators for 5 cores.
-//		run_to_block(1, |number| match number {
-//			1 => Some(SessionChangeNotification {
-//				new_config: config.clone(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//				],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		let thread_claim_a = ParathreadClaim(thread_a, collator.clone());
-//		let thread_claim_b = ParathreadClaim(thread_b, collator.clone());
-//
-//		SchedulerParathreads::add_parathread_claim(thread_claim_a.clone());
-//
-//		run_to_block(2, |_| None);
-//
-//		{
-//			assert_eq!(Scheduler::scheduled().len(), 1);
-//			assert_eq!(Scheduler::availability_cores().len(), 1);
-//
-//			Scheduler::occupied(&[CoreIndex(0)]);
-//
-//			let cores = Scheduler::availability_cores();
-//			match cores[0].as_ref().unwrap() {
-//				CoreOccupied::Parathread(entry) => assert_eq!(entry.claim, thread_claim_a),
-//				_ => panic!("with no chains, only core should be a thread core"),
-//			}
-//
-//			assert!(Scheduler::next_up_on_available(CoreIndex(0)).is_none());
-//
-//			SchedulerParathreads::add_parathread_claim(thread_claim_b);
-//
-//			let queue = ParathreadQueue::<Test>::get();
-//			assert_eq!(
-//				queue.get_next_on_core(0).unwrap().claim,
-//				ParathreadClaim(thread_b, collator.clone()),
-//			);
-//
-//			assert_eq!(
-//				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-//				ScheduledCore { para_id: thread_b, collator: Some(collator.clone()) }
-//			);
-//		}
-//	});
-//}
+#[test]
+fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
+	let mut config = default_config();
+	config.parathread_cores = 1;
+
+	let genesis_config = MockGenesisConfig {
+		configuration: crate::configuration::GenesisConfig {
+			config: config.clone(),
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	let thread_a = ParaId::from(1_u32);
+	let thread_b = ParaId::from(2_u32);
+
+	new_test_ext(genesis_config).execute_with(|| {
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
+
+		// start a new session to activate, 5 validators for 5 cores.
+		run_to_block(1, |number| match number {
+			1 => Some(SessionChangeNotification {
+				new_config: config.clone(),
+				validators: vec![
+					ValidatorId::from(Sr25519Keyring::Alice.public()),
+					ValidatorId::from(Sr25519Keyring::Eve.public()),
+				],
+				..Default::default()
+			}),
+			_ => None,
+		});
+
+		let thread_entry_a =
+			ParasEntry { assignment: Assignment { para_id: thread_a }, retries: 0, ttl: 5 };
+		let thread_entry_b =
+			ParasEntry { assignment: Assignment { para_id: thread_b }, retries: 0, ttl: 5 };
+
+		Scheduler::add_to_claimqueue(CoreIndex(0), thread_entry_a.clone());
+
+		run_to_block(2, |_| None);
+
+		{
+			assert_eq!(Scheduler::claimqueue_len(), 1);
+			assert_eq!(Scheduler::availability_cores().len(), 1);
+
+			let mut map = BTreeMap::new();
+			map.insert(CoreIndex(0), thread_a);
+			Scheduler::occupied(map);
+
+			let cores = Scheduler::availability_cores();
+			match &cores[0] {
+				CoreOccupied::Paras(entry) => assert_eq!(entry, &thread_entry_a),
+				_ => panic!("with no chains, only core should be a thread core"),
+			}
+
+			assert!(Scheduler::next_up_on_available(CoreIndex(0)).is_none());
+
+			Scheduler::add_to_claimqueue(CoreIndex(0), thread_entry_b);
+
+			assert_eq!(
+				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
+				ScheduledCore { para_id: thread_b }
+			);
+		}
+	});
+}
 
 //#[test]
 //fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
