@@ -20,7 +20,7 @@ use frame_support::traits::{
 	tokens::{Pay, PaymentStatus},
 	Get,
 };
-use sp_runtime::traits::Convert;
+use sp_runtime::traits::{Convert, TryConvert};
 use sp_std::{marker::PhantomData, vec};
 use xcm::{opaque::lts::Weight, prelude::*};
 use xcm_executor::traits::{QueryHandler, QueryResponseStatus};
@@ -71,7 +71,7 @@ impl<
 		Timeout: Get<Querier::BlockNumber>,
 		Beneficiary: Clone,
 		AssetKind,
-		AssetKindToLocatableAsset: Convert<AssetKind, LocatableAssetId>,
+		AssetKindToLocatableAsset: TryConvert<AssetKind, LocatableAssetId>,
 		BeneficiaryRefToLocation: for<'a> Convert<&'a Beneficiary, MultiLocation>,
 	> Pay
 	for PayOverXcm<
@@ -96,7 +96,8 @@ impl<
 		asset_kind: Self::AssetKind,
 		amount: Self::Balance,
 	) -> Result<Self::Id, Self::Error> {
-		let locatable = AssetKindToLocatableAsset::convert(asset_kind);
+		let locatable = AssetKindToLocatableAsset::try_convert(asset_kind)
+			.map_err(|_| Self::Error::InvalidLocation)?;
 		let LocatableAssetId { asset_id, location: asset_location } = locatable;
 		let destination = Querier::UniversalLocation::get()
 			.invert_target(&asset_location)
@@ -196,10 +197,10 @@ pub struct LocatableAssetId {
 /// Adapter `struct` which implements a conversion from any `AssetKind` into a [LocatableAsset]
 /// value using a fixed `Location` for the `location` field.
 pub struct FixedLocation<Location>(sp_std::marker::PhantomData<Location>);
-impl<Location: Get<MultiLocation>, AssetKind: Into<AssetId>> Convert<AssetKind, LocatableAssetId>
+impl<Location: Get<MultiLocation>, AssetKind: Into<AssetId>> TryConvert<AssetKind, LocatableAssetId>
 	for FixedLocation<Location>
 {
-	fn convert(value: AssetKind) -> LocatableAssetId {
-		LocatableAssetId { asset_id: value.into(), location: Location::get() }
+	fn try_convert(value: AssetKind) -> Result<LocatableAssetId, AssetKind> {
+		Ok(LocatableAssetId { asset_id: value.into(), location: Location::get() })
 	}
 }
