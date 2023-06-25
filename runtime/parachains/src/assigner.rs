@@ -39,9 +39,6 @@ pub mod pallet {
 		type ParachainsAssignmentProvider: AssignmentProvider<Self::BlockNumber>;
 		type OnDemandAssignmentProvider: AssignmentProvider<Self::BlockNumber>;
 	}
-
-	#[pallet::storage]
-	pub(crate) type NumParachains<T> = StorageValue<_, Option<u32>, ValueQuery>;
 }
 
 // Aliases to make the impl more readable.
@@ -80,9 +77,8 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 	}
 
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
-		let parachain_cores = NumParachains::<T>::get().unwrap_or_else(|| {
-			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::session_core_count()
-		});
+		let parachain_cores =
+			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::session_core_count();
 		if (0..parachain_cores).contains(&core_idx.0) {
 			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::push_assignment_for_core(
 				core_idx, assignment,
