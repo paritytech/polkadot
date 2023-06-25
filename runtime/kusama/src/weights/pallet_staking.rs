@@ -300,17 +300,31 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	}
 	/// Storage: Staking Ledger (r:1 w:0)
 	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
+	/// Storage: Staking Payees (r:0 w:1)
+	/// Proof: Staking Payees (max_values: None, max_size: Some(77), added: 2552, mode: MaxEncodedLen)
 	/// Storage: Staking Payee (r:0 w:1)
 	/// Proof: Staking Payee (max_values: None, max_size: Some(73), added: 2548, mode: MaxEncodedLen)
 	fn set_payee() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `735`
+		//  Measured:  `808`
 		//  Estimated: `4556`
-		// Minimum execution time: 13_578_000 picoseconds.
-		Weight::from_parts(14_266_000, 0)
-			.saturating_add(Weight::from_parts(0, 4556))
-			.saturating_add(T::DbWeight::get().reads(1))
-			.saturating_add(T::DbWeight::get().writes(1))
+		// Minimum execution time: 16_035_000 picoseconds.
+		Weight::from_parts(16_357_000, 4556)
+			.saturating_add(RocksDbWeight::get().reads(1_u64))
+			.saturating_add(RocksDbWeight::get().writes(2_u64))
+	}
+	/// Storage: Staking Payee (r:1 w:0)
+	/// Proof: Staking Payee (max_values: None, max_size: Some(73), added: 2548, mode: MaxEncodedLen)
+	/// Storage: Staking Payees (r:1 w:1)
+	/// Proof: Staking Payees (max_values: None, max_size: Some(77), added: 2552, mode: MaxEncodedLen)
+	fn update_payee() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `726`
+		//  Estimated: `3542`
+		// Minimum execution time: 16_290_000 picoseconds.
+		Weight::from_parts(16_518_000, 3542)
+			.saturating_add(RocksDbWeight::get().reads(2_u64))
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
 	/// Storage: Staking Bonded (r:1 w:1)
 	/// Proof: Staking Bonded (max_values: None, max_size: Some(72), added: 2547, mode: MaxEncodedLen)
