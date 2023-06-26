@@ -20,7 +20,8 @@ use frame_support::traits::{
 	tokens::{Pay, PaymentStatus},
 	Get,
 };
-use sp_runtime::traits::Convert;
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use sp_runtime::{traits::Convert, RuntimeDebug};
 use sp_std::{marker::PhantomData, vec};
 use xcm::{opaque::lts::Weight, prelude::*};
 use xcm_executor::traits::{QueryHandler, QueryResponseStatus};
@@ -186,6 +187,9 @@ pub type PayAccountId32OnChainOverXcm<
 
 /// Simple struct which contains both an XCM `location` and `asset_id` to identift an asset which
 /// exists on some chain.
+#[derive(
+	Encode, Decode, Eq, PartialEq, Clone, RuntimeDebug, scale_info::TypeInfo, MaxEncodedLen,
+)]
 pub struct LocatableAssetId {
 	/// The asset's ID.
 	pub asset_id: AssetId,

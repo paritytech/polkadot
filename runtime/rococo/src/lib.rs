@@ -73,8 +73,9 @@ use sp_core::{ConstU128, OpaqueMetadata, H256};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, ConstU32, ConvertInto,
-		Extrinsic as ExtrinsicT, Keccak256, OpaqueKeys, SaturatedConversion, Verify,
+		AccountIdLookup, BlakeTwo256, Block as BlockT, CloneIdentity, ConstU32, ConvertInto,
+		Extrinsic as ExtrinsicT, Identity as IdentityConvert, IdentityLookup, Keccak256,
+		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
@@ -84,7 +85,8 @@ use sp_staking::SessionIndex;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
-use xcm::latest::Junction;
+use xcm::latest::{InteriorMultiLocation, Junction, Junction::PalletInstance, MultiLocation};
+use xcm_builder::{LocatableAssetId, PayOverXcm};
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -542,6 +544,10 @@ parameter_types! {
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	pub const Burn: Permill = Permill::from_perthousand(2);
 	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
+	pub const PayoutSpendPeriod: BlockNumber = 30 * DAYS;
+	// The asset's interior location for the paying account. This is the Treasury
+	// pallet instance (which sits at index 18).
+	pub TreasuryInteriorLocation: InteriorMultiLocation = PalletInstance(18).into();
 
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
@@ -575,6 +581,21 @@ impl pallet_treasury::Config for Runtime {
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
 	type SpendOrigin = frame_support::traits::NeverEnsureOrigin<Balance>;
+	type AssetKind = LocatableAssetId;
+	type Beneficiary = MultiLocation;
+	type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
+	type Paymaster = PayOverXcm<
+		TreasuryInteriorLocation,
+		crate::xcm_config::XcmRouter,
+		crate::XcmPallet,
+		ConstU32<{ 6 * HOURS }>,
+		Self::Beneficiary,
+		Self::AssetKind,
+		IdentityConvert,
+		CloneIdentity,
+	>;
+	type BalanceConverter = AssetRate;
+	type PayoutPeriod = PayoutSpendPeriod;
 }
 
 parameter_types! {
@@ -1357,6 +1378,17 @@ impl pallet_sudo::Config for Runtime {
 	type WeightInfo = weights::pallet_sudo::WeightInfo<Runtime>;
 }
 
+impl pallet_asset_rate::Config for Runtime {
+	type WeightInfo = ();
+	type RuntimeEvent = RuntimeEvent;
+	type CreateOrigin = EnsureRoot<AccountId>;
+	type RemoveOrigin = EnsureRoot<AccountId>;
+	type UpdateOrigin = EnsureRoot<AccountId>;
+	type Balance = Balance;
+	type Currency = Balances;
+	type AssetId = <Runtime as pallet_treasury::Config>::AssetKind;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1425,6 +1457,9 @@ construct_runtime! {
 
 		// Preimage registrar.
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 32,
+
+		// Asset rate.
+		AssetRate: pallet_asset_rate::{Pallet, Call, Storage, Event<T>} = 39,
 
 		// Bounties modules.
 		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 35,
