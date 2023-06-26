@@ -97,7 +97,7 @@ impl ExportXcm for Tuple {
 		}
 	}
 
-	fn deliver(one_ticket: Self::Ticket) -> Result<XcmHash, SendError> {
+	fn deliver(mut one_ticket: Self::Ticket) -> Result<XcmHash, SendError> {
 		for_tuples!( #(
 			if let Some(validated) = one_ticket.Tuple.take() {
 				return Tuple::deliver(validated);

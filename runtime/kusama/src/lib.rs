@@ -1536,8 +1536,9 @@ pub mod migrations {
 
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
-		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 		pallet_society::migrations::MigrateToV2<Runtime, (), past_payouts::PastPayouts>,
+		pallet_im_online::migration::v1::Migration<Runtime>,
+		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 	);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
