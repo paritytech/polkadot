@@ -1530,7 +1530,10 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (pallet_im_online::migration::v1::Migration<Runtime>, parachains_configuration::migration::v7::MigrateToV7<Runtime>);
+	pub type Unreleased = (
+		pallet_im_online::migration::v1::Migration<Runtime>,
+		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
+	);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;
