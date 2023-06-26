@@ -51,6 +51,7 @@ use crate::{
 	configuration,
 	initializer::SessionChangeNotification,
 	paras,
+	runtime_api_impl::v5::availability_cores,
 	scheduler_common::{AssignmentProvider, CoreAssignment, FreedReason},
 };
 
@@ -366,25 +367,25 @@ impl<T: Config> Pallet<T> {
 		Some(GroupIndex(group_idx as u32))
 	}
 
-	/// Returns an optional predicate that should be used for timing out occupied cores.
+	/// Returns a predicate that should be used for timing out occupied cores.
 	///
-	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
-	/// block number since which it has been occupied, and the respective parachain and parathread
-	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
+	/// The predicate accepts the index of the core, and the block number since which it has been occupied,
+	/// and the respective parachain and parathread timeouts, i.e. only within
+	/// `max(config.chain_availability_period, config.thread_availability_period)`
 	/// of the last rotation would this return `Some`, unless there are no rotations.
-	///
-	/// This really should not be a box, but is working around a compiler limitation filed here:
-	/// https://github.com/rust-lang/rust/issues/73226
-	/// which prevents us from testing the code if using `impl Trait`.
-	pub(crate) fn availability_timeout_predicate(
-	) -> Box<dyn Fn(CoreIndex, BlockNumberFor<T>) -> bool> {
-		let predicate = move |core_index: CoreIndex, pending_since| {
+	pub(crate) fn availability_timeout_predicate() -> impl Fn(CoreIndex, BlockNumberFor<T>) -> bool
+	{
+		|core_index: CoreIndex, pending_since| {
+			let availability_cores = AvailabilityCores::<T>::get();
 			let availability_period = T::AssignmentProvider::get_availability_period(core_index);
 			let now = <frame_system::Pallet<T>>::block_number();
-			now.saturating_sub(pending_since) >= availability_period
-		};
-
-		Box::new(predicate)
+			match availability_cores.get(core_index.0 as usize) {
+				None => true, // out-of-bounds, doesn't really matter what is returned.
+				Some(CoreOccupied::Free) => true, // core free, still doesn't matter.
+				Some(CoreOccupied::Paras(_)) =>
+					now.saturating_sub(pending_since) >= availability_period,
+			}
+		}
 	}
 
 	/// Returns a helper for determining group rotation.

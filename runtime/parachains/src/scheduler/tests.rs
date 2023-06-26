@@ -1004,7 +1004,6 @@ fn availability_predicate_works() {
 		thread_availability_period,
 		..
 	} = default_config();
-	//let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 	assert!(
 		chain_availability_period < thread_availability_period &&
@@ -1040,10 +1039,8 @@ fn availability_predicate_works() {
 			AvailabilityCores::<Test>::mutate(|cores| {
 				cores[0] =
 					CoreOccupied::Paras(ParasEntry::new(Assignment::new(chain_a), entry_ttl));
-				//	cores[1] = CoreOccupied::Parathread(ParathreadEntry {
-				//		claim: ParathreadClaim(thread_a, Some(collator)),
-				//		retries: 0,
-				//	})
+				cores[1] =
+					CoreOccupied::Paras(ParasEntry::new(Assignment::new(thread_a), entry_ttl));
 			});
 		}
 
@@ -1064,17 +1061,16 @@ fn availability_predicate_works() {
 			}
 
 			assert!(!pred(CoreIndex(0), now)); // assigned: chain
-								   //assert!(!pred(CoreIndex(1), now)); // assigned: thread
-								   // Disabled because resolves to parathread assigner
-								   //assert!(pred(CoreIndex(2), now));
+			assert!(!pred(CoreIndex(1), now)); // assigned: thread
+			assert!(pred(CoreIndex(2), now));
 
 			// check the tighter bound on chains vs threads.
 			assert!(pred(CoreIndex(0), now - chain_availability_period));
-			//assert!(!pred(CoreIndex(1), now - chain_availability_period));
+			assert!(!pred(CoreIndex(1), now - chain_availability_period));
 
 			// check the threshold is exact.
 			assert!(!pred(CoreIndex(0), now - chain_availability_period + 1));
-			//assert!(!pred(CoreIndex(1), now - thread_availability_period + 1));
+			assert!(!pred(CoreIndex(1), now - thread_availability_period + 1));
 		}
 
 		run_to_block(1 + group_rotation_frequency + chain_availability_period, |_| None);
@@ -1084,9 +1080,7 @@ fn availability_predicate_works() {
 			let would_be_timed_out = System::block_number() - thread_availability_period;
 
 			assert!(pred(CoreIndex(0), would_be_timed_out)); // chains can't be timed out now.
-
-			// Commented out as on-demand assigner is not merged, yet
-			//assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
+			assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
 		}
 	});
 }
