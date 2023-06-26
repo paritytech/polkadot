@@ -16,7 +16,6 @@
 
 //! The Polkadot multiplexing assignment provider.
 //! Provides blockspace assignments for both bulk and on demand parachains.
-use frame_support::pallet_prelude::*;
 use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
 
 use crate::{configuration, paras, scheduler_common::AssignmentProvider};

@@ -51,7 +51,6 @@ use crate::{
 	configuration,
 	initializer::SessionChangeNotification,
 	paras,
-	runtime_api_impl::v5::availability_cores,
 	scheduler_common::{AssignmentProvider, CoreAssignment, FreedReason},
 };
 
