@@ -17,9 +17,12 @@
 //! XCM configuration for Rococo.
 
 use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, Dmp, ParaId,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, Dmp, ParaId, Fellows,
 	Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee, XcmPallet,
 };
+
+use crate::governance::StakingAdmin;
+
 use frame_support::{
 	match_types, parameter_types,
 	traits::{Contains, Everything, Nothing},
@@ -39,7 +42,7 @@ use xcm_builder::{
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
-	MintLocation, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
 	TakeWeightCredit, TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin,
 	WithUniqueTopic,
 };
@@ -237,6 +240,24 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_membership::Call::clear_prime { .. },
 			) |
 			RuntimeCall::Treasury(..) |
+			RuntimeCall::ConvictionVoting(..) |
+			RuntimeCall::Referenda(
+				pallet_referenda::Call::place_decision_deposit { .. } |
+				pallet_referenda::Call::refund_decision_deposit { .. } |
+				pallet_referenda::Call::cancel { .. } |
+				pallet_referenda::Call::kill { .. } |
+				pallet_referenda::Call::nudge_referendum { .. } |
+				pallet_referenda::Call::one_fewer_deciding { .. },
+			) |
+			RuntimeCall::FellowshipCollective(..) |
+			RuntimeCall::FellowshipReferenda(
+				pallet_referenda::Call::place_decision_deposit { .. } |
+				pallet_referenda::Call::refund_decision_deposit { .. } |
+				pallet_referenda::Call::cancel { .. } |
+				pallet_referenda::Call::kill { .. } |
+				pallet_referenda::Call::nudge_referendum { .. } |
+				pallet_referenda::Call::one_fewer_deciding { .. },
+			) |
 			RuntimeCall::Claims(
 				super::claims::Call::claim { .. } |
 				super::claims::Call::mint_claim { .. } |
@@ -330,6 +351,13 @@ parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
 }
 
+parameter_types! {
+	// StakingAdmin pluralistic body.
+	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
+	// Fellows pluralistic body.
+	pub const FellowsBodyId: BodyId = BodyId::Technical;
+}
+
 #[cfg(feature = "runtime-benchmarks")]
 parameter_types! {
 	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
@@ -351,9 +379,30 @@ pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
 );
+
+/// Type to convert the `StakingAdmin` origin to a Plurality `MultiLocation` value.
+pub type StakingAdminToPlurality =
+	OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, StakingAdminBodyId>;
+
+/// Type to convert the Fellows origin to a Plurality `MultiLocation` value.
+pub type FellowsToPlurality = OriginToPluralityVoice<RuntimeOrigin, Fellows, FellowsBodyId>;
+
+/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain for a destination chain.
+pub type LocalPalletOriginToLocation = (
+	// StakingAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	StakingAdminToPlurality,
+	// Fellows origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	FellowsToPlurality,
+);
+
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
+	// We only allow the root, the council, fellows and the staking admin to send messages.
+	// This is basically safe to enable for everyone (safe the possibility of someone spamming the parachain
+	// if they're willing to pay the KSM to send from the Relay-chain), but it's useless until we bring in XCM v3
+	// which will make `DescendOrigin` a bit more useful.
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalPalletOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally.
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
