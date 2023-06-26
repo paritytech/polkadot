@@ -32,7 +32,7 @@ assert_cmd = "2.0.4"
 nix = { version = "0.26.1", features = ["signal"] }
 tempfile = "3.2.0"
 tokio = "1.24.2"
-substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "na-jsonrpsee-v0.18" }
 polkadot-core-primitives = { path = "core-primitives" }
 
 [workspace]
@@ -233,3 +233,6 @@ conf-files = [
 
 [package.metadata.spellcheck]
 config = "./scripts/ci/gitlab/spellcheck.toml"
+
+[patch.crates-io]
+jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", branch = "na-with-debug-info" }
