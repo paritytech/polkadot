@@ -1329,7 +1329,10 @@ pub mod migrations {
 	}
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (parachains_scheduler::migration::v1::MigrateToV1<Runtime>,);
+	pub type Unreleased = (
+		pallet_im_online::migration::v1::Migration<Runtime>,
+		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
+	);
 }
 
 /// Helpers to configure all migrations.
