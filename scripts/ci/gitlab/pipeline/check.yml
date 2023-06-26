@@ -59,7 +59,6 @@ check-try-runtime:
     - .compiler-info
   script:
     - |
-      echo "Found label runtime_migration. Running tests"
       export RUST_LOG=remote-ext=debug,runtime=debug
       echo "---------- Running try-runtime for ${NETWORK} ----------"
       time cargo build --release --locked -p "$NETWORK"-runtime
