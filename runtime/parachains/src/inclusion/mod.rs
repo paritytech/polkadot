@@ -23,7 +23,6 @@
 use crate::{
 	configuration::{self, HostConfiguration},
 	disputes, dmp, hrmp, paras,
-	paras_inherent::DisputedBitfield,
 	scheduler::CoreAssignment,
 	shared,
 };
@@ -39,8 +38,8 @@ use parity_scale_codec::{Decode, Encode};
 use primitives::{
 	supermajority_threshold, well_known_keys, AvailabilityBitfield, BackedCandidate,
 	CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
-	CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash, HeadData, Id as ParaId, SigningContext,
-	UncheckedSignedAvailabilityBitfields, UpwardMessage, ValidatorId, ValidatorIndex,
+	CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash, HeadData, Id as ParaId,
+	SignedAvailabilityBitfields, SigningContext, UpwardMessage, ValidatorId, ValidatorIndex,
 	ValidityAttestation,
 };
 use scale_info::TypeInfo;
@@ -90,19 +89,6 @@ pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 128 * 1024;
 pub struct AvailabilityBitfieldRecord<N> {
 	bitfield: AvailabilityBitfield, // one bit per core.
 	submitted_at: N,                // for accounting, as meaning of bits may change over time.
-}
-
-/// Determines if all checks should be applied or if a subset was already completed
-/// in a code path that will be executed afterwards or was already executed before.
-#[derive(Clone, Copy, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-pub(crate) enum FullCheck {
-	/// Yes, do a full check, skip nothing.
-	Yes,
-	/// Skip a subset of checks that are already completed before.
-	///
-	/// Attention: Should only be used when absolutely sure that the required
-	/// checks are completed before.
-	Skip,
 }
 
 /// A backed candidate pending availability.
@@ -497,13 +483,17 @@ impl<T: Config> Pallet<T> {
 
 	/// Extract the freed cores based on cores that became available.
 	///
+	/// Bitfields are expected to have been sanitized already. E.g. via `sanitize_bitfields`!
+	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
+	///
+	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
+	/// and cores free.
 	pub(crate) fn update_pending_availability_and_get_freed_cores<F>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
-		signed_bitfields: UncheckedSignedAvailabilityBitfields,
+		signed_bitfields: SignedAvailabilityBitfields,
 		core_lookup: F,
-		enact_candidate: bool,
 	) -> Vec<(CoreIndex, CandidateHash)>
 	where
 		F: Fn(CoreIndex) -> Option<ParaId>,
@@ -518,9 +508,8 @@ impl<T: Config> Pallet<T> {
 		let now = <frame_system::Pallet<T>>::block_number();
 		for (checked_bitfield, validator_index) in
 			signed_bitfields.into_iter().map(|signed_bitfield| {
-				// extracting unchecked data, since it's checked in `fn sanitize_bitfields` already.
-				let validator_idx = signed_bitfield.unchecked_validator_index();
-				let checked_bitfield = signed_bitfield.unchecked_into_payload();
+				let validator_idx = signed_bitfield.validator_index();
+				let checked_bitfield = signed_bitfield.into_payload();
 				(checked_bitfield, validator_idx)
 			}) {
 			for (bit_idx, _) in checked_bitfield.0.iter().enumerate().filter(|(_, is_av)| **is_av) {
@@ -575,20 +564,18 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 
-				if enact_candidate {
-					let receipt = CommittedCandidateReceipt {
-						descriptor: pending_availability.descriptor,
-						commitments,
-					};
-					let _weight = Self::enact_candidate(
-						pending_availability.relay_parent_number,
-						receipt,
-						pending_availability.backers,
-						pending_availability.availability_votes,
-						pending_availability.core,
-						pending_availability.backing_group,
-					);
-				}
+				let receipt = CommittedCandidateReceipt {
+					descriptor: pending_availability.descriptor,
+					commitments,
+				};
+				let _weight = Self::enact_candidate(
+					pending_availability.relay_parent_number,
+					receipt,
+					pending_availability.backers,
+					pending_availability.availability_votes,
+					pending_availability.core,
+					pending_availability.backing_group,
+				);
 
 				freed_cores.push((pending_availability.core, pending_availability.hash));
 			} else {
@@ -597,42 +584,6 @@ impl<T: Config> Pallet<T> {
 		}
 
 		freed_cores
-	}
-
-	/// Process a set of incoming bitfields.
-	///
-	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
-	/// and cores free.
-	pub(crate) fn process_bitfields(
-		expected_bits: usize,
-		signed_bitfields: UncheckedSignedAvailabilityBitfields,
-		disputed_bitfield: DisputedBitfield,
-		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-		full_check: FullCheck,
-	) -> Result<Vec<(CoreIndex, CandidateHash)>, crate::inclusion::Error<T>> {
-		let validators = shared::Pallet::<T>::active_validator_keys();
-		let session_index = shared::Pallet::<T>::session_index();
-		let parent_hash = frame_system::Pallet::<T>::parent_hash();
-
-		let checked_bitfields = crate::paras_inherent::assure_sanity_bitfields::<T>(
-			signed_bitfields,
-			disputed_bitfield,
-			expected_bits,
-			parent_hash,
-			session_index,
-			&validators[..],
-			full_check,
-		)?;
-
-		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_>(
-			expected_bits,
-			&validators[..],
-			checked_bitfields,
-			core_lookup,
-			true,
-		);
-
-		Ok(freed_cores)
 	}
 
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates

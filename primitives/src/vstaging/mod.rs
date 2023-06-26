@@ -17,7 +17,7 @@
 //! Staging Primitives.
 
 // Put any primitives used by staging APIs functions here
-pub use crate::v4::*;
+pub use crate::v5::*;
 use sp_std::prelude::*;
 
 use parity_scale_codec::{Decode, Encode};
@@ -25,8 +25,18 @@ use primitives::RuntimeDebug;
 use scale_info::TypeInfo;
 
 /// Candidate's acceptance limitations for asynchronous backing per relay parent.
-#[derive(RuntimeDebug, Copy, Clone, PartialEq, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[derive(
+	RuntimeDebug,
+	Copy,
+	Clone,
+	PartialEq,
+	Encode,
+	Decode,
+	TypeInfo,
+	serde::Serialize,
+	serde::Deserialize,
+)]
+
 pub struct AsyncBackingParams {
 	/// The maximum number of para blocks between the para head in a relay parent
 	/// and a new candidate. Restricts nodes from building arbitrary long chains

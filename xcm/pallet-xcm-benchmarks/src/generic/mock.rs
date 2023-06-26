@@ -19,7 +19,7 @@
 use crate::{generic, mock::*, *};
 use codec::Decode;
 use frame_support::{
-	parameter_types,
+	match_types, parameter_types,
 	traits::{Everything, OriginTrait},
 	weights::Weight,
 };
@@ -33,7 +33,7 @@ use xcm_builder::{
 		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
 		TestUniversalAliases,
 	},
-	AllowUnpaidExecutionFrom,
+	AliasForeignAccountId32, AllowUnpaidExecutionFrom,
 };
 use xcm_executor::traits::ConvertOrigin;
 
@@ -105,6 +105,13 @@ parameter_types! {
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
+match_types! {
+	pub type OnlyParachains: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+}
+
+type Aliasers = AliasForeignAccountId32<OnlyParachains>;
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type RuntimeCall = RuntimeCall;
@@ -131,6 +138,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = TestUniversalAliases;
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
+	type Aliasers = Aliasers;
 }
 
 impl crate::Config for Test {
@@ -191,12 +199,19 @@ impl generic::Config for Test {
 		// No MessageExporter in tests
 		Err(BenchmarkError::Skip)
 	}
+
+	fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
+		let origin: MultiLocation =
+			(Parachain(1), AccountId32 { network: None, id: [0; 32] }).into();
+		let target: MultiLocation = AccountId32 { network: None, id: [0; 32] }.into();
+		Ok((origin, target))
+	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	use sp_runtime::BuildStorage;
-	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
+	let t = RuntimeGenesisConfig { ..Default::default() }.build_storage().unwrap();
 	sp_tracing::try_init_simple();
 	t.into()
 }
