@@ -2055,9 +2055,10 @@ fn deduplication_and_sorting_works() {
 
 		let disputes_orig = disputes.clone();
 
-		<Pallet<Test> as DisputesHandler<
-				BlockNumberFor<Test>,
-			>>::deduplicate_and_sort_dispute_data(&mut disputes).unwrap_err();
+		<Pallet<Test> as DisputesHandler<BlockNumberFor<Test>>>::deduplicate_and_sort_dispute_data(
+			&mut disputes,
+		)
+		.unwrap_err();
 
 		// assert ordering of local only disputes, and at the same time, and being free of duplicates
 		assert_eq!(disputes_orig.len(), disputes.len() + 1);
@@ -2084,10 +2085,11 @@ fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
 
 	let mut acc = Vec::<CheckedDisputeStatementSet>::new();
 	for dispute_statement in sets {
-		if let Some(checked) = <Pallet<T> as DisputesHandler<BlockNumberFor<T>>>::filter_dispute_data(
-			dispute_statement,
-			post_conclusion_acceptance_period,
-		) {
+		if let Some(checked) =
+			<Pallet<T> as DisputesHandler<BlockNumberFor<T>>>::filter_dispute_data(
+				dispute_statement,
+				post_conclusion_acceptance_period,
+			) {
 			acc.push(checked);
 		}
 	}
@@ -2159,9 +2161,11 @@ fn filter_removes_duplicates_within_set() {
 		};
 
 		let post_conclusion_acceptance_period = 10;
-		let statements = <Pallet<Test> as DisputesHandler<
-			BlockNumberFor<Test>,
-		>>::filter_dispute_data(statements, post_conclusion_acceptance_period);
+		let statements =
+			<Pallet<Test> as DisputesHandler<BlockNumberFor<Test>>>::filter_dispute_data(
+				statements,
+				post_conclusion_acceptance_period,
+			);
 
 		assert_eq!(
 			statements,

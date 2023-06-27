@@ -35,8 +35,8 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::{
-	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Moment, SessionIndex,
-	UpwardMessage, ValidationCode, ValidatorIndex,
+	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Moment, SessionIndex, UpwardMessage,
+	ValidationCode, ValidatorIndex,
 };
 use sp_core::{ConstU32, H256};
 use sp_io::TestExternalities;

@@ -24,7 +24,7 @@ use frame_system::EnsureRoot;
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
-use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
+use sp_runtime::{traits::IdentityLookup, AccountId32};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
 use xcm::prelude::*;
 use xcm_builder::{

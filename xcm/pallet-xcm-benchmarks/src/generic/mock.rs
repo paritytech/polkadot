@@ -24,10 +24,7 @@ use frame_support::{
 	weights::Weight,
 };
 use sp_core::H256;
-use sp_runtime::{
-	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
-};
+use sp_runtime::traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput};
 use xcm_builder::{
 	test_utils::{
 		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,

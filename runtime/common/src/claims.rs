@@ -714,7 +714,6 @@ mod tests {
 	};
 	use pallet_balances;
 	use sp_runtime::{
-		testing::Header,
 		traits::{BlakeTwo256, Identity, IdentityLookup},
 		transaction_validity::TransactionLongevity,
 		TokenError,

@@ -876,7 +876,6 @@ mod tests {
 	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 	use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 	use sp_runtime::{
-		testing::Header,
 		traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
 		DispatchResult,
 	};

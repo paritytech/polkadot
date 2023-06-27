@@ -486,7 +486,6 @@ mod tests {
 		traits::{Currency, WithdrawReasons},
 	};
 	use sp_runtime::{
-		testing::Header,
 		traits::{BlakeTwo256, Dispatchable, IdentifyAccount, Identity, IdentityLookup, Verify},
 		ArithmeticError, MultiSignature,
 	};

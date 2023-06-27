@@ -24,7 +24,7 @@ use frame_support::{
 
 use frame_system::EnsureRoot;
 use sp_core::{ConstU32, H256};
-use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
+use sp_runtime::{traits::IdentityLookup, AccountId32};
 
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{

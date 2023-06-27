@@ -24,10 +24,7 @@ use frame_support::{
 	weights::Weight,
 };
 use sp_core::H256;
-use sp_runtime::{
-	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup},
-};
+use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, MintLocation};
 
