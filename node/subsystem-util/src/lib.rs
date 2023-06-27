@@ -425,33 +425,3 @@ impl Validator {
 		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key)
 	}
 }
-
-/// Is used in `is_frequent`, limits size of the vector with timestamps
-pub const MAX_FREQUENCY_TIMESTAMPS_SIZE: usize = 10;
-
-/// Compares the rate of its own calls with the passed one.
-pub fn is_frequent(timestamps: &mut Vec<u64>, max_rate: f64) -> bool {
-	if timestamps.len() >= MAX_FREQUENCY_TIMESTAMPS_SIZE {
-		timestamps.drain(..timestamps.len() - (MAX_FREQUENCY_TIMESTAMPS_SIZE - 1));
-	}
-
-	let now = SystemTime::now()
-		.duration_since(SystemTime::UNIX_EPOCH)
-		.expect("Time is always after UNIX_EPOCH")
-		.as_millis();
-	timestamps.push(now as u64);
-
-	// Two attempts is not enough to call something as frequent.
-	if timestamps.len() < 3 {
-		return false
-	}
-
-	let elapsed = timestamps.last().unwrap() - timestamps.first().unwrap();
-
-	// More then 1000 times per second is frequent enough
-	if elapsed == 0 {
-		return true
-	}
-
-	max_rate < (timestamps.len() as u64 * 1000 / elapsed) as f64
-}

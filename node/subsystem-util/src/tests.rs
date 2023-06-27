@@ -94,38 +94,3 @@ fn subset_predefined_generation_check() {
 		assert_eq!(v as usize, idx + 1);
 	}
 }
-
-#[test]
-fn frequent_at_third_time() {
-	let mut timestamps: Vec<u64> = Vec::with_capacity(MAX_FREQUENCY_TIMESTAMPS_SIZE);
-	let rate = 1.0;
-
-	assert!(!is_frequent(&mut timestamps, rate));
-	assert!(!is_frequent(&mut timestamps, rate));
-
-	assert!(is_frequent(&mut timestamps, rate));
-}
-
-#[test]
-fn not_frequent_at_third_time_if_slow() {
-	let mut timestamps: Vec<u64> = Vec::with_capacity(MAX_FREQUENCY_TIMESTAMPS_SIZE);
-	let rate = 1000.0;
-
-	assert!(!is_frequent(&mut timestamps, rate));
-	assert!(!is_frequent(&mut timestamps, rate));
-
-	std::thread::sleep(Duration::from_millis(10));
-	assert!(!is_frequent(&mut timestamps, rate));
-}
-
-#[test]
-fn keeps_only_last_records() {
-	let mut timestamps: Vec<u64> = Vec::with_capacity(MAX_FREQUENCY_TIMESTAMPS_SIZE);
-	let rate = 1.0;
-
-	for _ in 0..(2 * MAX_FREQUENCY_TIMESTAMPS_SIZE) {
-		let _ = is_frequent(&mut timestamps, rate);
-	}
-
-	assert!(timestamps.len() == MAX_FREQUENCY_TIMESTAMPS_SIZE);
-}

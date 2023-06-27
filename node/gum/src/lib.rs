@@ -117,32 +117,44 @@ pub use gum_proc_macro::{debug, error, info, trace, warn, warn_if_frequent};
 #[cfg(test)]
 mod tests;
 
-/// Is used in `is_frequent`, limits size of the vector with timestamps
-pub const MAX_FREQUENCY_TIMESTAMPS_SIZE: usize = 10;
+const MAX_FREQ_SIZE: usize = 10;
+const MAX_FREQ_RATE: f64 = 1.0;
 
-/// Compares the rate of its own calls with the passed one.
-pub fn is_frequent(timestamps: &mut Vec<u64>, max_rate: f64) -> bool {
-	if timestamps.len() >= MAX_FREQUENCY_TIMESTAMPS_SIZE {
-		timestamps.drain(..timestamps.len() - (MAX_FREQUENCY_TIMESTAMPS_SIZE - 1));
+pub struct Freq {
+	timestamps: Vec<u64>,
+}
+
+impl Freq {
+	pub fn new() -> Self {
+		Self { timestamps: Vec::with_capacity(MAX_FREQ_SIZE) }
 	}
 
-	let now = std::time::SystemTime::now()
-		.duration_since(std::time::SystemTime::UNIX_EPOCH)
-		.expect("Time is always after UNIX_EPOCH")
-		.as_millis();
-	timestamps.push(now as u64);
+	pub fn is_frequent(&mut self, max_rate: f64) -> bool {
+		self.record();
 
-	// Two attempts is not enough to call something as frequent.
-	if timestamps.len() < 3 {
-		return false
+		// Two attempts is not enough to call something as frequent.
+		if self.timestamps.len() < 3 {
+			return false
+		}
+
+		let elapsed = self.timestamps.last().unwrap() - self.timestamps.first().unwrap();
+		if elapsed == 0 {
+			return true // More then 1000 times per second is frequent enough
+		}
+
+		let rate = (self.timestamps.len() as u64 * 1000 / elapsed) as f64;
+		rate > max_rate
 	}
 
-	let elapsed = timestamps.last().unwrap() - timestamps.first().unwrap();
+	fn record(&mut self) {
+		if self.timestamps.len() >= MAX_FREQ_SIZE {
+			self.timestamps.drain(..self.timestamps.len() - (MAX_FREQ_SIZE - 1));
+		}
 
-	// More then 1000 times per second is frequent enough
-	if elapsed == 0 {
-		return true
+		let now = std::time::SystemTime::now()
+			.duration_since(std::time::SystemTime::UNIX_EPOCH)
+			.expect("Time is always after UNIX_EPOCH")
+			.as_millis() as u64;
+		self.timestamps.push(now);
 	}
-
-	max_rate < (timestamps.len() as u64 * 1000 / elapsed) as f64
 }

@@ -265,13 +265,16 @@ impl Parse for Freq {
 #[derive(Debug, Clone)]
 pub(crate) struct ArgsIfFrequent {
 	pub freq: Freq,
-	pub comma: Token![,],
 	pub rest: TokenStream,
 }
 
 impl Parse for ArgsIfFrequent {
 	fn parse(input: ParseStream) -> Result<Self> {
-		Ok(Self { freq: input.parse()?, comma: input.parse()?, rest: input.parse()? })
+		let freq = input.parse()?;
+		let _: Token![,] = input.parse()?;
+		let rest = input.parse()?;
+
+		Ok(Self { freq, rest })
 	}
 }
 

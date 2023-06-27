@@ -51,9 +51,9 @@ fn wo_unnecessary() {
 }
 
 #[test]
-fn freq() {
+fn if_frequent() {
 	let a: i32 = 7;
-	let mut f = vec![1_u64];
+	let mut f = Freq::new();
 	warn_if_frequent!(
 		freq: f,
 		target: "bar",
@@ -115,4 +115,27 @@ fn w_candidate_hash_aliased_unnecessary() {
 		c = a,
 		"xxx",
 	);
+}
+
+#[test]
+fn frequent_at_third_time() {
+	let mut freq = Freq::new();
+	let rate = 1.0;
+
+	assert!(!freq.is_frequent(rate));
+	assert!(!freq.is_frequent(rate));
+
+	assert!(freq.is_frequent(rate));
+}
+
+#[test]
+fn not_frequent_at_third_time_if_slow() {
+	let mut freq = Freq::new();
+	let rate = 1000.0;
+
+	assert!(!freq.is_frequent(rate));
+	assert!(!freq.is_frequent(rate));
+
+	std::thread::sleep(std::time::Duration::from_millis(10));
+	assert!(!freq.is_frequent(rate));
 }
