@@ -35,7 +35,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::{
-	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
+	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Moment, SessionIndex,
 	UpwardMessage, ValidationCode, ValidatorIndex,
 };
 use sp_core::{ConstU32, H256};
@@ -48,7 +48,7 @@ use sp_runtime::{
 use std::{cell::RefCell, collections::HashMap};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame_system::mocking::MockBlockU32<Test>;
 
 frame_support::construct_runtime!(
 	pub enum Test
