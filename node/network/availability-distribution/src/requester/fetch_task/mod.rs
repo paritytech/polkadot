@@ -343,7 +343,7 @@ impl RunningTask {
 	async fn do_request(
 		&mut self,
 		validator: &AuthorityDiscoveryId,
-		mut network_error_freq: &mut gum::Freq,
+		network_error_freq: &mut gum::Freq,
 	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		gum::trace!(
 			target: LOG_TARGET,

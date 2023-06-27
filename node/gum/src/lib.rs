@@ -117,8 +117,9 @@ pub use gum_proc_macro::{debug, error, info, trace, warn, warn_if_frequent};
 #[cfg(test)]
 mod tests;
 
+/// Max allowed frequency of debug messages
+pub const MAX_FREQ_RATE: f64 = 1.0;
 const MAX_FREQ_SIZE: usize = 10;
-const MAX_FREQ_RATE: f64 = 1.0;
 
 /// Utility struct to compare the rate of its own calls.
 pub struct Freq {

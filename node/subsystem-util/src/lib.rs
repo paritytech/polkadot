@@ -52,7 +52,7 @@ pub use rand;
 use sp_application_crypto::AppCrypto;
 use sp_core::ByteArray;
 use sp_keystore::{Error as KeystoreError, KeystorePtr};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 use thiserror::Error;
 
 pub use metered;
