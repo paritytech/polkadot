@@ -508,7 +508,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn query)]
 	pub(super) type Queries<T: Config> =
-		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
+		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<BlockNumberFor<T>>, OptionQuery>;
 
 	/// The existing asset traps.
 	///
@@ -741,7 +741,7 @@ pub mod pallet {
 
 			if on_chain_storage_version < 1 {
 				let mut count = 0;
-				Queries::<T>::translate::<QueryStatusV0<T::BlockNumber>, _>(|_key, value| {
+				Queries::<T>::translate::<QueryStatusV0<BlockNumberFor<T>>, _>(|_key, value| {
 					count += 1;
 					Some(value.into())
 				});
@@ -1128,14 +1128,14 @@ const MAX_ASSETS_FOR_TRANSFER: usize = 2;
 
 impl<T: Config> QueryHandler for Pallet<T> {
 	type QueryId = u64;
-	type BlockNumber = T::BlockNumber;
+	type BlockNumber = BlockNumberFor<T>;
 	type Error = XcmError;
 	type UniversalLocation = T::UniversalLocation;
 
 	/// Attempt to create a new query ID and register it as a query that is yet to respond.
 	fn new_query(
 		responder: impl Into<MultiLocation>,
-		timeout: T::BlockNumber,
+		timeout: BlockNumberFor<T>,
 		match_querier: impl Into<MultiLocation>,
 	) -> Self::QueryId {
 		Self::do_new_query(responder, None, timeout, match_querier).into()
@@ -1538,7 +1538,7 @@ impl<T: Config> Pallet<T> {
 	fn do_new_query(
 		responder: impl Into<MultiLocation>,
 		maybe_notify: Option<(u8, u8)>,
-		timeout: T::BlockNumber,
+		timeout: BlockNumberFor<T>,
 		match_querier: impl Into<MultiLocation>,
 	) -> u64 {
 		QueryCounter::<T>::mutate(|q| {
@@ -1583,7 +1583,7 @@ impl<T: Config> Pallet<T> {
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
 		notify: impl Into<<T as Config>::RuntimeCall>,
-		timeout: T::BlockNumber,
+		timeout: BlockNumberFor<T>,
 	) -> Result<(), XcmError> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
@@ -1603,7 +1603,7 @@ impl<T: Config> Pallet<T> {
 	pub fn new_notify_query(
 		responder: impl Into<MultiLocation>,
 		notify: impl Into<<T as Config>::RuntimeCall>,
-		timeout: T::BlockNumber,
+		timeout: BlockNumberFor<T>,
 		match_querier: impl Into<MultiLocation>,
 	) -> u64 {
 		let notify = notify.into().using_encoded(|mut bytes| Decode::decode(&mut bytes)).expect(

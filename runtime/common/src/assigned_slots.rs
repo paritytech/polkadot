@@ -182,7 +182,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(n: T::BlockNumber) -> Weight {
+		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
 			if let Some((lease_period, first_block)) = Self::lease_period_index(n) {
 				// If we're beginning a new lease period then handle that.
 				if first_block {
@@ -213,14 +213,14 @@ pub mod pallet {
 				Error::<T>::SlotAlreadyAssigned
 			);
 
-			let current_lease_period: T::BlockNumber = Self::current_lease_period_index();
+			let current_lease_period: BlockNumberFor<T> = Self::current_lease_period_index();
 			ensure!(
 				!T::Leaser::already_leased(
 					id,
 					current_lease_period,
 					// Check current lease & next one
 					current_lease_period.saturating_add(
-						T::BlockNumber::from(2u32)
+						BlockNumberFor::<T>::from(2u32)
 							.saturating_mul(T::PermanentSlotLeasePeriodLength::get().into())
 					)
 				),
@@ -276,14 +276,14 @@ pub mod pallet {
 				Error::<T>::SlotAlreadyAssigned
 			);
 
-			let current_lease_period: T::BlockNumber = Self::current_lease_period_index();
+			let current_lease_period: BlockNumberFor<T> = Self::current_lease_period_index();
 			ensure!(
 				!T::Leaser::already_leased(
 					id,
 					current_lease_period,
 					// Check current lease & next one
 					current_lease_period.saturating_add(
-						T::BlockNumber::from(2u32)
+						BlockNumberFor::<T>::from(2u32)
 							.saturating_mul(T::TemporarySlotLeasePeriodLength::get().into())
 					)
 				),
@@ -564,10 +564,7 @@ mod tests {
 	type Block = frame_system::mocking::MockBlock<Test>;
 
 	frame_support::construct_runtime!(
-		pub enum Test where
-			Block = Block,
-			NodeBlock = Block,
-			UncheckedExtrinsic = UncheckedExtrinsic,
+		pub enum Test
 		{
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -597,12 +594,12 @@ mod tests {
 		type RuntimeOrigin = RuntimeOrigin;
 		type RuntimeCall = RuntimeCall;
 		type Index = u64;
-		type BlockNumber = BlockNumber;
+		
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
-		type Header = Header;
+		type Block = Block;
 		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();

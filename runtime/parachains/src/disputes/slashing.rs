@@ -270,7 +270,7 @@ where
 	}
 }
 
-impl<T> disputes::SlashingHandler<T::BlockNumber> for SlashValidatorsForDisputes<Pallet<T>>
+impl<T> disputes::SlashingHandler<BlockNumberFor<T>> for SlashValidatorsForDisputes<Pallet<T>>
 where
 	T: Config<KeyOwnerIdentification = IdentificationTuple<T>>,
 {
@@ -294,7 +294,7 @@ where
 		// NOTE: changing that requires modifying `do_punish` implementation
 	}
 
-	fn initializer_initialize(now: T::BlockNumber) -> Weight {
+	fn initializer_initialize(now: BlockNumberFor<T>) -> Weight {
 		Pallet::<T>::initializer_initialize(now)
 	}
 
@@ -529,7 +529,7 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes slashing module.
-	fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
