@@ -55,9 +55,9 @@ pub fn warn_if_frequent(item: proc_macro::TokenStream) -> proc_macro::TokenStrea
 
 	let stream = quote! {
 		if #freq_expr .is_frequent(#krate :: MAX_FREQ_RATE) {
-			#debug
-		} else {
 			#warn
+		} else {
+			#debug
 		}
 	};
 
