@@ -43,7 +43,7 @@ pub fn warn(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	gum(item, Level::Warn)
 }
 
-/// TODO
+/// Print a warning or debug level message depending on their frequency
 #[proc_macro]
 pub fn warn_if_frequent(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let ArgsIfFrequent { freq, rest, .. } = parse2(item.into()).unwrap();

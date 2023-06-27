@@ -120,15 +120,18 @@ mod tests;
 const MAX_FREQ_SIZE: usize = 10;
 const MAX_FREQ_RATE: f64 = 1.0;
 
+/// Utility struct to compare the rate of its own calls.
 pub struct Freq {
 	timestamps: Vec<u64>,
 }
 
 impl Freq {
+	/// Initiates a new instanse
 	pub fn new() -> Self {
 		Self { timestamps: Vec::with_capacity(MAX_FREQ_SIZE) }
 	}
 
+	/// Compares the rate of its own calls with the passed one.
 	pub fn is_frequent(&mut self, max_rate: f64) -> bool {
 		self.record();
 
