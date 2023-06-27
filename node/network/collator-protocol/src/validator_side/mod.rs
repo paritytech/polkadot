@@ -1270,6 +1270,8 @@ async fn run_inner<Context>(
 	let check_collations_stream = tick_stream(CHECK_COLLATIONS_POLL);
 	futures::pin_mut!(check_collations_stream);
 
+	let mut warn_freq = gum::Freq::new();
+
 	loop {
 		select! {
 			_ = reputation_delay => {
@@ -1312,6 +1314,7 @@ async fn run_inner<Context>(
 					&mut state.requested_collations,
 					&state.metrics,
 					&state.span_per_relay_parent,
+					&mut warn_freq,
 				).await;
 
 				for (peer_id, rep) in reputation_changes {
@@ -1328,14 +1331,20 @@ async fn poll_requests(
 	requested_collations: &mut HashMap<PendingCollation, PerRequest>,
 	metrics: &Metrics,
 	span_per_relay_parent: &HashMap<Hash, PerLeafSpan>,
+	warn_freq: &mut gum::Freq,
 ) -> Vec<(PeerId, Rep)> {
 	let mut retained_requested = HashSet::new();
 	let mut reputation_changes = Vec::new();
 	for (pending_collation, per_req) in requested_collations.iter_mut() {
 		// Despite the await, this won't block on the response itself.
-		let result =
-			poll_collation_response(metrics, span_per_relay_parent, pending_collation, per_req)
-				.await;
+		let result = poll_collation_response(
+			metrics,
+			span_per_relay_parent,
+			pending_collation,
+			per_req,
+			warn_freq,
+		)
+		.await;
 
 		if !result.is_ready() {
 			retained_requested.insert(pending_collation.clone());
@@ -1479,6 +1488,7 @@ async fn poll_collation_response(
 	spans: &HashMap<Hash, PerLeafSpan>,
 	pending_collation: &PendingCollation,
 	per_req: &mut PerRequest,
+	warn_freq: &mut gum::Freq,
 ) -> CollationFetchResult {
 	if never!(per_req.from_collator.is_terminated()) {
 		gum::error!(
@@ -1522,7 +1532,8 @@ async fn poll_collation_response(
 				CollationFetchResult::Error(None)
 			},
 			Err(RequestError::NetworkError(err)) => {
-				gum::debug!(
+				gum::warn_if_frequent!(
+					freq: warn_freq,
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
 					para_id = ?pending_collation.para_id,
@@ -1537,7 +1548,8 @@ async fn poll_collation_response(
 				CollationFetchResult::Error(Some(COST_NETWORK_ERROR))
 			},
 			Err(RequestError::Canceled(err)) => {
-				gum::debug!(
+				gum::warn_if_frequent!(
+					freq: warn_freq,
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
 					para_id = ?pending_collation.para_id,
