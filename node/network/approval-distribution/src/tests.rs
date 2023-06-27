@@ -415,7 +415,7 @@ fn delay_reputation_change() {
 		let overseer = &mut virtual_overseer;
 
 		// Setup peers
-		setup_peer_with_view(overseer, &peer, view![]).await;
+		setup_peer_with_view(overseer, &peer, ValidationVersion::V1, view![]).await;
 
 		// new block `hash_a` with 1 candidates
 		let meta = BlockApprovalMeta {
@@ -435,7 +435,7 @@ fn delay_reputation_change() {
 		let assignments = vec![(cert.clone(), 0u32)];
 
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
-		send_message_from_peer(overseer, &peer, msg).await;
+		send_message_from_peer(overseer, &peer, Versioned::V1(msg)).await;
 
 		// send an `Accept` message from the Approval Voting subsystem
 		assert_matches!(
@@ -2389,7 +2389,8 @@ fn import_versioned_approval() {
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
 
-	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+	let state = state_without_reputation_delay();
+	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		// All peers are aware of relay parent.
 		setup_peer_with_view(overseer, &peer_a, ValidationVersion::VStaging, view![hash]).await;
