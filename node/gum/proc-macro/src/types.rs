@@ -262,7 +262,6 @@ impl Parse for Freq {
 	}
 }
 
-#[derive(Debug, Clone)]
 pub(crate) struct ArgsIfFrequent {
 	pub freq: Freq,
 	pub rest: TokenStream,
