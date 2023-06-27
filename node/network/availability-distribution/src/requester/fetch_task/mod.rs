@@ -260,7 +260,7 @@ impl RunningTask {
 		let mut succeeded = false;
 		let mut count: u32 = 0;
 		let mut span = self.span.child("run-fetch-chunk-task").with_relay_parent(self.relay_parent);
-		let mut network_error_freq = gum::Freq::new();
+		let mut warn_freq = gum::Freq::new();
 		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
 			// Report retries:
@@ -273,7 +273,7 @@ impl RunningTask {
 				.with_chunk_index(self.request.index.0)
 				.with_stage(jaeger::Stage::AvailabilityDistribution);
 			// Send request:
-			let resp = match self.do_request(&validator, &mut network_error_freq).await {
+			let resp = match self.do_request(&validator, &mut warn_freq).await {
 				Ok(resp) => resp,
 				Err(TaskError::ShuttingDown) => {
 					gum::info!(
@@ -343,7 +343,7 @@ impl RunningTask {
 	async fn do_request(
 		&mut self,
 		validator: &AuthorityDiscoveryId,
-		network_error_freq: &mut gum::Freq,
+		warn_freq: &mut gum::Freq,
 	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		gum::trace!(
 			target: LOG_TARGET,
@@ -389,7 +389,7 @@ impl RunningTask {
 			},
 			Err(RequestError::NetworkError(err)) => {
 				gum::warn_if_frequent!(
-					freq: network_error_freq,
+					freq: warn_freq,
 					target: LOG_TARGET,
 					origin = ?validator,
 					relay_parent = ?self.relay_parent,
@@ -404,7 +404,7 @@ impl RunningTask {
 			},
 			Err(RequestError::Canceled(oneshot::Canceled)) => {
 				gum::warn_if_frequent!(
-					freq: network_error_freq,
+					freq: warn_freq,
 					target: LOG_TARGET,
 					origin = ?validator,
 					relay_parent = ?self.relay_parent,
