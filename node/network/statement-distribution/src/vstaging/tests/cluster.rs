@@ -182,9 +182,9 @@ fn cluster_valid_statement_before_seconded_ignored() {
 
 		assert_matches!(
 			overseer.recv().await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r)) => {
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))) => {
 				assert_eq!(p, peer_a);
-				assert_eq!(r, COST_UNEXPECTED_STATEMENT);
+				assert_eq!(r, COST_UNEXPECTED_STATEMENT.into());
 			}
 		);
 
@@ -261,8 +261,8 @@ fn cluster_statement_bad_signature() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == COST_INVALID_SIGNATURE => { },
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == COST_INVALID_SIGNATURE.into() => { },
 				"{:?}",
 				statement
 			);
@@ -333,8 +333,8 @@ fn useful_cluster_statement_from_non_cluster_peer_rejected() {
 
 		assert_matches!(
 			overseer.recv().await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-				if p == peer_a && r == COST_UNEXPECTED_STATEMENT => { }
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+				if p == peer_a && r == COST_UNEXPECTED_STATEMENT.into() => { }
 		);
 
 		overseer
@@ -394,8 +394,8 @@ fn statement_from_non_cluster_originator_unexpected() {
 
 		assert_matches!(
 			overseer.recv().await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-				if p == peer_a && r == COST_UNEXPECTED_STATEMENT => { }
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+				if p == peer_a && r == COST_UNEXPECTED_STATEMENT.into() => { }
 		);
 
 		overseer
@@ -471,8 +471,8 @@ fn seconded_statement_leads_to_request() {
 
 		assert_matches!(
 			overseer.recv().await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-				if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+				if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 		);
 
 		handle_sent_request(
@@ -488,8 +488,8 @@ fn seconded_statement_leads_to_request() {
 
 		assert_matches!(
 			overseer.recv().await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-				if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+				if p == peer_a && r == BENEFIT_VALID_RESPONSE.into() => { }
 		);
 
 		answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
@@ -845,8 +845,8 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 			);
 		}
 
@@ -865,8 +865,8 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_RESPONSE
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_RESPONSE.into()
 			);
 		}
 
@@ -980,8 +980,8 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 			);
 		}
 
@@ -1000,8 +1000,8 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_RESPONSE.into() => { }
 			);
 		}
 
@@ -1197,8 +1197,8 @@ fn ensure_seconding_limit_is_respected() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 			);
 		}
 
@@ -1222,8 +1222,8 @@ fn ensure_seconding_limit_is_respected() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 			);
 		}
 
@@ -1247,8 +1247,8 @@ fn ensure_seconding_limit_is_respected() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == COST_EXCESSIVE_SECONDED => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == COST_EXCESSIVE_SECONDED.into() => { }
 			);
 		}
 

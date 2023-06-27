@@ -27,7 +27,9 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	SignedFullStatement, Statement, StatementWithPVD, UncheckedSignedFullStatement,
 };
-use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
+use polkadot_node_subsystem_util::{
+	self as util, rand, reputation::ReputationAggregator, MIN_GOSSIP_PEERS,
+};
 
 use polkadot_node_subsystem::{
 	jaeger,
@@ -1186,12 +1188,14 @@ async fn send_statements<Context>(
 	}
 }
 
-async fn report_peer(
+/// Modify the reputation of a peer based on its behavior.
+async fn modify_reputation(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::StatementDistributionSenderTrait,
 	peer: PeerId,
 	rep: Rep,
 ) {
-	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
+	reputation.modify(sender, peer, rep).await;
 }
 
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
@@ -1353,6 +1357,7 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 	metrics: &Metrics,
 	runtime: &mut RuntimeInfo,
 	rng: &mut R,
+	reputation: &mut ReputationAggregator,
 ) where
 	R: rand::Rng,
 {
@@ -1367,6 +1372,7 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 				message,
 				req_sender,
 				metrics,
+				reputation,
 			)
 			.await,
 		None => None,
@@ -1431,6 +1437,7 @@ async fn handle_incoming_message<'a, Context>(
 	message: net_protocol::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
+	reputation: &mut ReputationAggregator,
 ) -> Option<(Hash, StoredStatement<'a>)> {
 	let _ = metrics.time_network_bridge_update("handle_incoming_message");
 
@@ -1463,7 +1470,7 @@ async fn handle_incoming_message<'a, Context>(
 			);
 
 			if !recent_outdated_heads.is_recent_outdated(&relay_parent) {
-				report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+				modify_reputation(reputation, ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
 			}
 
 			return None
@@ -1473,7 +1480,7 @@ async fn handle_incoming_message<'a, Context>(
 	if let protocol_v1::StatementDistributionMessage::LargeStatement(_) = message {
 		if let Err(rep) = peer_data.receive_large_statement(&relay_parent) {
 			gum::debug!(target: LOG_TARGET, ?peer, ?message, ?rep, "Unexpected large statement.",);
-			report_peer(ctx.sender(), peer, rep).await;
+			modify_reputation(reputation, ctx.sender(), peer, rep).await;
 			return None
 		}
 	}
@@ -1514,16 +1521,16 @@ async fn handle_incoming_message<'a, Context>(
 				// Report peer merely if this is not a duplicate out-of-view statement that
 				// was caused by a missing Seconded statement from this peer
 				if unexpected_count == 0_usize {
-					report_peer(ctx.sender(), peer, rep).await;
+					modify_reputation(reputation, ctx.sender(), peer, rep).await;
 				}
 			},
 			// This happens when we have an unexpected remote peer that announced Seconded
 			COST_UNEXPECTED_STATEMENT_REMOTE => {
 				metrics.on_unexpected_statement_seconded();
-				report_peer(ctx.sender(), peer, rep).await;
+				modify_reputation(reputation, ctx.sender(), peer, rep).await;
 			},
 			_ => {
-				report_peer(ctx.sender(), peer, rep).await;
+				modify_reputation(reputation, ctx.sender(), peer, rep).await;
 			},
 		}
 
@@ -1544,7 +1551,7 @@ async fn handle_incoming_message<'a, Context>(
 				peer_data
 					.receive(&relay_parent, &fingerprint, max_message_count)
 					.expect("checked in `check_can_receive` above; qed");
-				report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
+				modify_reputation(reputation, ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
 
 				return None
 			},
@@ -1554,7 +1561,7 @@ async fn handle_incoming_message<'a, Context>(
 		match check_statement_signature(&active_head, relay_parent, unchecked_compact) {
 			Err(statement) => {
 				gum::debug!(target: LOG_TARGET, ?peer, ?statement, "Invalid statement signature");
-				report_peer(ctx.sender(), peer, COST_INVALID_SIGNATURE).await;
+				modify_reputation(reputation, ctx.sender(), peer, COST_INVALID_SIGNATURE).await;
 				return None
 			},
 			Ok(statement) => statement,
@@ -1587,7 +1594,7 @@ async fn handle_incoming_message<'a, Context>(
 				is_large_statement,
 				"Full statement had bad payload."
 			);
-			report_peer(ctx.sender(), peer, COST_WRONG_HASH).await;
+			modify_reputation(reputation, ctx.sender(), peer, COST_WRONG_HASH).await;
 			return None
 		},
 		Ok(statement) => statement,
@@ -1663,7 +1670,7 @@ async fn handle_incoming_message<'a, Context>(
 			unreachable!("checked in `is_useful_or_unknown` above; qed");
 		},
 		NotedStatement::Fresh(statement) => {
-			report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
+			modify_reputation(reputation, ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
 
 			let mut _span = handle_incoming_span.child("notify-backing");
 
@@ -1730,6 +1737,7 @@ pub(crate) async fn handle_network_update<Context, R>(
 	update: NetworkBridgeEvent<net_protocol::StatementDistributionMessage>,
 	rng: &mut R,
 	metrics: &Metrics,
+	reputation: &mut ReputationAggregator,
 ) where
 	R: rand::Rng,
 {
@@ -1824,6 +1832,7 @@ pub(crate) async fn handle_network_update<Context, R>(
 				metrics,
 				runtime,
 				rng,
+				reputation,
 			)
 			.await;
 		},
@@ -1897,6 +1906,7 @@ pub(crate) async fn handle_requester_message<Context, R: rand::Rng>(
 	rng: &mut R,
 	message: RequesterMessage,
 	metrics: &Metrics,
+	reputation: &mut ReputationAggregator,
 ) -> JfyiErrorResult<()> {
 	let topology_storage = &state.topology_storage;
 	let peers = &mut state.peers;
@@ -1913,9 +1923,9 @@ pub(crate) async fn handle_requester_message<Context, R: rand::Rng>(
 			bad_peers,
 		} => {
 			for bad in bad_peers {
-				report_peer(ctx.sender(), bad, COST_FETCH_FAIL).await;
+				modify_reputation(reputation, ctx.sender(), bad, COST_FETCH_FAIL).await;
 			}
-			report_peer(ctx.sender(), from_peer, BENEFIT_VALID_RESPONSE).await;
+			modify_reputation(reputation, ctx.sender(), from_peer, BENEFIT_VALID_RESPONSE).await;
 
 			let active_head =
 				active_heads.get_mut(&relay_parent).ok_or(JfyiError::NoSuchHead(relay_parent))?;
@@ -1951,6 +1961,7 @@ pub(crate) async fn handle_requester_message<Context, R: rand::Rng>(
 						&metrics,
 						runtime,
 						rng,
+						reputation,
 					)
 					.await;
 				}
@@ -1990,7 +2001,8 @@ pub(crate) async fn handle_requester_message<Context, R: rand::Rng>(
 				}
 			}
 		},
-		RequesterMessage::ReportPeer(peer, rep) => report_peer(ctx.sender(), peer, rep).await,
+		RequesterMessage::ReportPeer(peer, rep) =>
+			modify_reputation(reputation, ctx.sender(), peer, rep).await,
 	}
 	Ok(())
 }

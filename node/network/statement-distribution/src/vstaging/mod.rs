@@ -41,7 +41,8 @@ use polkadot_node_subsystem::{
 	overseer, ActivatedLeaf,
 };
 use polkadot_node_subsystem_util::{
-	backing_implicit_view::View as ImplicitView, runtime::ProspectiveParachainsMode,
+	backing_implicit_view::View as ImplicitView, reputation::ReputationAggregator,
+	runtime::ProspectiveParachainsMode,
 };
 use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CompactStatement, CoreIndex, CoreState, GroupIndex,
@@ -315,6 +316,7 @@ pub(crate) async fn handle_network_update<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	update: NetworkBridgeEvent<net_protocol::StatementDistributionMessage>,
+	reputation: &mut ReputationAggregator,
 ) {
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer_id, role, protocol_version, mut authority_ids) => {
@@ -383,13 +385,15 @@ pub(crate) async fn handle_network_update<Context>(
 			) => return,
 			net_protocol::StatementDistributionMessage::VStaging(
 				protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, statement),
-			) => handle_incoming_statement(ctx, state, peer_id, relay_parent, statement).await,
+			) =>
+				handle_incoming_statement(ctx, state, peer_id, relay_parent, statement, reputation)
+					.await,
 			net_protocol::StatementDistributionMessage::VStaging(
 				protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(inner),
-			) => handle_incoming_manifest(ctx, state, peer_id, inner).await,
+			) => handle_incoming_manifest(ctx, state, peer_id, inner, reputation).await,
 			net_protocol::StatementDistributionMessage::VStaging(
 				protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(inner),
-			) => handle_incoming_acknowledgement(ctx, state, peer_id, inner).await,
+			) => handle_incoming_acknowledgement(ctx, state, peer_id, inner, reputation).await,
 		},
 		NetworkBridgeEvent::PeerViewChange(peer_id, view) =>
 			handle_peer_view_update(ctx, state, peer_id, view).await,
@@ -892,6 +896,7 @@ pub(crate) async fn share_local_statement<Context>(
 	state: &mut State,
 	relay_parent: Hash,
 	statement: SignedFullStatementWithPVD,
+	reputation: &mut ReputationAggregator,
 ) -> JfyiErrorResult<()> {
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
 		None => return Err(JfyiError::InvalidShare),
@@ -1012,7 +1017,7 @@ pub(crate) async fn share_local_statement<Context>(
 	.await;
 
 	if let Some(post_confirmation) = post_confirmation {
-		apply_post_confirmation(ctx, state, post_confirmation).await;
+		apply_post_confirmation(ctx, state, post_confirmation, reputation).await;
 	}
 
 	Ok(())
@@ -1171,12 +1176,14 @@ fn check_statement_signature(
 		.and_then(|v| statement.try_into_checked(&signing_context, v))
 }
 
-async fn report_peer(
+/// Modify the reputation of a peer based on its behavior.
+async fn modify_reputation(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::StatementDistributionSenderTrait,
 	peer: PeerId,
 	rep: Rep,
 ) {
-	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
+	reputation.modify(sender, peer, rep).await;
 }
 
 /// Handle an incoming statement.
@@ -1199,6 +1206,7 @@ async fn handle_incoming_statement<Context>(
 	peer: PeerId,
 	relay_parent: Hash,
 	statement: UncheckedSignedStatement,
+	reputation: &mut ReputationAggregator,
 ) {
 	let peer_state = match state.peers.get(&peer) {
 		None => {
@@ -1211,7 +1219,13 @@ async fn handle_incoming_statement<Context>(
 	// Ensure we know the relay parent.
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
 		None => {
-			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE).await;
+			modify_reputation(
+				reputation,
+				ctx.sender(),
+				peer,
+				COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE,
+			)
+			.await;
 			return
 		},
 		Some(p) => p,
@@ -1235,7 +1249,7 @@ async fn handle_incoming_statement<Context>(
 		None => {
 			// we shouldn't be receiving statements unless we're a validator
 			// this session.
-			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+			modify_reputation(reputation, ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
 			return
 		},
 		Some(l) => l,
@@ -1245,7 +1259,7 @@ async fn handle_incoming_statement<Context>(
 		match per_session.groups.by_validator_index(statement.unchecked_validator_index()) {
 			Some(g) => g,
 			None => {
-				report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+				modify_reputation(reputation, ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
 				return
 			},
 		};
@@ -1278,7 +1292,7 @@ async fn handle_incoming_statement<Context>(
 			Ok(Some(s)) => s,
 			Ok(None) => return,
 			Err(rep) => {
-				report_peer(ctx.sender(), peer, rep).await;
+				modify_reputation(reputation, ctx.sender(), peer, rep).await;
 				return
 			},
 		}
@@ -1307,13 +1321,13 @@ async fn handle_incoming_statement<Context>(
 			) {
 				Ok(s) => s,
 				Err(rep) => {
-					report_peer(ctx.sender(), peer, rep).await;
+					modify_reputation(reputation, ctx.sender(), peer, rep).await;
 					return
 				},
 			}
 		} else {
 			// Not a cluster or grid peer.
-			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+			modify_reputation(reputation, ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
 			return
 		}
 	};
@@ -1335,7 +1349,7 @@ async fn handle_incoming_statement<Context>(
 		);
 
 		if let Err(BadAdvertisement) = res {
-			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+			modify_reputation(reputation, ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
 			return
 		}
 	}
@@ -1377,7 +1391,7 @@ async fn handle_incoming_statement<Context>(
 	};
 
 	if was_fresh {
-		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
+		modify_reputation(reputation, ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
 		let is_importable = state.candidates.is_importable(&candidate_hash);
 
 		if let Some(ref session_topology) = per_session.grid_view {
@@ -1415,7 +1429,7 @@ async fn handle_incoming_statement<Context>(
 		)
 		.await;
 	} else {
-		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
+		modify_reputation(reputation, ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
 	}
 }
 
@@ -1845,6 +1859,7 @@ async fn handle_incoming_manifest_common<'a, Context>(
 	para_id: ParaId,
 	manifest_summary: grid::ManifestSummary,
 	manifest_kind: grid::ManifestKind,
+	reputation: &mut ReputationAggregator,
 ) -> Option<ManifestImportSuccess<'a>> {
 	// 1. sanity checks: peer is connected, relay-parent in state, para ID matches group index.
 	let peer_state = match peers.get(&peer) {
@@ -1854,7 +1869,13 @@ async fn handle_incoming_manifest_common<'a, Context>(
 
 	let relay_parent_state = match per_relay_parent.get_mut(&relay_parent) {
 		None => {
-			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE).await;
+			modify_reputation(
+				reputation,
+				ctx.sender(),
+				peer,
+				COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE,
+			)
+			.await;
 			return None
 		},
 		Some(s) => s,
@@ -1867,7 +1888,13 @@ async fn handle_incoming_manifest_common<'a, Context>(
 
 	let local_validator = match relay_parent_state.local_validator.as_mut() {
 		None => {
-			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE).await;
+			modify_reputation(
+				reputation,
+				ctx.sender(),
+				peer,
+				COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE,
+			)
+			.await;
 			return None
 		},
 		Some(x) => x,
@@ -1880,7 +1907,7 @@ async fn handle_incoming_manifest_common<'a, Context>(
 	);
 
 	if expected_group != Some(manifest_summary.claimed_group_index) {
-		report_peer(ctx.sender(), peer, COST_MALFORMED_MANIFEST).await;
+		modify_reputation(reputation, ctx.sender(), peer, COST_MALFORMED_MANIFEST).await;
 		return None
 	}
 
@@ -1898,7 +1925,8 @@ async fn handle_incoming_manifest_common<'a, Context>(
 
 	let sender_index = match sender_index {
 		None => {
-			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_DISALLOWED).await;
+			modify_reputation(reputation, ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_DISALLOWED)
+				.await;
 			return None
 		},
 		Some(s) => s,
@@ -1918,23 +1946,24 @@ async fn handle_incoming_manifest_common<'a, Context>(
 	) {
 		Ok(x) => x,
 		Err(grid::ManifestImportError::Conflicting) => {
-			report_peer(ctx.sender(), peer, COST_CONFLICTING_MANIFEST).await;
+			modify_reputation(reputation, ctx.sender(), peer, COST_CONFLICTING_MANIFEST).await;
 			return None
 		},
 		Err(grid::ManifestImportError::Overflow) => {
-			report_peer(ctx.sender(), peer, COST_EXCESSIVE_SECONDED).await;
+			modify_reputation(reputation, ctx.sender(), peer, COST_EXCESSIVE_SECONDED).await;
 			return None
 		},
 		Err(grid::ManifestImportError::Insufficient) => {
-			report_peer(ctx.sender(), peer, COST_INSUFFICIENT_MANIFEST).await;
+			modify_reputation(reputation, ctx.sender(), peer, COST_INSUFFICIENT_MANIFEST).await;
 			return None
 		},
 		Err(grid::ManifestImportError::Malformed) => {
-			report_peer(ctx.sender(), peer, COST_MALFORMED_MANIFEST).await;
+			modify_reputation(reputation, ctx.sender(), peer, COST_MALFORMED_MANIFEST).await;
 			return None
 		},
 		Err(grid::ManifestImportError::Disallowed) => {
-			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_DISALLOWED).await;
+			modify_reputation(reputation, ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_DISALLOWED)
+				.await;
 			return None
 		},
 	};
@@ -1947,7 +1976,7 @@ async fn handle_incoming_manifest_common<'a, Context>(
 		group_index,
 		Some((claimed_parent_hash, para_id)),
 	) {
-		report_peer(ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
+		modify_reputation(reputation, ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
 		return None
 	}
 
@@ -1999,6 +2028,7 @@ async fn handle_incoming_manifest<Context>(
 	state: &mut State,
 	peer: PeerId,
 	manifest: net_protocol::vstaging::BackedCandidateManifest,
+	reputation: &mut ReputationAggregator,
 ) {
 	let x = match handle_incoming_manifest_common(
 		ctx,
@@ -2016,6 +2046,7 @@ async fn handle_incoming_manifest<Context>(
 			statement_knowledge: manifest.statement_knowledge,
 		},
 		grid::ManifestKind::Full,
+		reputation,
 	)
 	.await
 	{
@@ -2121,6 +2152,7 @@ async fn handle_incoming_acknowledgement<Context>(
 	state: &mut State,
 	peer: PeerId,
 	acknowledgement: net_protocol::vstaging::BackedCandidateAcknowledgement,
+	reputation: &mut ReputationAggregator,
 ) {
 	// The key difference between acknowledgments and full manifests is that only
 	// the candidate hash is included alongside the bitfields, so the candidate
@@ -2131,8 +2163,13 @@ async fn handle_incoming_acknowledgement<Context>(
 		match state.candidates.get_confirmed(&candidate_hash) {
 			Some(c) => (c.relay_parent(), c.parent_head_data_hash(), c.group_index(), c.para_id()),
 			None => {
-				report_peer(ctx.sender(), peer, COST_UNEXPECTED_ACKNOWLEDGEMENT_UNKNOWN_CANDIDATE)
-					.await;
+				modify_reputation(
+					reputation,
+					ctx.sender(),
+					peer,
+					COST_UNEXPECTED_ACKNOWLEDGEMENT_UNKNOWN_CANDIDATE,
+				)
+				.await;
 				return
 			},
 		}
@@ -2154,6 +2191,7 @@ async fn handle_incoming_acknowledgement<Context>(
 			statement_knowledge: acknowledgement.statement_knowledge,
 		},
 		grid::ManifestKind::Acknowledgement,
+		reputation,
 	)
 	.await
 	{
@@ -2305,9 +2343,10 @@ async fn apply_post_confirmation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	post_confirmation: PostConfirmation,
+	reputation: &mut ReputationAggregator,
 ) {
 	for peer in post_confirmation.reckoning.incorrect {
-		report_peer(ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
+		modify_reputation(reputation, ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
 	}
 
 	let candidate_hash = post_confirmation.hypothetical.candidate_hash();
@@ -2433,6 +2472,7 @@ pub(crate) async fn handle_response<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	response: UnhandledResponse,
+	reputation: &mut ReputationAggregator,
 ) {
 	let &requests::CandidateIdentifier { relay_parent, candidate_hash, group_index } =
 		response.candidate_identifier();
@@ -2470,7 +2510,7 @@ pub(crate) async fn handle_response<Context>(
 		);
 
 		for (peer, rep) in res.reputation_changes {
-			report_peer(ctx.sender(), peer, rep).await;
+			modify_reputation(reputation, ctx.sender(), peer, rep).await;
 		}
 
 		let (candidate, pvd, statements) = match res.request_status {
@@ -2507,7 +2547,7 @@ pub(crate) async fn handle_response<Context>(
 	};
 
 	// Note that this implicitly circulates all statements via the cluster.
-	apply_post_confirmation(ctx, state, post_confirmation).await;
+	apply_post_confirmation(ctx, state, post_confirmation, reputation).await;
 
 	let confirmed = state.candidates.get_confirmed(&candidate_hash).expect("just confirmed; qed");
 

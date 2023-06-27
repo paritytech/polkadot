@@ -19,10 +19,11 @@
 //! This is responsible for distributing signed statements about candidate
 //! validity among validators.
 
-#![deny(unused_crate_dependencies)]
+// #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
 use error::{log_error, FatalResult};
+use std::time::Duration;
 
 use polkadot_node_network_protocol::{
 	request_response::{
@@ -37,6 +38,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	rand,
+	reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL},
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 };
 
@@ -74,6 +76,8 @@ pub struct StatementDistributionSubsystem<R> {
 	metrics: Metrics,
 	/// Pseudo-random generator for peers selection logic
 	rng: R,
+	/// Aggregated reputation change
+	reputation: ReputationAggregator,
 }
 
 #[overseer::subsystem(StatementDistribution, error=SubsystemError, prefix=self::overseer)]
@@ -161,10 +165,22 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 			req_receiver: Some(req_receiver),
 			metrics,
 			rng,
+			reputation: Default::default(),
 		}
 	}
 
-	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
+	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), FatalError> {
+		self.run_inner(ctx, REPUTATION_CHANGE_INTERVAL).await
+	}
+
+	async fn run_inner<Context>(
+		mut self,
+		mut ctx: Context,
+		reputation_interval: Duration,
+	) -> std::result::Result<(), FatalError> {
+		let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+		let mut reputation_delay = new_reputation_delay();
+
 		let mut legacy_v1_state = crate::legacy_v1::State::new(self.keystore.clone());
 		let mut state = crate::vstaging::State::new(self.keystore.clone());
 
@@ -198,14 +214,22 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 
 		loop {
 			// Wait for the next message.
-			let message = MuxedMessage::receive(
-				&mut ctx,
-				&mut state,
-				&mut v1_req_receiver,
-				&mut v1_res_receiver,
-				&mut res_receiver,
-			)
-			.await;
+			let message = futures::select! {
+				_ = reputation_delay => {
+					self.reputation.send(ctx.sender()).await;
+					reputation_delay = new_reputation_delay();
+					continue
+				},
+				message = MuxedMessage::receive(
+					&mut ctx,
+					&mut state,
+					&mut v1_req_receiver,
+					&mut v1_res_receiver,
+					&mut res_receiver,
+				).fuse() => {
+					message
+				}
+			};
 
 			match message {
 				MuxedMessage::Subsystem(result) => {
@@ -232,6 +256,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						&mut self.rng,
 						result.ok_or(FatalError::RequesterReceiverFinished)?,
 						&self.metrics,
+						&mut self.reputation,
 					)
 					.await;
 					log_error(result.map_err(From::from), "handle_requester_message")?;
@@ -251,7 +276,8 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					);
 				},
 				MuxedMessage::Response(result) => {
-					vstaging::handle_response(&mut ctx, &mut state, result).await;
+					vstaging::handle_response(&mut ctx, &mut state, result, &mut self.reputation)
+						.await;
 				},
 				MuxedMessage::RetryRequest(()) => {
 					// A pending request is ready to retry. This is only a signal to call
@@ -326,8 +352,14 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						)
 						.await?;
 					} else {
-						vstaging::share_local_statement(ctx, state, relay_parent, statement)
-							.await?;
+						vstaging::share_local_statement(
+							ctx,
+							state,
+							relay_parent,
+							statement,
+							&mut self.reputation,
+						)
+						.await?;
 					}
 				},
 				StatementDistributionMessage::NetworkBridgeUpdate(event) => {
@@ -374,13 +406,15 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							event.clone(),
 							&mut self.rng,
 							metrics,
+							&mut self.reputation,
 						)
 						.await;
 					}
 
 					if target.targets_current() {
 						// pass to vstaging.
-						vstaging::handle_network_update(ctx, state, event).await;
+						vstaging::handle_network_update(ctx, state, event, &mut self.reputation)
+							.await;
 					}
 				},
 				StatementDistributionMessage::Backed(candidate_hash) => {

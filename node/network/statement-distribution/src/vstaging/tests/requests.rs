@@ -118,8 +118,8 @@ fn cluster_peer_allowed_to_send_incomplete_statements() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 			);
 		}
 
@@ -149,14 +149,14 @@ fn cluster_peer_allowed_to_send_incomplete_statements() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT.into() => { }
 			);
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_RESPONSE.into() => { }
 			);
 
 			assert_matches!(
@@ -341,19 +341,19 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_RESPONSE
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_RESPONSE.into()
 			);
 
 			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
@@ -413,19 +413,19 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_RESPONSE
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_RESPONSE.into()
 			);
 
 			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
@@ -461,8 +461,8 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == COST_EXCESSIVE_SECONDED
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == COST_EXCESSIVE_SECONDED.into()
 			);
 		}
 
@@ -602,8 +602,8 @@ fn peer_reported_for_not_enough_statements() {
 			// The peer is reported for only sending one statement.
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == COST_INVALID_RESPONSE => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == COST_INVALID_RESPONSE.into() => { }
 			);
 		}
 
@@ -641,24 +641,24 @@ fn peer_reported_for_not_enough_statements() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_RESPONSE
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_RESPONSE.into()
 			);
 
 			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
@@ -761,8 +761,8 @@ fn peer_reported_for_duplicate_statements() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 			);
 		}
 
@@ -791,20 +791,20 @@ fn peer_reported_for_duplicate_statements() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT.into() => { }
 			);
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == COST_UNREQUESTED_RESPONSE_STATEMENT => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == COST_UNREQUESTED_RESPONSE_STATEMENT.into() => { }
 			);
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_RESPONSE.into() => { }
 			);
 
 			assert_matches!(
@@ -925,8 +925,8 @@ fn peer_reported_for_providing_statements_with_invalid_signatures() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 			);
 		}
 
@@ -956,14 +956,14 @@ fn peer_reported_for_providing_statements_with_invalid_signatures() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == COST_INVALID_SIGNATURE => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == COST_INVALID_SIGNATURE.into() => { }
 			);
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_RESPONSE.into() => { }
 			);
 
 			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
@@ -1067,8 +1067,8 @@ fn peer_reported_for_providing_statements_with_wrong_validator_id() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 			);
 		}
 
@@ -1097,14 +1097,14 @@ fn peer_reported_for_providing_statements_with_wrong_validator_id() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == COST_UNREQUESTED_RESPONSE_STATEMENT => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == COST_UNREQUESTED_RESPONSE_STATEMENT.into() => { }
 			);
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_RESPONSE.into() => { }
 			);
 
 			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
@@ -1285,7 +1285,7 @@ fn local_node_sanity_checks_incoming_requests() {
 					sent_feedback
 				} => {
 					assert_matches!(result, Err(()));
-					assert_eq!(reputation_changes, vec![COST_INVALID_REQUEST_BITFIELD_SIZE.into_base_rep()]);
+					assert_eq!(reputation_changes, vec![COST_INVALID_REQUEST_BITFIELD_SIZE.into()]);
 					assert_matches!(sent_feedback, None);
 				}
 			);
@@ -1313,7 +1313,7 @@ fn local_node_sanity_checks_incoming_requests() {
 					sent_feedback
 				} => {
 					assert_matches!(result, Err(()));
-					assert_eq!(reputation_changes, vec![COST_UNEXPECTED_REQUEST.into_base_rep()]);
+					assert_eq!(reputation_changes, vec![COST_UNEXPECTED_REQUEST.into()]);
 					assert_matches!(sent_feedback, None);
 				}
 			);
@@ -1461,8 +1461,8 @@ fn local_node_respects_statement_mask() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 			);
 		}
 
@@ -1488,8 +1488,8 @@ fn local_node_respects_statement_mask() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_b && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_b && r == BENEFIT_VALID_STATEMENT_FIRST.into() => { }
 			);
 
 			assert_matches!(
@@ -1776,24 +1776,24 @@ fn should_delay_before_retrying_dropped_requests() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_RESPONSE
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_RESPONSE.into()
 			);
 
 			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
@@ -1843,24 +1843,24 @@ fn should_delay_before_retrying_dropped_requests() {
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT.into()
 			);
 
 			assert_matches!(
 				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_c && r == BENEFIT_VALID_RESPONSE
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r)))
+					if p == peer_c && r == BENEFIT_VALID_RESPONSE.into()
 			);
 
 			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;

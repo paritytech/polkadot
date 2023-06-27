@@ -57,6 +57,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{
 	backing_implicit_view::View as ImplicitView,
 	metrics::prometheus::prometheus::HistogramTimer,
+	reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL},
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 };
 use polkadot_primitives::{
@@ -453,6 +454,9 @@ struct State {
 	/// Collations that we have successfully requested from peers and waiting
 	/// on validation.
 	fetched_candidates: HashMap<FetchedCollation, CollationEvent>,
+
+	/// Aggregated reputation change
+	reputation: ReputationAggregator,
 }
 
 fn is_relay_parent_in_implicit_view(
@@ -617,23 +621,25 @@ async fn fetch_collation(
 
 /// Report a collator for some malicious actions.
 async fn report_collator(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
 	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
 ) {
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
-		modify_reputation(sender, peer_id, COST_REPORT_BAD).await;
+		modify_reputation(reputation, sender, peer_id, COST_REPORT_BAD).await;
 	}
 }
 
 /// Some other subsystem has reported a collator as a good one, bump reputation.
 async fn note_good_collation(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
 	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
 ) {
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
-		modify_reputation(sender, peer_id, BENEFIT_NOTIFY_GOOD).await;
+		modify_reputation(reputation, sender, peer_id, BENEFIT_NOTIFY_GOOD).await;
 	}
 }
 
@@ -789,7 +795,13 @@ async fn process_incoming_peer_message<Context>(
 		Versioned::V1(V1::Declare(collator_id, para_id, signature)) |
 		Versioned::VStaging(VStaging::Declare(collator_id, para_id, signature)) => {
 			if collator_peer_id(&state.peer_data, &collator_id).is_some() {
-				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					origin,
+					COST_UNEXPECTED_MESSAGE,
+				)
+				.await;
 				return
 			}
 
@@ -802,7 +814,13 @@ async fn process_incoming_peer_message<Context>(
 						?para_id,
 						"Unknown peer",
 					);
-					modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(
+						&mut state.reputation,
+						ctx.sender(),
+						origin,
+						COST_UNEXPECTED_MESSAGE,
+					)
+					.await;
 					return
 				},
 			};
@@ -814,7 +832,13 @@ async fn process_incoming_peer_message<Context>(
 					?para_id,
 					"Peer is already in the collating state",
 				);
-				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					origin,
+					COST_UNEXPECTED_MESSAGE,
+				)
+				.await;
 				return
 			}
 
@@ -825,7 +849,13 @@ async fn process_incoming_peer_message<Context>(
 					?para_id,
 					"Signature verification failure",
 				);
-				modify_reputation(ctx.sender(), origin, COST_INVALID_SIGNATURE).await;
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					origin,
+					COST_INVALID_SIGNATURE,
+				)
+				.await;
 				return
 			}
 
@@ -848,7 +878,13 @@ async fn process_incoming_peer_message<Context>(
 					"Declared as collator for unneeded para",
 				);
 
-				modify_reputation(ctx.sender(), origin, COST_UNNEEDED_COLLATOR).await;
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					origin,
+					COST_UNNEEDED_COLLATOR,
+				)
+				.await;
 				gum::trace!(target: LOG_TARGET, "Disconnecting unneeded collator");
 				disconnect_peer(ctx.sender(), origin).await;
 			}
@@ -866,7 +902,7 @@ async fn process_incoming_peer_message<Context>(
 				);
 
 				if let Some(rep) = err.reputation_changes() {
-					modify_reputation(ctx.sender(), origin, rep).await;
+					modify_reputation(&mut state.reputation, ctx.sender(), origin, rep).await;
 				}
 			},
 		Versioned::VStaging(VStaging::AdvertiseCollation {
@@ -893,7 +929,7 @@ async fn process_incoming_peer_message<Context>(
 				);
 
 				if let Some(rep) = err.reputation_changes() {
-					modify_reputation(ctx.sender(), origin, rep).await;
+					modify_reputation(&mut state.reputation, ctx.sender(), origin, rep).await;
 				}
 			},
 		Versioned::V1(V1::CollationSeconded(..)) |
@@ -904,7 +940,8 @@ async fn process_incoming_peer_message<Context>(
 				"Unexpected `CollationSeconded` message, decreasing reputation",
 			);
 
-			modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+			modify_reputation(&mut state.reputation, ctx.sender(), origin, COST_UNEXPECTED_MESSAGE)
+				.await;
 		},
 	}
 }
@@ -1442,7 +1479,7 @@ async fn process_msg<Context>(
 			);
 		},
 		ReportCollator(id) => {
-			report_collator(ctx.sender(), &state.peer_data, id).await;
+			report_collator(&mut state.reputation, ctx.sender(), &state.peer_data, id).await;
 		},
 		NetworkBridgeUpdate(event) => {
 			if let Err(e) = handle_network_msg(ctx, state, keystore, event).await {
@@ -1471,7 +1508,13 @@ async fn process_msg<Context>(
 				let (collator_id, pending_collation) = collation_event;
 				let PendingCollation { relay_parent, peer_id, prospective_candidate, .. } =
 					pending_collation;
-				note_good_collation(ctx.sender(), &state.peer_data, collator_id.clone()).await;
+				note_good_collation(
+					&mut state.reputation,
+					ctx.sender(),
+					&state.peer_data,
+					collator_id.clone(),
+				)
+				.await;
 				if let Some(peer_data) = state.peer_data.get(&peer_id) {
 					notify_collation_seconded(
 						ctx.sender(),
@@ -1529,7 +1572,8 @@ async fn process_msg<Context>(
 				Entry::Vacant(_) => return,
 			};
 
-			report_collator(ctx.sender(), &state.peer_data, id.clone()).await;
+			report_collator(&mut state.reputation, ctx.sender(), &state.peer_data, id.clone())
+				.await;
 
 			dequeue_next_collation_and_fetch(ctx, state, parent, (id, Some(candidate_hash))).await;
 		},
@@ -1539,12 +1583,35 @@ async fn process_msg<Context>(
 /// The main run loop.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 pub(crate) async fn run<Context>(
-	mut ctx: Context,
+	ctx: Context,
 	keystore: KeystorePtr,
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> std::result::Result<(), crate::error::FatalError> {
-	let mut state = State { metrics, ..Default::default() };
+	run_inner(
+		ctx,
+		keystore,
+		eviction_policy,
+		metrics,
+		ReputationAggregator::default(),
+		REPUTATION_CHANGE_INTERVAL,
+	)
+	.await
+}
+
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
+async fn run_inner<Context>(
+	mut ctx: Context,
+	keystore: KeystorePtr,
+	eviction_policy: crate::CollatorEvictionPolicy,
+	metrics: Metrics,
+	reputation: ReputationAggregator,
+	reputation_interval: Duration,
+) -> std::result::Result<(), crate::error::FatalError> {
+	let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+	let mut reputation_delay = new_reputation_delay();
+
+	let mut state = State { metrics, reputation, ..Default::default() };
 
 	let next_inactivity_stream = tick_stream(ACTIVITY_POLL);
 	futures::pin_mut!(next_inactivity_stream);
@@ -1554,6 +1621,10 @@ pub(crate) async fn run<Context>(
 
 	loop {
 		select! {
+			_ = reputation_delay => {
+				state.reputation.send(ctx.sender()).await;
+				reputation_delay = new_reputation_delay();
+			},
 			res = ctx.recv().fuse() => {
 				match res {
 					Ok(FromOrchestra::Communication { msg }) => {
@@ -1586,7 +1657,7 @@ pub(crate) async fn run<Context>(
 
 					if err.is_malicious() {
 						// Report malicious peer.
-						modify_reputation(ctx.sender(), pc.peer_id, COST_REPORT_BAD).await;
+						modify_reputation(&mut state.reputation, ctx.sender(), pc.peer_id, COST_REPORT_BAD).await;
 					}
 					let maybe_candidate_hash =
 						pc.prospective_candidate.as_ref().map(ProspectiveCandidate::candidate_hash);
@@ -1623,7 +1694,7 @@ pub(crate) async fn run<Context>(
 				).await;
 
 				for (peer_id, rep) in reputation_changes {
-					modify_reputation(ctx.sender(), peer_id, rep).await;
+					modify_reputation(&mut state.reputation, ctx.sender(), peer_id, rep).await;
 				}
 			},
 		}

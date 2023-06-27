@@ -50,7 +50,7 @@ use polkadot_primitives::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorInde
 
 /// Peer set info for network initialization.
 ///
-/// To be added to [`NetworkConfiguration::extra_sets`].
+/// To be passed to [`FullNetworkConfiguration::add_notification_protocol`]().
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
 use std::{
@@ -399,7 +399,7 @@ where
 				let v_messages = match v_messages {
 					Err(rep) => {
 						gum::debug!(target: LOG_TARGET, action = "ReportPeer");
-						network_service.report_peer(remote, rep);
+						network_service.report_peer(remote, rep.into());
 
 						continue
 					},
@@ -430,7 +430,7 @@ where
 				let c_messages = match c_messages {
 					Err(rep) => {
 						gum::debug!(target: LOG_TARGET, action = "ReportPeer");
-						network_service.report_peer(remote, rep);
+						network_service.report_peer(remote, rep.into());
 
 						continue
 					},
@@ -485,7 +485,7 @@ where
 					};
 
 					for report in reports {
-						network_service.report_peer(remote, report);
+						network_service.report_peer(remote, report.into());
 					}
 
 					dispatch_validation_events_to_all(events, &mut sender).await;
@@ -527,7 +527,7 @@ where
 					};
 
 					for report in reports {
-						network_service.report_peer(remote, report);
+						network_service.report_peer(remote, report.into());
 					}
 
 					dispatch_collation_events_to_all(events, &mut sender).await;

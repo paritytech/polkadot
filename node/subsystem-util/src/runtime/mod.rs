@@ -29,16 +29,17 @@ use polkadot_node_subsystem::{
 	errors::RuntimeApiError, messages::RuntimeApiMessage, overseer, SubsystemSender,
 };
 use polkadot_primitives::{
-	vstaging as vstaging_primitives, CandidateEvent, CoreState, EncodeAs, GroupIndex,
-	GroupRotationInfo, Hash, IndexedVec, OccupiedCore, ScrapedOnChainVotes, SessionIndex,
-	SessionInfo, Signed, SigningContext, UncheckedSigned, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex,
+	vstaging, CandidateEvent, CandidateHash, CoreState, EncodeAs, GroupIndex, GroupRotationInfo,
+	Hash, IndexedVec, OccupiedCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
+	SigningContext, UncheckedSigned, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex,
 };
 
 use crate::{
-	request_availability_cores, request_candidate_events, request_on_chain_votes,
-	request_session_index_for_child, request_session_info, request_staging_async_backing_params,
-	request_validation_code_by_hash, request_validator_groups,
+	request_availability_cores, request_candidate_events, request_key_ownership_proof,
+	request_on_chain_votes, request_session_index_for_child, request_session_info,
+	request_staging_async_backing_params, request_submit_report_dispute_lost,
+	request_unapplied_slashes, request_validation_code_by_hash, request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -349,13 +350,61 @@ where
 		.await
 }
 
+/// Fetch a list of `PendingSlashes` from the runtime.
+pub async fn get_unapplied_slashes<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+) -> Result<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	recv_runtime(request_unapplied_slashes(relay_parent, sender).await).await
+}
+
+/// Generate validator key ownership proof.
+///
+/// Note: The choice of `relay_parent` is important here, it needs to match
+/// the desired session index of the validator set in question.
+pub async fn key_ownership_proof<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+	validator_id: ValidatorId,
+) -> Result<Option<vstaging::slashing::OpaqueKeyOwnershipProof>>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	recv_runtime(request_key_ownership_proof(relay_parent, validator_id, sender).await).await
+}
+
+/// Submit a past-session dispute slashing report.
+pub async fn submit_report_dispute_lost<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+	dispute_proof: vstaging::slashing::DisputeProof,
+	key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+) -> Result<Option<()>>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	recv_runtime(
+		request_submit_report_dispute_lost(
+			relay_parent,
+			dispute_proof,
+			key_ownership_proof,
+			sender,
+		)
+		.await,
+	)
+	.await
+}
+
 /// Prospective parachains mode of a relay parent. Defined by
 /// the Runtime API version.
 ///
 /// Needed for the period of transition to asynchronous backing.
 #[derive(Debug, Copy, Clone)]
 pub enum ProspectiveParachainsMode {
-	/// v2 runtime API: no prospective parachains.
+	/// Runtime API without support of `async_backing_params`: no prospective parachains.
 	Disabled,
 	/// vstaging runtime API: prospective parachains.
 	Enabled {
@@ -400,8 +449,7 @@ where
 
 		Ok(ProspectiveParachainsMode::Disabled)
 	} else {
-		let vstaging_primitives::AsyncBackingParams { max_candidate_depth, allowed_ancestry_len } =
-			result?;
+		let vstaging::AsyncBackingParams { max_candidate_depth, allowed_ancestry_len } = result?;
 		Ok(ProspectiveParachainsMode::Enabled {
 			max_candidate_depth: max_candidate_depth as _,
 			allowed_ancestry_len: allowed_ancestry_len as _,

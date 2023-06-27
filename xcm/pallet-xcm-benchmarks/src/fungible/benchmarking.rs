@@ -24,7 +24,7 @@ use frame_support::{
 use sp_runtime::traits::{Bounded, Zero};
 use sp_std::{prelude::*, vec};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, TransactAsset};
+use xcm_executor::traits::{ConvertLocation, TransactAsset};
 
 benchmarks_instance_pallet! {
 	where_clause { where
@@ -75,7 +75,7 @@ benchmarks_instance_pallet! {
 		// this xcm doesn't use holding
 
 		let dest_location = T::valid_destination()?;
-		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
+		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 
 		<AssetTransactorOf<T>>::deposit_asset(
 			&asset,
@@ -101,7 +101,7 @@ benchmarks_instance_pallet! {
 	transfer_reserve_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
 		let dest_location = T::valid_destination()?;
-		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
+		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 
 		let asset = T::get_multi_asset();
 		<AssetTransactorOf<T>>::deposit_asset(
@@ -171,7 +171,7 @@ benchmarks_instance_pallet! {
 
 		// our dest must have no balance initially.
 		let dest_location = T::valid_destination()?;
-		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
+		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(Default::default());
@@ -197,7 +197,7 @@ benchmarks_instance_pallet! {
 
 		// our dest must have no balance initially.
 		let dest_location = T::valid_destination()?;
-		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
+		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(Default::default());

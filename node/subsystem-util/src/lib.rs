@@ -29,7 +29,7 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	overseer, SubsystemSender,
 };
-use polkadot_primitives::ExecutorParams;
+use polkadot_primitives::{slashing, ExecutorParams};
 
 pub use overseer::{
 	gen::{OrchestraError as OverseerError, Timeout},
@@ -42,7 +42,7 @@ use futures::channel::{mpsc, oneshot};
 use parity_scale_codec::Encode;
 
 use polkadot_primitives::{
-	vstaging as vstaging_primitives, AuthorityDiscoveryId, CandidateEvent,
+	vstaging as vstaging_primitives, AuthorityDiscoveryId, CandidateEvent, CandidateHash,
 	CommittedCandidateReceipt, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash,
 	Id as ParaId, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
 	SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode, ValidationCodeHash,
@@ -69,22 +69,21 @@ pub mod reexports {
 /// leaves and the minimum allowed relay-parents that parachain candidates can have
 /// and be backed in those leaves' children.
 pub mod backing_implicit_view;
+/// Database trait for subsystem.
+pub mod database;
 /// An emulator for node-side code to predict the results of on-chain parachain inclusion
 /// and predict future constraints.
 pub mod inclusion_emulator;
-/// A rolling session window cache.
-pub mod rolling_session_window;
 /// Convenient and efficient runtime info access.
 pub mod runtime;
-
-/// Database trait for subsystem.
-pub mod database;
 
 /// Nested message sending
 ///
 /// Useful for having mostly synchronous code, with submodules spawning short lived asynchronous
 /// tasks, sending messages back.
 pub mod nesting_sender;
+
+pub mod reputation;
 
 mod determine_new_blocks;
 
@@ -221,8 +220,12 @@ specialize_requests! {
 	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
 		-> Option<ValidationCodeHash>; ValidationCodeHash;
 	fn request_on_chain_votes() -> Option<ScrapedOnChainVotes>; FetchOnChainVotes;
+	fn request_session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>;SessionExecutorParams;
+	fn request_unapplied_slashes() -> Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)>; UnappliedSlashes;
+	fn request_key_ownership_proof(validator_id: ValidatorId) -> Option<slashing::OpaqueKeyOwnershipProof>; KeyOwnershipProof;
+	fn request_submit_report_dispute_lost(dp: slashing::DisputeProof, okop: slashing::OpaqueKeyOwnershipProof) -> Option<()>; SubmitReportDisputeLost;
+
 	fn request_staging_async_backing_params() -> vstaging_primitives::AsyncBackingParams; StagingAsyncBackingParams;
-	fn request_session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>; SessionExecutorParams;
 }
 
 /// Requests executor parameters from the runtime effective at given relay-parent. First obtains

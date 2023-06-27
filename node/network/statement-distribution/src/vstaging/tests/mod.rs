@@ -26,8 +26,8 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::Statement;
 use polkadot_node_subsystem::messages::{
 	network_bridge_event::NewGossipTopology, AllMessages, ChainApiMessage, FragmentTreeMembership,
-	HypotheticalCandidate, NetworkBridgeEvent, ProspectiveParachainsMessage, RuntimeApiMessage,
-	RuntimeApiRequest,
+	HypotheticalCandidate, NetworkBridgeEvent, ProspectiveParachainsMessage, ReportPeerMessage,
+	RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
@@ -291,13 +291,14 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 	let subsystem = async move {
-		let subsystem = crate::StatementDistributionSubsystem::new(
+		let subsystem = crate::StatementDistributionSubsystem {
 			keystore,
-			statement_req_receiver,
-			candidate_req_receiver,
-			Metrics::default(),
+			v1_req_receiver: Some(statement_req_receiver),
+			req_receiver: Some(candidate_req_receiver),
+			metrics: Default::default(),
 			rng,
-		);
+			reputation: ReputationAggregator::new(|_| true),
+		};
 
 		if let Err(e) = subsystem.run(context).await {
 			panic!("Fatal error: {:?}", e);

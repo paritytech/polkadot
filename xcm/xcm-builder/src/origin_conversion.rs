@@ -19,18 +19,17 @@
 use frame_support::traits::{EnsureOrigin, Get, GetBacking, OriginTrait};
 use frame_system::RawOrigin as SystemRawOrigin;
 use polkadot_parachain::primitives::IsSystem;
+use sp_runtime::traits::TryConvert;
 use sp_std::marker::PhantomData;
 use xcm::latest::{BodyId, BodyPart, Junction, Junctions::*, MultiLocation, NetworkId, OriginKind};
-use xcm_executor::traits::{Convert, ConvertOrigin};
+use xcm_executor::traits::{ConvertLocation, ConvertOrigin};
 
 /// Sovereign accounts use the system's `Signed` origin with an account ID derived from the `LocationConverter`.
 pub struct SovereignSignedViaLocation<LocationConverter, RuntimeOrigin>(
 	PhantomData<(LocationConverter, RuntimeOrigin)>,
 );
-impl<
-		LocationConverter: Convert<MultiLocation, RuntimeOrigin::AccountId>,
-		RuntimeOrigin: OriginTrait,
-	> ConvertOrigin<RuntimeOrigin> for SovereignSignedViaLocation<LocationConverter, RuntimeOrigin>
+impl<LocationConverter: ConvertLocation<RuntimeOrigin::AccountId>, RuntimeOrigin: OriginTrait>
+	ConvertOrigin<RuntimeOrigin> for SovereignSignedViaLocation<LocationConverter, RuntimeOrigin>
 where
 	RuntimeOrigin::AccountId: Clone,
 {
@@ -45,7 +44,7 @@ where
 			origin, kind,
 		);
 		if let OriginKind::SovereignAccount = kind {
-			let location = LocationConverter::convert(origin)?;
+			let location = LocationConverter::convert_location(&origin).ok_or(origin)?;
 			Ok(RuntimeOrigin::signed(location).into())
 		} else {
 			Err(origin)
@@ -244,14 +243,14 @@ where
 
 /// `EnsureOrigin` barrier to convert from dispatch origin to XCM origin, if one exists.
 pub struct EnsureXcmOrigin<RuntimeOrigin, Conversion>(PhantomData<(RuntimeOrigin, Conversion)>);
-impl<RuntimeOrigin: OriginTrait + Clone, Conversion: Convert<RuntimeOrigin, MultiLocation>>
+impl<RuntimeOrigin: OriginTrait + Clone, Conversion: TryConvert<RuntimeOrigin, MultiLocation>>
 	EnsureOrigin<RuntimeOrigin> for EnsureXcmOrigin<RuntimeOrigin, Conversion>
 where
 	RuntimeOrigin::PalletsOrigin: PartialEq,
 {
 	type Success = MultiLocation;
 	fn try_origin(o: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
-		let o = match Conversion::convert(o) {
+		let o = match Conversion::try_convert(o) {
 			Ok(location) => return Ok(location),
 			Err(o) => o,
 		};
@@ -281,12 +280,13 @@ impl<
 		RuntimeOrigin: OriginTrait + Clone,
 		AccountId: Into<[u8; 32]>,
 		Network: Get<Option<NetworkId>>,
-	> Convert<RuntimeOrigin, MultiLocation> for SignedToAccountId32<RuntimeOrigin, AccountId, Network>
+	> TryConvert<RuntimeOrigin, MultiLocation>
+	for SignedToAccountId32<RuntimeOrigin, AccountId, Network>
 where
 	RuntimeOrigin::PalletsOrigin: From<SystemRawOrigin<AccountId>>
 		+ TryInto<SystemRawOrigin<AccountId>, Error = RuntimeOrigin::PalletsOrigin>,
 {
-	fn convert(o: RuntimeOrigin) -> Result<MultiLocation, RuntimeOrigin> {
+	fn try_convert(o: RuntimeOrigin) -> Result<MultiLocation, RuntimeOrigin> {
 		o.try_with_caller(|caller| match caller.try_into() {
 			Ok(SystemRawOrigin::Signed(who)) =>
 				Ok(Junction::AccountId32 { network: Network::get(), id: who.into() }.into()),
@@ -305,12 +305,12 @@ pub struct BackingToPlurality<RuntimeOrigin, COrigin, Body>(
 	PhantomData<(RuntimeOrigin, COrigin, Body)>,
 );
 impl<RuntimeOrigin: OriginTrait + Clone, COrigin: GetBacking, Body: Get<BodyId>>
-	Convert<RuntimeOrigin, MultiLocation> for BackingToPlurality<RuntimeOrigin, COrigin, Body>
+	TryConvert<RuntimeOrigin, MultiLocation> for BackingToPlurality<RuntimeOrigin, COrigin, Body>
 where
 	RuntimeOrigin::PalletsOrigin:
 		From<COrigin> + TryInto<COrigin, Error = RuntimeOrigin::PalletsOrigin>,
 {
-	fn convert(o: RuntimeOrigin) -> Result<MultiLocation, RuntimeOrigin> {
+	fn try_convert(o: RuntimeOrigin) -> Result<MultiLocation, RuntimeOrigin> {
 		o.try_with_caller(|caller| match caller.try_into() {
 			Ok(co) => match co.get_backing() {
 				Some(backing) => Ok(Junction::Plurality {
@@ -331,10 +331,10 @@ pub struct OriginToPluralityVoice<RuntimeOrigin, EnsureBodyOrigin, Body>(
 	PhantomData<(RuntimeOrigin, EnsureBodyOrigin, Body)>,
 );
 impl<RuntimeOrigin: Clone, EnsureBodyOrigin: EnsureOrigin<RuntimeOrigin>, Body: Get<BodyId>>
-	Convert<RuntimeOrigin, MultiLocation>
+	TryConvert<RuntimeOrigin, MultiLocation>
 	for OriginToPluralityVoice<RuntimeOrigin, EnsureBodyOrigin, Body>
 {
-	fn convert(o: RuntimeOrigin) -> Result<MultiLocation, RuntimeOrigin> {
+	fn try_convert(o: RuntimeOrigin) -> Result<MultiLocation, RuntimeOrigin> {
 		match EnsureBodyOrigin::try_origin(o) {
 			Ok(_) => Ok(Junction::Plurality { id: Body::get(), part: BodyPart::Voice }.into()),
 			Err(o) => Err(o),

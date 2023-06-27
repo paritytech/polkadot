@@ -195,7 +195,6 @@ pub mod pallet {
 		pub next_free_para_id: ParaId,
 	}
 
-	#[cfg(feature = "std")]
 	impl Default for GenesisConfig {
 		fn default() -> Self {
 			GenesisConfig { next_free_para_id: LOWEST_PUBLIC_ID }
@@ -435,12 +434,12 @@ impl<T: Config> Registrar for Pallet<T> {
 
 	// Apply a lock to the parachain.
 	fn apply_lock(id: ParaId) {
-		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = true));
+		Paras::<T>::mutate(id, |x| x.as_mut().map(|info| info.locked = true));
 	}
 
 	// Remove a lock from the parachain.
 	fn remove_lock(id: ParaId) {
-		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = false));
+		Paras::<T>::mutate(id, |x| x.as_mut().map(|info| info.locked = false));
 	}
 
 	// Register a Para ID under control of `manager`.

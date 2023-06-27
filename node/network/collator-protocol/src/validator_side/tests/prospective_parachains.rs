@@ -221,11 +221,10 @@ async fn assert_collation_seconded(
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
-			peer,
-			rep,
+			ReportPeerMessage::Single(peer, rep)
 		)) => {
 			assert_eq!(peer_id, peer);
-			assert_eq!(rep, BENEFIT_NOTIFY_GOOD);
+			assert_eq!(rep.value, BENEFIT_NOTIFY_GOOD.cost_or_benefit());
 		}
 	);
 	assert_matches!(
@@ -249,7 +248,7 @@ async fn assert_collation_seconded(
 fn v1_advertisement_rejected() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair_a = CollatorPair::generate().0;
@@ -285,7 +284,7 @@ fn v1_advertisement_rejected() {
 fn accept_advertisements_from_implicit_view() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair_a = CollatorPair::generate().0;
@@ -388,7 +387,7 @@ fn accept_advertisements_from_implicit_view() {
 fn second_multiple_candidates_per_relay_parent() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, keystore } = test_harness;
 
 		let pair = CollatorPair::generate().0;
@@ -504,10 +503,10 @@ fn second_multiple_candidates_per_relay_parent() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer_id, rep),
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer_id, rep)),
 			) => {
 				assert_eq!(peer_a, peer_id);
-				assert_eq!(rep, COST_UNEXPECTED_MESSAGE);
+				assert_eq!(rep.value, COST_UNEXPECTED_MESSAGE.cost_or_benefit());
 			}
 		);
 
@@ -544,7 +543,7 @@ fn second_multiple_candidates_per_relay_parent() {
 fn fetched_collation_sanity_check() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair = CollatorPair::generate().0;
@@ -640,10 +639,10 @@ fn fetched_collation_sanity_check() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer_id, rep),
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer_id, rep)),
 			) => {
 				assert_eq!(peer_a, peer_id);
-				assert_eq!(rep, COST_REPORT_BAD);
+				assert_eq!(rep.value, COST_REPORT_BAD.cost_or_benefit());
 			}
 		);
 
@@ -655,7 +654,7 @@ fn fetched_collation_sanity_check() {
 fn advertisement_spam_protection() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair_a = CollatorPair::generate().0;
@@ -712,10 +711,10 @@ fn advertisement_spam_protection() {
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer_id, rep),
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer_id, rep)),
 			) => {
 				assert_eq!(peer_a, peer_id);
-				assert_eq!(rep, COST_UNEXPECTED_MESSAGE);
+				assert_eq!(rep.value, COST_UNEXPECTED_MESSAGE.cost_or_benefit());
 			}
 		);
 
@@ -727,7 +726,7 @@ fn advertisement_spam_protection() {
 fn backed_candidate_unblocks_advertisements() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair_a = CollatorPair::generate().0;
@@ -843,7 +842,7 @@ fn active_leave_unblocks_advertisements() {
 	let mut test_state = TestState::default();
 	test_state.group_rotation_info.group_rotation_frequency = 100;
 
-	test_harness(|test_harness| async move {
+	test_harness(ReputationAggregator::new(|_| true), |test_harness| async move {
 		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let head_b = Hash::from_low_u64_be(128);

@@ -23,14 +23,13 @@
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
 use futures::channel::oneshot;
-use sc_network::Multiaddr;
+use sc_network::{Multiaddr, ReputationChange};
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol, peer_set::PeerSet, request_response::Requests, PeerId,
-	UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
@@ -39,7 +38,7 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, SignedFullStatementWithPVD, ValidationResult,
 };
 use polkadot_primitives::{
-	vstaging as vstaging_primitives, AuthorityDiscoveryId, BackedCandidate, BlockNumber,
+	slashing, vstaging as vstaging_primitives, AuthorityDiscoveryId, BackedCandidate, BlockNumber,
 	CandidateEvent, CandidateHash, CandidateIndex, CandidateReceipt, CollatorId,
 	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupIndex,
 	GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId, InboundDownwardMessage,
@@ -341,11 +340,20 @@ pub enum NetworkBridgeRxMessage {
 	},
 }
 
+/// Type of peer reporting
+#[derive(Debug)]
+pub enum ReportPeerMessage {
+	/// Single peer report about malicious actions which should be sent right away
+	Single(PeerId, ReputationChange),
+	/// Delayed report for other actions.
+	Batch(HashMap<PeerId, i32>),
+}
+
 /// Messages received from other subsystems by the network bridge subsystem.
 #[derive(Debug)]
 pub enum NetworkBridgeTxMessage {
 	/// Report a peer for their actions.
-	ReportPeer(PeerId, UnifiedReputationChange),
+	ReportPeer(ReportPeerMessage),
 
 	/// Disconnect a peer from the given peer-set without affecting their reputation.
 	DisconnectPeer(PeerId, PeerSet),
@@ -642,6 +650,22 @@ pub enum RuntimeApiRequest {
 	),
 	/// Returns all on-chain disputes at given block number. Available in `v3`.
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
+	/// Returns a list of validators that lost a past session dispute and need to be slashed.
+	/// `V5`
+	UnappliedSlashes(
+		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)>>,
+	),
+	/// Returns a merkle proof of a validator session key.
+	/// `V5`
+	KeyOwnershipProof(ValidatorId, RuntimeApiSender<Option<slashing::OpaqueKeyOwnershipProof>>),
+	/// Submits an unsigned extrinsic to slash validator who lost a past session dispute.
+	/// `V5`
+	SubmitReportDisputeLost(
+		slashing::DisputeProof,
+		slashing::OpaqueKeyOwnershipProof,
+		RuntimeApiSender<Option<()>>,
+	),
+
 	/// Get the backing state of the given para.
 	/// This is a staging API that will not be available on production runtimes.
 	StagingParaBackingState(ParaId, RuntimeApiSender<Option<vstaging_primitives::BackingState>>),
@@ -659,6 +683,15 @@ impl RuntimeApiRequest {
 
 	/// `ExecutorParams`
 	pub const EXECUTOR_PARAMS_RUNTIME_REQUIREMENT: u32 = 4;
+
+	/// `UnappliedSlashes`
+	pub const UNAPPLIED_SLASHES_RUNTIME_REQUIREMENT: u32 = 5;
+
+	/// `KeyOwnershipProof`
+	pub const KEY_OWNERSHIP_PROOF_RUNTIME_REQUIREMENT: u32 = 5;
+
+	/// `SubmitReportDisputeLost`
+	pub const SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT: u32 = 5;
 
 	/// Minimum version for backing state, required for async backing.
 	///
