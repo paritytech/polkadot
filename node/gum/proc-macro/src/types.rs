@@ -23,6 +23,7 @@ use syn::{
 
 pub(crate) mod kw {
 	syn::custom_keyword!(target);
+	syn::custom_keyword!(freq);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -245,6 +246,32 @@ impl ToTokens for FmtGroup {
 		let rest = &self.rest;
 
 		tokens.extend(quote! { #format_str #maybe_comma #rest });
+	}
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Freq {
+	kw: kw::freq,
+	colon: Token![:],
+	pub expr: syn::Expr,
+}
+
+impl Parse for Freq {
+	fn parse(input: ParseStream) -> Result<Self> {
+		Ok(Self { kw: input.parse()?, colon: input.parse()?, expr: input.parse()? })
+	}
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ArgsIfFrequent {
+	pub freq: Freq,
+	pub comma: Token![,],
+	pub rest: TokenStream,
+}
+
+impl Parse for ArgsIfFrequent {
+	fn parse(input: ParseStream) -> Result<Self> {
+		Ok(Self { freq: input.parse()?, comma: input.parse()?, rest: input.parse()? })
 	}
 }
 

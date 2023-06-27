@@ -51,6 +51,20 @@ fn wo_unnecessary() {
 }
 
 #[test]
+fn freq() {
+	let a: i32 = 7;
+	let mut f = vec![1_u64];
+	warn_if_frequent!(
+		freq: f,
+		target: "bar",
+		a = a,
+		b = ?Y::default(),
+		"fff {c}",
+		c = a,
+	);
+}
+
+#[test]
 fn w_candidate_hash_value_assignment() {
 	let a: i32 = 7;
 	info!(target: "bar",

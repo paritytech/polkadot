@@ -43,6 +43,27 @@ pub fn warn(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	gum(item, Level::Warn)
 }
 
+/// TODO
+#[proc_macro]
+pub fn warn_if_frequent(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	let ArgsIfFrequent { freq, comma, rest } = parse2(item.into()).unwrap();
+	let freq_expr = freq.expr;
+
+	let debug: proc_macro2::TokenStream = gum(rest.clone().into(), Level::Debug).into();
+	let warn: proc_macro2::TokenStream = gum(rest.into(), Level::Warn).into();
+	let krate = support_crate();
+
+	let stream = quote! {
+		if #krate :: is_frequent(&mut #freq_expr #comma 1.0) {
+			#debug
+		} else {
+			#warn
+		}
+	};
+
+	stream.into()
+}
+
 /// Print a info level message.
 #[proc_macro]
 pub fn info(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
