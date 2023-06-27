@@ -1388,11 +1388,13 @@ impl<T: Config> Pallet<T> {
 	///
 	/// See `process_scheduled_upgrade_changes` for more details.
 	fn process_scheduled_upgrade_cooldowns(now: BlockNumberFor<T>) {
-		UpgradeCooldowns::<T>::mutate(|upgrade_cooldowns: &mut Vec<(ParaId, BlockNumberFor<T>)>| {
-			for &(para, _) in upgrade_cooldowns.iter().take_while(|&(_, at)| at <= &now) {
-				UpgradeRestrictionSignal::<T>::remove(&para);
-			}
-		});
+		UpgradeCooldowns::<T>::mutate(
+			|upgrade_cooldowns: &mut Vec<(ParaId, BlockNumberFor<T>)>| {
+				for &(para, _) in upgrade_cooldowns.iter().take_while(|&(_, at)| at <= &now) {
+					UpgradeRestrictionSignal::<T>::remove(&para);
+				}
+			},
+		);
 	}
 
 	/// Goes over all PVF votes in progress, reinitializes ballots, increments ages and prunes the

@@ -152,7 +152,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Mock header.
 	pub(crate) fn header(block_number: BlockNumberFor<T>) -> HeaderFor<T> {
-		HeaderFor<T>::new(
+		HeaderFor::<T>::new(
 			block_number,       // `block_number`,
 			Default::default(), // `extrinsics_root`,
 			Default::default(), // `storage_root`,

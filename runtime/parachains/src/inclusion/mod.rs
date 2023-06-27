@@ -370,8 +370,12 @@ pub mod pallet {
 
 	/// Candidates pending availability by `ParaId`.
 	#[pallet::storage]
-	pub(crate) type PendingAvailability<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, CandidatePendingAvailability<T::Hash, BlockNumberFor<T>>>;
+	pub(crate) type PendingAvailability<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		ParaId,
+		CandidatePendingAvailability<T::Hash, BlockNumberFor<T>>,
+	>;
 
 	/// The commitments of candidates pending availability, by `ParaId`.
 	#[pallet::storage]

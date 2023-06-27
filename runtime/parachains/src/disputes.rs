@@ -1189,7 +1189,8 @@ impl<T: Config> Pallet<T> {
 	}
 
 	#[allow(unused)]
-	pub(crate) fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumberFor<T>>)> {
+	pub(crate) fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumberFor<T>>)>
+	{
 		<Disputes<T>>::iter().collect()
 	}
 

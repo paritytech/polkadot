@@ -610,7 +610,8 @@ impl<T: Config> Pallet<T> {
 			(at - session_start_block) / config.group_rotation_frequency.into();
 
 		let rotations_since_session_start =
-			<BlockNumberFor<T> as TryInto<u32>>::try_into(rotations_since_session_start).unwrap_or(0);
+			<BlockNumberFor<T> as TryInto<u32>>::try_into(rotations_since_session_start)
+				.unwrap_or(0);
 		// Error case can only happen if rotations occur only once every u32::max(),
 		// so functionally no difference in behavior.
 
@@ -671,7 +672,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Returns a helper for determining group rotation.
-	pub(crate) fn group_rotation_info(now: BlockNumberFor<T>) -> GroupRotationInfo<BlockNumberFor<T>> {
+	pub(crate) fn group_rotation_info(
+		now: BlockNumberFor<T>,
+	) -> GroupRotationInfo<BlockNumberFor<T>> {
 		let session_start_block = Self::session_start_block();
 		let group_rotation_frequency =
 			<configuration::Pallet<T>>::config().group_rotation_frequency;

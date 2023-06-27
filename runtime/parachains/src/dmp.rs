@@ -317,7 +317,9 @@ impl<T: Config> Pallet<T> {
 	/// Returns the downward message queue contents for the given para.
 	///
 	/// The most recent messages are the latest in the vector.
-	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumberFor<T>>> {
+	pub(crate) fn dmq_contents(
+		recipient: ParaId,
+	) -> Vec<InboundDownwardMessage<BlockNumberFor<T>>> {
 		DownwardMessageQueues::<T>::get(&recipient)
 	}
 

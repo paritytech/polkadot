@@ -17,8 +17,7 @@
 use super::*;
 use crate::configuration::HostConfiguration;
 use frame_benchmarking::benchmarks;
-use frame_system::RawOrigin;
-use frame_system::pallet_prelude::*;
+use frame_system::{pallet_prelude::*, RawOrigin};
 use primitives::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 use sp_runtime::traits::{One, Saturating};
 
