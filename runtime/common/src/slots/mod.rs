@@ -37,7 +37,7 @@ use sp_std::prelude::*;
 
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
+type LeasePeriodOf<T> = BlockNumberFor<T>;
 
 pub trait WeightInfo {
 	fn force_lease() -> Weight;
@@ -83,11 +83,11 @@ pub mod pallet {
 
 		/// The number of blocks over which a single period lasts.
 		#[pallet::constant]
-		type LeasePeriod: Get<Self::BlockNumber>;
+		type LeasePeriod: Get<BlockNumberFor<Self>>;
 
 		/// The number of blocks to offset each lease period by.
 		#[pallet::constant]
-		type LeaseOffset: Get<Self::BlockNumber>;
+		type LeaseOffset: Get<BlockNumberFor<Self>>;
 
 		/// The origin which may forcibly create or clear leases. Root can always do this.
 		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;

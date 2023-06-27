@@ -35,9 +35,8 @@ use primitives::Id as ParaId;
 use sp_runtime::traits::{CheckedSub, One, Saturating, Zero};
 use sp_std::{mem::swap, prelude::*};
 
-type CurrencyOf<T> =
-	<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::Currency;
-type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::Currency as Currency<
+type CurrencyOf<T> = <<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency;
+type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
 
@@ -67,8 +66,7 @@ impl WeightInfo for TestWeightInfo {
 /// An auction index. We count auctions in this type.
 pub type AuctionIndex = u32;
 
-type LeasePeriodOf<T> =
-	<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::LeasePeriod;
+type LeasePeriodOf<T> = <<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::LeasePeriod;
 
 // Winning data type. This encodes the top bidders of each range together with their bid.
 type WinningData<T> = [Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)>;
@@ -95,9 +93,9 @@ pub mod pallet {
 
 		/// The type representing the leasing system.
 		type Leaser: Leaser<
-			Self::BlockNumber,
+			BlockNumberFor<Self>,
 			AccountId = Self::AccountId,
-			LeasePeriod = Self::BlockNumber,
+			LeasePeriod = BlockNumberFor<Self>,
 		>;
 
 		/// The parachain registrar type.
@@ -105,16 +103,16 @@ pub mod pallet {
 
 		/// The number of blocks over which an auction may be retroactively ended.
 		#[pallet::constant]
-		type EndingPeriod: Get<Self::BlockNumber>;
+		type EndingPeriod: Get<BlockNumberFor<Self>>;
 
 		/// The length of each sample to take during the ending period.
 		///
 		/// `EndingPeriod` / `SampleLength` = Total # of Samples
 		#[pallet::constant]
-		type SampleLength: Get<Self::BlockNumber>;
+		type SampleLength: Get<BlockNumberFor<Self>>;
 
 		/// Something that provides randomness in the runtime.
-		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type Randomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 
 		/// The origin which may initiate auctions.
 		type InitiateOrigin: EnsureOrigin<Self::RuntimeOrigin>;

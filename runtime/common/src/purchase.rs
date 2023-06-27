@@ -105,7 +105,7 @@ pub mod pallet {
 		/// Vesting Pallet
 		type VestingSchedule: VestingSchedule<
 			Self::AccountId,
-			Moment = Self::BlockNumber,
+			Moment = BlockNumberFor<Self>,
 			Currency = Self::Currency,
 		>;
 

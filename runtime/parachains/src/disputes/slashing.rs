@@ -48,6 +48,7 @@ use frame_support::{
 	traits::{Defensive, Get, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
 	weights::Weight,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 
 use primitives::{
 	vstaging::slashing::{DisputeProof, DisputesTimeSlot, PendingSlashes, SlashingOffenceKind},

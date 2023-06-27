@@ -271,7 +271,7 @@ pub mod pallet {
 		+ configuration::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
+		type DisputesHandler: disputes::DisputesHandler<BlockNumberFor<Self>>;
 		type RewardValidators: RewardValidators;
 
 		/// The system message queue.

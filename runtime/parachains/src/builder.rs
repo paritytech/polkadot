@@ -406,7 +406,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			Self::run_to_block(block);
 		}
 
-		let block_number = <T as frame_system::Config>::BlockNumber::from(block);
+		let block_number = BlockNumberFor::<T>::from(block);
 		let header = Self::header(block_number.clone());
 
 		frame_system::Pallet::<T>::reset_events();

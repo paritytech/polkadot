@@ -180,7 +180,7 @@ pub mod pallet {
 
 		/// A lockable currency.
 		// TODO: We should really use a trait which can handle multiple currencies.
-		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
+		type Currency: LockableCurrency<Self::AccountId, Moment = BlockNumberFor<Self>>;
 
 		/// The `MultiAsset` matcher for `Currency`.
 		type CurrencyMatcher: MatchesFungible<BalanceOf<Self>>;

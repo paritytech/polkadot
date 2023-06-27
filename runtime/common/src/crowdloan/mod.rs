@@ -79,11 +79,8 @@ use sp_runtime::{
 };
 use sp_std::vec::Vec;
 
-type CurrencyOf<T> =
-	<<T as Config>::Auctioneer as Auctioneer<<T as frame_system::Config>::BlockNumber>>::Currency;
-type LeasePeriodOf<T> = <<T as Config>::Auctioneer as Auctioneer<
-	<T as frame_system::Config>::BlockNumber,
->>::LeasePeriod;
+type CurrencyOf<T> = <<T as Config>::Auctioneer as Auctioneer<BlockNumberFor<T>>>::Currency;
+type LeasePeriodOf<T> = <<T as Config>::Auctioneer as Auctioneer<BlockNumberFor<T>>>::LeasePeriod;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[allow(dead_code)]
@@ -217,9 +214,9 @@ pub mod pallet {
 
 		/// The type representing the auctioning system.
 		type Auctioneer: Auctioneer<
-			Self::BlockNumber,
+			BlockNumberFor<Self>,
 			AccountId = Self::AccountId,
-			LeasePeriod = Self::BlockNumber,
+			LeasePeriod = BlockNumberFor<Self>,
 		>;
 
 		/// The maximum length for the memo attached to a crowdloan contribution.

@@ -67,11 +67,10 @@ pub struct ParachainTemporarySlot<AccountId, LeasePeriod> {
 	pub lease_count: u32,
 }
 
-type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::Currency as Currency<
+type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
-type LeasePeriodOf<T> =
-	<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::LeasePeriod;
+type LeasePeriodOf<T> = <<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::LeasePeriod;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -91,9 +90,9 @@ pub mod pallet {
 
 		/// The type representing the leasing system.
 		type Leaser: Leaser<
-			Self::BlockNumber,
+			BlockNumberFor<Self>,
 			AccountId = Self::AccountId,
-			LeasePeriod = Self::BlockNumber,
+			LeasePeriod = BlockNumberFor<Self>,
 		>;
 
 		/// The number of lease periods a permanent parachain slot lasts.

@@ -373,7 +373,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + configuration::Config + session_info::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type RewardValidators: RewardValidators;
-		type SlashingHandler: SlashingHandler<Self::BlockNumber>;
+		type SlashingHandler: SlashingHandler<BlockNumberFor<Self>>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -937,7 +937,7 @@ impl<T: Config> Pallet<T> {
 	// Disputes without enough votes to get confirmed are also filtered out.
 	fn filter_dispute_data(
 		set: &DisputeStatementSet,
-		post_conclusion_acceptance_period: <T as frame_system::Config>::BlockNumber,
+		post_conclusion_acceptance_period: BlockNumberFor<T>,
 	) -> StatementSetFilter {
 		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
 
