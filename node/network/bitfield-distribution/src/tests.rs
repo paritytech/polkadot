@@ -1147,7 +1147,7 @@ fn network_protocol_versioning() {
 
 	// validator 0 key pair
 	let (mut state, signing_context, keystore, validator) =
-		state_with_view(our_view![hash_a, hash_b], hash_a);
+		state_with_view(our_view![hash_a, hash_b], hash_a, ReputationAggregator::new(|_| true));
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
@@ -1245,10 +1245,10 @@ fn network_protocol_versioning() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_a);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST.into())
 			}
 		);
 	});
