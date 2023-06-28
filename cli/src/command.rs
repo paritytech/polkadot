@@ -603,9 +603,16 @@ pub fn run() -> Result<()> {
 					set_default_ss58_version(chain_spec);
 					ensure_dev(chain_spec).map_err(Error::Other)?;
 
-					return runner.sync_run(|config| {
-						cmd.run::<service::Block, ()>(config).map_err(|e| Error::SubstrateCli(e))
-					})
+					if cfg!(feature = "runtime-benchmarks") {
+						runner.sync_run(|config| {
+							cmd.run::<service::Block, ()>(config)
+								.map_err(|e| Error::SubstrateCli(e))
+						})
+					} else {
+						Err("Benchmarking wasn't enabled when building the node. \
+				You can enable it with `--features runtime-benchmarks`."
+							.into())
+					}
 				},
 				BenchmarkCmd::Machine(cmd) => runner.sync_run(|config| {
 					cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())
