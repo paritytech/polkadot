@@ -43,6 +43,11 @@ test-linux-stable:
   script:
     - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics,try-runtime
 
+test-linux-oldkernel-stable:
+  extends: test-linux-stable
+  tags:
+    - oldkernel-vm
+
 .check-dependent-project: &check-dependent-project
   stage: test
   extends:
