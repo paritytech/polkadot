@@ -347,16 +347,14 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 }
 
 /// Tinkernet ParaId used when matching Multisig MultiLocations.
-pub const TINKERNET_PARA_ID: u32 = 2125;
+pub const KUSAMA_TINKERNET_PARA_ID: u32 = 2125;
 
 /// Tinkernet Multisig pallet instance used when matching Multisig MultiLocations.
-pub const TINKERNET_MULTISIG_PALLET: u8 = 71;
+pub const KUSAMA_TINKERNET_MULTISIG_PALLET: u8 = 71;
 
 /// Constant derivation function for Tinkernet Multisigs.
 /// Uses the Tinkernet genesis hash as a salt.
-pub fn derive_tinkernet_multisig<AccountId: Decode>(
-	id: u128,
-) -> Result<AccountId, <u32 as TryFrom<u128>>::Error> {
+pub fn derive_tinkernet_multisig<AccountId: Decode>(id: u128) -> Result<AccountId, ()> {
 	Ok(AccountId::decode(&mut TrailingZeroInput::new(
 		&(
 			// The constant salt used to derive Tinkernet Multisigs, this is Tinkernet's genesis hash.
@@ -365,11 +363,11 @@ pub fn derive_tinkernet_multisig<AccountId: Decode>(
 				80, 243, 115, 218, 162, 0, 9, 138, 232, 68, 55, 129, 106, 210,
 			]),
 			// The actual multisig integer id.
-			u32::try_from(id)?,
+			u32::try_from(id).map_err(|_| ())?,
 		)
 			.using_encoded(blake2_256),
 	))
-	.expect("infinite length input; no invalid inputs for type; qed"))
+	.map_err(|_| ())?)
 }
 
 /// Convert a Tinkernet Multisig `MultiLocation` value into a local `AccountId`.
@@ -383,8 +381,8 @@ impl<AccountId: Decode + Clone> ConvertLocation<AccountId>
 				parents: _,
 				interior:
 					X3(
-						Parachain(TINKERNET_PARA_ID),
-						PalletInstance(TINKERNET_MULTISIG_PALLET),
+						Parachain(KUSAMA_TINKERNET_PARA_ID),
+						PalletInstance(KUSAMA_TINKERNET_MULTISIG_PALLET),
 						// Index from which the multisig account is derived.
 						GeneralIndex(id),
 					),
@@ -843,7 +841,11 @@ mod tests {
 	fn remote_tinkernet_multisig_convert_to_account() {
 		let mul = MultiLocation {
 			parents: 0,
-			interior: X3(Parachain(2125), PalletInstance(71), GeneralIndex(0)),
+			interior: X3(
+				Parachain(KUSAMA_TINKERNET_PARA_ID),
+				PalletInstance(KUSAMA_TINKERNET_MULTISIG_PALLET),
+				GeneralIndex(0),
+			),
 		};
 
 		assert_eq!(

@@ -17,7 +17,7 @@
 //! Various implementations for `ConvertOrigin`.
 
 use crate::location_conversion::{
-	derive_tinkernet_multisig, TINKERNET_MULTISIG_PALLET, TINKERNET_PARA_ID,
+	derive_tinkernet_multisig, KUSAMA_TINKERNET_MULTISIG_PALLET, KUSAMA_TINKERNET_PARA_ID,
 };
 use frame_support::traits::{EnsureOrigin, Get, GetBacking, OriginTrait};
 use frame_system::RawOrigin as SystemRawOrigin;
@@ -264,8 +264,8 @@ where
 					parents: _,
 					interior:
 						X3(
-							Junction::Parachain(TINKERNET_PARA_ID),
-							Junction::PalletInstance(TINKERNET_MULTISIG_PALLET),
+							Junction::Parachain(KUSAMA_TINKERNET_PARA_ID),
+							Junction::PalletInstance(KUSAMA_TINKERNET_MULTISIG_PALLET),
 							// Index from which the multisig account is derived.
 							Junction::GeneralIndex(id),
 						),
