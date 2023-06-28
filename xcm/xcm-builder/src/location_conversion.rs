@@ -355,7 +355,7 @@ pub const KUSAMA_TINKERNET_MULTISIG_PALLET: u8 = 71;
 /// Constant derivation function for Tinkernet Multisigs.
 /// Uses the Tinkernet genesis hash as a salt.
 pub fn derive_tinkernet_multisig<AccountId: Decode>(id: u128) -> Result<AccountId, ()> {
-	Ok(AccountId::decode(&mut TrailingZeroInput::new(
+	AccountId::decode(&mut TrailingZeroInput::new(
 		&(
 			// The constant salt used to derive Tinkernet Multisigs, this is Tinkernet's genesis hash.
 			H256([
@@ -367,7 +367,7 @@ pub fn derive_tinkernet_multisig<AccountId: Decode>(id: u128) -> Result<AccountI
 		)
 			.using_encoded(blake2_256),
 	))
-	.map_err(|_| ())?)
+	.map_err(|_| ())
 }
 
 /// Convert a Tinkernet Multisig `MultiLocation` value into a local `AccountId`.
