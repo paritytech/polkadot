@@ -606,7 +606,7 @@ pub fn run() -> Result<()> {
 					#[cfg(feature = "kusama-native")]
 					if chain_spec.is_kusama() {
 						return runner.sync_run(|config| {
-							cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(config)
+							cmd.run::<service::kusama_runtime::Block>(config)
 								.map_err(|e| Error::SubstrateCli(e))
 						})
 					}
@@ -614,7 +614,7 @@ pub fn run() -> Result<()> {
 					#[cfg(feature = "westend-native")]
 					if chain_spec.is_westend() {
 						return runner.sync_run(|config| {
-							cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(config)
+							cmd.run::<service::westend_runtime::Block>(config)
 								.map_err(|e| Error::SubstrateCli(e))
 						})
 					}
@@ -623,7 +623,7 @@ pub fn run() -> Result<()> {
 					#[cfg(feature = "polkadot-native")]
 					{
 						return runner.sync_run(|config| {
-							cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(config)
+							cmd.run::<service::polkadot_runtime::Block>(config)
 								.map_err(|e| Error::SubstrateCli(e))
 						})
 					}
