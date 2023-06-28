@@ -582,7 +582,7 @@ fn overweight_queue_works() {
 			ExecuteOverweightError::AlreadyProcessed,
 		);
 
-		// And using an invalid index does not work.
+		// Using an invalid index does not work.
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::from_parts(501, 501),
