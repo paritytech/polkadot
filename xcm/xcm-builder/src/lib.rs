@@ -34,7 +34,7 @@ pub use location_conversion::{
 	ChildParachainConvertsVia, DescribeAccountId32Terminal, DescribeAccountIdTerminal,
 	DescribeAccountKey20Terminal, DescribeAllTerminal, DescribeFamily, DescribeLocation,
 	DescribePalletTerminal, DescribeTerminus, GlobalConsensusParachainConvertsFor,
-	HashedDescription, ParentIsPreset, SiblingParachainConvertsVia,
+	HashedDescription, ParentIsPreset, SiblingParachainConvertsVia, TinkernetMultisigAsAccountId,
 };
 
 mod origin_conversion;
@@ -42,7 +42,7 @@ pub use origin_conversion::{
 	BackingToPlurality, ChildParachainAsNative, ChildSystemParachainAsSuperuser, EnsureXcmOrigin,
 	OriginToPluralityVoice, ParentAsSuperuser, RelayChainAsNative, SiblingParachainAsNative,
 	SiblingSystemParachainAsSuperuser, SignedAccountId32AsNative, SignedAccountKey20AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation,
+	SignedToAccountId32, SovereignSignedViaLocation, TinkernetMultisigAsNative,
 };
 
 mod asset_conversion;
