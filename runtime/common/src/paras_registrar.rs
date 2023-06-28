@@ -665,7 +665,7 @@ mod tests {
 	};
 	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
-	use primitives::{Balance, BlockNumber, Header, SessionIndex};
+	use primitives::{Balance, BlockNumber, SessionIndex};
 	use runtime_parachains::{configuration, origin, shared};
 	use sp_core::H256;
 	use sp_io::TestExternalities;
@@ -678,7 +678,7 @@ mod tests {
 	use sp_std::collections::btree_map::BTreeMap;
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-	type Block = frame_system::mocking::MockBlock<Test>;
+	type Block = frame_system::mocking::MockBlockU32<Test>;
 
 	frame_support::construct_runtime!(
 		pub enum Test

@@ -547,7 +547,7 @@ mod tests {
 	use frame_support::{assert_noop, assert_ok, parameter_types};
 	use frame_system::EnsureRoot;
 	use pallet_balances;
-	use primitives::{BlockNumber, Header};
+	use primitives::BlockNumber;
 	use runtime_parachains::{
 		configuration as parachains_configuration, paras as parachains_paras,
 		shared as parachains_shared,
@@ -560,7 +560,7 @@ mod tests {
 	};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-	type Block = frame_system::mocking::MockBlock<Test>;
+	type Block = frame_system::mocking::MockBlockU32<Test>;
 
 	frame_support::construct_runtime!(
 		pub enum Test

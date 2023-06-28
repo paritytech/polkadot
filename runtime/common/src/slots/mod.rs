@@ -505,11 +505,11 @@ mod tests {
 	use frame_support::{assert_noop, assert_ok, parameter_types};
 	use frame_system::EnsureRoot;
 	use pallet_balances;
-	use primitives::{BlockNumber, Header};
+	use primitives::BlockNumber;
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 
-	type Block = frame_system::mocking::MockBlock<Test>;
+	type Block = frame_system::mocking::MockBlockU32<Test>;
 
 	frame_support::construct_runtime!(
 		pub enum Test

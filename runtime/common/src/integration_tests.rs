@@ -34,7 +34,7 @@ use frame_support_test::TestRandomness;
 use frame_system::EnsureRoot;
 use parity_scale_codec::Encode;
 use primitives::{
-	BlockNumber, HeadData, Header, Id as ParaId, SessionIndex, ValidationCode, LOWEST_PUBLIC_ID,
+	BlockNumber, HeadData, Id as ParaId, SessionIndex, ValidationCode, LOWEST_PUBLIC_ID,
 };
 use runtime_parachains::{
 	configuration, origin, paras, shared, Origin as ParaOrigin, ParaLifecycle,
@@ -51,7 +51,7 @@ use sp_runtime::{
 use sp_std::sync::Arc;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame_system::mocking::MockBlockU32<Test>;
 
 type AccountId = AccountId32;
 type Balance = u32;
