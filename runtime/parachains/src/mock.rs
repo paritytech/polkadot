@@ -329,6 +329,7 @@ impl pallet_message_queue::Config for Test {
 	type WeightInfo = TestMessageQueueWeight;
 	type MessageProcessor = TestProcessMessage;
 	type QueueChangeHandler = ParaInclusion;
+	type QueuePausedQuery = ();
 	type HeapSize = ConstU32<65536>;
 	type MaxStale = ConstU32<8>;
 	type ServiceWeight = MessageQueueServiceWeight;
