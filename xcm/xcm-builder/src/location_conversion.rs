@@ -17,6 +17,7 @@
 use crate::universal_exports::ensure_is_remote;
 use frame_support::traits::Get;
 use parity_scale_codec::{Compact, Decode, Encode};
+use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{AccountIdConversion, Convert, TrailingZeroInput};
 use sp_std::{marker::PhantomData, prelude::*};
@@ -342,6 +343,52 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 			_ => return None,
 		};
 		Some(key.into())
+	}
+}
+
+/// Tinkernet ParaId used when matching Multisig MultiLocations.
+pub const KUSAMA_TINKERNET_PARA_ID: u32 = 2125;
+
+/// Tinkernet Multisig pallet instance used when matching Multisig MultiLocations.
+pub const KUSAMA_TINKERNET_MULTISIG_PALLET: u8 = 71;
+
+/// Constant derivation function for Tinkernet Multisigs.
+/// Uses the Tinkernet genesis hash as a salt.
+pub fn derive_tinkernet_multisig<AccountId: Decode>(id: u128) -> Result<AccountId, ()> {
+	AccountId::decode(&mut TrailingZeroInput::new(
+		&(
+			// The constant salt used to derive Tinkernet Multisigs, this is Tinkernet's genesis hash.
+			H256([
+				212, 46, 150, 6, 169, 149, 223, 228, 51, 220, 121, 85, 220, 42, 112, 244, 149, 243,
+				80, 243, 115, 218, 162, 0, 9, 138, 232, 68, 55, 129, 106, 210,
+			]),
+			// The actual multisig integer id.
+			u32::try_from(id).map_err(|_| ())?,
+		)
+			.using_encoded(blake2_256),
+	))
+	.map_err(|_| ())
+}
+
+/// Convert a Tinkernet Multisig `MultiLocation` value into a local `AccountId`.
+pub struct TinkernetMultisigAsAccountId<AccountId>(PhantomData<AccountId>);
+impl<AccountId: Decode + Clone> ConvertLocation<AccountId>
+	for TinkernetMultisigAsAccountId<AccountId>
+{
+	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
+		match location {
+			MultiLocation {
+				parents: _,
+				interior:
+					X3(
+						Parachain(KUSAMA_TINKERNET_PARA_ID),
+						PalletInstance(KUSAMA_TINKERNET_MULTISIG_PALLET),
+						// Index from which the multisig account is derived.
+						GeneralIndex(id),
+					),
+			} => derive_tinkernet_multisig(*id).ok(),
+			_ => None,
+		}
 	}
 }
 
@@ -788,5 +835,25 @@ mod tests {
 			interior: X1(AccountKey20 { network: None, key: [0u8; 20] }),
 		};
 		assert!(ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).is_none());
+	}
+
+	#[test]
+	fn remote_tinkernet_multisig_convert_to_account() {
+		let mul = MultiLocation {
+			parents: 0,
+			interior: X3(
+				Parachain(KUSAMA_TINKERNET_PARA_ID),
+				PalletInstance(KUSAMA_TINKERNET_MULTISIG_PALLET),
+				GeneralIndex(0),
+			),
+		};
+
+		assert_eq!(
+			[
+				97, 160, 244, 60, 133, 145, 170, 26, 202, 108, 203, 156, 114, 116, 175, 30, 156,
+				195, 43, 101, 243, 51, 193, 162, 152, 188, 30, 165, 244, 81, 70, 90
+			],
+			TinkernetMultisigAsAccountId::<[u8; 32]>::convert_location(&mul).unwrap()
+		);
 	}
 }
