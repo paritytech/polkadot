@@ -573,12 +573,20 @@ fn overweight_queue_works() {
 			.into(),
 		);
 
-		// ... and if we try to service a message with index that doesn't exist it will error
-		// out.
+		// But servicing again will not work.
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::from_parts(501, 501),
 				(Ump(UmpQueueId::Para(para_a)), 0, 2)
+			),
+			ExecuteOverweightError::AlreadyProcessed,
+		);
+
+		// Using an invalid index does not work.
+		assert_noop!(
+			<MessageQueue as ServiceQueues>::execute_overweight(
+				Weight::from_parts(501, 501),
+				(Ump(UmpQueueId::Para(para_a)), 0, 3)
 			),
 			ExecuteOverweightError::NotFound,
 		);

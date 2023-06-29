@@ -603,34 +603,19 @@ pub fn run() -> Result<()> {
 					set_default_ss58_version(chain_spec);
 					ensure_dev(chain_spec).map_err(Error::Other)?;
 
-					#[cfg(feature = "kusama-native")]
-					if chain_spec.is_kusama() {
-						return runner.sync_run(|config| {
-							cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(config)
+					if cfg!(feature = "runtime-benchmarks") {
+						runner.sync_run(|config| {
+							cmd.run::<service::Block, ()>(config)
 								.map_err(|e| Error::SubstrateCli(e))
 						})
+					} else {
+						Err(sc_cli::Error::Input(
+							"Benchmarking wasn't enabled when building the node. \
+				You can enable it with `--features runtime-benchmarks`."
+								.into(),
+						)
+						.into())
 					}
-
-					#[cfg(feature = "westend-native")]
-					if chain_spec.is_westend() {
-						return runner.sync_run(|config| {
-							cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(config)
-								.map_err(|e| Error::SubstrateCli(e))
-						})
-					}
-
-					// else we assume it is polkadot.
-					#[cfg(feature = "polkadot-native")]
-					{
-						return runner.sync_run(|config| {
-							cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(config)
-								.map_err(|e| Error::SubstrateCli(e))
-						})
-					}
-
-					#[cfg(not(feature = "polkadot-native"))]
-					#[allow(unreachable_code)]
-					Err(service::Error::NoRuntime.into())
 				},
 				BenchmarkCmd::Machine(cmd) => runner.sync_run(|config| {
 					cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())
