@@ -81,7 +81,7 @@ pub enum SpotTrafficCalculationErr {
 	QueueCapacityIsZero,
 	/// The queue size is larger than the queue capacity.
 	QueueSizeLargerThanCapacity,
-	/// Arithmetic error during division, most likely division by 0.
+	/// Arithmetic error during division, either division by 0 or over/underflow.
 	Division,
 }
 
@@ -180,7 +180,24 @@ pub mod pallet {
 						})
 					}
 				},
-				Err(_) => {},
+				Err(SpotTrafficCalculationErr::QueueCapacityIsZero) => {
+					log::debug!(
+						target: LOG_TARGET,
+						"Error calculating spot traffic: The order queue capacity is at 0."
+					);
+				},
+				Err(SpotTrafficCalculationErr::QueueSizeLargerThanCapacity) => {
+					log::debug!(
+						target: LOG_TARGET,
+						"Error calculating spot traffic: The queue size is larger than the queue capacity."
+					);
+				},
+				Err(SpotTrafficCalculationErr::Division) => {
+					log::debug!(
+						target: LOG_TARGET,
+						"Error calculating spot traffic: Arithmetic error during division, either division by 0 or over/underflow."
+					);
+				},
 			};
 
 			//TODO this has some weight
