@@ -370,6 +370,7 @@ impl MessageSource {
 	}
 }
 
+#[derive(Debug)]
 enum PendingMessage {
 	Assignment(IndirectAssignmentCert, CandidateIndex),
 	Approval(IndirectSignedApprovalVote),
@@ -998,6 +999,46 @@ impl State {
 					peer_knowledge.received.insert(message_subject.clone(), message_kind);
 				}
 				entry.maybe_needs_checking_assignments.remove(message_subject);
+
+				if let Some((peer_id, vote)) =
+					entry.maybe_needs_checking.get_mut(message_subject).and_then(|val| val.pop())
+				{
+					match vote {
+						PendingMessage::Approval(vote) => {
+							let (tx, rx) = oneshot::channel();
+							entry
+								.waiting_to_be_verified
+								.insert(message_subject.clone(), MessageKind::Approval);
+
+							ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(
+								vote.clone(),
+								tx,
+							))
+							.await;
+							let vote_clone = vote.clone();
+							let message_subj_clone = message_subject.clone();
+							let await_future = async move {
+								let result = rx.await?;
+								gum::debug!(
+									target: LOG_TARGET,
+									"Approval checked {:?} {:?}",
+									vote,
+									result
+								);
+								Ok(ApprovalVotingResponse::ApprovalCheck(ApprovalVotingMetadata {
+									vote: vote_clone,
+									message_subject: message_subj_clone,
+									message_kind,
+									peer_id,
+									result,
+								}))
+							}
+							.boxed();
+							self.answers_from_approval_voting.push(await_future);
+						},
+						_ => {},
+					}
+				}
 				Some(asignment_metadata)
 			},
 			AssignmentCheckResult::AcceptedDuplicate => {
@@ -1055,6 +1096,10 @@ impl State {
 					match assignment {
 						PendingMessage::Assignment(assignment, claimed_candidate_index) => {
 							let (tx, rx) = oneshot::channel();
+
+							entry
+								.waiting_to_be_verified
+								.insert(message_subject.clone(), message_kind);
 
 							ctx.send_message(ApprovalVotingMessage::CheckAndImportAssignment(
 								assignment.clone(),
@@ -1250,19 +1295,29 @@ impl State {
 
 		if let Some(peer_id) = source.peer_id() {
 			if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
-				gum::debug!(
-					target: LOG_TARGET,
-					?peer_id,
-					?message_subject,
-					"Unknown approval assignment",
-				);
-				modify_reputation(
-					&mut self.reputation,
-					ctx.sender(),
-					peer_id,
-					COST_UNEXPECTED_MESSAGE,
-				)
-				.await;
+				if entry.waiting_to_be_verified.contains(&message_subject, MessageKind::Assignment)
+				{
+					// Store this to be processed when we get the result of the assignment.
+					entry
+						.maybe_needs_checking
+						.entry(message_subject)
+						.or_default()
+						.push((peer_id, PendingMessage::Approval(vote)));
+				} else {
+					gum::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						?message_subject,
+						"Unknown approval assignment",
+					);
+					modify_reputation(
+						&mut self.reputation,
+						ctx.sender(),
+						peer_id,
+						COST_UNEXPECTED_MESSAGE,
+					)
+					.await;
+				}
 				return
 			}
 
@@ -1455,6 +1510,9 @@ impl State {
 					match vote {
 						PendingMessage::Approval(vote) => {
 							let (tx, rx) = oneshot::channel();
+							entry
+								.waiting_to_be_verified
+								.insert(message_subject.clone(), message_kind);
 
 							ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(
 								vote.clone(),
