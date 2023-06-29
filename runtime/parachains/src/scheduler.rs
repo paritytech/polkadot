@@ -59,7 +59,7 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
-const LOG_TARGET: &str = "runtime::parachain_scheduler";
+const LOG_TARGET: &str = "runtime::parachains::scheduler";
 pub mod migration;
 
 #[frame_support::pallet]
@@ -421,12 +421,13 @@ impl<T: Config> Pallet<T> {
 			let cores = AvailabilityCores::<T>::get();
 			cores.get(core.0 as usize).and_then(|c| match c {
 				CoreOccupied::Free => None,
-				CoreOccupied::Paras(pe) =>
+				CoreOccupied::Paras(pe) => {
 					if pe.retries < T::AssignmentProvider::get_max_retries(core) {
 						Some(Self::paras_entry_to_scheduled_core(pe))
 					} else {
 						None
-					},
+					}
+				},
 			})
 		})
 	}
