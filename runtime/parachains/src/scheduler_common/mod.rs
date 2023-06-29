@@ -86,13 +86,13 @@ pub trait AssignmentProvider<BlockNumber> {
 	fn get_max_retries(core_idx: CoreIndex) -> u32;
 }
 
-/// How a free core is scheduled to be assigned.
+/// How a core is mapped to a backing group and a `ParaId`
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct CoreAssignment<BlockNumber> {
 	/// The core that is assigned.
 	pub core: CoreIndex,
-	/// The parachain information needed to ba
+	/// The para id and accompanying information needed to collate and back a parablock.
 	pub paras_entry: ParasEntry<BlockNumber>,
 	/// The index of the validator group assigned to the core.
 	pub group_idx: GroupIndex,
