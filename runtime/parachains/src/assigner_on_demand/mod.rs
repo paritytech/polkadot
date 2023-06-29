@@ -44,6 +44,8 @@ use sp_runtime::{
 
 use sp_std::{collections::vec_deque::VecDeque, prelude::*};
 
+const LOG_TARGET: &str = "runtime::parachains::on-demand-assigner";
+
 pub use pallet::*;
 
 #[cfg(test)]
@@ -345,8 +347,7 @@ where
 
 		let config = <configuration::Pallet<T>>::config();
 
-		// Be explicit rather than implicit about the return value
-		let res = OnDemandQueue::<T>::try_mutate(|queue| {
+		OnDemandQueue::<T>::try_mutate(|queue| {
 			// Abort transaction if queue is too large
 			ensure!(Self::queue_size() < config.on_demand_queue_max_size, Error::<T>::QueueFull);
 			match location {
@@ -354,24 +355,30 @@ where
 				QueuePushDirection::Front => queue.push_front(assignment),
 			};
 			Ok(())
-		});
-		res
+		})
 	}
 
 	/// Get the size of the on demand queue.
+	///
 	/// Returns:
-	/// - The size of the on demand queue, or failing to do so, the max size of the queue.
+	/// - The size of the on demand queue.
 	fn queue_size() -> u32 {
 		let config = <configuration::Pallet<T>>::config();
 		match OnDemandQueue::<T>::get().len().try_into() {
 			Ok(size) => return size,
-			Err(_) => return config.on_demand_queue_max_size,
+			Err(_) => {
+				log::debug!(
+					target: LOG_TARGET,
+					"Failed to fetch the on demand queue size, returning the max size."
+				);
+				return config.on_demand_queue_max_size
+			},
 		}
 	}
 
 	/// Getter for the order queue.
-	pub fn get_queue() -> Vec<Assignment> {
-		OnDemandQueue::<T>::get().into()
+	pub fn get_queue() -> VecDeque<Assignment> {
+		OnDemandQueue::<T>::get()
 	}
 
 	/// Decreases the affinity of a `ParaId` to a specified `CoreIndex`.

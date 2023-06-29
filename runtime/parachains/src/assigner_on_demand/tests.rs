@@ -315,6 +315,9 @@ fn spotqueue_push_directions() {
 		));
 
 		assert_eq!(OnDemandAssigner::queue_size(), 3);
-		assert_eq!(OnDemandAssigner::get_queue(), vec![assignment_b, assignment_a, assignment_c])
+		assert_eq!(
+			OnDemandAssigner::get_queue(),
+			VecDeque::from(vec![assignment_b, assignment_a, assignment_c])
+		)
 	});
 }

@@ -837,7 +837,7 @@ pub struct ParasEntry<N = BlockNumber> {
 	pub assignment: Assignment,
 	/// Number of times this has been retried.
 	pub retries: u32,
-	/// Block height when this entry was added to the claim queue.
+	/// The block height where this entry becomes invalid.
 	pub ttl: N,
 }
 
