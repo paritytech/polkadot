@@ -609,9 +609,12 @@ pub fn run() -> Result<()> {
 								.map_err(|e| Error::SubstrateCli(e))
 						})
 					} else {
-						Err("Benchmarking wasn't enabled when building the node. \
+						Err(sc_cli::Error::Input(
+							"Benchmarking wasn't enabled when building the node. \
 				You can enable it with `--features runtime-benchmarks`."
-							.into())
+								.into(),
+						)
+						.into())
 					}
 				},
 				BenchmarkCmd::Machine(cmd) => runner.sync_run(|config| {
