@@ -118,10 +118,11 @@ fn w_candidate_hash_aliased_unnecessary() {
 }
 
 #[test]
-fn frequent_at_third_time() {
+fn frequent_at_fourth_time() {
 	let mut freq = Freq::new();
 	let rate = 1.0;
 
+	assert!(!freq.is_frequent(rate));
 	assert!(!freq.is_frequent(rate));
 	assert!(!freq.is_frequent(rate));
 
@@ -129,10 +130,11 @@ fn frequent_at_third_time() {
 }
 
 #[test]
-fn not_frequent_at_third_time_if_slow() {
+fn not_frequent_at_fourth_time_if_slow() {
 	let mut freq = Freq::new();
 	let rate = 1000.0;
 
+	assert!(!freq.is_frequent(rate));
 	assert!(!freq.is_frequent(rate));
 	assert!(!freq.is_frequent(rate));
 

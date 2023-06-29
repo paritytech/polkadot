@@ -1064,9 +1064,9 @@ checksum = "8a2dd5a6fe8c6e3502f568a6353e5273bbb15193ad9a89e457b9970798efbea1"
 
 [[package]]
 name = "coarsetime"
-version = "0.1.22"
+version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "454038500439e141804c655b4cd1bc6a70bcb95cd2bc9463af5661b6956f0e46"
+checksum = "a90d114103adbc625300f346d4d09dfb4ab1c4a8df6868435dd903392ecf4354"
 dependencies = [
  "libc",
  "once_cell",
@@ -12944,6 +12944,7 @@ dependencies = [
 name = "tracing-gum"
 version = "0.9.43"
 dependencies = [
+ "coarsetime",
  "polkadot-node-jaeger",
  "polkadot-primitives",
  "tracing",

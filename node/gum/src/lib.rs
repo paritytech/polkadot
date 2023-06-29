@@ -104,7 +104,6 @@
 //! On the other hand if you want all `parachain` logs, specify `parachain=trace`, which will also
 //! include logs from `parachain::pvf` and other subtargets.
 
-use std::collections::VecDeque;
 pub use tracing::{enabled, event, Level};
 
 #[doc(hidden)]
@@ -119,49 +118,61 @@ pub use gum_proc_macro::{debug, error, info, trace, warn, warn_if_frequent};
 mod tests;
 
 /// Max allowed frequency of debug messages
-pub const MAX_FREQ_RATE: f64 = 1.0;
-const MAX_FREQ_SIZE: usize = 10;
+pub const MAX_FREQ_RATE: f32 = 1.0;
+const FREQ_SMOOTHING_FACTOR: f32 = 0.5;
+
+/// Exponential moving average
+#[derive(Debug, Default)]
+struct EmaBucket {
+	current: f32,
+	count: u32,
+}
+
+impl EmaBucket {
+	fn update(&mut self, value: f32, alpha: f32) {
+		if self.count == 0 {
+			self.current = value;
+		} else {
+			self.current += alpha * (value - self.current);
+		}
+		self.count += 1;
+	}
+}
 
 /// Utility struct to compare the rate of its own calls.
 pub struct Freq {
-	timestamps: VecDeque<u64>,
+	ema: EmaBucket,
+	last: u64,
 }
 
 impl Freq {
 	/// Initiates a new instanse
 	pub fn new() -> Self {
-		Self { timestamps: VecDeque::with_capacity(MAX_FREQ_SIZE) }
+		Self { ema: Default::default(), last: Default::default() }
 	}
 
 	/// Compares the rate of its own calls with the passed one.
-	pub fn is_frequent(&mut self, max_rate: f64) -> bool {
+	pub fn is_frequent(&mut self, max_rate: f32) -> bool {
 		self.record();
 
 		// Two attempts is not enough to call something as frequent.
-		if self.timestamps.len() < 3 {
+		if self.ema.count < 3 {
 			return false
 		}
-
-		let elapsed =
-			self.timestamps.back().expect("Checked above, timestamps include >=3 entries") -
-				self.timestamps.front().expect("Checked above, timestamps include >=3 entries");
-		if elapsed == 0 {
-			return true // More then 1000 times per second is frequent enough
+		// EMA bucket predicts the next interval in ms.
+		// An interval equal to 0 means rate more than 1000 times per second, what is frequent enough
+		if self.ema.current == 0.0 {
+			return true
 		}
 
-		let rate = (self.timestamps.len() as u64 * 1000 / elapsed) as f64;
-		rate > max_rate
+		1000.0 / self.ema.current > max_rate
 	}
 
 	fn record(&mut self) {
-		while self.timestamps.len() >= MAX_FREQ_SIZE {
-			let _ = self.timestamps.pop_front();
+		let now = coarsetime::Clock::now_since_epoch().as_millis() as u64;
+		if self.last > 0 {
+			self.ema.update((now - self.last) as f32, FREQ_SMOOTHING_FACTOR);
 		}
-
-		let now = std::time::SystemTime::now()
-			.duration_since(std::time::SystemTime::UNIX_EPOCH)
-			.expect("Time is always after UNIX_EPOCH")
-			.as_millis() as u64;
-		self.timestamps.push_back(now);
+		self.last = now;
 	}
 }

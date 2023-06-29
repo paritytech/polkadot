@@ -6,6 +6,7 @@ edition.workspace = true
 description = "Stick logs together with the TraceID as provided by tempo"
 
 [dependencies]
+coarsetime = "0.1.23"
 tracing = "0.1.35"
 jaeger = { path = "../jaeger", package = "polkadot-node-jaeger" }
 gum-proc-macro = { path = "./proc-macro", package = "tracing-gum-proc-macro" }
