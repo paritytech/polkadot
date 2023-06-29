@@ -55,10 +55,10 @@ mod tests;
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
 
-/// Keeps track of how many assignments a scheduler currently has for a specific core index.
+/// Keeps track of how many assignments a scheduler currently has at a specific `CoreIndex` for a specific `ParaId`.
 #[derive(Encode, Decode, Default, Clone, Copy, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
-struct CoreAffinityCount {
+pub struct CoreAffinityCount {
 	core_idx: CoreIndex,
 	count: u32,
 }
@@ -398,49 +398,46 @@ where
 		OnDemandQueue::<T>::get()
 	}
 
+	/// Getter for the affinity tracker.
+	pub fn get_affinity_map(para_id: ParaId) -> Option<CoreAffinityCount> {
+		ParaIdAffinity::<T>::get(para_id)
+	}
+
 	/// Decreases the affinity of a `ParaId` to a specified `CoreIndex`.
 	/// Subtracts from the count of the `CoreAffinityCount` if an entry is found and the core_idx matches.
 	/// When the count reaches 0, the entry is removed.
 	/// A non-existant entry is a no-op.
 	fn decrease_affinity(para_id: ParaId, core_idx: CoreIndex) {
-		match ParaIdAffinity::<T>::get(para_id) {
-			Some(affinity) =>
+		ParaIdAffinity::<T>::mutate(para_id, |maybe_affinity| {
+			if let Some(affinity) = maybe_affinity {
 				if affinity.core_idx == core_idx {
 					let new_count = affinity.count.saturating_sub(1);
 					if new_count > 0 {
-						ParaIdAffinity::<T>::insert(
-							para_id,
-							CoreAffinityCount { core_idx, count: new_count },
-						)
+						*maybe_affinity = Some(CoreAffinityCount { core_idx, count: new_count });
 					} else {
-						ParaIdAffinity::<T>::remove(para_id)
+						*maybe_affinity = None;
 					}
-				},
-			None => {},
-		}
+				}
+			}
+		});
 	}
 
 	/// Increases the affinity of a `ParaId` to a specified `CoreIndex`.
 	/// Adds to the count of the `CoreAffinityCount` if an entry is found and the core_idx matches.
 	/// A non-existant entry will be initialized with a count of 1 and uses the  supplied `CoreIndex`.
-	fn increase_affinity(para_id: ParaId, core_idx: CoreIndex) -> bool {
-		match ParaIdAffinity::<T>::get(para_id) {
-			Some(affinity) => {
+	fn increase_affinity(para_id: ParaId, core_idx: CoreIndex) {
+		ParaIdAffinity::<T>::mutate(para_id, |maybe_affinity| match maybe_affinity {
+			Some(affinity) =>
 				if affinity.core_idx == core_idx {
-					let new_count = affinity.count.saturating_add(1);
-					ParaIdAffinity::<T>::insert(
-						para_id,
-						CoreAffinityCount { core_idx, count: new_count },
-					);
-					return true
-				}
-				return false
-			},
+					*maybe_affinity = Some(CoreAffinityCount {
+						core_idx,
+						count: affinity.count.saturating_add(1),
+					});
+				},
 			None => {
-				ParaIdAffinity::<T>::insert(para_id, CoreAffinityCount { core_idx, count: 1 });
-				return true
+				*maybe_affinity = Some(CoreAffinityCount { core_idx, count: 1 });
 			},
-		}
+		})
 	}
 }
 

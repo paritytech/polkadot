@@ -321,3 +321,65 @@ fn spotqueue_push_directions() {
 		)
 	});
 }
+
+#[test]
+fn affinity_changes_work() {
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		let para_a = ParaId::from(111);
+		schedule_blank_para(para_a, ParaKind::Parathread);
+
+		run_to_block(11, |n| if n == 11 { Some(Default::default()) } else { None });
+
+		let assignment_a = Assignment { para_id: para_a };
+		// There should be no affinity before starting.
+		assert!(OnDemandAssigner::get_affinity_map(para_a).is_none());
+
+		// Add enough assignments to the order queue.
+		for _ in 0..10 {
+			let _ = OnDemandAssigner::add_parathread_assignment(
+				assignment_a.clone(),
+				QueuePushDirection::Front,
+			);
+		}
+
+		// There should be no affinity before the scheduler pops.
+		assert!(OnDemandAssigner::get_affinity_map(para_a).is_none());
+
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), None);
+
+		// Affinity count is 1 after popping.
+		assert_eq!(OnDemandAssigner::get_affinity_map(para_a).unwrap().count, 1);
+
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
+
+		// Affinity count is 1 after popping with a previous para.
+		assert_eq!(OnDemandAssigner::get_affinity_map(para_a).unwrap().count, 1);
+		assert_eq!(OnDemandAssigner::queue_size(), 8);
+
+		for _ in 0..3 {
+			OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), None);
+		}
+
+		// Affinity count is 4 after popping 3 times without a previous para.
+		assert_eq!(OnDemandAssigner::get_affinity_map(para_a).unwrap().count, 4);
+		assert_eq!(OnDemandAssigner::queue_size(), 5);
+
+		for _ in 0..5 {
+			OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
+		}
+
+		// Affinity count should still be 4 but queue should be empty.
+		assert_eq!(OnDemandAssigner::get_affinity_map(para_a).unwrap().count, 4);
+		assert_eq!(OnDemandAssigner::queue_size(), 0);
+
+		// Pop 4 times and get to exactly 0 (None) affinity.
+		for _ in 0..4 {
+			OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
+		}
+		assert!(OnDemandAssigner::get_affinity_map(para_a).is_none());
+
+		// Decreasing affinity beyond 0 should still be None.
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
+		assert!(OnDemandAssigner::get_affinity_map(para_a).is_none());
+	});
+}
