@@ -104,6 +104,7 @@
 //! On the other hand if you want all `parachain` logs, specify `parachain=trace`, which will also
 //! include logs from `parachain::pvf` and other subtargets.
 
+use std::collections::VecDeque;
 pub use tracing::{enabled, event, Level};
 
 #[doc(hidden)]
@@ -123,13 +124,13 @@ const MAX_FREQ_SIZE: usize = 10;
 
 /// Utility struct to compare the rate of its own calls.
 pub struct Freq {
-	timestamps: Vec<u64>,
+	timestamps: VecDeque<u64>,
 }
 
 impl Freq {
 	/// Initiates a new instanse
 	pub fn new() -> Self {
-		Self { timestamps: Vec::with_capacity(MAX_FREQ_SIZE) }
+		Self { timestamps: VecDeque::with_capacity(MAX_FREQ_SIZE) }
 	}
 
 	/// Compares the rate of its own calls with the passed one.
@@ -141,7 +142,9 @@ impl Freq {
 			return false
 		}
 
-		let elapsed = self.timestamps.last().unwrap() - self.timestamps.first().unwrap();
+		let elapsed =
+			self.timestamps.back().expect("Checked above, timestamps include >=3 entries") -
+				self.timestamps.front().expect("Checked above, timestamps include >=3 entries");
 		if elapsed == 0 {
 			return true // More then 1000 times per second is frequent enough
 		}
@@ -151,14 +154,14 @@ impl Freq {
 	}
 
 	fn record(&mut self) {
-		if self.timestamps.len() >= MAX_FREQ_SIZE {
-			self.timestamps.drain(..self.timestamps.len() - (MAX_FREQ_SIZE - 1));
+		while self.timestamps.len() >= MAX_FREQ_SIZE {
+			let _ = self.timestamps.pop_front();
 		}
 
 		let now = std::time::SystemTime::now()
 			.duration_since(std::time::SystemTime::UNIX_EPOCH)
 			.expect("Time is always after UNIX_EPOCH")
 			.as_millis() as u64;
-		self.timestamps.push(now);
+		self.timestamps.push_back(now);
 	}
 }
