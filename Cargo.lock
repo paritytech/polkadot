@@ -6986,7 +6986,6 @@ dependencies = [
 name = "polkadot-collator-protocol"
 version = "0.9.43"
 dependencies = [
- "always-assert",
  "assert_matches",
  "bitvec",
  "env_logger 0.9.0",

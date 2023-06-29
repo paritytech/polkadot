@@ -28,15 +28,15 @@ use polkadot_node_network_protocol::{
 	request_response::{Requests, ResponseSender},
 	ObservedRole,
 };
-use polkadot_node_primitives::BlockData;
+use polkadot_node_primitives::{BlockData, PoV};
 use polkadot_node_subsystem::messages::{
 	AllMessages, ReportPeerMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::{reputation::add_reputation, TimeoutExt};
 use polkadot_primitives::{
-	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
-	ValidatorId, ValidatorIndex,
+	CandidateReceipt, CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore,
+	ScheduledCore, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,
