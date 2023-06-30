@@ -599,9 +599,10 @@ where
 					beefy_best_block_stream: beefy_rpc_links.from_voter_best_beefy_stream.clone(),
 					subscription_executor,
 				},
+				backend: backend.clone(),
 			};
 
-			polkadot_rpc::create_full(deps, backend.clone()).map_err(Into::into)
+			polkadot_rpc::create_full(deps).map_err(Into::into)
 		}
 	};
 
