@@ -119,8 +119,8 @@ where
 pub struct UniversalWeigherAdapter<Weigher, AdditionalInstructions>(
 	PhantomData<(Weigher, AdditionalInstructions)>,
 );
-impl<Weigher: WeightBounds<()>, AdditionalInstructions: ProvideInstructions<()>> UniversalWeigher
-	for UniversalWeigherAdapter<Weigher, AdditionalInstructions>
+impl<Weigher: WeightBounds<()>, AdditionalInstructions: ProvideWeighableInstructions<()>>
+	UniversalWeigher for UniversalWeigherAdapter<Weigher, AdditionalInstructions>
 {
 	fn weigh(dest: impl Into<MultiLocation>, mut message: Xcm<()>) -> Result<Weight, ()> {
 		message.0.extend(AdditionalInstructions::provide_for(dest, &message));
@@ -129,14 +129,14 @@ impl<Weigher: WeightBounds<()>, AdditionalInstructions: ProvideInstructions<()>>
 }
 
 /// Function trait for generating instruction for (dest, message).
-pub trait ProvideInstructions<RuntimeCall> {
+pub trait ProvideWeighableInstructions<RuntimeCall> {
 	fn provide_for(
 		dest: impl Into<MultiLocation>,
 		message: &Xcm<RuntimeCall>,
 	) -> Vec<Instruction<RuntimeCall>>;
 }
 
-impl<RuntimeCall> ProvideInstructions<RuntimeCall> for () {
+impl<RuntimeCall> ProvideWeighableInstructions<RuntimeCall> for () {
 	fn provide_for(
 		_dest: impl Into<MultiLocation>,
 		_message: &Xcm<RuntimeCall>,

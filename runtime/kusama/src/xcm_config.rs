@@ -40,9 +40,10 @@ use xcm_builder::{
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
-	MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
-	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	MintLocation, OriginToPluralityVoice, ProvideWeighableInstructions, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId,
+	UniversalWeigherAdapter, UsingComponents, WeightInfoBounds, WithComputedOrigin,
+	WithUniqueTopic,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -383,6 +384,17 @@ pub type LocalPalletOriginToLocation = (
 	FellowsToPlurality,
 );
 
+/// Helper for adding more instructions to the weight estimation on detination side.
+pub struct DestinationWeigherAddons;
+impl ProvideWeighableInstructions<()> for DestinationWeigherAddons {
+	fn provide_for(
+		_dest: impl Into<MultiLocation>,
+		_message: &Xcm<()>,
+	) -> sp_std::vec::Vec<Instruction<()>> {
+		sp_std::vec![SetTopic([3; 32])]
+	}
+}
+
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	// We only allow the root, the council, fellows and the staking admin to send messages.
@@ -401,6 +413,11 @@ impl pallet_xcm::Config for Runtime {
 	// transfer.
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
+	type DestinationWeigher = UniversalWeigherAdapter<
+		// use local weight for remote message and hope for the best.
+		FixedWeightBounds<BaseXcmWeight, (), MaxInstructions>,
+		DestinationWeigherAddons,
+	>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;

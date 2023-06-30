@@ -79,7 +79,7 @@ pub use nonfungibles_adapter::{
 
 mod weight;
 pub use weight::{
-	FixedRateOfFungible, FixedWeightBounds, ProvideInstructions, TakeRevenue,
+	FixedRateOfFungible, FixedWeightBounds, ProvideWeighableInstructions, TakeRevenue,
 	UniversalWeigherAdapter, UsingComponents, WeightInfoBounds,
 };
 

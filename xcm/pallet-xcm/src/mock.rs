@@ -31,7 +31,7 @@ use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, Case, ChildParachainAsNative, ChildParachainConvertsVia,
 	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible,
-	FixedWeightBounds, IsConcrete, ProvideInstructions, SignedAccountId32AsNative,
+	FixedWeightBounds, IsConcrete, ProvideWeighableInstructions, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UniversalWeigherAdapter,
 };
 use xcm_executor::XcmExecutor;
@@ -325,7 +325,7 @@ parameter_types! {
 }
 
 pub struct AdditionalDestinationInstructions;
-impl ProvideInstructions<()> for AdditionalDestinationInstructions {
+impl ProvideWeighableInstructions<()> for AdditionalDestinationInstructions {
 	fn provide_for(_dest: impl Into<MultiLocation>, _message: &Xcm<()>) -> Vec<Instruction<()>> {
 		sp_std::vec![SetTopic([13; 32])]
 	}
