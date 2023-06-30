@@ -7558,7 +7558,6 @@ dependencies = [
  "prioritized-metered-channel",
  "prometheus-parse",
  "sc-cli",
- "sc-client-api",
  "sc-service",
  "sc-tracing",
  "sp-keyring",
