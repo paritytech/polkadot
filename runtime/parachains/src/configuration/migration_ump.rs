@@ -107,18 +107,12 @@ pub mod latest {
 				"There must be exactly one new pending upgrade enqueued"
 			);
 			if let Err(err) = last.1.check_consistency() {
-				log::error!(
-					target: LOG_TARGET,
-					"Last PendingConfig is invalidity {:?}", err,
-				);
+				log::error!(target: LOG_TARGET, "Last PendingConfig is invalidity {:?}", err,);
 
 				return Err("Pending upgrade must be sane but was not".into())
 			}
 			if let Err(err) = ActiveConfig::<T>::get().check_consistency() {
-				log::error!(
-					target: LOG_TARGET,
-					"ActiveConfig is invalid: {:?}", err,
-				);
+				log::error!(target: LOG_TARGET, "ActiveConfig is invalid: {:?}", err,);
 
 				return Err("Active upgrade must be sane but was not".into())
 			}
