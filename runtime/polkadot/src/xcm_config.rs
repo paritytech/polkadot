@@ -42,10 +42,9 @@ use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter,
-	FixedWeightBounds, IsConcrete, MintLocation, OriginToPluralityVoice,
-	ProvideWeighableInstructions, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, UniversalWeigherAdapter, UsingComponents,
-	WithComputedOrigin,
+	FixedWeightBounds, IsConcrete, MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UniversalWeigherAdapter,
+	UsingComponents, WithComputedOrigin,
 };
 use xcm_executor::traits::WithOriginFilter;
 
