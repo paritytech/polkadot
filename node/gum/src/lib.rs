@@ -159,13 +159,9 @@ impl Freq {
 		if self.ema.count < 3 {
 			return false
 		}
-		// EMA bucket predicts the next interval in ms.
-		// An interval equal to 0 means rate more than 1000 times per second, what is frequent enough
-		if self.ema.current == 0.0 {
-			return true
-		}
 
-		1000.0 / self.ema.current > max_rate
+		let rate = 1000.0 / self.ema.current; // Current EMA represents interval in ms
+		rate > max_rate
 	}
 
 	fn record(&mut self) {
