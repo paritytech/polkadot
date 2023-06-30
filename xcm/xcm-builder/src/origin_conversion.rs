@@ -16,12 +16,8 @@
 
 //! Various implementations for `ConvertOrigin`.
 
-use crate::location_conversion::{
-	derive_tinkernet_multisig, KUSAMA_TINKERNET_MULTISIG_PALLET, KUSAMA_TINKERNET_PARA_ID,
-};
 use frame_support::traits::{EnsureOrigin, Get, GetBacking, OriginTrait};
 use frame_system::RawOrigin as SystemRawOrigin;
-use parity_scale_codec::Decode;
 use polkadot_parachain::primitives::IsSystem;
 use sp_runtime::traits::TryConvert;
 use sp_std::marker::PhantomData;
@@ -240,37 +236,6 @@ where
 				MultiLocation { parents: 0, interior: X1(Junction::AccountKey20 { key, network }) },
 			) if (matches!(network, None) || network == Network::get()) =>
 				Ok(RuntimeOrigin::signed(key.into())),
-			(_, origin) => Err(origin),
-		}
-	}
-}
-
-/// Convert a Tinkernet Multisig `MultiLocation` value into a `Signed` origin.
-pub struct TinkernetMultisigAsNative<RuntimeOrigin>(PhantomData<RuntimeOrigin>);
-impl<RuntimeOrigin: OriginTrait> ConvertOrigin<RuntimeOrigin>
-	for TinkernetMultisigAsNative<RuntimeOrigin>
-where
-	RuntimeOrigin::AccountId: Decode,
-{
-	fn convert_origin(
-		origin: impl Into<MultiLocation>,
-		kind: OriginKind,
-	) -> Result<RuntimeOrigin, MultiLocation> {
-		let origin = origin.into();
-		match (kind, origin) {
-			(
-				OriginKind::Native,
-				MultiLocation {
-					parents: _,
-					interior:
-						X3(
-							Junction::Parachain(KUSAMA_TINKERNET_PARA_ID),
-							Junction::PalletInstance(KUSAMA_TINKERNET_MULTISIG_PALLET),
-							// Index from which the multisig account is derived.
-							Junction::GeneralIndex(id),
-						),
-				},
-			) => Ok(RuntimeOrigin::signed(derive_tinkernet_multisig(id).map_err(|_| origin)?)),
 			(_, origin) => Err(origin),
 		}
 	}
