@@ -90,10 +90,9 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for RococoXcmWeight<RuntimeCall> {
 	fn withdraw_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
-	fn reserve_asset_deposited(_assets: &MultiAssets) -> Weight {
+	fn reserve_asset_deposited(assets: &MultiAssets) -> Weight {
 		// Rococo doesn't support ReserveAssetDeposited, so this benchmark has a default weight
-		// assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::reserve_asset_deposited())
-		Weight::MAX
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::reserve_asset_deposited())
 	}
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::receive_teleported_asset())
