@@ -5471,8 +5471,8 @@ dependencies = [
 
 [[package]]
 name = "orchestra"
-version = "0.2.1"
-source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-boxed-messages#a8d785da6acf8f29a0f39915dc4d599ce4aebdcd"
+version = "0.3.0"
+source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-feature-async-channels#6c125400d31baa732f07615d6553657d03a0acb8"
 dependencies = [
  "async-trait",
  "dyn-clonable",
@@ -5480,15 +5480,15 @@ dependencies = [
  "futures-timer",
  "orchestra-proc-macro",
  "pin-project",
- "prioritized-metered-channel 0.4.0 (git+https://github.com/paritytech/orchestra?branch=vstakhov-boxed-messages)",
+ "prioritized-metered-channel",
  "thiserror",
  "tracing",
 ]
 
 [[package]]
 name = "orchestra-proc-macro"
-version = "0.2.1"
-source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-boxed-messages#a8d785da6acf8f29a0f39915dc4d599ce4aebdcd"
+version = "0.3.0"
+source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-feature-async-channels#6c125400d31baa732f07615d6553657d03a0acb8"
 dependencies = [
  "expander 1.0.0",
  "indexmap",
@@ -7660,7 +7660,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-test-service",
- "prioritized-metered-channel 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "prioritized-metered-channel",
  "prometheus-parse",
  "sc-cli",
  "sc-client-api",
@@ -7799,7 +7799,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "prioritized-metered-channel 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "prioritized-metered-channel",
  "rand 0.8.5",
  "sp-application-crypto",
  "sp-core",
@@ -7827,7 +7827,7 @@ dependencies = [
  "polkadot-node-subsystem-types",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "prioritized-metered-channel 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "prioritized-metered-channel",
  "sc-client-api",
  "sp-api",
  "sp-core",
@@ -8656,27 +8656,9 @@ dependencies = [
 
 [[package]]
 name = "prioritized-metered-channel"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3caef72a78ca8e77cbdfa87dd516ebb79d4cbe5b42e3b8435b463a8261339ff"
+version = "0.5.0"
+source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-feature-async-channels#6c125400d31baa732f07615d6553657d03a0acb8"
 dependencies = [
- "async-channel",
- "coarsetime",
- "crossbeam-queue",
- "derive_more",
- "futures",
- "futures-timer",
- "nanorand",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "prioritized-metered-channel"
-version = "0.4.0"
-source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-boxed-messages#a8d785da6acf8f29a0f39915dc4d599ce4aebdcd"
-dependencies = [
- "async-channel",
  "coarsetime",
  "crossbeam-queue",
  "derive_more",
