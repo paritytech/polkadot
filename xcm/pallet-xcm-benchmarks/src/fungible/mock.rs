@@ -140,7 +140,7 @@ impl xcm_executor::Config for XcmConfig {
 	type XcmSender = DevNull;
 	type AssetTransactor = AssetTransactor;
 	type OriginConverter = ();
-	type IsReserve = TrustedReserve;
+	type IsReserve = TrustedReserves;
 	type IsTeleporter = TrustedTeleporters;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
@@ -179,7 +179,8 @@ impl crate::Config for Test {
 	}
 }
 
-pub type TrustedTeleporters = (xcm_builder::Case<TeleportConcreteFungible>,);
+pub type TrustedTeleporters = xcm_builder::Case<TeleportConcreteFungible>;
+pub type TrustedReserves = xcm_builder::Case<ReserveConcreteFungible>;
 
 parameter_types! {
 	pub const CheckingAccount: Option<(u64, MintLocation)> = Some((100, MintLocation::Local));
