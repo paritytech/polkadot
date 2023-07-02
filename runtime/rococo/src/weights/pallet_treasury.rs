@@ -47,97 +47,137 @@ use core::marker::PhantomData;
 /// Weight functions for `pallet_treasury`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_treasury::WeightInfo for WeightInfo<T> {
-	fn spend() -> Weight {
+	/// Storage: Treasury ProposalCount (r:1 w:1)
+	/// Proof Skipped: Treasury ProposalCount (max_values: Some(1), max_size: None, mode: Measured)
+	/// Storage: Treasury Approvals (r:1 w:1)
+	/// Proof Skipped: Treasury Approvals (max_values: Some(1), max_size: None, mode: Measured)
+	/// Storage: Treasury Proposals (r:0 w:1)
+	/// Proof Skipped: Treasury Proposals (max_values: None, max_size: None, mode: Measured)
+	fn spend_local() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 204_000 picoseconds.
-		Weight::from_parts(233_000, 0)
-			.saturating_add(Weight::from_parts(0, 0))
+		//  Measured:  `76`
+		//  Estimated: `1561`
+		// Minimum execution time: 70_000_000 picoseconds.
+		Weight::from_parts(78_000_000, 1561)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(3_u64))
 	}
 	/// Storage: Treasury ProposalCount (r:1 w:1)
-	/// Proof: Treasury ProposalCount (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
+	/// Proof Skipped: Treasury ProposalCount (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Treasury Proposals (r:0 w:1)
-	/// Proof: Treasury Proposals (max_values: None, max_size: Some(108), added: 2583, mode: MaxEncodedLen)
+	/// Proof Skipped: Treasury Proposals (max_values: None, max_size: None, mode: Measured)
 	fn propose_spend() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `107`
-		//  Estimated: `1489`
-		// Minimum execution time: 27_592_000 picoseconds.
-		Weight::from_parts(27_960_000, 0)
-			.saturating_add(Weight::from_parts(0, 1489))
-			.saturating_add(T::DbWeight::get().reads(1))
-			.saturating_add(T::DbWeight::get().writes(2))
+		//  Measured:  `177`
+		//  Estimated: `1662`
+		// Minimum execution time: 121_000_000 picoseconds.
+		Weight::from_parts(166_000_000, 1662)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+			.saturating_add(T::DbWeight::get().writes(2_u64))
 	}
 	/// Storage: Treasury Proposals (r:1 w:1)
-	/// Proof: Treasury Proposals (max_values: None, max_size: Some(108), added: 2583, mode: MaxEncodedLen)
+	/// Proof Skipped: Treasury Proposals (max_values: None, max_size: None, mode: Measured)
 	/// Storage: System Account (r:1 w:1)
 	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
 	fn reject_proposal() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `265`
-		//  Estimated: `3593`
-		// Minimum execution time: 40_336_000 picoseconds.
-		Weight::from_parts(41_085_000, 0)
-			.saturating_add(Weight::from_parts(0, 3593))
-			.saturating_add(T::DbWeight::get().reads(2))
-			.saturating_add(T::DbWeight::get().writes(2))
+		//  Measured:  `335`
+		//  Estimated: `3800`
+		// Minimum execution time: 159_000_000 picoseconds.
+		Weight::from_parts(164_000_000, 3800)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(2_u64))
 	}
 	/// Storage: Treasury Proposals (r:1 w:0)
-	/// Proof: Treasury Proposals (max_values: None, max_size: Some(108), added: 2583, mode: MaxEncodedLen)
+	/// Proof Skipped: Treasury Proposals (max_values: None, max_size: None, mode: Measured)
 	/// Storage: Treasury Approvals (r:1 w:1)
-	/// Proof: Treasury Approvals (max_values: Some(1), max_size: Some(402), added: 897, mode: MaxEncodedLen)
+	/// Proof Skipped: Treasury Approvals (max_values: Some(1), max_size: None, mode: Measured)
 	/// The range of component `p` is `[0, 99]`.
 	fn approve_proposal(p: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `433 + p * (8 ±0)`
-		//  Estimated: `3573`
-		// Minimum execution time: 9_938_000 picoseconds.
-		Weight::from_parts(12_061_206, 0)
-			.saturating_add(Weight::from_parts(0, 3573))
-			// Standard Error: 801
-			.saturating_add(Weight::from_parts(26_602, 0).saturating_mul(p.into()))
-			.saturating_add(T::DbWeight::get().reads(2))
-			.saturating_add(T::DbWeight::get().writes(1))
+		//  Measured:  `504 + p * (8 ±0)`
+		//  Estimated: `3922 + p * (9 ±0)`
+		// Minimum execution time: 50_000_000 picoseconds.
+		Weight::from_parts(94_256_431, 3922)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+			.saturating_add(Weight::from_parts(0, 9).saturating_mul(p.into()))
 	}
 	/// Storage: Treasury Approvals (r:1 w:1)
-	/// Proof: Treasury Approvals (max_values: Some(1), max_size: Some(402), added: 897, mode: MaxEncodedLen)
+	/// Proof Skipped: Treasury Approvals (max_values: Some(1), max_size: None, mode: Measured)
 	fn remove_approval() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `90`
-		//  Estimated: `1887`
-		// Minimum execution time: 7_421_000 picoseconds.
-		Weight::from_parts(7_620_000, 0)
-			.saturating_add(Weight::from_parts(0, 1887))
-			.saturating_add(T::DbWeight::get().reads(1))
-			.saturating_add(T::DbWeight::get().writes(1))
+		//  Measured:  `161`
+		//  Estimated: `1646`
+		// Minimum execution time: 40_000_000 picoseconds.
+		Weight::from_parts(43_000_000, 1646)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
 	}
 	/// Storage: Treasury Deactivated (r:1 w:1)
-	/// Proof: Treasury Deactivated (max_values: Some(1), max_size: Some(16), added: 511, mode: MaxEncodedLen)
-	/// Storage: Balances InactiveIssuance (r:1 w:1)
-	/// Proof: Balances InactiveIssuance (max_values: Some(1), max_size: Some(16), added: 511, mode: MaxEncodedLen)
+	/// Proof Skipped: Treasury Deactivated (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Treasury Approvals (r:1 w:1)
-	/// Proof: Treasury Approvals (max_values: Some(1), max_size: Some(402), added: 897, mode: MaxEncodedLen)
+	/// Proof Skipped: Treasury Approvals (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Treasury Proposals (r:100 w:100)
-	/// Proof: Treasury Proposals (max_values: None, max_size: Some(108), added: 2583, mode: MaxEncodedLen)
-	/// Storage: System Account (r:201 w:201)
+	/// Proof Skipped: Treasury Proposals (max_values: None, max_size: None, mode: Measured)
+	/// Storage: System Account (r:200 w:200)
 	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
 	/// Storage: Bounties BountyApprovals (r:1 w:1)
 	/// Proof: Bounties BountyApprovals (max_values: Some(1), max_size: Some(402), added: 897, mode: MaxEncodedLen)
 	/// The range of component `p` is `[0, 100]`.
 	fn on_initialize_proposals(p: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `296 + p * (251 ±0)`
-		//  Estimated: `3593 + p * (5206 ±0)`
-		// Minimum execution time: 62_706_000 picoseconds.
-		Weight::from_parts(61_351_470, 0)
-			.saturating_add(Weight::from_parts(0, 3593))
-			// Standard Error: 32_787
-			.saturating_add(Weight::from_parts(37_873_920, 0).saturating_mul(p.into()))
-			.saturating_add(T::DbWeight::get().reads(5))
+		//  Measured:  `421 + p * (251 ±0)`
+		//  Estimated: `1894 + p * (5206 ±0)`
+		// Minimum execution time: 167_000_000 picoseconds.
+		Weight::from_parts(451_684_629, 1894)
+			// Standard Error: 1_698_594
+			.saturating_add(Weight::from_parts(164_282_216, 0).saturating_mul(p.into()))
+			.saturating_add(T::DbWeight::get().reads(3_u64))
 			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(p.into())))
-			.saturating_add(T::DbWeight::get().writes(5))
+			.saturating_add(T::DbWeight::get().writes(3_u64))
 			.saturating_add(T::DbWeight::get().writes((3_u64).saturating_mul(p.into())))
 			.saturating_add(Weight::from_parts(0, 5206).saturating_mul(p.into()))
+	}
+	/// Storage: Treasury SpendCount (r:1 w:1)
+	/// Proof Skipped: Treasury SpendCount (max_values: Some(1), max_size: None, mode: Measured)
+	/// Storage: Treasury Spends (r:0 w:1)
+	/// Proof Skipped: Treasury Spends (max_values: None, max_size: None, mode: Measured)
+	fn spend() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `76`
+		//  Estimated: `1561`
+		// Minimum execution time: 56_000_000 picoseconds.
+		Weight::from_parts(57_000_000, 1561)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+			.saturating_add(T::DbWeight::get().writes(2_u64))
+	}
+	/// Storage: Treasury Spends (r:1 w:1)
+	/// Proof Skipped: Treasury Spends (max_values: None, max_size: None, mode: Measured)
+	/// Storage: Assets Asset (r:1 w:1)
+	/// Proof: Assets Asset (max_values: None, max_size: Some(210), added: 2685, mode: MaxEncodedLen)
+	/// Storage: Assets Account (r:2 w:2)
+	/// Proof: Assets Account (max_values: None, max_size: Some(134), added: 2609, mode: MaxEncodedLen)
+	/// Storage: System Account (r:1 w:1)
+	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
+	fn payout() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `705`
+		//  Estimated: `6208`
+		// Minimum execution time: 268_000_000 picoseconds.
+		Weight::from_parts(360_000_000, 6208)
+			.saturating_add(T::DbWeight::get().reads(5_u64))
+			.saturating_add(T::DbWeight::get().writes(5_u64))
+	}
+	/// Storage: Treasury Spends (r:1 w:1)
+	/// Proof Skipped: Treasury Spends (max_values: None, max_size: None, mode: Measured)
+	fn check_status() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `194`
+		//  Estimated: `3659`
+		// Minimum execution time: 61_000_000 picoseconds.
+		Weight::from_parts(65_000_000, 3659)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
 	}
 }
