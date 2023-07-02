@@ -1523,7 +1523,27 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (pallet_im_online::migration::v1::Migration<Runtime>,);
+	pub type Unreleased = (
+		pallet_im_online::migration::v1::Migration<Runtime>,
+
+		// Gov v1 storage migrations
+		// https://github.com/paritytech/polkadot/issues/6749
+		pallet_elections_phragmen::migrations::unlock_and_unreserve_all_funds::UnlockAndUnreserveAllFunds<Runtime>,
+		pallet_democracy::migrations::unlock_and_unreserve_all_funds::UnlockAndUnreserveAllFunds<Runtime>,
+		pallet_tips::migrations::unreserve_deposits::UnreserveDeposits<Runtime, ()>,
+
+		// RemovePallets only after they have been removed from the runtime. Otherwise, the on-chain
+		// storage version is removed for active pallets causing try-runtime to fail. The below code
+		// should be uncommented to fully remove the storage at the same time as the pallets are
+		// removed from the runtime, probably in 1.1.
+		// See https://github.com/paritytech/polkadot/issues/6749
+		// frame_support::migrations::RemovePallet<DemocracyStr, RocksDbWeight>,
+		// frame_support::migrations::RemovePallet<CouncilStr, RocksDbWeight>,
+		// frame_support::migrations::RemovePallet<TechnicalCommitteeStr, RocksDbWeight>,
+		// frame_support::migrations::RemovePallet<PhragmenElectionStr, RocksDbWeight>,
+		// frame_support::migrations::RemovePallet<TechnicalMembershipStr, RocksDbWeight>,
+		// frame_support::migrations::RemovePallet<TipsStr, RocksDbWeight>,
+	);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;
