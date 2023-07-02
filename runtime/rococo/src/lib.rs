@@ -1623,7 +1623,10 @@ pub mod migrations {
 	}
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (pallet_society::migrations::MigrateToV2<Runtime, (), ()>,);
+	pub type Unreleased = (
+		pallet_society::migrations::MigrateToV2<Runtime, (), ()>,
+		pallet_im_online::migration::v1::Migration<Runtime>,
+	);
 }
 
 /// Helpers to configure all migrations.
