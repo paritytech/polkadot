@@ -529,7 +529,7 @@ fn reserve_transfer_assets_works() {
 	});
 }
 
-/// Test `reserve_transfer_assets` (`BuyExecutionSetup::UniversalLocation`)
+/// Test `reserve_transfer_assets` (`DestinationFeesSetup::UniversalLocation`)
 ///
 /// Asserts that the sender's balance is decreased and the beneficiary's balance
 /// is increased. Verifies the correct message is sent and event is emitted.
@@ -549,11 +549,13 @@ fn reserve_transfer_assets_for_buy_execution_setup_by_universal_location_works()
 		let expected_weight_for_instructions = BaseXcmWeight::get() * 3;
 		let dest_account: MultiLocation =
 			Junction::AccountId32 { network: None, id: ALICE.into() }.into();
+		let dest: MultiLocation =
+			Parachain(DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID).into();
 
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			RuntimeOrigin::signed(ALICE),
-			Box::new(Parachain(DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID).into()),
+			Box::new(dest.clone().into()),
 			Box::new(dest_account.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
 			0,
@@ -578,23 +580,28 @@ fn reserve_transfer_assets_for_buy_execution_setup_by_universal_location_works()
 			INITIAL_BALANCE + SEND_AMOUNT - PROPORTIONAL_SWAPPED_AMOUNT
 		);
 
+		let sovereign_account_on_destination =
+			UniversalLocation::get().invert_target(&dest).expect("valid location");
+
 		// Check XCM
 		assert_eq!(
 			sent_xcm(),
 			vec![(
-				Parachain(DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID).into(),
+				dest,
 				Xcm(vec![
 					ReserveAssetDeposited(
 						(Parent, SEND_AMOUNT - PROPORTIONAL_SWAPPED_AMOUNT).into()
 					),
 					ClearOrigin,
+					// Here we change origin to sovereign account
+					AliasOrigin(sovereign_account_on_destination),
 					// Here - means we are paying with native asset of DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID
 					WithdrawAsset((Here, DIFFERENT_ASSET_AMOUNT).into()),
 					// Here - means we are paying with native asset of DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID
 					buy_limited_execution(
 						(Here, DIFFERENT_ASSET_AMOUNT),
 						// we have just 7 instructions, but 8. is ment to be SetTopic
-						Weight::from_parts(8000, 8000)
+						Weight::from_parts(10000, 10000)
 					),
 					RefundSurplus,
 					// Here - means we are paying with native asset of DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID
@@ -602,14 +609,15 @@ fn reserve_transfer_assets_for_buy_execution_setup_by_universal_location_works()
 						assets: Definite(MultiAssets::from(vec![
 							(Here, DIFFERENT_ASSET_AMOUNT).into()
 						])),
-						beneficiary: SomeAccountOnDestination::get(),
+						beneficiary: sovereign_account_on_destination,
 					},
+					ClearOrigin,
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest_account },
 				]),
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
+		let _check_v3_ok: xcm::v3::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			RuntimeEvent::XcmPallet(crate::Event::Attempted {

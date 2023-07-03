@@ -37,7 +37,8 @@ use xcm_builder::{
 use xcm_executor::XcmExecutor;
 
 use crate::{
-	self as pallet_xcm, BuyExecutionSetup, DecideBuyExecutionSetup, FeeForBuyExecution,
+	self as pallet_xcm,
+	destination_fees::{DestinationFees, DestinationFeesManager, DestinationFeesSetup},
 	TestWeightInfo,
 };
 
@@ -330,7 +331,6 @@ parameter_types! {
 
 pub const DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID: u32 = 1234;
 pub const SOME_LOCAL_ACCOUNT_AS_PARA_ID: u32 = 2222;
-pub const SOME_ACCOUNT_ON_DESTINATION_AS_PARA_ID: u32 = 3333;
 pub const PROPORTIONAL_SWAPPED_AMOUNT: u128 = 7;
 pub const DIFFERENT_ASSET_AMOUNT: u128 = 13;
 
@@ -339,22 +339,18 @@ parameter_types! {
 	pub DifferentAsset: MultiAsset = (Parachain(DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID), DIFFERENT_ASSET_AMOUNT).into();
 	pub ProportionalAmountToWithdraw: MultiAsset = (Here, PROPORTIONAL_SWAPPED_AMOUNT).into();
 	pub SomeLocalAccount: MultiLocation = Parachain(SOME_LOCAL_ACCOUNT_AS_PARA_ID).into();
-	pub SomeAccountOnDestination: MultiLocation = Parachain(SOME_ACCOUNT_ON_DESTINATION_AS_PARA_ID).into();
 }
 
-pub struct TestBuyExecutionSetupResolver;
-impl DecideBuyExecutionSetup for TestBuyExecutionSetupResolver {
+pub struct TestDestinationFeesManager;
+impl DestinationFeesManager for TestDestinationFeesManager {
 	fn decide_for(
 		destination: &MultiLocation,
 		_desired_fee_asset_id: &AssetId,
-	) -> BuyExecutionSetup {
+	) -> DestinationFeesSetup {
 		if destination.eq(&DestinationWithBuyExecutionByDifferentAsset::get()) {
-			BuyExecutionSetup::UniversalLocation {
-				local_account: SomeLocalAccount::get(),
-				account_on_destination: SomeAccountOnDestination::get(),
-			}
+			DestinationFeesSetup::ByUniversalLocation { local_account: SomeLocalAccount::get() }
 		} else {
-			BuyExecutionSetup::Origin
+			DestinationFeesSetup::ByOrigin
 		}
 	}
 
@@ -362,9 +358,9 @@ impl DecideBuyExecutionSetup for TestBuyExecutionSetupResolver {
 		destination: &MultiLocation,
 		_desired_fee_asset_id: &AssetId,
 		_weight: &WeightLimit,
-	) -> Option<FeeForBuyExecution> {
+	) -> Option<DestinationFees> {
 		if destination.eq(&DestinationWithBuyExecutionByDifferentAsset::get()) {
-			Some(FeeForBuyExecution {
+			Some(DestinationFees {
 				proportional_amount_to_withdraw: ProportionalAmountToWithdraw::get(),
 				proportional_amount_to_buy_execution: DifferentAsset::get(),
 			})
@@ -397,7 +393,7 @@ impl pallet_xcm::Config for Test {
 	type MaxRemoteLockConsumers = frame_support::traits::ConstU32<0>;
 	type RemoteLockConsumerIdentifier = ();
 	type WeightInfo = TestWeightInfo;
-	type BuyExecutionSetupResolver = TestBuyExecutionSetupResolver;
+	type DestinationFeesManager = TestDestinationFeesManager;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
 	type AdminOrigin = EnsureRoot<AccountId>;
