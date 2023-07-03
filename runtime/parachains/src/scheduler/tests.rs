@@ -996,12 +996,8 @@ fn availability_predicate_works() {
 		..Default::default()
 	};
 
-	let HostConfiguration {
-		group_rotation_frequency,
-		chain_availability_period,
-		thread_availability_period,
-		..
-	} = default_config();
+	let HostConfiguration { group_rotation_frequency, paras_availability_period, .. } =
+		default_config();
 
 	assert!(paras_availability_period < group_rotation_frequency);
 
