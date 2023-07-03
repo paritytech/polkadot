@@ -1200,7 +1200,8 @@ impl AvailabilityRecoverySubsystem {
 		// We use this iterator to assign work in a round-robin fashion to the workers in the pool.
 		//
 		// How work is dispatched to the pool from the recovery tasks:
-		// - Once a recovery tasks finish retrieving the availability data, it needs to do some heavy CPU computation.
+		// - Once a recovery task finishes retrieving the availability data, it needs to reconstruct from chunks and/or
+		// re-encode the data which are heavy CPU computations.
 		// To do so it sends an `ErasureTask` to the main loop via the `erasure_task` channel, and waits for the results
 		// over a `oneshot` channel.
 		// - In the subsystem main loop we poll the `erasure_task_rx` receiver.
@@ -1350,6 +1351,8 @@ impl ThreadPoolBuilder {
 	// while all of the senders are returned to the caller. Each worker runs `erasure_task_thread` that
 	// polls the `Receiver` for an `ErasureTask` which is expected to be CPU intensive. The larger
 	// the input (more or larger chunks/availability data), the more CPU cycles will be spent.
+	//
+	// For example, for 32KB PoVs, we'd expect re-encode to eat as much as 90ms and 500ms for 2.5MiB.
 	//
 	// After executing such a task, the worker sends the response via a provided `oneshot` sender.
 	//
