@@ -601,7 +601,6 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
 		Some(Subcommand::TryRuntime(cmd)) => {
-			use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
 			use sc_service::TaskManager;
 			use try_runtime_cli::block_building_info::timestamp_with_babe_info;
 
