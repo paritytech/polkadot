@@ -178,7 +178,6 @@ snow = { opt-level = 3 }
 substrate-bip39 = {opt-level = 3}
 twox-hash = { opt-level = 3 }
 uint = { opt-level = 3 }
-wasmi = { opt-level = 3 }
 x25519-dalek = { opt-level = 3 }
 yamux = { opt-level = 3 }
 zeroize = { opt-level = 3 }
@@ -211,8 +210,6 @@ fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
 jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
-
-
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
