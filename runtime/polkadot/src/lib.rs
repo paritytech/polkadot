@@ -695,8 +695,14 @@ impl pallet_treasury::Config for Runtime {
 		IdentityConvert,
 		CloneIdentity,
 	>;
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	type BalanceConverter = AssetRate;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BalanceConverter = ();
+
 	type PayoutPeriod = PayoutSpendPeriod;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = runtime_common::impls::benchmarks::MultiLocationFactory;
 }
 
 parameter_types! {

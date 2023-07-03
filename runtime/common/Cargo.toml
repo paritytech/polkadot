@@ -49,6 +49,7 @@ runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parac
 
 slot-range-helper = { path = "slot_range_helper", default-features = false }
 xcm = { path = "../../xcm", default-features = false }
+xcm-builder = { path = "../../xcm/xcm-builder", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.4.1"
@@ -97,6 +98,7 @@ std = [
 	"libsecp256k1/std",
 	"runtime-parachains/std",
 	"xcm/std",
+	"xcm-builder/std",
 	"sp-npos-elections/std",
 ]
 runtime-benchmarks = [
@@ -107,7 +109,9 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
-	"pallet-fast-unstake/runtime-benchmarks"
+	"pallet-fast-unstake/runtime-benchmarks",
+	"pallet-treasury/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
 ]
 try-runtime = [
 	"runtime-parachains/try-runtime",
