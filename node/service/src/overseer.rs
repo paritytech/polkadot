@@ -15,6 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsCollator, Registry};
+use polkadot_node_subsystem_types::DefaultSubsystemClient;
+use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_core::traits::SpawnNamed;
 
 use lru::LruCache;
@@ -125,6 +127,8 @@ where
 	pub req_protocol_names: ReqProtocolNames,
 	/// [`PeerSet`] protocol names to protocols mapping.
 	pub peerset_protocol_names: PeerSetProtocolNames,
+	/// The offchain transaction pool factory.
+	pub offchain_transaction_pool_factory: OffchainTransactionPoolFactory<Block>,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -155,6 +159,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		overseer_message_channel_capacity_override,
 		req_protocol_names,
 		peerset_protocol_names,
+		offchain_transaction_pool_factory,
 	}: OverseerGenArgs<Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -169,7 +174,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		BitfieldSigningSubsystem,
 		BitfieldDistributionSubsystem,
 		ProvisionerSubsystem,
-		RuntimeApiSubsystem<RuntimeClient>,
+		RuntimeApiSubsystem<DefaultSubsystemClient<RuntimeClient>>,
 		AvailabilityStoreSubsystem,
 		NetworkBridgeRxSubsystem<
 			Arc<sc_network::NetworkService<Block, Hash>>,
@@ -273,7 +278,7 @@ where
 		})
 		.provisioner(ProvisionerSubsystem::new(Metrics::register(registry)?))
 		.runtime_api(RuntimeApiSubsystem::new(
-			runtime_client.clone(),
+			Arc::new(DefaultSubsystemClient::new(runtime_client, offchain_transaction_pool_factory)),
 			Metrics::register(registry)?,
 			spawner.clone(),
 		))

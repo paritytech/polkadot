@@ -7654,6 +7654,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-network",
+ "sc-transaction-pool-api",
  "smallvec",
  "sp-api",
  "sp-authority-discovery",
