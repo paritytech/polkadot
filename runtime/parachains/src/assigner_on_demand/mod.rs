@@ -501,7 +501,7 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 
 	fn get_availability_period(_core_index: CoreIndex) -> T::BlockNumber {
 		let config = <configuration::Pallet<T>>::config();
-		config.thread_availability_period
+		config.paras_availability_period
 	}
 
 	fn get_max_retries(_core_idx: CoreIndex) -> u32 {

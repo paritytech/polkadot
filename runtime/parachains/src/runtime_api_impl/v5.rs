@@ -107,7 +107,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 						i as u32,
 					)),
 					occupied_since: backed_in_number,
-					time_out_at: time_out_at(backed_in_number, config.chain_availability_period),
+					time_out_at: time_out_at(backed_in_number, config.paras_availability_period),
 					next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(CoreIndex(
 						i as u32,
 					)),

@@ -23,7 +23,6 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use sp_runtime::Perbill;
 use sp_std::vec::Vec;
 
 use frame_support::traits::OnRuntimeUpgrade;
@@ -255,11 +254,6 @@ pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 async_backing_params                     : pre.async_backing_params,
 executor_params                          : pre.executor_params,
-on_demand_queue_max_size                 : 10_000u32,
-on_demand_base_fee                       : 10_000_000u128,
-on_demand_fee_variability                : Perbill::from_percent(3),
-on_demand_target_queue_utilization       : Perbill::from_percent(25),
-on_demand_ttl                            : 5u32.into(),
 		}
 	};
 
