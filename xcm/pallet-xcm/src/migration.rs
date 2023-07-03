@@ -25,9 +25,10 @@ const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 pub mod v1 {
 	use super::*;
+	use frame_support::migrations::VersionedRuntimeUpgrade;
 
-	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
+	pub struct VersionUncheckedMigrateToV1<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config> OnRuntimeUpgrade for VersionUncheckedMigrateToV1<T> {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<sp_std::vec::Vec<u8>, sp_runtime::TryRuntimeError> {
 			ensure!(StorageVersion::get::<Pallet<T>>() == 0, "must upgrade linearly");
@@ -58,4 +59,12 @@ pub mod v1 {
 			}
 		}
 	}
+
+	pub type VersionCheckedMigrateToV1<Runtime, Pallet> = VersionedRuntimeUpgrade<
+		0,
+		1,
+		VersionUncheckedMigrateToV1<Runtime>,
+		Pallet,
+		<Runtime as frame_system::Config>::DbWeight,
+	>;
 }
