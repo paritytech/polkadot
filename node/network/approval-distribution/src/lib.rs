@@ -2160,6 +2160,8 @@ impl ApprovalDistribution {
 				result = state.answers_from_approval_voting.select_next_some() => {
 					match result {
 						Ok(ApprovalVotingResponse::ApprovalCheck(result)) => {
+							self.metrics.on_approval_imported();
+
 							if let Some(result) = state.received_approval_voting_answer(&mut ctx, result).await {
 								state.circulate_approval(&mut ctx, MessageSource::Peer(result.peer_id),
 									result.message_subject.clone(), result.message_kind, result.vote.clone()).await;
@@ -2168,6 +2170,7 @@ impl ApprovalDistribution {
 							}
 						},
 						Ok(ApprovalVotingResponse::AssignmentCheck(result)) => {
+							self.metrics.on_assignment_imported();
 							if let Some(result) = state.received_assignment_answer(&mut ctx, result).await {
 								state.circulate_assignment(
 									&mut ctx, MessageSource::Peer(result.peer_id), result.assignment,
