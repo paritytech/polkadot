@@ -81,7 +81,8 @@ impl TestClientBuilderExt for TestClientBuilder {
 				sc_offchain::OffchainDb::factory_from_backend(&*self.backend()),
 				Arc::new(executor),
 			),
-		).unwrap();
+		)
+		.unwrap();
 
 		self.build_with_executor(executor)
 	}

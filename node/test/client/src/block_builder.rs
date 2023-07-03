@@ -18,6 +18,7 @@ use crate::{Client, FullBackend};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::{Block, InherentData as ParachainsInherentData};
 use polkadot_test_runtime::UncheckedExtrinsic;
+use polkadot_test_service::GetLastTimestamp;
 use sc_block_builder::{BlockBuilder, BlockBuilderProvider};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_babe::{
@@ -26,7 +27,6 @@ use sp_consensus_babe::{
 };
 use sp_runtime::{traits::Block as BlockT, Digest, DigestItem};
 use sp_state_machine::BasicExternalities;
-use polkadot_test_service::GetLastTimestamp;
 
 /// An extension for the test client to initialize a Polkadot specific block builder.
 pub trait InitPolkadotBlockBuilder {

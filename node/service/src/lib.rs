@@ -113,7 +113,7 @@ pub use {rococo_runtime, rococo_runtime_constants};
 #[cfg(feature = "westend-native")]
 pub use {westend_runtime, westend_runtime_constants};
 
-pub use fake_runtime_api::{ RuntimeApi, GetLastTimestamp };
+pub use fake_runtime_api::{GetLastTimestamp, RuntimeApi};
 
 #[cfg(feature = "full-node")]
 pub type FullBackend = service::TFullBackend<Block>;
