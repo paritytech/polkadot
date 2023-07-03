@@ -1347,7 +1347,11 @@ impl ThreadPoolBuilder {
 	// Creates a pool of `size` workers, where 1 <= `size` <= `MAX_THREADS`.
 	//
 	// Each worker is created by `spawn_blocking` and takes the receiver side of a channel
-	// while all of the senders are returned to the caller.
+	// while all of the senders are returned to the caller. Each worker runs `erasure_task_thread` that
+	// polls the `Receiver` for an `ErasureTask` which is expected to be CPU intensive. The larger
+	// the input (more or larger chunks/availability data), the more CPU cycles will be spent.
+	//
+	// After executing such a task, the worker sends the response via a provided `oneshot` sender.
 	//
 	// The caller is responsible for routing work to the workers.
 	#[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]
