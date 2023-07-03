@@ -384,14 +384,17 @@ pub type LocalPalletOriginToLocation = (
 	FellowsToPlurality,
 );
 
-/// Helper for adding more instructions to the weight estimation on detination side.
+/// Helper for adding more instructions to the weight estimation on destination side.
 pub struct DestinationWeigherAddons;
 impl ProvideWeighableInstructions<()> for DestinationWeigherAddons {
 	fn provide_for(
 		_dest: impl Into<MultiLocation>,
 		_message: &Xcm<()>,
 	) -> sp_std::vec::Vec<Instruction<()>> {
-		sp_std::vec![SetTopic([3; 32])]
+		sp_std::vec![
+			// runtime uses `WithUniqueTopic` which (possibly) adds `SetTopic` instruction
+			SetTopic([3; 32])
+		]
 	}
 }
 
