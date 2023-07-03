@@ -1667,7 +1667,7 @@ pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
 
 	Ok(PolkadotChainSpec::from_genesis(
 		"Development",
-		"dev",
+		"polkadot_dev",
 		ChainType::Development,
 		move || polkadot_development_config_genesis(wasm_binary),
 		vec![],
