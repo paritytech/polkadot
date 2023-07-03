@@ -169,7 +169,7 @@ struct RequestChunksFromValidators {
 	/// request the chunk from them.
 	shuffling: VecDeque<ValidatorIndex>,
 	/// Chunks received so far.
-	received_chunks: Option<HashMap<ValidatorIndex, ErasureChunk>>,
+	received_chunks: HashMap<ValidatorIndex, ErasureChunk>,
 	/// Pending chunk requests with soft timeout.
 	requesting_chunks: FuturesUndead<Result<Option<ErasureChunk>, (ValidatorIndex, RequestError)>>,
 	// channel to the erasure task handler.
@@ -336,7 +336,7 @@ impl RequestChunksFromValidators {
 			error_count: 0,
 			total_received_responses: 0,
 			shuffling: shuffling.into(),
-			received_chunks: Some(HashMap::new()),
+			received_chunks: HashMap::new(),
 			requesting_chunks: FuturesUndead::new(),
 			erasure_task_tx,
 		}
@@ -352,13 +352,11 @@ impl RequestChunksFromValidators {
 	}
 
 	fn chunk_count(&self) -> usize {
-		self.received_chunks.as_ref().map_or(0, |chunks| chunks.len())
+		self.received_chunks.len()
 	}
 
 	fn insert_chunk(&mut self, validator_index: ValidatorIndex, chunk: ErasureChunk) {
-		self.received_chunks
-			.get_or_insert_with(|| HashMap::new())
-			.insert(validator_index, chunk);
+		self.received_chunks.insert(validator_index, chunk);
 	}
 
 	fn can_conclude(&self, params: &RecoveryParams) -> bool {
@@ -633,7 +631,7 @@ impl RequestChunksFromValidators {
 				self.erasure_task_tx
 					.send(ErasureTask::Reconstruct(
 						params.validators.len(),
-						self.received_chunks.take().expect("threshold is always non-zero; qed"),
+						std::mem::take(&mut self.received_chunks),
 						avilable_data_tx,
 					))
 					.await
@@ -1196,8 +1194,22 @@ impl AvailabilityRecoverySubsystem {
 		let (erasure_task_tx, erasure_task_rx) = futures::channel::mpsc::channel(16);
 		let mut erasure_task_rx = erasure_task_rx.fuse();
 
-		// Create a thread pool with 2 workers. Pool is guaranteed to have at least 1 worker thread.
+		// `ThreadPoolBuilder` spawns the tasks using `spawn_blocking`. For each worker there will be a `mpsc` channel created.
+		// Each of these workers take the `Receiver` and poll it in an infinite loop.
+		// All of the sender ends of the channel are sent as a vec which we then use to create a `Cycle` iterator.
+		// We use this iterator to assign work in a round-robin fashion to the workers in the pool.
+		//
+		// How work is dispatched to the pool from the recovery tasks:
+		// - Once a recovery tasks finish retrieving the availability data, it needs to do some heavy CPU computation.
+		// To do so it sends an `ErasureTask` to the main loop via the `erasure_task` channel, and waits for the results
+		// over a `oneshot` channel.
+		// - In the subsystem main loop we poll the `erasure_task_rx` receiver.
+		// - We forward the received `ErasureTask` to the `next()` sender yielded by the `Cycle` iterator.
+		// - Some worker thread handles it and sends the response over the `oneshot` channel.
+
+		// Create a thread pool with 2 workers.
 		let mut to_pool = ThreadPoolBuilder::build(
+			// Pool is guaranteed to have at least 1 worker thread.
 			NonZeroUsize::new(2).expect("There are 2 threads; qed"),
 			metrics.clone(),
 			&mut ctx,
@@ -1323,6 +1335,7 @@ impl AvailabilityRecoverySubsystem {
 	}
 }
 
+// A simple thread pool implementation using `spawn_blocking` threads.
 struct ThreadPoolBuilder;
 
 const MAX_THREADS: NonZeroUsize = match NonZeroUsize::new(4) {
@@ -1332,6 +1345,11 @@ const MAX_THREADS: NonZeroUsize = match NonZeroUsize::new(4) {
 
 impl ThreadPoolBuilder {
 	// Creates a pool of `size` workers, where 1 <= `size` <= `MAX_THREADS`.
+	//
+	// Each worker is created by `spawn_blocking` and takes the receiver side of a channel
+	// while all of the senders are returned to the caller.
+	//
+	// The caller is responsible for routing work to the workers.
 	#[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]
 	pub fn build<Context>(
 		size: NonZeroUsize,
