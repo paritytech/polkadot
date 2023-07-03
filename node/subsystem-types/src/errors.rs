@@ -75,6 +75,9 @@ pub enum RecoveryError {
 
 	/// A requested chunk is unavailable.
 	Unavailable,
+
+	/// Internal error, channel closed.
+	Internal,
 }
 
 impl std::fmt::Display for RecoveryError {
@@ -82,6 +85,7 @@ impl std::fmt::Display for RecoveryError {
 		let msg = match self {
 			RecoveryError::Invalid => "Invalid",
 			RecoveryError::Unavailable => "Unavailable",
+			RecoveryError::Internal => "Internal",
 		};
 
 		write!(f, "{}", msg)

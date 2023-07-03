@@ -1584,7 +1584,9 @@ fn invalid_local_chunk_is_ignored() {
 fn parallel_request_calculation_works_as_expected() {
 	let num_validators = 100;
 	let threshold = recovery_threshold(num_validators).unwrap();
-	let mut phase = RequestChunksFromValidators::new(100);
+	let (erasure_task_tx, _erasure_task_rx) = futures::channel::mpsc::channel(16);
+
+	let mut phase = RequestChunksFromValidators::new(100, erasure_task_tx);
 	assert_eq!(phase.get_desired_request_count(threshold), threshold);
 	phase.error_count = 1;
 	phase.total_received_responses = 1;

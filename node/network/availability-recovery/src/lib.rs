@@ -26,18 +26,21 @@ use std::{
 };
 
 use futures::{
-	channel::oneshot,
-	future::{FutureExt, RemoteHandle},
+	channel::oneshot::{self, channel},
+	future::{Future, FutureExt, RemoteHandle},
 	pin_mut,
 	prelude::*,
-	stream::FuturesUnordered,
+	sink::SinkExt,
+	stream::{FuturesUnordered, StreamExt},
 	task::{Context, Poll},
 };
 use lru::LruCache;
 use rand::seq::SliceRandom;
 
 use fatality::Nested;
-use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1, recovery_threshold};
+use polkadot_erasure_coding::{
+	branch_hash, branches, obtain_chunks_v1, recovery_threshold, Error as ErasureEncodingError,
+};
 #[cfg(not(test))]
 use polkadot_node_network_protocol::request_response::CHUNK_REQUEST_TIMEOUT;
 use polkadot_node_network_protocol::{
@@ -100,7 +103,8 @@ const TIMEOUT_START_NEW_REQUESTS: Duration = CHUNK_REQUEST_TIMEOUT;
 const TIMEOUT_START_NEW_REQUESTS: Duration = Duration::from_millis(100);
 
 /// PoV size limit in bytes for which prefer fetching from backers.
-const SMALL_POV_LIMIT: usize = 128 * 1024;
+/// 3 MiB.
+const SMALL_POV_LIMIT: usize = 3 * 1024 * 1024;
 
 #[derive(Clone, PartialEq)]
 /// The strategy we use to recover the PoV.
@@ -150,6 +154,8 @@ struct RequestFromBackers {
 	// a random shuffling of the validators from the backing group which indicates the order
 	// in which we connect to them and request the chunk.
 	shuffled_backers: Vec<ValidatorIndex>,
+	// channel to the erasure task handler.
+	erasure_task_tx: futures::channel::mpsc::Sender<ErasureTask>,
 }
 
 struct RequestChunksFromValidators {
@@ -165,6 +171,8 @@ struct RequestChunksFromValidators {
 	received_chunks: HashMap<ValidatorIndex, ErasureChunk>,
 	/// Pending chunk requests with soft timeout.
 	requesting_chunks: FuturesUndead<Result<Option<ErasureChunk>, (ValidatorIndex, RequestError)>>,
+	// channel to the erasure task handler.
+	erasure_task_tx: futures::channel::mpsc::Sender<ErasureTask>,
 }
 
 struct RecoveryParams {
@@ -198,6 +206,18 @@ enum Source {
 	RequestChunks(RequestChunksFromValidators),
 }
 
+/// Expensive erasure coding computations that we want to run on a blocking thread.
+enum ErasureTask {
+	/// Reconstructs `AvailableData` from chunks given `n_validators`.
+	Reconstruct(
+		usize,
+		HashMap<ValidatorIndex, ErasureChunk>,
+		oneshot::Sender<Result<AvailableData, ErasureEncodingError>>,
+	),
+	/// Re-encode `AvailableData` into erasure chunks in order to verify the provided root hash of the Merkle tree.
+	Reencode(usize, Hash, AvailableData, oneshot::Sender<bool>),
+}
+
 /// A stateful reconstruction of availability data in reference to
 /// a candidate hash.
 struct RecoveryTask<Sender> {
@@ -208,13 +228,19 @@ struct RecoveryTask<Sender> {
 
 	/// The source to obtain the availability data from.
 	source: Source,
+
+	// channel to the erasure task handler.
+	erasure_task_tx: futures::channel::mpsc::Sender<ErasureTask>,
 }
 
 impl RequestFromBackers {
-	fn new(mut backers: Vec<ValidatorIndex>) -> Self {
+	fn new(
+		mut backers: Vec<ValidatorIndex>,
+		erasure_task_tx: futures::channel::mpsc::Sender<ErasureTask>,
+	) -> Self {
 		backers.shuffle(&mut rand::thread_rng());
 
-		RequestFromBackers { shuffled_backers: backers }
+		RequestFromBackers { shuffled_backers: backers, erasure_task_tx }
 	}
 
 	// Run this phase to completion.
@@ -251,12 +277,21 @@ impl RequestFromBackers {
 
 			match response.await {
 				Ok(req_res::v1::AvailableDataFetchingResponse::AvailableData(data)) => {
-					if reconstructed_data_matches_root(
-						params.validators.len(),
-						&params.erasure_root,
-						&data,
-						&params.metrics,
-					) {
+					let (reencode_tx, reencode_rx) = channel();
+					// TODO: don't clone data as it is big, instead use `Option<Data>` instead of bool to send it back.
+					let _ = self
+						.erasure_task_tx
+						.send(ErasureTask::Reencode(
+							params.validators.len(),
+							params.erasure_root,
+							data.clone(),
+							reencode_tx,
+						))
+						.await;
+					let reencode_response =
+						reencode_rx.await.map_err(|_| RecoveryError::Internal)?;
+
+					if reencode_response {
 						gum::trace!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
@@ -289,7 +324,10 @@ impl RequestFromBackers {
 }
 
 impl RequestChunksFromValidators {
-	fn new(n_validators: u32) -> Self {
+	fn new(
+		n_validators: u32,
+		erasure_task_tx: futures::channel::mpsc::Sender<ErasureTask>,
+	) -> Self {
 		let mut shuffling: Vec<_> = (0..n_validators).map(ValidatorIndex).collect();
 		shuffling.shuffle(&mut rand::thread_rng());
 
@@ -299,6 +337,7 @@ impl RequestChunksFromValidators {
 			shuffling: shuffling.into(),
 			received_chunks: HashMap::new(),
 			requesting_chunks: FuturesUndead::new(),
+			erasure_task_tx,
 		}
 	}
 
@@ -578,17 +617,37 @@ impl RequestChunksFromValidators {
 			if self.received_chunks.len() >= params.threshold {
 				let recovery_duration = metrics.time_erasure_recovery();
 
-				return match polkadot_erasure_coding::reconstruct_v1(
-					params.validators.len(),
-					self.received_chunks.values().map(|c| (&c.chunk[..], c.index.0 as usize)),
-				) {
+				// Send request to reconstruct available data from chunks.
+				let (avilable_data_tx, available_data_rx) = channel();
+				let _ = self
+					.erasure_task_tx
+					.send(ErasureTask::Reconstruct(
+						params.validators.len(),
+						//TODO: Avoid clone with `Option`.
+						self.received_chunks.clone(),
+						avilable_data_tx,
+					))
+					.await;
+				let available_data_response =
+					available_data_rx.await.map_err(|_| RecoveryError::Internal)?;
+
+				return match available_data_response {
 					Ok(data) => {
-						if reconstructed_data_matches_root(
-							params.validators.len(),
-							&params.erasure_root,
-							&data,
-							&metrics,
-						) {
+						// Send request to re-encode the chunks and check merkle root.
+						let (reencode_tx, reencode_rx) = channel();
+						let _ = self
+							.erasure_task_tx
+							.send(ErasureTask::Reencode(
+								params.validators.len(),
+								params.erasure_root,
+								data.clone(),
+								reencode_tx,
+							))
+							.await;
+						let reencode_response =
+							reencode_rx.await.map_err(|_| RecoveryError::Internal)?;
+
+						if reencode_response {
 							gum::trace!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
@@ -746,9 +805,11 @@ where
 					match from_backers.run(&self.params, &mut self.sender).await {
 						Ok(data) => break Ok(data),
 						Err(RecoveryError::Invalid) => break Err(RecoveryError::Invalid),
+						Err(RecoveryError::Internal) => break Err(RecoveryError::Internal),
 						Err(RecoveryError::Unavailable) =>
 							self.source = Source::RequestChunks(RequestChunksFromValidators::new(
 								self.params.validators.len() as _,
+								self.erasure_task_tx.clone(),
 							)),
 					}
 				},
@@ -838,6 +899,7 @@ impl TryFrom<Result<AvailableData, RecoveryError>> for CachedRecovery {
 			// We don't want to cache unavailable state, as that state might change, so if
 			// requested again we want to try again!
 			Err(RecoveryError::Unavailable) => Err(()),
+			Err(RecoveryError::Internal) => Err(()),
 		}
 	}
 }
@@ -904,9 +966,9 @@ async fn launch_recovery_task<Context>(
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
 	metrics: &Metrics,
 	recovery_strategy: &RecoveryStrategy,
+	erasure_task_tx: futures::channel::mpsc::Sender<ErasureTask>,
 ) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
-
 	let params = RecoveryParams {
 		validator_authority_keys: session_info.discovery_keys.clone(),
 		validators: session_info.validators.clone(),
@@ -943,12 +1005,21 @@ async fn launch_recovery_task<Context>(
 
 	let phase = backing_group
 		.and_then(|g| session_info.validator_groups.get(g))
-		.map(|group| Source::RequestFromBackers(RequestFromBackers::new(group.clone())))
+		.map(|group| {
+			Source::RequestFromBackers(RequestFromBackers::new(
+				group.clone(),
+				erasure_task_tx.clone(),
+			))
+		})
 		.unwrap_or_else(|| {
-			Source::RequestChunks(RequestChunksFromValidators::new(params.validators.len() as _))
+			Source::RequestChunks(RequestChunksFromValidators::new(
+				params.validators.len() as _,
+				erasure_task_tx.clone(),
+			))
 		});
 
-	let recovery_task = RecoveryTask { sender: ctx.sender().clone(), params, source: phase };
+	let recovery_task =
+		RecoveryTask { sender: ctx.sender().clone(), params, source: phase, erasure_task_tx };
 
 	let (remote, remote_handle) = recovery_task.run().remote_handle();
 
@@ -980,6 +1051,7 @@ async fn handle_recover<Context>(
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
 	metrics: &Metrics,
 	recovery_strategy: &RecoveryStrategy,
+	erasure_task_tx: futures::channel::mpsc::Sender<ErasureTask>,
 ) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
 
@@ -1024,6 +1096,7 @@ async fn handle_recover<Context>(
 				response_sender,
 				metrics,
 				recovery_strategy,
+				erasure_task_tx,
 			)
 			.await,
 		None => {
@@ -1106,10 +1179,61 @@ impl AvailabilityRecoverySubsystem {
 		let mut state = State::default();
 		let Self { recovery_strategy, mut req_receiver, metrics } = self;
 
+		let (erasure_task_tx, erasure_task_rx) = futures::channel::mpsc::channel(16);
+		let mut erasure_task_rx = erasure_task_rx.fuse();
+
 		loop {
 			let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
 			pin_mut!(recv_req);
 			futures::select! {
+				erasure_task = erasure_task_rx.next() => {
+					match erasure_task {
+						Some(ErasureTask::Reconstruct(n_validators, chunks, sender )) => {
+							let result = ctx.spawn_blocking("reconstruct_v1", Box::pin(async move {
+								let _ = sender.send(polkadot_erasure_coding::reconstruct_v1(
+									n_validators,
+									chunks.values().map(|c| (&c.chunk[..], c.index.0 as usize)),
+								));
+							}));
+
+							if let Err(e) = result {
+								gum::warn!(
+									target: LOG_TARGET,
+									err = ?e,
+									"Failed to spawn a erasure coding task",
+								);
+							}
+						},
+						Some(ErasureTask::Reencode(n_validators, root, available_data, sender)) => {
+							let metrics = metrics.clone();
+
+							let result = ctx.spawn_blocking("re-encode", Box::pin(async move {
+								let _ = sender.send(reconstructed_data_matches_root(
+									n_validators,
+									&root,
+									&available_data,
+									&metrics,
+								));
+							}));
+
+							if let Err(e) = result {
+								gum::warn!(
+									target: LOG_TARGET,
+									err = ?e,
+									"Failed to spawn a erasure coding task",
+								);
+							}
+						},
+						None => {
+							gum::debug!(
+								target: LOG_TARGET,
+								"Erasure task channel closed",
+							);
+
+							return Err(SubsystemError::with_origin("availability-recovery", RecoveryError::Internal))
+						}
+					}
+				}
 				v = ctx.recv().fuse() => {
 					match v? {
 						FromOrchestra::Signal(signal) => if handle_signal(
@@ -1135,6 +1259,7 @@ impl AvailabilityRecoverySubsystem {
 										response_sender,
 										&metrics,
 										&recovery_strategy,
+										erasure_task_tx.clone(),
 									).await {
 										gum::warn!(
 											target: LOG_TARGET,
