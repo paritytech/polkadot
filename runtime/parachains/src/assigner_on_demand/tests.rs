@@ -336,10 +336,11 @@ fn affinity_changes_work() {
 
 		// Add enough assignments to the order queue.
 		for _ in 0..10 {
-			let _ = OnDemandAssigner::add_parathread_assignment(
+			OnDemandAssigner::add_parathread_assignment(
 				assignment_a.clone(),
 				QueuePushDirection::Front,
-			);
+			)
+			.expect("Invalid paraid or queue full");
 		}
 
 		// There should be no affinity before the scheduler pops.
@@ -381,5 +382,77 @@ fn affinity_changes_work() {
 		// Decreasing affinity beyond 0 should still be None.
 		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
 		assert!(OnDemandAssigner::get_affinity_map(para_a).is_none());
+	});
+}
+
+#[test]
+fn affinity_prohibits_parallel_scheduling() {
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		let para_a = ParaId::from(111);
+		let para_b = ParaId::from(222);
+
+		schedule_blank_para(para_a, ParaKind::Parathread);
+		schedule_blank_para(para_b, ParaKind::Parathread);
+
+		run_to_block(11, |n| if n == 11 { Some(Default::default()) } else { None });
+
+		let assignment_a = Assignment { para_id: para_a };
+		let assignment_b = Assignment { para_id: para_b };
+
+		// There should be no affinity before starting.
+		assert!(OnDemandAssigner::get_affinity_map(para_a).is_none());
+		assert!(OnDemandAssigner::get_affinity_map(para_b).is_none());
+
+		// Add 2 assignments for para_a for every para_b.
+		OnDemandAssigner::add_parathread_assignment(assignment_a.clone(), QueuePushDirection::Back)
+			.expect("Invalid paraid or queue full");
+
+		OnDemandAssigner::add_parathread_assignment(assignment_a.clone(), QueuePushDirection::Back)
+			.expect("Invalid paraid or queue full");
+
+		OnDemandAssigner::add_parathread_assignment(assignment_b.clone(), QueuePushDirection::Back)
+			.expect("Invalid paraid or queue full");
+
+		assert_eq!(OnDemandAssigner::queue_size(), 3);
+
+		// Approximate having 1 core.
+		for _ in 0..3 {
+			OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), None);
+		}
+
+		// Affinity on one core is meaningless.
+		assert_eq!(OnDemandAssigner::get_affinity_map(para_a).unwrap().count, 2);
+		assert_eq!(OnDemandAssigner::get_affinity_map(para_b).unwrap().count, 1);
+		assert_eq!(
+			OnDemandAssigner::get_affinity_map(para_a).unwrap().core_idx,
+			OnDemandAssigner::get_affinity_map(para_b).unwrap().core_idx
+		);
+
+		// Clear affinity
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_b.clone()));
+
+		// Add 2 assignments for para_a for every para_b.
+		OnDemandAssigner::add_parathread_assignment(assignment_a.clone(), QueuePushDirection::Back)
+			.expect("Invalid paraid or queue full");
+
+		OnDemandAssigner::add_parathread_assignment(assignment_a.clone(), QueuePushDirection::Back)
+			.expect("Invalid paraid or queue full");
+
+		OnDemandAssigner::add_parathread_assignment(assignment_b.clone(), QueuePushDirection::Back)
+			.expect("Invalid paraid or queue full");
+
+		// Approximate having 2 cores.
+		for _ in 0..3 {
+			OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), None);
+			OnDemandAssigner::pop_assignment_for_core(CoreIndex(1), None);
+		}
+
+		// Affinity should be the same as before, but on different cores.
+		assert_eq!(OnDemandAssigner::get_affinity_map(para_a).unwrap().count, 2);
+		assert_eq!(OnDemandAssigner::get_affinity_map(para_b).unwrap().count, 1);
+		assert_eq!(OnDemandAssigner::get_affinity_map(para_a).unwrap().core_idx, CoreIndex(0));
+		assert_eq!(OnDemandAssigner::get_affinity_map(para_b).unwrap().core_idx, CoreIndex(1));
 	});
 }
