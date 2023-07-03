@@ -1026,7 +1026,7 @@ fn availability_predicate_works() {
 			_ => None,
 		});
 
-		// assign some availability core.
+		// assign an availability core.
 		{
 			let entry_ttl = 10_000;
 			AvailabilityCores::<Test>::mutate(|cores| {
