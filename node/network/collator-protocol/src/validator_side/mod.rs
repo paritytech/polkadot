@@ -14,12 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use futures::{
-	future::{abortable, AbortHandle, Abortable, Aborted, BoxFuture},
-	select,
-	stream::FuturesUnordered,
-	FutureExt, StreamExt,
-};
+use futures::{future::BoxFuture, select, stream::FuturesUnordered, FutureExt, StreamExt};
 use futures_timer::Delay;
 use std::{
 	collections::{hash_map::Entry, HashMap, HashSet},
@@ -29,6 +24,7 @@ use std::{
 	task::Poll,
 	time::{Duration, Instant},
 };
+use tokio_util::sync::CancellationToken;
 
 use sp_keystore::KeystorePtr;
 
@@ -556,12 +552,25 @@ impl CollationsPerRelayParent {
 	}
 }
 
-/// Future that concludes when the collator has responded to our collation fetch request.
+/// Any error that can occur when awaiting a collation fetch response.
+#[derive(Debug, thiserror::Error)]
+enum CollationFetchError {
+	#[error("Future was cancelled by the validator side.")]
+	Cancelled,
+	#[error("{0}")]
+	Request(#[from] RequestError),
+}
+
+/// Future that concludes when the collator has responded to our collation fetch request
+/// or the request was cancelled by the validator.
 struct CollationFetchRequest {
+	/// Info about the requested collation.
 	pending_collation: PendingCollation,
 	collator_id: CollatorId,
 	/// Responses from collator.
 	from_collator: BoxFuture<'static, req_res::OutgoingResult<CollationFetchingResponse>>,
+	/// Handle used for checking if this request was cancelled.
+	cancellation_token: CancellationToken,
 	/// A jaeger span corresponding to the lifetime of the request.
 	span: Option<jaeger::Span>,
 	/// A metric histogram for the lifetime of the request
@@ -572,14 +581,32 @@ impl Future for CollationFetchRequest {
 	type Output = (
 		PendingCollation,
 		CollatorId,
-		std::result::Result<CollationFetchingResponse, RequestError>,
+		std::result::Result<CollationFetchingResponse, CollationFetchError>,
 	);
 
 	fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-		let res = self
-			.from_collator
-			.poll_unpin(cx)
-			.map(|res| (self.pending_collation.clone(), self.collator_id.clone(), res));
+		// First check if this fetch request was cancelled.
+		let cancelled = match std::pin::pin!(self.cancellation_token.cancelled()).poll(cx) {
+			Poll::Ready(()) => true,
+			Poll::Pending => false,
+		};
+
+		if cancelled {
+			self.span.as_mut().map(|s| s.add_string_tag("success", "false"));
+			return Poll::Ready((
+				self.pending_collation.clone(),
+				self.collator_id.clone(),
+				Err(CollationFetchError::Cancelled),
+			))
+		}
+
+		let res = self.from_collator.poll_unpin(cx).map(|res| {
+			(
+				self.pending_collation.clone(),
+				self.collator_id.clone(),
+				res.map_err(CollationFetchError::Request),
+			)
+		});
 
 		match &res {
 			Poll::Ready((_, _, Ok(CollationFetchingResponse::Collation(..)))) => {
@@ -608,10 +635,10 @@ struct State {
 	peer_data: HashMap<PeerId, PeerData>,
 
 	/// The collations we have requested from collators.
-	collation_requests: FuturesUnordered<Abortable<CollationFetchRequest>>,
+	collation_requests: FuturesUnordered<CollationFetchRequest>,
 
-	/// Abort handles for the collation fetch requests.
-	collation_requests_abort_handles: HashMap<PendingCollation, AbortHandle>,
+	/// Cancellation handles for the collation fetch requests.
+	collation_requests_cancel_handles: HashMap<PendingCollation, CancellationToken>,
 
 	/// Metrics.
 	metrics: Metrics,
@@ -747,13 +774,13 @@ async fn handle_peer_view_change(state: &mut State, peer_id: PeerId, view: View)
 		|pc: &PendingCollation| pc.peer_id != peer_id || peer_data.has_advertised(&pc.relay_parent);
 	// We iterate twice as `Hashmap::drain_filter` is not yet stable. The alternative would be
 	// to store the `keys()` and mutate in a single `for` pass but would require extra space.
-	state.collation_requests_abort_handles.iter().for_each(|(pc, handle)| {
+	state.collation_requests_cancel_handles.iter().for_each(|(pc, handle)| {
 		if !(retain_predicate)(pc) {
-			handle.abort();
+			handle.cancel();
 		}
 	});
 
-	state.collation_requests_abort_handles.retain(|pc, _| (retain_predicate)(pc));
+	state.collation_requests_cancel_handles.retain(|pc, _| (retain_predicate)(pc));
 
 	Ok(())
 }
@@ -783,7 +810,7 @@ async fn request_collation(
 	}
 	let pending_collation = PendingCollation::new(relay_parent, &para_id, &peer_id);
 
-	if state.collation_requests_abort_handles.contains_key(&pending_collation) {
+	if state.collation_requests_cancel_handles.contains_key(&pending_collation) {
 		gum::warn!(
 			target: LOG_TARGET,
 			peer_id = %pending_collation.peer_id,
@@ -800,7 +827,10 @@ async fn request_collation(
 	);
 	let requests = Requests::CollationFetchingV1(full_request);
 
-	let (collation_request, abort_handle) = abortable(CollationFetchRequest {
+	let cancellation_token = CancellationToken::new();
+
+	let collation_request = CollationFetchRequest {
+		cancellation_token: cancellation_token.clone(),
 		pending_collation: pending_collation.clone(),
 		collator_id,
 		from_collator: response_recv.boxed(),
@@ -809,9 +839,11 @@ async fn request_collation(
 			.get(&relay_parent)
 			.map(|s| s.child("collation-request").with_para_id(para_id)),
 		_lifetime_timer: state.metrics.time_collation_request_duration(),
-	});
+	};
 	state.collation_requests.push(collation_request);
-	state.collation_requests_abort_handles.insert(pending_collation, abort_handle);
+	state
+		.collation_requests_cancel_handles
+		.insert(pending_collation, cancellation_token);
 
 	gum::debug!(
 		target: LOG_TARGET,
@@ -1059,12 +1091,12 @@ async fn remove_relay_parent(state: &mut State, relay_parent: Hash) -> Result<()
 	let retain_predicate = |pc: &PendingCollation| pc.relay_parent != relay_parent;
 	// We iterate twice as `Hashmap::drain_filter` is not yet stable. The alternative would be
 	// to store the `keys()` and mutate in a single `for` pass but would require extra space.
-	state.collation_requests_abort_handles.iter().for_each(|(pc, handle)| {
+	state.collation_requests_cancel_handles.iter().for_each(|(pc, handle)| {
 		if !(retain_predicate)(pc) {
-			handle.abort();
+			handle.cancel();
 		}
 	});
-	state.collation_requests_abort_handles.retain(|pc, _| (retain_predicate)(pc));
+	state.collation_requests_cancel_handles.retain(|pc, _| (retain_predicate)(pc));
 
 	state.pending_candidates.retain(|k, _| k != &relay_parent);
 
@@ -1329,13 +1361,8 @@ async fn run_inner<Context>(
 				);
 				dequeue_next_collation_and_fetch(&mut ctx, &mut state, relay_parent, collator_id).await;
 			}
-			res = state.collation_requests.select_next_some() => {
-				match res {
-					Err(Aborted) => {
-						// We aborted this request, so do nothing.
-					},
-					Ok(resp) => handle_collation_fetch_response(&mut ctx, &mut state, resp).await
-				};
+			resp = state.collation_requests.select_next_some() => {
+				handle_collation_fetch_response(&mut ctx, &mut state, resp).await;
 			},
 		}
 	}
@@ -1398,9 +1425,23 @@ async fn handle_collation_fetch_response<Context>(
 	response: <CollationFetchRequest as Future>::Output,
 ) {
 	let (mut pending_collation, collator_id, response) = response;
+	// Remove the cancellation handle, as the future already completed.
+	state.collation_requests_cancel_handles.remove(&pending_collation);
 
-	// Remove the abort handle, as the future already completed.
-	state.collation_requests_abort_handles.remove(&pending_collation);
+	let response = match response {
+		Err(CollationFetchError::Cancelled) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				hash = ?pending_collation.relay_parent,
+				para_id = ?pending_collation.para_id,
+				peer_id = ?pending_collation.peer_id,
+				"Request was cancelled from the validator side"
+			);
+			return
+		},
+		Err(CollationFetchError::Request(req_error)) => Err(req_error),
+		Ok(resp) => Ok(resp),
+	};
 
 	let _span = state
 		.span_per_relay_parent
