@@ -1030,7 +1030,7 @@ fn availability_predicate_works() {
 		{
 			let entry_ttl = 10_000;
 			AvailabilityCores::<Test>::mutate(|cores| {
-				cores[0] = Some(CoreOccupied::Parachain);
+				cores[0] = CoreOccupied::Paras(ParasEntry::new(Assignment::new(chain_a), entry_ttl));
 			});
 		}
 
