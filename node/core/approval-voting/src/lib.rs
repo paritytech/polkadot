@@ -2519,12 +2519,12 @@ async fn launch_approval<Context>(
 						// do nothing. we'll just be a no-show and that'll cause others to rise up.
 						metrics_guard.take().on_approval_unavailable();
 					},
-					&RecoveryError::Internal => {
+					&RecoveryError::ChannelClosed => {
 						gum::warn!(
 							target: LOG_TARGET,
 							?para_id,
 							?candidate_hash,
-							"Internal error while recovering data for candidate {:?}",
+							"Channel closed while recovering data for candidate {:?}",
 							(candidate_hash, candidate.descriptor.para_id),
 						);
 						// do nothing. we'll just be a no-show and that'll cause others to rise up.

@@ -20,6 +20,7 @@
 
 use std::{
 	collections::{HashMap, VecDeque},
+	iter::Iterator,
 	num::NonZeroUsize,
 	pin::Pin,
 	time::Duration,
@@ -278,17 +279,18 @@ impl RequestFromBackers {
 			match response.await {
 				Ok(req_res::v1::AvailableDataFetchingResponse::AvailableData(data)) => {
 					let (reencode_tx, reencode_rx) = channel();
-					let _ = self
-						.erasure_task_tx
+					self.erasure_task_tx
 						.send(ErasureTask::Reencode(
 							params.validators.len(),
 							params.erasure_root,
 							data,
 							reencode_tx,
 						))
-						.await;
+						.await
+						.map_err(|_| RecoveryError::ChannelClosed)?;
+
 					let reencode_response =
-						reencode_rx.await.map_err(|_| RecoveryError::Internal)?;
+						reencode_rx.await.map_err(|_| RecoveryError::ChannelClosed)?;
 
 					if let Some(data) = reencode_response {
 						gum::trace!(
@@ -354,14 +356,8 @@ impl RequestChunksFromValidators {
 	}
 
 	fn insert_chunk(&mut self, validator_index: ValidatorIndex, chunk: ErasureChunk) {
-		// Make sure we have a hashmap.
-		if self.received_chunks.is_none() {
-			self.received_chunks = Some(HashMap::new());
-		}
-
 		self.received_chunks
-			.as_mut()
-			.expect("Just initialized it above; qed")
+			.get_or_insert_with(|| HashMap::new())
 			.insert(validator_index, chunk);
 	}
 
@@ -629,37 +625,39 @@ impl RequestChunksFromValidators {
 			// If received_chunks has more than threshold entries, attempt to recover the data.
 			// If that fails, or a re-encoding of it doesn't match the expected erasure root,
 			// return Err(RecoveryError::Invalid)
-			if self.chunk_count() >= params.threshold && self.received_chunks.is_some() {
+			if self.chunk_count() >= params.threshold {
 				let recovery_duration = metrics.time_erasure_recovery();
 
 				// Send request to reconstruct available data from chunks.
 				let (avilable_data_tx, available_data_rx) = channel();
-				let _ = self
-					.erasure_task_tx
+				self.erasure_task_tx
 					.send(ErasureTask::Reconstruct(
 						params.validators.len(),
-						self.received_chunks.take().expect("Just checked it's some above; qed"),
+						self.received_chunks.take().expect("threshold is always non-zero; qed"),
 						avilable_data_tx,
 					))
-					.await;
+					.await
+					.map_err(|_| RecoveryError::ChannelClosed)?;
+
 				let available_data_response =
-					available_data_rx.await.map_err(|_| RecoveryError::Internal)?;
+					available_data_rx.await.map_err(|_| RecoveryError::ChannelClosed)?;
 
 				return match available_data_response {
 					Ok(data) => {
 						// Send request to re-encode the chunks and check merkle root.
 						let (reencode_tx, reencode_rx) = channel();
-						let _ = self
-							.erasure_task_tx
+						self.erasure_task_tx
 							.send(ErasureTask::Reencode(
 								params.validators.len(),
 								params.erasure_root,
 								data,
 								reencode_tx,
 							))
-							.await;
+							.await
+							.map_err(|_| RecoveryError::ChannelClosed)?;
+
 						let reencode_response =
-							reencode_rx.await.map_err(|_| RecoveryError::Internal)?;
+							reencode_rx.await.map_err(|_| RecoveryError::ChannelClosed)?;
 
 						if let Some(data) = reencode_response {
 							gum::trace!(
@@ -819,7 +817,8 @@ where
 					match from_backers.run(&self.params, &mut self.sender).await {
 						Ok(data) => break Ok(data),
 						Err(RecoveryError::Invalid) => break Err(RecoveryError::Invalid),
-						Err(RecoveryError::Internal) => break Err(RecoveryError::Internal),
+						Err(RecoveryError::ChannelClosed) =>
+							break Err(RecoveryError::ChannelClosed),
 						Err(RecoveryError::Unavailable) =>
 							self.source = Source::RequestChunks(RequestChunksFromValidators::new(
 								self.params.validators.len() as _,
@@ -913,7 +912,7 @@ impl TryFrom<Result<AvailableData, RecoveryError>> for CachedRecovery {
 			// We don't want to cache unavailable state, as that state might change, so if
 			// requested again we want to try again!
 			Err(RecoveryError::Unavailable) => Err(()),
-			Err(RecoveryError::Internal) => Err(()),
+			Err(RecoveryError::ChannelClosed) => Err(()),
 		}
 	}
 }
@@ -1148,6 +1147,7 @@ async fn query_chunk_size<Context>(
 
 	rx.await.map_err(error::Error::CanceledQueryFullData)
 }
+
 #[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]
 impl AvailabilityRecoverySubsystem {
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which never requests the  
@@ -1196,51 +1196,34 @@ impl AvailabilityRecoverySubsystem {
 		let (erasure_task_tx, erasure_task_rx) = futures::channel::mpsc::channel(16);
 		let mut erasure_task_rx = erasure_task_rx.fuse();
 
+		// Create a thread pool with 2 workers. Pool is guaranteed to have at least 1 worker thread.
+		let mut to_pool = ThreadPoolBuilder::build(
+			NonZeroUsize::new(2).expect("There are 2 threads; qed"),
+			metrics.clone(),
+			&mut ctx,
+		)
+		.into_iter()
+		.cycle();
+
 		loop {
 			let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
 			pin_mut!(recv_req);
 			futures::select! {
 				erasure_task = erasure_task_rx.next() => {
 					match erasure_task {
-						Some(ErasureTask::Reconstruct(n_validators, chunks, sender )) => {
-							let result = ctx.spawn_blocking("reconstruct_v1", Box::pin(async move {
-								let _ = sender.send(polkadot_erasure_coding::reconstruct_v1(
-									n_validators,
-									chunks.values().map(|c| (&c.chunk[..], c.index.0 as usize)),
-								));
-							}));
+						Some(task) => {
+							let send_result = to_pool
+								.next()
+								.expect("Pool size is `NonZeroUsize`; qed")
+								.send(task)
+								.await
+								.map_err(|_| RecoveryError::ChannelClosed);
 
-							if let Err(e) = result {
+							if let Err(err) = send_result {
 								gum::warn!(
 									target: LOG_TARGET,
-									err = ?e,
-									"Failed to spawn a erasure coding task",
-								);
-							}
-						},
-						Some(ErasureTask::Reencode(n_validators, root, available_data, sender)) => {
-							let metrics = metrics.clone();
-
-							let result = ctx.spawn_blocking("re-encode", Box::pin(async move {
-								let maybe_data = if reconstructed_data_matches_root(
-									n_validators,
-									&root,
-									&available_data,
-									&metrics,
-								) {
-									Some(available_data)
-								} else {
-									None
-								};
-
-								let _ = sender.send(maybe_data);
-							}));
-
-							if let Err(e) = result {
-								gum::warn!(
-									target: LOG_TARGET,
-									err = ?e,
-									"Failed to spawn a erasure coding task",
+									?err,
+									"Failed to send erasure coding task",
 								);
 							}
 						},
@@ -1250,7 +1233,7 @@ impl AvailabilityRecoverySubsystem {
 								"Erasure task channel closed",
 							);
 
-							return Err(SubsystemError::with_origin("availability-recovery", RecoveryError::Internal))
+							return Err(SubsystemError::with_origin("availability-recovery", RecoveryError::ChannelClosed))
 						}
 					}
 				}
@@ -1336,6 +1319,83 @@ impl AvailabilityRecoverySubsystem {
 					}
 				}
 			}
+		}
+	}
+}
+
+struct ThreadPoolBuilder;
+
+const MAX_THREADS: NonZeroUsize = match NonZeroUsize::new(4) {
+	Some(max_threads) => max_threads,
+	None => panic!("MAX_THREADS must be non-zero"),
+};
+
+impl ThreadPoolBuilder {
+	// Creates a pool of `size` workers, where 1 <= `size` <= `MAX_THREADS`.
+	#[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]
+	pub fn build<Context>(
+		size: NonZeroUsize,
+		metrics: Metrics,
+		ctx: &mut Context,
+	) -> Vec<futures::channel::mpsc::Sender<ErasureTask>> {
+		// At least 1 task, at most `MAX_THREADS.
+		let size = std::cmp::min(size, MAX_THREADS);
+		let mut senders = Vec::new();
+
+		for index in 0..size.into() {
+			let (tx, rx) = futures::channel::mpsc::channel(8);
+			senders.push(tx);
+
+			if let Err(e) = ctx
+				.spawn_blocking("erasure-task", Box::pin(erasure_task_thread(metrics.clone(), rx)))
+			{
+				gum::warn!(
+					target: LOG_TARGET,
+					err = ?e,
+					index,
+					"Failed to spawn a erasure task",
+				);
+			}
+		}
+		senders
+	}
+}
+
+// Handles CPU intensive operation on a dedicated blocking thread.
+async fn erasure_task_thread(
+	metrics: Metrics,
+	mut ingress: futures::channel::mpsc::Receiver<ErasureTask>,
+) {
+	loop {
+		match ingress.next().await {
+			Some(ErasureTask::Reconstruct(n_validators, chunks, sender)) => {
+				let _ = sender.send(polkadot_erasure_coding::reconstruct_v1(
+					n_validators,
+					chunks.values().map(|c| (&c.chunk[..], c.index.0 as usize)),
+				));
+			},
+			Some(ErasureTask::Reencode(n_validators, root, available_data, sender)) => {
+				let metrics = metrics.clone();
+
+				let maybe_data = if reconstructed_data_matches_root(
+					n_validators,
+					&root,
+					&available_data,
+					&metrics,
+				) {
+					Some(available_data)
+				} else {
+					None
+				};
+
+				let _ = sender.send(maybe_data);
+			},
+			None => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Erasure task channel closed. Node shutting down ?",
+				);
+			},
 		}
 	}
 }

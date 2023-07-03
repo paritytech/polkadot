@@ -76,8 +76,8 @@ pub enum RecoveryError {
 	/// A requested chunk is unavailable.
 	Unavailable,
 
-	/// Internal error, channel closed.
-	Internal,
+	/// Erasure task channel closed, usually means node is shutting down.
+	ChannelClosed,
 }
 
 impl std::fmt::Display for RecoveryError {
@@ -85,7 +85,7 @@ impl std::fmt::Display for RecoveryError {
 		let msg = match self {
 			RecoveryError::Invalid => "Invalid",
 			RecoveryError::Unavailable => "Unavailable",
-			RecoveryError::Internal => "Internal",
+			RecoveryError::ChannelClosed => "ChannelClosed",
 		};
 
 		write!(f, "{}", msg)
