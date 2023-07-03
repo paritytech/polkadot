@@ -195,6 +195,7 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",
+	"pallet-asset-rate/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -242,6 +243,7 @@ runtime-benchmarks = [
 	"xcm-builder/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
+	"pallet-asset-rate/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
@@ -284,6 +286,7 @@ try-runtime = [
 	"pallet-whitelist/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-xcm/try-runtime",
+	"pallet-asset-rate/try-runtime",
 ]
 # When enabled, the runtime API will not be build.
 #
