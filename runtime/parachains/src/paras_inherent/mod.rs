@@ -362,7 +362,7 @@ impl<T: Config> Pallet<T> {
 		let max_block_weight = {
 			let dispatch_class = DispatchClass::Mandatory;
 			let max_block_weight_full = <T as frame_system::Config>::BlockWeights::get();
-			log::debug!(target: LOG_TARGET, "Max block weight max block: {}", max_block_weight_full.max_block);
+			log::debug!(target: LOG_TARGET, "Max block weight: {}", max_block_weight_full.max_block);
 			// Get max block weight for the mandatory class if defined, otherwise total max weight of
 			// the block.
 			let max_weight = max_block_weight_full
