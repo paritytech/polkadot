@@ -390,6 +390,7 @@ impl RunningTask {
 			Err(RequestError::NetworkError(err)) => {
 				gum::warn_if_frequent!(
 					freq: warn_freq,
+					max_rate: gum::MAX_FREQ_RATE,
 					target: LOG_TARGET,
 					origin = ?validator,
 					relay_parent = ?self.relay_parent,
@@ -405,6 +406,7 @@ impl RunningTask {
 			Err(RequestError::Canceled(oneshot::Canceled)) => {
 				gum::warn_if_frequent!(
 					freq: warn_freq,
+					max_rate: gum::MAX_FREQ_RATE,
 					target: LOG_TARGET,
 					origin = ?validator,
 					relay_parent = ?self.relay_parent,

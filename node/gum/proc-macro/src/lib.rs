@@ -46,15 +46,15 @@ pub fn warn(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// Print a warning or debug level message depending on their frequency
 #[proc_macro]
 pub fn warn_if_frequent(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-	let ArgsIfFrequent { freq, rest } = parse2(item.into()).unwrap();
+	let ArgsIfFrequent { freq, max_rate, rest } = parse2(item.into()).unwrap();
 
 	let freq_expr = freq.expr;
-	let krate = support_crate();
+	let max_rate_expr = max_rate.expr;
 	let debug: proc_macro2::TokenStream = gum(rest.clone().into(), Level::Debug).into();
 	let warn: proc_macro2::TokenStream = gum(rest.into(), Level::Warn).into();
 
 	let stream = quote! {
-		if #freq_expr .is_frequent(#krate :: MAX_FREQ_RATE) {
+		if #freq_expr .is_frequent(#max_rate_expr) {
 			#warn
 		} else {
 			#debug

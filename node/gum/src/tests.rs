@@ -56,6 +56,7 @@ fn if_frequent() {
 	let mut f = Freq::new();
 	warn_if_frequent!(
 		freq: f,
+		max_rate: 1.0_f32,
 		target: "bar",
 		a = a,
 		b = ?Y::default(),

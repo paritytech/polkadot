@@ -24,6 +24,7 @@ use syn::{
 pub(crate) mod kw {
 	syn::custom_keyword!(target);
 	syn::custom_keyword!(freq);
+	syn::custom_keyword!(max_rate);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -262,8 +263,22 @@ impl Parse for Freq {
 	}
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MaxRate {
+	kw: kw::max_rate,
+	colon: Token![:],
+	pub expr: syn::Expr,
+}
+
+impl Parse for MaxRate {
+	fn parse(input: ParseStream) -> Result<Self> {
+		Ok(Self { kw: input.parse()?, colon: input.parse()?, expr: input.parse()? })
+	}
+}
+
 pub(crate) struct ArgsIfFrequent {
 	pub freq: Freq,
+	pub max_rate: MaxRate,
 	pub rest: TokenStream,
 }
 
@@ -271,9 +286,11 @@ impl Parse for ArgsIfFrequent {
 	fn parse(input: ParseStream) -> Result<Self> {
 		let freq = input.parse()?;
 		let _: Token![,] = input.parse()?;
+		let max_rate = input.parse()?;
+		let _: Token![,] = input.parse()?;
 		let rest = input.parse()?;
 
-		Ok(Self { freq, rest })
+		Ok(Self { freq, max_rate, rest })
 	}
 }
 
