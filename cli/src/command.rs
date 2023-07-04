@@ -18,7 +18,7 @@ use crate::cli::{Cli, Subcommand};
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
-use sc_cli::{RuntimeVersion, SubstrateCli};
+use sc_cli::SubstrateCli;
 use service::{
 	self,
 	benchmarking::{benchmark_inherent_data, RemarkBuilder, TransferKeepAliveBuilder},
@@ -167,38 +167,6 @@ impl SubstrateCli for Cli {
 				}
 			},
 		})
-	}
-
-	fn native_runtime_version(spec: &Box<dyn service::ChainSpec>) -> &'static RuntimeVersion {
-		#[cfg(feature = "kusama-native")]
-		if spec.is_kusama() {
-			return &service::kusama_runtime::VERSION
-		}
-
-		#[cfg(feature = "westend-native")]
-		if spec.is_westend() {
-			return &service::westend_runtime::VERSION
-		}
-
-		#[cfg(feature = "rococo-native")]
-		if spec.is_rococo() || spec.is_wococo() || spec.is_versi() {
-			return &service::rococo_runtime::VERSION
-		}
-
-		#[cfg(not(all(
-			feature = "rococo-native",
-			feature = "westend-native",
-			feature = "kusama-native"
-		)))]
-		let _ = spec;
-
-		#[cfg(feature = "polkadot-native")]
-		{
-			return &service::polkadot_runtime::VERSION
-		}
-
-		#[cfg(not(feature = "polkadot-native"))]
-		panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 	}
 }
 
