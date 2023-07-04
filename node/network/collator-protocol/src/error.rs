@@ -69,9 +69,6 @@ pub enum Error {
 /// to start seconding a candidate.
 #[derive(Debug, thiserror::Error)]
 pub enum SecondingError {
-	#[error("Failed to fetch a collation")]
-	FailedToFetch(#[from] oneshot::Canceled),
-
 	#[error("Error while accessing Runtime API")]
 	RuntimeApi(#[from] RuntimeApiError),
 

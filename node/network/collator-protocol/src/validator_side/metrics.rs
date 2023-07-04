@@ -50,7 +50,7 @@ impl Metrics {
 			.map(|metrics| metrics.collator_peer_count.set(collator_peers as u64));
 	}
 
-	/// Provide a timer for `PerRequest` structure which observes on drop.
+	/// Provide a timer for `CollationFetchRequest` structure which observes on drop.
 	pub fn time_collation_request_duration(
 		&self,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
@@ -121,7 +121,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"polkadot_parachain_collator_protocol_validator_collation_request_duration",
-						"Lifetime of the `PerRequest` structure",
+						"Lifetime of the `CollationFetchRequest` structure",
 					).buckets(vec![0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.9, 1.0, 1.2, 1.5, 1.75]),
 				)?,
 				registry,

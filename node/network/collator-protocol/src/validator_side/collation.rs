@@ -27,7 +27,6 @@
 //!    ┌──────────────────────────────────────────┐
 //!    └─▶Advertised ─▶ Pending ─▶ Fetched ─▶ Validated
 
-use futures::channel::oneshot;
 use std::collections::VecDeque;
 
 use polkadot_node_network_protocol::PeerId;
@@ -150,8 +149,7 @@ pub fn fetched_collation_sanity_check(
 
 pub type CollationEvent = (CollatorId, PendingCollation);
 
-pub type PendingCollationFetch =
-	(CollationEvent, std::result::Result<(CandidateReceipt, PoV), oneshot::Canceled>);
+pub type PendingCollationFetch = (CollationEvent, (CandidateReceipt, PoV));
 
 /// The status of the collations in [`CollationsPerRelayParent`].
 #[derive(Debug, Clone, Copy)]

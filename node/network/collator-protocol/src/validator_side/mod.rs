@@ -14,22 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use always_assert::never;
 use futures::{
-	channel::oneshot,
-	future::{BoxFuture, Fuse, FusedFuture},
-	select,
-	stream::FuturesUnordered,
-	FutureExt, StreamExt,
+	channel::oneshot, future::BoxFuture, select, stream::FuturesUnordered, FutureExt, StreamExt,
 };
 use futures_timer::Delay;
 use std::{
 	collections::{hash_map::Entry, HashMap, HashSet},
 	convert::TryInto,
+	future::Future,
 	iter::FromIterator,
+	pin::Pin,
 	task::Poll,
 	time::{Duration, Instant},
 };
+use tokio_util::sync::CancellationToken;
 
 use sp_keystore::KeystorePtr;
 
@@ -44,7 +42,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, vstaging as protocol_vstaging, OurView, PeerId,
 	UnifiedReputationChange as Rep, Versioned, View,
 };
-use polkadot_node_primitives::{PoV, SignedFullStatement, Statement};
+use polkadot_node_primitives::{SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
@@ -61,8 +59,8 @@ use polkadot_node_subsystem_util::{
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 };
 use polkadot_primitives::{
-	CandidateHash, CandidateReceipt, CollatorId, CoreState, Hash, Id as ParaId,
-	OccupiedCoreAssumption, PersistedValidationData,
+	CandidateHash, CollatorId, CoreState, Hash, Id as ParaId, OccupiedCoreAssumption,
+	PersistedValidationData,
 };
 
 use crate::error::{Error, FetchError, Result, SecondingError};
@@ -117,26 +115,6 @@ const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(100);
 
 #[cfg(test)]
 const ACTIVITY_POLL: Duration = Duration::from_millis(10);
-
-// How often to poll collation responses.
-// This is a hack that should be removed in a refactoring.
-// See https://github.com/paritytech/polkadot/issues/4182
-const CHECK_COLLATIONS_POLL: Duration = Duration::from_millis(5);
-
-struct PerRequest {
-	/// Responses from collator.
-	///
-	/// The response payload is the same for both versions of protocol
-	/// and doesn't have vstaging alias for simplicity.
-	from_collator:
-		Fuse<BoxFuture<'static, req_res::OutgoingResult<request_v1::CollationFetchingResponse>>>,
-	/// Sender to forward to initial requester.
-	to_requester: oneshot::Sender<(CandidateReceipt, PoV)>,
-	/// A jaeger span corresponding to the lifetime of the request.
-	span: Option<jaeger::Span>,
-	/// A metric histogram for the lifetime of the request
-	_lifetime_timer: Option<HistogramTimer>,
-}
 
 #[derive(Debug)]
 struct CollatingPeerState {
@@ -419,12 +397,11 @@ struct State {
 	/// this includes assignments from the implicit view.
 	current_assignments: HashMap<ParaId, usize>,
 
-	/// The collations we have requested by relay parent and para id.
-	///
-	/// For each relay parent and para id we may be connected to a number
-	/// of collators each of those may have advertised a different collation.
-	/// So we group such cases here.
-	requested_collations: HashMap<PendingCollation, PerRequest>,
+	/// The collations we have requested from collators.
+	collation_requests: FuturesUnordered<CollationFetchRequest>,
+
+	/// Cancellation handles for the collation fetch requests.
+	collation_requests_cancel_handles: HashMap<PendingCollation, CancellationToken>,
 
 	/// Metrics.
 	metrics: Metrics,
@@ -439,9 +416,6 @@ struct State {
 	/// Otherwise, a validator will keep such advertisement in the memory and re-trigger
 	/// requests to backing on new backed candidates and activations.
 	blocked_advertisements: HashMap<(ParaId, Hash), Vec<BlockedAdvertisement>>,
-
-	/// Keep track of all fetch collation requests
-	collation_fetches: FuturesUnordered<BoxFuture<'static, PendingCollationFetch>>,
 
 	/// When a timer in this `FuturesUnordered` triggers, we should dequeue the next request
 	/// attempt in the corresponding `collations_per_relay_parent`.
@@ -595,15 +569,13 @@ async fn fetch_collation(
 	pc: PendingCollation,
 	id: CollatorId,
 ) -> std::result::Result<(), FetchError> {
-	let (tx, rx) = oneshot::channel();
-
 	let PendingCollation { relay_parent, peer_id, prospective_candidate, .. } = pc;
 	let candidate_hash = prospective_candidate.as_ref().map(ProspectiveCandidate::candidate_hash);
 
 	let peer_data = state.peer_data.get(&peer_id).ok_or(FetchError::UnknownPeer)?;
 
 	if peer_data.has_advertised(&relay_parent, candidate_hash) {
-		request_collation(sender, state, pc, id.clone(), peer_data.version, tx).await?;
+		request_collation(sender, state, pc, id.clone(), peer_data.version).await?;
 		let timeout = |collator_id, candidate_hash, relay_parent| async move {
 			Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
 			(collator_id, candidate_hash, relay_parent)
@@ -611,7 +583,6 @@ async fn fetch_collation(
 		state
 			.collation_fetch_timeouts
 			.push(timeout(id.clone(), candidate_hash, relay_parent).boxed());
-		state.collation_fetches.push(rx.map(move |r| ((id, pc), r)).boxed());
 
 		Ok(())
 	} else {
@@ -684,16 +655,19 @@ fn handle_peer_view_change(state: &mut State, peer_id: PeerId, view: View) {
 		&state.per_relay_parent,
 		view,
 	);
-	state
-		.requested_collations
-		.retain(|pc, _| pc.peer_id != peer_id || peer_data.has_advertised(&pc.relay_parent, None));
+	state.collation_requests_cancel_handles.retain(|pc, handle| {
+		let keep = pc.peer_id != peer_id || peer_data.has_advertised(&pc.relay_parent, None);
+		if !keep {
+			handle.cancel();
+		}
+		keep
+	});
 }
 
 /// Request a collation from the network.
 /// This function will
 ///  - Check for duplicate requests.
 ///  - Check if the requested collation is in our view.
-///  - Update `PerRequest` records with the `result` field if necessary.
 /// And as such invocations of this function may rely on that.
 async fn request_collation(
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
@@ -701,9 +675,8 @@ async fn request_collation(
 	pending_collation: PendingCollation,
 	collator_id: CollatorId,
 	peer_protocol_version: CollationVersion,
-	result: oneshot::Sender<(CandidateReceipt, PoV)>,
 ) -> std::result::Result<(), FetchError> {
-	if state.requested_collations.contains_key(&pending_collation) {
+	if state.collation_requests_cancel_handles.contains_key(&pending_collation) {
 		return Err(FetchError::AlreadyRequested)
 	}
 
@@ -739,9 +712,12 @@ async fn request_collation(
 		_ => return Err(FetchError::ProtocolMismatch),
 	};
 
-	let per_request = PerRequest {
-		from_collator: response_recv.fuse(),
-		to_requester: result,
+	let cancellation_token = CancellationToken::new();
+	let collation_request = CollationFetchRequest {
+		pending_collation,
+		collator_id: collator_id.clone(),
+		from_collator: response_recv.boxed(),
+		cancellation_token: cancellation_token.clone(),
 		span: state
 			.span_per_relay_parent
 			.get(&relay_parent)
@@ -749,7 +725,10 @@ async fn request_collation(
 		_lifetime_timer: state.metrics.time_collation_request_duration(),
 	};
 
-	state.requested_collations.insert(pending_collation, per_request);
+	state.collation_requests.push(collation_request);
+	state
+		.collation_requests_cancel_handles
+		.insert(pending_collation, cancellation_token);
 
 	gum::debug!(
 		target: LOG_TARGET,
@@ -1351,7 +1330,13 @@ where
 				remove_outgoing(&mut state.current_assignments, per_relay_parent);
 			}
 
-			state.requested_collations.retain(|k, _| k.relay_parent != removed);
+			state.collation_requests_cancel_handles.retain(|pc, handle| {
+				let keep = pc.relay_parent != removed;
+				if !keep {
+					handle.cancel();
+				}
+				keep
+			});
 			state.fetched_candidates.retain(|k, _| k.relay_parent != removed);
 			state.span_per_relay_parent.remove(&removed);
 		}
@@ -1616,9 +1601,6 @@ async fn run_inner<Context>(
 	let next_inactivity_stream = tick_stream(ACTIVITY_POLL);
 	futures::pin_mut!(next_inactivity_stream);
 
-	let check_collations_stream = tick_stream(CHECK_COLLATIONS_POLL);
-	futures::pin_mut!(check_collations_stream);
-
 	loop {
 		select! {
 			_ = reputation_delay => {
@@ -1643,7 +1625,19 @@ async fn run_inner<Context>(
 			_ = next_inactivity_stream.next() => {
 				disconnect_inactive_peers(ctx.sender(), &eviction_policy, &state.peer_data).await;
 			}
-			res = state.collation_fetches.select_next_some() => {
+
+			resp = state.collation_requests.select_next_some() => {
+				let res = match handle_collation_fetch_response(&mut state, resp).await {
+					Err(Some((peer_id, rep))) => {
+						modify_reputation(&mut state.reputation, ctx.sender(), peer_id, rep).await;
+						continue
+					},
+					Err(None) => {
+						continue
+					},
+					Ok(res) => res
+				};
+
 				let (collator_id, pc) = res.0.clone();
 				if let Err(err) = kick_off_seconding(&mut ctx, &mut state, res).await {
 					gum::warn!(
@@ -1686,45 +1680,10 @@ async fn run_inner<Context>(
 				)
 				.await;
 			}
-			_ = check_collations_stream.next() => {
-				let reputation_changes = poll_requests(
-					&mut state.requested_collations,
-					&state.metrics,
-					&state.span_per_relay_parent,
-				).await;
-
-				for (peer_id, rep) in reputation_changes {
-					modify_reputation(&mut state.reputation, ctx.sender(), peer_id, rep).await;
-				}
-			},
 		}
 	}
 
 	Ok(())
-}
-
-async fn poll_requests(
-	requested_collations: &mut HashMap<PendingCollation, PerRequest>,
-	metrics: &Metrics,
-	span_per_relay_parent: &HashMap<Hash, PerLeafSpan>,
-) -> Vec<(PeerId, Rep)> {
-	let mut retained_requested = HashSet::new();
-	let mut reputation_changes = Vec::new();
-	for (pending_collation, per_req) in requested_collations.iter_mut() {
-		// Despite the await, this won't block on the response itself.
-		let result =
-			poll_collation_response(metrics, span_per_relay_parent, pending_collation, per_req)
-				.await;
-
-		if !result.is_ready() {
-			retained_requested.insert(*pending_collation);
-		}
-		if let CollationFetchResult::Error(Some(rep)) = result {
-			reputation_changes.push((pending_collation.peer_id, rep));
-		}
-	}
-	requested_collations.retain(|k, _| retained_requested.contains(k));
-	reputation_changes
 }
 
 /// Dequeue another collation and fetch.
@@ -1809,7 +1768,7 @@ where
 async fn kick_off_seconding<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	(mut collation_event, res): PendingCollationFetch,
+	(mut collation_event, (candidate_receipt, pov)): PendingCollationFetch,
 ) -> std::result::Result<(), SecondingError> {
 	let relay_parent = collation_event.1.relay_parent;
 	let para_id = collation_event.1.para_id;
@@ -1828,8 +1787,6 @@ async fn kick_off_seconding<Context>(
 	};
 	let collations = &mut per_relay_parent.collations;
 	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
-
-	let (candidate_receipt, pov) = res?;
 
 	let fetched_collation = FetchedCollation::from(&candidate_receipt);
 	if let Entry::Vacant(entry) = state.fetched_candidates.entry(fetched_collation) {
@@ -1897,147 +1854,187 @@ async fn disconnect_inactive_peers(
 	}
 }
 
-enum CollationFetchResult {
-	/// The collation is still being fetched.
-	Pending,
-	/// The collation was fetched successfully.
-	Success,
-	/// An error occurred when fetching a collation or it was invalid.
-	/// A given reputation change should be applied to the peer.
-	Error(Option<Rep>),
+// Any error that can occur when awaiting a collation fetch response.
+#[derive(Debug, thiserror::Error)]
+enum CollationFetchError {
+	#[error("Future was cancelled by the validator side.")]
+	Cancelled,
+	#[error("{0}")]
+	Request(#[from] RequestError),
 }
 
-impl CollationFetchResult {
-	fn is_ready(&self) -> bool {
-		!matches!(self, Self::Pending)
-	}
+/// Future that concludes when the collator has responded to our collation fetch request
+/// or the request was cancelled by the validator.
+struct CollationFetchRequest {
+	/// Info about the requested collation.
+	pending_collation: PendingCollation,
+	/// Collator id.
+	collator_id: CollatorId,
+	/// Responses from collator.
+	from_collator:
+		BoxFuture<'static, req_res::OutgoingResult<request_v1::CollationFetchingResponse>>,
+	/// Handle used for checking if this request was cancelled.
+	cancellation_token: CancellationToken,
+	/// A jaeger span corresponding to the lifetime of the request.
+	span: Option<jaeger::Span>,
+	/// A metric histogram for the lifetime of the request
+	_lifetime_timer: Option<HistogramTimer>,
 }
 
-/// Poll collation response, return immediately if there is none.
-///
-/// Ready responses are handled, by logging and by
-/// forwarding proper responses to the requester.
-async fn poll_collation_response(
-	metrics: &Metrics,
-	spans: &HashMap<Hash, PerLeafSpan>,
-	pending_collation: &PendingCollation,
-	per_req: &mut PerRequest,
-) -> CollationFetchResult {
-	if never!(per_req.from_collator.is_terminated()) {
-		gum::error!(
-			target: LOG_TARGET,
-			"We remove pending responses once received, this should not happen."
-		);
-		return CollationFetchResult::Success
-	}
+impl Future for CollationFetchRequest {
+	type Output = (
+		PendingCollation,
+		CollatorId,
+		std::result::Result<request_v1::CollationFetchingResponse, CollationFetchError>,
+	);
 
-	if let Poll::Ready(response) = futures::poll!(&mut per_req.from_collator) {
-		let _span = spans
-			.get(&pending_collation.relay_parent)
-			.map(|s| s.child("received-collation"));
-		let _timer = metrics.time_handle_collation_request_result();
-
-		let mut metrics_result = Err(());
-		let mut success = "false";
-
-		let result = match response {
-			Err(RequestError::InvalidResponse(err)) => {
-				gum::warn!(
-					target: LOG_TARGET,
-					hash = ?pending_collation.relay_parent,
-					para_id = ?pending_collation.para_id,
-					peer_id = ?pending_collation.peer_id,
-					err = ?err,
-					"Collator provided response that could not be decoded"
-				);
-				CollationFetchResult::Error(Some(COST_CORRUPTED_MESSAGE))
-			},
-			Err(err) if err.is_timed_out() => {
-				gum::debug!(
-					target: LOG_TARGET,
-					hash = ?pending_collation.relay_parent,
-					para_id = ?pending_collation.para_id,
-					peer_id = ?pending_collation.peer_id,
-					"Request timed out"
-				);
-				// For now we don't want to change reputation on timeout, to mitigate issues like
-				// this: https://github.com/paritytech/polkadot/issues/4617
-				CollationFetchResult::Error(None)
-			},
-			Err(RequestError::NetworkError(err)) => {
-				gum::debug!(
-					target: LOG_TARGET,
-					hash = ?pending_collation.relay_parent,
-					para_id = ?pending_collation.para_id,
-					peer_id = ?pending_collation.peer_id,
-					err = ?err,
-					"Fetching collation failed due to network error"
-				);
-				// A minor decrease in reputation for any network failure seems
-				// sensible. In theory this could be exploited, by DoSing this node,
-				// which would result in reduced reputation for proper nodes, but the
-				// same can happen for penalties on timeouts, which we also have.
-				CollationFetchResult::Error(Some(COST_NETWORK_ERROR))
-			},
-			Err(RequestError::Canceled(err)) => {
-				gum::debug!(
-					target: LOG_TARGET,
-					hash = ?pending_collation.relay_parent,
-					para_id = ?pending_collation.para_id,
-					peer_id = ?pending_collation.peer_id,
-					err = ?err,
-					"Canceled should be handled by `is_timed_out` above - this is a bug!"
-				);
-				CollationFetchResult::Error(None)
-			},
-			Ok(request_v1::CollationFetchingResponse::Collation(receipt, _))
-				if receipt.descriptor().para_id != pending_collation.para_id =>
-			{
-				gum::debug!(
-					target: LOG_TARGET,
-					expected_para_id = ?pending_collation.para_id,
-					got_para_id = ?receipt.descriptor().para_id,
-					peer_id = ?pending_collation.peer_id,
-					"Got wrong para ID for requested collation."
-				);
-
-				CollationFetchResult::Error(Some(COST_WRONG_PARA))
-			},
-			Ok(request_v1::CollationFetchingResponse::Collation(receipt, pov)) => {
-				gum::debug!(
-					target: LOG_TARGET,
-					para_id = %pending_collation.para_id,
-					hash = ?pending_collation.relay_parent,
-					candidate_hash = ?receipt.hash(),
-					"Received collation",
-				);
-				// Actual sending:
-				let _span = jaeger::Span::new(&pov, "received-collation");
-				let (mut tx, _) = oneshot::channel();
-				std::mem::swap(&mut tx, &mut (per_req.to_requester));
-				let result = tx.send((receipt, pov));
-
-				if let Err(_) = result {
-					gum::warn!(
-						target: LOG_TARGET,
-						hash = ?pending_collation.relay_parent,
-						para_id = ?pending_collation.para_id,
-						peer_id = ?pending_collation.peer_id,
-						"Sending response back to requester failed (receiving side closed)"
-					);
-				} else {
-					metrics_result = Ok(());
-					success = "true";
-				}
-
-				CollationFetchResult::Success
-			},
+	fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+		// First check if this fetch request was cancelled.
+		let cancelled = match std::pin::pin!(self.cancellation_token.cancelled()).poll(cx) {
+			Poll::Ready(()) => true,
+			Poll::Pending => false,
 		};
-		metrics.on_request(metrics_result);
-		per_req.span.as_mut().map(|s| s.add_string_tag("success", success));
 
-		result
-	} else {
-		CollationFetchResult::Pending
+		if cancelled {
+			self.span.as_mut().map(|s| s.add_string_tag("success", "false"));
+			return Poll::Ready((
+				self.pending_collation,
+				self.collator_id.clone(),
+				Err(CollationFetchError::Cancelled),
+			))
+		}
+
+		let res = self.from_collator.poll_unpin(cx).map(|res| {
+			(
+				self.pending_collation,
+				self.collator_id.clone(),
+				res.map_err(CollationFetchError::Request),
+			)
+		});
+
+		match &res {
+			Poll::Ready((_, _, Ok(request_v1::CollationFetchingResponse::Collation(..)))) => {
+				self.span.as_mut().map(|s| s.add_string_tag("success", "true"));
+			},
+			Poll::Ready((_, _, Err(_))) => {
+				self.span.as_mut().map(|s| s.add_string_tag("success", "false"));
+			},
+			_ => {},
+		};
+
+		res
 	}
+}
+
+/// Handle a collation fetch response.
+async fn handle_collation_fetch_response(
+	state: &mut State,
+	response: <CollationFetchRequest as Future>::Output,
+) -> std::result::Result<PendingCollationFetch, Option<(PeerId, Rep)>> {
+	let (pending_collation, collator_id, response) = response;
+	// Remove the cancellation handle, as the future already completed.
+	state.collation_requests_cancel_handles.remove(&pending_collation);
+
+	let response = match response {
+		Err(CollationFetchError::Cancelled) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				hash = ?pending_collation.relay_parent,
+				para_id = ?pending_collation.para_id,
+				peer_id = ?pending_collation.peer_id,
+				"Request was cancelled from the validator side"
+			);
+			return Err(None)
+		},
+		Err(CollationFetchError::Request(req_error)) => Err(req_error),
+		Ok(resp) => Ok(resp),
+	};
+
+	let _span = state
+		.span_per_relay_parent
+		.get(&pending_collation.relay_parent)
+		.map(|s| s.child("received-collation"));
+	let _timer = state.metrics.time_handle_collation_request_result();
+
+	let mut metrics_result = Err(());
+
+	let result = match response {
+		Err(RequestError::InvalidResponse(err)) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				hash = ?pending_collation.relay_parent,
+				para_id = ?pending_collation.para_id,
+				peer_id = ?pending_collation.peer_id,
+				err = ?err,
+				"Collator provided response that could not be decoded"
+			);
+			Err(Some((pending_collation.peer_id, COST_CORRUPTED_MESSAGE)))
+		},
+		Err(err) if err.is_timed_out() => {
+			gum::debug!(
+				target: LOG_TARGET,
+				hash = ?pending_collation.relay_parent,
+				para_id = ?pending_collation.para_id,
+				peer_id = ?pending_collation.peer_id,
+				"Request timed out"
+			);
+			// For now we don't want to change reputation on timeout, to mitigate issues like
+			// this: https://github.com/paritytech/polkadot/issues/4617
+			Err(None)
+		},
+		Err(RequestError::NetworkError(err)) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				hash = ?pending_collation.relay_parent,
+				para_id = ?pending_collation.para_id,
+				peer_id = ?pending_collation.peer_id,
+				err = ?err,
+				"Fetching collation failed due to network error"
+			);
+			// A minor decrease in reputation for any network failure seems
+			// sensible. In theory this could be exploited, by DoSing this node,
+			// which would result in reduced reputation for proper nodes, but the
+			// same can happen for penalties on timeouts, which we also have.
+			Err(Some((pending_collation.peer_id, COST_NETWORK_ERROR)))
+		},
+		Err(RequestError::Canceled(err)) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				hash = ?pending_collation.relay_parent,
+				para_id = ?pending_collation.para_id,
+				peer_id = ?pending_collation.peer_id,
+				err = ?err,
+				"Canceled should be handled by `is_timed_out` above - this is a bug!"
+			);
+			Err(None)
+		},
+		Ok(request_v1::CollationFetchingResponse::Collation(receipt, _))
+			if receipt.descriptor().para_id != pending_collation.para_id =>
+		{
+			gum::debug!(
+				target: LOG_TARGET,
+				expected_para_id = ?pending_collation.para_id,
+				got_para_id = ?receipt.descriptor().para_id,
+				peer_id = ?pending_collation.peer_id,
+				"Got wrong para ID for requested collation."
+			);
+
+			Err(Some((pending_collation.peer_id, COST_WRONG_PARA)))
+		},
+		Ok(request_v1::CollationFetchingResponse::Collation(receipt, pov)) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				para_id = %pending_collation.para_id,
+				hash = ?pending_collation.relay_parent,
+				candidate_hash = ?receipt.hash(),
+				"Received collation",
+			);
+			let _span = jaeger::Span::new(&pov, "received-collation");
+
+			metrics_result = Ok(());
+			Ok(((collator_id, pending_collation), (receipt, pov)))
+		},
+	};
+	state.metrics.on_request(metrics_result);
+	result
 }
