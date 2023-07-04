@@ -51,7 +51,7 @@ pub struct PayOverXcm<
 	Beneficiary,
 	AssetKind,
 	AssetKindToLocatableAsset,
-	BeneficiaryRefToLocation,
+	BeneficiaryToLocation,
 >(
 	PhantomData<(
 		Interior,
@@ -61,7 +61,7 @@ pub struct PayOverXcm<
 		Beneficiary,
 		AssetKind,
 		AssetKindToLocatableAsset,
-		BeneficiaryRefToLocation,
+		BeneficiaryToLocation,
 	)>,
 );
 impl<
@@ -72,7 +72,7 @@ impl<
 		Beneficiary: Clone,
 		AssetKind,
 		AssetKindToLocatableAsset: Convert<AssetKind, LocatableAssetId>,
-		BeneficiaryRefToLocation: for<'a> Convert<&'a Beneficiary, MultiLocation>,
+		BeneficiaryToLocation: Convert<Beneficiary, MultiLocation>,
 	> Pay
 	for PayOverXcm<
 		Interior,
@@ -82,7 +82,7 @@ impl<
 		Beneficiary,
 		AssetKind,
 		AssetKindToLocatableAsset,
-		BeneficiaryRefToLocation,
+		BeneficiaryToLocation,
 	>
 {
 	type Beneficiary = Beneficiary;
@@ -101,7 +101,7 @@ impl<
 		let destination = Querier::UniversalLocation::get()
 			.invert_target(&asset_location)
 			.map_err(|()| Self::Error::LocationNotInvertible)?;
-		let beneficiary = BeneficiaryRefToLocation::convert(&who);
+		let beneficiary = BeneficiaryToLocation::convert(who.clone());
 
 		let query_id = Querier::new_query(asset_location, Timeout::get(), Interior::get());
 

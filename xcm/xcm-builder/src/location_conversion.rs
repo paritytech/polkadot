@@ -321,11 +321,11 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]>
 /// `MultiLocation` consisting solely of a `AccountId32` junction with a fixed value for its
 /// network (provided by `Network`) and the `AccountId`'s `[u8; 32]` datum for the `id`.
 pub struct AliasesIntoAccountId32<Network, AccountId>(PhantomData<(Network, AccountId)>);
-impl<'a, Network: Get<Option<NetworkId>>, AccountId: Clone + Into<[u8; 32]> + Clone>
-	Convert<&'a AccountId, MultiLocation> for AliasesIntoAccountId32<Network, AccountId>
+impl<Network: Get<Option<NetworkId>>, AccountId: Into<[u8; 32]>> Convert<AccountId, MultiLocation>
+	for AliasesIntoAccountId32<Network, AccountId>
 {
-	fn convert(who: &AccountId) -> MultiLocation {
-		AccountId32 { network: Network::get(), id: who.clone().into() }.into()
+	fn convert(who: AccountId) -> MultiLocation {
+		AccountId32 { network: Network::get(), id: who.into() }.into()
 	}
 }
 
