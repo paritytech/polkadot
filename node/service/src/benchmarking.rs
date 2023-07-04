@@ -16,10 +16,8 @@
 
 //! Code related to benchmarking a [`crate::Client`].
 
-use codec::Encode;
 use polkadot_primitives::AccountId;
 use sc_client_api::UsageProvider;
-use sp_core::{Pair, H256};
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::OpaqueExtrinsic;
 
@@ -93,6 +91,12 @@ macro_rules! identify_chain {
 
 				#[cfg(not(feature = "westend-native"))]
 				{
+					let _ = $nonce;
+					let _ = $current_block;
+					let _ = $period;
+					let _ = $genesis;
+					let _ = $signer;
+
 					Err("`westend-native` feature not enabled")
 				}
 			},
@@ -183,6 +187,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
 			.unwrap_or(2) as u64;
 		let genesis = self.client.usage_info().chain.best_hash;
 		let current_block = 0;
+		let _dest = self.dest.clone();
 
 		identify_chain! {
 			self.chain,
@@ -193,7 +198,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
 			signer,
 			{
 				runtime::RuntimeCall::Balances(runtime::BalancesCall::transfer_keep_alive {
-					dest: self.dest.clone().into(),
+					dest: _dest.into(),
 					value: runtime::ExistentialDeposit::get(),
 				})
 			},
@@ -207,10 +212,12 @@ fn polkadot_sign_call(
 	nonce: u32,
 	current_block: u64,
 	period: u64,
-	genesis: H256,
+	genesis: sp_core::H256,
 	acc: sp_core::sr25519::Pair,
 ) -> OpaqueExtrinsic {
+	use codec::Encode;
 	use polkadot_runtime as runtime;
+	use sp_core::Pair;
 
 	let extra: runtime::SignedExtra = (
 		frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
@@ -259,9 +266,11 @@ fn westend_sign_call(
 	nonce: u32,
 	current_block: u64,
 	period: u64,
-	genesis: H256,
+	genesis: sp_core::H256,
 	acc: sp_core::sr25519::Pair,
 ) -> OpaqueExtrinsic {
+	use codec::Encode;
+	use sp_core::Pair;
 	use westend_runtime as runtime;
 
 	let extra: runtime::SignedExtra = (
@@ -309,10 +318,12 @@ fn kusama_sign_call(
 	nonce: u32,
 	current_block: u64,
 	period: u64,
-	genesis: H256,
+	genesis: sp_core::H256,
 	acc: sp_core::sr25519::Pair,
 ) -> OpaqueExtrinsic {
+	use codec::Encode;
 	use kusama_runtime as runtime;
+	use sp_core::Pair;
 
 	let extra: runtime::SignedExtra = (
 		frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
@@ -359,10 +370,12 @@ fn rococo_sign_call(
 	nonce: u32,
 	current_block: u64,
 	period: u64,
-	genesis: H256,
+	genesis: sp_core::H256,
 	acc: sp_core::sr25519::Pair,
 ) -> OpaqueExtrinsic {
+	use codec::Encode;
 	use rococo_runtime as runtime;
+	use sp_core::Pair;
 
 	let extra: runtime::SignedExtra = (
 		frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
