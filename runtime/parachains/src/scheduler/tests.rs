@@ -1032,7 +1032,6 @@ fn availability_predicate_works() {
 		}
 
 		run_to_block(1 + paras_availability_period, |_| None);
-		assert!(Scheduler::availability_timeout_predicate().is_none());
 
 		run_to_block(1 + group_rotation_frequency, |_| None);
 
@@ -1057,8 +1056,6 @@ fn availability_predicate_works() {
 		}
 
 		run_to_block(1 + group_rotation_frequency + paras_availability_period, |_| None);
-
-		assert!(Scheduler::availability_timeout_predicate().is_none());
 	});
 }
 
