@@ -44,6 +44,65 @@ use frame_support::{assert_ok};
         assert_eq!(PermanentSlotCount::<T>::get(), counter + 1);
     }
 
+    #[benchmark]
+    fn assign_temp_parachain_slot() {
+        let para_id = ParaId::from(2001_u32);
+        let caller = RawOrigin::Root;
+        register_parachain::<T>(para_id);
+
+        let current_lease_period: T::BlockNumber = T::Leaser::lease_period_index(frame_system::Pallet::<T>::block_number())
+            .and_then(|x| Some(x.0))
+            .unwrap();
+
+        let counter = TemporarySlotCount::<T>::get();
+        #[extrinsic_call]
+        assign_temp_parachain_slot(caller, para_id, SlotLeasePeriodStart::Current);
+
+       
+        let tmp = ParachainTemporarySlot {
+            manager: whitelisted_caller(),
+            period_begin: current_lease_period,
+            period_count: LeasePeriodOf::<T>::from(T::TemporarySlotLeasePeriodLength::get()),
+            last_lease: Some(T::BlockNumber::zero()),
+            lease_count: 1
+        };
+        assert_eq!(TemporarySlots::<T>::get(para_id), Some(tmp));
+        assert_eq!(TemporarySlotCount::<T>::get(), counter + 1);
+    }
+
+    #[benchmark]
+    fn unassign_parachain_slot() {
+        let para_id = ParaId::from(2002_u32);
+        let caller = RawOrigin::Root;
+        register_parachain::<T>(para_id);
+        let _ = AssignedSlots::<T>::assign_temp_parachain_slot(caller.clone().into(), para_id, SlotLeasePeriodStart::Current);
+
+        let counter = TemporarySlotCount::<T>::get();
+        #[extrinsic_call]
+        unassign_parachain_slot(caller, para_id);
+
+        assert_eq!(TemporarySlots::<T>::get(para_id), None);
+        assert_eq!(TemporarySlotCount::<T>::get(), counter - 1);
+    }
+
+    #[benchmark]
+	fn set_max_permanent_slots() {
+		let caller = RawOrigin::Root;
+		#[extrinsic_call]
+		set_max_permanent_slots(caller, u32::MAX);
+
+		assert_eq!(MaxPermanentSlots::<T>::get(), u32::MAX);
+	}
+
+    #[benchmark]
+	fn set_max_temporary_slots() {
+		let caller = RawOrigin::Root;
+		#[extrinsic_call]
+		set_max_temporary_slots(caller, u32::MAX);
+
+		assert_eq!(MaxTemporarySlots::<T>::get(), u32::MAX);
+	}
+
     impl_benchmark_test_suite!(AssignedSlots, 
         crate::assigned_slots::tests::new_test_ext(),
         crate::assigned_slots::tests::Test
