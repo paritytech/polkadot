@@ -60,11 +60,11 @@ pub mod v1 {
 		}
 	}
 
-	pub type VersionCheckedMigrateToV1<Runtime, Pallet> = VersionedRuntimeUpgrade<
+	pub type VersionCheckedMigrateToV1<T> = VersionedRuntimeUpgrade<
 		0,
 		1,
-		VersionUncheckedMigrateToV1<Runtime>,
-		Pallet,
-		<Runtime as frame_system::Config>::DbWeight,
+		VersionUncheckedMigrateToV1<T>,
+		crate::pallet::Pallet<T>,
+		<T as frame_system::Config>::DbWeight,
 	>;
 }

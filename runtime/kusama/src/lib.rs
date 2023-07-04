@@ -1536,7 +1536,6 @@ pub mod migrations {
 	pub type Unreleased = (
 		pallet_society::migrations::VersionCheckedMigrateToV2<
 			Runtime,
-			Society,
 			(),
 			past_payouts::PastPayouts,
 		>,
