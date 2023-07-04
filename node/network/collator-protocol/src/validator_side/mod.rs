@@ -565,8 +565,9 @@ enum CollationFetchError {
 /// or the request was cancelled by the validator.
 struct CollationFetchRequest {
 	/// Info about the requested collation.
-	pending_collation: PendingCollation,
-	collator_id: CollatorId,
+	pending_collation: Option<PendingCollation>,
+	/// Collator id.
+	collator_id: Option<CollatorId>,
 	/// Responses from collator.
 	from_collator: BoxFuture<'static, req_res::OutgoingResult<CollationFetchingResponse>>,
 	/// Handle used for checking if this request was cancelled.
@@ -579,8 +580,8 @@ struct CollationFetchRequest {
 
 impl Future for CollationFetchRequest {
 	type Output = (
-		PendingCollation,
-		CollatorId,
+		Option<PendingCollation>,
+		Option<CollatorId>,
 		std::result::Result<CollationFetchingResponse, CollationFetchError>,
 	);
 
@@ -594,16 +595,16 @@ impl Future for CollationFetchRequest {
 		if cancelled {
 			self.span.as_mut().map(|s| s.add_string_tag("success", "false"));
 			return Poll::Ready((
-				self.pending_collation.clone(),
-				self.collator_id.clone(),
+				self.pending_collation.take(),
+				self.collator_id.clone().take(),
 				Err(CollationFetchError::Cancelled),
 			))
 		}
 
 		let res = self.from_collator.poll_unpin(cx).map(|res| {
 			(
-				self.pending_collation.clone(),
-				self.collator_id.clone(),
+				self.pending_collation.take(),
+				self.collator_id.take(),
 				res.map_err(CollationFetchError::Request),
 			)
 		});
@@ -826,10 +827,10 @@ async fn request_collation(
 	let cancellation_token = CancellationToken::new();
 
 	let collation_request = CollationFetchRequest {
-		cancellation_token: cancellation_token.clone(),
-		pending_collation: pending_collation.clone(),
-		collator_id,
+		pending_collation: Some(pending_collation.clone()),
+		collator_id: Some(collator_id),
 		from_collator: response_recv.boxed(),
+		cancellation_token: cancellation_token.clone(),
 		span: state
 			.span_per_relay_parent
 			.get(&relay_parent)
@@ -1418,7 +1419,21 @@ async fn handle_collation_fetch_response<Context>(
 	state: &mut State,
 	response: <CollationFetchRequest as Future>::Output,
 ) {
-	let (mut pending_collation, collator_id, response) = response;
+	let (pending_collation, collator_id, response) = response;
+	let Some(mut pending_collation) = pending_collation else {
+		gum::debug!(
+			target: LOG_TARGET,
+			"Request was polled twice. This should never happen."
+		);
+		return
+	};
+	let Some(collator_id) = collator_id else {
+		gum::debug!(
+			target: LOG_TARGET,
+			"Request was polled twice. This should never happen."
+		);
+		return
+	};
 	// Remove the cancellation handle, as the future already completed.
 	state.collation_requests_cancel_handles.remove(&pending_collation);
 
