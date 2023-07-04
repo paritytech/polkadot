@@ -6,11 +6,11 @@ edition.workspace = true
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive", "max-encoded-len"] }
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
 log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-serde = { version = "1.0.139", features = [ "derive" ], optional = true }
+serde = { version = "1.0.163", default-features = false, features = ["derive", "alloc"] }
 derive_more = "0.99.17"
 bitflags = "1.3.2"
 
@@ -18,10 +18,10 @@ sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", d
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features=["serde"] }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features=["serde"] }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features=["serde"] }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -30,6 +30,7 @@ pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", 
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -68,7 +69,7 @@ std = [
 	"parity-scale-codec/std",
 	"rustc-hex/std",
 	"scale-info/std",
-	"serde",
+	"serde/std",
 	"primitives/std",
 	"inherents/std",
 	"sp-core/std",
@@ -80,9 +81,11 @@ std = [
 	"sp-runtime/std",
 	"sp-session/std",
 	"sp-staking/std",
+	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
 	"pallet-babe/std",
 	"pallet-balances/std",
+	"pallet-message-queue/std",
 	"pallet-session/std",
 	"pallet-staking/std",
 	"pallet-timestamp/std",
@@ -97,15 +100,23 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"pallet-babe/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks",
+	"pallet-message-queue/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
+	"pallet-timestamp/runtime-benchmarks",
+	"pallet-vesting/runtime-benchmarks",
 	"primitives/runtime-benchmarks",
 	"static_assertions",
 	"sp-application-crypto",
 ]
 try-runtime = [
 	"frame-support/try-runtime",
+	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",
+	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
+	"pallet-message-queue/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-staking/try-runtime",
 	"pallet-timestamp/try-runtime",
