@@ -18,11 +18,12 @@ use crate::cli::{Cli, Subcommand};
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
-use polkadot_client::benchmarking::{
-	benchmark_inherent_data, ExistentialDepositProvider, RemarkBuilder, TransferKeepAliveBuilder,
-};
 use sc_cli::{RuntimeVersion, SubstrateCli};
-use service::{self, HeaderBackend, IdentifyVariant};
+use service::{
+	self,
+	benchmarking::{benchmark_inherent_data, RemarkBuilder, TransferKeepAliveBuilder},
+	HeaderBackend, IdentifyVariant,
+};
 use sp_core::crypto::Ss58AddressFormatRegistry;
 use sp_keyring::Sr25519Keyring;
 use std::net::ToSocketAddrs;
@@ -223,31 +224,6 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 	} else {
 		Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, spec.id()))
 	}
-}
-
-/// Unwraps a [`polkadot_client::Client`] into the concrete runtime client.
-macro_rules! unwrap_client {
-	(
-		$client:ident,
-		$code:expr
-	) => {
-		match $client.as_ref() {
-			#[cfg(feature = "polkadot-native")]
-			polkadot_client::Client::Polkadot($client) => $code,
-			#[cfg(feature = "westend-native")]
-			polkadot_client::Client::Westend($client) => $code,
-			#[cfg(feature = "kusama-native")]
-			polkadot_client::Client::Kusama($client) => $code,
-			#[cfg(feature = "rococo-native")]
-			polkadot_client::Client::Rococo($client) => $code,
-			#[allow(unreachable_patterns)]
-			_ => {
-				let _ = $client;
-
-				Err(Error::CommandNotImplemented)
-			},
-		}
-	};
 }
 
 /// Runs performance checks.
@@ -540,15 +516,12 @@ pub fn run() -> Result<()> {
 					let db = backend.expose_db();
 					let storage = backend.expose_storage();
 
-					unwrap_client!(
-						client,
-						cmd.run(config, client.clone(), db, storage).map_err(Error::SubstrateCli)
-					)
+					cmd.run(config, client.clone(), db, storage).map_err(Error::SubstrateCli)
 				}),
 				BenchmarkCmd::Block(cmd) => runner.sync_run(|mut config| {
 					let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
 
-					unwrap_client!(client, cmd.run(client.clone()).map_err(Error::SubstrateCli))
+					cmd.run(client.clone()).map_err(Error::SubstrateCli)
 				}),
 				// These commands are very similar and can be handled in nearly the same way.
 				BenchmarkCmd::Extrinsic(_) | BenchmarkCmd::Overhead(_) => {
@@ -558,14 +531,15 @@ pub fn run() -> Result<()> {
 						let header = client.header(client.info().genesis_hash).unwrap().unwrap();
 						let inherent_data = benchmark_inherent_data(header)
 							.map_err(|e| format!("generating inherent data: {:?}", e))?;
-						let remark_builder = RemarkBuilder::new(client.clone());
+						let remark_builder =
+							RemarkBuilder::new(client.clone(), config.chain_spec.identify_chain());
 
 						match cmd {
 							BenchmarkCmd::Extrinsic(cmd) => {
 								let tka_builder = TransferKeepAliveBuilder::new(
 									client.clone(),
 									Sr25519Keyring::Alice.to_account_id(),
-									client.existential_deposit(),
+									config.chain_spec.identify_chain(),
 								);
 
 								let ext_factory = ExtrinsicFactory(vec![
@@ -573,28 +547,18 @@ pub fn run() -> Result<()> {
 									Box::new(tka_builder),
 								]);
 
-								unwrap_client!(
-									client,
-									cmd.run(
-										client.clone(),
-										inherent_data,
-										Vec::new(),
-										&ext_factory
-									)
+								cmd.run(client.clone(), inherent_data, Vec::new(), &ext_factory)
 									.map_err(Error::SubstrateCli)
-								)
 							},
-							BenchmarkCmd::Overhead(cmd) => unwrap_client!(
-								client,
-								cmd.run(
+							BenchmarkCmd::Overhead(cmd) => cmd
+								.run(
 									config,
 									client.clone(),
 									inherent_data,
 									Vec::new(),
-									&remark_builder
+									&remark_builder,
 								)
-								.map_err(Error::SubstrateCli)
-							),
+								.map_err(Error::SubstrateCli),
 							_ => unreachable!("Ensured by the outside match; qed"),
 						}
 					})
@@ -637,17 +601,12 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
 		Some(Subcommand::TryRuntime(cmd)) => {
-			use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
 			use sc_service::TaskManager;
 			use try_runtime_cli::block_building_info::timestamp_with_babe_info;
 
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 			set_default_ss58_version(chain_spec);
-			type HostFunctionsOf<E> = ExtendedHostFunctions<
-				sp_io::SubstrateHostFunctions,
-				<E as NativeExecutionDispatch>::ExtendHostFunctions,
-			>;
 
 			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
 			let task_manager = TaskManager::new(runner.config().tokio_handle.clone(), *registry)
@@ -659,7 +618,7 @@ pub fn run() -> Result<()> {
 			if chain_spec.is_kusama() {
 				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::kusama_runtime::Block, HostFunctionsOf<service::KusamaExecutorDispatch>, _>(
+						cmd.run::<service::kusama_runtime::Block, sp_io::SubstrateHostFunctions, _>(
 							Some(timestamp_with_babe_info(service::kusama_runtime_constants::time::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
@@ -672,7 +631,7 @@ pub fn run() -> Result<()> {
 			if chain_spec.is_westend() {
 				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::westend_runtime::Block, HostFunctionsOf<service::WestendExecutorDispatch>, _>(
+						cmd.run::<service::westend_runtime::Block, sp_io::SubstrateHostFunctions, _>(
 							Some(timestamp_with_babe_info(service::westend_runtime_constants::time::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
@@ -685,7 +644,7 @@ pub fn run() -> Result<()> {
 			{
 				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::polkadot_runtime::Block, HostFunctionsOf<service::PolkadotExecutorDispatch>, _>(
+						cmd.run::<service::polkadot_runtime::Block, sp_io::SubstrateHostFunctions, _>(
 							Some(timestamp_with_babe_info(service::polkadot_runtime_constants::time::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
