@@ -103,6 +103,73 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 	}
 }
 
+// TODO:check-parameter - dummy copy of `AllowTopLevelPaidExecutionFrom`
+/// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking
+/// payments into account.
+///
+/// Only allows for `TeleportAsset`, `WithdrawAsset`, `ClaimAsset` and `ReserveAssetDeposit` XCMs
+/// because they are the only ones that place assets in the Holding Register to pay for execution.
+pub struct AllowAliasOriginWithdrawPaidExecutionFrom<T>(PhantomData<T>);
+impl<T: Contains<MultiLocation>> ShouldExecute for AllowAliasOriginWithdrawPaidExecutionFrom<T> {
+	fn should_execute<RuntimeCall>(
+		origin: &MultiLocation,
+		instructions: &mut [Instruction<RuntimeCall>],
+		max_weight: Weight,
+		_properties: &mut Properties,
+	) -> Result<(), ProcessMessageError> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowAliasOriginWithdrawPaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, properties: {:?}",
+			origin, instructions, max_weight, _properties,
+		);
+
+		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
+		// We will read up to 5 instructions. This allows up to 3 `ClearOrigin` instructions. We
+		// allow for more than one since anything beyond the first is a no-op and it's conceivable
+		// that composition of operations might result in more than one being appended.
+		let end = instructions.len().min(8);
+		instructions[..end]
+			.matcher()
+			.match_next_inst(|inst| match inst {
+				ReceiveTeleportedAsset(..) |
+				WithdrawAsset(..) |
+				ReserveAssetDeposited(..) |
+				ClaimAsset { .. } => Ok(()),
+				_ => Err(ProcessMessageError::BadFormat),
+			})?
+			.skip_inst_while(|inst| matches!(inst, ClearOrigin))?
+			// TODO:check-parameter - this is only difference with `AllowTopLevelPaidExecutionFrom` - check for AliasOrigin / WithdrawAsset / ClearOrigin
+			.match_next_inst(|inst| match inst {
+				AliasOrigin(_) => Ok(()),
+				_ => Err(ProcessMessageError::BadFormat),
+			})?
+			// TODO:check-parameter - this is only difference with `AllowTopLevelPaidExecutionFrom` - check for AliasOrigin / WithdrawAsset / ClearOrigin
+			.match_next_inst(|inst| match inst {
+				WithdrawAsset(..) => Ok(()),
+				_ => Err(ProcessMessageError::BadFormat),
+			})?
+			// TODO:check-parameter - this is only difference with `AllowTopLevelPaidExecutionFrom` - check for AliasOrigin / WithdrawAsset / ClearOrigin
+			.match_next_inst(|inst| match inst {
+				ClearOrigin => Ok(()),
+				_ => Err(ProcessMessageError::BadFormat),
+			})?
+			.match_next_inst(|inst| match inst {
+				BuyExecution { weight_limit: Limited(ref mut weight), .. }
+					if weight.all_gte(max_weight) =>
+				{
+					*weight = max_weight;
+					Ok(())
+				},
+				BuyExecution { ref mut weight_limit, .. } if weight_limit == &Unlimited => {
+					*weight_limit = Limited(max_weight);
+					Ok(())
+				},
+				_ => Err(ProcessMessageError::Overweight(max_weight)),
+			})?;
+		Ok(())
+	}
+}
+
 /// A derivative barrier, which scans the first `MaxPrefixes` instructions for origin-alterers and
 /// then evaluates `should_execute` of the `InnerBarrier` based on the remaining instructions and
 /// the newly computed origin.

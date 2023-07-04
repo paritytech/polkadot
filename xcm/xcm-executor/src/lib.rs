@@ -915,8 +915,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			AliasOrigin(target) => {
-				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
-				if Config::Aliasers::contains(origin, &target) {
+				// TODO:check-parameter - is this correct?
+				let effective_origin =
+					self.context.origin.as_ref().unwrap_or(&self.original_origin);
+				// let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
+				if Config::Aliasers::contains(effective_origin, &target) {
 					self.context.origin = Some(target);
 					Ok(())
 				} else {

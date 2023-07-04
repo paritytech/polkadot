@@ -1238,15 +1238,18 @@ impl<T: Config> Pallet<T> {
 
 				// try to estimate weight_limit by expected message executed on destination
 				let mut remote_message = match destination_fees_setup {
-					DestinationFeesSetup::ByOrigin => Xcm(vec![
-						ReserveAssetDeposited(worst_case_assets),
-						ClearOrigin,
-						BuyExecution {
-							fees: worst_case_fees,
-							weight_limit: worst_case_weight_limit,
-						},
-						DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
-					]),
+					DestinationFeesSetup::ByOrigin => {
+						// no, change, everything is like origin wanted before
+						Xcm(vec![
+							ReserveAssetDeposited(worst_case_assets),
+							ClearOrigin,
+							BuyExecution {
+								fees: worst_case_fees,
+								weight_limit: worst_case_weight_limit,
+							},
+							DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
+						])
+					},
 					DestinationFeesSetup::ByUniversalLocation { .. } => {
 						let sovereign_account_on_destination = T::UniversalLocation::get()
 							.invert_target(&dest)
@@ -1258,6 +1261,7 @@ impl<T: Config> Pallet<T> {
 							AliasOrigin(sovereign_account_on_destination),
 							// Withdraw fees (do not use those in `ReserveAssetDeposited`)
 							WithdrawAsset(MultiAssets::from(worst_case_fees.clone())),
+							ClearOrigin,
 							BuyExecution {
 								fees: worst_case_fees.clone(),
 								weight_limit: worst_case_weight_limit,
@@ -1268,7 +1272,6 @@ impl<T: Config> Pallet<T> {
 								assets: MultiAssetFilter::from(MultiAssets::from(worst_case_fees)),
 								beneficiary: sovereign_account_on_destination,
 							},
-							ClearOrigin,
 							// deposit `assets` to beneficiary
 							DepositAsset {
 								assets: MultiAssetFilter::from(worst_case_assets),
@@ -1361,6 +1364,7 @@ impl<T: Config> Pallet<T> {
 					AliasOrigin(sovereign_account_on_destination),
 					// Withdraw `fees` (do not use those in `ReserveAssetDeposited`)
 					WithdrawAsset(MultiAssets::from(proportional_amount_to_buy_execution.clone())),
+					ClearOrigin,
 					// Use just those `fees`
 					BuyExecution {
 						fees: proportional_amount_to_buy_execution.clone(),
@@ -1374,7 +1378,6 @@ impl<T: Config> Pallet<T> {
 						)),
 						beneficiary: sovereign_account_on_destination,
 					},
-					ClearOrigin,
 					// deposit `assets` to beneficiary
 					DepositAsset {
 						assets: Wild(AllCounted(assets_for_reserve.len() as u32)),
