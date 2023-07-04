@@ -770,17 +770,13 @@ async fn handle_peer_view_change(state: &mut State, peer_id: PeerId, view: View)
 
 	peer_data.update_view(view);
 
-	let retain_predicate =
-		|pc: &PendingCollation| pc.peer_id != peer_id || peer_data.has_advertised(&pc.relay_parent);
-	// We iterate twice as `Hashmap::drain_filter` is not yet stable. The alternative would be
-	// to store the `keys()` and mutate in a single `for` pass but would require extra space.
-	state.collation_requests_cancel_handles.iter().for_each(|(pc, handle)| {
-		if !(retain_predicate)(pc) {
+	state.collation_requests_cancel_handles.retain(|pc, handle| {
+		let keep = pc.peer_id != peer_id || peer_data.has_advertised(&pc.relay_parent);
+		if !keep {
 			handle.cancel();
 		}
+		keep
 	});
-
-	state.collation_requests_cancel_handles.retain(|pc, _| (retain_predicate)(pc));
 
 	Ok(())
 }
@@ -1088,15 +1084,13 @@ async fn process_incoming_peer_message<Context>(
 ///   - Cancel all ongoing collation requests that are on top of that leaf.
 ///   - Remove all stored collations relevant to that leaf.
 async fn remove_relay_parent(state: &mut State, relay_parent: Hash) -> Result<()> {
-	let retain_predicate = |pc: &PendingCollation| pc.relay_parent != relay_parent;
-	// We iterate twice as `Hashmap::drain_filter` is not yet stable. The alternative would be
-	// to store the `keys()` and mutate in a single `for` pass but would require extra space.
-	state.collation_requests_cancel_handles.iter().for_each(|(pc, handle)| {
-		if !(retain_predicate)(pc) {
+	state.collation_requests_cancel_handles.retain(|pc, handle| {
+		let keep = pc.relay_parent != relay_parent;
+		if !keep {
 			handle.cancel();
 		}
+		keep
 	});
-	state.collation_requests_cancel_handles.retain(|pc, _| (retain_predicate)(pc));
 
 	state.pending_candidates.retain(|k, _| k != &relay_parent);
 
