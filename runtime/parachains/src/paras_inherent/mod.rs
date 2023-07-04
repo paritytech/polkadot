@@ -957,7 +957,7 @@ fn limit_and_sanitize_disputes<
 	let disputes_weight = multi_dispute_statement_sets_weight::<T>(&disputes);
 
 	if disputes_weight.any_gt(max_consumable_weight) {
-		log::debug!(target: LOG_TARGET, "Above mas consumable weight: {}/{}", disputes_weight, max_consumable_weight);
+		log::debug!(target: LOG_TARGET, "Above max consumable weight: {}/{}", disputes_weight, max_consumable_weight);
 		let mut checked_acc = Vec::<CheckedDisputeStatementSet>::with_capacity(disputes.len());
 
 		// Accumualated weight of all disputes picked, that passed the checks.
