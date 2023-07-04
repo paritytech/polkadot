@@ -319,7 +319,7 @@ async fn participate(
 			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 			return
 		},
-		Ok(Err(RecoveryError::Unavailable)) => {
+		Ok(Err(RecoveryError::Unavailable)) | Ok(Err(RecoveryError::ChannelClosed)) => {
 			send_result(&mut result_sender, req, ParticipationOutcome::Unavailable).await;
 			return
 		},
