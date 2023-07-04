@@ -1282,7 +1282,7 @@ impl<T: Config> Pallet<T> {
 				};
 
 				// if we are going to different consensus, we need to calculate also with `UniversalOrigin/DescendOrigin`
-				if ensure_is_remote(T::UniversalLocation::get(), dest.clone()).is_ok() {
+				if ensure_is_remote(T::UniversalLocation::get(), dest).is_ok() {
 					let (local_net, local_sub) = T::UniversalLocation::get()
 						.split_global()
 						.map_err(|_| Error::<T>::BadLocation)?;
