@@ -597,6 +597,7 @@ fn reserve_transfer_assets_for_buy_execution_setup_by_universal_location_works()
 					AliasOrigin(sovereign_account_on_destination),
 					// Here - means we are paying with native asset of DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID
 					WithdrawAsset((Here, DIFFERENT_ASSET_AMOUNT).into()),
+					ClearOrigin,
 					// Here - means we are paying with native asset of DEST_WITH_BUY_EXECUTION_BY_DIFFERENT_ASSET_PARA_ID
 					buy_limited_execution(
 						(Here, DIFFERENT_ASSET_AMOUNT),
@@ -611,7 +612,6 @@ fn reserve_transfer_assets_for_buy_execution_setup_by_universal_location_works()
 						])),
 						beneficiary: sovereign_account_on_destination,
 					},
-					ClearOrigin,
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest_account },
 				]),
 			)]
