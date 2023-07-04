@@ -23,6 +23,12 @@ use kusama_runtime as kusama;
 #[cfg(feature = "kusama-native")]
 use kusama_runtime_constants::currency::UNITS as KSM;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+#[cfg(any(
+	feature = "polkadot-native",
+	feature = "kusama-native",
+	feature = "westend-native",
+	feature = "rococo-native"
+))]
 use pallet_staking::Forcing;
 use polkadot_primitives::{AccountId, AccountPublic, AssignmentId, ValidatorId};
 #[cfg(feature = "polkadot-native")]
@@ -36,10 +42,30 @@ use sp_consensus_babe::AuthorityId as BabeId;
 use rococo_runtime as rococo;
 #[cfg(feature = "rococo-native")]
 use rococo_runtime_constants::currency::UNITS as ROC;
-use sc_chain_spec::{ChainSpecExtension, ChainType};
+use sc_chain_spec::ChainSpecExtension;
+#[cfg(any(
+	feature = "polkadot-native",
+	feature = "kusama-native",
+	feature = "westend-native",
+	feature = "rococo-native"
+))]
+use sc_chain_spec::ChainType;
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
-use sp_runtime::{traits::IdentifyAccount, Perbill};
+use sp_runtime::traits::IdentifyAccount;
+#[cfg(any(
+	feature = "polkadot-native",
+	feature = "kusama-native",
+	feature = "westend-native",
+	feature = "rococo-native"
+))]
+use sp_runtime::Perbill;
+#[cfg(any(
+	feature = "polkadot-native",
+	feature = "kusama-native",
+	feature = "westend-native",
+	feature = "rococo-native"
+))]
 use telemetry::TelemetryEndpoints;
 #[cfg(feature = "westend-native")]
 use westend_runtime as westend;
@@ -56,6 +82,12 @@ const WESTEND_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/
 const ROCOCO_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "rococo-native")]
 const VERSI_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
+#[cfg(any(
+	feature = "polkadot-native",
+	feature = "kusama-native",
+	feature = "westend-native",
+	feature = "rococo-native"
+))]
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// Node `ChainSpec` extensions.
@@ -1271,6 +1303,12 @@ pub fn get_authority_keys_from_seed_no_beefy(
 	)
 }
 
+#[cfg(any(
+	feature = "polkadot-native",
+	feature = "kusama-native",
+	feature = "westend-native",
+	feature = "rococo-native"
+))]
 fn testnet_accounts() -> Vec<AccountId> {
 	vec![
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -1667,7 +1705,7 @@ pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
 
 	Ok(PolkadotChainSpec::from_genesis(
 		"Development",
-		"dev",
+		"polkadot_dev",
 		ChainType::Development,
 		move || polkadot_development_config_genesis(wasm_binary),
 		vec![],

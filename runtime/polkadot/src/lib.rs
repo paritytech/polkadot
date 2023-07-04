@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
@@ -1161,6 +1161,7 @@ impl pallet_message_queue::Config for Runtime {
 	type MessageProcessor =
 		pallet_message_queue::mock_helpers::NoopMessageProcessor<AggregateMessageOrigin>;
 	type QueueChangeHandler = ParaInclusion;
+	type QueuePausedQuery = ();
 	type WeightInfo = weights::pallet_message_queue::WeightInfo<Runtime>;
 }
 
@@ -1286,7 +1287,7 @@ impl auctions::Config for Runtime {
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type InitiateOrigin = AuctionAdmin;
+	type InitiateOrigin = EitherOf<EnsureRoot<Self::AccountId>, AuctionAdmin>;
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
@@ -1522,7 +1523,7 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = ();
+	pub type Unreleased = (pallet_im_online::migration::v1::Migration<Runtime>,);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;

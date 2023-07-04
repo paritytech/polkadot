@@ -49,7 +49,7 @@ pub use multilocation::{
 };
 pub use traits::{
 	send_xcm, validate_send, Error, ExecuteXcm, Outcome, PreparedMessage, Result, SendError,
-	SendResult, SendXcm, Unwrappable, Weight, XcmHash,
+	SendResult, SendXcm, Weight, XcmHash,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::OriginKind;
@@ -184,7 +184,7 @@ pub mod prelude {
 			NetworkId::{self, *},
 			OriginKind, Outcome, PalletInfo, Parent, ParentThen, PreparedMessage, QueryId,
 			QueryResponseInfo, Response, Result as XcmResult, SendError, SendResult, SendXcm,
-			Unwrappable, Weight,
+			Weight,
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
