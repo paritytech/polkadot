@@ -142,7 +142,10 @@ mod tests {
 	use frame_support::{
 		dispatch::DispatchClass,
 		parameter_types,
-		traits::{tokens::PayFromAccount, ConstU32, FindAuthor},
+		traits::{
+			tokens::{PayFromAccount, UnityAssetBalanceConversion},
+			ConstU32, FindAuthor,
+		},
 		weights::Weight,
 		PalletId,
 	};
@@ -257,7 +260,7 @@ mod tests {
 		type Beneficiary = Self::AccountId;
 		type BeneficiaryLookup = IdentityLookup<Self::AccountId>;
 		type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
-		type BalanceConverter = ();
+		type BalanceConverter = UnityAssetBalanceConversion;
 		type PayoutPeriod = ConstU64<0>;
 		#[cfg(feature = "runtime-benchmarks")]
 		type BenchmarkHelper = TreasuryArguments;
