@@ -24,6 +24,7 @@
 //! only on a test relay chain (e.g. Rococo).
 
 pub mod migration;
+pub mod benchmarking;
 
 use crate::{
 	slots::{self, Pallet as Slots, WeightInfo},
