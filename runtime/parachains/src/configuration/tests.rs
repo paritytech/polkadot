@@ -339,9 +339,9 @@ fn setting_pending_config_members() {
 		Configuration::set_max_pov_size(RuntimeOrigin::root(), new_config.max_pov_size).unwrap();
 		Configuration::set_max_head_data_size(RuntimeOrigin::root(), new_config.max_head_data_size)
 			.unwrap();
-		Configuration::set_parathread_cores(RuntimeOrigin::root(), new_config.on_demand_cores)
+		Configuration::set_on_demand_cores(RuntimeOrigin::root(), new_config.on_demand_cores)
 			.unwrap();
-		Configuration::set_parathread_retries(RuntimeOrigin::root(), new_config.on_demand_retries)
+		Configuration::set_on_demand_retries(RuntimeOrigin::root(), new_config.on_demand_retries)
 			.unwrap();
 		Configuration::set_group_rotation_frequency(
 			RuntimeOrigin::root(),
