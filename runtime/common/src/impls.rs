@@ -125,8 +125,8 @@ pub mod benchmarks {
 	/// Implements the [`pallet_treasury::ArgumentsFactory`] trait to provide factory methods for benchmarks
 	/// that require the `AssetKind` of [`LocatableAssetId`] and the `Beneficiary` of [`MultiLocation`].
 	/// The location of the asset is determined as a Parachain with an ID equal to the passed seed.
-	pub struct MultiLocationFactory;
-	impl TreasuryArgumentsFactory<LocatableAssetId, MultiLocation> for MultiLocationFactory {
+	pub struct TreasuryArguments;
+	impl TreasuryArgumentsFactory<LocatableAssetId, MultiLocation> for TreasuryArguments {
 		fn create_asset_kind(seed: u32) -> LocatableAssetId {
 			LocatableAssetFactory::create_asset_kind(seed)
 		}
@@ -142,7 +142,7 @@ mod tests {
 	use frame_support::{
 		dispatch::DispatchClass,
 		parameter_types,
-		traits::{ConstU32, FindAuthor},
+		traits::{tokens::PayFromAccount, ConstU32, FindAuthor},
 		weights::Weight,
 		PalletId,
 	};
@@ -233,6 +233,7 @@ mod tests {
 	parameter_types! {
 		pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 		pub const MaxApprovals: u32 = 100;
+		pub TreasuryAccount: AccountId = Treasury::account_id();
 	}
 
 	impl pallet_treasury::Config for Test {
@@ -252,6 +253,14 @@ mod tests {
 		type MaxApprovals = MaxApprovals;
 		type WeightInfo = ();
 		type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u64>;
+		type AssetKind = ();
+		type Beneficiary = Self::AccountId;
+		type BeneficiaryLookup = IdentityLookup<Self::AccountId>;
+		type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
+		type BalanceConverter = ();
+		type PayoutPeriod = ConstU64<0>;
+		#[cfg(feature = "runtime-benchmarks")]
+		type BenchmarkHelper = TreasuryArguments;
 	}
 
 	pub struct OneAuthor;
