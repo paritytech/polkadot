@@ -1385,7 +1385,7 @@ impl pallet_sudo::Config for Runtime {
 }
 
 impl pallet_asset_rate::Config for Runtime {
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_asset_rate::WeightInfo<Runtime>;
 	type RuntimeEvent = RuntimeEvent;
 	type CreateOrigin = EnsureRoot<AccountId>;
 	type RemoveOrigin = EnsureRoot<AccountId>;
@@ -1393,6 +1393,8 @@ impl pallet_asset_rate::Config for Runtime {
 	type Balance = Balance;
 	type Currency = Balances;
 	type AssetId = <Runtime as pallet_treasury::Config>::AssetKind;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = runtime_common::impls::benchmarks::LocatableAssetFactory;
 }
 
 construct_runtime! {
@@ -1768,6 +1770,7 @@ mod benches {
 		[pallet_treasury, Treasury]
 		[pallet_utility, Utility]
 		[pallet_vesting, Vesting]
+		[pallet_asset_rate, AssetRate]
 		// XCM
 		[pallet_xcm, XcmPallet]
 		[pallet_xcm_benchmarks::fungible, pallet_xcm_benchmarks::fungible::Pallet::<Runtime>]

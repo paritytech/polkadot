@@ -100,15 +100,16 @@ pub fn era_payout(
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarks {
-	use pallet_treasury::ArgumentsFactory;
+	use pallet_asset_rate::AssetKindFactory;
+	use pallet_treasury::ArgumentsFactory as TreasuryArgumentsFactory;
 	use xcm::prelude::*;
 	use xcm_builder::LocatableAssetId;
 
-	/// Implements the [`ArgumentsFactory`] trait to provide factory methods for benchmarks 
-	/// that require the `AssetKind` of [`LocatableAssetId`] and the `Beneficiary` of [`MultiLocation`]. 
+	/// Implements the [`pallet_asset_rate::AssetKindFactory`] trait to provide factory method for benchmarks
+	/// that require the `AssetKind` of [`LocatableAssetId`].
 	/// The location of the asset is determined as a Parachain with an ID equal to the passed seed.
-	pub struct MultiLocationFactory;
-	impl ArgumentsFactory<LocatableAssetId, MultiLocation> for MultiLocationFactory {
+	pub struct LocatableAssetFactory;
+	impl AssetKindFactory<LocatableAssetId> for LocatableAssetFactory {
 		fn create_asset_kind(seed: u32) -> LocatableAssetId {
 			LocatableAssetId {
 				asset_id: MultiLocation::new(
@@ -118,6 +119,16 @@ pub mod benchmarks {
 				.into(),
 				location: MultiLocation::new(0, X1(Parachain(seed))),
 			}
+		}
+	}
+
+	/// Implements the [`pallet_treasury::ArgumentsFactory`] trait to provide factory methods for benchmarks
+	/// that require the `AssetKind` of [`LocatableAssetId`] and the `Beneficiary` of [`MultiLocation`].
+	/// The location of the asset is determined as a Parachain with an ID equal to the passed seed.
+	pub struct MultiLocationFactory;
+	impl TreasuryArgumentsFactory<LocatableAssetId, MultiLocation> for MultiLocationFactory {
+		fn create_asset_kind(seed: u32) -> LocatableAssetId {
+			LocatableAssetFactory::create_asset_kind(seed)
 		}
 		fn create_beneficiary(seed: [u8; 32]) -> MultiLocation {
 			MultiLocation::new(0, X1(AccountId32 { network: None, id: seed }))
