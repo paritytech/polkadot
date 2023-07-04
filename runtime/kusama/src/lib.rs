@@ -2507,6 +2507,8 @@ mod init_state_migration {
 	use super::Runtime;
 	use frame_support::traits::OnRuntimeUpgrade;
 	use pallet_state_trie_migration::{AutoLimits, MigrationLimits, MigrationProcess};
+	#[cfg(feature = "try-runtime")]
+	use sp_runtime::DispatchError;
 	#[cfg(not(feature = "std"))]
 	use sp_std::prelude::*;
 
@@ -2514,10 +2516,10 @@ mod init_state_migration {
 	pub struct InitMigrate;
 	impl OnRuntimeUpgrade for InitMigrate {
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+		fn pre_upgrade() -> Result<Vec<u8>, DispatchError> {
 			frame_support::ensure!(
 				AutoLimits::<Runtime>::get().is_none(),
-				"Automigration already started."
+				DispatchError::Other("Automigration already started.")
 			);
 			Ok(Default::default())
 		}
@@ -2540,10 +2542,10 @@ mod init_state_migration {
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+		fn post_upgrade(_state: Vec<u8>) -> Result<(), DispatchError> {
 			frame_support::ensure!(
 				AutoLimits::<Runtime>::get().is_some(),
-				"Automigration started."
+				DispatchError::Other("Automigration started.")
 			);
 			Ok(())
 		}
