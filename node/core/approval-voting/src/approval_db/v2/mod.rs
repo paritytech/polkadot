@@ -17,10 +17,7 @@
 //! Version 2 of the DB schema.
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_node_primitives::approval::{
-	v1::DelayTranche,
-	v2::{AssignmentCertV2, CoreBitfield},
-};
+use polkadot_node_primitives::approval::{v1::DelayTranche, v2::AssignmentCertV2};
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::{
@@ -46,8 +43,8 @@ pub mod tests;
 
 // DB migration support.
 pub use migration_helpers::{
-	dummy_assignment_bitfield, migrate_approval_db_v1_to_v2,
-	migrate_approval_db_v1_to_v2_fill_test_data, migrate_approval_db_v1_to_v2_sanity_check,
+	migrate_approval_db_v1_to_v2, migrate_approval_db_v1_to_v2_fill_test_data,
+	migrate_approval_db_v1_to_v2_sanity_check,
 };
 
 /// `DbBackend` is a concrete implementation of the higher-level Backend trait
@@ -186,8 +183,6 @@ pub struct OurAssignment {
 	pub validator_index: ValidatorIndex,
 	/// Whether the assignment has been triggered already.
 	pub triggered: bool,
-	/// A subset of the core indices obtained from the VRF output.
-	pub assignment_bitfield: CoreBitfield,
 }
 
 /// Metadata regarding a specific tranche of assignments for a specific candidate.

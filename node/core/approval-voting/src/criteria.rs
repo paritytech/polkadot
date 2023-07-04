@@ -32,7 +32,6 @@ use sp_application_crypto::ByteArray;
 use merlin::Transcript;
 use schnorrkel::vrf::VRFInOut;
 
-use super::approval_db::v2::dummy_assignment_bitfield;
 use itertools::Itertools;
 use std::collections::{hash_map::Entry, HashMap};
 
@@ -46,8 +45,6 @@ pub struct OurAssignment {
 	validator_index: ValidatorIndex,
 	// Whether the assignment has been triggered already.
 	triggered: bool,
-	// The core indices obtained from the VRF output.
-	assignment_bitfield: CoreBitfield,
 }
 
 impl OurAssignment {
@@ -70,15 +67,6 @@ impl OurAssignment {
 	pub(crate) fn mark_triggered(&mut self) {
 		self.triggered = true;
 	}
-
-	pub(crate) fn assignment_bitfield(&self) -> &CoreBitfield {
-		&self.assignment_bitfield
-	}
-
-	// Needed for v1 to v2 db migration.
-	pub(crate) fn assignment_bitfield_mut(&mut self) -> &mut CoreBitfield {
-		&mut self.assignment_bitfield
-	}
 }
 
 impl From<crate::approval_db::v2::OurAssignment> for OurAssignment {
@@ -88,7 +76,6 @@ impl From<crate::approval_db::v2::OurAssignment> for OurAssignment {
 			tranche: entry.tranche,
 			validator_index: entry.validator_index,
 			triggered: entry.triggered,
-			assignment_bitfield: entry.assignment_bitfield,
 		}
 	}
 }
@@ -100,7 +87,6 @@ impl From<OurAssignment> for crate::approval_db::v2::OurAssignment {
 			tranche: entry.tranche,
 			validator_index: entry.validator_index,
 			triggered: entry.triggered,
-			assignment_bitfield: entry.assignment_bitfield,
 		}
 	}
 }
@@ -479,7 +465,6 @@ fn compute_relay_vrf_modulo_assignments_v1(
 				tranche: 0,
 				validator_index,
 				triggered: false,
-				assignment_bitfield: core.into(),
 			});
 		}
 	}
@@ -555,7 +540,7 @@ fn compute_relay_vrf_modulo_assignments_v2(
 		};
 
 		// All assignments of type RelayVRFModulo have tranche 0.
-		OurAssignment { cert, tranche: 0, validator_index, triggered: false, assignment_bitfield }
+		OurAssignment { cert, tranche: 0, validator_index, triggered: false }
 	}) {
 		for core_index in assigned_cores {
 			assignments.insert(core_index, assignment.clone());
@@ -589,13 +574,7 @@ fn compute_relay_vrf_delay_assignments(
 			},
 		};
 
-		let our_assignment = OurAssignment {
-			cert,
-			tranche,
-			validator_index,
-			triggered: false,
-			assignment_bitfield: core.into(),
-		};
+		let our_assignment = OurAssignment { cert, tranche, validator_index, triggered: false };
 
 		let used = match assignments.entry(core) {
 			Entry::Vacant(e) => {
@@ -839,9 +818,6 @@ impl From<crate::approval_db::v1::OurAssignment> for OurAssignment {
 			validator_index: value.validator_index,
 			// Whether the assignment has been triggered already.
 			triggered: value.triggered,
-			// This is a dummy value, assignment bitfield will be set later.
-			// The migration sanity check will test for 1 single bit being set here.
-			assignment_bitfield: dummy_assignment_bitfield(),
 		}
 	}
 }

@@ -2349,7 +2349,6 @@ fn subsystem_validate_approvals_cache() {
 				approval_db::v2::OurAssignment {
 					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
 						.into(),
-					assignment_bitfield: CoreIndex(0u32).into(),
 					tranche: 0,
 					validator_index: ValidatorIndex(0),
 					triggered: false,
@@ -2365,9 +2364,6 @@ fn subsystem_validate_approvals_cache() {
 							.try_into()
 							.unwrap(),
 					}),
-					assignment_bitfield: vec![CoreIndex(0), CoreIndex(1), CoreIndex(2)]
-						.try_into()
-						.unwrap(),
 					tranche: 0,
 					validator_index: ValidatorIndex(0),
 					triggered: false,
@@ -2586,7 +2582,6 @@ where
 				approval_db::v2::OurAssignment {
 					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
 						.into(),
-					assignment_bitfield: CoreIndex(0).into(),
 					tranche: our_assigned_tranche,
 					validator_index: ValidatorIndex(0),
 					triggered: false,

@@ -58,21 +58,6 @@ fn make_bitvec(len: usize) -> BitVec<u8, BitOrderLsb0> {
 	bitvec::bitvec![u8, BitOrderLsb0; 0; len]
 }
 
-pub fn dummy_assignment_bitfield() -> CoreBitfield {
-	vec![
-		CoreIndex(0),
-		CoreIndex(1),
-		CoreIndex(2),
-		CoreIndex(3),
-		CoreIndex(4),
-		CoreIndex(5),
-		CoreIndex(6),
-		CoreIndex(7),
-	]
-	.try_into()
-	.expect("If failed, `CoreBitfield` is broken; qed")
-}
-
 /// Migrates `OurAssignment`, `CandidateEntry` and `ApprovalEntry` to version 2.
 /// Returns on any error.
 /// Must only be used in parachains DB migration code - `polkadot-service` crate.
@@ -97,28 +82,13 @@ pub fn migrate_approval_db_v1_to_v2(db: Arc<dyn Database>, config: Config) -> Re
 	let mut counter = 0;
 	// Get all candidate entries, approval entries and convert each of them.
 	for block in all_blocks {
-		for (core_index, candidate_hash) in block.candidates() {
+		for (_core_index, candidate_hash) in block.candidates() {
 			// Loading the candidate will also perform the conversion to the updated format and return
 			// that represantation.
-			if let Some(mut candidate_entry) = backend
+			if let Some(candidate_entry) = backend
 				.load_candidate_entry_v1(&candidate_hash)
 				.map_err(|e| Error::InternalError(e))?
 			{
-				// Here we patch the core bitfield for all assignments of the candidate.
-				for (_, approval_entry) in candidate_entry.block_assignments.iter_mut() {
-					if let Some(our_assignment) = approval_entry.our_assignment_mut() {
-						// Ensure we are actually patching a dummy bitfield produced by the `load_candidate_entry_v1` code.
-						// Cannot happen in practice, but better double check.
-						if our_assignment.assignment_bitfield() == &dummy_assignment_bitfield() {
-							*our_assignment.assignment_bitfield_mut() = (*core_index).into();
-						} else {
-							gum::warn!(
-								target: crate::LOG_TARGET,
-								"Tried to convert an already valid bitfield."
-							);
-						}
-					}
-				}
 				// Write the updated representation.
 				overlay.write_candidate_entry(candidate_entry);
 				counter += 1;
@@ -157,24 +127,13 @@ pub fn migrate_approval_db_v1_to_v2_sanity_check(
 
 	// Iterate all blocks and approval entries.
 	for block in all_blocks {
-		for (core_index, candidate_hash) in block.candidates() {
+		for (_core_index, candidate_hash) in block.candidates() {
 			// Loading the candidate will also perform the conversion to the updated format and return
 			// that represantation.
-			if let Some(mut candidate_entry) = backend
+			if let Some(candidate_entry) = backend
 				.load_candidate_entry(&candidate_hash)
 				.map_err(|e| Error::InternalError(e))?
 			{
-				// We expect that all assignment bitfieds have only one bit set which corresponds to the core_index in the
-				// candidates block entry mapping.
-				for (_, approval_entry) in candidate_entry.block_assignments.iter_mut() {
-					if let Some(our_assignment) = approval_entry.our_assignment_mut() {
-						assert_eq!(our_assignment.assignment_bitfield().count_ones(), 1);
-						assert_eq!(
-							our_assignment.assignment_bitfield().first_one().unwrap(),
-							core_index.0 as usize
-						);
-					}
-				}
 				candidates.insert(candidate_entry.candidate.hash());
 			}
 		}

@@ -22,7 +22,7 @@
 
 use polkadot_node_primitives::approval::{
 	v1::{DelayTranche, RelayVRFStory},
-	v2::{AssignmentCertV2, CoreBitfield},
+	v2::AssignmentCertV2,
 };
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
@@ -124,7 +124,7 @@ impl ApprovalEntry {
 	pub fn trigger_our_assignment(
 		&mut self,
 		tick_now: Tick,
-	) -> Option<(CoreBitfield, AssignmentCertV2, ValidatorIndex, DelayTranche)> {
+	) -> Option<(AssignmentCertV2, ValidatorIndex, DelayTranche)> {
 		let our = self.our_assignment.as_mut().and_then(|a| {
 			if a.triggered() {
 				return None
@@ -137,7 +137,7 @@ impl ApprovalEntry {
 		our.map(|a| {
 			self.import_assignment(a.tranche(), a.validator_index(), tick_now);
 
-			(a.assignment_bitfield().clone(), a.cert().clone(), a.validator_index(), a.tranche())
+			(a.cert().clone(), a.validator_index(), a.tranche())
 		})
 	}
 
