@@ -100,11 +100,11 @@ fn run_to_end_of_block(
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	HostConfiguration {
-		parathread_cores: 3,
+		on_demand_cores: 3,
 		group_rotation_frequency: 10,
 		paras_availability_period: 3,
 		scheduling_lookahead: 2,
-		parathread_retries: 1,
+		on_demand_retries: 1,
 		pvf_checking_enabled: false,
 		// This field does not affect anything that scheduler does. However, `HostConfiguration`
 		// is still a subject to consistency test. It requires that `minimum_validation_upgrade_delay`
@@ -409,7 +409,7 @@ fn add_parathread_claim_works() {
 fn session_change_takes_only_max_per_core() {
 	let config = {
 		let mut config = default_config();
-		config.parathread_cores = 0;
+		config.on_demand_cores = 0;
 		config.max_validators_per_core = Some(1);
 		config
 	};
@@ -481,7 +481,7 @@ fn fill_claimqueue_fills() {
 	//let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 	new_test_ext(genesis_config).execute_with(|| {
-		assert_eq!(default_config().parathread_cores, 3);
+		assert_eq!(default_config().on_demand_cores, 3);
 
 		// register 2 parachains
 		schedule_blank_para(chain_a, ParaKind::Parachain);
@@ -776,7 +776,7 @@ fn schedule_clears_availability_cores() {
 	let chain_c = ParaId::from(3_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
-		assert_eq!(default_config().parathread_cores, 3);
+		assert_eq!(default_config().on_demand_cores, 3);
 
 		// register 3 parachains
 		schedule_blank_para(chain_a, ParaKind::Parachain);
@@ -1062,7 +1062,7 @@ fn availability_predicate_works() {
 #[test]
 fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 	let mut config = default_config();
-	config.parathread_cores = 1;
+	config.on_demand_cores = 1;
 
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
@@ -1218,7 +1218,7 @@ fn genesis_config(config: &HostConfiguration<BlockNumber>) -> MockGenesisConfig 
 #[test]
 fn next_up_on_available_is_parachain_always() {
 	let mut config = default_config();
-	config.parathread_cores = 0;
+	config.on_demand_cores = 0;
 	let genesis_config = genesis_config(&config);
 	let chain_a = ParaId::from(1_u32);
 
@@ -1264,7 +1264,7 @@ fn next_up_on_available_is_parachain_always() {
 #[test]
 fn next_up_on_time_out_is_parachain_always() {
 	let mut config = default_config();
-	config.parathread_cores = 0;
+	config.on_demand_cores = 0;
 
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
@@ -1327,7 +1327,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		..Default::default()
 	};
 
-	assert_eq!(default_config().parathread_cores, 3);
+	assert_eq!(default_config().on_demand_cores, 3);
 	new_test_ext(genesis_config).execute_with(|| {
 		let chain_a = ParaId::from(1_u32);
 		let chain_b = ParaId::from(2_u32);

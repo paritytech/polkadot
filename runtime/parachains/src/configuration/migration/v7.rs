@@ -140,8 +140,8 @@ hrmp_channel_max_total_size              : pre.hrmp_channel_max_total_size,
 hrmp_max_paras_inbound_channels      : pre.hrmp_max_parachain_inbound_channels,
 hrmp_channel_max_message_size            : pre.hrmp_channel_max_message_size,
 code_retention_period                    : pre.code_retention_period,
-parathread_cores                         : pre.parathread_cores,
-parathread_retries                       : pre.parathread_retries,
+on_demand_cores                         : pre.parathread_cores,
+on_demand_retries                       : pre.parathread_retries,
 group_rotation_frequency                 : pre.group_rotation_frequency,
 paras_availability_period                : pre.chain_availability_period,
 scheduling_lookahead                     : pre.scheduling_lookahead,
@@ -291,8 +291,8 @@ mod tests {
 					assert_eq!(v7.hrmp_channel_max_message_size            , v6.hrmp_channel_max_message_size);
 					assert_eq!(v7.executor_params                          , v6.executor_params);
 					assert_eq!(v7.code_retention_period                    , v6.code_retention_period);
-					assert_eq!(v7.parathread_cores                         , v6.parathread_cores);
-					assert_eq!(v7.parathread_retries                       , v6.parathread_retries);
+					assert_eq!(v7.on_demand_cores                         , v6.parathread_cores);
+					assert_eq!(v7.on_demand_retries                       , v6.parathread_retries);
 					assert_eq!(v7.group_rotation_frequency                 , v6.group_rotation_frequency);
 					assert_eq!(v7.paras_availability_period                , v6.chain_availability_period);
 					assert_eq!(v7.scheduling_lookahead                     , v6.scheduling_lookahead);

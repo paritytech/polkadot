@@ -282,8 +282,8 @@ fn setting_pending_config_members() {
 			max_code_size: 100_000,
 			max_pov_size: 1024,
 			max_head_data_size: 1_000,
-			parathread_cores: 2,
-			parathread_retries: 5,
+			on_demand_cores: 2,
+			on_demand_retries: 5,
 			group_rotation_frequency: 20,
 			paras_availability_period: 10,
 			scheduling_lookahead: 3,
@@ -339,9 +339,9 @@ fn setting_pending_config_members() {
 		Configuration::set_max_pov_size(RuntimeOrigin::root(), new_config.max_pov_size).unwrap();
 		Configuration::set_max_head_data_size(RuntimeOrigin::root(), new_config.max_head_data_size)
 			.unwrap();
-		Configuration::set_parathread_cores(RuntimeOrigin::root(), new_config.parathread_cores)
+		Configuration::set_parathread_cores(RuntimeOrigin::root(), new_config.on_demand_cores)
 			.unwrap();
-		Configuration::set_parathread_retries(RuntimeOrigin::root(), new_config.parathread_retries)
+		Configuration::set_parathread_retries(RuntimeOrigin::root(), new_config.on_demand_retries)
 			.unwrap();
 		Configuration::set_group_rotation_frequency(
 			RuntimeOrigin::root(),

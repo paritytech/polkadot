@@ -167,10 +167,10 @@ pub struct HostConfiguration<BlockNumber> {
 	/// How long to keep code on-chain, in blocks. This should be sufficiently long that disputes
 	/// have concluded.
 	pub code_retention_period: BlockNumber,
-	/// The amount of execution cores to dedicate to parathread execution.
-	pub parathread_cores: u32,
-	/// The number of retries that a parathread author has to submit their block.
-	pub parathread_retries: u32,
+	/// The amount of execution cores to dedicate to on demand execution.
+	pub on_demand_cores: u32,
+	/// The number of retries that a on demand author has to submit their block.
+	pub on_demand_retries: u32,
 	/// The maximum queue size of the pay as you go module.
 	pub on_demand_queue_max_size: u32,
 	/// The target utilization of the spot price queue in percentages.
@@ -266,8 +266,8 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_code_size: Default::default(),
 			max_pov_size: Default::default(),
 			max_head_data_size: Default::default(),
-			parathread_cores: Default::default(),
-			parathread_retries: Default::default(),
+			on_demand_cores: Default::default(),
+			on_demand_retries: Default::default(),
 			scheduling_lookahead: 1,
 			max_validators_per_core: Default::default(),
 			max_validators: None,
@@ -623,29 +623,29 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the number of parathread execution cores.
+		/// Set the number of on demand execution cores.
 		#[pallet::call_index(6)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_parathread_cores(origin: OriginFor<T>, new: u32) -> DispatchResult {
+		pub fn set_on_demand_cores(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.parathread_cores = new;
+				config.on_demand_cores = new;
 			})
 		}
 
-		/// Set the number of retries for a particular parathread.
+		/// Set the number of retries for a particular on demand.
 		#[pallet::call_index(7)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_parathread_retries(origin: OriginFor<T>, new: u32) -> DispatchResult {
+		pub fn set_on_demand_retries(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.parathread_retries = new;
+				config.on_demand_retries = new;
 			})
 		}
 

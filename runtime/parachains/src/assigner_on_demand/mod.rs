@@ -444,7 +444,7 @@ where
 impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 	fn session_core_count() -> u32 {
 		let config = <configuration::Pallet<T>>::config();
-		config.parathread_cores
+		config.on_demand_cores
 	}
 
 	/// Take the next queued entry that is available for a given core index.
@@ -506,6 +506,6 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 
 	fn get_max_retries(_core_idx: CoreIndex) -> u32 {
 		let config = <configuration::Pallet<T>>::config();
-		config.parathread_retries
+		config.on_demand_retries
 	}
 }
