@@ -1,6 +1,3 @@
-# Note: Some of the rules here are unstable, such as `trailing_semicolon`. You need to install the nightly
-# toolchain and configure your editor to run `cargo +nightly fmt` on save (or just run it manually).
-
 # Basic
 hard_tabs = true
 max_width = 100
