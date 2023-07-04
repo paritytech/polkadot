@@ -165,7 +165,8 @@ impl AsMut<[u8]> for BigArray {
 	}
 }
 
-/// Return an iterator to all core indices we are assigned to.
+/// Takes the VRF output as input and returns a Vec of cores the validator is assigned
+/// to as a tranche0 checker.
 fn relay_vrf_modulo_cores(
 	vrf_in_out: &VRFInOut,
 	// Configuration - `relay_vrf_modulo_samples`.
@@ -173,6 +174,16 @@ fn relay_vrf_modulo_cores(
 	// Configuration - `n_cores`.
 	max_cores: u32,
 ) -> Vec<CoreIndex> {
+	if num_samples as usize > MAX_MODULO_SAMPLES {
+		gum::warn!(
+			target: LOG_TARGET,
+			n_cores = max_cores,
+			num_samples,
+			max_modulo_samples = MAX_MODULO_SAMPLES,
+			"`num_samples` is greater than `MAX_MODULO_SAMPLES`",
+		);
+	}
+
 	vrf_in_out
 		.make_bytes::<BigArray>(approval_types::v2::CORE_RANDOMNESS_CONTEXT)
 		.0
@@ -653,9 +664,6 @@ pub(crate) enum InvalidAssignmentReason {
 ///
 /// This function does not check whether the core is actually a valid assignment or not. That should be done
 /// outside the scope of this function.
-///
-/// For v2 assignments of type `AssignmentCertKindV2::RelayVRFModuloCompact` we don't need to pass
-/// `claimed_core_index` it won't be used in the check.
 pub(crate) fn check_assignment_cert(
 	claimed_core_indices: CoreBitfield,
 	validator_index: ValidatorIndex,

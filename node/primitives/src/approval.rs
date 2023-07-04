@@ -360,7 +360,7 @@ pub mod v2 {
 		/// An assignment story based on the VRF that authorized the relay-chain block where the
 		/// candidate was included combined with a sample number.
 		///
-		/// The context used to produce bytes is [`v2::RELAY_VRF_MODULO_CONTEXT`]
+		/// The context used to produce bytes is [`v1::RELAY_VRF_MODULO_CONTEXT`]
 		RelayVRFModulo {
 			/// The sample number used in this cert.
 			sample: u32,

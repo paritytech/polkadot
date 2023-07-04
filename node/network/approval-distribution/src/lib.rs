@@ -233,7 +233,7 @@ struct PeerEntry {
 	pub version: ProtocolVersion,
 }
 
-// In case the original gtid topology mechanisms don't work on their own, we need to trade bandwidth
+// In case the original grid topology mechanisms don't work on their own, we need to trade bandwidth
 // for protocol liveliness by introducing aggression.
 //
 // Aggression has 3 levels:
