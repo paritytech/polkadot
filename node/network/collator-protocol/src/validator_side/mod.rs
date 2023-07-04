@@ -1534,7 +1534,7 @@ async fn poll_collation_response(
 			Err(RequestError::NetworkError(err)) => {
 				gum::warn_if_frequent!(
 					freq: warn_freq,
-					max_rate: gum::MAX_FREQ_RATE,
+					max_rate: gum::ONE_PER_SEC,
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
 					para_id = ?pending_collation.para_id,
@@ -1551,7 +1551,7 @@ async fn poll_collation_response(
 			Err(RequestError::Canceled(err)) => {
 				gum::warn_if_frequent!(
 					freq: warn_freq,
-					max_rate: gum::MAX_FREQ_RATE,
+					max_rate: gum::ONE_PER_SEC,
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
 					para_id = ?pending_collation.para_id,

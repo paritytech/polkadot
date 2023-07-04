@@ -118,7 +118,7 @@ pub use gum_proc_macro::{debug, error, info, trace, warn, warn_if_frequent};
 mod tests;
 
 /// Max allowed frequency of debug messages
-pub const MAX_FREQ_RATE: f32 = 1.0;
+pub const ONE_PER_SEC: f32 = 1.0;
 const FREQ_SMOOTHING_FACTOR: f32 = 0.5;
 
 /// Exponential moving average

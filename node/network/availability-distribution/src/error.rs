@@ -109,7 +109,7 @@ pub fn log_error(
 				JfyiError::SendResponse |
 				JfyiError::NoSuchPoV |
 				JfyiError::Runtime(_) =>
-					gum::warn_if_frequent!(freq: warn_freq, max_rate: gum::MAX_FREQ_RATE, target: LOG_TARGET, error = ?jfyi, ctx),
+					gum::warn_if_frequent!(freq: warn_freq, max_rate: gum::ONE_PER_SEC, target: LOG_TARGET, error = ?jfyi, ctx),
 			}
 			Ok(())
 		},
