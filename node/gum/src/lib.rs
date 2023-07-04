@@ -146,7 +146,7 @@ pub struct Freq {
 }
 
 impl Freq {
-	/// Initiates a new instanse
+	/// Initiates a new instance
 	pub fn new() -> Self {
 		Self { ema: Default::default(), last: Default::default() }
 	}
