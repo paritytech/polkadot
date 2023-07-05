@@ -158,6 +158,7 @@ impl Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
+	type Aliasers = Nothing;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>;
@@ -246,6 +247,7 @@ impl pallet_message_queue::Config for Runtime {
 	type MessageProcessor =
 		pallet_message_queue::mock_helpers::NoopMessageProcessor<AggregateMessageOrigin>;
 	type QueueChangeHandler = ();
+	type QueuePausedQuery = ();
 	type WeightInfo = ();
 }
 

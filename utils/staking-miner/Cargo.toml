@@ -9,7 +9,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0" }
+codec = { package = "parity-scale-codec", version = "3.6.1" }
 clap = { version = "4.0.9", features = ["derive", "env"] }
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
 jsonrpsee = { version = "0.16.2", features = ["ws-client", "macros"] }

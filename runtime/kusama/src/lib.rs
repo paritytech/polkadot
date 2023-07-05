@@ -17,17 +17,18 @@
 //! The Kusama runtime. This can be compiled with `#[no_std]`, ready for Wasm.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-// `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit = "256"]
+// `construct_runtime!` does a lot of recursion and requires us to increase the limit.
+#![recursion_limit = "512"]
 
 use pallet_nis::WithMaximumOf;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	slashing, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
 	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
 	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature,
 	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, LOWEST_PUBLIC_ID,
+	PARACHAIN_KEY_TYPE_ID,
 };
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
@@ -44,7 +45,7 @@ use runtime_parachains::{
 	inclusion::{AggregateMessageOrigin, UmpQueueId},
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v4 as parachains_runtime_api_impl,
+	runtime_api_impl::v5 as parachains_runtime_api_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared,
 };
@@ -104,6 +105,9 @@ mod weights;
 // Voter bag threshold definitions.
 mod bag_thresholds;
 
+// Historical information of society finances.
+mod past_payouts;
+
 // XCM configurations.
 pub mod xcm_config;
 
@@ -129,14 +133,14 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9410,
+	spec_version: 9430,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 21,
-	state_version: 0,
+	transaction_version: 23,
+	state_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -618,7 +622,6 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxKeys: u32 = 10_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
-	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
 impl pallet_treasury::Config for Runtime {
@@ -702,7 +705,6 @@ impl pallet_im_online::Config for Runtime {
 	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
 	type MaxKeys = MaxKeys;
 	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
-	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
 parameter_types! {
@@ -864,14 +866,6 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
-	pub const CandidateDeposit: Balance = 10 * QUID;
-	pub const WrongSideDeduction: Balance = 2 * QUID;
-	pub const MaxStrikes: u32 = 10;
-	pub const RotationPeriod: BlockNumber = 7 * DAYS;
-	pub const PeriodSpend: Balance = 500 * QUID;
-	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
-	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
-	pub const MaxCandidateIntake: u32 = 1;
 	pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
 }
 
@@ -879,18 +873,17 @@ impl pallet_society::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type CandidateDeposit = CandidateDeposit;
-	type WrongSideDeduction = WrongSideDeduction;
-	type MaxStrikes = MaxStrikes;
-	type PeriodSpend = PeriodSpend;
-	type MembershipChanged = ();
-	type RotationPeriod = RotationPeriod;
-	type MaxLockDuration = MaxLockDuration;
+	type GraceStrikes = ConstU32<10>;
+	type PeriodSpend = ConstU128<{ 500 * QUID }>;
+	type VotingPeriod = ConstU32<{ 5 * DAYS }>;
+	type ClaimPeriod = ConstU32<{ 2 * DAYS }>;
+	type MaxLockDuration = ConstU32<{ 36 * 30 * DAYS }>;
 	type FounderSetOrigin = EnsureRoot<AccountId>;
-	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
-	type ChallengePeriod = ChallengePeriod;
-	type MaxCandidateIntake = MaxCandidateIntake;
+	type ChallengePeriod = ConstU32<{ 7 * DAYS }>;
+	type MaxPayouts = ConstU32<8>;
+	type MaxBids = ConstU32<512>;
 	type PalletId = SocietyPalletId;
+	type WeightInfo = weights::pallet_society::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1025,7 +1018,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					c,
 					RuntimeCall::Staking(..) |
 						RuntimeCall::Session(..) | RuntimeCall::Utility(..) |
-						RuntimeCall::FastUnstake(..)
+						RuntimeCall::FastUnstake(..) |
+						RuntimeCall::VoterList(..) |
+						RuntimeCall::NominationPools(..)
 				)
 			},
 			ProxyType::NominationPools => {
@@ -1152,6 +1147,7 @@ impl pallet_message_queue::Config for Runtime {
 	type MessageProcessor =
 		pallet_message_queue::mock_helpers::NoopMessageProcessor<AggregateMessageOrigin>;
 	type QueueChangeHandler = ParaInclusion;
+	type QueuePausedQuery = ();
 	type WeightInfo = weights::pallet_message_queue::WeightInfo<Runtime>;
 }
 
@@ -1346,6 +1342,26 @@ impl pallet_nomination_pools::Config for Runtime {
 	type MaxPointsToBalance = MaxPointsToBalance;
 }
 
+parameter_types! {
+	// The deposit configuration for the singed migration. Specially if you want to allow any signed account to do the migration (see `SignedFilter`, these deposits should be high)
+	pub const MigrationSignedDepositPerItem: Balance = 1 * CENTS;
+	pub const MigrationSignedDepositBase: Balance = 20 * CENTS * 100;
+	pub const MigrationMaxKeyLen: u32 = 512;
+}
+
+impl pallet_state_trie_migration::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type SignedDepositPerItem = MigrationSignedDepositPerItem;
+	type SignedDepositBase = MigrationSignedDepositBase;
+	type ControlOrigin = EnsureRoot<AccountId>;
+	type SignedFilter = frame_support::traits::NeverEnsureOrigin<AccountId>;
+
+	// Use same weights as substrate ones.
+	type WeightInfo = pallet_state_trie_migration::weights::SubstrateWeight<Runtime>;
+	type MaxKeyLen = MigrationMaxKeyLen;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1462,6 +1478,9 @@ construct_runtime! {
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 72,
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 73,
 
+		// State trie migration pallet, only temporary.
+		StateTrieMigration: pallet_state_trie_migration = 98,
+
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 
@@ -1503,8 +1522,13 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
-pub type Migrations =
-	(migrations::V0940, migrations::V0941, migrations::V0942, migrations::Unreleased);
+pub type Migrations = (
+	migrations::V0940,
+	migrations::V0941,
+	migrations::V0942,
+	migrations::V0943,
+	migrations::Unreleased,
+);
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
@@ -1526,12 +1550,18 @@ pub mod migrations {
 		runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
 	);
 
-	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (
+	pub type V0943 = (
 		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
 		ump_migrations::UpdateUmpLimits,
+	);
+
+	/// Unreleased migrations. Add new ones here:
+	pub type Unreleased = (
+		init_state_migration::InitMigrate,
+		pallet_society::migrations::MigrateToV2<Runtime, (), past_payouts::PastPayouts>,
+		pallet_im_online::migration::v1::Migration<Runtime>,
 	);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
@@ -1636,6 +1666,7 @@ mod benches {
 		[pallet_referenda, FellowshipReferenda]
 		[pallet_scheduler, Scheduler]
 		[pallet_session, SessionBench::<Runtime>]
+		[pallet_society, Society]
 		[pallet_staking, Staking]
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_timestamp, Timestamp]
@@ -1821,6 +1852,31 @@ sp_api::impl_runtime_apis! {
 
 		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
 			parachains_runtime_api_impl::get_session_disputes::<Runtime>()
+		}
+
+		fn unapplied_slashes(
+		) -> Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)> {
+			parachains_runtime_api_impl::unapplied_slashes::<Runtime>()
+		}
+
+		fn key_ownership_proof(
+			validator_id: ValidatorId,
+		) -> Option<slashing::OpaqueKeyOwnershipProof> {
+			use parity_scale_codec::Encode;
+
+			Historical::prove((PARACHAIN_KEY_TYPE_ID, validator_id))
+				.map(|p| p.encode())
+				.map(slashing::OpaqueKeyOwnershipProof::new)
+		}
+
+		fn submit_report_dispute_lost(
+			dispute_proof: slashing::DisputeProof,
+			key_ownership_proof: slashing::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			parachains_runtime_api_impl::submit_unsigned_slashing_report::<Runtime>(
+				dispute_proof,
+				key_ownership_proof,
+			)
 		}
 	}
 
@@ -2202,6 +2258,11 @@ sp_api::impl_runtime_apis! {
 					// Kusama doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}
+
+				fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
+					// The XCM executor of Kusama doesn't have a configured `Aliasers`
+					Err(BenchmarkError::Skip)
+				}
 			}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
@@ -2441,5 +2502,54 @@ mod remote_tests {
 			pallet_fast_unstake::ErasToCheckPerBlock::<Runtime>::put(1);
 			runtime_common::try_runtime::migrate_all_inactive_nominators::<Runtime>()
 		});
+	}
+}
+
+mod init_state_migration {
+	use super::Runtime;
+	use frame_support::traits::OnRuntimeUpgrade;
+	use pallet_state_trie_migration::{AutoLimits, MigrationLimits, MigrationProcess};
+	#[cfg(feature = "try-runtime")]
+	use sp_runtime::DispatchError;
+	#[cfg(not(feature = "std"))]
+	use sp_std::prelude::*;
+
+	/// Initialize an automatic migration process.
+	pub struct InitMigrate;
+	impl OnRuntimeUpgrade for InitMigrate {
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<Vec<u8>, DispatchError> {
+			frame_support::ensure!(
+				AutoLimits::<Runtime>::get().is_none(),
+				DispatchError::Other("Automigration already started.")
+			);
+			Ok(Default::default())
+		}
+
+		fn on_runtime_upgrade() -> frame_support::weights::Weight {
+			if MigrationProcess::<Runtime>::get() == Default::default() &&
+				AutoLimits::<Runtime>::get().is_none()
+			{
+				// We use limits to target 600ko proofs per block and
+				// avg 800_000_000_000 of weight per block.
+				// See spreadsheet 4800_400 in
+				// https://raw.githubusercontent.com/cheme/substrate/try-runtime-mig/ksm.ods
+				AutoLimits::<Runtime>::put(Some(MigrationLimits { item: 4_800, size: 204800 * 2 }));
+				log::info!("Automatic trie migration started.");
+				<Runtime as frame_system::Config>::DbWeight::get().reads_writes(2, 1)
+			} else {
+				log::info!("Automatic trie migration not started.");
+				<Runtime as frame_system::Config>::DbWeight::get().reads(2)
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade(_state: Vec<u8>) -> Result<(), DispatchError> {
+			frame_support::ensure!(
+				AutoLimits::<Runtime>::get().is_some(),
+				DispatchError::Other("Automigration started.")
+			);
+			Ok(())
+		}
 	}
 }

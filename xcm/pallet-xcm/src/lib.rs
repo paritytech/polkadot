@@ -40,7 +40,7 @@ use sp_runtime::{
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
 use xcm::{latest::QueryResponseInfo, prelude::*};
-use xcm_executor::traits::{Convert, ConvertOrigin, Properties};
+use xcm_executor::traits::{ConvertOrigin, Properties};
 
 use frame_support::{
 	dispatch::{Dispatchable, GetDispatchInfo},
@@ -52,8 +52,8 @@ use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use xcm_executor::{
 	traits::{
-		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse, QueryHandler,
-		QueryResponseStatus, VersionChangeNotifier, WeightBounds,
+		CheckSuspension, ClaimAssets, ConvertLocation, DropAssets, MatchesFungible, OnResponse,
+		QueryHandler, QueryResponseStatus, VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -247,7 +247,7 @@ pub mod pallet {
 		type TrustedLockers: ContainsPair<MultiLocation, MultiAsset>;
 
 		/// How to get an `AccountId` value from a `MultiLocation`, useful for handling asset locks.
-		type SovereignAccountOf: Convert<MultiLocation, Self::AccountId>;
+		type SovereignAccountOf: ConvertLocation<Self::AccountId>;
 
 		/// The maximum number of local XCM locks that a single account may have.
 		type MaxLockers: Get<u32>;
@@ -1750,7 +1750,7 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		owner: MultiLocation,
 	) -> Result<LockTicket<T>, xcm_executor::traits::LockError> {
 		use xcm_executor::traits::LockError::*;
-		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let sovereign_account = T::SovereignAccountOf::convert_location(&owner).ok_or(BadOwner)?;
 		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(UnknownAsset)?;
 		ensure!(T::Currency::free_balance(&sovereign_account) >= amount, AssetNotOwned);
 		let locks = LockedFungibles::<T>::get(&sovereign_account).unwrap_or_default();
@@ -1765,7 +1765,7 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		owner: MultiLocation,
 	) -> Result<UnlockTicket<T>, xcm_executor::traits::LockError> {
 		use xcm_executor::traits::LockError::*;
-		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let sovereign_account = T::SovereignAccountOf::convert_location(&owner).ok_or(BadOwner)?;
 		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(UnknownAsset)?;
 		ensure!(T::Currency::free_balance(&sovereign_account) >= amount, AssetNotOwned);
 		let locks = LockedFungibles::<T>::get(&sovereign_account).unwrap_or_default();
@@ -1787,7 +1787,7 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 			NonFungible(_) => return Err(Unimplemented),
 		};
 		owner.remove_network_id();
-		let account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let account = T::SovereignAccountOf::convert_location(&owner).ok_or(BadOwner)?;
 		let locker = locker.into();
 		let owner = owner.into();
 		let id: VersionedAssetId = asset.id.into();
@@ -1815,7 +1815,7 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 			NonFungible(_) => return Err(Unimplemented),
 		};
 		owner.remove_network_id();
-		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let sovereign_account = T::SovereignAccountOf::convert_location(&owner).ok_or(BadOwner)?;
 		let locker = locker.into();
 		let owner = owner.into();
 		let id: VersionedAssetId = asset.id.into();

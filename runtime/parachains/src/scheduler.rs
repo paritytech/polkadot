@@ -636,7 +636,7 @@ impl<T: Config> Pallet<T> {
 		let session_start = <SessionStartBlock<T>>::get();
 		let blocks_since_session_start = now.saturating_sub(session_start);
 		let blocks_since_last_rotation =
-			blocks_since_session_start % config.group_rotation_frequency;
+			blocks_since_session_start % config.group_rotation_frequency.max(1u8.into());
 
 		let absolute_cutoff =
 			sp_std::cmp::max(config.chain_availability_period, config.thread_availability_period);

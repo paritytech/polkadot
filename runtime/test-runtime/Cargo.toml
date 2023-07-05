@@ -7,7 +7,7 @@ edition.workspace = true
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }

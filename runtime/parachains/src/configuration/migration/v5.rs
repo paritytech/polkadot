@@ -127,27 +127,35 @@ pub struct V5HostConfiguration<BlockNumber> {
 	pub minimum_validation_upgrade_delay: BlockNumber,
 }
 
-#[frame_support::storage_alias]
-pub(crate) type V4ActiveConfig<T: Config> =
-	StorageValue<Pallet<T>, V4HostConfiguration<BlockNumberFor<T>>, OptionQuery>;
+mod v4 {
+	use super::*;
 
-#[frame_support::storage_alias]
-pub(crate) type V4PendingConfigs<T: Config> = StorageValue<
-	Pallet<T>,
-	Vec<(SessionIndex, V4HostConfiguration<BlockNumberFor<T>>)>,
-	OptionQuery,
->;
+	#[frame_support::storage_alias]
+	pub(crate) type ActiveConfig<T: Config> =
+		StorageValue<Pallet<T>, V4HostConfiguration<BlockNumberFor<T>>, OptionQuery>;
 
-#[frame_support::storage_alias]
-pub(crate) type V5ActiveConfig<T: Config> =
-	StorageValue<Pallet<T>, V5HostConfiguration<BlockNumberFor<T>>, OptionQuery>;
+	#[frame_support::storage_alias]
+	pub(crate) type PendingConfigs<T: Config> = StorageValue<
+		Pallet<T>,
+		Vec<(SessionIndex, V4HostConfiguration<BlockNumberFor<T>>)>,
+		OptionQuery,
+	>;
+}
 
-#[frame_support::storage_alias]
-pub(crate) type V5PendingConfigs<T: Config> = StorageValue<
-	Pallet<T>,
-	Vec<(SessionIndex, V5HostConfiguration<BlockNumberFor<T>>)>,
-	OptionQuery,
->;
+mod v5 {
+	use super::*;
+
+	#[frame_support::storage_alias]
+	pub(crate) type ActiveConfig<T: Config> =
+		StorageValue<Pallet<T>, V5HostConfiguration<BlockNumberFor<T>>, OptionQuery>;
+
+	#[frame_support::storage_alias]
+	pub(crate) type PendingConfigs<T: Config> = StorageValue<
+		Pallet<T>,
+		Vec<(SessionIndex, V5HostConfiguration<BlockNumberFor<T>>)>,
+		OptionQuery,
+	>;
+}
 
 impl<BlockNumber: Default + From<u32>> Default for V4HostConfiguration<BlockNumber> {
 	fn default() -> Self {
@@ -266,6 +274,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV5<T> {
 	}
 
 	fn on_runtime_upgrade() -> Weight {
+		log::info!(target: configuration::LOG_TARGET, "MigrateToV5 started");
 		if StorageVersion::get::<Pallet<T>>() == 4 {
 			let weight_consumed = migrate_to_v5::<T>();
 
@@ -352,13 +361,13 @@ executor_params                          : Default::default(),
 		}
 	};
 
-	let v4 = V4ActiveConfig::<T>::get()
+	let v4 = v4::ActiveConfig::<T>::get()
 		.defensive_proof("Could not decode old config")
 		.unwrap_or_default();
 	let v5 = translate(v4);
-	V5ActiveConfig::<T>::set(Some(v5));
+	v5::ActiveConfig::<T>::set(Some(v5));
 
-	let pending_v4 = V4PendingConfigs::<T>::get()
+	let pending_v4 = v4::PendingConfigs::<T>::get()
 		.defensive_proof("Could not decode old pending")
 		.unwrap_or_default();
 	let mut pending_v5 = Vec::new();
@@ -367,7 +376,7 @@ executor_params                          : Default::default(),
 		let v5 = translate(v4);
 		pending_v5.push((session, v5));
 	}
-	V5PendingConfigs::<T>::set(Some(pending_v5.clone()));
+	v5::PendingConfigs::<T>::set(Some(pending_v5.clone()));
 
 	let num_configs = (pending_v5.len() + 1) as u64;
 	T::DbWeight::get().reads_writes(num_configs, num_configs)
@@ -397,8 +406,8 @@ mod tests {
 		// doesn't need to be read and also leaving it as one line allows to easily copy it.
 		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c800000700e8764817020040011e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c80000000600000058020000580200000200000059000000000000001e000000280000000700c817a80402004001010200000014000000"];
 
-		let v4 = v5::V4HostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..])
-			.unwrap();
+		let v4 =
+			V4HostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..]).unwrap();
 
 		// We check only a sample of the values here. If we missed any fields or messed up data types
 		// that would skew all the fields coming after.
@@ -421,7 +430,7 @@ mod tests {
 		// We specify only the picked fields and the rest should be provided by the `Default`
 		// implementation. That implementation is copied over between the two types and should work
 		// fine.
-		let v4 = v5::V4HostConfiguration::<primitives::BlockNumber> {
+		let v4 = V4HostConfiguration::<primitives::BlockNumber> {
 			ump_max_individual_weight: Weight::from_parts(0x71616e6f6e0au64, 0x71616e6f6e0au64),
 			needed_approvals: 69,
 			thread_availability_period: 55,
@@ -438,13 +447,13 @@ mod tests {
 
 		new_test_ext(Default::default()).execute_with(|| {
 			// Implant the v4 version in the state.
-			V4ActiveConfig::<Test>::set(Some(v4));
-			V4PendingConfigs::<Test>::set(Some(pending_configs));
+			v4::ActiveConfig::<Test>::set(Some(v4));
+			v4::PendingConfigs::<Test>::set(Some(pending_configs));
 
 			migrate_to_v5::<Test>();
 
-			let v5 = V5ActiveConfig::<Test>::get().unwrap();
-			let mut configs_to_check = V5PendingConfigs::<Test>::get().unwrap();
+			let v5 = v5::ActiveConfig::<Test>::get().unwrap();
+			let mut configs_to_check = v5::PendingConfigs::<Test>::get().unwrap();
 			configs_to_check.push((0, v5.clone()));
 
 			for (_, v4) in configs_to_check {
