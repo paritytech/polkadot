@@ -20,7 +20,7 @@ slotmap = "1.0"
 tempfile = "3.3.0"
 tokio = { version = "1.24.2", features = ["fs", "process"] }
 
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
