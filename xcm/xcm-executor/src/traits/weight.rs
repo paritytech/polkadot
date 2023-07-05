@@ -49,13 +49,13 @@ pub trait WeightTrader: Sized {
 	/// Purchase execution weight credit in return for up to a given `payment`. If less of the
 	/// payment is required then the surplus is returned. If the `payment` cannot be used to pay
 	/// for the `weight`, then an error is returned.
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError>;
+	fn buy_weight(&mut self, ctx: &XcmContext, weight: Weight, payment: Assets) -> Result<Assets, XcmError>;
 
 	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight was
 	/// purchased using `buy_weight`.
 	///
 	/// Default implementation refunds nothing.
-	fn refund_weight(&mut self, _weight: Weight) -> Option<MultiAsset> {
+	fn refund_weight(&mut self, _ctx: &XcmContext, _weight: Weight) -> Option<MultiAsset> {
 		None
 	}
 }
@@ -66,11 +66,11 @@ impl WeightTrader for Tuple {
 		for_tuples!( ( #( Tuple::new() ),* ) )
 	}
 
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
+	fn buy_weight(&mut self, ctx: &XcmContext, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		let mut too_expensive_error_found = false;
 		let mut last_error = None;
 		for_tuples!( #(
-			match Tuple.buy_weight(weight, payment.clone()) {
+			match Tuple.buy_weight(ctx, weight, payment.clone()) {
 				Ok(assets) => return Ok(assets),
 				Err(e) => {
 					if let XcmError::TooExpensive = e {
@@ -92,9 +92,9 @@ impl WeightTrader for Tuple {
 		})
 	}
 
-	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
+	fn refund_weight(&mut self, ctx: &XcmContext, weight: Weight) -> Option<MultiAsset> {
 		for_tuples!( #(
-			if let Some(asset) = Tuple.refund_weight(weight) {
+			if let Some(asset) = Tuple.refund_weight(ctx, weight) {
 				return Some(asset);
 			}
 		)* );

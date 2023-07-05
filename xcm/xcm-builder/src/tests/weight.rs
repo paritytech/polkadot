@@ -24,25 +24,31 @@ fn fixed_rate_of_fungible_should_work() {
 	}
 
 	let mut trader = FixedRateOfFungible::<WeightPrice, ()>::new();
+	let ctx = XcmContext {
+		origin: None,
+		message_id: XcmHash::default(),
+		topic: None,
+	};
+
 	// supplies 100 unit of asset, 80 still remains after purchasing weight
 	assert_eq!(
 		trader
-			.buy_weight(Weight::from_parts(10, 10), fungible_multi_asset(Here.into(), 100).into()),
+			.buy_weight(&ctx, Weight::from_parts(10, 10), fungible_multi_asset(Here.into(), 100).into()),
 		Ok(fungible_multi_asset(Here.into(), 80).into()),
 	);
 	// should have nothing left, as 5 + 5 = 10, and we supplied 10 units of asset.
 	assert_eq!(
-		trader.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 10).into()),
+		trader.buy_weight(&ctx, Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 10).into()),
 		Ok(vec![].into()),
 	);
 	// should have 5 left, as there are no proof size components
 	assert_eq!(
-		trader.buy_weight(Weight::from_parts(5, 0), fungible_multi_asset(Here.into(), 10).into()),
+		trader.buy_weight(&ctx, Weight::from_parts(5, 0), fungible_multi_asset(Here.into(), 10).into()),
 		Ok(fungible_multi_asset(Here.into(), 5).into()),
 	);
 	// not enough to purchase the combined weights
 	assert_err!(
-		trader.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 5).into()),
+		trader.buy_weight(&ctx, Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 5).into()),
 		XcmError::TooExpensive,
 	);
 }

@@ -140,7 +140,7 @@ impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 		Self(Weight::zero(), 0, PhantomData)
 	}
 
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
+	fn buy_weight(&mut self, _ctx: &XcmContext, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		log::trace!(
 			target: "xcm::weight",
 			"FixedRateOfFungible::buy_weight weight: {:?}, payment: {:?}",
@@ -160,7 +160,7 @@ impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 		Ok(unused)
 	}
 
-	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
+	fn refund_weight(&mut self, _ctx: &XcmContext, weight: Weight) -> Option<MultiAsset> {
 		log::trace!(target: "xcm::weight", "FixedRateOfFungible::refund_weight weight: {:?}", weight);
 		let (id, units_per_second, units_per_mb) = T::get();
 		let weight = weight.min(self.0);
@@ -210,7 +210,7 @@ impl<
 		Self(Weight::zero(), Zero::zero(), PhantomData)
 	}
 
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
+	fn buy_weight(&mut self, _ctx: &XcmContext, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		log::trace!(target: "xcm::weight", "UsingComponents::buy_weight weight: {:?}, payment: {:?}", weight, payment);
 		let amount = WeightToFee::weight_to_fee(&weight);
 		let u128_amount: u128 = amount.try_into().map_err(|_| XcmError::Overflow)?;
@@ -221,7 +221,7 @@ impl<
 		Ok(unused)
 	}
 
-	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
+	fn refund_weight(&mut self, _ctx: &XcmContext, weight: Weight) -> Option<MultiAsset> {
 		log::trace!(target: "xcm::weight", "UsingComponents::refund_weight weight: {:?}", weight);
 		let weight = weight.min(self.0);
 		let amount = WeightToFee::weight_to_fee(&weight);
