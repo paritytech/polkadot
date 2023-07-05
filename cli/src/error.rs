@@ -58,3 +58,9 @@ pub enum Error {
 	#[error("This subcommand is only available when compiled with `{feature}`")]
 	FeatureNotEnabled { feature: &'static str },
 }
+
+impl From<String> for Error {
+	fn from(s: String) -> Self {
+		Self::Other(s)
+	}
+}
