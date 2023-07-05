@@ -876,6 +876,7 @@ fn warn_if_no_landlock() {
 			);
 		}
 	}
+
 	#[cfg(not(target_os = "linux"))]
 	gum::warn!(
 		target: LOG_TARGET,
