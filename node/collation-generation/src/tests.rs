@@ -217,8 +217,6 @@ fn requests_availability_per_relay_parent() {
 		}
 	};
 
-	let (tx, _rx) = mpsc::channel(0);
-
 	let subsystem_activated_hashes = activated_hashes.clone();
 	subsystem_test_harness(overseer, |mut ctx| async move {
 		handle_new_activations(
@@ -226,7 +224,6 @@ fn requests_availability_per_relay_parent() {
 			subsystem_activated_hashes,
 			&mut ctx,
 			Metrics(None),
-			&tx,
 		)
 		.await
 		.unwrap();
@@ -296,15 +293,12 @@ fn requests_validation_data_for_scheduled_matches() {
 		}
 	};
 
-	let (tx, _rx) = mpsc::channel(0);
-
 	subsystem_test_harness(overseer, |mut ctx| async move {
 		handle_new_activations(
 			Arc::new(test_config(16)),
 			activated_hashes,
 			&mut ctx,
 			Metrics(None),
-			&tx,
 		)
 		.await
 		.unwrap();
@@ -329,6 +323,10 @@ fn sends_distribute_collation_message() {
 		Hash::repeat_byte(9),
 		Hash::repeat_byte(16),
 	];
+
+	// empty vec doesn't allocate on the heap, so it's ok we throw it away
+	let to_collator_protocol = Arc::new(Mutex::new(Vec::new()));
+	let inner_to_collator_protocol = to_collator_protocol.clone();
 
 	let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
 		loop {
@@ -376,6 +374,9 @@ fn sends_distribute_collation_message() {
 				))) => {
 					tx.send(Ok(Some(ValidationCode(vec![1, 2, 3]).hash()))).unwrap();
 				},
+				Some(msg @ AllMessages::CollatorProtocol(_)) => {
+					inner_to_collator_protocol.lock().await.push(msg);
+				}
 				Some(msg) => {
 					panic!("didn't expect any other overseer requests; got {:?}", msg)
 				},
@@ -386,23 +387,13 @@ fn sends_distribute_collation_message() {
 	let config = Arc::new(test_config(16));
 	let subsystem_config = config.clone();
 
-	let (tx, rx) = mpsc::channel(0);
-
-	// empty vec doesn't allocate on the heap, so it's ok we throw it away
-	let sent_messages = Arc::new(Mutex::new(Vec::new()));
-	let subsystem_sent_messages = sent_messages.clone();
 	subsystem_test_harness(overseer, |mut ctx| async move {
-		handle_new_activations(subsystem_config, activated_hashes, &mut ctx, Metrics(None), &tx)
+		handle_new_activations(subsystem_config, activated_hashes, &mut ctx, Metrics(None))
 			.await
 			.unwrap();
-
-		std::mem::drop(tx);
-
-		// collect all sent messages
-		*subsystem_sent_messages.lock().await = rx.collect().await;
 	});
 
-	let mut sent_messages = Arc::try_unwrap(sent_messages)
+	let mut to_collator_protocol = Arc::try_unwrap(to_collator_protocol)
 		.expect("subsystem should have shut down by now")
 		.into_inner();
 
@@ -432,8 +423,8 @@ fn sends_distribute_collation_message() {
 		validation_code_hash: expect_validation_code_hash,
 	};
 
-	assert_eq!(sent_messages.len(), 1);
-	match AllMessages::from(sent_messages.pop().unwrap()) {
+	assert_eq!(to_collator_protocol.len(), 1);
+	match AllMessages::from(to_collator_protocol.pop().unwrap()) {
 		AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
 			CandidateReceipt { descriptor, .. },
 			_pov,
@@ -477,6 +468,10 @@ fn fallback_when_no_validation_code_hash_api() {
 		Hash::repeat_byte(9),
 		Hash::repeat_byte(16),
 	];
+
+	// empty vec doesn't allocate on the heap, so it's ok we throw it away
+	let to_collator_protocol = Arc::new(Mutex::new(Vec::new()));
+	let inner_to_collator_protocol = to_collator_protocol.clone();
 
 	let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
 		loop {
@@ -532,6 +527,9 @@ fn fallback_when_no_validation_code_hash_api() {
 				))) => {
 					tx.send(Ok(Some(ValidationCode(vec![1, 2, 3])))).unwrap();
 				},
+				Some(msg @ AllMessages::CollatorProtocol(_)) => {
+					inner_to_collator_protocol.lock().await.push(msg);
+				},
 				Some(msg) => {
 					panic!("didn't expect any other overseer requests; got {:?}", msg)
 				},
@@ -542,36 +540,26 @@ fn fallback_when_no_validation_code_hash_api() {
 	let config = Arc::new(test_config(16u32));
 	let subsystem_config = config.clone();
 
-	let (tx, rx) = mpsc::channel(0);
-
 	// empty vec doesn't allocate on the heap, so it's ok we throw it away
-	let sent_messages = Arc::new(Mutex::new(Vec::new()));
-	let subsystem_sent_messages = sent_messages.clone();
 	subsystem_test_harness(overseer, |mut ctx| async move {
-		handle_new_activations(subsystem_config, activated_hashes, &mut ctx, Metrics(None), &tx)
+		handle_new_activations(subsystem_config, activated_hashes, &mut ctx, Metrics(None))
 			.await
 			.unwrap();
-
-		std::mem::drop(tx);
-
-		*subsystem_sent_messages.lock().await = rx.collect().await;
 	});
 
-	let sent_messages = Arc::try_unwrap(sent_messages)
+	let to_collator_protocol = Arc::try_unwrap(to_collator_protocol)
 		.expect("subsystem should have shut down by now")
 		.into_inner();
 
 	let expect_validation_code_hash = ValidationCode(vec![1, 2, 3]).hash();
 
-	assert_eq!(sent_messages.len(), 1);
-	match &sent_messages[0] {
-		overseer::CollationGenerationOutgoingMessages::CollatorProtocolMessage(
-			CollatorProtocolMessage::DistributeCollation(
-				CandidateReceipt { descriptor, .. },
-				_pov,
-				..,
-			),
-		) => {
+	assert_eq!(to_collator_protocol.len(), 1);
+	match &to_collator_protocol[0] {
+		AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
+			CandidateReceipt { descriptor, .. },
+			_pov,
+			..,
+		)) => {
 			assert_eq!(expect_validation_code_hash, descriptor.validation_code_hash);
 		},
 		_ => panic!("received wrong message type"),

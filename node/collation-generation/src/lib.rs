@@ -30,11 +30,9 @@
 #![deny(missing_docs)]
 
 use futures::{
-	channel::{mpsc, oneshot},
-	future::{Future, FutureExt},
+	channel::oneshot,
+	future::FutureExt,
 	join, select,
-	sink::SinkExt,
-	stream::StreamExt,
 };
 use parity_scale_codec::Encode;
 use polkadot_node_primitives::{
@@ -95,24 +93,11 @@ impl CollationGenerationSubsystem {
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
 	async fn run<Context>(mut self, mut ctx: Context) {
-		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
-		// expected to generate precisely one message. We don't want to block the main loop
-		// at any point waiting for them all, so instead, we create a channel on which they can
-		// send those messages. We can then just monitor the channel and forward messages on it
-		// to the overseer here, via the context.
-		let (sender, receiver) = mpsc::channel(0);
-
-		let mut receiver = receiver.fuse();
 		loop {
 			select! {
 				incoming = ctx.recv().fuse() => {
-					if self.handle_incoming::<Context>(incoming, &mut ctx, &sender).await {
+					if self.handle_incoming::<Context>(incoming, &mut ctx).await {
 						break;
-					}
-				},
-				msg = receiver.next() => {
-					if let Some(msg) = msg {
-						ctx.send_message(msg).await;
 					}
 				},
 			}
@@ -127,7 +112,6 @@ impl CollationGenerationSubsystem {
 		&mut self,
 		incoming: SubsystemResult<FromOrchestra<<Context as SubsystemContext>::Message>>,
 		ctx: &mut Context,
-		sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 	) -> bool {
 		match incoming {
 			Ok(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
@@ -142,7 +126,6 @@ impl CollationGenerationSubsystem {
 						activated.into_iter().map(|v| v.hash),
 						ctx,
 						metrics,
-						sender,
 					)
 					.await
 					{
@@ -211,7 +194,6 @@ async fn handle_new_activations<Context>(
 	activated: impl IntoIterator<Item = Hash>,
 	ctx: &mut Context,
 	metrics: Metrics,
-	sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 ) -> crate::error::Result<()> {
 	// follow the procedure from the guide:
 	// https://paritytech.github.io/polkadot/book/node/collators/collation-generation.html
@@ -321,8 +303,8 @@ async fn handle_new_activations<Context>(
 			};
 
 			let task_config = config.clone();
-			let mut task_sender = sender.clone();
 			let metrics = metrics.clone();
+			let mut task_sender = ctx.sender().clone();
 			ctx.spawn(
 				"collation-builder",
 				Box::pin(async move {
@@ -354,15 +336,7 @@ async fn handle_new_activations<Context>(
 							n_validators,
 						},
 						task_config.key.clone(),
-						|msg| async move {
-							if let Err(err) = task_sender.send(msg.into()).await {
-								gum::warn!(
-									target: LOG_TARGET,
-									?err,
-									"failed to send collation result"
-								);
-							}
-						},
+						&mut task_sender,
 						result_sender,
 						&metrics,
 					)
@@ -444,7 +418,7 @@ async fn handle_submit_collation<Context>(
 	construct_and_distribute_receipt(
 		collation,
 		config.key.clone(),
-		|msg| ctx.send_message(msg),
+		ctx.sender(),
 		result_sender,
 		metrics,
 	)
@@ -464,10 +438,10 @@ struct PreparedCollation {
 
 /// Takes a prepared collation, along with its context, and produces a candidate receipt
 /// which is distributed to validators.
-async fn construct_and_distribute_receipt<F: Future<Output = ()>>(
+async fn construct_and_distribute_receipt(
 	collation: PreparedCollation,
 	key: CollatorPair,
-	distribute_collation: impl FnOnce(CollatorProtocolMessage) -> F,
+	sender: &mut impl overseer::CollationGenerationSenderTrait,
 	result_sender: Option<oneshot::Sender<CollationSecondedSignal>>,
 	metrics: &Metrics,
 ) {
@@ -565,13 +539,12 @@ async fn construct_and_distribute_receipt<F: Future<Output = ()>>(
 	);
 	metrics.on_collation_generated();
 
-	distribute_collation(CollatorProtocolMessage::DistributeCollation(
+	sender.send_message(CollatorProtocolMessage::DistributeCollation(
 		ccr,
 		parent_head_data_hash,
 		pov,
 		result_sender,
-	))
-	.await;
+	)).await;
 }
 
 async fn obtain_validation_code_hash_with_hint(
