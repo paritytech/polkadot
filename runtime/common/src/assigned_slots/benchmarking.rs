@@ -3,89 +3,96 @@
 use super::{Pallet as AssignedSlots, *};
 
 use frame_benchmarking::v2::*;
+use frame_support::assert_ok;
 use frame_system::RawOrigin;
 use primitives::Id as ParaId;
-use frame_support::{assert_ok};
 
 #[benchmarks]
- mod benchmarks {
-     use super::*;
-     use crate::{mock::TestRegistrar};
-     use ::test_helpers::{dummy_head_data, dummy_validation_code};
+mod benchmarks {
+	use super::*;
+	use crate::mock::TestRegistrar;
+	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 
-     fn register_parachain<T: Config>(para_id: ParaId) {
-        let caller: T::AccountId = whitelisted_caller();
+	fn register_parachain<T: Config>(para_id: ParaId) {
+		let caller: T::AccountId = whitelisted_caller();
 		assert_ok!(TestRegistrar::<T>::register(
-            caller,
-            para_id,
-            dummy_head_data(),
-            dummy_validation_code(),
-        ));
+			caller,
+			para_id,
+			dummy_head_data(),
+			dummy_validation_code(),
+		));
 	}
-     
-    #[benchmark]
-    fn assign_perm_parachain_slot() {
-        let para_id = ParaId::from(2000_u32);
-        let caller = RawOrigin::Root;
-        register_parachain::<T>(para_id);
 
-        let counter = PermanentSlotCount::<T>::get();
-        let current_lease_period: T::BlockNumber = T::Leaser::lease_period_index(frame_system::Pallet::<T>::block_number())
-            .and_then(|x| Some(x.0))
-            .unwrap();
-        #[extrinsic_call]
-        assign_perm_parachain_slot(caller, para_id);
+	#[benchmark]
+	fn assign_perm_parachain_slot() {
+		let para_id = ParaId::from(2000_u32);
+		let caller = RawOrigin::Root;
+		register_parachain::<T>(para_id);
 
-       
-        assert_eq!(PermanentSlots::<T>::get(para_id), Some((
-            current_lease_period,
-            LeasePeriodOf::<T>::from(T::PermanentSlotLeasePeriodLength::get()),
-        )));
-        assert_eq!(PermanentSlotCount::<T>::get(), counter + 1);
-    }
+		let counter = PermanentSlotCount::<T>::get();
+		let current_lease_period: T::BlockNumber =
+			T::Leaser::lease_period_index(frame_system::Pallet::<T>::block_number())
+				.and_then(|x| Some(x.0))
+				.unwrap();
+		#[extrinsic_call]
+		assign_perm_parachain_slot(caller, para_id);
 
-    #[benchmark]
-    fn assign_temp_parachain_slot() {
-        let para_id = ParaId::from(2001_u32);
-        let caller = RawOrigin::Root;
-        register_parachain::<T>(para_id);
+		assert_eq!(
+			PermanentSlots::<T>::get(para_id),
+			Some((
+				current_lease_period,
+				LeasePeriodOf::<T>::from(T::PermanentSlotLeasePeriodLength::get()),
+			))
+		);
+		assert_eq!(PermanentSlotCount::<T>::get(), counter + 1);
+	}
 
-        let current_lease_period: T::BlockNumber = T::Leaser::lease_period_index(frame_system::Pallet::<T>::block_number())
-            .and_then(|x| Some(x.0))
-            .unwrap();
+	#[benchmark]
+	fn assign_temp_parachain_slot() {
+		let para_id = ParaId::from(2001_u32);
+		let caller = RawOrigin::Root;
+		register_parachain::<T>(para_id);
 
-        let counter = TemporarySlotCount::<T>::get();
-        #[extrinsic_call]
-        assign_temp_parachain_slot(caller, para_id, SlotLeasePeriodStart::Current);
+		let current_lease_period: T::BlockNumber =
+			T::Leaser::lease_period_index(frame_system::Pallet::<T>::block_number())
+				.and_then(|x| Some(x.0))
+				.unwrap();
 
-       
-        let tmp = ParachainTemporarySlot {
-            manager: whitelisted_caller(),
-            period_begin: current_lease_period,
-            period_count: LeasePeriodOf::<T>::from(T::TemporarySlotLeasePeriodLength::get()),
-            last_lease: Some(T::BlockNumber::zero()),
-            lease_count: 1
-        };
-        assert_eq!(TemporarySlots::<T>::get(para_id), Some(tmp));
-        assert_eq!(TemporarySlotCount::<T>::get(), counter + 1);
-    }
+		let counter = TemporarySlotCount::<T>::get();
+		#[extrinsic_call]
+		assign_temp_parachain_slot(caller, para_id, SlotLeasePeriodStart::Current);
 
-    #[benchmark]
-    fn unassign_parachain_slot() {
-        let para_id = ParaId::from(2002_u32);
-        let caller = RawOrigin::Root;
-        register_parachain::<T>(para_id);
-        let _ = AssignedSlots::<T>::assign_temp_parachain_slot(caller.clone().into(), para_id, SlotLeasePeriodStart::Current);
+		let tmp = ParachainTemporarySlot {
+			manager: whitelisted_caller(),
+			period_begin: current_lease_period,
+			period_count: LeasePeriodOf::<T>::from(T::TemporarySlotLeasePeriodLength::get()),
+			last_lease: Some(T::BlockNumber::zero()),
+			lease_count: 1,
+		};
+		assert_eq!(TemporarySlots::<T>::get(para_id), Some(tmp));
+		assert_eq!(TemporarySlotCount::<T>::get(), counter + 1);
+	}
 
-        let counter = TemporarySlotCount::<T>::get();
-        #[extrinsic_call]
-        unassign_parachain_slot(caller, para_id);
+	#[benchmark]
+	fn unassign_parachain_slot() {
+		let para_id = ParaId::from(2002_u32);
+		let caller = RawOrigin::Root;
+		register_parachain::<T>(para_id);
+		let _ = AssignedSlots::<T>::assign_temp_parachain_slot(
+			caller.clone().into(),
+			para_id,
+			SlotLeasePeriodStart::Current,
+		);
 
-        assert_eq!(TemporarySlots::<T>::get(para_id), None);
-        assert_eq!(TemporarySlotCount::<T>::get(), counter - 1);
-    }
+		let counter = TemporarySlotCount::<T>::get();
+		#[extrinsic_call]
+		unassign_parachain_slot(caller, para_id);
 
-    #[benchmark]
+		assert_eq!(TemporarySlots::<T>::get(para_id), None);
+		assert_eq!(TemporarySlotCount::<T>::get(), counter - 1);
+	}
+
+	#[benchmark]
 	fn set_max_permanent_slots() {
 		let caller = RawOrigin::Root;
 		#[extrinsic_call]
@@ -94,7 +101,7 @@ use frame_support::{assert_ok};
 		assert_eq!(MaxPermanentSlots::<T>::get(), u32::MAX);
 	}
 
-    #[benchmark]
+	#[benchmark]
 	fn set_max_temporary_slots() {
 		let caller = RawOrigin::Root;
 		#[extrinsic_call]
@@ -103,8 +110,9 @@ use frame_support::{assert_ok};
 		assert_eq!(MaxTemporarySlots::<T>::get(), u32::MAX);
 	}
 
-    impl_benchmark_test_suite!(AssignedSlots, 
-        crate::assigned_slots::tests::new_test_ext(),
-        crate::assigned_slots::tests::Test
-    );
+	impl_benchmark_test_suite!(
+		AssignedSlots,
+		crate::assigned_slots::tests::new_test_ext(),
+		crate::assigned_slots::tests::Test
+	);
 }

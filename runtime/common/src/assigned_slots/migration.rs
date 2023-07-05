@@ -17,7 +17,7 @@
 use super::{Config, MaxPermanentSlots, MaxTemporarySlots, Pallet, LOG_TARGET};
 use frame_support::{
 	dispatch::GetStorageVersion,
-	traits::{Get, OnRuntimeUpgrade, StorageVersion}
+	traits::{Get, OnRuntimeUpgrade, StorageVersion},
 };
 
 #[cfg(feature = "try-runtime")]
