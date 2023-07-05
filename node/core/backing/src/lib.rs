@@ -561,6 +561,7 @@ async fn store_available_data(
 	n_validators: u32,
 	candidate_hash: CandidateHash,
 	available_data: AvailableData,
+	expected_erasure_root: Hash,
 ) -> Result<(), Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
@@ -568,6 +569,7 @@ async fn store_available_data(
 			candidate_hash,
 			n_validators,
 			available_data,
+			expected_erasure_root,
 			tx,
 		})
 		.await;
@@ -594,22 +596,16 @@ async fn make_pov_available(
 	let available_data = AvailableData { pov, validation_data };
 
 	{
-		let _span = span.as_ref().map(|s| s.child("erasure-coding").with_candidate(candidate_hash));
-
-		let chunks = erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
-
-		let branches = erasure_coding::branches(chunks.as_ref());
-		let erasure_root = branches.root();
-
-		if erasure_root != expected_erasure_root {
-			return Ok(Err(InvalidErasureRoot))
-		}
-	}
-
-	{
 		let _span = span.as_ref().map(|s| s.child("store-data").with_candidate(candidate_hash));
 
-		store_available_data(sender, n_validators as u32, candidate_hash, available_data).await?;
+		store_available_data(
+			sender,
+			n_validators as u32,
+			candidate_hash,
+			available_data,
+			expected_erasure_root,
+		)
+		.await?;
 	}
 
 	Ok(Ok(()))

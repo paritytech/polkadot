@@ -472,6 +472,8 @@ pub enum AvailabilityStoreMessage {
 		n_validators: u32,
 		/// The `AvailableData` itself.
 		available_data: AvailableData,
+		/// Erasure root we expect to get after chunking.
+		expected_erasure_root: Hash,
 		/// Sending side of the channel to send result to.
 		tx: oneshot::Sender<Result<(), ()>>,
 	},
