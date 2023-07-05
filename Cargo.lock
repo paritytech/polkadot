@@ -488,6 +488,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349a06037c7bf932dd7e7d1f653678b2038b9ad46a74102f1fc7bd7872678cce"
 
 [[package]]
+name = "base16ct"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
+
+[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -517,7 +523,7 @@ dependencies = [
 [[package]]
 name = "binary-merkle-tree"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "hash-db",
  "log",
@@ -1456,6 +1462,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto-bigint"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf4c2f4e1afd912bc40bfd6fed5d9dc1f288e0ba01bfcc835cc5bc3eb13efe15"
+dependencies = [
+ "generic-array 0.14.6",
+ "rand_core 0.6.4",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "crypto-common"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1689,6 +1707,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "der"
+version = "0.7.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c7ed52955ce76b1554f509074bb357d3fb8ac9b51288a65a3fd480d1dfba946"
+dependencies = [
+ "const-oid",
+ "zeroize",
+]
+
+[[package]]
 name = "der-parser"
 version = "7.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1819,6 +1847,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8168378f4e5023e7218c89c891c0fd8ecdb5e5e4f18cb78f38cf245dd021e76f"
 dependencies = [
  "block-buffer 0.10.3",
+ "const-oid",
  "crypto-common",
  "subtle",
 ]
@@ -1968,10 +1997,24 @@ version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413301934810f597c1d19ca71c8710e99a3f1ba28a0d2ebc01551a2daeea3c5c"
 dependencies = [
- "der",
- "elliptic-curve",
- "rfc6979",
- "signature",
+ "der 0.6.0",
+ "elliptic-curve 0.12.3",
+ "rfc6979 0.3.1",
+ "signature 1.6.4",
+]
+
+[[package]]
+name = "ecdsa"
+version = "0.16.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0997c976637b606099b9985693efa3581e84e41f5c11ba5255f88711058ad428"
+dependencies = [
+ "der 0.7.7",
+ "digest 0.10.6",
+ "elliptic-curve 0.13.5",
+ "rfc6979 0.4.0",
+ "signature 2.1.0",
+ "spki 0.7.2",
 ]
 
 [[package]]
@@ -1980,7 +2023,7 @@ version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91cff35c70bba8a626e3185d8cd48cc11b5437e1a5bcd15b9b5fa3c64b6dfee7"
 dependencies = [
- "signature",
+ "signature 1.6.4",
 ]
 
 [[package]]
@@ -2023,18 +2066,37 @@ version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7bb888ab5300a19b8e5bceef25ac745ad065f3c9f7efc6de1b91958110891d3"
 dependencies = [
- "base16ct",
- "crypto-bigint",
- "der",
+ "base16ct 0.1.1",
+ "crypto-bigint 0.4.9",
+ "der 0.6.0",
  "digest 0.10.6",
- "ff",
+ "ff 0.12.1",
  "generic-array 0.14.6",
- "group",
+ "group 0.12.1",
  "hkdf",
  "pem-rfc7468",
- "pkcs8",
+ "pkcs8 0.9.0",
  "rand_core 0.6.4",
- "sec1",
+ "sec1 0.3.0",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "elliptic-curve"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "968405c8fdc9b3bf4df0a6638858cc0b52462836ab6b1c87377785dd09cf1c0b"
+dependencies = [
+ "base16ct 0.2.0",
+ "crypto-bigint 0.5.2",
+ "digest 0.10.6",
+ "ff 0.13.0",
+ "generic-array 0.14.6",
+ "group 0.13.0",
+ "pkcs8 0.10.2",
+ "rand_core 0.6.4",
+ "sec1 0.7.1",
  "subtle",
  "zeroize",
 ]
@@ -2330,6 +2392,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ff"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
+dependencies = [
+ "rand_core 0.6.4",
+ "subtle",
+]
+
+[[package]]
 name = "fiat-crypto"
 version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2432,24 +2504,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
-name = "foreign-types"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1"
-dependencies = [
- "foreign-types-shared",
-]
-
-[[package]]
-name = "foreign-types-shared"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
-
-[[package]]
 name = "fork-tree"
 version = "3.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
 ]
@@ -2472,7 +2529,7 @@ checksum = "6c2141d6d6c8512188a7891b4b01590a45f6dac67afb4f255c4124dbb86d4eaa"
 [[package]]
 name = "frame-benchmarking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "frame-support-procedural",
@@ -2497,7 +2554,7 @@ dependencies = [
 [[package]]
 name = "frame-benchmarking-cli"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "Inflector",
  "array-bytes",
@@ -2545,7 +2602,7 @@ dependencies = [
 [[package]]
 name = "frame-election-provider-solution-type"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2556,7 +2613,7 @@ dependencies = [
 [[package]]
 name = "frame-election-provider-support"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-election-provider-solution-type",
  "frame-support",
@@ -2573,7 +2630,7 @@ dependencies = [
 [[package]]
 name = "frame-executive"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -2589,9 +2646,9 @@ dependencies = [
 
 [[package]]
 name = "frame-metadata"
-version = "15.2.0"
+version = "16.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2a893ede8dde2293e94dacf9c8f5db5d0506cd909257a8f0ac2b7d610baf50c"
+checksum = "87cf1549fba25a6fcac22785b61698317d958e96cac72a59102ea45b9ae64692"
 dependencies = [
  "cfg-if",
  "parity-scale-codec",
@@ -2602,7 +2659,7 @@ dependencies = [
 [[package]]
 name = "frame-remote-externalities"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-recursion",
  "futures",
@@ -2623,19 +2680,19 @@ dependencies = [
 [[package]]
 name = "frame-support"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "bitflags",
  "environmental",
  "frame-metadata",
  "frame-support-procedural",
  "impl-trait-for-tuples",
+ "k256",
  "log",
  "macro_magic",
  "parity-scale-codec",
  "paste",
  "scale-info",
- "secp256k1",
  "serde",
  "smallvec",
  "sp-api",
@@ -2657,7 +2714,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "Inflector",
  "cfg-expr",
@@ -2675,7 +2732,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support-procedural-tools-derive",
  "proc-macro-crate",
@@ -2687,7 +2744,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools-derive"
 version = "3.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2697,7 +2754,7 @@ dependencies = [
 [[package]]
 name = "frame-support-test"
 version = "3.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-executive",
@@ -2724,7 +2781,7 @@ dependencies = [
 [[package]]
 name = "frame-support-test-pallet"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -2736,7 +2793,7 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "cfg-if",
  "frame-support",
@@ -2755,7 +2812,7 @@ dependencies = [
 [[package]]
 name = "frame-system-benchmarking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -2770,7 +2827,7 @@ dependencies = [
 [[package]]
 name = "frame-system-rpc-runtime-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -2779,7 +2836,7 @@ dependencies = [
 [[package]]
 name = "frame-try-runtime"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "parity-scale-codec",
@@ -2961,7 +3018,7 @@ dependencies = [
 [[package]]
 name = "generate-bags"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "chrono",
  "frame-election-provider-support",
@@ -2988,6 +3045,7 @@ checksum = "bff49e947297f3312447abdca79f45f4738097cc82b06e72054d2223f601f1b9"
 dependencies = [
  "typenum",
  "version_check",
+ "zeroize",
 ]
 
 [[package]]
@@ -3078,7 +3136,18 @@ version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5dfbfb3a6cfbd390d5c9564ab283a0349b9b9fcd46a706c1eb10e0db70bfbac7"
 dependencies = [
- "ff",
+ "ff 0.12.1",
+ "rand_core 0.6.4",
+ "subtle",
+]
+
+[[package]]
+name = "group"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63"
+dependencies = [
+ "ff 0.13.0",
  "rand_core 0.6.4",
  "subtle",
 ]
@@ -3384,19 +3453,6 @@ dependencies = [
  "rustls-native-certs",
  "tokio",
  "tokio-rustls 0.24.1",
-]
-
-[[package]]
-name = "hyper-tls"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6183ddfa99b85da61a140bea0efc93fdf56ceaa041b37d553518030827f9905"
-dependencies = [
- "bytes",
- "hyper",
- "native-tls",
- "tokio",
- "tokio-native-tls",
 ]
 
 [[package]]
@@ -3793,6 +3849,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "k256"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cadb76004ed8e97623117f3df85b17aaa6626ab0b0831e6573f104df16cd1bcc"
+dependencies = [
+ "cfg-if",
+ "ecdsa 0.16.7",
+ "elliptic-curve 0.13.5",
+ "once_cell",
+ "sha2 0.10.2",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3853,6 +3922,7 @@ dependencies = [
  "pallet-society",
  "pallet-staking",
  "pallet-staking-runtime-api",
+ "pallet-state-trie-migration",
  "pallet-timestamp",
  "pallet-tips",
  "pallet-transaction-payment",
@@ -3957,6 +4027,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64d3b4e3e80c369f1b5364b6acdeba9b8a02285e91a5570f7c0404b7f9024541"
 dependencies = [
  "kvdb",
+]
+
+[[package]]
+name = "landlock"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "520baa32708c4e957d2fc3a186bc5bd8d26637c33137f399ddfc202adb240068"
+dependencies = [
+ "enumflags2",
+ "libc",
+ "thiserror",
 ]
 
 [[package]]
@@ -4869,7 +4950,7 @@ dependencies = [
 [[package]]
 name = "mmr-gadget"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "futures",
  "log",
@@ -4888,7 +4969,7 @@ dependencies = [
 [[package]]
 name = "mmr-rpc"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "anyhow",
  "jsonrpsee",
@@ -5064,24 +5145,6 @@ name = "nanorand"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
-
-[[package]]
-name = "native-tls"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07226173c32f2926027b63cce4bcd8076c3552846cbe7925f3aaffeac0a3b92e"
-dependencies = [
- "lazy_static",
- "libc",
- "log",
- "openssl",
- "openssl-probe",
- "openssl-sys",
- "schannel",
- "security-framework",
- "security-framework-sys",
- "tempfile",
-]
 
 [[package]]
 name = "netlink-packet-core"
@@ -5330,48 +5393,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
-name = "openssl"
-version = "0.10.55"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "345df152bc43501c5eb9e4654ff05f794effb78d4efe3d53abc158baddc0703d"
-dependencies = [
- "bitflags",
- "cfg-if",
- "foreign-types",
- "libc",
- "once_cell",
- "openssl-macros",
- "openssl-sys",
-]
-
-[[package]]
-name = "openssl-macros"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b501e44f11665960c7e7fcf062c7d96a14ade4aa98116c004b2e37b5be7d736c"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "openssl-probe"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28988d872ab76095a6e6ac88d99b54fd267702734fd7ffe610ca27f533ddb95a"
-
-[[package]]
-name = "openssl-sys"
-version = "0.9.90"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "374533b0e45f3a7ced10fcaeccca020e66656bc03dac384f852e4e5a7a8104a6"
-dependencies = [
- "cc",
- "libc",
- "pkg-config",
- "vcpkg",
-]
 
 [[package]]
 name = "orchestra"
@@ -5441,8 +5466,8 @@ version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51f44edd08f51e2ade572f141051021c5af22677e42b7dd28a88155151c33594"
 dependencies = [
- "ecdsa",
- "elliptic-curve",
+ "ecdsa 0.14.8",
+ "elliptic-curve 0.12.3",
  "sha2 0.10.2",
 ]
 
@@ -5452,8 +5477,8 @@ version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfc8c5bf642dde52bb9e87c0ecd8ca5a76faac2eeed98dedb7c717997e1080aa"
 dependencies = [
- "ecdsa",
- "elliptic-curve",
+ "ecdsa 0.14.8",
+ "elliptic-curve 0.12.3",
  "sha2 0.10.2",
 ]
 
@@ -5470,7 +5495,7 @@ dependencies = [
 [[package]]
 name = "pallet-assets"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5485,7 +5510,7 @@ dependencies = [
 [[package]]
 name = "pallet-authority-discovery"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5501,7 +5526,7 @@ dependencies = [
 [[package]]
 name = "pallet-authorship"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5515,7 +5540,7 @@ dependencies = [
 [[package]]
 name = "pallet-babe"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5539,7 +5564,7 @@ dependencies = [
 [[package]]
 name = "pallet-bags-list"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -5559,7 +5584,7 @@ dependencies = [
 [[package]]
 name = "pallet-bags-list-remote-tests"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-election-provider-support",
  "frame-remote-externalities",
@@ -5578,7 +5603,7 @@ dependencies = [
 [[package]]
 name = "pallet-balances"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5593,7 +5618,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5612,7 +5637,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy-mmr"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "binary-merkle-tree",
@@ -5636,7 +5661,7 @@ dependencies = [
 [[package]]
 name = "pallet-bounties"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5654,7 +5679,7 @@ dependencies = [
 [[package]]
 name = "pallet-child-bounties"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5673,7 +5698,7 @@ dependencies = [
 [[package]]
 name = "pallet-collective"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5690,7 +5715,7 @@ dependencies = [
 [[package]]
 name = "pallet-conviction-voting"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "assert_matches",
  "frame-benchmarking",
@@ -5707,7 +5732,7 @@ dependencies = [
 [[package]]
 name = "pallet-democracy"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5725,7 +5750,7 @@ dependencies = [
 [[package]]
 name = "pallet-election-provider-multi-phase"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -5748,7 +5773,7 @@ dependencies = [
 [[package]]
 name = "pallet-election-provider-support-benchmarking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -5761,7 +5786,7 @@ dependencies = [
 [[package]]
 name = "pallet-elections-phragmen"
 version = "5.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5779,7 +5804,7 @@ dependencies = [
 [[package]]
 name = "pallet-fast-unstake"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -5798,7 +5823,7 @@ dependencies = [
 [[package]]
 name = "pallet-grandpa"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5821,7 +5846,7 @@ dependencies = [
 [[package]]
 name = "pallet-identity"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
@@ -5837,7 +5862,7 @@ dependencies = [
 [[package]]
 name = "pallet-im-online"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5857,7 +5882,7 @@ dependencies = [
 [[package]]
 name = "pallet-indices"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5874,7 +5899,7 @@ dependencies = [
 [[package]]
 name = "pallet-membership"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5891,7 +5916,7 @@ dependencies = [
 [[package]]
 name = "pallet-message-queue"
 version = "7.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5910,7 +5935,7 @@ dependencies = [
 [[package]]
 name = "pallet-mmr"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5927,7 +5952,7 @@ dependencies = [
 [[package]]
 name = "pallet-multisig"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5943,7 +5968,7 @@ dependencies = [
 [[package]]
 name = "pallet-nis"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5959,7 +5984,7 @@ dependencies = [
 [[package]]
 name = "pallet-nomination-pools"
 version = "1.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5976,7 +6001,7 @@ dependencies = [
 [[package]]
 name = "pallet-nomination-pools-benchmarking"
 version = "1.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -5996,7 +6021,7 @@ dependencies = [
 [[package]]
 name = "pallet-nomination-pools-runtime-api"
 version = "1.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "pallet-nomination-pools",
  "parity-scale-codec",
@@ -6007,7 +6032,7 @@ dependencies = [
 [[package]]
 name = "pallet-offences"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -6024,7 +6049,7 @@ dependencies = [
 [[package]]
 name = "pallet-offences-benchmarking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -6048,7 +6073,7 @@ dependencies = [
 [[package]]
 name = "pallet-preimage"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6065,7 +6090,7 @@ dependencies = [
 [[package]]
 name = "pallet-proxy"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6080,7 +6105,7 @@ dependencies = [
 [[package]]
 name = "pallet-ranked-collective"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6098,7 +6123,7 @@ dependencies = [
 [[package]]
 name = "pallet-recovery"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6113,7 +6138,7 @@ dependencies = [
 [[package]]
 name = "pallet-referenda"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "assert_matches",
  "frame-benchmarking",
@@ -6132,7 +6157,7 @@ dependencies = [
 [[package]]
 name = "pallet-scheduler"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6149,7 +6174,7 @@ dependencies = [
 [[package]]
 name = "pallet-session"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -6170,7 +6195,7 @@ dependencies = [
 [[package]]
 name = "pallet-session-benchmarking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6186,7 +6211,7 @@ dependencies = [
 [[package]]
 name = "pallet-society"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6205,7 +6230,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -6228,7 +6253,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking-reward-curve"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -6239,7 +6264,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking-reward-fn"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "log",
  "sp-arithmetic",
@@ -6248,7 +6273,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking-runtime-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -6257,7 +6282,7 @@ dependencies = [
 [[package]]
 name = "pallet-state-trie-migration"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6274,7 +6299,7 @@ dependencies = [
 [[package]]
 name = "pallet-sudo"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6289,7 +6314,7 @@ dependencies = [
 [[package]]
 name = "pallet-timestamp"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6307,7 +6332,7 @@ dependencies = [
 [[package]]
 name = "pallet-tips"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6326,7 +6351,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -6342,7 +6367,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "jsonrpsee",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -6358,7 +6383,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
@@ -6370,7 +6395,7 @@ dependencies = [
 [[package]]
 name = "pallet-treasury"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6387,7 +6412,7 @@ dependencies = [
 [[package]]
 name = "pallet-uniques"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6402,7 +6427,7 @@ dependencies = [
 [[package]]
 name = "pallet-utility"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6418,7 +6443,7 @@ dependencies = [
 [[package]]
 name = "pallet-vesting"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6433,7 +6458,7 @@ dependencies = [
 [[package]]
 name = "pallet-whitelist"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6764,8 +6789,18 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9eca2c590a5f85da82668fa685c09ce2888b9430e83299debf1f34b65fd4a4ba"
 dependencies = [
- "der",
- "spki",
+ "der 0.6.0",
+ "spki 0.6.0",
+]
+
+[[package]]
+name = "pkcs8"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7"
+dependencies = [
+ "der 0.7.7",
+ "spki 0.7.2",
 ]
 
 [[package]]
@@ -6916,7 +6951,6 @@ dependencies = [
  "frame-benchmarking-cli",
  "futures",
  "log",
- "polkadot-client",
  "polkadot-node-core-pvf-execute-worker",
  "polkadot-node-core-pvf-prepare-worker",
  "polkadot-node-metrics",
@@ -6937,50 +6971,6 @@ dependencies = [
  "substrate-build-script-utils",
  "thiserror",
  "try-runtime-cli",
-]
-
-[[package]]
-name = "polkadot-client"
-version = "0.9.43"
-dependencies = [
- "async-trait",
- "frame-benchmarking",
- "frame-benchmarking-cli",
- "frame-system",
- "frame-system-rpc-runtime-api",
- "futures",
- "kusama-runtime",
- "pallet-transaction-payment",
- "pallet-transaction-payment-rpc-runtime-api",
- "polkadot-core-primitives",
- "polkadot-node-core-parachains-inherent",
- "polkadot-primitives",
- "polkadot-runtime",
- "polkadot-runtime-common",
- "rococo-runtime",
- "sc-client-api",
- "sc-consensus",
- "sc-executor",
- "sc-service",
- "sp-api",
- "sp-authority-discovery",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-consensus-beefy",
- "sp-consensus-grandpa",
- "sp-core",
- "sp-inherents",
- "sp-keyring",
- "sp-mmr-primitives",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-storage",
- "sp-timestamp",
- "sp-transaction-pool",
- "westend-runtime",
 ]
 
 [[package]]
@@ -7445,8 +7435,10 @@ dependencies = [
 name = "polkadot-node-core-pvf-common"
 version = "0.9.43"
 dependencies = [
+ "assert_matches",
  "cpu-time",
  "futures",
+ "landlock",
  "libc",
  "parity-scale-codec",
  "polkadot-parachain",
@@ -7459,6 +7451,7 @@ dependencies = [
  "sp-io",
  "sp-tracing",
  "substrate-build-script-utils",
+ "tempfile",
  "tokio",
  "tracing-gum",
 ]
@@ -8070,8 +8063,10 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "env_logger 0.9.0",
+ "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-support",
+ "frame-system",
  "frame-system-rpc-runtime-api",
  "futures",
  "hex-literal 0.4.1",
@@ -8085,14 +8080,16 @@ dependencies = [
  "pallet-babe",
  "pallet-im-online",
  "pallet-staking",
+ "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-db",
+ "parity-scale-codec",
  "polkadot-approval-distribution",
  "polkadot-availability-bitfield-distribution",
  "polkadot-availability-distribution",
  "polkadot-availability-recovery",
- "polkadot-client",
  "polkadot-collator-protocol",
+ "polkadot-core-primitives",
  "polkadot-dispute-distribution",
  "polkadot-gossip-support",
  "polkadot-network-bridge",
@@ -8120,6 +8117,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime",
+ "polkadot-runtime-common",
  "polkadot-runtime-constants",
  "polkadot-runtime-parachains",
  "polkadot-statement-distribution",
@@ -8162,6 +8160,7 @@ dependencies = [
  "sp-core",
  "sp-inherents",
  "sp-io",
+ "sp-keyring",
  "sp-keystore",
  "sp-mmr-primitives",
  "sp-offchain",
@@ -8172,6 +8171,8 @@ dependencies = [
  "sp-timestamp",
  "sp-transaction-pool",
  "sp-trie",
+ "sp-version",
+ "sp-weights",
  "substrate-prometheus-endpoint",
  "tempfile",
  "thiserror",
@@ -8224,6 +8225,7 @@ dependencies = [
 name = "polkadot-test-client"
 version = "0.9.43"
 dependencies = [
+ "frame-benchmarking",
  "futures",
  "parity-scale-codec",
  "polkadot-node-subsystem",
@@ -8232,6 +8234,7 @@ dependencies = [
  "polkadot-test-service",
  "sc-block-builder",
  "sc-consensus",
+ "sc-offchain",
  "sc-service",
  "sp-api",
  "sp-blockchain",
@@ -8239,6 +8242,7 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-runtime",
  "sp-state-machine",
@@ -8344,7 +8348,6 @@ dependencies = [
 name = "polkadot-test-service"
 version = "0.9.43"
 dependencies = [
- "frame-benchmarking",
  "frame-system",
  "futures",
  "hex",
@@ -8369,7 +8372,6 @@ dependencies = [
  "sc-consensus",
  "sc-consensus-babe",
  "sc-consensus-grandpa",
- "sc-executor",
  "sc-network",
  "sc-service",
  "sc-tracing",
@@ -9131,12 +9133,10 @@ dependencies = [
  "http-body",
  "hyper",
  "hyper-rustls 0.23.0",
- "hyper-tls",
  "ipnet",
  "js-sys",
  "log",
  "mime",
- "native-tls",
  "once_cell",
  "percent-encoding",
  "pin-project-lite 0.2.9",
@@ -9146,7 +9146,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "tokio",
- "tokio-native-tls",
  "tokio-rustls 0.23.2",
  "tower-service",
  "url",
@@ -9173,9 +9172,19 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7743f17af12fa0b03b803ba12cd6a8d9483a587e89c69445e3909655c0b9fabb"
 dependencies = [
- "crypto-bigint",
+ "crypto-bigint 0.4.9",
  "hmac 0.12.1",
  "zeroize",
+]
+
+[[package]]
+name = "rfc6979"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
+dependencies = [
+ "hmac 0.12.1",
+ "subtle",
 ]
 
 [[package]]
@@ -9565,7 +9574,7 @@ dependencies = [
 [[package]]
 name = "sc-allocator"
 version = "4.1.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "log",
  "sp-core",
@@ -9576,7 +9585,7 @@ dependencies = [
 [[package]]
 name = "sc-authority-discovery"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "futures",
@@ -9604,7 +9613,7 @@ dependencies = [
 [[package]]
 name = "sc-basic-authorship"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "futures",
  "futures-timer",
@@ -9627,7 +9636,7 @@ dependencies = [
 [[package]]
 name = "sc-block-builder"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "sc-client-api",
@@ -9642,7 +9651,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "memmap2",
  "sc-chain-spec-derive",
@@ -9661,7 +9670,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec-derive"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -9672,7 +9681,7 @@ dependencies = [
 [[package]]
 name = "sc-cli"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "chrono",
@@ -9711,7 +9720,7 @@ dependencies = [
 [[package]]
 name = "sc-client-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "fnv",
  "futures",
@@ -9737,7 +9746,7 @@ dependencies = [
 [[package]]
 name = "sc-client-db"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "hash-db",
  "kvdb",
@@ -9763,7 +9772,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "futures",
@@ -9788,7 +9797,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "fork-tree",
@@ -9824,7 +9833,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe-rpc"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "futures",
  "jsonrpsee",
@@ -9847,7 +9856,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-beefy"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "async-channel",
@@ -9881,7 +9890,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-beefy-rpc"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "futures",
  "jsonrpsee",
@@ -9900,7 +9909,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-epochs"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "fork-tree",
  "parity-scale-codec",
@@ -9913,7 +9922,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-grandpa"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "ahash 0.8.2",
  "array-bytes",
@@ -9954,7 +9963,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-grandpa-rpc"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "finality-grandpa",
  "futures",
@@ -9974,7 +9983,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-slots"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "futures",
@@ -9997,7 +10006,7 @@ dependencies = [
 [[package]]
 name = "sc-executor"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "lru 0.10.0",
  "parity-scale-codec",
@@ -10019,7 +10028,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-common"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "sc-allocator",
  "sp-maybe-compressed-blob",
@@ -10031,7 +10040,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-wasmtime"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -10048,7 +10057,7 @@ dependencies = [
 [[package]]
 name = "sc-informant"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "ansi_term",
  "futures",
@@ -10064,7 +10073,7 @@ dependencies = [
 [[package]]
 name = "sc-keystore"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "parking_lot 0.12.1",
@@ -10078,7 +10087,7 @@ dependencies = [
 [[package]]
 name = "sc-network"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "async-channel",
@@ -10119,7 +10128,7 @@ dependencies = [
 [[package]]
 name = "sc-network-bitswap"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-channel",
  "cid",
@@ -10139,7 +10148,7 @@ dependencies = [
 [[package]]
 name = "sc-network-common"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "bitflags",
@@ -10156,7 +10165,7 @@ dependencies = [
 [[package]]
 name = "sc-network-gossip"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "ahash 0.8.2",
  "futures",
@@ -10174,7 +10183,7 @@ dependencies = [
 [[package]]
 name = "sc-network-light"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "async-channel",
@@ -10195,7 +10204,7 @@ dependencies = [
 [[package]]
 name = "sc-network-sync"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "async-channel",
@@ -10229,7 +10238,7 @@ dependencies = [
 [[package]]
 name = "sc-network-transactions"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "futures",
@@ -10247,7 +10256,7 @@ dependencies = [
 [[package]]
 name = "sc-offchain"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "bytes",
@@ -10281,7 +10290,7 @@ dependencies = [
 [[package]]
 name = "sc-proposer-metrics"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "log",
  "substrate-prometheus-endpoint",
@@ -10290,7 +10299,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "futures",
  "jsonrpsee",
@@ -10321,7 +10330,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-api"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
@@ -10340,7 +10349,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-server"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "http",
  "jsonrpsee",
@@ -10355,7 +10364,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-spec-v2"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "futures",
@@ -10381,7 +10390,7 @@ dependencies = [
 [[package]]
 name = "sc-service"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "directories",
@@ -10445,7 +10454,7 @@ dependencies = [
 [[package]]
 name = "sc-state-db"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -10456,7 +10465,7 @@ dependencies = [
 [[package]]
 name = "sc-storage-monitor"
 version = "0.1.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "clap 4.2.5",
  "fs4",
@@ -10470,7 +10479,7 @@ dependencies = [
 [[package]]
 name = "sc-sync-state-rpc"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
@@ -10489,7 +10498,7 @@ dependencies = [
 [[package]]
 name = "sc-sysinfo"
 version = "6.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "futures",
  "libc",
@@ -10508,7 +10517,7 @@ dependencies = [
 [[package]]
 name = "sc-telemetry"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "chrono",
  "futures",
@@ -10527,7 +10536,7 @@ dependencies = [
 [[package]]
 name = "sc-tracing"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "ansi_term",
  "atty",
@@ -10556,7 +10565,7 @@ dependencies = [
 [[package]]
 name = "sc-tracing-proc-macro"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -10567,7 +10576,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "futures",
@@ -10593,7 +10602,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "futures",
@@ -10609,7 +10618,7 @@ dependencies = [
 [[package]]
 name = "sc-utils"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-channel",
  "futures",
@@ -10736,10 +10745,24 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3be24c1842290c45df0a7bf069e0c268a747ad05a192f2fd7dcfdbc1cba40928"
 dependencies = [
- "base16ct",
- "der",
+ "base16ct 0.1.1",
+ "der 0.6.0",
  "generic-array 0.14.6",
- "pkcs8",
+ "pkcs8 0.9.0",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "sec1"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48518a2b5775ba8ca5b46596aae011caa431e6ce7e4a67ead66d92f08884220e"
+dependencies = [
+ "base16ct 0.2.0",
+ "der 0.7.7",
+ "generic-array 0.14.6",
+ "pkcs8 0.10.2",
  "subtle",
  "zeroize",
 ]
@@ -11024,6 +11047,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "signature"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500"
+dependencies = [
+ "digest 0.10.6",
+ "rand_core 0.6.4",
+]
+
+[[package]]
 name = "simba"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11133,7 +11166,7 @@ dependencies = [
 [[package]]
 name = "sp-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "hash-db",
  "log",
@@ -11154,7 +11187,7 @@ dependencies = [
 [[package]]
 name = "sp-api-proc-macro"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "Inflector",
  "blake2",
@@ -11168,7 +11201,7 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "23.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -11181,7 +11214,7 @@ dependencies = [
 [[package]]
 name = "sp-arithmetic"
 version = "16.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "integer-sqrt",
  "num-traits",
@@ -11195,7 +11228,7 @@ dependencies = [
 [[package]]
 name = "sp-authority-discovery"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -11208,7 +11241,7 @@ dependencies = [
 [[package]]
 name = "sp-block-builder"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "sp-api",
  "sp-inherents",
@@ -11219,7 +11252,7 @@ dependencies = [
 [[package]]
 name = "sp-blockchain"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "futures",
  "log",
@@ -11237,7 +11270,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "futures",
@@ -11252,7 +11285,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-aura"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -11269,7 +11302,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-babe"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -11288,7 +11321,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-beefy"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "lazy_static",
  "parity-scale-codec",
@@ -11307,7 +11340,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-grandpa"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "finality-grandpa",
  "log",
@@ -11325,7 +11358,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-slots"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -11337,7 +11370,7 @@ dependencies = [
 [[package]]
 name = "sp-core"
 version = "21.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "bitflags",
@@ -11382,7 +11415,7 @@ dependencies = [
 [[package]]
 name = "sp-core-hashing"
 version = "9.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "blake2b_simd",
  "byteorder",
@@ -11395,7 +11428,7 @@ dependencies = [
 [[package]]
 name = "sp-core-hashing-proc-macro"
 version = "9.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "quote",
  "sp-core-hashing",
@@ -11405,7 +11438,7 @@ dependencies = [
 [[package]]
 name = "sp-database"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "kvdb",
  "parking_lot 0.12.1",
@@ -11414,7 +11447,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "8.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -11424,7 +11457,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.19.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -11435,7 +11468,7 @@ dependencies = [
 [[package]]
 name = "sp-inherents"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "impl-trait-for-tuples",
@@ -11449,7 +11482,7 @@ dependencies = [
 [[package]]
 name = "sp-io"
 version = "23.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "bytes",
  "ed25519",
@@ -11474,7 +11507,7 @@ dependencies = [
 [[package]]
 name = "sp-keyring"
 version = "24.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "lazy_static",
  "sp-core",
@@ -11485,7 +11518,7 @@ dependencies = [
 [[package]]
 name = "sp-keystore"
 version = "0.27.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "parking_lot 0.12.1",
@@ -11497,7 +11530,7 @@ dependencies = [
 [[package]]
 name = "sp-maybe-compressed-blob"
 version = "4.1.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "thiserror",
  "zstd 0.12.3+zstd.1.5.2",
@@ -11506,7 +11539,7 @@ dependencies = [
 [[package]]
 name = "sp-metadata-ir"
 version = "0.1.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-metadata",
  "parity-scale-codec",
@@ -11517,7 +11550,7 @@ dependencies = [
 [[package]]
 name = "sp-mmr-primitives"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "ckb-merkle-mountain-range",
  "log",
@@ -11535,7 +11568,7 @@ dependencies = [
 [[package]]
 name = "sp-npos-elections"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -11549,7 +11582,7 @@ dependencies = [
 [[package]]
 name = "sp-offchain"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -11559,7 +11592,7 @@ dependencies = [
 [[package]]
 name = "sp-panic-handler"
 version = "8.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "backtrace",
  "lazy_static",
@@ -11569,7 +11602,7 @@ dependencies = [
 [[package]]
 name = "sp-rpc"
 version = "6.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "rustc-hash",
  "serde",
@@ -11579,7 +11612,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime"
 version = "24.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "either",
  "hash256-std-hasher",
@@ -11601,7 +11634,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "17.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -11619,7 +11652,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "11.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "Inflector",
  "proc-macro-crate",
@@ -11631,7 +11664,7 @@ dependencies = [
 [[package]]
 name = "sp-session"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -11646,7 +11679,7 @@ dependencies = [
 [[package]]
 name = "sp-staking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -11659,7 +11692,7 @@ dependencies = [
 [[package]]
 name = "sp-state-machine"
 version = "0.28.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "hash-db",
  "log",
@@ -11680,7 +11713,7 @@ dependencies = [
 [[package]]
 name = "sp-statement-store"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -11697,12 +11730,12 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "8.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[package]]
 name = "sp-storage"
 version = "13.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -11715,7 +11748,7 @@ dependencies = [
 [[package]]
 name = "sp-timestamp"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -11728,7 +11761,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "10.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "sp-std",
@@ -11740,7 +11773,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-pool"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "sp-api",
  "sp-runtime",
@@ -11749,7 +11782,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-storage-proof"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -11764,7 +11797,7 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "22.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "ahash 0.8.2",
  "hash-db",
@@ -11787,7 +11820,7 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "22.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -11804,7 +11837,7 @@ dependencies = [
 [[package]]
 name = "sp-version-proc-macro"
 version = "8.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "proc-macro2",
@@ -11815,7 +11848,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "14.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "anyhow",
  "impl-trait-for-tuples",
@@ -11828,7 +11861,7 @@ dependencies = [
 [[package]]
 name = "sp-weights"
 version = "20.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -11864,7 +11897,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67cf02bbac7a337dc36e4f5a693db6c21e7863f45070f7064577eb4367a3212b"
 dependencies = [
  "base64ct",
- "der",
+ "der 0.6.0",
+]
+
+[[package]]
+name = "spki"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d1e996ef02c474957d681f1b05213dfb0abab947b446a62d37770b23500184a"
+dependencies = [
+ "base64ct",
+ "der 0.7.7",
 ]
 
 [[package]]
@@ -12059,12 +12102,12 @@ dependencies = [
 [[package]]
 name = "substrate-build-script-utils"
 version = "3.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[package]]
 name = "substrate-frame-rpc-system"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "frame-system-rpc-runtime-api",
  "futures",
@@ -12083,7 +12126,7 @@ dependencies = [
 [[package]]
 name = "substrate-prometheus-endpoint"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "hyper",
  "log",
@@ -12095,7 +12138,7 @@ dependencies = [
 [[package]]
 name = "substrate-rpc-client"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "jsonrpsee",
@@ -12108,7 +12151,7 @@ dependencies = [
 [[package]]
 name = "substrate-state-trie-migration-rpc"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
@@ -12125,7 +12168,7 @@ dependencies = [
 [[package]]
 name = "substrate-test-client"
 version = "2.0.1"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "array-bytes",
  "async-trait",
@@ -12151,7 +12194,7 @@ dependencies = [
 [[package]]
 name = "substrate-test-utils"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "futures",
  "substrate-test-utils-derive",
@@ -12161,7 +12204,7 @@ dependencies = [
 [[package]]
 name = "substrate-test-utils-derive"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -12172,7 +12215,7 @@ dependencies = [
 [[package]]
 name = "substrate-wasm-builder"
 version = "5.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "ansi_term",
  "build-helper",
@@ -12717,16 +12760,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-native-tls"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7d995660bd2b7f8c1568414c1126076c13fbb725c40112dc0120b78eb9b717b"
-dependencies = [
- "native-tls",
- "tokio",
-]
-
-[[package]]
 name = "tokio-retry"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13086,7 +13119,7 @@ checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 [[package]]
 name = "try-runtime-cli"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 dependencies = [
  "async-trait",
  "clap 4.2.5",
@@ -13878,7 +13911,7 @@ dependencies = [
  "ccm",
  "curve25519-dalek 3.2.0",
  "der-parser 8.1.0",
- "elliptic-curve",
+ "elliptic-curve 0.12.3",
  "hkdf",
  "hmac 0.10.1",
  "log",
@@ -13890,11 +13923,11 @@ dependencies = [
  "rcgen 0.9.3",
  "ring",
  "rustls 0.19.1",
- "sec1",
+ "sec1 0.3.0",
  "serde",
  "sha-1 0.9.8",
  "sha2 0.9.8",
- "signature",
+ "signature 1.6.4",
  "subtle",
  "thiserror",
  "tokio",
@@ -14562,7 +14595,6 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "sp-arithmetic",
- "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -14809,404 +14841,404 @@ dependencies = [
 [[patch.unused]]
 name = "chain-spec-builder"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "frame-benchmarking-pallet-pov"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "frame-election-solution-type-fuzzer"
 version = "2.0.0-alpha.5"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "frame-support-test-compile-pass"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "kitchensink-runtime"
 version = "3.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-bench"
 version = "0.9.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-cli"
 version = "3.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-executor"
 version = "3.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-inspect"
 version = "0.9.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-rpc"
 version = "3.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-runtime-generate-bags"
 version = "3.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-template"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-template-release"
 version = "3.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-template-runtime"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "node-testing"
 version = "3.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-alliance"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-asset-conversion"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-asset-conversion-tx-payment"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-asset-rate"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-asset-tx-payment"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-atomic-swap"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-aura"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-bags-list-fuzzer"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-contracts"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-contracts-primitives"
 version = "24.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-contracts-proc-macro"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-core-fellowship"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-default-config-example"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-dev-mode"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-election-provider-e2e-test"
 version = "1.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-example-basic"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-example-kitchensink"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-example-offchain-worker"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-example-split"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-examples"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-glutton"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-insecure-randomness-collective-flip"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-lottery"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-nft-fractionalization"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-nfts"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-nfts-runtime-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-nicks"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-node-authorization"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-nomination-pools-fuzzer"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-nomination-pools-test-staking"
 version = "1.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-remark"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-root-offences"
 version = "1.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-root-testing"
 version = "1.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-salary"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-scored-pool"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-statement"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-template"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "pallet-transaction-storage"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sc-consensus-aura"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sc-consensus-manual-seal"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sc-consensus-pow"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sc-network-statement"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sc-network-test"
 version = "0.8.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sc-runtime-test"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sc-service-test"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sc-statement-store"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-api-test"
 version = "2.0.1"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-application-crypto-test"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-arithmetic-fuzzer"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-consensus-pow"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-crypto-ec-utils"
 version = "0.4.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-genesis-builder"
 version = "0.1.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-npos-elections-fuzzer"
 version = "2.0.0-alpha.5"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-runtime-interface-test"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-runtime-interface-test-wasm"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-runtime-interface-test-wasm-deprecated"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "sp-test-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "subkey"
 version = "3.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "substrate-cli-test-utils"
 version = "0.1.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "substrate-frame-cli"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "substrate-frame-rpc-support"
 version = "3.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "substrate-test-runtime"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "substrate-test-runtime-client"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "substrate-test-runtime-transaction-pool"
 version = "2.0.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"
 
 [[patch.unused]]
 name = "substrate-test-utils-test-crate"
 version = "0.1.0"
-source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#3c71aa160b8ee594aecf924c66dcadbb8b8c8cdc"
+source = "git+https://github.com/paritytech//substrate.git?branch=bkchr-execution-strategies-remove#0c5c43dfc4c016b3083d244fe73d1e05c2f0a74a"

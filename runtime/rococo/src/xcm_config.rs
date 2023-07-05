@@ -40,8 +40,8 @@ use xcm_builder::{
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit, TinkernetMultisigAsAccountId, TinkernetMultisigAsNative,
-	TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	TakeWeightCredit, TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin,
+	WithUniqueTopic,
 };
 use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
 
@@ -53,12 +53,8 @@ parameter_types! {
 	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
 }
 
-pub type LocationConverter = (
-	ChildParachainConvertsVia<ParaId, AccountId>,
-	AccountId32Aliases<ThisNetwork, AccountId>,
-	// We can derive a local account from a Tinkernet XCMultisig MultiLocation.
-	TinkernetMultisigAsAccountId<AccountId>,
-);
+pub type LocationConverter =
+	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<ThisNetwork, AccountId>);
 
 /// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
 /// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
@@ -87,8 +83,6 @@ type LocalOriginConverter = (
 	SignedAccountId32AsNative<ThisNetwork, RuntimeOrigin>,
 	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
 	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
-	// Converts a Tinkernet XCMultisig MultiLocation into a `Signed` origin.
-	TinkernetMultisigAsNative<RuntimeOrigin>,
 );
 
 parameter_types! {
