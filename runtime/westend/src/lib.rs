@@ -1319,7 +1319,9 @@ pub mod migrations {
 	}
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = ();
+	pub type Unreleased = (
+		assigned_slots::migration::v1::MigrateToV1<Runtime>,
+	);
 }
 
 /// Helpers to configure all migrations.
