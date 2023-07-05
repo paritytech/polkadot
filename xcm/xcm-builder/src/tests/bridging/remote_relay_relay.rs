@@ -28,7 +28,7 @@ parameter_types! {
 		= vec![(Remote::get(), MultiLocation::parent(), None)];
 }
 type TheBridge =
-	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;
+	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation, ()>>;
 type RelayExporter = HaulBlobExporter<TheBridge, Remote, ()>;
 type LocalInnerRouter =
 	UnpaidExecutingRouter<UniversalLocation, RelayUniversalLocation, RelayExporter>;
