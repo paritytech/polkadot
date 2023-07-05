@@ -77,8 +77,6 @@ impl TestClientBuilderExt for TestClientBuilder {
 			Default::default(),
 			ExecutionExtensions::new(
 				Default::default(),
-				None,
-				sc_offchain::OffchainDb::factory_from_backend(&*self.backend()),
 				Arc::new(executor),
 			),
 		)

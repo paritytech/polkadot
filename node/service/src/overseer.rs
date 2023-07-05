@@ -164,7 +164,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
-		Arc<RuntimeClient>,
+		Arc<DefaultSubsystemClient<RuntimeClient>>,
 		CandidateValidationSubsystem,
 		PvfCheckerSubsystem,
 		CandidateBackingSubsystem,
@@ -208,6 +208,11 @@ where
 	let spawner = SpawnGlue(spawner);
 
 	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
+
+	let runtime_api_client = Arc::new(DefaultSubsystemClient::new(
+		runtime_client.clone(),
+		offchain_transaction_pool_factory,
+	));
 
 	let builder = Overseer::builder()
 		.network_bridge_tx(NetworkBridgeTxSubsystem::new(
@@ -278,7 +283,7 @@ where
 		})
 		.provisioner(ProvisionerSubsystem::new(Metrics::register(registry)?))
 		.runtime_api(RuntimeApiSubsystem::new(
-			Arc::new(DefaultSubsystemClient::new(runtime_client, offchain_transaction_pool_factory)),
+			runtime_api_client.clone(),
 			Metrics::register(registry)?,
 			spawner.clone(),
 		))
@@ -317,7 +322,7 @@ where
 		.activation_external_listeners(Default::default())
 		.span_per_active_leaf(Default::default())
 		.active_leaves(Default::default())
-		.supports_parachains(runtime_client)
+		.supports_parachains(runtime_api_client)
 		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 		.metrics(metrics)
 		.spawner(spawner);
@@ -339,7 +344,10 @@ pub trait OverseerGen {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<Spawner, RuntimeClient>,
-	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		Error,
+	>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -363,7 +371,10 @@ impl OverseerGen for RealOverseerGen {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<Spawner, RuntimeClient>,
-	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		Error,
+	>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,

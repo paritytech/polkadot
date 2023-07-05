@@ -7510,6 +7510,7 @@ dependencies = [
  "polkadot-node-subsystem-types",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
+ "sc-transaction-pool-api",
  "sp-api",
  "sp-authority-discovery",
  "sp-consensus-babe",

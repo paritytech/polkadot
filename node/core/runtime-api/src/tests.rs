@@ -16,10 +16,10 @@
 
 use super::*;
 
-use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem::SpawnGlue;
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+use polkadot_node_subsystem_types::DefaultSubsystemClient;
 use polkadot_primitives::{
 	runtime_api::ParachainHost, AuthorityDiscoveryId, Block, CandidateEvent,
 	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
@@ -27,6 +27,7 @@ use polkadot_primitives::{
 	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
 	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
+use sc_transaction_pool_api::{OffchainTransactionPoolFactory, RejectAllTxPool};
 use sp_api::ProvideRuntimeApi;
 use sp_authority_discovery::AuthorityDiscoveryApi;
 use sp_consensus_babe::BabeApi;
@@ -35,6 +36,7 @@ use std::{
 	collections::{BTreeMap, HashMap},
 	sync::{Arc, Mutex},
 };
+use test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 
 #[derive(Default, Clone)]
 struct MockRuntimeApi {
@@ -241,8 +243,14 @@ fn requests_authorities() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -268,8 +276,14 @@ fn requests_validators() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -295,8 +309,14 @@ fn requests_validator_groups() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -322,8 +342,14 @@ fn requests_availability_cores() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -354,8 +380,14 @@ fn requests_persisted_validation_data() {
 	runtime_api.validation_data.insert(para_a, Default::default());
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -407,8 +439,14 @@ fn requests_assumed_validation_data() {
 	runtime_api.validation_data.insert(para_b, Default::default());
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -457,8 +495,14 @@ fn requests_check_validation_outputs() {
 
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -497,8 +541,14 @@ fn requests_session_index_for_child() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -545,8 +595,14 @@ fn requests_session_info() {
 
 	let relay_parent = [1; 32].into();
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -582,8 +638,14 @@ fn requests_validation_code() {
 	runtime_api.validation_code.insert(para_a, validation_code.clone());
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -632,8 +694,14 @@ fn requests_candidate_pending_availability() {
 		.insert(para_a, candidate_receipt.clone());
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -675,8 +743,14 @@ fn requests_candidate_events() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -716,8 +790,14 @@ fn requests_dmq_contents() {
 		runtime_api
 	});
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -771,8 +851,14 @@ fn requests_inbound_hrmp_channels_contents() {
 		runtime_api
 	});
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -817,11 +903,17 @@ fn requests_validation_code_by_hash() {
 			validation_code.push(code);
 		}
 
-		(runtime_api, validation_code)
+		(Arc::new(runtime_api), validation_code)
 	};
 
-	let subsystem =
-		RuntimeApiSubsystem::new(Arc::new(runtime_api), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 
 	let relay_parent = [1; 32].into();
@@ -854,8 +946,14 @@ fn multiple_requests_in_parallel_are_working() {
 	let spawner = sp_core::testing::TaskExecutor::new();
 	let mutex = runtime_api.availability_cores_wait.clone();
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		// Make all requests block until we release this mutex.
@@ -916,8 +1014,14 @@ fn requests_babe_epoch() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -941,8 +1045,14 @@ fn requests_submit_pvf_check_statement() {
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let runtime_api = Arc::new(MockRuntimeApi::default());
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 
 	let relay_parent = [1; 32].into();
@@ -1006,8 +1116,14 @@ fn requests_pvfs_require_precheck() {
 		runtime_api
 	});
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 
 	let relay_parent = [1; 32].into();
@@ -1041,8 +1157,14 @@ fn requests_validation_code_hash() {
 	runtime_api.validation_code_hash.insert(para_a, validation_code_hash.clone());
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem =
-		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
+	let subsystem = RuntimeApiSubsystem::new(
+		Arc::new(DefaultSubsystemClient::new(
+			runtime_api.clone(),
+			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
+		)),
+		Metrics(None),
+		SpawnGlue(spawner),
+	);
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
