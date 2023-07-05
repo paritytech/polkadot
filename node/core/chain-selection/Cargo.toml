@@ -19,7 +19,7 @@ parity-scale-codec = "3.6.1"
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "8664399dc284f4b0db5c7e4415ca6ebeed8d6578" }
 parking_lot = "0.12.0"
 assert_matches = "1"
 kvdb-memorydb = "0.13.0"
