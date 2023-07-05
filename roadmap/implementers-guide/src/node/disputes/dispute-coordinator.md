@@ -699,10 +699,7 @@ participation.
 
 Just after the subsystem initialisation the main loop (`fn run_until_error()`) runs until
 `OverseerSignal::Conclude` signal is received. Before executing the actual main loop the leaf and
-the participations, obtained during startup are enqueued for processing. If there is capacity (the
-number of running participations is less than `MAX_PARALLEL_PARTICIPATIONS`) participation jobs are
-started (`func participate`). Finally the component waits for messages from Overseer. The behaviour
-on each message is described in the following subsections.
+the participations, obtained during startup are enqueued for processing.Finally the component waits for messages from Overseer. The behaviour on each message is described in the following subsections.
 
 ### On `OverseerSignal::ActiveLeaves`
 
@@ -717,9 +714,7 @@ More concretely:
 
 ### On `MuxedMessage::Participation`
 
-This message is sent from `Participatuion` module and indicates a processed dispute participation.
-It's the result of the processing job initiated with `OverseerSignal::ActiveLeaves`. The subsystem
-issues a `DisputeMessage` with the result.
+This message is sent from `Participation` module and indicates a processed dispute participation. The subsystem issues a `DisputeMessage` with the result.
 
 ### On `OverseerSignal::Conclude`
 

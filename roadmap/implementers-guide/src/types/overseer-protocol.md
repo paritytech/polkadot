@@ -26,7 +26,7 @@ Either way, there will be some top-level type encapsulating messages from the ov
 
 ## Active Leaves Update
 
-Indicates a change in active leaves. Activated leaves should have jobs, whereas deactivated leaves should lead to winding-down of work based on those leaves.
+Indicates a change in active leaves. Activated leaves should have background tasks, whereas deactivated leaves should lead to winding-down of work based on those leaves.
 
 ```rust
 enum LeafStatus {

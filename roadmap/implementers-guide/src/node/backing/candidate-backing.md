@@ -27,8 +27,6 @@ The [Collator Protocol][CP] subsystem is the primary source of non-overseer mess
 
 This subsystem requests validation from the [Candidate Validation][CV] and generates an appropriate [`Statement`][Statement]. All `Statement`s are then passed on to the [Statement Distribution][SD] subsystem to be gossiped to peers. When [Candidate Validation][CV] decides that a candidate is invalid, and it was recommended to us to second by our own [Collator Protocol][CP] subsystem, a message is sent to the [Collator Protocol][CP] subsystem with the candidate's hash so that the collator which recommended it can be penalized.
 
-The subsystem should maintain a set of handles to Candidate Backing Jobs that are currently live, as well as the relay-parent to which they correspond.
-
 ### On Overseer Signal
 
 * If the signal is an [`OverseerSignal`][OverseerSignal]`::ActiveLeavesUpdate`:
@@ -51,7 +49,7 @@ If the seconding node did not provide us with the `PoV` we will retry fetching f
 > * Allow inclusion of _old_ parachain candidates validated by _current_ validators.
 > * Allow inclusion of _old_ parachain candidates validated by _old_ validators.
 >
-> This will probably blur the lines between jobs, will probably require inter-job communication and a short-term memory of recently backable, but not backed candidates.
+
 
 ## Candidate Backing Job
 

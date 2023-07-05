@@ -37,7 +37,7 @@
   - [Candidates Included](runtime-api/candidates-included.md)
   - [PVF Pre-checking](runtime-api/pvf-prechecking.md)
 - [Node Architecture](node/README.md)
-  - [Subsystems and Jobs](node/subsystems-and-jobs.md)
+  - [Subsystems](node/subsystems.md)
   - [Overseer](node/overseer.md)
   - [GRANDPA Voting Rule](node/grandpa-voting-rule.md)
   - [Collator Subsystems](node/collators/README.md)

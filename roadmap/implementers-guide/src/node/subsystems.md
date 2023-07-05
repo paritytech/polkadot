@@ -1,14 +1,12 @@
-# Subsystems and Jobs
+# Subsystems
 
-In this section we define the notions of Subsystems and Jobs. These are guidelines for how we will employ an architecture of hierarchical state machines. We'll have a top-level state machine which oversees the next level of state machines which oversee another layer of state machines and so on. The next sections will lay out these guidelines for what we've called subsystems and jobs, since this model applies to many of the tasks that the Node-side behavior needs to encompass, but these are only guidelines and some Subsystems may have deeper hierarchies internally.
+In this section we define the notions of Subsystems. These are guidelines for how we will employ an architecture of hierarchical state machines. We'll have a top-level state machine which oversees the next level of state machines which oversee another layer of state machines and so on. The next sections will lay out these guidelines for what we've called subsystems, since this model applies to many of the tasks that the Node-side behavior needs to encompass, but these are only guidelines and some Subsystems may have deeper hierarchies internally.
 
 Subsystems are long-lived worker tasks that are in charge of performing some particular kind of work. All subsystems can communicate with each other via a well-defined protocol. Subsystems can't generally communicate directly, but must coordinate communication through an [Overseer](overseer.md), which is responsible for relaying messages, handling subsystem failures, and dispatching work signals.
 
 Most work that happens on the Node-side is related to building on top of a specific relay-chain block, which is contextually known as the "relay parent". We call it the relay parent to explicitly denote that it is a block in the relay chain and not on a parachain. We refer to the parent because when we are in the process of building a new block, we don't know what that new block is going to be. The parent block is our only stable point of reference, even though it is usually only useful when it is not yet a parent but in fact a leaf of the block-DAG expected to soon become a parent (because validators are authoring on top of it). Furthermore, we are assuming a forkful blockchain-extension protocol, which means that there may be multiple possible children of the relay-parent. Even if the relay parent has multiple children blocks, the parent of those children is the same, and the context in which those children is authored should be the same. The parent block is the best and most stable reference to use for defining the scope of work items and messages, and is typically referred to by its cryptographic hash.
 
 Since this goal of determining when to start and conclude work relative to a specific relay-parent is common to most, if not all subsystems, it is logically the job of the Overseer to distribute those signals as opposed to each subsystem duplicating that effort, potentially being out of synchronization with each other. Subsystem A should be able to expect that subsystem B is working on the same relay-parents as it is. One of the Overseer's tasks is to provide this heartbeat, or synchronized rhythm, to the system.
-
-The work that subsystems spawn to be done on a specific relay-parent is known as a job. Subsystems should set up and tear down jobs according to the signals received from the overseer. Subsystems may share or cache state between jobs.
 
 Subsystems must be robust to spurious exits. The outputs of the set of subsystems as a whole comprises of signed messages and data committed to disk. Care must be taken to avoid issuing messages that are not substantiated. Since subsystems need to be safe under spurious exits, it is the expected behavior that an `OverseerSignal::Conclude` can just lead to breaking the loop and exiting directly as opposed to waiting for everything to shut down gracefully.
 
@@ -326,10 +324,7 @@ sequenceDiagram
     CB ->> AS: StoreAvailableData
 ```
 
-At this point, things have gone a bit nonlinear. Let's pick up the thread again with `BitfieldSigning`. As
-the `Overseer` activates each relay parent, it starts a `BitfieldSigningJob` which operates on an extremely
-simple metric: after creation, it immediately goes to sleep for 1.5 seconds. On waking, it records the state
-of the world pertaining to availability at that moment.
+At this point, things have gone a bit nonlinear. Let's pick up the thread again with `BitfieldSigning`.
 
 ```mermaid
 sequenceDiagram
@@ -369,9 +364,6 @@ sequenceDiagram
 We've now seen the message flow to the `Provisioner`: both `CandidateBacking` and `BitfieldDistribution`
 contribute provisionable data. Now, let's look at that subsystem.
 
-Much like the `BitfieldSigning` subsystem, the `Provisioner` creates a new job for each newly-activated
-leaf, and starts a timer. Unlike `BitfieldSigning`, we won't depict that part of the process, because
-the `Provisioner` also has other things going on.
 
 ```mermaid
 sequenceDiagram

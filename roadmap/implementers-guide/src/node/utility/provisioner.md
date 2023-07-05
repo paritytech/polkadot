@@ -106,21 +106,21 @@ See also: [Scheduler Module: Availability Cores](../../runtime/scheduler.md#avai
 
 ## Functionality
 
-The subsystem should maintain a set of handles to Block Authorship Provisioning Jobs that are currently live.
+The subsystem should maintain a set of handles to Block Authorship Provisioning background tasks that are currently live.
 
 ### On Overseer Signal
 
 - `ActiveLeavesUpdate`:
   - For each `activated` head:
-    - spawn a Block Authorship Provisioning Job with the given relay parent, storing a bidirectional channel with that job.
+    - spawn a Block Authorship Provisioning background task with the given relay parent, storing a bidirectional channel with that    task.
   - For each `deactivated` head:
-    - terminate the Block Authorship Provisioning Job for the given relay parent, if any.
-- `Conclude`: Forward `Conclude` to all jobs, waiting a small amount of time for them to join, and then hard-exiting.
+    - terminate the Block Authorship Provisioning background task for the given relay parent, if any.
+- `Conclude`: Forward `Conclude` to all background tasks, waiting a small amount of time for them to join, and then hard-exiting.
 
 ### On `ProvisionerMessage`
 
-Forward the message to the appropriate Block Authorship Provisioning Job, or discard if no appropriate job is currently active.
+Forward the message to the appropriate Block Authorship Provisioning background task, or discard if no appropriate background task is currently active.
 
-## Block Authorship Provisioning Job
+## Block Authorship Provisioning background task
 
 Maintain the set of channels to block authors. On receiving provisionable data, send a copy over each channel.
