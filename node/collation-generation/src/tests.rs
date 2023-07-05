@@ -376,7 +376,7 @@ fn sends_distribute_collation_message() {
 				},
 				Some(msg @ AllMessages::CollatorProtocol(_)) => {
 					inner_to_collator_protocol.lock().await.push(msg);
-				}
+				},
 				Some(msg) => {
 					panic!("didn't expect any other overseer requests; got {:?}", msg)
 				},

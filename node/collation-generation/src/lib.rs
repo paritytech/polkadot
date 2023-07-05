@@ -29,11 +29,7 @@
 
 #![deny(missing_docs)]
 
-use futures::{
-	channel::oneshot,
-	future::FutureExt,
-	join, select,
-};
+use futures::{channel::oneshot, future::FutureExt, join, select};
 use parity_scale_codec::Encode;
 use polkadot_node_primitives::{
 	AvailableData, Collation, CollationGenerationConfig, CollationSecondedSignal, PoV,
@@ -539,12 +535,14 @@ async fn construct_and_distribute_receipt(
 	);
 	metrics.on_collation_generated();
 
-	sender.send_message(CollatorProtocolMessage::DistributeCollation(
-		ccr,
-		parent_head_data_hash,
-		pov,
-		result_sender,
-	)).await;
+	sender
+		.send_message(CollatorProtocolMessage::DistributeCollation(
+			ccr,
+			parent_head_data_hash,
+			pov,
+			result_sender,
+		))
+		.await;
 }
 
 async fn obtain_validation_code_hash_with_hint(
