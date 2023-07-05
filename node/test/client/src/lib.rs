@@ -75,10 +75,7 @@ impl TestClientBuilderExt for TestClientBuilder {
 			self.backend().clone(),
 			executor.clone(),
 			Default::default(),
-			ExecutionExtensions::new(
-				Default::default(),
-				Arc::new(executor),
-			),
+			ExecutionExtensions::new(Default::default(), Arc::new(executor)),
 		)
 		.unwrap();
 
