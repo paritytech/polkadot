@@ -173,9 +173,13 @@ impl Freq {
 
 /// Represents frequency per second, minute, hour and day
 pub enum Times {
+	/// Per second
 	PerSecond(u32),
+	/// Per minute
 	PerMinute(u32),
+	/// Per hour
 	PerHour(u32),
+	/// Per day
 	PerDay(u32),
 }
 
