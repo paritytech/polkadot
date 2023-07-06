@@ -6824,6 +6824,7 @@ dependencies = [
  "nix 0.26.2",
  "polkadot-cli",
  "polkadot-core-primitives",
+ "polkadot-node-core-pvf",
  "polkadot-node-core-pvf-prepare-worker",
  "polkadot-overseer",
  "substrate-rpc-client",
