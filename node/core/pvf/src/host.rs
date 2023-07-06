@@ -140,6 +140,7 @@ struct ExecutePvfInputs {
 }
 
 /// Configuration for the validation host.
+#[derive(Debug)]
 pub struct Config {
 	/// The root directory where the prepared artifacts can be stored.
 	pub cache_path: PathBuf,
@@ -189,6 +190,11 @@ impl Config {
 /// In that case all pending requests will be canceled, dropping the result senders and new ones
 /// will be rejected.
 pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<Output = ()>) {
+	gum::debug!(target: LOG_TARGET, ?config, "starting PVF validation host");
+
+	// Run checks for supported security features once per host startup.
+	warn_if_no_landlock();
+
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
 	let validation_host = ValidationHost { to_host_tx };
@@ -852,6 +858,30 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 		}
 	})
 	.map(|_| ())
+}
+
+/// Check if landlock is supported and emit a warning if not.
+fn warn_if_no_landlock() {
+	#[cfg(target_os = "linux")]
+	{
+		use polkadot_node_core_pvf_common::worker::security::landlock;
+		let status = landlock::get_status();
+		if !landlock::status_is_fully_enabled(&status) {
+			let abi = landlock::LANDLOCK_ABI as u8;
+			gum::warn!(
+				target: LOG_TARGET,
+				?status,
+				%abi,
+				"Cannot fully enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider upgrading the kernel version for maximum security."
+			);
+		}
+	}
+
+	#[cfg(not(target_os = "linux"))]
+	gum::warn!(
+		target: LOG_TARGET,
+		"Cannot enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider running on Linux with landlock support for maximum security."
+	);
 }
 
 #[cfg(test)]
