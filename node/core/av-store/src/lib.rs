@@ -1212,10 +1212,10 @@ fn process_message(
 					return Err(Error::InvalidErasureRoot)
 				},
 				Err(e) => {
-					// We do not bubble up internal errors to caller caller subsystems, instead the
-					// tx channel is dropped and that error is caught in the subsystem.
+					// We do not bubble up internal errors to caller subsystems, instead the
+					// tx channel is dropped and that error is caught by the caller subsystem.
 					//
-					// We bubble up the specific error here so the logs still tell what happend.
+					// We bubble up the specific error here so `av-store` logs still tell what happend.
 					return Err(e.into())
 				},
 			}
