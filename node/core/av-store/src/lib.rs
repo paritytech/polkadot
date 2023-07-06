@@ -43,7 +43,7 @@ use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
-	messages::{AvailabilityStoreMessage, ChainApiMessage},
+	messages::{AvailabilityStoreMessage, ChainApiMessage, StoreAvailableDataError},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
@@ -1207,8 +1207,15 @@ fn process_message(
 				Ok(()) => {
 					let _ = tx.send(Ok(()));
 				},
+				Err(Error::InvalidErasureRoot) => {
+					let _ = tx.send(Err(StoreAvailableDataError::InvalidErasureRoot));
+					return Err(Error::InvalidErasureRoot)
+				},
 				Err(e) => {
-					let _ = tx.send(Err(()));
+					// We do not bubble up internal errors to caller caller subsystems, instead the
+					// tx channel is dropped and that error is caught in the subsystem.
+					//
+					// We bubble up the specific error here so the logs still tell what happend.
 					return Err(e.into())
 				},
 			}
@@ -1291,6 +1298,8 @@ fn store_available_data(
 		.with_candidate(candidate_hash)
 		.with_pov(&available_data.pov);
 
+	// Important note: This check below is critical for consensus and the `backing` subsystem relies on it to
+	// ensure candidate validity.
 	let chunks = erasure::obtain_chunks_v1(n_validators, &available_data)?;
 	let branches = erasure::branches(chunks.as_ref());
 

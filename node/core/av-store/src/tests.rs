@@ -442,7 +442,7 @@ fn store_available_data_erasure_mismatch() {
 		};
 
 		virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
-		assert_eq!(rx.await.unwrap(), Err(()));
+		assert_eq!(rx.await.unwrap(), Err(StoreAvailableDataError::InvalidErasureRoot));
 
 		assert!(query_available_data(&mut virtual_overseer, candidate_hash).await.is_none());
 
