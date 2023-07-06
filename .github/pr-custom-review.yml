@@ -9,7 +9,7 @@ rules:
     condition:
       include: ^runtime\/(kusama|polkadot)\/src\/.+\.rs$
       exclude: ^runtime\/(kusama|polkadot)\/src\/weights\/.+\.rs$
-    all:
+    all_distinct:
       - min_approvals: 1
         teams:
           - locks-review
@@ -23,7 +23,7 @@ rules:
       include: .*
       # excluding files from 'Runtime files' and 'CI files' rules
       exclude: ^runtime/(kusama|polkadot)/src/[^/]+\.rs$|^\.gitlab-ci\.yml|^(?!.*\.dic$|.*spellcheck\.toml$)scripts/ci/.*|^\.github/.*
-    min_approvals: 2
+    min_approvals: 3
     teams:
       - core-devs
 
