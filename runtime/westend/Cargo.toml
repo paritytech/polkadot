@@ -22,6 +22,7 @@ inherents = { package = "sp-inherents", git = "https://github.com/paritytech/sub
 offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -57,10 +58,13 @@ pallet-membership = { git = "https://github.com/paritytech/substrate", branch = 
 pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nomination-pools = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-conviction-voting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-ranked-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-referenda = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -76,6 +80,7 @@ pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/sub
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-whitelist = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 pallet-xcm-benchmarks = { path = "../../xcm/pallet-xcm-benchmarks", default-features = false, optional = true }
 
@@ -121,6 +126,7 @@ std = [
 	"parity-scale-codec/std",
 	"scale-info/std",
 	"inherents/std",
+	"sp-arithmetic/std",
 	"sp-core/std",
 	"polkadot-parachain/std",
 	"sp-api/std",
@@ -135,6 +141,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
+	"pallet-conviction-voting/std",
 	"pallet-collective/std",
 	"pallet-elections-phragmen/std",
 	"pallet-election-provider-multi-phase/std",
@@ -153,7 +160,9 @@ std = [
 	"pallet-offences/std",
 	"pallet-preimage/std",
 	"pallet-proxy/std",
+	"pallet-ranked-collective/std",
 	"pallet-recovery/std",
+	"pallet-referenda/std",
 	"pallet-scheduler/std",
 	"pallet-session/std",
 	"pallet-society/std",
@@ -165,6 +174,7 @@ std = [
 	"pallet-treasury/std",
 	"pallet-utility/std",
 	"pallet-vesting/std",
+	"pallet-whitelist/std",
 	"pallet-xcm/std",
 	"pallet-babe/std",
 	"pallet-bags-list/std",
@@ -199,6 +209,7 @@ runtime-benchmarks = [
 	"pallet-babe/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
+	"pallet-conviction-voting/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
@@ -214,7 +225,9 @@ runtime-benchmarks = [
 	"pallet-nomination-pools-benchmarking/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
+	"pallet-ranked-collective/runtime-benchmarks",
 	"pallet-recovery/runtime-benchmarks",
+	"pallet-referenda/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
 	"pallet-society/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
@@ -223,6 +236,7 @@ runtime-benchmarks = [
 	"pallet-treasury/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-vesting/runtime-benchmarks",
+	"pallet-whitelist/runtime-benchmarks",
 	"pallet-offences-benchmarking/runtime-benchmarks",
 	"pallet-session-benchmarking/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
@@ -244,6 +258,7 @@ try-runtime = [
 	"pallet-balances/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-collective/try-runtime",
+	"pallet-conviction-voting/try-runtime",
 	"pallet-elections-phragmen/try-runtime",
 	"pallet-election-provider-multi-phase/try-runtime",
 	"pallet-fast-unstake/try-runtime",
@@ -259,7 +274,9 @@ try-runtime = [
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",
+	"pallet-ranked-collective/try-runtime",
 	"pallet-recovery/try-runtime",
+	"pallet-referenda/try-runtime",
 	"pallet-scheduler/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-society/try-runtime",
@@ -269,6 +286,7 @@ try-runtime = [
 	"pallet-timestamp/try-runtime",
 	"pallet-treasury/try-runtime",
 	"pallet-utility/try-runtime",
+	"pallet-whitelist/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-xcm/try-runtime",
 	"pallet-babe/try-runtime",

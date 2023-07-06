@@ -18,8 +18,11 @@
 
 use super::{
 	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, Dmp, ParaId, Runtime,
-	RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee, XcmPallet,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee, XcmPallet, Fellows,
 };
+
+use crate::governance::StakingAdmin;
+
 use frame_support::{
 	parameter_types,
 	traits::{Contains, Everything, Nothing},
@@ -37,7 +40,7 @@ use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, MintLocation,
+	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, MintLocation, OriginToPluralityVoice,
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 	TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
 };
@@ -207,6 +210,24 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_identity::Call::remove_sub { .. } |
 				pallet_identity::Call::quit_sub { .. },
 			) |
+			RuntimeCall::ConvictionVoting(..) |
+			RuntimeCall::Referenda(
+				pallet_referenda::Call::place_decision_deposit { .. } |
+				pallet_referenda::Call::refund_decision_deposit { .. } |
+				pallet_referenda::Call::cancel { .. } |
+				pallet_referenda::Call::kill { .. } |
+				pallet_referenda::Call::nudge_referendum { .. } |
+				pallet_referenda::Call::one_fewer_deciding { .. },
+			) |
+			RuntimeCall::FellowshipCollective(..) |
+			RuntimeCall::FellowshipReferenda(
+				pallet_referenda::Call::place_decision_deposit { .. } |
+				pallet_referenda::Call::refund_decision_deposit { .. } |
+				pallet_referenda::Call::cancel { .. } |
+				pallet_referenda::Call::kill { .. } |
+				pallet_referenda::Call::nudge_referendum { .. } |
+				pallet_referenda::Call::one_fewer_deciding { .. },
+			) |
 			RuntimeCall::Recovery(..) |
 			RuntimeCall::Vesting(..) |
 			RuntimeCall::ElectionProviderMultiPhase(..) |
@@ -271,6 +292,30 @@ impl xcm_executor::Config for XcmConfig {
 	type Aliasers = Nothing;
 }
 
+
+parameter_types! {
+	// StakingAdmin pluralistic body.
+	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
+	// Fellows pluralistic body.
+	pub const FellowsBodyId: BodyId = BodyId::Technical;
+}
+
+/// Type to convert the `StakingAdmin` origin to a Plurality `MultiLocation` value.
+pub type StakingAdminToPlurality =
+	OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, StakingAdminBodyId>;
+
+/// Type to convert the Fellows origin to a Plurality `MultiLocation` value.
+pub type FellowsToPlurality = OriginToPluralityVoice<RuntimeOrigin, Fellows, FellowsBodyId>;
+
+/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain for a destination chain.
+pub type LocalPalletOriginToLocation = (
+	// StakingAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	StakingAdminToPlurality,
+	// Fellows origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	FellowsToPlurality,
+);
+
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
 pub type LocalOriginToLocation = (
@@ -280,7 +325,7 @@ pub type LocalOriginToLocation = (
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalPalletOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
