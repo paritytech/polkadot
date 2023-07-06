@@ -93,7 +93,7 @@ pub fn log_error(
 				JfyiError::RequestedUnannouncedCandidate(_, _) =>
 					gum::warn!(target: LOG_TARGET, error = %jfyi, ctx),
 				_ =>
-					gum::warn_if_frequent!(freq: warn_freq, max_rate: gum::ONE_PER_SEC, target: LOG_TARGET, error = %jfyi, ctx),
+					gum::warn_if_frequent!(freq: warn_freq, max_rate: gum::Times::PerHour(100), target: LOG_TARGET, error = %jfyi, ctx),
 			}
 			Ok(())
 		},

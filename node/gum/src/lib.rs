@@ -117,8 +117,6 @@ pub use gum_proc_macro::{debug, error, info, trace, warn, warn_if_frequent};
 #[cfg(test)]
 mod tests;
 
-/// Max allowed frequency of debug messages
-pub const ONE_PER_SEC: f32 = 1.0;
 const FREQ_SMOOTHING_FACTOR: f32 = 0.5;
 
 /// Exponential moving average
@@ -152,7 +150,7 @@ impl Freq {
 	}
 
 	/// Compares the rate of its own calls with the passed one.
-	pub fn is_frequent(&mut self, max_rate: f32) -> bool {
+	pub fn is_frequent(&mut self, max_rate: Times) -> bool {
 		self.record();
 
 		// Two attempts is not enough to call something as frequent.
@@ -161,7 +159,7 @@ impl Freq {
 		}
 
 		let rate = 1000.0 / self.ema.current; // Current EMA represents interval in ms
-		rate > max_rate
+		rate > max_rate.into()
 	}
 
 	fn record(&mut self) {
@@ -170,5 +168,24 @@ impl Freq {
 			self.ema.update((now - self.last) as f32, FREQ_SMOOTHING_FACTOR);
 		}
 		self.last = now;
+	}
+}
+
+/// Represents frequency per second, minute, hour and day
+pub enum Times {
+	PerSecond(u32),
+	PerMinute(u32),
+	PerHour(u32),
+	PerDay(u32),
+}
+
+impl From<Times> for f32 {
+	fn from(value: Times) -> Self {
+		match value {
+			Times::PerSecond(v) => v as f32,
+			Times::PerMinute(v) => v as f32 / 60.0,
+			Times::PerHour(v) => v as f32 / (60.0 * 60.0),
+			Times::PerDay(v) => v as f32 / (60.0 * 60.0 * 24.0),
+		}
 	}
 }
