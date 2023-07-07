@@ -146,7 +146,7 @@ pub struct RunCmd {
 	/// binary's directory is searched first, then `/usr/libexec` is searched, and then the 
 	/// `$PATH` is considered.
 	/// If the path points to an executable rather then directory, that executable is used
-	/// both as preparation and execution worker (that supposed to be used for tests only).
+	/// both as preparation and execution worker (supposed to be used for tests only).
 	#[arg(long, value_name = "PATH")]
 	pub workers_path: Option<PathBuf>,
 }
