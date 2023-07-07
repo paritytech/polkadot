@@ -12,19 +12,19 @@ scale-info = { version = "2.5.0", default-features = false, features = ["derive"
 serde = { version = "1.0.163", optional = true, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "alindima-get-rid-of-peerset-stub" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "alindima-get-rid-of-peerset-stub" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "alindima-get-rid-of-peerset-stub" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "alindima-get-rid-of-peerset-stub" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "alindima-get-rid-of-peerset-stub" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "alindima-get-rid-of-peerset-stub" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "alindima-get-rid-of-peerset-stub" }
 
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 polkadot-parachain = { path = "../../parachain" }
 xcm-builder = { path = "../xcm-builder" }

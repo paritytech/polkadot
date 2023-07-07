@@ -26,22 +26,22 @@ polkadot-node-core-pvf-execute-worker = { path = "../node/core/pvf/execute-worke
 polkadot-node-core-pvf-prepare-worker = { path = "../node/core/pvf/prepare-worker", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "alindima-get-rid-of-peerset-stub" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "alindima-get-rid-of-peerset-stub" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "alindima-get-rid-of-peerset-stub" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "alindima-get-rid-of-peerset-stub" }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "alindima-get-rid-of-peerset-stub" }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
 
 [features]
 default = ["db", "cli", "full-node"]

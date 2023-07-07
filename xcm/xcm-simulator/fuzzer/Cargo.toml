@@ -11,14 +11,14 @@ honggfuzz = "0.5.55"
 arbitrary = "1.2.0"
 scale-info = { version = "2.5.0", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "alindima-get-rid-of-peerset-stub" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }
