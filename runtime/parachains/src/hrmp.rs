@@ -249,7 +249,7 @@ pub mod pallet {
 			+ From<<Self as frame_system::Config>::RuntimeOrigin>
 			+ Into<Result<crate::Origin, <Self as Config>::RuntimeOrigin>>;
 
-		/// The origin which may manage channels.
+		/// The origin that can perform "force" actions on channels.
 		type ChannelManager: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 
 		/// An interface for reserving deposits for opening channels.
@@ -593,12 +593,14 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Open a channel from a `sender` to a `recipient` `ParaId` using the Root origin. Although
-		/// opened by Root, the `max_capacity` and `max_message_size` are still subject to the Relay
-		/// Chain's configured limits.
+		/// Open a channel from a `sender` to a `recipient` `ParaId`. Although opened by governance,
+		/// the `max_capacity` and `max_message_size` are still subject to the Relay Chain's
+		/// configured limits.
 		///
 		/// Expected use is when one of the `ParaId`s involved in the channel is governed by the
 		/// Relay Chain, e.g. a system parachain.
+		///
+		/// Origin must be the `ChannelManager`.
 		#[pallet::call_index(7)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel(1))]
 		pub fn force_open_hrmp_channel(
