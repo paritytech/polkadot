@@ -20,7 +20,7 @@ pub use pallet_custom_origins::*;
 
 #[frame_support::pallet]
 pub mod pallet_custom_origins {
-	use crate::{Balance, GRAND, QUID};
+	use crate::{Balance, GRAND, CENTS};
 	use frame_support::pallet_prelude::*;
 
 	#[pallet::config]
@@ -169,7 +169,7 @@ pub mod pallet_custom_origins {
 
 	decl_ensure! {
 		pub type Spender: EnsureOrigin<Success = Balance> {
-			SmallTipper = 250 * QUID,
+			SmallTipper = 250 * 3 * CENTS,
 			BigTipper = 1 * GRAND,
 			SmallSpender = 10 * GRAND,
 			MediumSpender = 100 * GRAND,

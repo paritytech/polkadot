@@ -211,7 +211,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 		pallet_referenda::TrackInfo {
 			name: "small_tipper",
 			max_deciding: 200,
-			decision_deposit: 1 * QUID,
+			decision_deposit: 1 * 3 * CENTS,
 			prepare_period: 1 * MINUTES,
 			decision_period: 7 * DAYS,
 			confirm_period: 10 * MINUTES,
@@ -225,7 +225,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 		pallet_referenda::TrackInfo {
 			name: "big_tipper",
 			max_deciding: 100,
-			decision_deposit: 10 * QUID,
+			decision_deposit: 10 * 3 * CENTS,
 			prepare_period: 10 * MINUTES,
 			decision_period: 7 * DAYS,
 			confirm_period: 1 * HOURS,
@@ -239,7 +239,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 		pallet_referenda::TrackInfo {
 			name: "small_spender",
 			max_deciding: 50,
-			decision_deposit: 100 * QUID,
+			decision_deposit: 100 * 3 * CENTS,
 			prepare_period: 4 * HOURS,
 			decision_period: 14 * DAYS,
 			confirm_period: 12 * HOURS,
@@ -253,7 +253,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 		pallet_referenda::TrackInfo {
 			name: "medium_spender",
 			max_deciding: 50,
-			decision_deposit: 200 * QUID,
+			decision_deposit: 200 * 3 * CENTS,
 			prepare_period: 4 * HOURS,
 			decision_period: 14 * DAYS,
 			confirm_period: 24 * HOURS,
@@ -267,7 +267,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 		pallet_referenda::TrackInfo {
 			name: "big_spender",
 			max_deciding: 50,
-			decision_deposit: 400 * QUID,
+			decision_deposit: 400 * 3 * CENTS,
 			prepare_period: 4 * HOURS,
 			decision_period: 14 * DAYS,
 			confirm_period: 48 * HOURS,
