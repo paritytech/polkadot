@@ -28,9 +28,7 @@ use polkadot_overseer::Handle;
 use polkadot_primitives::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_runtime_parachains::paras::{ParaGenesisArgs, ParaKind};
-use polkadot_service::{
-	ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull, PrometheusConfig,
-};
+use polkadot_service::{Error, FullClient, IsCollator, NewFull, PrometheusConfig};
 use polkadot_test_runtime::{
 	ParasCall, ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall,
 	UncheckedExtrinsic, VERSION,
@@ -63,26 +61,11 @@ use std::{
 use substrate_test_client::{
 	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
-/// Declare an instance of the native executor named `PolkadotTestExecutorDispatch`. Include the wasm binary as the
-/// equivalent wasm code.
-pub struct PolkadotTestExecutorDispatch;
-
-impl sc_executor::NativeExecutionDispatch for PolkadotTestExecutorDispatch {
-	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
-
-	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-		polkadot_test_runtime::api::dispatch(method, data)
-	}
-
-	fn native_version() -> sc_executor::NativeVersion {
-		polkadot_test_runtime::native_version()
-	}
-}
 
 /// The client type being used by the test service.
-pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch>;
+pub type Client = FullClient;
 
-pub use polkadot_service::FullBackend;
+pub use polkadot_service::{FullBackend, GetLastTimestamp};
 
 /// Create a new full node.
 #[sc_tracing::logging::prefix_logs_with(config.network.node_name.as_str())]
@@ -90,8 +73,8 @@ pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	worker_program_path: Option<PathBuf>,
-) -> Result<NewFull<Arc<Client>>, Error> {
-	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch, _>(
+) -> Result<NewFull, Error> {
+	polkadot_service::new_full(
 		config,
 		is_collator,
 		None,
@@ -105,15 +88,6 @@ pub fn new_full(
 		None,
 		None,
 	)
-}
-
-/// A wrapper for the test client that implements `ClientHandle`.
-pub struct TestClient(pub Arc<Client>);
-
-impl ClientHandle for TestClient {
-	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
-		T::execute_with_client::<_, _, polkadot_service::FullBackend>(t, self.0.clone())
-	}
 }
 
 /// Returns a prometheus config usable for testing.

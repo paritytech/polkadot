@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3.3.0
-      - uses: actions/setup-node@v3.6.0
+      - uses: actions/setup-node@v3.7.0
         with:
           node-version: '16.19.0'
           registry-url: 'https://npm.pkg.github.com'
