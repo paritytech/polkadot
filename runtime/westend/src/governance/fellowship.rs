@@ -27,7 +27,7 @@ use sp_runtime::{
 };
 
 use super::*;
-use crate::{DAYS, QUID};
+use crate::{DAYS, CENTS};
 
 parameter_types! {
 	pub const AlarmInterval: BlockNumber = 1;
@@ -46,7 +46,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				pallet_referenda::TrackInfo {
 					name: "candidates",
 					max_deciding: 10,
-					decision_deposit: 100 * QUID,
+					decision_deposit: 100 * 3 * CENTS,
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
@@ -68,7 +68,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				pallet_referenda::TrackInfo {
 					name: "members",
 					max_deciding: 10,
-					decision_deposit: 10 * QUID,
+					decision_deposit: 10 * 3 * CENTS,
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
@@ -90,7 +90,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				pallet_referenda::TrackInfo {
 					name: "proficients",
 					max_deciding: 10,
-					decision_deposit: 10 * QUID,
+					decision_deposit: 10 * 3 * CENTS,
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
@@ -112,7 +112,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				pallet_referenda::TrackInfo {
 					name: "fellows",
 					max_deciding: 10,
-					decision_deposit: 10 * QUID,
+					decision_deposit: 10 * 3 * CENTS,
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
@@ -134,7 +134,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				pallet_referenda::TrackInfo {
 					name: "senior fellows",
 					max_deciding: 10,
-					decision_deposit: 10 * QUID,
+					decision_deposit: 10 * 3 * CENTS,
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
@@ -156,7 +156,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				pallet_referenda::TrackInfo {
 					name: "experts",
 					max_deciding: 10,
-					decision_deposit: 1 * QUID,
+					decision_deposit: 1 * 3 * CENTS,
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
@@ -178,7 +178,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				pallet_referenda::TrackInfo {
 					name: "senior experts",
 					max_deciding: 10,
-					decision_deposit: 1 * QUID,
+					decision_deposit: 1 * 3 * CENTS,
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
@@ -200,7 +200,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				pallet_referenda::TrackInfo {
 					name: "masters",
 					max_deciding: 10,
-					decision_deposit: 1 * QUID,
+					decision_deposit: 1 * 3 * CENTS,
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
@@ -222,7 +222,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				pallet_referenda::TrackInfo {
 					name: "senior masters",
 					max_deciding: 10,
-					decision_deposit: 1 * QUID,
+					decision_deposit: 1 * 3 * CENTS,
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
@@ -244,7 +244,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				pallet_referenda::TrackInfo {
 					name: "grand masters",
 					max_deciding: 10,
-					decision_deposit: 1 * QUID,
+					decision_deposit: 1 * 3 * CENTS,
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
