@@ -14,10 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot. If not, see <http://www.gnu.org/licenses/>.
 
-//! Elements of governance concerning the Polkadot Fellowship. This is only a temporary arrangement
-//! since the Polkadot Fellowship belongs under the Polkadot Relay. However, that is not yet in
-//! place, so until then it will need to live here. Once it is in place and there exists a bridge
-//! between Polkadot/Kusama then this code can be removed.
+//! Elements of governance concerning the Rococo Fellowship.
 
 use frame_support::traits::{MapSuccess, TryMapSuccess};
 use sp_arithmetic::traits::CheckedSub;
