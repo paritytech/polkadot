@@ -1489,8 +1489,9 @@ async fn process_msg<Context>(
 				},
 			};
 			let fetched_collation = FetchedCollation::from(&receipt.to_plain());
-			if let Some(collation_event) = state.fetched_candidates.remove(&fetched_collation) {
-				let (collator_id, pending_collation) = collation_event;
+			if let Some(CollationEvent { collator_id, pending_collation }) =
+				state.fetched_candidates.remove(&fetched_collation)
+			{
 				let PendingCollation { relay_parent, peer_id, prospective_candidate, .. } =
 					pending_collation;
 				note_good_collation(
@@ -1542,9 +1543,9 @@ async fn process_msg<Context>(
 			let candidate_hash = fetched_collation.candidate_hash;
 			let id = match state.fetched_candidates.entry(fetched_collation) {
 				Entry::Occupied(entry)
-					if entry.get().1.commitments_hash ==
+					if entry.get().pending_collation.commitments_hash ==
 						Some(candidate_receipt.commitments_hash) =>
-					entry.remove().0,
+					entry.remove().collator_id,
 				Entry::Occupied(_) => {
 					gum::error!(
 						target: LOG_TARGET,
@@ -1638,27 +1639,27 @@ async fn run_inner<Context>(
 					Ok(res) => res
 				};
 
-				let (collator_id, pc) = res.0.clone();
+				let CollationEvent {collator_id, pending_collation} = res.collation_event.clone();
 				if let Err(err) = kick_off_seconding(&mut ctx, &mut state, res).await {
 					gum::warn!(
 						target: LOG_TARGET,
-						relay_parent = ?pc.relay_parent,
-						para_id = ?pc.para_id,
-						peer_id = ?pc.peer_id,
+						relay_parent = ?pending_collation.relay_parent,
+						para_id = ?pending_collation.para_id,
+						peer_id = ?pending_collation.peer_id,
 						error = %err,
 						"Seconding aborted due to an error",
 					);
 
 					if err.is_malicious() {
 						// Report malicious peer.
-						modify_reputation(&mut state.reputation, ctx.sender(), pc.peer_id, COST_REPORT_BAD).await;
+						modify_reputation(&mut state.reputation, ctx.sender(), pending_collation.peer_id, COST_REPORT_BAD).await;
 					}
 					let maybe_candidate_hash =
-						pc.prospective_candidate.as_ref().map(ProspectiveCandidate::candidate_hash);
+					pending_collation.prospective_candidate.as_ref().map(ProspectiveCandidate::candidate_hash);
 					dequeue_next_collation_and_fetch(
 						&mut ctx,
 						&mut state,
-						pc.relay_parent,
+						pending_collation.relay_parent,
 						(collator_id, maybe_candidate_hash),
 					)
 					.await;
@@ -1768,10 +1769,10 @@ where
 async fn kick_off_seconding<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	(mut collation_event, (candidate_receipt, pov)): PendingCollationFetch,
+	PendingCollationFetch { mut collation_event, candidate_receipt, pov }: PendingCollationFetch,
 ) -> std::result::Result<(), SecondingError> {
-	let relay_parent = collation_event.1.relay_parent;
-	let para_id = collation_event.1.para_id;
+	let pending_collation = collation_event.pending_collation;
+	let relay_parent = pending_collation.relay_parent;
 
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
 		Some(state) => state,
@@ -1790,35 +1791,41 @@ async fn kick_off_seconding<Context>(
 
 	let fetched_collation = FetchedCollation::from(&candidate_receipt);
 	if let Entry::Vacant(entry) = state.fetched_candidates.entry(fetched_collation) {
-		collation_event.1.commitments_hash = Some(candidate_receipt.commitments_hash);
+		collation_event.pending_collation.commitments_hash =
+			Some(candidate_receipt.commitments_hash);
 
-		let pvd = match (relay_parent_mode, collation_event.1.prospective_candidate) {
-			(
-				ProspectiveParachainsMode::Enabled { .. },
-				Some(ProspectiveCandidate { parent_head_data_hash, .. }),
-			) =>
-				request_prospective_validation_data(
-					ctx.sender(),
-					relay_parent,
-					parent_head_data_hash,
-					para_id,
-				)
-				.await?,
-			(ProspectiveParachainsMode::Disabled, _) =>
-				request_persisted_validation_data(
-					ctx.sender(),
-					candidate_receipt.descriptor().relay_parent,
-					candidate_receipt.descriptor().para_id,
-				)
-				.await?,
-			_ => {
-				// `handle_advertisement` checks for protocol mismatch.
-				return Ok(())
-			},
-		}
-		.ok_or(SecondingError::PersistedValidationDataNotFound)?;
+		let pvd =
+			match (relay_parent_mode, collation_event.pending_collation.prospective_candidate) {
+				(
+					ProspectiveParachainsMode::Enabled { .. },
+					Some(ProspectiveCandidate { parent_head_data_hash, .. }),
+				) =>
+					request_prospective_validation_data(
+						ctx.sender(),
+						relay_parent,
+						parent_head_data_hash,
+						pending_collation.para_id,
+					)
+					.await?,
+				(ProspectiveParachainsMode::Disabled, _) =>
+					request_persisted_validation_data(
+						ctx.sender(),
+						candidate_receipt.descriptor().relay_parent,
+						candidate_receipt.descriptor().para_id,
+					)
+					.await?,
+				_ => {
+					// `handle_advertisement` checks for protocol mismatch.
+					return Ok(())
+				},
+			}
+			.ok_or(SecondingError::PersistedValidationDataNotFound)?;
 
-		fetched_collation_sanity_check(&collation_event.1, &candidate_receipt, &pvd)?;
+		fetched_collation_sanity_check(
+			&collation_event.pending_collation,
+			&candidate_receipt,
+			&pvd,
+		)?;
 
 		ctx.send_message(CandidateBackingMessage::Second(
 			relay_parent,
@@ -1857,7 +1864,7 @@ async fn disconnect_inactive_peers(
 // Any error that can occur when awaiting a collation fetch response.
 #[derive(Debug, thiserror::Error)]
 enum CollationFetchError {
-	#[error("Future was cancelled by the validator side.")]
+	#[error("Future was cancelled.")]
 	Cancelled,
 	#[error("{0}")]
 	Request(#[from] RequestError),
@@ -1883,8 +1890,7 @@ struct CollationFetchRequest {
 
 impl Future for CollationFetchRequest {
 	type Output = (
-		PendingCollation,
-		CollatorId,
+		CollationEvent,
 		std::result::Result<request_v1::CollationFetchingResponse, CollationFetchError>,
 	);
 
@@ -1898,25 +1904,29 @@ impl Future for CollationFetchRequest {
 		if cancelled {
 			self.span.as_mut().map(|s| s.add_string_tag("success", "false"));
 			return Poll::Ready((
-				self.pending_collation,
-				self.collator_id.clone(),
+				CollationEvent {
+					collator_id: self.collator_id.clone(),
+					pending_collation: self.pending_collation,
+				},
 				Err(CollationFetchError::Cancelled),
 			))
 		}
 
 		let res = self.from_collator.poll_unpin(cx).map(|res| {
 			(
-				self.pending_collation,
-				self.collator_id.clone(),
+				CollationEvent {
+					collator_id: self.collator_id.clone(),
+					pending_collation: self.pending_collation,
+				},
 				res.map_err(CollationFetchError::Request),
 			)
 		});
 
 		match &res {
-			Poll::Ready((_, _, Ok(request_v1::CollationFetchingResponse::Collation(..)))) => {
+			Poll::Ready((_, Ok(request_v1::CollationFetchingResponse::Collation(..)))) => {
 				self.span.as_mut().map(|s| s.add_string_tag("success", "true"));
 			},
-			Poll::Ready((_, _, Err(_))) => {
+			Poll::Ready((_, Err(_))) => {
 				self.span.as_mut().map(|s| s.add_string_tag("success", "false"));
 			},
 			_ => {},
@@ -1931,7 +1941,7 @@ async fn handle_collation_fetch_response(
 	state: &mut State,
 	response: <CollationFetchRequest as Future>::Output,
 ) -> std::result::Result<PendingCollationFetch, Option<(PeerId, Rep)>> {
-	let (pending_collation, collator_id, response) = response;
+	let (CollationEvent { collator_id, pending_collation }, response) = response;
 	// Remove the cancellation handle, as the future already completed.
 	state.collation_requests_cancel_handles.remove(&pending_collation);
 
@@ -2021,18 +2031,22 @@ async fn handle_collation_fetch_response(
 
 			Err(Some((pending_collation.peer_id, COST_WRONG_PARA)))
 		},
-		Ok(request_v1::CollationFetchingResponse::Collation(receipt, pov)) => {
+		Ok(request_v1::CollationFetchingResponse::Collation(candidate_receipt, pov)) => {
 			gum::debug!(
 				target: LOG_TARGET,
 				para_id = %pending_collation.para_id,
 				hash = ?pending_collation.relay_parent,
-				candidate_hash = ?receipt.hash(),
+				candidate_hash = ?candidate_receipt.hash(),
 				"Received collation",
 			);
 			let _span = jaeger::Span::new(&pov, "received-collation");
 
 			metrics_result = Ok(());
-			Ok(((collator_id, pending_collation), (receipt, pov)))
+			Ok(PendingCollationFetch {
+				collation_event: CollationEvent { collator_id, pending_collation },
+				candidate_receipt,
+				pov,
+			})
 		},
 	};
 	state.metrics.on_request(metrics_result);

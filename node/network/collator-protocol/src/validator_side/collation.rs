@@ -147,9 +147,18 @@ pub fn fetched_collation_sanity_check(
 	}
 }
 
-pub type CollationEvent = (CollatorId, PendingCollation);
+#[derive(Debug, Clone)]
+pub struct CollationEvent {
+	pub collator_id: CollatorId,
+	pub pending_collation: PendingCollation,
+}
 
-pub type PendingCollationFetch = (CollationEvent, (CandidateReceipt, PoV));
+#[derive(Debug, Clone)]
+pub struct PendingCollationFetch {
+	pub collation_event: CollationEvent,
+	pub candidate_receipt: CandidateReceipt,
+	pub pov: PoV,
+}
 
 /// The status of the collations in [`CollationsPerRelayParent`].
 #[derive(Debug, Clone, Copy)]
