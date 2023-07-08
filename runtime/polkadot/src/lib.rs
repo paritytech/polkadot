@@ -696,7 +696,6 @@ impl pallet_treasury::Config for Runtime {
 		CloneIdentity,
 	>;
 	type BalanceConverter = AssetRate;
-	type VoidOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
 	type PayoutPeriod = PayoutSpendPeriod;
 	#[cfg(feature = "runtime-benchmarks")]
 	type BenchmarkHelper = runtime_common::impls::benchmarks::TreasuryArguments;
