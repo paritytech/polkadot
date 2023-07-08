@@ -263,7 +263,7 @@ mod tests {
 		type BalanceConverter = UnityAssetBalanceConversion;
 		type PayoutPeriod = ConstU64<0>;
 		#[cfg(feature = "runtime-benchmarks")]
-		type BenchmarkHelper = TreasuryArguments;
+		type BenchmarkHelper = ();
 	}
 
 	pub struct OneAuthor;
