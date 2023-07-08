@@ -261,6 +261,7 @@ mod tests {
 		type BeneficiaryLookup = IdentityLookup<Self::AccountId>;
 		type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
 		type BalanceConverter = UnityAssetBalanceConversion;
+		type VoidOrigin = frame_system::EnsureRoot<AccountId>;
 		type PayoutPeriod = ConstU64<0>;
 		#[cfg(feature = "runtime-benchmarks")]
 		type BenchmarkHelper = TreasuryArguments;

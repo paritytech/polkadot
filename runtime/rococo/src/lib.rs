@@ -64,7 +64,7 @@ use frame_support::{
 	weights::{ConstantMultiplier, WeightMeter},
 	PalletId, RuntimeDebug,
 };
-use frame_system::EnsureRoot;
+use frame_system::{EnsureRoot, EnsureRootWithSuccess};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
@@ -557,6 +557,7 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxKeys: u32 = 10_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
+	pub const MaxBalance: Balance = Balance::max_value();
 }
 
 type ApproveOrigin = EitherOfDiverse<
@@ -580,7 +581,7 @@ impl pallet_treasury::Config for Runtime {
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
-	type SpendOrigin = frame_support::traits::NeverEnsureOrigin<Balance>;
+	type SpendOrigin = EnsureRootWithSuccess<AccountId, MaxBalance>;
 	type AssetKind = LocatableAssetId;
 	type Beneficiary = MultiLocation;
 	type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
@@ -595,6 +596,7 @@ impl pallet_treasury::Config for Runtime {
 		CloneIdentity,
 	>;
 	type BalanceConverter = AssetRate;
+	type VoidOrigin = EnsureRoot<AccountId>;
 	type PayoutPeriod = PayoutSpendPeriod;
 	#[cfg(feature = "runtime-benchmarks")]
 	type BenchmarkHelper = runtime_common::impls::benchmarks::TreasuryArguments;
