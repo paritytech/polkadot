@@ -2183,7 +2183,7 @@ mod test_fees {
 		use pallet_staking::WeightInfo;
 		let payout_weight =
 			<Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
-				MaxExposurePageSize::get(),
+				MaxExposurePageSize::get().into(),
 			)
 			.ref_time() as f64;
 		let block_weight = BlockWeights::get().max_block.ref_time() as f64;
