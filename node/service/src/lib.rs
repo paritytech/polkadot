@@ -687,10 +687,11 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 /// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
 /// still determined based on the role of the node. Likewise for authority discovery.
 ///
-/// `workers_path` is used to get the PVF worker locations. First, `workers_path` is considered,
-/// and if it is passed then that location will be used for both the binaries. If it is not passed,
-/// current exe's directory is considered and checked for pinaries presence. If not found, the
-/// binaries will be taken from `$PATH`.
+/// `workers_path` is used to get the path to the directory where auxiliary worker binaries reside.
+/// If not specified, the main binary's directory is searched first, then `/usr/libexec` is
+/// searched, and then the `$PATH` is considered. If the path points to an executable rather then
+/// directory, that executable is used both as preparation and execution worker (supposed to be used
+/// for tests only).
 #[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	mut config: Configuration,
