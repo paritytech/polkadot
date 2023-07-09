@@ -37,7 +37,8 @@ polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" 
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Crates in our workspace, defined as dependencies so we can pass them feature flags.
-polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
+polkadot-cli = { path = "cli", features = [ "polkadot-native", "kusama-native", "westend-native", "rococo-native" ]  }
+polkadot-node-core-pvf = { path = "node/core/pvf" }
 polkadot-overseer = { path = "node/overseer" }
 
 [dev-dependencies]
@@ -81,7 +82,6 @@ members = [
 	"xcm/pallet-xcm",
 	"xcm/pallet-xcm-benchmarks",
 	"xcm/procedural",
-	"node/client",
 	"node/collation-generation",
 	"node/core/approval-voting",
 	"node/core/av-store",
@@ -191,7 +191,6 @@ snow = { opt-level = 3 }
 substrate-bip39 = {opt-level = 3}
 twox-hash = { opt-level = 3 }
 uint = { opt-level = 3 }
-wasmi = { opt-level = 3 }
 x25519-dalek = { opt-level = 3 }
 yamux = { opt-level = 3 }
 zeroize = { opt-level = 3 }
@@ -225,7 +224,9 @@ runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
 jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
 
-
+# Enables timeout-based tests supposed to be run only in CI environment as they may be flaky
+# when run locally depending on system load
+ci-only-tests = ["polkadot-node-core-pvf/ci-only-tests"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
