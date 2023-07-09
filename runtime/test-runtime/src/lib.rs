@@ -311,8 +311,8 @@ parameter_types! {
 	// 27 eras in which slashes can be cancelled (a bit less than 7 days).
 	pub storage SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	pub storage MaxExposurePageSize: u32 = 64;
-	pub storage MaxExposurePageCount: u32 = 10;
+	pub storage MaxExposurePageSize: u16 = 64;
+	pub storage MaxExposurePageCount: u16 = 10;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const OnChainMaxWinners: u32 = u32::MAX;

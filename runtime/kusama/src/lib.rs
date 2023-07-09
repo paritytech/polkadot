@@ -557,8 +557,8 @@ parameter_types! {
 		27,
 		"DOT_SLASH_DEFER_DURATION"
 	);
-	pub const MaxExposurePageSize: u32 = 512;
-	pub const MaxExposurePageCount: u32 = 1;
+	pub const MaxExposurePageSize: u16 = 512;
+	pub const MaxExposurePageCount: u16 = 1;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 24
 	pub const MaxNominations: u32 = <NposCompactSolution24 as NposSolution>::LIMIT as u32;
@@ -2108,8 +2108,8 @@ sp_api::impl_runtime_apis! {
 			Staking::api_nominations_quota(balance)
 		}
 
-		fn era_page_count(era: sp_staking::EraIndex, account: AccountId) -> sp_staking::PageIndex {
-			Staking::api_era_page_count(era, account)
+		fn eras_stakers_page_count(era: sp_staking::EraIndex, account: AccountId) -> sp_staking::PageIndex {
+			Staking::api_eras_stakers_page_count(era, account)
 		}
 	}
 
