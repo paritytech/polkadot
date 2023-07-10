@@ -20,6 +20,7 @@ polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+polkadot-node-jaeger = { path = "../../jaeger" }
 
 [dev-dependencies]
 log = "0.4.17"
