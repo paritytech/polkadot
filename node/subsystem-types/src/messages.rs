@@ -35,7 +35,8 @@ use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
 	CollationSecondedSignal, DisputeMessage, DisputeStatus, ErasureChunk, PoV,
-	SignedDisputeStatement, SignedFullStatement, SignedFullStatementWithPVD, ValidationResult,
+	SignedDisputeStatement, SignedFullStatement, SignedFullStatementWithPVD, SubmitCollationParams,
+	ValidationResult,
 };
 use polkadot_primitives::{
 	slashing, vstaging as vstaging_primitives, AuthorityDiscoveryId, BackedCandidate, BlockNumber,
@@ -769,6 +770,11 @@ pub enum ProvisionerMessage {
 pub enum CollationGenerationMessage {
 	/// Initialize the collation generation subsystem
 	Initialize(CollationGenerationConfig),
+	/// Submit a collation to the subsystem. This will package it into a signed
+	/// [`CommittedCandidateReceipt`] and distribute along the network to validators.
+	///
+	/// If sent before `Initialize`, this will be ignored.
+	SubmitCollation(SubmitCollationParams),
 }
 
 /// The result type of [`ApprovalVotingMessage::CheckAndImportAssignment`] request.

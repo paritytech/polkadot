@@ -7153,6 +7153,7 @@ dependencies = [
 name = "polkadot-node-collation-generation"
 version = "0.9.43"
 dependencies = [
+ "assert_matches",
  "futures",
  "parity-scale-codec 3.6.1",
  "polkadot-erasure-coding",
@@ -7163,6 +7164,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
  "sp-core",
+ "sp-keyring",
  "sp-maybe-compressed-blob",
  "thiserror",
  "tracing-gum",

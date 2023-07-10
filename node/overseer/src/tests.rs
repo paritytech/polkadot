@@ -797,7 +797,7 @@ fn test_chain_api_msg() -> ChainApiMessage {
 fn test_collator_generation_msg() -> CollationGenerationMessage {
 	CollationGenerationMessage::Initialize(CollationGenerationConfig {
 		key: CollatorPair::generate().0,
-		collator: Box::new(|_, _| TestCollator.boxed()),
+		collator: Some(Box::new(|_, _| TestCollator.boxed())),
 		para_id: Default::default(),
 	})
 }

@@ -80,7 +80,8 @@ impl ValidationCode {
 	}
 }
 
-/// Unit type wrapper around [`type@Hash`] that represents a validation code hash.
+/// Unit type wrapper around [`type@Hash`] that represents the blake2-256 hash
+/// of validation code in particular.
 ///
 /// This type is produced by [`ValidationCode::hash`].
 ///
