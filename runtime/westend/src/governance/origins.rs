@@ -20,7 +20,7 @@ pub use pallet_custom_origins::*;
 
 #[frame_support::pallet]
 pub mod pallet_custom_origins {
-	use crate::{Balance, GRAND, CENTS};
+	use crate::{Balance, CENTS, GRAND};
 	use frame_support::pallet_prelude::*;
 
 	#[pallet::config]

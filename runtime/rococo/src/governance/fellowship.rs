@@ -24,7 +24,7 @@ use sp_runtime::{
 };
 
 use super::*;
-use crate::{DAYS, CENTS};
+use crate::{CENTS, DAYS};
 
 parameter_types! {
 	pub const AlarmInterval: BlockNumber = 1;
