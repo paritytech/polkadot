@@ -428,20 +428,6 @@ struct CollationGenerationConfig {
     para_id: ParaId,
 }
 
-/// Hints for the collation-generation subsystem to determine the correct
-/// validation code hash to put into the candidate receipt.
-///
-/// Providing an incorrect hint or no hint at all could lead the candidate to have the
-/// wrong code provided, but only in the few blocks surrounding validation code upgrades.
-/// such a candidate receipt would be rejected by validators.
-enum ValidationCodeHashHint {
-    /// Contains the number of the relay-chain block used as a relay-parent
-    /// for the collation's parent block.
-    ParentBlockRelayParentNumber(BlockNumber),
-    /// Contains explicitly the validation code hash to use in the candidate receipt.
-    Provided(ValidationCodeHash),
-}
-
 /// Parameters for submitting a collation
 struct SubmitCollationParams {
     /// The relay-parent the collation is built against.
@@ -450,9 +436,8 @@ struct SubmitCollationParams {
     collation: Collation,
     /// The parent block's head-data.
     parent_head: HeadData,
-    /// The validation code hash hint. If no hint is provided, a best effort will be made
-    /// against the relay-parent's state.
-    validation_code_hash: Option<ValidationCodeHashHint>,
+    /// The hash of the validation code the collation was created against.
+    validation_code_hash: ValidationCodeHash,
     /// A response channel for receiving a `Seconded` message about the candidate
     /// once produced by a validator. This is not guaranteed to provide anything.
     result_sender: Option<ResponseChannel<SignedStatement>>,

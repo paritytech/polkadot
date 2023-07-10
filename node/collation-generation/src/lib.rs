@@ -33,12 +33,10 @@ use futures::{channel::oneshot, future::FutureExt, join, select};
 use parity_scale_codec::Encode;
 use polkadot_node_primitives::{
 	AvailableData, Collation, CollationGenerationConfig, CollationSecondedSignal, PoV,
-	SubmitCollationParams, ValidationCodeHashHint,
+	SubmitCollationParams,
 };
 use polkadot_node_subsystem::{
-	messages::{
-		CollationGenerationMessage, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
-	},
+	messages::{CollationGenerationMessage, CollatorProtocolMessage},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, RuntimeApiError, SpawnedSubsystem,
 	SubsystemContext, SubsystemError, SubsystemResult,
 };
@@ -47,9 +45,9 @@ use polkadot_node_subsystem_util::{
 	request_validation_code_hash, request_validators,
 };
 use polkadot_primitives::{
-	collator_signature_payload, vstaging::BackingState, CandidateCommitments, CandidateDescriptor,
-	CandidateReceipt, CollatorPair, CoreState, Hash, HeadData, Id as ParaId,
-	OccupiedCoreAssumption, PersistedValidationData, ValidationCodeHash,
+	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
+	CollatorPair, CoreState, Hash, Id as ParaId, OccupiedCoreAssumption, PersistedValidationData,
+	ValidationCodeHash,
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;
@@ -358,7 +356,7 @@ async fn handle_submit_collation<Context>(
 		relay_parent,
 		collation,
 		parent_head,
-		validation_code_hash_hint: code_hint,
+		validation_code_hash,
 		result_sender,
 	} = params;
 
@@ -388,19 +386,6 @@ async fn handle_submit_collation<Context>(
 	};
 
 	validation_data.parent_head = parent_head;
-
-	let validation_code_hash = match obtain_validation_code_hash_with_hint(
-		relay_parent,
-		config.para_id,
-		code_hint,
-		&validation_data.parent_head,
-		ctx.sender(),
-	)
-	.await?
-	{
-		None => return Ok(()),
-		Some(v) => v,
-	};
 
 	let collation = PreparedCollation {
 		collation,
@@ -543,72 +528,6 @@ async fn construct_and_distribute_receipt(
 			result_sender,
 		))
 		.await;
-}
-
-async fn obtain_validation_code_hash_with_hint(
-	relay_parent: Hash,
-	para_id: ParaId,
-	hint: Option<ValidationCodeHashHint>,
-	parent_head: &HeadData,
-	sender: &mut impl overseer::CollationGenerationSenderTrait,
-) -> crate::error::Result<Option<ValidationCodeHash>> {
-	let parent_rp_number = match hint {
-		Some(ValidationCodeHashHint::Provided(hash)) => return Ok(Some(hash)),
-		Some(ValidationCodeHashHint::ParentBlockRelayParentNumber(n)) => Some(n),
-		None => None,
-	};
-
-	let maybe_backing_state = {
-		let (tx, rx) = oneshot::channel();
-		sender
-			.send_message(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::StagingParaBackingState(para_id, tx),
-			))
-			.await;
-
-		// Failure here means the runtime API doesn't exist.
-		match rx.await? {
-			Ok(Some(state)) => Some(state),
-			Err(RuntimeApiError::NotSupported { .. }) => None,
-			Ok(None) => return Ok(None),
-			Err(e) => return Err(e.into()),
-		}
-	};
-
-	if let Some(BackingState { constraints, pending_availability }) = maybe_backing_state {
-		let (future_trigger, future_code_hash) = match constraints.future_validation_code {
-			Some(x) => x,
-			None => return Ok(Some(constraints.validation_code_hash)),
-		};
-
-		// If not explicitly provided, search for the parent's relay-parent number in the
-		// set of candidates pending availability on-chain.
-		let parent_rp_number = parent_rp_number.or_else(|| {
-			pending_availability
-				.iter()
-				.find(|c| &c.commitments.head_data == parent_head)
-				.map(|c| c.relay_parent_number)
-		});
-
-		if parent_rp_number.map_or(false, |n| n >= future_trigger) {
-			Ok(Some(future_code_hash))
-		} else {
-			Ok(Some(constraints.validation_code_hash))
-		}
-	} else {
-		// This branch implies that asynchronous backing has not yet been enabled,
-		// so in that case cores can only be built on when free anyway.
-		let maybe_hash = request_validation_code_hash(
-			relay_parent,
-			para_id,
-			OccupiedCoreAssumption::Free,
-			sender,
-		)
-		.await
-		.await??;
-		Ok(maybe_hash)
-	}
 }
 
 async fn obtain_validation_code_hash_with_assumption(

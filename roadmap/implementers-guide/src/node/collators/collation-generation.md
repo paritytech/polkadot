@@ -28,9 +28,6 @@ Collation generation for Parachains currently works in the following way:
 - `CollationGenerationMessage::SubmitCollation`
   - If the subsystem isn't initialized or the relay-parent is too old to be relevant, ignore the message.
   - Otherwise, use the provided parameters to generate a [`CommittedCandidateReceipt`]
-    - If no `ValidationCodeHashHint` is given, use the current validation code hash from the relay-chain state, unless the parent-head of the collation equals the block pending availability for the parachain. In that case, use the pending future code if that block would trigger a code upgrade.
-    - If `ValidationCodeHashHint::Provided` is given, use that.
-    - If `ValidationCodeHashHint::ParentBlockRelayParentNumber` is given, determine whether the given parent block's relay parent number would trigger a code upgrade. If so, use the future code. If not, use the current code.
   - Submit the collation to the collator-protocol with `CollatorProtocolMessage::DistributeCollation`.
 
 ### Outgoing
