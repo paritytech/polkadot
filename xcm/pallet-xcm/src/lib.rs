@@ -1194,6 +1194,78 @@ impl<T: Config> QueryHandler for Pallet<T> {
 }
 
 impl<T: Config> Pallet<T> {
+	fn estimate_reserve_transfer_assets_remote_weight(
+		dest: MultiLocation,
+		beneficiary: MultiLocation,
+		assets: &[MultiAsset],
+		fees: &MultiAsset,
+		destination_fees_setup: &DestinationFeesSetup,
+	) -> Result<WeightLimit, DispatchError> {
+		// TODO: estimate fees using local weigher,
+		// or add some `T::BuyExecutionSetupResolver::max_limit_for(&dest, &fees.id)`?
+		let max_assets = assets.len() as u32;
+		let assets: MultiAssets = assets.to_vec().into();
+		let context = T::UniversalLocation::get();
+		let fees = fees
+			.clone()
+			.reanchored(&dest, context)
+			.map_err(|_| Error::<T>::CannotReanchor)?;
+		let weight_limit = Limited(Weight::zero());
+
+		// estimate weight_limit by weighing message to be executed on destination
+		let mut remote_message = match destination_fees_setup {
+			DestinationFeesSetup::ByOrigin => Xcm(vec![
+				ReserveAssetDeposited(assets),
+				ClearOrigin,
+				BuyExecution { fees, weight_limit },
+				DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
+			]),
+			DestinationFeesSetup::ByUniversalLocation { .. } => {
+				let sovereign_account_on_destination = T::UniversalLocation::get()
+					.invert_target(&dest)
+					.map_err(|_| Error::<T>::DestinationNotInvertible)?;
+				Xcm(vec![
+					ReserveAssetDeposited(assets.clone()),
+					ClearOrigin,
+					// Change origin to sovereign account of `T::UniversalLocation` on destination.
+					AliasOrigin(sovereign_account_on_destination),
+					// Withdraw fees (do not use those in `ReserveAssetDeposited`)
+					WithdrawAsset(MultiAssets::from(fees.clone())),
+					ClearOrigin,
+					BuyExecution { fees: fees.clone(), weight_limit },
+					RefundSurplus,
+					// deposit unspent `fees` back to `sovereign_account`
+					DepositAsset {
+						assets: MultiAssetFilter::from(MultiAssets::from(fees)),
+						beneficiary: sovereign_account_on_destination,
+					},
+					// deposit `assets` to beneficiary
+					DepositAsset { assets: MultiAssetFilter::from(assets), beneficiary },
+				])
+			},
+		};
+
+		// if message is going to different consensus, also include `UniversalOrigin/DescendOrigin`
+		if ensure_is_remote(T::UniversalLocation::get(), dest).is_ok() {
+			let (local_net, local_sub) = T::UniversalLocation::get()
+				.split_global()
+				.map_err(|_| Error::<T>::BadLocation)?;
+			remote_message.0.insert(0, UniversalOrigin(GlobalConsensus(local_net)));
+			if local_sub != Here {
+				remote_message.0.insert(1, DescendOrigin(local_sub));
+			}
+		}
+
+		// TODO: can we leave it here by default or should we add according to some configuration?
+		// TODO: think about some `trait RemoteMessageEstimator` stuff, where runtime can customize this?
+		remote_message.0.push(SetTopic([1; 32]));
+
+		// use local weight for remote message and hope for the best.
+		let remote_weight =
+			T::Weigher::weight(&mut remote_message).map_err(|()| Error::<T>::UnweighableMessage)?;
+		Ok(Limited(remote_weight))
+	}
+
 	fn do_reserve_transfer_assets(
 		origin: OriginFor<T>,
 		dest: Box<VersionedMultiLocation>,
@@ -1220,78 +1292,18 @@ impl<T: Config> Pallet<T> {
 		let destination_fees_setup = T::DestinationFeesManager::decide_for(&dest, &fees.id);
 
 		// resolve weight_limit
+		let weight_limit = maybe_weight_limit.ok_or(()).or_else(|()| {
+			Self::estimate_reserve_transfer_assets_remote_weight(
+				dest,
+				beneficiary,
+				&assets,
+				&fees,
+				&destination_fees_setup,
+			)
+		})?;
+
 		let max_assets = assets.len() as u32;
 		let assets: MultiAssets = assets.into();
-		let weight_limit = match maybe_weight_limit {
-			Some(weight_limit) => {
-				// use desired limit
-				weight_limit
-			},
-			None => {
-				// TODO: estimate fees using local weigher,
-				// or add some `T::BuyExecutionSetupResolver::max_limit_for(&dest, &fees.id)`?
-				let fees = fees
-					.clone()
-					.reanchored(&dest, context)
-					.map_err(|_| Error::<T>::CannotReanchor)?;
-				let assets = assets.clone();
-				let weight_limit = Limited(Weight::zero());
-
-				// estimate weight_limit by weighing message to be executed on destination
-				let mut remote_message = match destination_fees_setup {
-					DestinationFeesSetup::ByOrigin => Xcm(vec![
-						ReserveAssetDeposited(assets),
-						ClearOrigin,
-						BuyExecution { fees, weight_limit },
-						DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
-					]),
-					DestinationFeesSetup::ByUniversalLocation { .. } => {
-						let sovereign_account_on_destination = T::UniversalLocation::get()
-							.invert_target(&dest)
-							.map_err(|_| Error::<T>::DestinationNotInvertible)?;
-						Xcm(vec![
-							ReserveAssetDeposited(assets.clone()),
-							ClearOrigin,
-							// Change origin to sovereign account of `T::UniversalLocation` on destination.
-							AliasOrigin(sovereign_account_on_destination),
-							// Withdraw fees (do not use those in `ReserveAssetDeposited`)
-							WithdrawAsset(MultiAssets::from(fees.clone())),
-							ClearOrigin,
-							BuyExecution { fees: fees.clone(), weight_limit },
-							RefundSurplus,
-							// deposit unspent `fees` back to `sovereign_account`
-							DepositAsset {
-								assets: MultiAssetFilter::from(MultiAssets::from(fees)),
-								beneficiary: sovereign_account_on_destination,
-							},
-							// deposit `assets` to beneficiary
-							DepositAsset { assets: MultiAssetFilter::from(assets), beneficiary },
-						])
-					},
-				};
-
-				// if message is going to different consensus, also include `UniversalOrigin/DescendOrigin`
-				if ensure_is_remote(T::UniversalLocation::get(), dest).is_ok() {
-					let (local_net, local_sub) = T::UniversalLocation::get()
-						.split_global()
-						.map_err(|_| Error::<T>::BadLocation)?;
-					remote_message.0.insert(0, UniversalOrigin(GlobalConsensus(local_net)));
-					if local_sub != Here {
-						remote_message.0.insert(1, DescendOrigin(local_sub));
-					}
-				}
-
-				// TODO: can we leave it here by default or should we add according to some configuration?
-				// TODO: think about some `trait RemoteMessageEstimator` stuff, where runtime can customize this?
-				remote_message.0.push(SetTopic([1; 32]));
-
-				// use local weight for remote message and hope for the best.
-				let remote_weight = T::Weigher::weight(&mut remote_message)
-					.map_err(|()| Error::<T>::UnweighableMessage)?;
-				Limited(remote_weight)
-			},
-		};
-
 		// handle `BuyExecution` on target chain
 		let mut message = match destination_fees_setup {
 			DestinationFeesSetup::ByOrigin => {
