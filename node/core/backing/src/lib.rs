@@ -89,7 +89,7 @@ use polkadot_node_subsystem::{
 		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
 		HypotheticalCandidate, HypotheticalFrontierRequest, IntroduceCandidateRequest,
 		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiMessage,
-		RuntimeApiRequest, StatementDistributionMessage,
+		RuntimeApiRequest, StatementDistributionMessage, StoreAvailableDataError,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -405,8 +405,6 @@ impl TableContextTrait for TableContext {
 	}
 }
 
-struct InvalidErasureRoot;
-
 // It looks like it's not possible to do an `impl From` given the current state of
 // the code. So this does the necessary conversion.
 fn primitive_statement_to_table(s: &SignedFullStatementWithPVD) -> TableSignedStatement {
@@ -476,26 +474,34 @@ async fn store_available_data(
 	n_validators: u32,
 	candidate_hash: CandidateHash,
 	available_data: AvailableData,
+	expected_erasure_root: Hash,
 ) -> Result<(), Error> {
 	let (tx, rx) = oneshot::channel();
+	// Important: the `av-store` subsystem will check if the erasure root of the `available_data` matches `expected_erasure_root`
+	// which was provided by the collator in the `CandidateReceipt`. This check is consensus critical and the `backing` subsystem
+	// relies on it for ensuring candidate validity.
 	sender
 		.send_message(AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
 			n_validators,
 			available_data,
+			expected_erasure_root,
 			tx,
 		})
 		.await;
 
-	let _ = rx.await.map_err(Error::StoreAvailableData)?;
-
-	Ok(())
+	rx.await
+		.map_err(Error::StoreAvailableDataChannel)?
+		.map_err(Error::StoreAvailableData)
 }
 
 // Make a `PoV` available.
 //
-// This will compute the erasure root internally and compare it to the expected erasure root.
-// This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
+// This calls the AV store to write the available data to storage. The AV store also checks the erasure root matches
+// the `expected_erasure_root`.
+// This returns `Err()` on erasure root mismatch or due to any AV store subsystem error.
+//
+// Otherwise, it returns `Ok(())`.
 async fn make_pov_available(
 	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	n_validators: usize,
@@ -503,25 +509,15 @@ async fn make_pov_available(
 	candidate_hash: CandidateHash,
 	validation_data: PersistedValidationData,
 	expected_erasure_root: Hash,
-) -> Result<Result<(), InvalidErasureRoot>, Error> {
-	let available_data = AvailableData { pov, validation_data };
-
-	{
-		let chunks = erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
-
-		let branches = erasure_coding::branches(chunks.as_ref());
-		let erasure_root = branches.root();
-
-		if erasure_root != expected_erasure_root {
-			return Ok(Err(InvalidErasureRoot))
-		}
-	}
-
-	{
-		store_available_data(sender, n_validators as u32, candidate_hash, available_data).await?;
-	}
-
-	Ok(Ok(()))
+) -> Result<(), Error> {
+	store_available_data(
+		sender,
+		n_validators as u32,
+		candidate_hash,
+		AvailableData { pov, validation_data },
+		expected_erasure_root,
+	)
+	.await
 }
 
 async fn request_pov(
@@ -684,7 +680,7 @@ async fn validate_and_make_available(
 				validation_data.clone(),
 				candidate.descriptor.erasure_root,
 			)
-			.await?;
+			.await;
 
 			match erasure_valid {
 				Ok(()) => Ok(BackgroundValidationOutputs {
@@ -692,7 +688,7 @@ async fn validate_and_make_available(
 					commitments,
 					persisted_validation_data: validation_data,
 				}),
-				Err(InvalidErasureRoot) => {
+				Err(Error::StoreAvailableData(StoreAvailableDataError::InvalidErasureRoot)) => {
 					gum::debug!(
 						target: LOG_TARGET,
 						candidate_hash = ?candidate.hash(),
@@ -701,6 +697,8 @@ async fn validate_and_make_available(
 					);
 					Err(candidate)
 				},
+				// Bubble up any other error.
+				Err(e) => return Err(e),
 			}
 		},
 		ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch) => {

@@ -441,7 +441,7 @@ fn code_upgrade_applied_after_delay() {
 		run_to_block(2, Some(vec![1]));
 		assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
-		let expected_at = {
+		let (expected_at, next_possible_upgrade_at) = {
 			// this parablock is in the context of block 1.
 			let expected_at = 1 + validation_upgrade_delay;
 			let next_possible_upgrade_at = 1 + validation_upgrade_cooldown;
@@ -460,7 +460,7 @@ fn code_upgrade_applied_after_delay() {
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
 
-			expected_at
+			(expected_at, next_possible_upgrade_at)
 		};
 
 		run_to_block(expected_at, None);
@@ -495,8 +495,20 @@ fn code_upgrade_applied_after_delay() {
 			assert!(FutureCodeHash::<Test>::get(&para_id).is_none());
 			assert!(UpgradeGoAheadSignal::<Test>::get(&para_id).is_none());
 			assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
+			assert_eq!(
+				UpgradeRestrictionSignal::<Test>::get(&para_id),
+				Some(UpgradeRestriction::Present),
+			);
+			assert_eq!(UpgradeCooldowns::<Test>::get(), vec![(para_id, next_possible_upgrade_at)]);
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
+		}
+
+		run_to_block(next_possible_upgrade_at + 1, None);
+
+		{
+			assert!(UpgradeRestrictionSignal::<Test>::get(&para_id).is_none());
+			assert!(UpgradeCooldowns::<Test>::get().is_empty());
 		}
 	});
 }
@@ -568,7 +580,7 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 		// the upgrade.
 		{
 			// The signal should be set to go-ahead until the new head is actually processed.
-			assert_eq!(UpgradeGoAheadSignal::<Test>::get(&para_id), Some(UpgradeGoAhead::GoAhead),);
+			assert_eq!(UpgradeGoAheadSignal::<Test>::get(&para_id), Some(UpgradeGoAhead::GoAhead));
 
 			Paras::note_new_head(para_id, Default::default(), expected_at + 4);
 

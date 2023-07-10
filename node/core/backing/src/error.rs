@@ -17,7 +17,10 @@
 use fatality::Nested;
 use futures::channel::{mpsc, oneshot};
 
-use polkadot_node_subsystem::{messages::ValidationFailed, RuntimeApiError, SubsystemError};
+use polkadot_node_subsystem::{
+	messages::{StoreAvailableDataError, ValidationFailed},
+	RuntimeApiError, SubsystemError,
+};
 use polkadot_node_subsystem_util::{runtime, Error as UtilError};
 use polkadot_primitives::{BackedCandidate, ValidationCodeHash};
 
@@ -70,7 +73,7 @@ pub enum Error {
 	ValidateFromExhaustive(#[source] oneshot::Canceled),
 
 	#[error("StoreAvailableData channel closed before receipt")]
-	StoreAvailableData(#[source] oneshot::Canceled),
+	StoreAvailableDataChannel(#[source] oneshot::Canceled),
 
 	#[error("RuntimeAPISubsystem channel closed before receipt")]
 	RuntimeApiUnavailable(#[source] oneshot::Canceled),
@@ -93,6 +96,9 @@ pub enum Error {
 	#[fatal]
 	#[error(transparent)]
 	OverseerExited(SubsystemError),
+
+	#[error("Availability store error")]
+	StoreAvailableData(#[source] StoreAvailableDataError),
 }
 
 /// Utility for eating top level errors and log them.
