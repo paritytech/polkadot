@@ -1956,7 +1956,7 @@ fn para_upgrade_delay_scheduled_from_inclusion() {
 
 		let core_lookup = |core| match core {
 			core if core == CoreIndex::from(0) => Some(chain_a),
-			core => None,
+			_ => None,
 		};
 
 		let chain_a_assignment = CoreAssignment {
