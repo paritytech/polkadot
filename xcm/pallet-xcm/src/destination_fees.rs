@@ -18,36 +18,38 @@
 
 use xcm::prelude::*;
 
-/// BuyExecutionSetup enum
+/// Describes how to handle `BuyExecution` on destination chains,
+/// useful for handling foreign asset transfers.
 pub enum DestinationFeesSetup {
-	/// In case origin's desired fees setup is used.
+	/// Fees are directly paid using Origin's indicated asset.
 	ByOrigin,
-	/// In case `UniversalLocation` wants to do some conversion with origin's desired fees.
-	/// E.g. swap origin's fee or to `BuyExecution` in destination with different asset.
+	/// `UniversalLocation` does some conversion from origin's indicated asset.
+	/// E.g. swap origin's fee and/or `BuyExecution` on destination using different asset.
 	ByUniversalLocation {
-		/// Local account where we want to place additional withdrawn assets from origin (e.g. treasury, staking pot, BH...).
+		/// Local account where we want to place additional withdrawn assets from origin
+		/// (e.g. treasury, staking pot, BH...).
 		local_account: MultiLocation,
 	},
 }
 
-/// Holds two adequate amounts.
+/// Pair of local and remote assets (equivalent in economic value).
 pub struct DestinationFees {
-	/// Amount which we want to withdraw on **source** chain.
+	/// Assets withdrawn on **source** chain.
 	pub proportional_amount_to_withdraw: MultiAsset,
 
-	/// Amount which we want to use for `BuyExecution` on **destination** chain.
+	/// Assets used for `BuyExecution` on **destination** chain.
 	pub proportional_amount_to_buy_execution: MultiAsset,
 }
 
 /// Manages fees handling.
 pub trait DestinationFeesManager {
-	/// Decides how do we handle `BuyExecution` and fees stuff based on `destination` and `requested_fee_asset_id`.
+	/// Decide how to handle `BuyExecution` based on `destination` and `requested_fee_asset_id`.
 	fn decide_for(
 		destination: &MultiLocation,
 		requested_fee_asset_id: &AssetId,
 	) -> DestinationFeesSetup;
 
-	/// Estimates destination fees.
+	/// Estimate destination fees.
 	fn estimate_fee_for(
 		destination: &MultiLocation,
 		requested_fee_asset_id: &AssetId,
@@ -69,7 +71,7 @@ impl DestinationFeesManager for () {
 		_desired_fee_asset_id: &AssetId,
 		_weight: &WeightLimit,
 	) -> Option<DestinationFees> {
-		// dont do any conversion or what ever, lets handle what origin wants on input
+		// dont do any conversion or whatever, handle what origin wants on input
 		None
 	}
 }

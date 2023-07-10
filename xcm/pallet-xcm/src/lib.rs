@@ -265,7 +265,7 @@ pub mod pallet {
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 
-		/// Runtime has ability to decide how we handle `BuyExecution` on destination (dedicated for asset transfer).
+		/// How to handle `BuyExecution` on destination chains, useful for handling foreign asset transfers.
 		type DestinationFeesManager: DestinationFeesManager;
 
 		/// A `MultiLocation` that can be reached via `XcmRouter`. Used only in benchmarks.
@@ -1213,10 +1213,10 @@ impl<T: Config> Pallet<T> {
 		ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 		let (origin_location, assets) = value;
 		let context = T::UniversalLocation::get();
-		// origin's desired fee asset, means origin wants to be charged in these assets (not re-anchoring now)
+		// origin's desired fee asset, means origin wants to be charged in these assets
 		let fees = assets.get(fee_asset_item as usize).ok_or(Error::<T>::Empty)?.clone();
 
-		// resolve what setup we use for `BuyExecution` on destination
+		// resolve `BuyExecution`-on-destination strategy for `(dest, fees)`
 		let destination_fees_setup = T::DestinationFeesManager::decide_for(&dest, &fees.id);
 
 		// resolve weight_limit
@@ -1224,64 +1224,53 @@ impl<T: Config> Pallet<T> {
 		let assets: MultiAssets = assets.into();
 		let weight_limit = match maybe_weight_limit {
 			Some(weight_limit) => {
-				// lets use desired limit
+				// use desired limit
 				weight_limit
 			},
 			None => {
-				// TODO: lets consider fees as worst case or add here some `T::BuyExecutionSetupResolver::max_limit_for(&dest, &fees.id)`?
-				let worst_case_fees = fees
+				// TODO: estimate fees using local weigher,
+				// or add some `T::BuyExecutionSetupResolver::max_limit_for(&dest, &fees.id)`?
+				let fees = fees
 					.clone()
 					.reanchored(&dest, context)
 					.map_err(|_| Error::<T>::CannotReanchor)?;
-				let worst_case_assets = assets.clone();
-				let worst_case_weight_limit = Limited(Weight::zero());
+				let assets = assets.clone();
+				let weight_limit = Limited(Weight::zero());
 
-				// try to estimate weight_limit by expected message executed on destination
+				// estimate weight_limit by weighing message to be executed on destination
 				let mut remote_message = match destination_fees_setup {
-					DestinationFeesSetup::ByOrigin => {
-						// no, change, everything is like origin wanted before
-						Xcm(vec![
-							ReserveAssetDeposited(worst_case_assets),
-							ClearOrigin,
-							BuyExecution {
-								fees: worst_case_fees,
-								weight_limit: worst_case_weight_limit,
-							},
-							DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
-						])
-					},
+					DestinationFeesSetup::ByOrigin => Xcm(vec![
+						ReserveAssetDeposited(assets),
+						ClearOrigin,
+						BuyExecution { fees, weight_limit },
+						DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
+					]),
 					DestinationFeesSetup::ByUniversalLocation { .. } => {
 						let sovereign_account_on_destination = T::UniversalLocation::get()
 							.invert_target(&dest)
 							.map_err(|_| Error::<T>::DestinationNotInvertible)?;
 						Xcm(vec![
-							ReserveAssetDeposited(worst_case_assets.clone()),
+							ReserveAssetDeposited(assets.clone()),
 							ClearOrigin,
 							// Change origin to sovereign account of `T::UniversalLocation` on destination.
 							AliasOrigin(sovereign_account_on_destination),
 							// Withdraw fees (do not use those in `ReserveAssetDeposited`)
-							WithdrawAsset(MultiAssets::from(worst_case_fees.clone())),
+							WithdrawAsset(MultiAssets::from(fees.clone())),
 							ClearOrigin,
-							BuyExecution {
-								fees: worst_case_fees.clone(),
-								weight_limit: worst_case_weight_limit,
-							},
+							BuyExecution { fees: fees.clone(), weight_limit },
 							RefundSurplus,
 							// deposit unspent `fees` back to `sovereign_account`
 							DepositAsset {
-								assets: MultiAssetFilter::from(MultiAssets::from(worst_case_fees)),
+								assets: MultiAssetFilter::from(MultiAssets::from(fees)),
 								beneficiary: sovereign_account_on_destination,
 							},
 							// deposit `assets` to beneficiary
-							DepositAsset {
-								assets: MultiAssetFilter::from(worst_case_assets),
-								beneficiary,
-							},
+							DepositAsset { assets: MultiAssetFilter::from(assets), beneficiary },
 						])
 					},
 				};
 
-				// if we are going to different consensus, we need to calculate also with `UniversalOrigin/DescendOrigin`
+				// if message is going to different consensus, also include `UniversalOrigin/DescendOrigin`
 				if ensure_is_remote(T::UniversalLocation::get(), dest).is_ok() {
 					let (local_net, local_sub) = T::UniversalLocation::get()
 						.split_global()
@@ -1292,7 +1281,7 @@ impl<T: Config> Pallet<T> {
 					}
 				}
 
-				// TODO: can we leave it here by default or adds according to some configuration?
+				// TODO: can we leave it here by default or should we add according to some configuration?
 				// TODO: think about some `trait RemoteMessageEstimator` stuff, where runtime can customize this?
 				remote_message.0.push(SetTopic([1; 32]));
 
@@ -1303,14 +1292,14 @@ impl<T: Config> Pallet<T> {
 			},
 		};
 
-		// lets handle `BuyExecution`
+		// handle `BuyExecution` on target chain
 		let mut message = match destination_fees_setup {
 			DestinationFeesSetup::ByOrigin => {
-				// we need to reanchor fees as dest will see it
+				// reanchor fees to `dest`
 				let fees =
 					fees.reanchored(&dest, context).map_err(|_| Error::<T>::CannotReanchor)?;
 
-				// no, change, everything is like origin wanted before
+				// no change, origin asset is used to `BuyExecution`
 				let xcm = Xcm(vec![
 					BuyExecution { fees, weight_limit },
 					DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
@@ -1321,21 +1310,21 @@ impl<T: Config> Pallet<T> {
 				])
 			},
 			DestinationFeesSetup::ByUniversalLocation { local_account } => {
-				// estimate how much we want to use for `BuyExecution` and proportional amount to withdraw from origin's desired fees
+				// estimate how much to use for `BuyExecution` and proportional amount to withdraw from origin's assets
 				let DestinationFees {
 					proportional_amount_to_withdraw,
 					proportional_amount_to_buy_execution,
 				} = T::DestinationFeesManager::estimate_fee_for(&dest, &fees.id, &weight_limit)
 					.ok_or(Error::<T>::UnweighableMessage)?;
 
-				// here we need to split origin's assets (lets do some math)
+				// split origin's assets
 				let original_assets = assets.clone();
 				let assets_for_reserve: MultiAssets = xcm_executor::Assets::from(assets)
 					.checked_sub(proportional_amount_to_withdraw.clone())
 					.map_err(|_| Error::<T>::InvalidAsset)?
 					.into();
 				let assets_to_withdraw = MultiAssets::from(proportional_amount_to_withdraw);
-				// ensure that origin's assets are still equal to assets_for_reserve + assets_to_withdraw
+				// ensure that origin's assets amount to assets_for_reserve + assets_to_withdraw
 				{
 					let mut collected_assets =
 						xcm_executor::Assets::from(assets_for_reserve.clone());
@@ -1346,15 +1335,13 @@ impl<T: Config> Pallet<T> {
 						Error::<T>::InvalidAsset
 					);
 				}
-				drop(original_assets);
-				drop(fees);
 
-				// we need to reanchor fees as dest will see it
+				// reanchor fees to `dest`
 				let proportional_amount_to_buy_execution = proportional_amount_to_buy_execution
 					.reanchored(&dest, context)
 					.map_err(|_| Error::<T>::CannotReanchor)?;
 
-				//
+				// reanchor paying account to `dest`
 				let sovereign_account_on_destination = T::UniversalLocation::get()
 					.invert_target(&dest)
 					.map_err(|_| Error::<T>::DestinationNotInvertible)?;
