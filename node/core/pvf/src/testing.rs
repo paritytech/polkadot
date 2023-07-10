@@ -62,14 +62,14 @@ macro_rules! decl_puppet_worker_main {
 				panic!("wrong number of arguments");
 			}
 
-			let mut version = None;
+			let mut node_version = None;
 			let mut socket_path: &str = "";
 
-			for i in 2..args.len() {
+			for i in (2..args.len()).step_by(2) {
 				match args[i].as_ref() {
 					"--socket-path" => socket_path = args[i + 1].as_str(),
-					"--node-version" => version = Some(args[i + 1].as_str()),
-					_ => (),
+					"--node-impl-version" => node_version = Some(args[i + 1].as_str()),
+					arg => panic!("Unexpected argument found: {}", arg),
 				}
 			}
 
@@ -82,10 +82,10 @@ macro_rules! decl_puppet_worker_main {
 					std::thread::sleep(std::time::Duration::from_secs(5));
 				},
 				"prepare-worker" => {
-					$crate::prepare_worker_entrypoint(&socket_path, version);
+					$crate::prepare_worker_entrypoint(&socket_path, node_version);
 				},
 				"execute-worker" => {
-					$crate::execute_worker_entrypoint(&socket_path, version);
+					$crate::execute_worker_entrypoint(&socket_path, node_version);
 				},
 				other => panic!("unknown subcommand: {}", other),
 			}

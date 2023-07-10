@@ -34,35 +34,61 @@ use tokio::{io, net::UnixStream, runtime::Runtime};
 #[macro_export]
 macro_rules! decl_worker_main {
 	($expected_command:expr, $entrypoint:expr) => {
+		fn print_help(expected_command: &str) {
+			let worker_version = $crate::worker::worker_version();
+
+			println!("{} {}", expected_command, worker_version);
+			println!();
+			println!("PVF worker that is called by polkadot.");
+		}
+
 		fn main() {
 			::sp_tracing::try_init_simple();
 
 			let args = std::env::args().collect::<Vec<_>>();
-			if args.len() < 3 {
-				panic!("wrong number of arguments");
+			if args.len() == 1 {
+				print_help($expected_command);
+				return
 			}
 
-			let mut version = None;
+			match args[1].as_ref() {
+				"--help" => {
+					print_help($expected_command);
+					return
+				},
+				"--version" => {
+					println!("{}", $crate::worker::worker_version());
+					return
+				},
+				subcommand => {
+					// Must be passed for compatibility with the single-binary test workers.
+					if subcommand != $expected_command {
+						panic!(
+							"trying to run {} binary with the {} subcommand",
+							$expected_command, subcommand
+						)
+					}
+				},
+			}
+
+			let mut node_version = None;
 			let mut socket_path: &str = "";
 
-			for i in 2..args.len() {
+			for i in (2..args.len()).step_by(2) {
 				match args[i].as_ref() {
 					"--socket-path" => socket_path = args[i + 1].as_str(),
-					"--node-impl-version" => version = Some(args[i + 1].as_str()),
+					"--node-impl-version" => node_version = Some(args[i + 1].as_str()),
 					arg => panic!("Unexpected argument found: {}", arg),
 				}
 			}
 
-			let subcommand = &args[1];
-			if subcommand != $expected_command {
-				panic!(
-					"trying to run {} binary with the {} subcommand",
-					$expected_command, subcommand
-				)
-			}
-			$entrypoint(&socket_path, version);
+			$entrypoint(&socket_path, node_version);
 		}
 	};
+}
+
+pub fn worker_version() -> &'static str {
+	env!("SUBSTRATE_CLI_IMPL_VERSION")
 }
 
 /// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
@@ -88,11 +114,14 @@ pub fn worker_event_loop<F, Fut>(
 	gum::debug!(target: LOG_TARGET, %worker_pid, "starting pvf worker ({})", debug_id);
 
 	// Check for a mismatch between the node and worker versions.
-	if let Some(version) = node_version {
-		if version != env!("SUBSTRATE_CLI_IMPL_VERSION") {
+	if let Some(node_version) = node_version {
+		let worker_version = env!("SUBSTRATE_CLI_IMPL_VERSION");
+		if node_version != worker_version {
 			gum::error!(
 				target: LOG_TARGET,
 				%worker_pid,
+				%node_version,
+				%worker_version,
 				"Node and worker version mismatch, node needs restarting, forcing shutdown",
 			);
 			kill_parent_node_in_emergency();

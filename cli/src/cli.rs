@@ -70,17 +70,6 @@ pub enum Subcommand {
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
-pub struct ValidationWorkerCommand {
-	/// The path to the validation host's socket.
-	#[arg(long)]
-	pub socket_path: String,
-	/// Calling node implementation version
-	#[arg(long)]
-	pub node_impl_version: String,
-}
-
-#[allow(missing_docs)]
-#[derive(Debug, Parser)]
 #[group(skip)]
 pub struct RunCmd {
 	#[clap(flatten)]
@@ -143,9 +132,9 @@ pub struct RunCmd {
 	pub overseer_channel_capacity_override: Option<usize>,
 
 	/// Path to the directory where auxiliary worker binaries reside. If not specified, the main
-	/// binary's directory is searched first, then `/usr/libexec` is searched, and then the `$PATH`
-	/// is considered. If the path points to an executable rather then directory, that executable is
-	/// used both as preparation and execution worker (supposed to be used for tests only).
+	/// binary's directory is searched first, then `/usr/libexec` is searched. If the path points to
+	/// an executable rather then directory, that executable is used both as preparation and
+	/// execution worker (supposed to be used for tests only).
 	#[arg(long, value_name = "PATH")]
 	pub workers_path: Option<PathBuf>,
 }

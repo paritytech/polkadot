@@ -55,6 +55,7 @@ use {
 	sc_client_api::BlockBackend,
 	sp_core::traits::SpawnNamed,
 	sp_trie::PrefixedMemoryDB,
+	std::process::Command,
 };
 
 use polkadot_node_subsystem_util::database::Database;
@@ -233,6 +234,18 @@ pub enum Error {
 	#[cfg(feature = "full-node")]
 	#[error("Expected at least one of polkadot, kusama, westend or rococo runtime feature")]
 	NoRuntime,
+
+	#[cfg(feature = "full-node")]
+	#[error("Worker binaries not executable, prepare binary: {0:?}, execute binary: {1:?}")]
+	InvalidWorkerBinaries(PathBuf, PathBuf),
+
+	#[cfg(feature = "full-node")]
+	#[error("Worker binaries could not be found at workers path ({0:?}), polkadot binary directory, or /usr/libexec")]
+	MissingWorkerBinaries(Option<PathBuf>),
+
+	#[cfg(feature = "full-node")]
+	#[error("Version of worker binaries ({0}) is different from node version ({1})")]
+	WorkerBinaryVersionMismatch(String, String),
 }
 
 /// Identifies the variant of the chain.
@@ -655,9 +668,8 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 ///
 /// `workers_path` is used to get the path to the directory where auxiliary worker binaries reside.
 /// If not specified, the main binary's directory is searched first, then `/usr/libexec` is
-/// searched, and then the `$PATH` is considered. If the path points to an executable rather then
-/// directory, that executable is used both as preparation and execution worker (supposed to be used
-/// for tests only).
+/// searched. If the path points to an executable rather then directory, that executable is used
+/// both as preparation and execution worker (supposed to be used for tests only).
 #[cfg(feature = "full-node")]
 pub fn new_full<OverseerGenerator>(
 	mut config: Configuration,
@@ -858,47 +870,47 @@ where
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
-	let (prep_worker_path, exec_worker_path) = if let Some(path) = workers_path {
-		log::trace!("Using explicitly provided workers path {:?}", path);
-		if path.is_executable() {
-			(path.clone(), path)
-		} else {
-			let mut prep_worker = path.clone();
-			let mut exec_worker = path.clone();
-			prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
-			exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
-			(prep_worker, exec_worker)
-		}
-	} else {
-		let libexec = PathBuf::from("/usr/libexec");
-		let mut prep_worker = libexec.clone();
-		prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
-		let mut exec_worker = libexec.clone();
-		exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
-
-		if prep_worker.exists() && exec_worker.exists() {
-			log::trace!("Using /usr/libexec as workers path");
-			(prep_worker, exec_worker)
-		} else {
-			let mut exe_path = std::env::current_exe()?;
-			let _ = exe_path.pop();
-			let mut prep_worker = exe_path.clone();
-			prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
-			let mut exec_worker = exe_path.clone();
-			exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
-
-			if prep_worker.exists() && exec_worker.exists() {
-				log::trace!("Using current exe path as workers path: {:?}", exe_path);
-				(prep_worker, exec_worker)
-			} else {
-				log::trace!("Workers path not found, considering `$PATH`");
-				(
-					PathBuf::from(polkadot_node_core_pvf::EXECUTE_BINARY_NAME),
-					PathBuf::from(polkadot_node_core_pvf::PREPARE_BINARY_NAME),
-				)
-			}
-		}
-	};
+	// TODO: Do some manual tests for this.
+	// 1. Get the binaries from the workers path if it is passed in, or consider all possible
+	// locations on the filesystem in order and get all sets of paths at which the binaries exist.
+	//
+	// 2. If no paths exist, error out. We can't proceed without workers.
+	//
+	// 3. Log a warning if more than one set of paths exists.
+	//
+	// 4. Check if the returned paths are executable. If not it's evidence of a borked installation
+	// so error out.
+	//
+	// 5. Do the version check, if mismatch error out.
+	//
+	// 6. At this point the paths should be good to use.
+	let mut workers_paths = get_workers_paths(workers_path.clone())?;
+	if workers_paths.is_empty() {
+		return Err(Error::MissingWorkerBinaries(workers_path))
+	} else if workers_paths.len() > 1 {
+		log::warn!("multiple sets of worker binaries found ({:?})", workers_paths,);
+	}
+	let (prep_worker_path, exec_worker_path) = workers_paths.swap_remove(0);
+	if !prep_worker_path.is_executable() || !exec_worker_path.is_executable() {
+		return Err(Error::InvalidWorkerBinaries(prep_worker_path, exec_worker_path))
+	}
+	// Do the version check.
+	let node_version = env!("SUBSTRATE_CLI_IMPL_VERSION").to_string();
+	let prep_worker_version = Command::new(&prep_worker_path).args(["--version"]).output()?.stdout;
+	let prep_worker_version =
+		String::from_utf8(prep_worker_version).expect("version is printed as a string; qed");
+	if prep_worker_version != node_version {
+		return Err(Error::WorkerBinaryVersionMismatch(prep_worker_version, node_version))
+	}
+	let exec_worker_version = Command::new(&exec_worker_path).args(["--version"]).output()?.stdout;
+	let exec_worker_version =
+		String::from_utf8(exec_worker_version).expect("version is printed as a string; qed");
+	if exec_worker_version != node_version {
+		return Err(Error::WorkerBinaryVersionMismatch(exec_worker_version, node_version))
+	}
+	// Paths are good to use.
+	log::info!("using prepare-worker binary at: {:?}", prep_worker_path);
+	log::info!("using execute-worker binary at: {:?}", exec_worker_path);
 
 	let candidate_validation_config = CandidateValidationConfig {
 		artifacts_cache_path: config
@@ -1254,6 +1266,77 @@ where
 		rpc_handlers,
 		backend,
 	})
+}
+
+/// Get the workers path by considering the passed-in `workers_path` option, or possible locations
+/// on the filesystem. See `new_full`.
+fn get_workers_paths(
+	given_workers_path: Option<std::path::PathBuf>,
+) -> Result<Vec<(std::path::PathBuf, std::path::PathBuf)>, Error> {
+	if let Some(path) = given_workers_path {
+		log::trace!("Using explicitly provided workers path {:?}", path);
+
+		if path.is_executable() {
+			return Ok(vec![(path.clone(), path)])
+		}
+
+		let mut prep_worker = path.clone();
+		let mut exec_worker = path.clone();
+		prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
+		exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
+
+		// Check if both workers exist. Otherwise return an empty vector which results in an error.
+		return if prep_worker.exists() && exec_worker.exists() {
+			Ok(vec![(prep_worker, exec_worker)])
+		} else {
+			Ok(vec![])
+		}
+	}
+
+	// Workers path not provided, check all possible valid locations.
+
+	let mut workers_paths = vec![];
+
+	{
+		let mut exe_path = std::env::current_exe()?;
+		let _ = exe_path.pop(); // executable file will always have a parent directory.
+		let mut prep_worker = exe_path.clone();
+		prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
+		let mut exec_worker = exe_path.clone();
+		exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
+
+		// Add to set if both workers exist. Warn on partial installs.
+		let (prep_worker_exists, exec_worker_exists) = (prep_worker.exists(), exec_worker.exists());
+		if prep_worker_exists && exec_worker_exists {
+			log::trace!("Worker binaries found at current exe path: {:?}", exe_path);
+			workers_paths.push((prep_worker, exec_worker));
+		} else if prep_worker_exists {
+			log::warn!("Worker binary found at {:?} but not {:?}", prep_worker, exec_worker);
+		} else if exec_worker_exists {
+			log::warn!("Worker binary found at {:?} but not {:?}", exec_worker, prep_worker);
+		}
+	}
+
+	{
+		let libexec = PathBuf::from("/usr/libexec");
+		let mut prep_worker = libexec.clone();
+		prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
+		let mut exec_worker = libexec.clone();
+		exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
+
+		// Add to set if both workers exist. Warn on partial installs.
+		let (prep_worker_exists, exec_worker_exists) = (prep_worker.exists(), exec_worker.exists());
+		if prep_worker_exists && exec_worker_exists {
+			log::trace!("Worker binaries found at /usr/libexec");
+			workers_paths.push((prep_worker, exec_worker));
+		} else if prep_worker_exists {
+			log::warn!("Worker binary found at {:?} but not {:?}", prep_worker, exec_worker);
+		} else if exec_worker_exists {
+			log::warn!("Worker binary found at {:?} but not {:?}", exec_worker, prep_worker);
+		}
+	}
+
+	Ok(workers_paths)
 }
 
 #[cfg(feature = "full-node")]

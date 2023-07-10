@@ -8188,6 +8188,7 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "sp-weights",
+ "substrate-build-script-utils",
  "substrate-prometheus-endpoint",
  "tempfile",
  "thiserror",
