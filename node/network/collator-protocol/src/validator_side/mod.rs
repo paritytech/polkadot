@@ -1270,7 +1270,8 @@ async fn run_inner<Context>(
 	let check_collations_stream = tick_stream(CHECK_COLLATIONS_POLL);
 	futures::pin_mut!(check_collations_stream);
 
-	let mut warn_freq = gum::Freq::new();
+	let mut network_error_freq = gum::Freq::new();
+	let mut canceled_freq = gum::Freq::new();
 
 	loop {
 		select! {
@@ -1314,7 +1315,8 @@ async fn run_inner<Context>(
 					&mut state.requested_collations,
 					&state.metrics,
 					&state.span_per_relay_parent,
-					&mut warn_freq,
+					&mut network_error_freq,
+					&mut canceled_freq,
 				).await;
 
 				for (peer_id, rep) in reputation_changes {
@@ -1331,7 +1333,8 @@ async fn poll_requests(
 	requested_collations: &mut HashMap<PendingCollation, PerRequest>,
 	metrics: &Metrics,
 	span_per_relay_parent: &HashMap<Hash, PerLeafSpan>,
-	warn_freq: &mut gum::Freq,
+	network_error_freq: &mut gum::Freq,
+	canceled_freq: &mut gum::Freq,
 ) -> Vec<(PeerId, Rep)> {
 	let mut retained_requested = HashSet::new();
 	let mut reputation_changes = Vec::new();
@@ -1342,7 +1345,8 @@ async fn poll_requests(
 			span_per_relay_parent,
 			pending_collation,
 			per_req,
-			warn_freq,
+			network_error_freq,
+			canceled_freq,
 		)
 		.await;
 
@@ -1488,7 +1492,8 @@ async fn poll_collation_response(
 	spans: &HashMap<Hash, PerLeafSpan>,
 	pending_collation: &PendingCollation,
 	per_req: &mut PerRequest,
-	warn_freq: &mut gum::Freq,
+	network_error_freq: &mut gum::Freq,
+	canceled_freq: &mut gum::Freq,
 ) -> CollationFetchResult {
 	if never!(per_req.from_collator.is_terminated()) {
 		gum::error!(
@@ -1533,7 +1538,7 @@ async fn poll_collation_response(
 			},
 			Err(RequestError::NetworkError(err)) => {
 				gum::warn_if_frequent!(
-					freq: warn_freq,
+					freq: network_error_freq,
 					max_rate: gum::Times::PerHour(100),
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
@@ -1550,7 +1555,7 @@ async fn poll_collation_response(
 			},
 			Err(RequestError::Canceled(err)) => {
 				gum::warn_if_frequent!(
-					freq: warn_freq,
+					freq: canceled_freq,
 					max_rate: gum::Times::PerHour(100),
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
