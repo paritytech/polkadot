@@ -1198,7 +1198,7 @@ impl<T: Config> Pallet<T> {
 		dest: MultiLocation,
 		beneficiary: MultiLocation,
 		assets: &[MultiAsset],
-		fees: &MultiAsset,
+		origin_fees: &MultiAsset,
 		destination_fees_setup: &DestinationFeesSetup,
 	) -> Result<WeightLimit, DispatchError> {
 		// TODO: estimate fees using local weigher,
@@ -1206,27 +1206,21 @@ impl<T: Config> Pallet<T> {
 		let max_assets = assets.len() as u32;
 		let assets: MultiAssets = assets.to_vec().into();
 		let context = T::UniversalLocation::get();
-		let fees = fees
+		let weight_limit = Limited(Weight::zero());
+		let fees = origin_fees
 			.clone()
 			.reanchored(&dest, context)
 			.map_err(|_| Error::<T>::CannotReanchor)?;
-		let weight_limit = Limited(Weight::zero());
 
-		// estimate weight_limit by weighing message to be executed on destination
-		let mut remote_message = match destination_fees_setup {
-			DestinationFeesSetup::ByOrigin => Xcm(vec![
-				ReserveAssetDeposited(assets),
-				ClearOrigin,
-				BuyExecution { fees, weight_limit },
-				DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
-			]),
+		let buy_execution_on_dest = match destination_fees_setup {
+			DestinationFeesSetup::ByOrigin => {
+				vec![BuyExecution { fees, weight_limit }]
+			},
 			DestinationFeesSetup::ByUniversalLocation { .. } => {
 				let sovereign_account_on_destination = T::UniversalLocation::get()
 					.invert_target(&dest)
 					.map_err(|_| Error::<T>::DestinationNotInvertible)?;
-				Xcm(vec![
-					ReserveAssetDeposited(assets.clone()),
-					ClearOrigin,
+				vec![
 					// Change origin to sovereign account of `T::UniversalLocation` on destination.
 					AliasOrigin(sovereign_account_on_destination),
 					// Withdraw fees (do not use those in `ReserveAssetDeposited`)
@@ -1239,11 +1233,15 @@ impl<T: Config> Pallet<T> {
 						assets: MultiAssetFilter::from(MultiAssets::from(fees)),
 						beneficiary: sovereign_account_on_destination,
 					},
-					// deposit `assets` to beneficiary
-					DepositAsset { assets: MultiAssetFilter::from(assets), beneficiary },
-				])
+				]
 			},
 		};
+
+		let mut remote_message = Xcm(vec![ReserveAssetDeposited(assets), ClearOrigin]);
+		remote_message.0.extend_from_slice(&buy_execution_on_dest);
+		remote_message
+			.0
+			.push(DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary });
 
 		// if message is going to different consensus, also include `UniversalOrigin/DescendOrigin`
 		if ensure_is_remote(T::UniversalLocation::get(), dest).is_ok() {
