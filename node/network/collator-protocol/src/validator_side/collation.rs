@@ -27,14 +27,22 @@
 //!    ┌──────────────────────────────────────────┐
 //!    └─▶Advertised ─▶ Pending ─▶ Fetched ─▶ Validated
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
 
-use polkadot_node_network_protocol::PeerId;
+use futures::{future::BoxFuture, FutureExt};
+use polkadot_node_network_protocol::{
+	request_response::{outgoing::RequestError, v1 as request_v1, OutgoingResult},
+	PeerId,
+};
 use polkadot_node_primitives::PoV;
-use polkadot_node_subsystem_util::runtime::ProspectiveParachainsMode;
+use polkadot_node_subsystem::jaeger;
+use polkadot_node_subsystem_util::{
+	metrics::prometheus::prometheus::HistogramTimer, runtime::ProspectiveParachainsMode,
+};
 use polkadot_primitives::{
 	CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId, PersistedValidationData,
 };
+use tokio_util::sync::CancellationToken;
 
 use crate::{error::SecondingError, LOG_TARGET};
 
@@ -280,5 +288,79 @@ impl Collations {
 				1
 			};
 		self.seconded_count < seconded_limit
+	}
+}
+
+// Any error that can occur when awaiting a collation fetch response.
+#[derive(Debug, thiserror::Error)]
+pub(super) enum CollationFetchError {
+	#[error("Future was cancelled.")]
+	Cancelled,
+	#[error("{0}")]
+	Request(#[from] RequestError),
+}
+
+/// Future that concludes when the collator has responded to our collation fetch request
+/// or the request was cancelled by the validator.
+pub(super) struct CollationFetchRequest {
+	/// Info about the requested collation.
+	pub pending_collation: PendingCollation,
+	/// Collator id.
+	pub collator_id: CollatorId,
+	/// Responses from collator.
+	pub from_collator: BoxFuture<'static, OutgoingResult<request_v1::CollationFetchingResponse>>,
+	/// Handle used for checking if this request was cancelled.
+	pub cancellation_token: CancellationToken,
+	/// A jaeger span corresponding to the lifetime of the request.
+	pub span: Option<jaeger::Span>,
+	/// A metric histogram for the lifetime of the request
+	pub _lifetime_timer: Option<HistogramTimer>,
+}
+
+impl Future for CollationFetchRequest {
+	type Output = (
+		CollationEvent,
+		std::result::Result<request_v1::CollationFetchingResponse, CollationFetchError>,
+	);
+
+	fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+		// First check if this fetch request was cancelled.
+		let cancelled = match std::pin::pin!(self.cancellation_token.cancelled()).poll(cx) {
+			Poll::Ready(()) => true,
+			Poll::Pending => false,
+		};
+
+		if cancelled {
+			self.span.as_mut().map(|s| s.add_string_tag("success", "false"));
+			return Poll::Ready((
+				CollationEvent {
+					collator_id: self.collator_id.clone(),
+					pending_collation: self.pending_collation,
+				},
+				Err(CollationFetchError::Cancelled),
+			))
+		}
+
+		let res = self.from_collator.poll_unpin(cx).map(|res| {
+			(
+				CollationEvent {
+					collator_id: self.collator_id.clone(),
+					pending_collation: self.pending_collation,
+				},
+				res.map_err(CollationFetchError::Request),
+			)
+		});
+
+		match &res {
+			Poll::Ready((_, Ok(request_v1::CollationFetchingResponse::Collation(..)))) => {
+				self.span.as_mut().map(|s| s.add_string_tag("success", "true"));
+			},
+			Poll::Ready((_, Err(_))) => {
+				self.span.as_mut().map(|s| s.add_string_tag("success", "false"));
+			},
+			_ => {},
+		};
+
+		res
 	}
 }
