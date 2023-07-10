@@ -147,16 +147,23 @@ pub fn fetched_collation_sanity_check(
 	}
 }
 
+/// Identifier for a requested collation and the respective collator that advertised it.
 #[derive(Debug, Clone)]
 pub struct CollationEvent {
+	/// Collator id.
 	pub collator_id: CollatorId,
+	/// The requested collation data.
 	pub pending_collation: PendingCollation,
 }
 
+/// Fetched collation data.
 #[derive(Debug, Clone)]
 pub struct PendingCollationFetch {
+	/// Collation identifier.
 	pub collation_event: CollationEvent,
+	/// Candidate receipt.
 	pub candidate_receipt: CandidateReceipt,
+	/// Proof of validity.
 	pub pov: PoV,
 }
 
