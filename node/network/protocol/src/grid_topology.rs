@@ -108,6 +108,33 @@ impl SessionGridTopology {
 
 		Some(grid_subset)
 	}
+
+	/// Gets the list of known peer Ids for a given validator index
+	///
+	/// Returns `None` if the validator index is out of bound
+	pub fn get_known_peer_ids_by_validator_index(
+		&self,
+		validator_index: ValidatorIndex,
+	) -> Option<&Vec<PeerId>> {
+		let peer_index = self.shuffled_indices.get(validator_index.0 as usize)?;
+
+		self.canonical_shuffling
+			.get(*peer_index)
+			.map(|topology_peer_info| &topology_peer_info.peer_ids)
+	}
+
+	/// Checks if the passed validator_index matches the peer_id
+	///
+	/// Returns true if they match and false otherwise
+	pub fn peer_id_matches_validator_index(
+		&self,
+		validator_index: ValidatorIndex,
+		peer_id: PeerId,
+	) -> bool {
+		self.get_known_peer_ids_by_validator_index(validator_index)
+			.map(|known_peer_ids| known_peer_ids.contains(&peer_id))
+			.unwrap_or(false)
+	}
 }
 
 struct MatrixNeighbors<R, C> {

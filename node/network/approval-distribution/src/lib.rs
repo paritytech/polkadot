@@ -210,34 +210,30 @@ struct Knowledge {
 	// When there is no entry, this means the message is unknown
 	// When there is an entry with `MessageKind::Assignment`, the assignment is known.
 	// When there is an entry with `MessageKind::Approval`, the assignment and approval are known.
-	known_messages: HashMap<MessageSubject, MessageKind>,
+	known_messages: HashMap<MessageSubject, Vec<MessageKind>>,
 }
 
 impl Knowledge {
 	fn contains(&self, message: &MessageSubject, kind: MessageKind) -> bool {
-		match (kind, self.known_messages.get(message)) {
-			(_, None) => false,
-			(MessageKind::Assignment, Some(_)) => true,
-			(MessageKind::Approval, Some(MessageKind::Assignment)) => false,
-			(MessageKind::Approval, Some(MessageKind::Approval)) => true,
-		}
+		self.known_messages
+			.get(message)
+			.map(|messages| messages.contains(&kind))
+			.unwrap_or(false)
 	}
 
 	fn insert(&mut self, message: MessageSubject, kind: MessageKind) -> bool {
 		match self.known_messages.entry(message) {
 			hash_map::Entry::Vacant(vacant) => {
-				vacant.insert(kind);
+				vacant.insert(vec![kind]);
 				true
 			},
-			hash_map::Entry::Occupied(mut occupied) => match (*occupied.get(), kind) {
-				(MessageKind::Assignment, MessageKind::Assignment) => false,
-				(MessageKind::Approval, MessageKind::Approval) => false,
-				(MessageKind::Approval, MessageKind::Assignment) => false,
-				(MessageKind::Assignment, MessageKind::Approval) => {
-					*occupied.get_mut() = MessageKind::Approval;
+			hash_map::Entry::Occupied(mut occupied) =>
+				if !occupied.get().contains(&kind) {
+					occupied.get_mut().push(kind);
 					true
+				} else {
+					false
 				},
-			},
 		}
 	}
 }
@@ -278,13 +274,15 @@ struct BlockEntry {
 enum ApprovalState {
 	Assigned(AssignmentCert),
 	Approved(AssignmentCert, ValidatorSignature),
+	UnassignedApproval(IndirectSignedApprovalVote, MessageSource),
 }
 
 impl ApprovalState {
-	fn assignment_cert(&self) -> &AssignmentCert {
+	fn assignment_cert(&self) -> Option<&AssignmentCert> {
 		match *self {
-			ApprovalState::Assigned(ref cert) => cert,
-			ApprovalState::Approved(ref cert, _) => cert,
+			ApprovalState::Assigned(ref cert) => Some(cert),
+			ApprovalState::Approved(ref cert, _) => Some(cert),
+			ApprovalState::UnassignedApproval(_, _) => None,
 		}
 	}
 
@@ -292,6 +290,7 @@ impl ApprovalState {
 		match *self {
 			ApprovalState::Assigned(_) => None,
 			ApprovalState::Approved(_, ref sig) => Some(sig.clone()),
+			ApprovalState::UnassignedApproval(_, _) => None,
 		}
 	}
 }
@@ -301,7 +300,10 @@ impl ApprovalState {
 // assignments preceding approvals in all cases.
 #[derive(Debug)]
 struct MessageState {
-	required_routing: RequiredRouting,
+	// Required routing for an approval
+	required_routing_assignment: RequiredRouting,
+	// Require routing for an assignment
+	required_routing_approval: RequiredRouting,
 	local: bool,
 	random_routing: RandomRouting,
 	approval_state: ApprovalState,
@@ -451,6 +453,8 @@ impl State {
 			for (peer_id, view) in self.peer_views.iter() {
 				let intersection = view.iter().filter(|h| new_hashes.contains(h));
 				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
+				let should_trigger_aggression =
+					self.aggression_config.should_trigger_aggression(self.approval_checking_lag);
 				Self::unify_with_peer(
 					sender,
 					metrics,
@@ -460,6 +464,7 @@ impl State {
 					*peer_id,
 					view_intersection,
 					rng,
+					should_trigger_aggression,
 				)
 				.await;
 			}
@@ -678,7 +683,8 @@ impl State {
 					}
 				});
 		}
-
+		let should_trigger_aggression =
+			self.aggression_config.should_trigger_aggression(self.approval_checking_lag);
 		Self::unify_with_peer(
 			ctx.sender(),
 			metrics,
@@ -688,6 +694,7 @@ impl State {
 			peer_id,
 			view,
 			rng,
+			should_trigger_aggression,
 		)
 		.await;
 	}
@@ -774,7 +781,6 @@ impl State {
 				return
 			},
 		};
-
 		// compute metadata on the assignment.
 		let message_subject = MessageSubject(block_hash, claimed_candidate_index, validator_index);
 		let message_kind = MessageKind::Assignment;
@@ -872,7 +878,7 @@ impl State {
 						BENEFIT_VALID_MESSAGE_FIRST,
 					)
 					.await;
-					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
+					entry.knowledge.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
 					}
@@ -950,32 +956,44 @@ impl State {
 		let topology = self.topologies.get_topology(entry.session);
 		let local = source == MessageSource::Local;
 
-		let required_routing = topology.map_or(RequiredRouting::PendingTopology, |t| {
+		let required_routing_assignment = topology.map_or(RequiredRouting::PendingTopology, |t| {
 			t.local_grid_neighbors().required_routing_by_index(validator_index, local)
 		});
 
-		let message_state = match entry.candidates.get_mut(claimed_candidate_index as usize) {
-			Some(candidate_entry) => {
-				// set the approval state for validator_index to Assigned
-				// unless the approval state is set already
-				candidate_entry.messages.entry(validator_index).or_insert_with(|| MessageState {
-					required_routing,
-					local,
-					random_routing: Default::default(),
-					approval_state: ApprovalState::Assigned(assignment.cert.clone()),
-				})
-			},
-			None => {
-				gum::warn!(
-					target: LOG_TARGET,
-					hash = ?block_hash,
-					?claimed_candidate_index,
-					"Expected a candidate entry on import_and_circulate_assignment",
-				);
+		let (message_state, cached_approval_vote) =
+			match entry.candidates.get_mut(claimed_candidate_index as usize) {
+				Some(candidate_entry) => {
+					// We might have received the approval before the assignment, so save it for processing after the assignment
+					let cached_approval_vote = candidate_entry.messages.remove(&validator_index);
+					metrics.on_delayed_approval_processed();
+					(
+						candidate_entry.messages.entry(validator_index).or_insert_with(|| {
+							MessageState {
+								required_routing_assignment,
+								required_routing_approval: if local {
+									RequiredRouting::All
+								} else {
+									RequiredRouting::None
+								},
+								local,
+								random_routing: Default::default(),
+								approval_state: ApprovalState::Assigned(assignment.cert.clone()),
+							}
+						}),
+						cached_approval_vote,
+					)
+				},
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						hash = ?block_hash,
+						?claimed_candidate_index,
+						"Expected a candidate entry on import_and_circulate_assignment",
+					);
 
-				return
-			},
-		};
+					return
+				},
+			};
 
 		// Dispatch the message to all peers in the routing set which
 		// know the block.
@@ -994,7 +1012,7 @@ impl State {
 
 			if let Some(true) = topology
 				.as_ref()
-				.map(|t| t.local_grid_neighbors().route_to_peer(required_routing, peer))
+				.map(|t| t.local_grid_neighbors().route_to_peer(required_routing_assignment, peer))
 			{
 				return true
 			}
@@ -1038,6 +1056,19 @@ impl State {
 				)),
 			))
 			.await;
+		}
+
+		if let Some(MessageState {
+			approval_state: ApprovalState::UnassignedApproval(vote, source),
+			..
+		}) = cached_approval_vote
+		{
+			gum::info!(
+				target: LOG_TARGET,
+				?message_subject,
+				"Delayed approval processed"
+			);
+			self.import_and_circulate_approval(ctx, metrics, source, vote).await
 		}
 	}
 
@@ -1090,7 +1121,48 @@ impl State {
 		let message_kind = MessageKind::Approval;
 
 		if let Some(peer_id) = source.peer_id() {
+			let sender_matches_validator_index = self
+				.topologies
+				.get_topology(entry.session)
+				.map(|topology| {
+					topology.get().peer_id_matches_validator_index(validator_index, peer_id)
+				})
+				.unwrap_or(false);
+
 			if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
+				metrics.on_unassigned_approval();
+
+				match entry.candidates.get_mut(candidate_index as usize) {
+					// Approvals might arrive sooner than their corresponding assignment because we are sending them directly
+					// to all peers instead of relaying on them being gossiped, so we need to save them untill the assignment
+					// arrives.
+					// We could also receive gossiped assignments in the case when aggression is triggered, but in that
+					// case we do not care about saving them because they should arrive before their corresponding assignments,
+					// since they are sent on the same route.
+					Some(candidate_entry)
+						if sender_matches_validator_index &&
+							!candidate_entry.messages.contains_key(&validator_index) =>
+					{
+						candidate_entry.messages.entry(validator_index).or_insert_with(|| {
+							MessageState {
+								required_routing_assignment: RequiredRouting::None,
+								required_routing_approval: RequiredRouting::None,
+								local: false,
+								random_routing: Default::default(),
+								approval_state: ApprovalState::UnassignedApproval(vote, source),
+							}
+						});
+						gum::info!(
+							target: LOG_TARGET,
+							?peer_id,
+							?message_subject,
+							"Saving approval to process later on",
+						);
+						return
+					},
+					_ => {},
+				};
+
 				gum::debug!(
 					target: LOG_TARGET,
 					?peer_id,
@@ -1165,9 +1237,19 @@ impl State {
 			}
 
 			let (tx, rx) = oneshot::channel();
+			if !sender_matches_validator_index {
+				gum::info!(
+					target: LOG_TARGET,
+					"Received gossiped approval"
+				)
+			}
 
-			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
-				.await;
+			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(
+				vote.clone(),
+				tx,
+				sender_matches_validator_index,
+			))
+			.await;
 
 			let timer = metrics.time_awaiting_approval_voting();
 			let result = match rx.await {
@@ -1238,17 +1320,19 @@ impl State {
 
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
 		metrics.on_approval_imported();
-
-		let required_routing = match entry.candidates.get_mut(candidate_index as usize) {
+		let should_trigger_aggression =
+			self.aggression_config.should_trigger_aggression(self.approval_checking_lag);
+		let required_routing_approval = match entry.candidates.get_mut(candidate_index as usize) {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Approved
 				// it should be in assigned state already
 				match candidate_entry.messages.remove(&validator_index) {
 					Some(MessageState {
 						approval_state: ApprovalState::Assigned(cert),
-						required_routing,
+						required_routing_assignment,
 						local,
 						random_routing,
+						required_routing_approval,
 					}) => {
 						candidate_entry.messages.insert(
 							validator_index,
@@ -1257,13 +1341,28 @@ impl State {
 									cert,
 									vote.signature.clone(),
 								),
-								required_routing,
+								required_routing_assignment,
 								local,
 								random_routing,
+								required_routing_approval,
 							},
 						);
-
-						required_routing
+						// When aggression is enabled gossip the approvals we received from peers, so that we reach finality.
+						if required_routing_approval == RequiredRouting::None &&
+							should_trigger_aggression
+						{
+							self.topologies
+								.get_topology(entry.session)
+								.zip(source.peer_id())
+								.map(|(topology, peer_id)| {
+									topology
+										.local_grid_neighbors()
+										.required_routing_by_peer_id(peer_id, local)
+								})
+								.unwrap_or(RequiredRouting::None)
+						} else {
+							required_routing_approval
+						}
 					},
 					Some(_) => {
 						unreachable!(
@@ -1309,7 +1408,8 @@ impl State {
 				return false
 			}
 
-			// Here we're leaning on a few behaviors of assignment propagation:
+			// When approvals are gossiped(l1 agression enabled) we are leaning on a few behaviors of
+			// assignment propagation:
 			//   1. At this point, the only peer we're aware of which has the approval
 			//      message is the source peer.
 			//   2. We have sent the assignment message to every peer in the required routing
@@ -1318,9 +1418,12 @@ impl State {
 			//      the assignment to all aware peers in the required routing _except_ the original
 			//      source of the assignment. Hence the `in_topology_check`.
 			//   3. Any randomly selected peers have been sent the assignment already.
-			let in_topology = topology
-				.map_or(false, |t| t.local_grid_neighbors().route_to_peer(required_routing, peer));
-			in_topology || knowledge.sent.contains(message_subject, MessageKind::Assignment)
+			let in_topology = topology.map_or(false, |t| {
+				t.local_grid_neighbors().route_to_peer(required_routing_approval, peer)
+			});
+			in_topology ||
+				(knowledge.sent.contains(message_subject, MessageKind::Assignment) &&
+					should_trigger_aggression)
 		};
 
 		let peers = entry
@@ -1403,7 +1506,8 @@ impl State {
 				candidate_entry.messages.iter().filter_map(|(validator_index, message_state)| {
 					match &message_state.approval_state {
 						ApprovalState::Approved(_, sig) => Some((*validator_index, sig.clone())),
-						ApprovalState::Assigned(_) => None,
+						ApprovalState::Assigned(_) | ApprovalState::UnassignedApproval(_, _) =>
+							None,
 					}
 				});
 			all_sigs.extend(sigs);
@@ -1420,6 +1524,7 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 		rng: &mut (impl CryptoRng + Rng),
+		should_trigger_aggression: bool,
 	) {
 		metrics.on_unify_with_peer();
 		let _timer = metrics.time_unify_with_peer();
@@ -1454,39 +1559,36 @@ impl State {
 					}) {
 					// Propagate the message to all peers in the required routing set OR
 					// randomly sample peers.
-					{
-						let random_routing = &mut message_state.random_routing;
-						let required_routing = message_state.required_routing;
-						let rng = &mut *rng;
-						let mut peer_filter = move |peer_id| {
-							let in_topology = topology.as_ref().map_or(false, |t| {
-								t.local_grid_neighbors().route_to_peer(required_routing, peer_id)
-							});
-							in_topology || {
-								let route_random = random_routing.sample(total_peers, rng);
-								if route_random {
-									random_routing.inc_sent();
-								}
-
-								route_random
+					let random_routing = &mut message_state.random_routing;
+					let required_routing_assignment = message_state.required_routing_assignment;
+					let rng = &mut *rng;
+					let mut peer_filter_assignment = move |peer_id| {
+						let in_topology = topology.as_ref().map_or(false, |t| {
+							t.local_grid_neighbors()
+								.route_to_peer(required_routing_assignment, peer_id)
+						});
+						in_topology || {
+							let route_random = random_routing.sample(total_peers, rng);
+							if route_random {
+								random_routing.inc_sent();
 							}
-						};
-
-						if !peer_filter(&peer_id) {
-							continue
+							route_random
 						}
-					}
+					};
 
 					let message_subject = MessageSubject(block, candidate_index, *validator);
 
-					let assignment_message = (
-						IndirectAssignmentCert {
-							block_hash: block,
-							validator: *validator,
-							cert: message_state.approval_state.assignment_cert().clone(),
-						},
-						candidate_index,
-					);
+					let assignment_message =
+						message_state.approval_state.assignment_cert().map(|assignmentcert| {
+							(
+								IndirectAssignmentCert {
+									block_hash: block,
+									validator: *validator,
+									cert: assignmentcert.clone(),
+								},
+								candidate_index,
+							)
+						});
 
 					let approval_message =
 						message_state.approval_state.approval_signature().map(|signature| {
@@ -1498,19 +1600,39 @@ impl State {
 							}
 						});
 
-					if !peer_knowledge.contains(&message_subject, MessageKind::Assignment) {
-						peer_knowledge
-							.sent
-							.insert(message_subject.clone(), MessageKind::Assignment);
-						assignments_to_send.push(assignment_message);
+					let mut assignment_sent = false;
+					if peer_filter_assignment(&peer_id) {
+						if let Some(assignment_message) = assignment_message {
+							if !peer_knowledge.contains(&message_subject, MessageKind::Assignment) {
+								peer_knowledge
+									.sent
+									.insert(message_subject.clone(), MessageKind::Assignment);
+								assignments_to_send.push(assignment_message);
+								assignment_sent = true;
+							}
+						}
 					}
 
-					if let Some(approval_message) = approval_message {
-						if !peer_knowledge.contains(&message_subject, MessageKind::Approval) {
-							peer_knowledge
-								.sent
-								.insert(message_subject.clone(), MessageKind::Approval);
-							approvals_to_send.push(approval_message);
+					let peer_filter_approval = move |peer_id, required_routing, local| {
+						let in_topology = topology.as_ref().map_or(false, |t| {
+							t.local_grid_neighbors().route_to_peer(required_routing, peer_id)
+						});
+
+						in_topology || local || (should_trigger_aggression && assignment_sent)
+					};
+
+					if peer_filter_approval(
+						&peer_id,
+						message_state.required_routing_approval,
+						message_state.local,
+					) {
+						if let Some(approval_message) = approval_message {
+							if !peer_knowledge.contains(&message_subject, MessageKind::Approval) {
+								peer_knowledge
+									.sent
+									.insert(message_subject.clone(), MessageKind::Approval);
+								approvals_to_send.push(approval_message);
+							}
 						}
 					}
 				}
@@ -1685,9 +1807,15 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 			.enumerate()
 			.flat_map(|(c_i, c)| c.messages.iter_mut().map(move |(k, v)| (c_i as _, k, v)))
 		{
-			routing_modifier(&mut message_state.required_routing, message_state.local, validator);
+			routing_modifier(
+				&mut message_state.required_routing_assignment,
+				message_state.local,
+				validator,
+			);
 
-			if message_state.required_routing.is_empty() {
+			if message_state.required_routing_assignment.is_empty() &&
+				message_state.required_routing_approval.is_empty()
+			{
 				continue
 			}
 
@@ -1699,14 +1827,17 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 			// Propagate the message to all peers in the required routing set.
 			let message_subject = MessageSubject(*block_hash, candidate_index, *validator);
 
-			let assignment_message = (
-				IndirectAssignmentCert {
-					block_hash: *block_hash,
-					validator: *validator,
-					cert: message_state.approval_state.assignment_cert().clone(),
-				},
-				candidate_index,
-			);
+			let assignment_message = message_state.approval_state.assignment_cert().map(|cert| {
+				(
+					IndirectAssignmentCert {
+						block_hash: *block_hash,
+						validator: *validator,
+						cert: cert.clone(),
+					},
+					candidate_index,
+				)
+			});
+
 			let approval_message =
 				message_state.approval_state.approval_signature().map(|signature| {
 					IndirectSignedApprovalVote {
@@ -1718,28 +1849,37 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 				});
 
 			for (peer, peer_knowledge) in &mut block_entry.known_by {
-				if !topology
+				if topology
 					.local_grid_neighbors()
-					.route_to_peer(message_state.required_routing, peer)
+					.route_to_peer(message_state.required_routing_assignment, peer)
 				{
-					continue
+					if let Some(assignment_message) = assignment_message.as_ref() {
+						if !peer_knowledge.contains(&message_subject, MessageKind::Assignment) {
+							peer_knowledge
+								.sent
+								.insert(message_subject.clone(), MessageKind::Assignment);
+							peer_assignments
+								.entry(*peer)
+								.or_insert_with(Vec::new)
+								.push(assignment_message.clone());
+						}
+					}
 				}
 
-				if !peer_knowledge.contains(&message_subject, MessageKind::Assignment) {
-					peer_knowledge.sent.insert(message_subject.clone(), MessageKind::Assignment);
-					peer_assignments
-						.entry(*peer)
-						.or_insert_with(Vec::new)
-						.push(assignment_message.clone());
-				}
-
-				if let Some(approval_message) = approval_message.as_ref() {
-					if !peer_knowledge.contains(&message_subject, MessageKind::Approval) {
-						peer_knowledge.sent.insert(message_subject.clone(), MessageKind::Approval);
-						peer_approvals
-							.entry(*peer)
-							.or_insert_with(Vec::new)
-							.push(approval_message.clone());
+				if topology
+					.local_grid_neighbors()
+					.route_to_peer(message_state.required_routing_approval, peer)
+				{
+					if let Some(approval_message) = approval_message.as_ref() {
+						if !peer_knowledge.contains(&message_subject, MessageKind::Approval) {
+							peer_knowledge
+								.sent
+								.insert(message_subject.clone(), MessageKind::Approval);
+							peer_approvals
+								.entry(*peer)
+								.or_insert_with(Vec::new)
+								.push(approval_message.clone());
+						}
 					}
 				}
 			}

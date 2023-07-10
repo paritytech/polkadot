@@ -518,17 +518,26 @@ impl ImportResult {
 		let (mut votes, _) = new_state.into_old_state();
 
 		for (index, sig) in approval_votes.into_iter() {
-			debug_assert!(
-				{
-					let pub_key = &env.session_info().validators.get(index).expect("indices are validated by approval-voting subsystem; qed");
-					let candidate_hash = votes.candidate_receipt.hash();
-					let session_index = env.session_index();
-					DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
-						.check_signature(pub_key, candidate_hash, session_index, &sig)
-						.is_ok()
-				},
-				"Signature check for imported approval votes failed! This is a serious bug. Session: {:?}, candidate hash: {:?}, validator index: {:?}", env.session_index(), votes.candidate_receipt.hash(), index
-			);
+			let pub_key = &env
+				.session_info()
+				.validators
+				.get(index)
+				.expect("indices are validated by approval-voting subsystem; qed");
+			let candidate_hash = votes.candidate_receipt.hash();
+			let session_index = env.session_index();
+			// The candidate sent us an invalid signature, so don't import it.
+			// This might happen because in approval-voting we do not checks signatures for votes received from the originator.
+			if !DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
+				.check_signature(pub_key, candidate_hash, session_index, &sig)
+				.is_ok()
+			{
+				gum::trace!(
+					target: LOG_TARGET,
+					"Approval checking signature was invalid, so just ignore it"
+				);
+				continue
+			}
+
 			if votes.valid.insert_vote(index, ValidDisputeStatementKind::ApprovalChecking, sig) {
 				imported_valid_votes += 1;
 				imported_approval_votes += 1;
