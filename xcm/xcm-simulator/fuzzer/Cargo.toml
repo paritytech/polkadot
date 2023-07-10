@@ -11,14 +11,14 @@ honggfuzz = "0.5.55"
 arbitrary = "1.2.0"
 scale-info = { version = "2.5.0", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }
