@@ -48,8 +48,8 @@ macro_rules! decl_worker_main {
 			for i in 2..args.len() {
 				match args[i].as_ref() {
 					"--socket-path" => socket_path = args[i + 1].as_str(),
-					"--node-version" => version = Some(args[i + 1].as_str()),
-					_ => (),
+					"--node-impl-version" => version = Some(args[i + 1].as_str()),
+					arg => panic!("Unexpected argument found: {}", arg),
 				}
 			}
 
