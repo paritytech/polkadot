@@ -367,16 +367,20 @@ impl TypeInfo for ParaKind {
 
 /// This enum describes a reason why a particular PVF pre-checking vote was initiated. When the
 /// PVF vote in question is concluded, this enum indicates what changes should be performed.
-#[derive(Encode, Decode, TypeInfo)]
-enum PvfCheckCause<BlockNumber> {
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub(crate) enum PvfCheckCause<BlockNumber> {
 	/// PVF vote was initiated by the initial onboarding process of the given para.
 	Onboarding(ParaId),
 	/// PVF vote was initiated by signalling of an upgrade by the given para.
 	Upgrade {
 		/// The ID of the parachain that initiated or is waiting for the conclusion of pre-checking.
 		id: ParaId,
-		/// The relay-chain block number that was used as the relay-parent for the parablock that
-		/// initiated the upgrade.
+		/// The relay-chain block number of **inclusion** of candidate that that initiated the upgrade.
+		///
+		/// It's important to count upgrade enactment delay from the inclusion of this candidate instead
+		/// of its relay parent -- in order to keep PVF available in case of chain reversions.
+		///
+		/// See https://github.com/paritytech/polkadot/issues/4601 for detailed explanation.
 		relay_parent_number: BlockNumber,
 	},
 }
@@ -400,7 +404,7 @@ enum PvfCheckOutcome {
 
 /// This struct describes the current state of an in-progress PVF pre-checking vote.
 #[derive(Encode, Decode, TypeInfo)]
-struct PvfCheckActiveVoteState<BlockNumber> {
+pub(crate) struct PvfCheckActiveVoteState<BlockNumber> {
 	// The two following vectors have their length equal to the number of validators in the active
 	// set. They start with all zeroes. A 1 is set at an index when the validator at the that index
 	// makes a vote. Once a 1 is set for either of the vectors, that validator cannot vote anymore.
@@ -465,6 +469,11 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 		} else {
 			None
 		}
+	}
+
+	#[cfg(test)]
+	pub(crate) fn causes(&self) -> &[PvfCheckCause<BlockNumber>] {
+		self.causes.as_slice()
 	}
 }
 
@@ -1509,10 +1518,10 @@ impl<T: Config> Pallet<T> {
 		// against the new validation code.
 		//
 		// Here we are trying to choose the block number that will have `validation_upgrade_delay`
-		// blocks from the relay-parent of the block that schedule code upgrade but no less than
-		// `minimum_validation_upgrade_delay`. We want this delay out of caution so that when
-		// the last vote for pre-checking comes the parachain will have some time until the upgrade
-		// finally takes place.
+		// blocks from the relay-parent of inclusion of the the block that scheduled code upgrade
+		// but no less than `minimum_validation_upgrade_delay`. We want this delay out of caution
+		// so that when the last vote for pre-checking comes the parachain will have some time until
+		// the upgrade finally takes place.
 		let expected_at = cmp::max(
 			relay_parent_number + cfg.validation_upgrade_delay,
 			now + cfg.minimum_validation_upgrade_delay,
@@ -1755,10 +1764,12 @@ impl<T: Config> Pallet<T> {
 	///
 	/// The new code should not be equal to the current one, otherwise the upgrade will be aborted.
 	/// If there is already a scheduled code upgrade for the para, this is a no-op.
+	///
+	/// Inclusion block number specifies relay parent which enacted candidate initiating the upgrade.
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
 		new_code: ValidationCode,
-		relay_parent_number: T::BlockNumber,
+		inclusion_block_number: T::BlockNumber,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
 		let mut weight = T::DbWeight::get().reads(1);
@@ -1800,7 +1811,7 @@ impl<T: Config> Pallet<T> {
 		UpgradeRestrictionSignal::<T>::insert(&id, UpgradeRestriction::Present);
 
 		weight += T::DbWeight::get().reads_writes(1, 1);
-		let next_possible_upgrade_at = relay_parent_number + cfg.validation_upgrade_cooldown;
+		let next_possible_upgrade_at = inclusion_block_number + cfg.validation_upgrade_cooldown;
 		UpgradeCooldowns::<T>::mutate(|upgrade_cooldowns| {
 			let insert_idx = upgrade_cooldowns
 				.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
@@ -1809,7 +1820,7 @@ impl<T: Config> Pallet<T> {
 		});
 
 		weight += Self::kick_off_pvf_check(
-			PvfCheckCause::Upgrade { id, relay_parent_number },
+			PvfCheckCause::Upgrade { id, relay_parent_number: inclusion_block_number },
 			code_hash,
 			new_code,
 			cfg,
@@ -2109,6 +2120,13 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Heads::<T>::insert(&id, &genesis_data.genesis_head);
+	}
+
+	#[cfg(test)]
+	pub(crate) fn active_vote_state(
+		code_hash: &ValidationCodeHash,
+	) -> Option<PvfCheckActiveVoteState<T::BlockNumber>> {
+		PvfActiveVoteMap::<T>::get(code_hash)
 	}
 }
 
