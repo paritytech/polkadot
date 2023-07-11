@@ -27,7 +27,6 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 	feature = "polkadot-native",
 	feature = "kusama-native",
 	feature = "westend-native",
-	feature = "rococo-native"
 ))]
 use pallet_staking::Forcing;
 use polkadot_primitives::{AccountId, AccountPublic, AssignmentId, ValidatorId};
@@ -57,7 +56,6 @@ use sp_runtime::traits::IdentifyAccount;
 	feature = "polkadot-native",
 	feature = "kusama-native",
 	feature = "westend-native",
-	feature = "rococo-native"
 ))]
 use sp_runtime::Perbill;
 #[cfg(any(

@@ -18,12 +18,6 @@
 
 #![deny(unused_results)]
 
-#[cfg(any(
-	feature = "polkadot-native",
-	feature = "kusama-native",
-	feature = "westend-native",
-	feature = "rococo-native"
-))]
 pub mod benchmarking;
 pub mod chain_spec;
 mod fake_runtime_api;
