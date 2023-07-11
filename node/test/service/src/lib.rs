@@ -72,21 +72,23 @@ pub use polkadot_service::{FullBackend, GetLastTimestamp};
 pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
-	worker_program_path: Option<PathBuf>,
+	workers_path: Option<PathBuf>,
 ) -> Result<NewFull, Error> {
 	polkadot_service::new_full(
 		config,
-		is_collator,
-		None,
-		true,
-		None,
-		None,
-		worker_program_path,
-		false,
-		polkadot_service::RealOverseerGen,
-		None,
-		None,
-		None,
+		polkadot_service::NewFullParams {
+			is_collator,
+			grandpa_pause: None,
+			enable_beefy: true,
+			jaeger_agent: None,
+			telemetry_worker_handle: None,
+			workers_path,
+			overseer_enable_anyways: false,
+			overseer_gen: polkadot_service::RealOverseerGen,
+			overseer_message_channel_capacity_override: None,
+			malus_finality_delay: None,
+			hwbench: None,
+		},
 	)
 }
 
