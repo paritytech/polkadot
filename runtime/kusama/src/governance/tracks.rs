@@ -22,14 +22,20 @@ const fn percent(x: i32) -> sp_arithmetic::FixedI64 {
 	sp_arithmetic::FixedI64::from_rational(x as u128, 100)
 }
 use pallet_referenda::Curve;
-const APP_ROOT: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
-const SUP_ROOT: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
-const APP_STAKING_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
+const APP_ROOT: Curve =
+	Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
+const SUP_ROOT: Curve =
+	Curve::make_linear(28, 28, percent(0), percent(50));
+const APP_STAKING_ADMIN: Curve =
+	Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_STAKING_ADMIN: Curve =
 	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_TREASURER: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
-const SUP_TREASURER: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
-const APP_FELLOWSHIP_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
+const APP_TREASURER: Curve =
+	Curve::make_reciprocal(4, 28, percent(80), percent(66), percent(100));
+const SUP_TREASURER: Curve =
+	Curve::make_linear(28, 28, percent(0), percent(50));
+const APP_FELLOWSHIP_ADMIN: Curve =
+	Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_FELLOWSHIP_ADMIN: Curve =
 	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
 const APP_GENERAL_ADMIN: Curve =
@@ -40,26 +46,38 @@ const APP_AUCTION_ADMIN: Curve =
 	Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
 const SUP_AUCTION_ADMIN: Curve =
 	Curve::make_reciprocal(7, 28, percent(10), percent(0), percent(50));
-const APP_LEASE_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
-const SUP_LEASE_ADMIN: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_REFERENDUM_CANCELLER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
+const APP_LEASE_ADMIN: Curve =
+	Curve::make_linear(17, 28, percent(50), percent(100));
+const SUP_LEASE_ADMIN: Curve =
+	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
+const APP_REFERENDUM_CANCELLER: Curve =
+	Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_REFERENDUM_CANCELLER: Curve =
 	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_REFERENDUM_KILLER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
+const APP_REFERENDUM_KILLER: Curve =
+	Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_REFERENDUM_KILLER: Curve =
 	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_SMALL_TIPPER: Curve = Curve::make_linear(10, 28, percent(50), percent(100));
-const SUP_SMALL_TIPPER: Curve = Curve::make_reciprocal(1, 28, percent(4), percent(0), percent(50));
-const APP_BIG_TIPPER: Curve = Curve::make_linear(10, 28, percent(50), percent(100));
-const SUP_BIG_TIPPER: Curve = Curve::make_reciprocal(8, 28, percent(1), percent(0), percent(50));
-const APP_SMALL_SPENDER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
+const APP_SMALL_TIPPER: Curve =
+	Curve::make_linear(10, 28, percent(50), percent(100));
+const SUP_SMALL_TIPPER: Curve =
+	Curve::make_reciprocal(1, 28, percent(4), percent(0), percent(50));
+const APP_BIG_TIPPER: Curve =
+	Curve::make_linear(10, 28, percent(50), percent(100));
+const SUP_BIG_TIPPER: Curve =
+	Curve::make_reciprocal(8, 28, percent(1), percent(0), percent(50));
+const APP_SMALL_SPENDER: Curve =
+	Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_SMALL_SPENDER: Curve =
 	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_MEDIUM_SPENDER: Curve = Curve::make_linear(23, 28, percent(50), percent(100));
+const APP_MEDIUM_SPENDER: Curve =
+	Curve::make_linear(23, 28, percent(50), percent(100));
 const SUP_MEDIUM_SPENDER: Curve =
 	Curve::make_reciprocal(16, 28, percent(1), percent(0), percent(50));
-const APP_BIG_SPENDER: Curve = Curve::make_linear(28, 28, percent(50), percent(100));
-const SUP_BIG_SPENDER: Curve = Curve::make_reciprocal(20, 28, percent(1), percent(0), percent(50));
+const APP_BIG_SPENDER: Curve =
+	Curve::make_linear(28, 28, percent(66), percent(100));
+const SUP_BIG_SPENDER: Curve =
+	Curve::make_reciprocal(20, 28, percent(1), percent(0), percent(50));
 const APP_WHITELISTED_CALLER: Curve =
 	Curve::make_reciprocal(16, 28 * 24, percent(96), percent(50), percent(100));
 const SUP_WHITELISTED_CALLER: Curve =
@@ -114,9 +132,9 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			name: "treasurer",
 			max_deciding: 10,
 			decision_deposit: 1 * GRAND,
-			prepare_period: 2 * HOURS,
-			decision_period: 14 * DAYS,
-			confirm_period: 3 * HOURS,
+			prepare_period: 48 * HOURS,
+			decision_period: 28 * DAYS,
+			confirm_period: 48 * HOURS,
 			min_enactment_period: 24 * HOURS,
 			min_approval: APP_TREASURER,
 			min_support: SUP_TREASURER,
@@ -210,9 +228,9 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 		30,
 		pallet_referenda::TrackInfo {
 			name: "small_tipper",
-			max_deciding: 200,
+			max_deciding: 6,
 			decision_deposit: 1 * QUID,
-			prepare_period: 1 * MINUTES,
+			prepare_period: 3 * HOURS,
 			decision_period: 7 * DAYS,
 			confirm_period: 10 * MINUTES,
 			min_enactment_period: 1 * MINUTES,
@@ -224,9 +242,9 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 		31,
 		pallet_referenda::TrackInfo {
 			name: "big_tipper",
-			max_deciding: 100,
+			max_deciding: 3,
 			decision_deposit: 10 * QUID,
-			prepare_period: 10 * MINUTES,
+			prepare_period: 6 * HOURS,
 			decision_period: 7 * DAYS,
 			confirm_period: 1 * HOURS,
 			min_enactment_period: 10 * MINUTES,
@@ -238,9 +256,9 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 		32,
 		pallet_referenda::TrackInfo {
 			name: "small_spender",
-			max_deciding: 50,
+			max_deciding: 7,
 			decision_deposit: 100 * QUID,
-			prepare_period: 4 * HOURS,
+			prepare_period: 24 * HOURS,
 			decision_period: 14 * DAYS,
 			confirm_period: 12 * HOURS,
 			min_enactment_period: 24 * HOURS,
@@ -252,9 +270,9 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 		33,
 		pallet_referenda::TrackInfo {
 			name: "medium_spender",
-			max_deciding: 50,
+			max_deciding: 2,
 			decision_deposit: 200 * QUID,
-			prepare_period: 4 * HOURS,
+			prepare_period: 24 * HOURS,
 			decision_period: 14 * DAYS,
 			confirm_period: 24 * HOURS,
 			min_enactment_period: 24 * HOURS,
@@ -266,11 +284,11 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 		34,
 		pallet_referenda::TrackInfo {
 			name: "big_spender",
-			max_deciding: 50,
+			max_deciding: 1,
 			decision_deposit: 400 * QUID,
-			prepare_period: 4 * HOURS,
+			prepare_period: 24 * HOURS,
 			decision_period: 14 * DAYS,
-			confirm_period: 48 * HOURS,
+			confirm_period: 24 * HOURS,
 			min_enactment_period: 24 * HOURS,
 			min_approval: APP_BIG_SPENDER,
 			min_support: SUP_BIG_SPENDER,
