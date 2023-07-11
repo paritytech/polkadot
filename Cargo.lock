@@ -7493,6 +7493,7 @@ dependencies = [
 name = "polkadot-node-core-runtime-api"
 version = "1.0.0"
 dependencies = [
+ "async-trait",
  "futures",
  "lru 0.9.0",
  "polkadot-node-metrics",
@@ -7503,7 +7504,6 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
  "sp-api",
- "sp-authority-discovery",
  "sp-consensus-babe",
  "sp-core",
  "sp-keyring",
@@ -7543,7 +7543,6 @@ dependencies = [
  "prioritized-metered-channel",
  "prometheus-parse",
  "sc-cli",
- "sc-client-api",
  "sc-service",
  "sc-tracing",
  "sp-keyring",
@@ -7640,6 +7639,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-network",
+ "sc-transaction-pool-api",
  "smallvec",
  "sp-api",
  "sp-authority-discovery",
@@ -8138,6 +8138,7 @@ dependencies = [
  "sc-sysinfo",
  "sc-telemetry",
  "sc-transaction-pool",
+ "sc-transaction-pool-api",
  "serde",
  "serde_json",
  "sp-api",
