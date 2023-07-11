@@ -589,7 +589,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type HistoryDepth = frame_support::traits::ConstU32<84>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
-	type OnStakerSlash = NominationPools;
+	type EventListeners = NominationPools;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 

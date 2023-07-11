@@ -161,7 +161,7 @@ macro_rules! impl_runtime_weights {
 /// The type used for currency conversion.
 ///
 /// This must only be used as long as the balance type is `u128`.
-pub type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
+pub type CurrencyToVote = sp_staking::currency_to_vote::U128CurrencyToVote;
 static_assertions::assert_eq_size!(primitives::Balance, u128);
 
 /// A placeholder since there is currently no provided session key handler for parachain validator
