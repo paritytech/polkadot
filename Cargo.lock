@@ -7492,6 +7492,7 @@ dependencies = [
 name = "polkadot-node-core-runtime-api"
 version = "0.9.43"
 dependencies = [
+ "async-trait",
  "futures",
  "lru 0.9.0",
  "polkadot-node-metrics",

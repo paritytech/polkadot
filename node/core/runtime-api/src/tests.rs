@@ -21,14 +21,15 @@ use polkadot_node_subsystem::SpawnGlue;
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_node_subsystem_types::DefaultSubsystemClient;
 use polkadot_primitives::{
-	runtime_api::ParachainHost, AuthorityDiscoveryId, Block, CandidateEvent,
-	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
+	runtime_api::ParachainHost, vstaging, AuthorityDiscoveryId, Block, BlockNumber,
+	CandidateCommitments, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreState,
+	DisputeState, ExecutorParams, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
 	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
 	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sc_transaction_pool_api::{OffchainTransactionPoolFactory, RejectAllTxPool};
-use sp_api::ProvideRuntimeApi;
+use sp_api::{ApiError, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
 use sp_consensus_babe::BabeApi;
 use sp_core::testing::TaskExecutor;
@@ -37,6 +38,204 @@ use std::{
 	sync::{Arc, Mutex},
 };
 use test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
+
+#[derive(Default)]
+struct MockSubsystemClient {
+	submitted_pvf_check_statement: Arc<Mutex<Vec<(PvfCheckStatement, ValidatorSignature)>>>,
+	authorities: Vec<AuthorityDiscoveryId>,
+	validators: Vec<ValidatorId>,
+	validator_groups: Vec<Vec<ValidatorIndex>>,
+}
+
+#[async_trait::async_trait]
+impl RuntimeApiSubsystemClient for MockSubsystemClient {
+	async fn api_version_parachain_host(&self, _: Hash) -> Result<Option<u32>, ApiError> {
+		Ok(Some(5))
+	}
+
+	async fn validators(&self, _: Hash) -> Result<Vec<ValidatorId>, ApiError> {
+		Ok(self.validators.clone())
+	}
+
+	async fn validator_groups(
+		&self,
+		_: Hash,
+	) -> Result<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>), ApiError> {
+		Ok((
+			self.validator_groups.clone(),
+			GroupRotationInfo { session_start_block: 1, group_rotation_frequency: 100, now: 10 },
+		))
+	}
+
+	async fn availability_cores(
+		&self,
+		_: Hash,
+	) -> Result<Vec<CoreState<Hash, BlockNumber>>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn persisted_validation_data(
+		&self,
+		_: Hash,
+		_: ParaId,
+		_: OccupiedCoreAssumption,
+	) -> Result<Option<PersistedValidationData<Hash, BlockNumber>>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn assumed_validation_data(
+		&self,
+		_: Hash,
+		_: ParaId,
+		_: Hash,
+	) -> Result<Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)>, ApiError>
+	{
+		todo!("Not required for tests")
+	}
+
+	async fn check_validation_outputs(
+		&self,
+		_: Hash,
+		_: ParaId,
+		_: CandidateCommitments,
+	) -> Result<bool, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn session_index_for_child(&self, _: Hash) -> Result<SessionIndex, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn validation_code(
+		&self,
+		_: Hash,
+		_: ParaId,
+		_: OccupiedCoreAssumption,
+	) -> Result<Option<ValidationCode>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn candidate_pending_availability(
+		&self,
+		_: Hash,
+		_: ParaId,
+	) -> Result<Option<CommittedCandidateReceipt<Hash>>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn candidate_events(&self, _: Hash) -> Result<Vec<CandidateEvent<Hash>>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn dmq_contents(
+		&self,
+		_: Hash,
+		_: ParaId,
+	) -> Result<Vec<InboundDownwardMessage<BlockNumber>>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn inbound_hrmp_channels_contents(
+		&self,
+		_: Hash,
+		_: ParaId,
+	) -> Result<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn validation_code_by_hash(
+		&self,
+		_: Hash,
+		_: ValidationCodeHash,
+	) -> Result<Option<ValidationCode>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn on_chain_votes(&self, _: Hash) -> Result<Option<ScrapedOnChainVotes<Hash>>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn session_info(
+		&self,
+		_: Hash,
+		_: SessionIndex,
+	) -> Result<Option<SessionInfo>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn submit_pvf_check_statement(
+		&self,
+		_: Hash,
+		stmt: PvfCheckStatement,
+		sig: ValidatorSignature,
+	) -> Result<(), ApiError> {
+		self.submitted_pvf_check_statement.lock().unwrap().push((stmt, sig));
+		Ok(())
+	}
+
+	async fn pvfs_require_precheck(&self, _: Hash) -> Result<Vec<ValidationCodeHash>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn validation_code_hash(
+		&self,
+		_: Hash,
+		_: ParaId,
+		_: OccupiedCoreAssumption,
+	) -> Result<Option<ValidationCodeHash>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn disputes(
+		&self,
+		_: Hash,
+	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn unapplied_slashes(
+		&self,
+		_: Hash,
+	) -> Result<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn key_ownership_proof(
+		&self,
+		_: Hash,
+		_: ValidatorId,
+	) -> Result<Option<vstaging::slashing::OpaqueKeyOwnershipProof>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn submit_report_dispute_lost(
+		&self,
+		_: Hash,
+		_: vstaging::slashing::DisputeProof,
+		_: vstaging::slashing::OpaqueKeyOwnershipProof,
+	) -> Result<Option<()>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn session_executor_params(
+		&self,
+		_: Hash,
+		_: SessionIndex,
+	) -> Result<Option<ExecutorParams>, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn current_epoch(&self, _: Hash) -> Result<sp_consensus_babe::Epoch, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn authorities(
+		&self,
+		_: Hash,
+	) -> Result<Vec<sp_authority_discovery::AuthorityId>, ApiError> {
+		Ok(self.authorities.clone())
+	}
+}
 
 #[derive(Default, Clone)]
 struct MockRuntimeApi {
@@ -239,18 +438,12 @@ sp_api::mock_impl_runtime_apis! {
 #[test]
 fn requests_authorities() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
-	let runtime_api = Arc::new(MockRuntimeApi::default());
+	let substem_client = Arc::new(MockSubsystemClient::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem = RuntimeApiSubsystem::new(
-		Arc::new(DefaultSubsystemClient::new(
-			runtime_api.clone(),
-			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
-		)),
-		Metrics(None),
-		SpawnGlue(spawner),
-	);
+	let subsystem =
+		RuntimeApiSubsystem::new(substem_client.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -261,7 +454,7 @@ fn requests_authorities() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.authorities);
+		assert_eq!(rx.await.unwrap().unwrap(), substem_client.authorities);
 
 		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -272,18 +465,12 @@ fn requests_authorities() {
 #[test]
 fn requests_validators() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
-	let runtime_api = Arc::new(MockRuntimeApi::default());
+	let subsystem_client = Arc::new(MockSubsystemClient::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem = RuntimeApiSubsystem::new(
-		Arc::new(DefaultSubsystemClient::new(
-			runtime_api.clone(),
-			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
-		)),
-		Metrics(None),
-		SpawnGlue(spawner),
-	);
+	let subsystem =
+		RuntimeApiSubsystem::new(subsystem_client.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -294,7 +481,7 @@ fn requests_validators() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validators);
+		assert_eq!(rx.await.unwrap().unwrap(), subsystem_client.validators);
 
 		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -305,18 +492,12 @@ fn requests_validators() {
 #[test]
 fn requests_validator_groups() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
-	let runtime_api = Arc::new(MockRuntimeApi::default());
+	let subsystem_client = Arc::new(MockSubsystemClient::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem = RuntimeApiSubsystem::new(
-		Arc::new(DefaultSubsystemClient::new(
-			runtime_api.clone(),
-			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
-		)),
-		Metrics(None),
-		SpawnGlue(spawner),
-	);
+	let subsystem =
+		RuntimeApiSubsystem::new(subsystem_client.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
@@ -327,7 +508,7 @@ fn requests_validator_groups() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap().0, runtime_api.validator_groups);
+		assert_eq!(rx.await.unwrap().unwrap().0, subsystem_client.validator_groups);
 
 		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -1043,16 +1224,10 @@ fn requests_babe_epoch() {
 fn requests_submit_pvf_check_statement() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let spawner = sp_core::testing::TaskExecutor::new();
+	let subsystem_client = Arc::new(MockSubsystemClient::default());
 
-	let runtime_api = Arc::new(MockRuntimeApi::default());
-	let subsystem = RuntimeApiSubsystem::new(
-		Arc::new(DefaultSubsystemClient::new(
-			runtime_api.clone(),
-			OffchainTransactionPoolFactory::new(RejectAllTxPool::default()),
-		)),
-		Metrics(None),
-		SpawnGlue(spawner),
-	);
+	let subsystem =
+		RuntimeApiSubsystem::new(subsystem_client.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 
 	let relay_parent = [1; 32].into();
@@ -1084,7 +1259,7 @@ fn requests_submit_pvf_check_statement() {
 		assert_eq!(rx.await.unwrap().unwrap(), ());
 
 		assert_eq!(
-			&*runtime_api.submitted_pvf_check_statement.lock().expect("poisened mutex"),
+			&*subsystem_client.submitted_pvf_check_statement.lock().expect("poisened mutex"),
 			&[(stmt.clone(), sig.clone()), (stmt.clone(), sig.clone())]
 		);
 
