@@ -382,7 +382,13 @@ where
 		stmt: PvfCheckStatement,
 		signature: ValidatorSignature,
 	) -> Result<(), ApiError> {
-		self.client.runtime_api().submit_pvf_check_statement(at, stmt, signature)
+		let mut runtime_api = self.client.runtime_api();
+
+		runtime_api.register_extension(
+			self.offchain_transaction_pool_factory.offchain_transaction_pool(at),
+		);
+
+		runtime_api.submit_pvf_check_statement(at, stmt, signature)
 	}
 
 	async fn pvfs_require_precheck(&self, at: Hash) -> Result<Vec<ValidationCodeHash>, ApiError> {
