@@ -16,14 +16,14 @@ parity-scale-codec = { version = "3.6.1", default-features = false, features = [
 polkadot-parachain = { path = "../../../../parachain" }
 polkadot-primitives = { path = "../../../../primitives" }
 
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 landlock = "0.2.0"
@@ -33,4 +33,4 @@ assert_matches = "1.4.0"
 tempfile = "3.3.0"
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }

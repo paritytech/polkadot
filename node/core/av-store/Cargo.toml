@@ -19,7 +19,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.44" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v1.0.0" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 
 [dev-dependencies]
@@ -28,9 +28,9 @@ env_logger = "0.9.0"
 assert_matches = "1.4.0"
 kvdb-memorydb = "0.13.0"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.44" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
 parking_lot = "0.12.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
