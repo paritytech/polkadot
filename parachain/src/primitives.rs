@@ -198,7 +198,7 @@ impl From<i32> for Id {
 	}
 }
 
-const USER_INDEX_START: u32 = 1000;
+const USER_INDEX_START: u32 = 2000;
 const PUBLIC_INDEX_START: u32 = 2000;
 
 /// The ID of the first user (non-system) parachain.
