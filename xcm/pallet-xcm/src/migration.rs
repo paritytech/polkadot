@@ -27,6 +27,11 @@ pub mod v1 {
 	use super::*;
 	use frame_support::migrations::VersionedRuntimeUpgrade;
 
+	/// Named with the 'VersionUnchecked'-prefix because although this implements some version
+	/// checking, the version checking is not complete as it will begin failing after the upgrade is
+	/// enacted on-chain.
+	///
+	/// Use [`VersionCheckedMigrateToV1`] instead.
 	pub struct VersionUncheckedMigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for VersionUncheckedMigrateToV1<T> {
 		#[cfg(feature = "try-runtime")]
