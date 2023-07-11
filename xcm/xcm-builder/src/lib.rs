@@ -106,3 +106,6 @@ pub use origin_aliases::AliasForeignAccountId32;
 
 mod pay;
 pub use pay::{FixedLocation, LocatableAssetId, PayAccountId32OnChainOverXcm, PayOverXcm};
+
+// XCM configurations specific to Kusama and it's child parachains.
+pub mod kusama;

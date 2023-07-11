@@ -14,6 +14,7 @@ xcm-executor = { path = "../xcm-executor", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -48,6 +49,7 @@ std = [
 	"sp-std/std",
 	"sp-arithmetic/std",
 	"sp-io/std",
+  "sp-core/std",
 	"sp-runtime/std",
 	"sp-weights/std",
 	"frame-support/std",
