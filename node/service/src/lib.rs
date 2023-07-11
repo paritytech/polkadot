@@ -240,7 +240,7 @@ pub enum Error {
 	InvalidWorkerBinaries(PathBuf, PathBuf),
 
 	#[cfg(feature = "full-node")]
-	#[error("Worker binaries could not be found at workers path ({0:?}), polkadot binary directory, or /usr/libexec")]
+	#[error("Worker binaries could not be found at workers path ({0:?}), polkadot binary directory, or /usr/lib/polkadot")]
 	MissingWorkerBinaries(Option<PathBuf>),
 
 	#[cfg(feature = "full-node")]
@@ -612,6 +612,22 @@ where
 }
 
 #[cfg(feature = "full-node")]
+pub struct NewFullParams<OverseerGenerator: OverseerGen> {
+	pub is_collator: IsCollator,
+	pub grandpa_pause: Option<(u32, u32)>,
+	pub enable_beefy: bool,
+	pub jaeger_agent: Option<std::net::SocketAddr>,
+	pub telemetry_worker_handle: Option<TelemetryWorkerHandle>,
+	pub workers_path: Option<std::path::PathBuf>,
+	pub overseer_enable_anyways: bool,
+	pub overseer_gen: OverseerGenerator,
+	pub overseer_message_channel_capacity_override: Option<usize>,
+	#[allow(dead_code)]
+	pub malus_finality_delay: Option<u32>,
+	pub hwbench: Option<sc_sysinfo::HwBench>,
+}
+
+#[cfg(feature = "full-node")]
 pub struct NewFull {
 	pub task_manager: TaskManager,
 	pub client: Arc<FullClient>,
@@ -656,7 +672,6 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 	col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
 };
 
-// TODO: This function seems to be public? How to not break backwards compatibility?
 /// Create a new full node of arbitrary runtime and executor.
 ///
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
@@ -667,29 +682,30 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 /// still determined based on the role of the node. Likewise for authority discovery.
 ///
 /// `workers_path` is used to get the path to the directory where auxiliary worker binaries reside.
-/// If not specified, the main binary's directory is searched first, then `/usr/libexec` is
+/// If not specified, the main binary's directory is searched first, then `/usr/lib/polkadot` is
 /// searched. If the path points to an executable rather then directory, that executable is used
 /// both as preparation and execution worker (supposed to be used for tests only).
 #[cfg(feature = "full-node")]
-pub fn new_full<OverseerGenerator>(
+pub fn new_full<OverseerGenerator: OverseerGen>(
 	mut config: Configuration,
-	is_collator: IsCollator,
-	grandpa_pause: Option<(u32, u32)>,
-	enable_beefy: bool,
-	jaeger_agent: Option<std::net::SocketAddr>,
-	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
-	workers_path: Option<std::path::PathBuf>,
-	overseer_enable_anyways: bool,
-	overseer_gen: OverseerGenerator,
-	overseer_message_channel_capacity_override: Option<usize>,
-	_malus_finality_delay: Option<u32>,
-	hwbench: Option<sc_sysinfo::HwBench>,
-) -> Result<NewFull, Error>
-where
-	OverseerGenerator: OverseerGen,
-{
+	params: NewFullParams<OverseerGenerator>,
+) -> Result<NewFull, Error> {
 	use polkadot_node_network_protocol::request_response::IncomingRequest;
 	use sc_network_common::sync::warp::WarpSyncParams;
+
+	let NewFullParams {
+		is_collator,
+		grandpa_pause,
+		enable_beefy,
+		jaeger_agent,
+		telemetry_worker_handle,
+		workers_path,
+		overseer_enable_anyways,
+		overseer_gen,
+		overseer_message_channel_capacity_override,
+		malus_finality_delay: _,
+		hwbench,
+	} = params;
 
 	let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 	let role = config.role.clone();
@@ -1318,16 +1334,16 @@ fn get_workers_paths(
 	}
 
 	{
-		let libexec = PathBuf::from("/usr/libexec");
-		let mut prep_worker = libexec.clone();
+		let lib_path = PathBuf::from("/usr/lib/polkadot");
+		let mut prep_worker = lib_path.clone();
 		prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
-		let mut exec_worker = libexec.clone();
+		let mut exec_worker = lib_path.clone();
 		exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
 
 		// Add to set if both workers exist. Warn on partial installs.
 		let (prep_worker_exists, exec_worker_exists) = (prep_worker.exists(), exec_worker.exists());
 		if prep_worker_exists && exec_worker_exists {
-			log::trace!("Worker binaries found at /usr/libexec");
+			log::trace!("Worker binaries found at /usr/lib/polkadot");
 			workers_paths.push((prep_worker, exec_worker));
 		} else if prep_worker_exists {
 			log::warn!("Worker binary found at {:?} but not {:?}", prep_worker, exec_worker);
@@ -1396,41 +1412,21 @@ pub fn new_chain_ops(
 /// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
 /// still determined based on the role of the node. Likewise for authority discovery.
 #[cfg(feature = "full-node")]
-pub fn build_full(
+pub fn build_full<OverseerGenerator: OverseerGen>(
 	config: Configuration,
-	is_collator: IsCollator,
-	grandpa_pause: Option<(u32, u32)>,
-	enable_beefy: bool,
-	jaeger_agent: Option<std::net::SocketAddr>,
-	workers_path: Option<PathBuf>,
-	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
-	overseer_enable_anyways: bool,
-	overseer_gen: impl OverseerGen,
-	overseer_message_channel_override: Option<usize>,
-	malus_finality_delay: Option<u32>,
-	hwbench: Option<sc_sysinfo::HwBench>,
+	mut params: NewFullParams<OverseerGenerator>,
 ) -> Result<NewFull, Error> {
 	let is_polkadot = config.chain_spec.is_polkadot();
 
-	new_full(
-		config,
-		is_collator,
-		grandpa_pause,
-		enable_beefy,
-		jaeger_agent,
-		telemetry_worker_handle,
-		workers_path,
-		overseer_enable_anyways,
-		overseer_gen,
-		overseer_message_channel_override.map(move |capacity| {
+	params.overseer_message_channel_capacity_override =
+		params.overseer_message_channel_capacity_override.map(move |capacity| {
 			if is_polkadot {
 				gum::warn!("Channel capacity should _never_ be tampered with on polkadot!");
 			}
 			capacity
-		}),
-		malus_finality_delay,
-		hwbench,
-	)
+		});
+
+	new_full(config, params)
 }
 
 /// Reverts the node state down to at most the last finalized block.

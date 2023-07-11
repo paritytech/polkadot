@@ -285,17 +285,21 @@ where
 		let database_source = config.database.clone();
 		let task_manager = service::build_full(
 			config,
-			service::IsCollator::No,
-			grandpa_pause,
-			enable_beefy,
-			jaeger_agent,
-			cli.run.workers_path,
-			None,
-			false,
-			overseer_gen,
-			cli.run.overseer_channel_capacity_override,
-			maybe_malus_finality_delay,
-			hwbench,
+			service::NewFullParams {
+				is_collator: service::IsCollator::No,
+				grandpa_pause,
+				enable_beefy,
+				jaeger_agent,
+				telemetry_worker_handle: None,
+				workers_path: cli.run.workers_path,
+				overseer_enable_anyways: false,
+				overseer_gen,
+				overseer_message_channel_capacity_override: cli
+					.run
+					.overseer_channel_capacity_override,
+				malus_finality_delay: maybe_malus_finality_delay,
+				hwbench,
+			},
 		)
 		.map(|full| full.task_manager)?;
 
