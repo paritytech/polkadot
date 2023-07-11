@@ -1262,7 +1262,7 @@ impl<T: Config> Pallet<T> {
 		// Persist parachains into the storage explicitly.
 		drop(parachains);
 
-		return outgoing
+		outgoing
 	}
 
 	// note replacement of the code of para with given `id`, which occured in the
@@ -1388,13 +1388,17 @@ impl<T: Config> Pallet<T> {
 	///
 	/// See `process_scheduled_upgrade_changes` for more details.
 	fn process_scheduled_upgrade_cooldowns(now: BlockNumberFor<T>) {
-		UpgradeCooldowns::<T>::mutate(
-			|upgrade_cooldowns: &mut Vec<(ParaId, BlockNumberFor<T>)>| {
-				for &(para, _) in upgrade_cooldowns.iter().take_while(|&(_, at)| at <= &now) {
+		UpgradeCooldowns::<T>::mutate(|upgrade_cooldowns: &mut Vec<(ParaId, BlockNumberFor<T>)>| {
+			// Remove all expired signals and also prune the cooldowns.
+			upgrade_cooldowns.retain(|(para, at)| {
+				if at <= &now {
 					UpgradeRestrictionSignal::<T>::remove(&para);
+					false
+				} else {
+					true
 				}
-			},
-		);
+			});
+		});
 	}
 
 	/// Goes over all PVF votes in progress, reinitializes ballots, increments ages and prunes the

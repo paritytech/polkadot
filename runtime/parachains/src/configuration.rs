@@ -218,12 +218,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub needed_approvals: u32,
 	/// The number of samples to do of the `RelayVRFModulo` approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
-	/// This flag controls whether PVF pre-checking is enabled.
-	///
-	/// If the flag is false, the behavior should be exactly the same as prior. Specifically, the
-	/// upgrade procedure is time-based and parachains that do not look at the go-ahead signal
-	/// should still work.
-	pub pvf_checking_enabled: bool,
 	/// If an active PVF pre-checking vote observes this many number of sessions it gets automatically
 	/// rejected.
 	///
@@ -291,7 +285,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
-			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
 			executor_params: Default::default(),
@@ -1067,20 +1060,6 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.hrmp_max_message_num_per_candidate = new;
-			})
-		}
-
-		/// Enable or disable PVF pre-checking. Consult the field documentation prior executing.
-		#[pallet::call_index(41)]
-		#[pallet::weight((
-			// Using u32 here is a little bit of cheating, but that should be fine.
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_pvf_checking_enabled(origin: OriginFor<T>, new: bool) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.pvf_checking_enabled = new;
 			})
 		}
 

@@ -481,7 +481,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type Currency = Balances;
 	type ChangeMembers = Council;
 	type InitializeMembers = Council;
-	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
+	type CurrencyToVote = runtime_common::CurrencyToVote;
 	type CandidacyBond = CandidacyBond;
 	type VotingBondBase = VotingBondBase;
 	type VotingBondFactor = VotingBondFactor;
@@ -1624,6 +1624,7 @@ pub mod migrations {
 	pub type Unreleased = (
 		pallet_society::migrations::MigrateToV2<Runtime, (), ()>,
 		pallet_im_online::migration::v1::Migration<Runtime>,
+		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 	);
 }
 
