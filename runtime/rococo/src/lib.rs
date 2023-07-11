@@ -1519,6 +1519,7 @@ pub type Migrations = (
 	migrations::V0941,
 	migrations::V0942,
 	migrations::V0943,
+	migrations::V10000,
 	migrations::Unreleased,
 );
 
@@ -1623,10 +1624,13 @@ pub mod migrations {
 		}
 	}
 
-	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (
+	pub type V10000 = (
 		pallet_society::migrations::MigrateToV2<Runtime, (), ()>,
 		pallet_im_online::migration::v1::Migration<Runtime>,
+	);
+
+	/// Unreleased migrations. Add new ones here:
+	pub type Unreleased = (
 	);
 }
 
