@@ -1,6 +1,6 @@
 # .gitlab-ci.yml
 #
-# polkadot
+# polkadot foo
 #
 # Pipelines can be triggered manually in the web.
 #
