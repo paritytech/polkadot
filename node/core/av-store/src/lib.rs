@@ -39,11 +39,10 @@ use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use sp_consensus::SyncOracle;
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
-	messages::{AvailabilityStoreMessage, ChainApiMessage, StoreAvailableDataError},
+	messages::{AvailabilityStoreMessage, ChainApiMessage},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
@@ -373,9 +372,6 @@ pub enum Error {
 
 	#[error("Custom databases are not supported")]
 	CustomDatabase,
-
-	#[error("Erasure root does not match expected one")]
-	InvalidErasureRoot,
 }
 
 impl Error {
@@ -1188,34 +1184,21 @@ fn process_message(
 			candidate_hash,
 			n_validators,
 			available_data,
-			expected_erasure_root,
 			tx,
 		} => {
 			subsystem.metrics.on_chunks_received(n_validators as _);
 
 			let _timer = subsystem.metrics.time_store_available_data();
 
-			let res = store_available_data(
-				&subsystem,
-				candidate_hash,
-				n_validators as _,
-				available_data,
-				expected_erasure_root,
-			);
+			let res =
+				store_available_data(&subsystem, candidate_hash, n_validators as _, available_data);
 
 			match res {
 				Ok(()) => {
 					let _ = tx.send(Ok(()));
 				},
-				Err(Error::InvalidErasureRoot) => {
-					let _ = tx.send(Err(StoreAvailableDataError::InvalidErasureRoot));
-					return Err(Error::InvalidErasureRoot)
-				},
 				Err(e) => {
-					// We do not bubble up internal errors to caller subsystems, instead the
-					// tx channel is dropped and that error is caught by the caller subsystem.
-					//
-					// We bubble up the specific error here so `av-store` logs still tell what happend.
+					let _ = tx.send(Err(()));
 					return Err(e.into())
 				},
 			}
@@ -1267,7 +1250,6 @@ fn store_available_data(
 	candidate_hash: CandidateHash,
 	n_validators: usize,
 	available_data: AvailableData,
-	expected_erasure_root: Hash,
 ) -> Result<(), Error> {
 	let mut tx = DBTransaction::new();
 
@@ -1294,20 +1276,8 @@ fn store_available_data(
 		},
 	};
 
-	let erasure_span = jaeger::Span::new(candidate_hash, "erasure-coding")
-		.with_candidate(candidate_hash)
-		.with_pov(&available_data.pov);
-
-	// Important note: This check below is critical for consensus and the `backing` subsystem relies on it to
-	// ensure candidate validity.
 	let chunks = erasure::obtain_chunks_v1(n_validators, &available_data)?;
 	let branches = erasure::branches(chunks.as_ref());
-
-	if branches.root() != expected_erasure_root {
-		return Err(Error::InvalidErasureRoot)
-	}
-
-	drop(erasure_span);
 
 	let erasure_chunks = chunks.iter().zip(branches.map(|(proof, _)| proof)).enumerate().map(
 		|(index, (chunk, proof))| ErasureChunk {
