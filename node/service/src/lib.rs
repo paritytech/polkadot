@@ -688,12 +688,7 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 #[cfg(feature = "full-node")]
 pub fn new_full<OverseerGenerator: OverseerGen>(
 	mut config: Configuration,
-	params: NewFullParams<OverseerGenerator>,
-) -> Result<NewFull, Error> {
-	use polkadot_node_network_protocol::request_response::IncomingRequest;
-	use sc_network_common::sync::warp::WarpSyncParams;
-
-	let NewFullParams {
+	NewFullParams {
 		is_collator,
 		grandpa_pause,
 		enable_beefy,
@@ -703,9 +698,12 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		overseer_enable_anyways,
 		overseer_gen,
 		overseer_message_channel_capacity_override,
-		malus_finality_delay: _,
+		malus_finality_delay: _malus_finality_delay,
 		hwbench,
-	} = params;
+	}: NewFullParams<OverseerGenerator>,
+) -> Result<NewFull, Error> {
+	use polkadot_node_network_protocol::request_response::IncomingRequest;
+	use sc_network_common::sync::warp::WarpSyncParams;
 
 	let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 	let role = config.role.clone();
@@ -886,47 +884,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
-	// TODO: Do some manual tests for this.
-	// 1. Get the binaries from the workers path if it is passed in, or consider all possible
-	// locations on the filesystem in order and get all sets of paths at which the binaries exist.
-	//
-	// 2. If no paths exist, error out. We can't proceed without workers.
-	//
-	// 3. Log a warning if more than one set of paths exists.
-	//
-	// 4. Check if the returned paths are executable. If not it's evidence of a borked installation
-	// so error out.
-	//
-	// 5. Do the version check, if mismatch error out.
-	//
-	// 6. At this point the paths should be good to use.
-	let mut workers_paths = get_workers_paths(workers_path.clone())?;
-	if workers_paths.is_empty() {
-		return Err(Error::MissingWorkerBinaries(workers_path))
-	} else if workers_paths.len() > 1 {
-		log::warn!("multiple sets of worker binaries found ({:?})", workers_paths,);
-	}
-	let (prep_worker_path, exec_worker_path) = workers_paths.swap_remove(0);
-	if !prep_worker_path.is_executable() || !exec_worker_path.is_executable() {
-		return Err(Error::InvalidWorkerBinaries(prep_worker_path, exec_worker_path))
-	}
-	// Do the version check.
-	let node_version = env!("SUBSTRATE_CLI_IMPL_VERSION").to_string();
-	let prep_worker_version = Command::new(&prep_worker_path).args(["--version"]).output()?.stdout;
-	let prep_worker_version =
-		String::from_utf8(prep_worker_version).expect("version is printed as a string; qed");
-	if prep_worker_version != node_version {
-		return Err(Error::WorkerBinaryVersionMismatch(prep_worker_version, node_version))
-	}
-	let exec_worker_version = Command::new(&exec_worker_path).args(["--version"]).output()?.stdout;
-	let exec_worker_version =
-		String::from_utf8(exec_worker_version).expect("version is printed as a string; qed");
-	if exec_worker_version != node_version {
-		return Err(Error::WorkerBinaryVersionMismatch(exec_worker_version, node_version))
-	}
-	// Paths are good to use.
-	log::info!("using prepare-worker binary at: {:?}", prep_worker_path);
-	log::info!("using execute-worker binary at: {:?}", exec_worker_path);
+	let (prep_worker_path, exec_worker_path) = determine_workers_paths(workers_path)?;
 
 	let candidate_validation_config = CandidateValidationConfig {
 		artifacts_cache_path: config
@@ -1284,9 +1242,60 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 	})
 }
 
-/// Get the workers path by considering the passed-in `workers_path` option, or possible locations
-/// on the filesystem. See `new_full`.
-fn get_workers_paths(
+// TODO: Do some manual tests for this.
+/// 1. Get the binaries from the workers path if it is passed in, or consider all possible
+/// locations on the filesystem in order and get all sets of paths at which the binaries exist.
+///
+/// 2. If no paths exist, error out. We can't proceed without workers.
+///
+/// 3. Log a warning if more than one set of paths exists.
+///
+/// 4. Check if the returned paths are executable. If not it's evidence of a borked installation
+/// so error out.
+///
+/// 5. Do the version check, if mismatch error out.
+///
+/// 6. At this point the paths should be good to use.
+fn determine_workers_paths(
+	given_workers_path: Option<std::path::PathBuf>,
+) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
+	let mut workers_paths = list_workers_paths(given_workers_path.clone())?;
+	if workers_paths.is_empty() {
+		return Err(Error::MissingWorkerBinaries(given_workers_path))
+	} else if workers_paths.len() > 1 {
+		log::warn!("multiple sets of worker binaries found ({:?})", workers_paths,);
+	}
+
+	let (prep_worker_path, exec_worker_path) = workers_paths.swap_remove(0);
+	if !prep_worker_path.is_executable() || !exec_worker_path.is_executable() {
+		return Err(Error::InvalidWorkerBinaries(prep_worker_path, exec_worker_path))
+	}
+
+	// Do the version check.
+	let node_version = env!("SUBSTRATE_CLI_IMPL_VERSION").to_string();
+	let prep_worker_version = Command::new(&prep_worker_path).args(["--version"]).output()?.stdout;
+	let prep_worker_version =
+		String::from_utf8(prep_worker_version).expect("version is printed as a string; qed");
+	if prep_worker_version != node_version {
+		return Err(Error::WorkerBinaryVersionMismatch(prep_worker_version, node_version))
+	}
+	let exec_worker_version = Command::new(&exec_worker_path).args(["--version"]).output()?.stdout;
+	let exec_worker_version =
+		String::from_utf8(exec_worker_version).expect("version is printed as a string; qed");
+	if exec_worker_version != node_version {
+		return Err(Error::WorkerBinaryVersionMismatch(exec_worker_version, node_version))
+	}
+
+	// Paths are good to use.
+	log::info!("using prepare-worker binary at: {:?}", prep_worker_path);
+	log::info!("using execute-worker binary at: {:?}", exec_worker_path);
+
+	Ok((prep_worker_path, exec_worker_path))
+}
+
+/// Get list of workers paths by considering the passed-in `given_workers_path` option, or possible
+/// locations on the filesystem. See `new_full`.
+fn list_workers_paths(
 	given_workers_path: Option<std::path::PathBuf>,
 ) -> Result<Vec<(std::path::PathBuf, std::path::PathBuf)>, Error> {
 	if let Some(path) = given_workers_path {
