@@ -51,14 +51,6 @@ fn call_size() {
 }
 
 #[test]
-fn max_upward_message_size() {
-	assert_eq!(
-		ump_migrations::MAX_UPWARD_MESSAGE_SIZE,
-		pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
-	);
-}
-
-#[test]
 fn sanity_check_teleport_assets_weight() {
 	// This test sanity checks that at least 50 teleports can exist in a block.
 	// Usually when XCM runs into an issue, it will return a weight of `Weight::MAX`,

@@ -1980,19 +1980,6 @@ sp_api::impl_runtime_apis! {
 	}
 }
 
-#[cfg(test)]
-mod test {
-	use super::*;
-
-	#[test]
-	fn max_upward_message_size() {
-		assert_eq!(
-			ump_migrations::MAX_UPWARD_MESSAGE_SIZE,
-			pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
-		);
-	}
-}
-
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
