@@ -156,9 +156,8 @@ executor_params                          : pre.executor_params,
 	let v7 = translate(v6);
 	v7::ActiveConfig::<T>::set(Some(v7));
 
-	let pending_v6 = v6::PendingConfigs::<T>::get()
-		.defensive_proof("Could not decode old pending")
-		.unwrap_or_default();
+	// Allowed to be empty.
+	let pending_v6 = v6::PendingConfigs::<T>::get().unwrap_or_default();
 	let mut pending_v7 = Vec::new();
 
 	for (session, v6) in pending_v6.into_iter() {
@@ -289,6 +288,22 @@ mod tests {
 					assert_eq!(v6.executor_params						   , v7.executor_params);
 				}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
 			}
+		});
+	}
+
+	// Test that migration doesn't panic in case there're no pending configurations upgrades in pallet's storage.
+	#[test]
+	fn test_migrate_to_v7_no_pending() {
+		let v6 = V6HostConfiguration::<primitives::BlockNumber>::default();
+
+		new_test_ext(Default::default()).execute_with(|| {
+			// Implant the v6 version in the state.
+			v6::ActiveConfig::<Test>::set(Some(v6));
+			// Ensure there're no pending configs.
+			v6::PendingConfigs::<Test>::set(None);
+
+			// Shouldn't fail.
+			migrate_to_v7::<Test>();
 		});
 	}
 }
