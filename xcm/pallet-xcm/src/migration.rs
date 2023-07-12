@@ -25,13 +25,12 @@ const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 pub mod v1 {
 	use super::*;
-	use frame_support::migrations::VersionedRuntimeUpgrade;
 
 	/// Named with the 'VersionUnchecked'-prefix because although this implements some version
 	/// checking, the version checking is not complete as it will begin failing after the upgrade is
 	/// enacted on-chain.
 	///
-	/// Use [`VersionCheckedMigrateToV1`] instead.
+	/// Use experimental [`VersionCheckedMigrateToV1`] instead.
 	pub struct VersionUncheckedMigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for VersionUncheckedMigrateToV1<T> {
 		#[cfg(feature = "try-runtime")]
@@ -69,7 +68,8 @@ pub mod v1 {
 	///
 	/// Wrapped in VersionedRuntimeUpgrade so the pre/post checks don't begin failing after the
 	/// upgrade is enacted on-chain.
-	pub type VersionCheckedMigrateToV1<T> = VersionedRuntimeUpgrade<
+	#[cfg(feature = "experimental")]
+	pub type VersionCheckedMigrateToV1<T> = frame_support::migrations::VersionedRuntimeUpgrade<
 		0,
 		1,
 		VersionUncheckedMigrateToV1<T>,
