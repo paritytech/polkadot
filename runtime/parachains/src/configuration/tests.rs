@@ -321,7 +321,6 @@ fn setting_pending_config_members() {
 			hrmp_max_parachain_outbound_channels: 10,
 			hrmp_max_parathread_outbound_channels: 20,
 			hrmp_max_message_num_per_candidate: 20,
-			pvf_checking_enabled: true,
 			pvf_voting_ttl: 3,
 			minimum_validation_upgrade_delay: 20,
 			executor_params: Default::default(),
@@ -486,11 +485,6 @@ fn setting_pending_config_members() {
 		Configuration::set_hrmp_max_message_num_per_candidate(
 			RuntimeOrigin::root(),
 			new_config.hrmp_max_message_num_per_candidate,
-		)
-		.unwrap();
-		Configuration::set_pvf_checking_enabled(
-			RuntimeOrigin::root(),
-			new_config.pvf_checking_enabled,
 		)
 		.unwrap();
 		Configuration::set_pvf_voting_ttl(RuntimeOrigin::root(), new_config.pvf_voting_ttl)
