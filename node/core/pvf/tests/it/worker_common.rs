@@ -16,9 +16,7 @@
 
 use crate::PUPPET_EXE;
 use polkadot_node_core_pvf::testing::{spawn_with_program_path, SpawnErr};
-use std::{
-	time::{Duration},
-};
+use std::time::Duration;
 
 // Test spawning a program that immediately exits with a failure code.
 #[tokio::test]
