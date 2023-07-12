@@ -77,7 +77,6 @@ pub struct V5HostConfiguration<BlockNumber> {
 	pub minimum_validation_upgrade_delay: BlockNumber,
 }
 
-
 impl<BlockNumber: Default + From<u32>> Default for V5HostConfiguration<BlockNumber> {
 	fn default() -> Self {
 		Self {

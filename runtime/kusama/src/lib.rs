@@ -1522,9 +1522,7 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
-pub type Migrations = (
-	migrations::Unreleased,
-);
+pub type Migrations = (migrations::Unreleased,);
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
