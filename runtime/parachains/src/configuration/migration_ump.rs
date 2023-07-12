@@ -61,6 +61,13 @@ pub mod latest {
 				"Active HostConfig:\n\n{:#?}\n",
 				ActiveConfig::<T>::get()
 			);
+			if let Err(err) = ActiveConfig::<T>::get().check_consistency() {
+				log::warn!(
+					target: LOG_TARGET,
+					"Active HostConfig is inconsistent. This migration will NOT fix that: {:?}",
+					err,
+				);
+			}
 			log::info!(
 				target: LOG_TARGET,
 				"Last pending HostConfig upgrade:\n\n{:#?}\n",
@@ -71,7 +78,15 @@ pub mod latest {
 		}
 
 		fn on_runtime_upgrade() -> Weight {
-			if let Err(e) = configuration::Pallet::<T>::schedule_config_update(|cfg| {
+			let active = ActiveConfig::<T>::get();
+			if active.max_upward_queue_size == MAX_UPWARD_QUEUE_SIZE &&
+				active.max_upward_queue_count == MAX_UPWARD_QUEUE_COUNT &&
+				active.max_upward_message_size == MAX_UPWARD_MESSAGE_SIZE &&
+				active.max_upward_message_num_per_candidate ==
+					MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE
+			{
+				log::info!(target: LOG_TARGET, "HostConfig is already updated - nothing to schedule");
+			} else if let Err(e) = configuration::Pallet::<T>::schedule_config_update(|cfg| {
 				cfg.max_upward_queue_size = MAX_UPWARD_QUEUE_SIZE;
 				cfg.max_upward_queue_count = MAX_UPWARD_QUEUE_COUNT;
 				cfg.max_upward_message_size = MAX_UPWARD_MESSAGE_SIZE;
@@ -100,21 +115,24 @@ pub mod latest {
 				pending.last()
 			);
 			let Some(last) = pending.last() else {
-				return Err("There must be a new pending upgrade enqueued".into());
+				log::info!(target: LOG_TARGET, "No pending HostConfig upgrade");
+				let active = configuration::ActiveConfig::<T>::get();
+				if active.max_upward_queue_size != MAX_UPWARD_QUEUE_SIZE || active.max_upward_queue_count != MAX_UPWARD_QUEUE_COUNT || active.max_upward_message_size != MAX_UPWARD_MESSAGE_SIZE || active.max_upward_message_num_per_candidate != MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE {
+					return Err("HostConfig is not updated and not scheduled!".into())
+				}
+				return Ok(());
 			};
 			ensure!(
 				pending.len() == old_pending as usize + 1,
 				"There must be exactly one new pending upgrade enqueued"
 			);
 			if let Err(err) = last.1.check_consistency() {
-				log::error!(target: LOG_TARGET, "Last PendingConfig is invalidity {:?}", err,);
-
-				return Err("Pending upgrade must be sane but was not".into())
+				// We need to ignore this error since Polkadot has possibly invalid pending configs.
+				log::error!(target: LOG_TARGET, "Last PendingConfig is invalid: {:?}", err);
 			}
 			if let Err(err) = ActiveConfig::<T>::get().check_consistency() {
+				// We need to ignore this error since Polkadot has an invalid config.
 				log::error!(target: LOG_TARGET, "ActiveConfig is invalid: {:?}", err,);
-
-				return Err("Active upgrade must be sane but was not".into())
 			}
 
 			Ok(())
