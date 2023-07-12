@@ -236,7 +236,7 @@ pub mod pallet {
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			// build `Claims`
 			self.claims.iter().map(|(a, b, _, _)| (*a, *b)).for_each(|(a, b)| {
@@ -710,14 +710,14 @@ mod tests {
 		assert_err, assert_noop, assert_ok,
 		dispatch::{DispatchError::BadOrigin, GetDispatchInfo, Pays},
 		ord_parameter_types, parameter_types,
-		traits::{ConstU32, ExistenceRequirement, GenesisBuild, WithdrawReasons},
+		traits::{ConstU32, ExistenceRequirement, WithdrawReasons},
 	};
 	use pallet_balances;
 	use sp_runtime::{
 		testing::Header,
 		traits::{BlakeTwo256, Identity, IdentityLookup},
 		transaction_validity::TransactionLongevity,
-		TokenError,
+		BuildStorage, TokenError,
 	};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -729,7 +729,7 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Vesting: pallet_vesting::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Claims: claims::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
@@ -836,7 +836,7 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
 		pallet_balances::GenesisConfig::<Test>::default()
 			.assimilate_storage(&mut t)
