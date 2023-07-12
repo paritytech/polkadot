@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(feature = "ci-only-tests")]
 use assert_matches::assert_matches;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
@@ -21,7 +22,11 @@ use polkadot_node_core_pvf::{
 	ValidationHost, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
-use polkadot_primitives::{ExecutorParam, ExecutorParams};
+use polkadot_primitives::ExecutorParams;
+
+#[cfg(feature = "ci-only-tests")]
+use polkadot_primitives::ExecutorParam;
+
 use std::time::Duration;
 use tokio::sync::Mutex;
 
@@ -115,6 +120,7 @@ async fn terminates_on_timeout() {
 	assert!(duration < TEST_EXECUTION_TIMEOUT * JOB_TIMEOUT_WALL_CLOCK_FACTOR);
 }
 
+#[cfg(feature = "ci-only-tests")]
 #[tokio::test]
 async fn ensure_parallel_execution() {
 	// Run some jobs that do not complete, thus timing out.
@@ -197,6 +203,7 @@ async fn execute_queue_doesnt_stall_if_workers_died() {
 	);
 }
 
+#[cfg(feature = "ci-only-tests")]
 #[tokio::test]
 async fn execute_queue_doesnt_stall_with_varying_executor_params() {
 	let host = TestHost::new_with_config(|cfg| {
