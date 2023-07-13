@@ -26,7 +26,7 @@ use crate::{
 };
 use frame_support::{
 	assert_noop, assert_ok, parameter_types,
-	traits::{ConstU32, Currency, GenesisBuild, OnFinalize, OnInitialize},
+	traits::{ConstU32, Currency, OnFinalize, OnInitialize},
 	weights::Weight,
 	PalletId,
 };
@@ -46,7 +46,7 @@ use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup, One},
 	transaction_validity::TransactionPriority,
-	AccountId32,
+	AccountId32, BuildStorage,
 };
 use sp_std::sync::Arc;
 
@@ -76,13 +76,13 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		// System Stuff
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
+		Babe: pallet_babe::{Pallet, Call, Storage, Config<T>, ValidateUnsigned},
 
 		// Parachains Runtime
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-		Paras: paras::{Pallet, Call, Storage, Event, Config},
+		Paras: paras::{Pallet, Call, Storage, Event, Config<T>},
 		ParasShared: shared::{Pallet, Call, Storage},
 		ParachainsOrigin: origin::{Pallet, Origin},
 
@@ -277,17 +277,15 @@ impl crowdloan::Config for Test {
 
 /// Create a new set of test externalities.
 pub fn new_test_ext() -> TestExternalities {
-	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-	GenesisBuild::<Test>::assimilate_storage(
-		&configuration::GenesisConfig {
-			config: configuration::HostConfiguration {
-				max_code_size: 2 * 1024 * 1024,      // 2 MB
-				max_head_data_size: 1 * 1024 * 1024, // 1 MB
-				..Default::default()
-			},
+	let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
+	configuration::GenesisConfig::<Test> {
+		config: configuration::HostConfiguration {
+			max_code_size: 2 * 1024 * 1024,      // 2 MB
+			max_head_data_size: 1 * 1024 * 1024, // 1 MB
+			..Default::default()
 		},
-		&mut t,
-	)
+	}
+	.assimilate_storage(&mut t)
 	.unwrap();
 	let keystore = MemoryKeystore::new();
 	let mut ext: sp_io::TestExternalities = t.into();

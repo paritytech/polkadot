@@ -32,7 +32,6 @@ polkadot-test-service = { path = "../test/service", features=["runtime-metrics"]
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 prometheus-parse = {version = "0.2.2"}
 
 [features]

@@ -24,6 +24,7 @@ tikv-jemallocator = "0.5.0"
 
 # Crates in our workspace, defined as dependencies so we can pass them feature flags.
 polkadot-cli = { path = "cli", features = [ "polkadot-native", "kusama-native", "westend-native", "rococo-native" ]  }
+polkadot-node-core-pvf = { path = "node/core/pvf" }
 polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
 polkadot-overseer = { path = "node/overseer" }
 
@@ -209,6 +210,10 @@ fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
 jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
+
+# Enables timeout-based tests supposed to be run only in CI environment as they may be flaky
+# when run locally depending on system load
+ci-only-tests = ["polkadot-node-core-pvf/ci-only-tests"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

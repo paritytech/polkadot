@@ -335,7 +335,7 @@ impl pallet_staking::Config for Runtime {
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
+	type CurrencyToVote = runtime_common::CurrencyToVote;
 	type RewardRemainder = ();
 	type RuntimeEvent = RuntimeEvent;
 	type Slash = ();
@@ -358,7 +358,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type HistoryDepth = frame_support::traits::ConstU32<84>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
-	type OnStakerSlash = ();
+	type EventListeners = ();
 	type WeightInfo = ();
 }
 
@@ -656,10 +656,10 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
+		System: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>},
 
 		// Must be before session.
-		Babe: pallet_babe::{Pallet, Call, Storage, Config},
+		Babe: pallet_babe::{Pallet, Call, Storage, Config<T>},
 
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -672,8 +672,8 @@ construct_runtime! {
 		Offences: pallet_offences::{Pallet, Storage, Event},
 		Historical: session_historical::{Pallet},
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
-		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
-		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config},
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config<T>, Event},
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config<T>},
 
 		// Claims. Usable initially.
 		Claims: claims::{Pallet, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
