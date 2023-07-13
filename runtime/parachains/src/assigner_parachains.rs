@@ -53,7 +53,7 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
 
 	fn get_availability_period(_: CoreIndex) -> T::BlockNumber {
-		<configuration::Pallet<T>>::config().chain_availability_period
+		<configuration::Pallet<T>>::config().paras_availability_period
 	}
 
 	/// There are retries set up in bulk assignment as the next slot already goes to

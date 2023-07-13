@@ -112,7 +112,7 @@ impl GenesisConfigBuilder {
 	pub(super) fn build(self) -> crate::mock::MockGenesisConfig {
 		let mut genesis = default_genesis_config();
 		let config = &mut genesis.configuration.config;
-		config.parathread_cores = self.parathread_cores;
+		config.on_demand_cores = self.parathread_cores;
 		config.on_demand_base_fee = self.on_demand_base_fee;
 		config.on_demand_fee_variability = self.on_demand_fee_variability;
 		config.on_demand_queue_max_size = self.on_demand_max_queue_size;

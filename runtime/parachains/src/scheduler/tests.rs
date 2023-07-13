@@ -100,13 +100,11 @@ fn run_to_end_of_block(
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	HostConfiguration {
-		parathread_cores: 3,
+		on_demand_cores: 3,
 		group_rotation_frequency: 10,
-		chain_availability_period: 3,
-		thread_availability_period: 5,
-		// most old tests implicitly assume this
+		paras_availability_period: 3,
 		scheduling_lookahead: 2,
-		parathread_retries: 1,
+		on_demand_retries: 1,
 		pvf_checking_enabled: false,
 		// This field does not affect anything that scheduler does. However, `HostConfiguration`
 		// is still a subject to consistency test. It requires that `minimum_validation_upgrade_delay`
@@ -411,7 +409,7 @@ fn add_parathread_claim_works() {
 fn session_change_takes_only_max_per_core() {
 	let config = {
 		let mut config = default_config();
-		config.parathread_cores = 0;
+		config.on_demand_cores = 0;
 		config.max_validators_per_core = Some(1);
 		config
 	};
@@ -483,7 +481,7 @@ fn fill_claimqueue_fills() {
 	//let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 	new_test_ext(genesis_config).execute_with(|| {
-		assert_eq!(default_config().parathread_cores, 3);
+		assert_eq!(default_config().on_demand_cores, 3);
 
 		// register 2 parachains
 		schedule_blank_para(chain_a, ParaKind::Parachain);
@@ -778,7 +776,7 @@ fn schedule_clears_availability_cores() {
 	let chain_c = ParaId::from(3_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
-		assert_eq!(default_config().parathread_cores, 3);
+		assert_eq!(default_config().on_demand_cores, 3);
 
 		// register 3 parachains
 		schedule_blank_para(chain_a, ParaKind::Parachain);
@@ -998,26 +996,17 @@ fn availability_predicate_works() {
 		..Default::default()
 	};
 
-	let HostConfiguration {
-		group_rotation_frequency,
-		chain_availability_period,
-		thread_availability_period,
-		..
-	} = default_config();
+	let HostConfiguration { group_rotation_frequency, paras_availability_period, .. } =
+		default_config();
 
-	assert!(
-		chain_availability_period < thread_availability_period &&
-			thread_availability_period < group_rotation_frequency
-	);
+	assert!(paras_availability_period < group_rotation_frequency);
 
 	let chain_a = ParaId::from(1_u32);
-	let thread_a = ParaId::from(2_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(chain_a, ParaKind::Parachain);
-		schedule_blank_para(thread_a, ParaKind::Parathread);
 
-		// start a new session with our chain & thread registered.
+		// start a new session with our chain registered.
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: default_config(),
@@ -1033,62 +1022,47 @@ fn availability_predicate_works() {
 			_ => None,
 		});
 
-		// assign some availability cores.
+		// assign an availability core.
 		{
 			let entry_ttl = 10_000;
 			AvailabilityCores::<Test>::mutate(|cores| {
 				cores[0] =
 					CoreOccupied::Paras(ParasEntry::new(Assignment::new(chain_a), entry_ttl));
-				cores[1] =
-					CoreOccupied::Paras(ParasEntry::new(Assignment::new(thread_a), entry_ttl));
 			});
 		}
 
-		run_to_block(1 + thread_availability_period, |_| None);
-		//assert!(Scheduler::availability_timeout_predicate().is_none());
+		run_to_block(1 + paras_availability_period, |_| None);
 
 		run_to_block(1 + group_rotation_frequency, |_| None);
 
 		{
 			let pred = Scheduler::availability_timeout_predicate();
 			let now = System::block_number();
-			let would_be_timed_out = now - thread_availability_period;
-
+			let would_be_timed_out = now - paras_availability_period;
 			for i in 0..AvailabilityCores::<Test>::get().len() {
 				// returns true for unoccupied cores.
-				// And can time out both threads and chains at this stage.
+				// And can time out paras at this stage.
 				assert!(pred(CoreIndex(i as u32), would_be_timed_out));
 			}
 
-			assert!(!pred(CoreIndex(0), now)); // assigned: chain
-			assert!(!pred(CoreIndex(1), now)); // assigned: thread
-			assert!(pred(CoreIndex(2), now));
+			assert!(!pred(CoreIndex(0), now));
+			assert!(pred(CoreIndex(1), now));
 
-			// check the tighter bound on chains vs threads.
-			assert!(pred(CoreIndex(0), now - chain_availability_period));
-			assert!(!pred(CoreIndex(1), now - chain_availability_period));
+			// check the tight bound.
+			assert!(pred(CoreIndex(0), now - paras_availability_period));
 
 			// check the threshold is exact.
-			assert!(!pred(CoreIndex(0), now - chain_availability_period + 1));
-			assert!(!pred(CoreIndex(1), now - thread_availability_period + 1));
+			assert!(!pred(CoreIndex(0), now - paras_availability_period + 1));
 		}
 
-		run_to_block(1 + group_rotation_frequency + chain_availability_period, |_| None);
-
-		{
-			let pred = Scheduler::availability_timeout_predicate();
-			let would_be_timed_out = System::block_number() - thread_availability_period;
-
-			assert!(pred(CoreIndex(0), would_be_timed_out)); // chains can't be timed out now.
-			assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
-		}
+		run_to_block(1 + group_rotation_frequency + paras_availability_period, |_| None);
 	});
 }
 
 #[test]
 fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 	let mut config = default_config();
-	config.parathread_cores = 1;
+	config.on_demand_cores = 1;
 
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
@@ -1244,7 +1218,7 @@ fn genesis_config(config: &HostConfiguration<BlockNumber>) -> MockGenesisConfig 
 #[test]
 fn next_up_on_available_is_parachain_always() {
 	let mut config = default_config();
-	config.parathread_cores = 0;
+	config.on_demand_cores = 0;
 	let genesis_config = genesis_config(&config);
 	let chain_a = ParaId::from(1_u32);
 
@@ -1290,7 +1264,7 @@ fn next_up_on_available_is_parachain_always() {
 #[test]
 fn next_up_on_time_out_is_parachain_always() {
 	let mut config = default_config();
-	config.parathread_cores = 0;
+	config.on_demand_cores = 0;
 
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
@@ -1353,7 +1327,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		..Default::default()
 	};
 
-	assert_eq!(default_config().parathread_cores, 3);
+	assert_eq!(default_config().on_demand_cores, 3);
 	new_test_ext(genesis_config).execute_with(|| {
 		let chain_a = ParaId::from(1_u32);
 		let chain_b = ParaId::from(2_u32);
