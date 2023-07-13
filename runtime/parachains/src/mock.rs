@@ -27,8 +27,7 @@ use crate::{
 use frame_support::{
 	assert_ok, parameter_types,
 	traits::{
-		Currency, GenesisBuild, ProcessMessage, ProcessMessageError, ValidatorSet,
-		ValidatorSetWithIdentification,
+		Currency, ProcessMessage, ProcessMessageError, ValidatorSet, ValidatorSetWithIdentification,
 	},
 	weights::{Weight, WeightMeter},
 };
@@ -44,7 +43,7 @@ use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	Perbill, Permill,
+	BuildStorage, Perbill, Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -487,9 +486,9 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
 	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
 
-	let mut t = state.system.build_storage::<Test>().unwrap();
+	let mut t = state.system.build_storage().unwrap();
 	state.configuration.assimilate_storage(&mut t).unwrap();
-	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
+	state.paras.assimilate_storage(&mut t).unwrap();
 
 	let mut ext: TestExternalities = t.into();
 	ext.register_extension(KeystoreExt(Arc::new(MemoryKeystore::new()) as KeystorePtr));
@@ -499,9 +498,9 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 
 #[derive(Default)]
 pub struct MockGenesisConfig {
-	pub system: frame_system::GenesisConfig,
+	pub system: frame_system::GenesisConfig<Test>,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
-	pub paras: crate::paras::GenesisConfig,
+	pub paras: crate::paras::GenesisConfig<Test>,
 }
 
 pub fn assert_last_event(generic_event: RuntimeEvent) {

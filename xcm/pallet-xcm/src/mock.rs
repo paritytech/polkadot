@@ -24,7 +24,7 @@ use frame_system::EnsureRoot;
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
-use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
+use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32, BuildStorage};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
 use xcm::prelude::*;
 use xcm_builder::{
@@ -137,10 +137,10 @@ construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
+		System: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config},
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config<T>},
 		TestNotifier: pallet_test_notifier::{Pallet, Call, Event<T>},
 	}
 );
@@ -384,17 +384,15 @@ pub(crate) fn buy_limited_execution<C>(
 pub(crate) fn new_test_ext_with_balances(
 	balances: Vec<(AccountId, Balance)>,
 ) -> sp_io::TestExternalities {
-	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 
 	pallet_balances::GenesisConfig::<Test> { balances }
 		.assimilate_storage(&mut t)
 		.unwrap();
 
-	<pallet_xcm::GenesisConfig as frame_support::traits::GenesisBuild<Test>>::assimilate_storage(
-		&pallet_xcm::GenesisConfig { safe_xcm_version: Some(2) },
-		&mut t,
-	)
-	.unwrap();
+	pallet_xcm::GenesisConfig::<Test> { safe_xcm_version: Some(2), ..Default::default() }
+		.assimilate_storage(&mut t)
+		.unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));

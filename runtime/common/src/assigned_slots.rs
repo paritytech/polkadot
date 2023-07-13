@@ -557,6 +557,7 @@ mod tests {
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup},
 		transaction_validity::TransactionPriority,
+		BuildStorage,
 		DispatchError::BadOrigin,
 	};
 
@@ -569,11 +570,11 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 			ParasShared: parachains_shared::{Pallet, Call, Storage},
-			Parachains: parachains_paras::{Pallet, Call, Storage, Config, Event},
+			Parachains: parachains_paras::{Pallet, Call, Storage, Config<T>, Event},
 			Slots: slots::{Pallet, Call, Storage, Event<T>},
 			AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>},
 		}
@@ -693,7 +694,7 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		pallet_balances::GenesisConfig::<Test> {
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
 		}
