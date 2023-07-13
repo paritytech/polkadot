@@ -477,7 +477,7 @@ where
 		at: Hash,
 		para_id: Id,
 	) -> Result<Option<polkadot_primitives::vstaging::BackingState>, ApiError> {
-		self.runtime_api().staging_para_backing_state(at, para_id)
+		self.client.runtime_api().staging_para_backing_state(at, para_id)
 	}
 
 	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
@@ -485,6 +485,6 @@ where
 		&self,
 		at: Hash,
 	) -> Result<polkadot_primitives::vstaging::AsyncBackingParams, ApiError> {
-		self.runtime_api().staging_async_backing_params(at)
+		self.client.runtime_api().staging_async_backing_params(at)
 	}
 }

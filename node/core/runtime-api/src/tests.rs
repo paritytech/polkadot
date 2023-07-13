@@ -249,6 +249,21 @@ impl RuntimeApiSubsystemClient for MockSubsystemClient {
 	async fn authorities(&self, _: Hash) -> Result<Vec<AuthorityDiscoveryId>, ApiError> {
 		Ok(self.authorities.clone())
 	}
+
+	async fn staging_async_backing_params(
+		&self,
+		_: Hash,
+	) -> Result<vstaging::AsyncBackingParams, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn staging_para_backing_state(
+		&self,
+		_: Hash,
+		_: ParaId,
+	) -> Result<Option<vstaging::BackingState>, ApiError> {
+		todo!("Not required for tests")
+	}
 }
 
 #[test]
