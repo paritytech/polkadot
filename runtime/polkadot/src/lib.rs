@@ -1499,7 +1499,7 @@ pub mod migrations {
 	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
 
 	pub type V0938 = (
-		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
+		pallet_xcm::migration::v1::VersionCheckedMigrateToV1<Runtime>,
 		// The UMP pallet got deleted in <https://github.com/paritytech/polkadot/pull/6271>
 		// parachains_ump::migration::v1::MigrateToV1<Runtime>,
 	);

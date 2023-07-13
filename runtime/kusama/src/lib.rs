@@ -1560,7 +1560,11 @@ pub mod migrations {
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
 		init_state_migration::InitMigrate,
-		pallet_society::migrations::MigrateToV2<Runtime, (), past_payouts::PastPayouts>,
+		pallet_society::migrations::VersionCheckedMigrateToV2<
+			Runtime,
+			(),
+			past_payouts::PastPayouts,
+		>,
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 	);
