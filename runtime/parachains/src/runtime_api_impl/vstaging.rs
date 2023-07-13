@@ -17,6 +17,7 @@
 //! Put implementations of functions from staging APIs here.
 
 use crate::{configuration, dmp, hrmp, inclusion, initializer, paras, shared};
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{
 	vstaging::{
 		AsyncBackingParams, BackingState, CandidatePendingAvailability, Constraints,
@@ -24,7 +25,6 @@ use primitives::{
 	},
 	Id as ParaId,
 };
-use frame_system::pallet_prelude::BlockNumberFor;
 use sp_std::prelude::*;
 
 /// Implementation for `StagingParaBackingState` function from the runtime API
