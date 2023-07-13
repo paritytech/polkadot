@@ -318,13 +318,12 @@ pub mod thread {
 		}
 	}
 
-
 	#[cfg(test)]
 	mod tests {
-		use std::sync::mpsc::channel;
-		use cpu_time::ProcessTime;
-		use crate::worker::cpu_time_monitor_loop;
 		use super::*;
+		use crate::worker::cpu_time_monitor_loop;
+		use cpu_time::ProcessTime;
+		use std::sync::mpsc::channel;
 
 		#[test]
 		fn get_condvar_should_be_pending() {
@@ -354,8 +353,12 @@ pub mod thread {
 		#[test]
 		fn spawn_worker_thread_should_notify_on_done() {
 			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
-			let response =
-				spawn_worker_thread("thread", move || 2, Arc::clone(&condvar), WaitOutcome::TimedOut);
+			let response = spawn_worker_thread(
+				"thread",
+				move || 2,
+				Arc::clone(&condvar),
+				WaitOutcome::TimedOut,
+			);
 			let (lock, _) = &*condvar;
 			let r = response.unwrap().join().unwrap();
 			assert!(matches!(r, 2));
@@ -365,7 +368,12 @@ pub mod thread {
 		#[test]
 		fn spawn_worker_thread_should_not_notify() {
 			let condvar = Arc::new((Mutex::new(WaitOutcome::Finished), Condvar::new()));
-			let response = spawn_worker_thread("thread", move || 2, Arc::clone(&condvar), WaitOutcome::TimedOut);
+			let response = spawn_worker_thread(
+				"thread",
+				move || 2,
+				Arc::clone(&condvar),
+				WaitOutcome::TimedOut,
+			);
 			let (lock, _) = &*condvar;
 			let r = response.unwrap().join().unwrap();
 			assert!(matches!(r, 2));
