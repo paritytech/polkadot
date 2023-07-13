@@ -48,6 +48,12 @@ use std::{
 	time::Duration,
 };
 
+const ACTIVATION_BLOCK_NUMBER: u32 = 20;
+
+fn disable_gossiping(block: u32) -> bool {
+	block > ACTIVATION_BLOCK_NUMBER
+}
+
 use self::metrics::Metrics;
 
 mod metrics;
@@ -970,10 +976,14 @@ impl State {
 						candidate_entry.messages.entry(validator_index).or_insert_with(|| {
 							MessageState {
 								required_routing_assignment,
-								required_routing_approval: if local {
-									RequiredRouting::All
+								required_routing_approval: if disable_gossiping(entry.number) {
+									if local {
+										RequiredRouting::All
+									} else {
+										RequiredRouting::None
+									}
 								} else {
-									RequiredRouting::None
+									required_routing_assignment
 								},
 								local,
 								random_routing: Default::default(),
@@ -1403,6 +1413,7 @@ impl State {
 		let source_peer = source.peer_id();
 
 		let message_subject = &message_subject;
+		let block_number = entry.number;
 		let peer_filter = move |peer, knowledge: &PeerKnowledge| {
 			if Some(peer) == source_peer.as_ref() {
 				return false
@@ -1423,7 +1434,7 @@ impl State {
 			});
 			in_topology ||
 				(knowledge.sent.contains(message_subject, MessageKind::Assignment) &&
-					should_trigger_aggression)
+					(should_trigger_aggression || !disable_gossiping(block_number)))
 		};
 
 		let peers = entry
@@ -1612,13 +1623,15 @@ impl State {
 							}
 						}
 					}
-
+					let block_number = entry.number;
 					let peer_filter_approval = move |peer_id, required_routing, local| {
 						let in_topology = topology.as_ref().map_or(false, |t| {
 							t.local_grid_neighbors().route_to_peer(required_routing, peer_id)
 						});
 
-						in_topology || local || (should_trigger_aggression && assignment_sent)
+						in_topology ||
+							local || ((should_trigger_aggression || !disable_gossiping(block_number)) &&
+							assignment_sent)
 					};
 
 					if peer_filter_approval(
