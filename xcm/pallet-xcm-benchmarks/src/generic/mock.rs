@@ -24,10 +24,7 @@ use frame_support::{
 	weights::Weight,
 };
 use sp_core::H256;
-use sp_runtime::{
-	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
-};
+use sp_runtime::traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput};
 use xcm_builder::{
 	test_utils::{
 		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
@@ -37,16 +34,12 @@ use xcm_builder::{
 };
 use xcm_executor::traits::ConvertOrigin;
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
+	pub enum Test
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 		XcmGenericBenchmarks: generic::{Pallet},
 	}
 );
@@ -64,13 +57,12 @@ impl frame_system::Config for Test {
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
 	type Nonce = u64;
-	type BlockNumber = u64;
 	type Hash = H256;
 	type RuntimeCall = RuntimeCall;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
@@ -211,7 +203,7 @@ impl generic::Config for Test {
 #[cfg(feature = "runtime-benchmarks")]
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	use sp_runtime::BuildStorage;
-	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
+	let t = RuntimeGenesisConfig { ..Default::default() }.build_storage().unwrap();
 	sp_tracing::try_init_simple();
 	t.into()
 }

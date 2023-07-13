@@ -59,7 +59,7 @@ pub trait WeightInfo {
 	fn force_process_hrmp_close(c: u32) -> Weight;
 	fn hrmp_cancel_open_request(c: u32) -> Weight;
 	fn clean_open_channel_requests(c: u32) -> Weight;
-	fn force_open_hrmp_channel() -> Weight;
+	fn force_open_hrmp_channel(c: u32) -> Weight;
 }
 
 /// A weight info that is only suitable for testing.
@@ -90,7 +90,7 @@ impl WeightInfo for TestWeightInfo {
 	fn clean_open_channel_requests(_: u32) -> Weight {
 		Weight::MAX
 	}
-	fn force_open_hrmp_channel() -> Weight {
+	fn force_open_hrmp_channel(_: u32) -> Weight {
 		Weight::MAX
 	}
 }
@@ -369,7 +369,7 @@ pub mod pallet {
 	/// Invariant:
 	/// - each para `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a session.
 	#[pallet::storage]
-	pub type HrmpWatermarks<T: Config> = StorageMap<_, Twox64Concat, ParaId, T::BlockNumber>;
+	pub type HrmpWatermarks<T: Config> = StorageMap<_, Twox64Concat, ParaId, BlockNumberFor<T>>;
 
 	/// HRMP channel data associated with each para.
 	/// Invariant:
@@ -407,7 +407,7 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		HrmpChannelId,
-		Vec<InboundHrmpMessage<T::BlockNumber>>,
+		Vec<InboundHrmpMessage<BlockNumberFor<T>>>,
 		ValueQuery,
 	>;
 
@@ -419,7 +419,7 @@ pub mod pallet {
 	///   same block number.
 	#[pallet::storage]
 	pub type HrmpChannelDigests<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, Vec<(T::BlockNumber, Vec<ParaId>)>, ValueQuery>;
+		StorageMap<_, Twox64Concat, ParaId, Vec<(BlockNumberFor<T>, Vec<ParaId>)>, ValueQuery>;
 
 	/// Preopen the given HRMP channels.
 	///
@@ -436,12 +436,14 @@ pub mod pallet {
 	/// 2. `sender` and `recipient` must be valid paras.
 	#[pallet::genesis_config]
 	#[derive(DefaultNoBound)]
-	pub struct GenesisConfig {
+	pub struct GenesisConfig<T: Config> {
+		#[serde(skip)]
+		_config: sp_std::marker::PhantomData<T>,
 		preopen_hrmp_channels: Vec<(ParaId, ParaId, u32, u32)>,
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			initialize_storage::<T>(&self.preopen_hrmp_channels);
 		}
@@ -591,17 +593,32 @@ pub mod pallet {
 		/// Chain's configured limits.
 		///
 		/// Expected use is when one of the `ParaId`s involved in the channel is governed by the
-		/// Relay Chain, e.g. a common good parachain.
+		/// Relay Chain, e.g. a system parachain.
 		#[pallet::call_index(7)]
-		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel())]
+		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel(1))]
 		pub fn force_open_hrmp_channel(
 			origin: OriginFor<T>,
 			sender: ParaId,
 			recipient: ParaId,
 			max_capacity: u32,
 			max_message_size: u32,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
+
+			// Guard against a common footgun where someone makes a channel request to a system
+			// parachain and then makes a proposal to open the channel via governance, which fails
+			// because `init_open_channel` fails if there is an existing request. This check will
+			// clear an existing request such that `init_open_channel` should otherwise succeed.
+			let channel_id = HrmpChannelId { sender, recipient };
+			let cancel_request: u32 =
+				if let Some(_open_channel) = HrmpOpenChannelRequests::<T>::get(&channel_id) {
+					Self::cancel_open_request(sender, channel_id)?;
+					1
+				} else {
+					0
+				};
+
+			// Now we proceed with normal init/accept.
 			Self::init_open_channel(sender, recipient, max_capacity, max_message_size)?;
 			Self::accept_open_channel(recipient, sender)?;
 			Self::deposit_event(Event::HrmpChannelForceOpened(
@@ -610,7 +627,8 @@ pub mod pallet {
 				max_capacity,
 				max_message_size,
 			));
-			Ok(())
+
+			Ok(Some(<T as Config>::WeightInfo::force_open_hrmp_channel(cancel_request)).into())
 		}
 	}
 }
@@ -641,7 +659,7 @@ fn preopen_hrmp_channel<T: Config>(
 /// Routines and getters related to HRMP.
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -650,7 +668,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		notification: &initializer::SessionChangeNotification<BlockNumberFor<T>>,
 		outgoing_paras: &[ParaId],
 	) -> Weight {
 		let w1 = Self::perform_outgoing_para_cleanup(&notification.prev_config, outgoing_paras);
@@ -667,7 +685,7 @@ impl<T: Config> Pallet<T> {
 	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
 	fn perform_outgoing_para_cleanup(
-		config: &HostConfiguration<T::BlockNumber>,
+		config: &HostConfiguration<BlockNumberFor<T>>,
 		outgoing: &[ParaId],
 	) -> Weight {
 		let mut w = Self::clean_open_channel_requests(config, outgoing);
@@ -692,7 +710,7 @@ impl<T: Config> Pallet<T> {
 	//
 	// This will also perform the refunds for the counterparty if it doesn't offboard.
 	pub(crate) fn clean_open_channel_requests(
-		config: &HostConfiguration<T::BlockNumber>,
+		config: &HostConfiguration<BlockNumberFor<T>>,
 		outgoing: &[ParaId],
 	) -> Weight {
 		// First collect all the channel ids of the open requests in which there is at least one
@@ -768,7 +786,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// - prune the stale requests
 	/// - enact the confirmed requests
-	fn process_hrmp_open_channel_requests(config: &HostConfiguration<T::BlockNumber>) {
+	fn process_hrmp_open_channel_requests(config: &HostConfiguration<BlockNumberFor<T>>) {
 		let mut open_req_channels = HrmpOpenChannelRequestsList::<T>::get();
 		if open_req_channels.is_empty() {
 			return
@@ -876,9 +894,9 @@ impl<T: Config> Pallet<T> {
 	/// Check that the candidate of the given recipient controls the HRMP watermark properly.
 	pub(crate) fn check_hrmp_watermark(
 		recipient: ParaId,
-		relay_chain_parent_number: T::BlockNumber,
-		new_hrmp_watermark: T::BlockNumber,
-	) -> Result<(), HrmpWatermarkAcceptanceErr<T::BlockNumber>> {
+		relay_chain_parent_number: BlockNumberFor<T>,
+		new_hrmp_watermark: BlockNumberFor<T>,
+	) -> Result<(), HrmpWatermarkAcceptanceErr<BlockNumberFor<T>>> {
 		// First, check where the watermark CANNOT legally land.
 		//
 		// (a) For ensuring that messages are eventually processed, we require each parablock's
@@ -924,7 +942,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn check_outbound_hrmp(
-		config: &HostConfiguration<T::BlockNumber>,
+		config: &HostConfiguration<BlockNumberFor<T>>,
 		sender: ParaId,
 		out_hrmp_msgs: &[OutboundHrmpMessage<ParaId>],
 	) -> Result<(), OutboundHrmpAcceptanceErr> {
@@ -987,7 +1005,7 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	pub(crate) fn prune_hrmp(recipient: ParaId, new_hrmp_watermark: T::BlockNumber) -> Weight {
+	pub(crate) fn prune_hrmp(recipient: ParaId, new_hrmp_watermark: BlockNumberFor<T>) -> Weight {
 		let mut weight = Weight::zero();
 
 		// sift through the incoming messages digest to collect the paras that sent at least one
@@ -1372,7 +1390,7 @@ impl<T: Config> Pallet<T> {
 	/// messages in them are also included.
 	pub(crate) fn inbound_hrmp_channels_contents(
 		recipient: ParaId,
-	) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
+	) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumberFor<T>>>> {
 		let sender_set = HrmpIngressChannelsIndex::<T>::get(&recipient);
 
 		let mut inbound_hrmp_channels_contents = BTreeMap::new();
