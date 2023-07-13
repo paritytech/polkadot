@@ -88,6 +88,18 @@ impl From<OldNetworkId> for Option<NetworkId> {
 	}
 }
 
+impl TryFrom<OldNetworkId> for NetworkId {
+	type Error = ();
+	fn try_from(old: OldNetworkId) -> Result<Self, Self::Error> {
+		use OldNetworkId::*;
+		match old {
+			Any | Named(_) => Err(()),
+			Polkadot => Ok(NetworkId::Polkadot),
+			Kusama => Ok(NetworkId::Kusama),
+		}
+	}
+}
+
 /// An identifier of a pluralistic body.
 #[derive(
 	Copy,

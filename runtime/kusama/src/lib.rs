@@ -17,8 +17,8 @@
 //! The Kusama runtime. This can be compiled with `#[no_std]`, ready for Wasm.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-// `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit = "256"]
+// `construct_runtime!` does a lot of recursion and requires us to increase the limit.
+#![recursion_limit = "512"]
 
 use pallet_nis::WithMaximumOf;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
@@ -105,6 +105,9 @@ mod weights;
 // Voter bag threshold definitions.
 mod bag_thresholds;
 
+// Historical information of society finances.
+mod past_payouts;
+
 // XCM configurations.
 pub mod xcm_config;
 
@@ -137,7 +140,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 23,
-	state_version: 0,
+	state_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -586,7 +589,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type HistoryDepth = frame_support::traits::ConstU32<84>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
-	type OnStakerSlash = NominationPools;
+	type EventListeners = NominationPools;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -619,7 +622,6 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxKeys: u32 = 10_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
-	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
 impl pallet_treasury::Config for Runtime {
@@ -703,7 +705,6 @@ impl pallet_im_online::Config for Runtime {
 	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
 	type MaxKeys = MaxKeys;
 	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
-	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
 parameter_types! {
@@ -865,14 +866,6 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
-	pub const CandidateDeposit: Balance = 10 * QUID;
-	pub const WrongSideDeduction: Balance = 2 * QUID;
-	pub const MaxStrikes: u32 = 10;
-	pub const RotationPeriod: BlockNumber = 7 * DAYS;
-	pub const PeriodSpend: Balance = 500 * QUID;
-	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
-	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
-	pub const MaxCandidateIntake: u32 = 1;
 	pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
 }
 
@@ -880,18 +873,17 @@ impl pallet_society::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type CandidateDeposit = CandidateDeposit;
-	type WrongSideDeduction = WrongSideDeduction;
-	type MaxStrikes = MaxStrikes;
-	type PeriodSpend = PeriodSpend;
-	type MembershipChanged = ();
-	type RotationPeriod = RotationPeriod;
-	type MaxLockDuration = MaxLockDuration;
+	type GraceStrikes = ConstU32<10>;
+	type PeriodSpend = ConstU128<{ 500 * QUID }>;
+	type VotingPeriod = ConstU32<{ 5 * DAYS }>;
+	type ClaimPeriod = ConstU32<{ 2 * DAYS }>;
+	type MaxLockDuration = ConstU32<{ 36 * 30 * DAYS }>;
 	type FounderSetOrigin = EnsureRoot<AccountId>;
-	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
-	type ChallengePeriod = ChallengePeriod;
-	type MaxCandidateIntake = MaxCandidateIntake;
+	type ChallengePeriod = ConstU32<{ 7 * DAYS }>;
+	type MaxPayouts = ConstU32<8>;
+	type MaxBids = ConstU32<512>;
 	type PalletId = SocietyPalletId;
+	type WeightInfo = weights::pallet_society::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1026,7 +1018,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					c,
 					RuntimeCall::Staking(..) |
 						RuntimeCall::Session(..) | RuntimeCall::Utility(..) |
-						RuntimeCall::FastUnstake(..)
+						RuntimeCall::FastUnstake(..) |
+						RuntimeCall::VoterList(..) |
+						RuntimeCall::NominationPools(..)
 				)
 			},
 			ProxyType::NominationPools => {
@@ -1153,6 +1147,7 @@ impl pallet_message_queue::Config for Runtime {
 	type MessageProcessor =
 		pallet_message_queue::mock_helpers::NoopMessageProcessor<AggregateMessageOrigin>;
 	type QueueChangeHandler = ParaInclusion;
+	type QueuePausedQuery = ();
 	type WeightInfo = weights::pallet_message_queue::WeightInfo<Runtime>;
 }
 
@@ -1347,6 +1342,26 @@ impl pallet_nomination_pools::Config for Runtime {
 	type MaxPointsToBalance = MaxPointsToBalance;
 }
 
+parameter_types! {
+	// The deposit configuration for the singed migration. Specially if you want to allow any signed account to do the migration (see `SignedFilter`, these deposits should be high)
+	pub const MigrationSignedDepositPerItem: Balance = 1 * CENTS;
+	pub const MigrationSignedDepositBase: Balance = 20 * CENTS * 100;
+	pub const MigrationMaxKeyLen: u32 = 512;
+}
+
+impl pallet_state_trie_migration::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type SignedDepositPerItem = MigrationSignedDepositPerItem;
+	type SignedDepositBase = MigrationSignedDepositBase;
+	type ControlOrigin = EnsureRoot<AccountId>;
+	type SignedFilter = frame_support::traits::NeverEnsureOrigin<AccountId>;
+
+	// Use same weights as substrate ones.
+	type WeightInfo = pallet_state_trie_migration::weights::SubstrateWeight<Runtime>;
+	type MaxKeyLen = MigrationMaxKeyLen;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1354,10 +1369,10 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
+		System: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>} = 0,
 
 		// Babe must be before session.
-		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 1,
+		Babe: pallet_babe::{Pallet, Call, Storage, Config<T>, ValidateUnsigned} = 1,
 
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
 		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 3,
@@ -1372,12 +1387,12 @@ construct_runtime! {
 		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
 		Historical: session_historical::{Pallet} = 34,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 8,
-		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 10,
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config<T>, Event, ValidateUnsigned} = 10,
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
-		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 12,
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config<T>} = 12,
 
 		// Governance stuff.
-		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 18,
+		Treasury: pallet_treasury::{Pallet, Call, Storage, Config<T>, Event<T>} = 18,
 		ConvictionVoting: pallet_conviction_voting::{Pallet, Call, Storage, Event<T>} = 20,
 		Referenda: pallet_referenda::{Pallet, Call, Storage, Event<T>} = 21,
 //		pub type FellowshipCollectiveInstance = pallet_ranked_collective::Instance1;
@@ -1449,10 +1464,10 @@ construct_runtime! {
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 53,
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 54,
 		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 55,
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config, ValidateUnsigned} = 56,
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config<T>, ValidateUnsigned} = 56,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		Dmp: parachains_dmp::{Pallet, Storage} = 58,
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config<T>} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned} = 63,
@@ -1463,8 +1478,11 @@ construct_runtime! {
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 72,
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 73,
 
+		// State trie migration pallet, only temporary.
+		StateTrieMigration: pallet_state_trie_migration = 98,
+
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config<T>} = 99,
 
 		// Generalized message queue
 		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 100,
@@ -1531,6 +1549,7 @@ pub mod migrations {
 		pallet_offences::migration::v1::MigrateToV1<Runtime>,
 		runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
 	);
+
 	pub type V0943 = (
 		SetStorageVersions,
 		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
@@ -1539,7 +1558,12 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = ();
+	pub type Unreleased = (
+		init_state_migration::InitMigrate,
+		pallet_society::migrations::MigrateToV2<Runtime, (), past_payouts::PastPayouts>,
+		pallet_im_online::migration::v1::Migration<Runtime>,
+		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
+	);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;
@@ -1643,6 +1667,7 @@ mod benches {
 		[pallet_referenda, FellowshipReferenda]
 		[pallet_scheduler, Scheduler]
 		[pallet_session, SessionBench::<Runtime>]
+		[pallet_society, Society]
 		[pallet_staking, Staking]
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_timestamp, Timestamp]
@@ -2296,8 +2321,8 @@ mod multiplier_tests {
 	where
 		F: FnMut() -> (),
 	{
-		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
-			.build_storage::<Runtime>()
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::<Runtime>::default()
+			.build_storage()
 			.unwrap()
 			.into();
 		t.execute_with(|| {
@@ -2345,8 +2370,8 @@ mod multiplier_tests {
 		frame_system::Pallet::<Runtime>::set_block_consumed_resources(Weight::MAX, 0);
 		let info = DispatchInfo { weight: Weight::MAX, ..Default::default() };
 
-		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
-			.build_storage::<Runtime>()
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::<Runtime>::default()
+			.build_storage()
 			.unwrap()
 			.into();
 		// set the minimum
@@ -2388,8 +2413,8 @@ mod multiplier_tests {
 		let mut multiplier = Multiplier::from_u32(2);
 		let mut blocks = 0;
 
-		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
-			.build_storage::<Runtime>()
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::<Runtime>::default()
+			.build_storage()
 			.unwrap()
 			.into();
 		// set the minimum
@@ -2478,5 +2503,54 @@ mod remote_tests {
 			pallet_fast_unstake::ErasToCheckPerBlock::<Runtime>::put(1);
 			runtime_common::try_runtime::migrate_all_inactive_nominators::<Runtime>()
 		});
+	}
+}
+
+mod init_state_migration {
+	use super::Runtime;
+	use frame_support::traits::OnRuntimeUpgrade;
+	use pallet_state_trie_migration::{AutoLimits, MigrationLimits, MigrationProcess};
+	#[cfg(feature = "try-runtime")]
+	use sp_runtime::DispatchError;
+	#[cfg(not(feature = "std"))]
+	use sp_std::prelude::*;
+
+	/// Initialize an automatic migration process.
+	pub struct InitMigrate;
+	impl OnRuntimeUpgrade for InitMigrate {
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<Vec<u8>, DispatchError> {
+			frame_support::ensure!(
+				AutoLimits::<Runtime>::get().is_none(),
+				DispatchError::Other("Automigration already started.")
+			);
+			Ok(Default::default())
+		}
+
+		fn on_runtime_upgrade() -> frame_support::weights::Weight {
+			if MigrationProcess::<Runtime>::get() == Default::default() &&
+				AutoLimits::<Runtime>::get().is_none()
+			{
+				// We use limits to target 600ko proofs per block and
+				// avg 800_000_000_000 of weight per block.
+				// See spreadsheet 4800_400 in
+				// https://raw.githubusercontent.com/cheme/substrate/try-runtime-mig/ksm.ods
+				AutoLimits::<Runtime>::put(Some(MigrationLimits { item: 4_800, size: 204800 * 2 }));
+				log::info!("Automatic trie migration started.");
+				<Runtime as frame_system::Config>::DbWeight::get().reads_writes(2, 1)
+			} else {
+				log::info!("Automatic trie migration not started.");
+				<Runtime as frame_system::Config>::DbWeight::get().reads(2)
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade(_state: Vec<u8>) -> Result<(), DispatchError> {
+			frame_support::ensure!(
+				AutoLimits::<Runtime>::get().is_some(),
+				DispatchError::Other("Automigration started.")
+			);
+			Ok(())
+		}
 	}
 }

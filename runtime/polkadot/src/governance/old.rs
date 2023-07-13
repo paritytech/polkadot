@@ -141,7 +141,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type Currency = Balances;
 	type ChangeMembers = Council;
 	type InitializeMembers = Council;
-	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
+	type CurrencyToVote = runtime_common::CurrencyToVote;
 	type CandidacyBond = CandidacyBond;
 	type VotingBondBase = VotingBondBase;
 	type VotingBondFactor = VotingBondFactor;

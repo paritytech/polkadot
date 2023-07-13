@@ -279,6 +279,7 @@ impl pallet_message_queue::Config for Runtime {
 	type ServiceWeight = MessageQueueServiceWeight;
 	type MessageProcessor = MessageProcessor;
 	type QueueChangeHandler = ();
+	type QueuePausedQuery = ();
 	type WeightInfo = ();
 }
 
@@ -288,7 +289,7 @@ construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
+		System: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin},
