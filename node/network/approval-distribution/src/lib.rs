@@ -48,7 +48,8 @@ use std::{
 	time::Duration,
 };
 
-const ACTIVATION_BLOCK_NUMBER: u32 = 20;
+// TODO: Disable will be removed in the final version and will be replaced with 
+const ACTIVATION_BLOCK_NUMBER: u32 = 335539;
 
 fn disable_gossiping(block: u32) -> bool {
 	block > ACTIVATION_BLOCK_NUMBER
