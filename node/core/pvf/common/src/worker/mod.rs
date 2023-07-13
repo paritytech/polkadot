@@ -379,24 +379,30 @@ pub mod thread {
 			assert!(matches!(r, 2));
 			assert!(matches!(*lock.lock().unwrap(), WaitOutcome::Finished));
 		}
+	}
+}
 
-		#[test]
-		fn cpu_time_monitor_loop_should_return_time_elapsed() {
-			let cpu_time_start = ProcessTime::now();
-			let timeout = Duration::from_secs(0);
-			let (_tx, rx) = channel();
-			let result = cpu_time_monitor_loop(cpu_time_start, timeout, rx);
-			assert_ne!(result, None);
-		}
+#[cfg(test)]
+mod tests {
+	use std::sync::mpsc::channel;
+	use super::*;
 
-		#[test]
-		fn cpu_time_monitor_loop_should_return_none() {
-			let cpu_time_start = ProcessTime::now();
-			let timeout = Duration::from_secs(10);
-			let (tx, rx) = channel();
-			tx.send(()).unwrap();
-			let result = cpu_time_monitor_loop(cpu_time_start, timeout, rx);
-			assert_eq!(result, None);
-		}
+	#[test]
+	fn cpu_time_monitor_loop_should_return_time_elapsed() {
+		let cpu_time_start = ProcessTime::now();
+		let timeout = Duration::from_secs(0);
+		let (_tx, rx) = channel();
+		let result = cpu_time_monitor_loop(cpu_time_start, timeout, rx);
+		assert_ne!(result, None);
+	}
+
+	#[test]
+	fn cpu_time_monitor_loop_should_return_none() {
+		let cpu_time_start = ProcessTime::now();
+		let timeout = Duration::from_secs(10);
+		let (tx, rx) = channel();
+		tx.send(()).unwrap();
+		let result = cpu_time_monitor_loop(cpu_time_start, timeout, rx);
+		assert_eq!(result, None);
 	}
 }
