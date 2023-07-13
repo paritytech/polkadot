@@ -436,12 +436,14 @@ pub mod pallet {
 	/// 2. `sender` and `recipient` must be valid paras.
 	#[pallet::genesis_config]
 	#[derive(DefaultNoBound)]
-	pub struct GenesisConfig {
+	pub struct GenesisConfig<T: Config> {
+		#[serde(skip)]
+		_config: sp_std::marker::PhantomData<T>,
 		preopen_hrmp_channels: Vec<(ParaId, ParaId, u32, u32)>,
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			initialize_storage::<T>(&self.preopen_hrmp_channels);
 		}

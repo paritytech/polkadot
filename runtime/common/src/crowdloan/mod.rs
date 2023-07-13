@@ -877,7 +877,7 @@ mod tests {
 	use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
-		DispatchResult,
+		BuildStorage, DispatchResult,
 	};
 
 	type Block = frame_system::mocking::MockBlock<Test>;
@@ -885,7 +885,7 @@ mod tests {
 	frame_support::construct_runtime!(
 		pub enum Test
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
 		}
@@ -1103,7 +1103,7 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		pallet_balances::GenesisConfig::<Test> {
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
 		}

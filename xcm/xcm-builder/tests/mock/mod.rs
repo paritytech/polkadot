@@ -22,7 +22,7 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use parity_scale_codec::Encode;
 use primitive_types::H256;
-use sp_runtime::{traits::IdentityLookup, AccountId32};
+use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 use sp_std::cell::RefCell;
 
 use polkadot_parachain::primitives::Id as ParaId;
@@ -248,7 +248,7 @@ type Block = frame_system::mocking::MockBlock<Runtime>;
 construct_runtime!(
 	pub enum Runtime
 	{
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
+		System: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin},
@@ -256,7 +256,7 @@ construct_runtime!(
 );
 
 pub fn kusama_like_with_balances(balances: Vec<(AccountId, Balance)>) -> sp_io::TestExternalities {
-	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+	let mut t = frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
 
 	pallet_balances::GenesisConfig::<Runtime> { balances }
 		.assimilate_storage(&mut t)

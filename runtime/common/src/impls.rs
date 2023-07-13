@@ -113,7 +113,7 @@ mod tests {
 	use sp_core::{ConstU64, H256};
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup},
-		Perbill,
+		BuildStorage, Perbill,
 	};
 
 	type Block = frame_system::mocking::MockBlock<Test>;
@@ -122,10 +122,10 @@ mod tests {
 	frame_support::construct_runtime!(
 		pub enum Test
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Authorship: pallet_authorship::{Pallet, Storage},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
+			Treasury: pallet_treasury::{Pallet, Call, Storage, Config<T>, Event<T>},
 		}
 	);
 
@@ -225,7 +225,7 @@ mod tests {
 	}
 
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
 		pallet_balances::GenesisConfig::<Test>::default()
 			.assimilate_storage(&mut t)
