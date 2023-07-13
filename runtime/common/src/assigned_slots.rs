@@ -67,11 +67,10 @@ pub struct ParachainTemporarySlot<AccountId, LeasePeriod> {
 	pub lease_count: u32,
 }
 
-type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::Currency as Currency<
+type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
-type LeasePeriodOf<T> =
-	<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::LeasePeriod;
+type LeasePeriodOf<T> = <<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::LeasePeriod;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -91,9 +90,9 @@ pub mod pallet {
 
 		/// The type representing the leasing system.
 		type Leaser: Leaser<
-			Self::BlockNumber,
+			BlockNumberFor<Self>,
 			AccountId = Self::AccountId,
-			LeasePeriod = Self::BlockNumber,
+			LeasePeriod = BlockNumberFor<Self>,
 		>;
 
 		/// The number of lease periods a permanent parachain slot lasts.
@@ -182,7 +181,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(n: T::BlockNumber) -> Weight {
+		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
 			if let Some((lease_period, first_block)) = Self::lease_period_index(n) {
 				// If we're beginning a new lease period then handle that.
 				if first_block {
@@ -213,14 +212,14 @@ pub mod pallet {
 				Error::<T>::SlotAlreadyAssigned
 			);
 
-			let current_lease_period: T::BlockNumber = Self::current_lease_period_index();
+			let current_lease_period: BlockNumberFor<T> = Self::current_lease_period_index();
 			ensure!(
 				!T::Leaser::already_leased(
 					id,
 					current_lease_period,
 					// Check current lease & next one
 					current_lease_period.saturating_add(
-						T::BlockNumber::from(2u32)
+						BlockNumberFor::<T>::from(2u32)
 							.saturating_mul(T::PermanentSlotLeasePeriodLength::get().into())
 					)
 				),
@@ -276,14 +275,14 @@ pub mod pallet {
 				Error::<T>::SlotAlreadyAssigned
 			);
 
-			let current_lease_period: T::BlockNumber = Self::current_lease_period_index();
+			let current_lease_period: BlockNumberFor<T> = Self::current_lease_period_index();
 			ensure!(
 				!T::Leaser::already_leased(
 					id,
 					current_lease_period,
 					// Check current lease & next one
 					current_lease_period.saturating_add(
-						T::BlockNumber::from(2u32)
+						BlockNumberFor::<T>::from(2u32)
 							.saturating_mul(T::TemporarySlotLeasePeriodLength::get().into())
 					)
 				),
@@ -548,7 +547,7 @@ mod tests {
 	use frame_support::{assert_noop, assert_ok, parameter_types};
 	use frame_system::EnsureRoot;
 	use pallet_balances;
-	use primitives::{BlockNumber, Header};
+	use primitives::BlockNumber;
 	use runtime_parachains::{
 		configuration as parachains_configuration, paras as parachains_paras,
 		shared as parachains_shared,
@@ -562,13 +561,10 @@ mod tests {
 	};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-	type Block = frame_system::mocking::MockBlock<Test>;
+	type Block = frame_system::mocking::MockBlockU32<Test>;
 
 	frame_support::construct_runtime!(
-		pub enum Test where
-			Block = Block,
-			NodeBlock = Block,
-			UncheckedExtrinsic = UncheckedExtrinsic,
+		pub enum Test
 		{
 			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -598,12 +594,12 @@ mod tests {
 		type RuntimeOrigin = RuntimeOrigin;
 		type RuntimeCall = RuntimeCall;
 		type Index = u64;
-		type BlockNumber = BlockNumber;
+
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
-		type Header = Header;
+		type Block = Block;
 		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
