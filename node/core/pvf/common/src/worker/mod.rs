@@ -350,12 +350,8 @@ pub mod thread {
 		#[test]
 		fn spawn_worker_thread_should_notify_on_done() {
 			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
-			let response = spawn_worker_thread(
-				"thread",
-				|| 2,
-				Arc::clone(&condvar),
-				WaitOutcome::TimedOut,
-			);
+			let response =
+				spawn_worker_thread("thread", || 2, Arc::clone(&condvar), WaitOutcome::TimedOut);
 			let (lock, _) = &*condvar;
 			let r = response.unwrap().join().unwrap();
 			assert_eq!(r, 2);
@@ -381,8 +377,8 @@ pub mod thread {
 
 #[cfg(test)]
 mod tests {
-	use std::sync::mpsc::channel;
 	use super::*;
+	use std::sync::mpsc::channel;
 
 	#[test]
 	fn cpu_time_monitor_loop_should_return_time_elapsed() {
