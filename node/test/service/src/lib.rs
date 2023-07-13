@@ -35,7 +35,7 @@ use polkadot_test_runtime::{
 };
 
 use sc_chain_spec::ChainSpec;
-use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
+use sc_client_api::BlockchainEvents;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr, NetworkStateInfo,
@@ -157,14 +157,6 @@ pub fn node_config(
 			instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
 		},
 		wasm_runtime_overrides: Default::default(),
-		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
-		execution_strategies: ExecutionStrategies {
-			syncing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			importing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			block_construction: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-		},
 		rpc_addr: Default::default(),
 		rpc_max_request_size: Default::default(),
 		rpc_max_response_size: Default::default(),

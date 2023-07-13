@@ -32,6 +32,7 @@ use frame_support::{
 	traits::{Defensive, EnqueueMessage},
 	BoundedSlice,
 };
+use frame_system::pallet_prelude::*;
 use pallet_message_queue::OnQueueChanged;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
@@ -277,7 +278,7 @@ pub mod pallet {
 		+ scheduler::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
+		type DisputesHandler: disputes::DisputesHandler<BlockNumberFor<Self>>;
 		type RewardValidators: RewardValidators;
 
 		/// The system message queue.
@@ -376,12 +377,16 @@ pub mod pallet {
 	/// The latest bitfield for each validator, referred to by their index in the validator set.
 	#[pallet::storage]
 	pub(crate) type AvailabilityBitfields<T: Config> =
-		StorageMap<_, Twox64Concat, ValidatorIndex, AvailabilityBitfieldRecord<T::BlockNumber>>;
+		StorageMap<_, Twox64Concat, ValidatorIndex, AvailabilityBitfieldRecord<BlockNumberFor<T>>>;
 
 	/// Candidates pending availability by `ParaId`.
 	#[pallet::storage]
-	pub(crate) type PendingAvailability<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, CandidatePendingAvailability<T::Hash, T::BlockNumber>>;
+	pub(crate) type PendingAvailability<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		ParaId,
+		CandidatePendingAvailability<T::Hash, BlockNumberFor<T>>,
+	>;
 
 	/// The commitments of candidates pending availability, by `ParaId`.
 	#[pallet::storage]
@@ -461,7 +466,7 @@ impl fmt::Debug for UmpAcceptanceCheckErr {
 
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -470,7 +475,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
-		_notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>,
+		_notification: &crate::initializer::SessionChangeNotification<BlockNumberFor<T>>,
 		outgoing_paras: &[ParaId],
 	) {
 		// unlike most drain methods, drained elements are not cleared on `Drop` of the iterator
@@ -603,7 +608,7 @@ impl<T: Config> Pallet<T> {
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
 	pub(crate) fn process_candidates<GV>(
-		allowed_relay_parents: &AllowedRelayParentsTracker<T::Hash, T::BlockNumber>,
+		allowed_relay_parents: &AllowedRelayParentsTracker<T::Hash, BlockNumberFor<T>>,
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: GV,
@@ -845,7 +850,7 @@ impl<T: Config> Pallet<T> {
 	/// Run the acceptance criteria checks on the given candidate commitments.
 	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
-		relay_parent_number: T::BlockNumber,
+		relay_parent_number: BlockNumberFor<T>,
 		validation_outputs: primitives::CandidateCommitments,
 	) -> bool {
 		let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
@@ -859,7 +864,7 @@ impl<T: Config> Pallet<T> {
 				&validation_outputs.new_validation_code,
 				validation_outputs.processed_downward_messages,
 				&validation_outputs.upward_messages,
-				T::BlockNumber::from(validation_outputs.hrmp_watermark),
+				BlockNumberFor::<T>::from(validation_outputs.hrmp_watermark),
 				&validation_outputs.horizontal_messages,
 			)
 			.is_err()
@@ -876,7 +881,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn enact_candidate(
-		relay_parent_number: T::BlockNumber,
+		relay_parent_number: BlockNumberFor<T>,
 		receipt: CommittedCandidateReceipt<T::Hash>,
 		backers: BitVec<u8, BitOrderLsb0>,
 		availability_votes: BitVec<u8, BitOrderLsb0>,
@@ -925,7 +930,7 @@ impl<T: Config> Pallet<T> {
 		));
 		weight.saturating_accrue(<hrmp::Pallet<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
-			T::BlockNumber::from(commitments.hrmp_watermark),
+			BlockNumberFor::<T>::from(commitments.hrmp_watermark),
 		));
 		weight.saturating_accrue(<hrmp::Pallet<T>>::queue_outbound_hrmp(
 			receipt.descriptor.para_id,
@@ -953,7 +958,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria.
 	pub(crate) fn check_upward_messages(
-		config: &HostConfiguration<T::BlockNumber>,
+		config: &HostConfiguration<BlockNumberFor<T>>,
 		para: ParaId,
 		upward_messages: &[UpwardMessage],
 	) -> Result<(), UmpAcceptanceCheckErr> {
@@ -1048,7 +1053,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Returns a vector of cleaned-up core IDs.
 	pub(crate) fn collect_pending(
-		pred: impl Fn(CoreIndex, T::BlockNumber) -> bool,
+		pred: impl Fn(CoreIndex, BlockNumberFor<T>) -> bool,
 	) -> Vec<CoreIndex> {
 		let mut cleaned_up_ids = Vec::new();
 		let mut cleaned_up_cores = Vec::new();
@@ -1143,7 +1148,7 @@ impl<T: Config> Pallet<T> {
 	/// para provided, if any.
 	pub(crate) fn pending_availability(
 		para: ParaId,
-	) -> Option<CandidatePendingAvailability<T::Hash, T::BlockNumber>> {
+	) -> Option<CandidatePendingAvailability<T::Hash, BlockNumberFor<T>>> {
 		<PendingAvailability<T>>::get(&para)
 	}
 }
@@ -1190,8 +1195,8 @@ impl<T: Config> OnQueueChanged<AggregateMessageOrigin> for Pallet<T> {
 
 /// A collection of data required for checking a candidate.
 pub(crate) struct CandidateCheckContext<T: Config> {
-	config: configuration::HostConfiguration<T::BlockNumber>,
-	prev_context: Option<T::BlockNumber>,
+	config: configuration::HostConfiguration<BlockNumberFor<T>>,
+	prev_context: Option<BlockNumberFor<T>>,
 }
 
 /// An error indicating that creating Persisted Validation Data failed
@@ -1199,7 +1204,7 @@ pub(crate) struct CandidateCheckContext<T: Config> {
 pub(crate) struct FailedToCreatePVD;
 
 impl<T: Config> CandidateCheckContext<T> {
-	pub(crate) fn new(prev_context: Option<T::BlockNumber>) -> Self {
+	pub(crate) fn new(prev_context: Option<BlockNumberFor<T>>) -> Self {
 		Self { config: <configuration::Pallet<T>>::config(), prev_context }
 	}
 
@@ -1214,10 +1219,10 @@ impl<T: Config> CandidateCheckContext<T> {
 	/// Returns the relay-parent block number.
 	pub(crate) fn verify_backed_candidate(
 		&self,
-		allowed_relay_parents: &AllowedRelayParentsTracker<T::Hash, T::BlockNumber>,
+		allowed_relay_parents: &AllowedRelayParentsTracker<T::Hash, BlockNumberFor<T>>,
 		candidate_idx: usize,
 		backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>,
-	) -> Result<Result<T::BlockNumber, FailedToCreatePVD>, Error<T>> {
+	) -> Result<Result<BlockNumberFor<T>, FailedToCreatePVD>, Error<T>> {
 		let para_id = backed_candidate.descriptor().para_id;
 		let relay_parent = backed_candidate.descriptor().relay_parent;
 
@@ -1275,7 +1280,7 @@ impl<T: Config> CandidateCheckContext<T> {
 			&backed_candidate.candidate.commitments.new_validation_code,
 			backed_candidate.candidate.commitments.processed_downward_messages,
 			&backed_candidate.candidate.commitments.upward_messages,
-			T::BlockNumber::from(backed_candidate.candidate.commitments.hrmp_watermark),
+			BlockNumberFor::<T>::from(backed_candidate.candidate.commitments.hrmp_watermark),
 			&backed_candidate.candidate.commitments.horizontal_messages,
 		) {
 			log::debug!(
@@ -1308,14 +1313,14 @@ impl<T: Config> CandidateCheckContext<T> {
 	fn check_validation_outputs(
 		&self,
 		para_id: ParaId,
-		relay_parent_number: T::BlockNumber,
+		relay_parent_number: BlockNumberFor<T>,
 		head_data: &HeadData,
 		new_validation_code: &Option<primitives::ValidationCode>,
 		processed_downward_messages: u32,
 		upward_messages: &[primitives::UpwardMessage],
-		hrmp_watermark: T::BlockNumber,
+		hrmp_watermark: BlockNumberFor<T>,
 		horizontal_messages: &[primitives::OutboundHrmpMessage<ParaId>],
-	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
+	) -> Result<(), AcceptanceCheckErr<BlockNumberFor<T>>> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,
 			AcceptanceCheckErr::HeadDataTooLarge,

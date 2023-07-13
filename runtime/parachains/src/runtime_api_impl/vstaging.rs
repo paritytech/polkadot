@@ -24,12 +24,13 @@ use primitives::{
 	},
 	Id as ParaId,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use sp_std::prelude::*;
 
 /// Implementation for `StagingParaBackingState` function from the runtime API
 pub fn backing_state<T: initializer::Config>(
 	para_id: ParaId,
-) -> Option<BackingState<T::Hash, T::BlockNumber>> {
+) -> Option<BackingState<T::Hash, BlockNumberFor<T>>> {
 	let config = <configuration::Pallet<T>>::config();
 	// Async backing is only expected to be enabled with a tracker capacity of 1.
 	// Subsequent configuration update gets applied on new session, which always

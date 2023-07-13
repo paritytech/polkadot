@@ -20,6 +20,7 @@
 //! dependent on any of the other pallets.
 
 use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{SessionIndex, ValidatorId, ValidatorIndex};
 use sp_runtime::traits::AtLeast32BitUnsigned;
 use sp_std::{collections::vec_deque::VecDeque, vec::Vec};
@@ -152,7 +153,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn allowed_relay_parents)]
 	pub(crate) type AllowedRelayParents<T: Config> =
-		StorageValue<_, AllowedRelayParentsTracker<T::Hash, T::BlockNumber>, ValueQuery>;
+		StorageValue<_, AllowedRelayParentsTracker<T::Hash, BlockNumberFor<T>>, ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -160,7 +161,7 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -173,7 +174,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		session_index: SessionIndex,
 		random_seed: [u8; 32],
-		new_config: &HostConfiguration<T::BlockNumber>,
+		new_config: &HostConfiguration<BlockNumberFor<T>>,
 		all_validators: Vec<ValidatorId>,
 	) -> Vec<ValidatorId> {
 		// Drop allowed relay parents buffer on a session change.

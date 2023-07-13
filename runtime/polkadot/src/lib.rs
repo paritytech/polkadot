@@ -161,12 +161,12 @@ impl frame_system::Config for Runtime {
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
 	type Index = Nonce;
-	type BlockNumber = BlockNumber;
+
 	type Hash = Hash;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = AccountIdLookup<AccountId, ()>;
-	type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = RocksDbWeight;
@@ -1341,18 +1341,15 @@ impl frame_support::traits::OnRuntimeUpgrade for InitiateNominationPools {
 }
 
 construct_runtime! {
-	pub enum Runtime where
-		Block = Block,
-		NodeBlock = primitives::Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
+	pub enum Runtime
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
+		System: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>} = 0,
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 1,
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 10,
 
 		// Babe must be before session.
-		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 2,
+		Babe: pallet_babe::{Pallet, Call, Storage, Config<T>, ValidateUnsigned} = 2,
 
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 3,
 		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 4,
@@ -1367,9 +1364,9 @@ construct_runtime! {
 		Offences: pallet_offences::{Pallet, Storage, Event} = 8,
 		Historical: session_historical::{Pallet} = 33,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 9,
-		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 11,
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config<T>, Event, ValidateUnsigned} = 11,
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 12,
-		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 13,
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config<T>} = 13,
 
 		// Old governance stuff.
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 14,
@@ -1377,7 +1374,7 @@ construct_runtime! {
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 16,
 		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 18,
-		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 19,
+		Treasury: pallet_treasury::{Pallet, Call, Storage, Config<T>, Event<T>} = 19,
 
 		// OpenGov stuff.
 		ConvictionVoting: pallet_conviction_voting::{Pallet, Call, Storage, Event<T>} = 20,
@@ -1427,11 +1424,11 @@ construct_runtime! {
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 53,
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 54,
 		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 55,
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config, ValidateUnsigned} = 56,
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config<T>, ValidateUnsigned} = 56,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		Dmp: parachains_dmp::{Pallet, Storage} = 58,
 		// Ump 59
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config<T>} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned} = 63,
@@ -1443,7 +1440,7 @@ construct_runtime! {
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 73,
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config<T>} = 99,
 
 		// Generalized message queue
 		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 100,
@@ -1500,7 +1497,7 @@ pub mod migrations {
 	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
 
 	pub type V0938 = (
-		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
+		pallet_xcm::migration::v1::VersionCheckedMigrateToV1<Runtime>,
 		// The UMP pallet got deleted in <https://github.com/paritytech/polkadot/pull/6271>
 		// parachains_ump::migration::v1::MigrateToV1<Runtime>,
 	);
@@ -1528,7 +1525,10 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (pallet_im_online::migration::v1::Migration<Runtime>,);
+	pub type Unreleased = (
+		pallet_im_online::migration::v1::Migration<Runtime>,
+		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
+	);
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;
@@ -2377,8 +2377,8 @@ mod multiplier_tests {
 	where
 		F: FnMut() -> (),
 	{
-		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
-			.build_storage::<Runtime>()
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::<Runtime>::default()
+			.build_storage()
 			.unwrap()
 			.into();
 		t.execute_with(|| {
@@ -2426,8 +2426,8 @@ mod multiplier_tests {
 		frame_system::Pallet::<Runtime>::set_block_consumed_resources(Weight::MAX, 0);
 		let info = DispatchInfo { weight: Weight::MAX, ..Default::default() };
 
-		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
-			.build_storage::<Runtime>()
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::<Runtime>::default()
+			.build_storage()
 			.unwrap()
 			.into();
 		// set the minimum
@@ -2469,8 +2469,8 @@ mod multiplier_tests {
 		let mut multiplier = Multiplier::from_u32(2);
 		let mut blocks = 0;
 
-		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
-			.build_storage::<Runtime>()
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::<Runtime>::default()
+			.build_storage()
 			.unwrap()
 			.into();
 		// set the minimum
