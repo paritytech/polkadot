@@ -48,10 +48,16 @@ use std::{
 	time::Duration,
 };
 
-// TODO: Disable will be removed in the final version and will be replaced with 
-const ACTIVATION_BLOCK_NUMBER: u32 = 335539;
+// TODO: Disable will be removed in the final version and will be replaced with a runtime configuration
+const ACTIVATION_BLOCK_NUMBER: u32 = 10519;
 
 fn disable_gossiping(block: u32) -> bool {
+	if block == ACTIVATION_BLOCK_NUMBER {
+		gum::info!(
+			target: LOG_TARGET,
+			"Disable gossiping for nodes"
+		)
+	}
 	block > ACTIVATION_BLOCK_NUMBER
 }
 
