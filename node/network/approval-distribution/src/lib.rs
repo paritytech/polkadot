@@ -978,7 +978,6 @@ impl State {
 				Some(candidate_entry) => {
 					// We might have received the approval before the assignment, so save it for processing after the assignment
 					let cached_approval_vote = candidate_entry.messages.remove(&validator_index);
-					metrics.on_delayed_approval_processed();
 					(
 						candidate_entry.messages.entry(validator_index).or_insert_with(|| {
 							MessageState {
@@ -1085,6 +1084,8 @@ impl State {
 				?message_subject,
 				"Delayed approval processed"
 			);
+			metrics.on_delayed_approval_processed();
+
 			self.import_and_circulate_approval(ctx, metrics, source, vote).await
 		}
 	}
