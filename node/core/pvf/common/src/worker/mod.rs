@@ -52,11 +52,11 @@ macro_rules! decl_worker_main {
 			}
 
 			match args[1].as_ref() {
-				"--help" => {
+				"--help" | "-h" => {
 					print_help($expected_command);
 					return
 				},
-				"--version" => {
+				"--version" | "-v" => {
 					println!("{}", $crate::worker::worker_version());
 					return
 				},
