@@ -49,7 +49,7 @@ use std::{
 };
 
 // TODO: Disable will be removed in the final version and will be replaced with a runtime configuration
-const ACTIVATION_BLOCK_NUMBER: u32 = 10519;
+const ACTIVATION_BLOCK_NUMBER: u32 = 11019;
 
 fn disable_gossiping(block: u32) -> bool {
 	if block == ACTIVATION_BLOCK_NUMBER {
