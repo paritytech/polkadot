@@ -334,24 +334,12 @@ impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime 
 	// - Root.
 	// - the FellowshipAdmin origin.
 	// - a Fellowship origin.
-	type AddOrigin = EitherOf<
-		frame_system::EnsureRootWithSuccess<Self::AccountId, ReplaceWithDefaultFor<()>>,
-		EitherOf<
-			MapSuccess<FellowshipAdmin, ReplaceWithDefaultFor<()>>,
-			TryMapSuccess<origins::EnsureFellowship, ReplaceWithDefaultFor<()>>,
-		>,
-	>;
+	type AddOrigin = MapSuccess<Self::PromoteOrigin, ReplaceWithDefaultFor<()>>;
 	// Removing is by any of:
 	// - Root can remove arbitrarily.
 	// - the FellowshipAdmin origin (i.e. token holder referendum);
 	// - a vote by the rank two above the current rank.
-	type RemoveOrigin = EitherOf<
-		frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
-		EitherOf<
-			MapSuccess<FellowshipAdmin, Replace<ConstU16<9>>>,
-			TryMapSuccess<origins::EnsureFellowship, CheckedReduceBy<ConstU16<2>>>,
-		>,
-	>;
+	type RemoveOrigin = Self::DemoteOrigin;
 	// Promotion is by any of:
 	// - Root can demote arbitrarily.
 	// - the FellowshipAdmin origin (i.e. token holder referendum);
