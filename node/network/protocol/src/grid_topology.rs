@@ -132,7 +132,16 @@ impl SessionGridTopology {
 		peer_id: PeerId,
 	) -> bool {
 		self.get_known_peer_ids_by_validator_index(validator_index)
-			.map(|known_peer_ids| known_peer_ids.contains(&peer_id))
+			.map(|known_peer_ids| {
+				let res = known_peer_ids.contains(&peer_id);
+				if !res {
+					gum::debug!(
+						target: LOG_TARGET,
+						"Received gossiped approval peer id {:?} known_peer_ids {:?}", peer_id, known_peer_ids
+					);
+				}
+				res
+			})
 			.unwrap_or(false)
 	}
 }

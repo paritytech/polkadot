@@ -1147,6 +1147,13 @@ impl State {
 				})
 				.unwrap_or(false);
 
+			if !sender_matches_validator_index {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Received gossiped approval topology some {:}", self.topologies.get_topology(entry.session).is_some()
+				);
+				metrics.on_gossipped_approval();
+			}
 			if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
 				metrics.on_unassigned_approval();
 
@@ -1255,13 +1262,6 @@ impl State {
 			}
 
 			let (tx, rx) = oneshot::channel();
-			if !sender_matches_validator_index {
-				gum::debug!(
-					target: LOG_TARGET,
-					"Received gossiped approval"
-				);
-				metrics.on_gossipped_approval();
-			}
 
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(
 				vote.clone(),
