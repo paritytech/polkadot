@@ -1079,7 +1079,7 @@ impl State {
 			..
 		}) = cached_approval_vote
 		{
-			gum::info!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?message_subject,
 				"Delayed approval processed"
@@ -1170,7 +1170,7 @@ impl State {
 								approval_state: ApprovalState::UnassignedApproval(vote, source),
 							}
 						});
-						gum::info!(
+						gum::debug!(
 							target: LOG_TARGET,
 							?peer_id,
 							?message_subject,
@@ -1256,10 +1256,11 @@ impl State {
 
 			let (tx, rx) = oneshot::channel();
 			if !sender_matches_validator_index {
-				gum::info!(
+				gum::debug!(
 					target: LOG_TARGET,
 					"Received gossiped approval"
-				)
+				);
+				metrics.on_gossipped_approval();
 			}
 
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(
