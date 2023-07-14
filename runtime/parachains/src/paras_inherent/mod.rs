@@ -191,11 +191,11 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(_: T::BlockNumber) -> Weight {
+		fn on_initialize(_: BlockNumberFor<T>) -> Weight {
 			T::DbWeight::get().reads_writes(1, 1) // in `on_finalize`.
 		}
 
-		fn on_finalize(_: T::BlockNumber) {
+		fn on_finalize(_: BlockNumberFor<T>) {
 			if Included::<T>::take().is_none() {
 				panic!("Bitfields and heads must be included every block");
 			}
@@ -262,7 +262,7 @@ pub mod pallet {
 		))]
 		pub fn enter(
 			origin: OriginFor<T>,
-			data: ParachainsInherentData<T::Header>,
+			data: ParachainsInherentData<HeaderFor<T>>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 
@@ -277,7 +277,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in [`Self::create_inherent`].
 	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
-	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<T::Header>> {
+	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<HeaderFor<T>>> {
 		let parachains_inherent_data = match data.get_data(&Self::INHERENT_IDENTIFIER) {
 			Ok(Some(d)) => d,
 			Ok(None) => return None,
@@ -307,9 +307,9 @@ impl<T: Config> Pallet<T> {
 	/// Returns: Result containing processed inherent data and weight, the processed inherent would
 	/// consume.
 	fn process_inherent_data(
-		data: ParachainsInherentData<T::Header>,
+		data: ParachainsInherentData<HeaderFor<T>>,
 	) -> sp_std::result::Result<
-		(ParachainsInherentData<T::Header>, PostDispatchInfo),
+		(ParachainsInherentData<HeaderFor<T>>, PostDispatchInfo),
 		DispatchErrorWithPostInfo,
 	> {
 		#[cfg(feature = "runtime-metrics")]
@@ -530,7 +530,7 @@ impl<T: Config> Pallet<T> {
 
 		// Process backed candidates according to scheduled cores.
 		let parent_storage_root = *parent_header.state_root();
-		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
+		let inclusion::ProcessedCandidates::<<HeaderFor<T> as HeaderT>::Hash> {
 			core_indices: occupied,
 			candidate_receipt_with_backing_validator_indices,
 		} = <inclusion::Pallet<T>>::process_candidates(
