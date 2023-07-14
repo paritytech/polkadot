@@ -26,6 +26,7 @@ struct MetricsInner {
 	approvals_imported_total: prometheus::Counter<prometheus::U64>,
 	unassigned_approval_total: prometheus::Counter<prometheus::U64>,
 	delayed_approvals_processed_total: prometheus::Counter<prometheus::U64>,
+	gossipped_approval_total: prometheus::Counter<prometheus::U64>,
 	unified_with_peer_total: prometheus::Counter<prometheus::U64>,
 	aggression_l1_messages_total: prometheus::Counter<prometheus::U64>,
 	aggression_l2_messages_total: prometheus::Counter<prometheus::U64>,
@@ -51,6 +52,12 @@ impl Metrics {
 	pub(crate) fn on_unassigned_approval(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.unassigned_approval_total.inc();
+		}
+	}
+
+	pub(crate) fn on_gossipped_approval(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.gossipped_approval_total.inc();
 		}
 	}
 
@@ -120,6 +127,13 @@ impl MetricsTrait for Metrics {
 				prometheus::Counter::new(
 					"polkadot_parachain_delayed_approvals_processedtotal",
 					"Number of approvals processed with delay after we received the assignment.",
+				)?,
+				registry,
+			)?,
+			gossipped_approval_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_gossipped_approvals_processedtotal",
+					"Number of approvals processed that were gossiped",
 				)?,
 				registry,
 			)?,
