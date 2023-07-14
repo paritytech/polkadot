@@ -1409,6 +1409,7 @@ mod workers {
 		use super::*;
 
 		use assert_matches::assert_matches;
+		use serial_test::serial;
 		use std::{env::temp_dir, fs, os::unix::fs::PermissionsExt, path::Path};
 
 		const NODE_VERSION: &'static str = env!("SUBSTRATE_CLI_IMPL_VERSION");
@@ -1452,10 +1453,6 @@ echo {}
 		fn with_temp_dir_structure(
 			f: impl FnOnce(PathBuf) -> Result<(), Box<dyn std::error::Error>>,
 		) -> Result<(), Box<dyn std::error::Error>> {
-			// Ensure tests run one at a time so they don't interfere with each other.
-			static OVERRIDES_LOCK: Mutex<()> = Mutex::new(());
-			let _lock = OVERRIDES_LOCK.lock()?;
-
 			// Set up <tmp>/usr/lib/polkadot and <tmp>/usr/bin, both empty.
 
 			let tempdir = temp_dir();
@@ -1478,6 +1475,7 @@ echo {}
 		}
 
 		#[test]
+		#[serial]
 		fn test_given_worker_path() {
 			with_temp_dir_structure(|tempdir| {
 				let given_workers_path = tempdir.join("usr/local/bin");
@@ -1522,6 +1520,7 @@ echo {}
 		}
 
 		#[test]
+		#[serial]
 		fn missing_workers_paths_throws_error() {
 			with_temp_dir_structure(|tempdir| {
 				// Try with both binaries missing.
@@ -1571,6 +1570,7 @@ echo {}
 		}
 
 		#[test]
+		#[serial]
 		fn should_find_workers_at_all_locations() {
 			with_temp_dir_structure(|tempdir| {
 				let prepare_worker_bin_path = tempdir.join("usr/bin/polkadot-prepare-worker");
@@ -1596,6 +1596,7 @@ echo {}
 		}
 
 		#[test]
+		#[serial]
 		fn workers_version_mismatch_throws_error() {
 			let bad_version = "v9.9.9.9";
 
@@ -1645,6 +1646,7 @@ echo {}
 		}
 
 		#[test]
+		#[serial]
 		fn should_find_valid_workers() {
 			// Test bin location.
 			with_temp_dir_structure(|tempdir| {

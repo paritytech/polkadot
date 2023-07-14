@@ -145,6 +145,7 @@ polkadot-test-client = { path = "../test/client" }
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 env_logger = "0.9.0"
 assert_matches = "1.5.0"
+serial_test = "2.0.0"
 tempfile = "3.2"
 
 [build-dependencies]

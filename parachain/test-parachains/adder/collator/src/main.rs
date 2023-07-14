@@ -58,17 +58,19 @@ fn main() -> Result<()> {
 
 				let full_node = polkadot_service::build_full(
 					config,
-					polkadot_service::IsCollator::Yes(collator.collator_key()),
-					None,
-					false,
-					None,
-					None,
-					None,
-					false,
-					polkadot_service::RealOverseerGen,
-					None,
-					None,
-					None,
+					polkadot_service::NewFullParams {
+						is_collator: polkadot_service::IsCollator::Yes(collator.collator_key()),
+						grandpa_pause: None,
+						enable_beefy: false,
+						jaeger_agent: None,
+						telemetry_worker_handle: None,
+						workers_path: None,
+						overseer_enable_anyways: false,
+						overseer_gen: polkadot_service::RealOverseerGen,
+						overseer_message_channel_capacity_override: None,
+						malus_finality_delay: None,
+						hwbench: None,
+					},
 				)
 				.map_err(|e| e.to_string())?;
 				let mut overseer_handle = full_node
