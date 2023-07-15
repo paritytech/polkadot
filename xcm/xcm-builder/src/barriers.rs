@@ -140,7 +140,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowAliasOriginWithdrawPaidE
 			.skip_inst_while(|inst| matches!(inst, ClearOrigin))?
 			// TODO:check-parameter - this is only difference with `AllowTopLevelPaidExecutionFrom` - check for AliasOrigin / WithdrawAsset / ClearOrigin
 			.match_next_inst(|inst| match inst {
-				AliasOrigin(_) => Ok(()),
+				// we allow reset origin by AliasOrigin, only iff equals (computed) `origin` here.
+				AliasOrigin(alias_origin) if alias_origin == origin => Ok(()),
 				_ => Err(ProcessMessageError::BadFormat),
 			})?
 			// TODO:check-parameter - this is only difference with `AllowTopLevelPaidExecutionFrom` - check for AliasOrigin / WithdrawAsset / ClearOrigin
