@@ -33,11 +33,9 @@ use tokio::{io, net::UnixStream, runtime::Runtime};
 /// spawning the desired worker.
 #[macro_export]
 macro_rules! decl_worker_main {
-	($expected_command:expr, $entrypoint:expr) => {
+	($expected_command:expr, $entrypoint:expr, $worker_version:expr) => {
 		fn print_help(expected_command: &str) {
-			let worker_version = $crate::worker::worker_version();
-
-			println!("{} {}", expected_command, worker_version);
+			println!("{} {}", expected_command, $worker_version);
 			println!();
 			println!("PVF worker that is called by polkadot.");
 		}
@@ -57,7 +55,7 @@ macro_rules! decl_worker_main {
 					return
 				},
 				"--version" | "-v" => {
-					println!("{}", $crate::worker::worker_version());
+					println!("{}", $worker_version);
 					return
 				},
 				subcommand => {
@@ -82,13 +80,9 @@ macro_rules! decl_worker_main {
 				}
 			}
 
-			$entrypoint(&socket_path, node_version);
+			$entrypoint(&socket_path, node_version, $worker_version);
 		}
 	};
-}
-
-pub fn worker_version() -> &'static str {
-	env!("SUBSTRATE_CLI_IMPL_VERSION")
 }
 
 /// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
@@ -105,6 +99,7 @@ pub fn worker_event_loop<F, Fut>(
 	debug_id: &'static str,
 	socket_path: &str,
 	node_version: Option<&str>,
+	worker_version: &str,
 	mut event_loop: F,
 ) where
 	F: FnMut(UnixStream) -> Fut,
@@ -115,7 +110,6 @@ pub fn worker_event_loop<F, Fut>(
 
 	// Check for a mismatch between the node and worker versions.
 	if let Some(node_version) = node_version {
-		let worker_version = env!("SUBSTRATE_CLI_IMPL_VERSION");
 		if node_version != worker_version {
 			gum::error!(
 				target: LOG_TARGET,

@@ -197,9 +197,18 @@ pub fn node_config(
 /// Run a test validator node that uses the test runtime and specified `config`.
 pub fn run_validator_node(
 	config: Configuration,
-	worker_program_path: Option<PathBuf>,
+	mut worker_program_path: Option<PathBuf>,
 ) -> PolkadotTestNode {
 	let multiaddr = config.network.listen_addresses[0].clone();
+	if let None = worker_program_path {
+		// If no explicit worker path is passed in, we need to specify it ourselves as test binaries
+		// are in the "deps/" directory, one level below where the worker binaries are generated.
+		let mut exe_path = std::env::current_exe()
+			.expect("for test purposes it's reasonable to expect that this will not fail");
+		let _ = exe_path.pop();
+		let _ = exe_path.pop();
+		worker_program_path = Some(exe_path);
+	}
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
 		new_full(config, IsCollator::No, worker_program_path)
 			.expect("could not create Polkadot test service");

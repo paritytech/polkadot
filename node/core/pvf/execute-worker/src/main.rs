@@ -18,5 +18,7 @@
 
 polkadot_node_core_pvf_common::decl_worker_main!(
 	"execute-worker",
-	polkadot_node_core_pvf_execute_worker::worker_entrypoint
+	polkadot_node_core_pvf_execute_worker::worker_entrypoint,
+	// Defined in lib.rs because env! doesn't work here.
+	polkadot_node_core_pvf_execute_worker::WORKER_IMPL_VERSION
 );

@@ -236,16 +236,16 @@ pub enum Error {
 	NoRuntime,
 
 	#[cfg(feature = "full-node")]
-	#[error("Worker binaries not executable, prepare binary: {0:?}, execute binary: {1:?}")]
-	InvalidWorkerBinaries(PathBuf, PathBuf),
+	#[error("Worker binaries not executable, prepare binary: {prep_worker_path:?}, execute binary: {exec_worker_path:?}")]
+	InvalidWorkerBinaries { prep_worker_path: PathBuf, exec_worker_path: PathBuf },
 
 	#[cfg(feature = "full-node")]
-	#[error("Worker binaries could not be found at workers path ({0:?}), polkadot binary directory, or /usr/lib/polkadot")]
-	MissingWorkerBinaries(Option<PathBuf>),
+	#[error("Worker binaries could not be found at workers path ({given_workers_path:?}), polkadot binary directory, or /usr/lib/polkadot")]
+	MissingWorkerBinaries { given_workers_path: Option<PathBuf> },
 
 	#[cfg(feature = "full-node")]
-	#[error("Version of worker binaries ({0}) is different from node version ({1})")]
-	WorkerBinaryVersionMismatch(String, String),
+	#[error("Version of worker binaries ({worker_version}) is different from node version ({node_version})")]
+	WorkerBinaryVersionMismatch { worker_version: String, node_version: String },
 }
 
 /// Identifies the variant of the chain.

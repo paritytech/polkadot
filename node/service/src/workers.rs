@@ -54,33 +54,33 @@ pub fn determine_workers_paths(
 ) -> Result<(PathBuf, PathBuf), Error> {
 	let mut workers_paths = list_workers_paths(given_workers_path.clone())?;
 	if workers_paths.is_empty() {
-		return Err(Error::MissingWorkerBinaries(given_workers_path))
+		return Err(Error::MissingWorkerBinaries { given_workers_path })
 	} else if workers_paths.len() > 1 {
 		log::warn!("multiple sets of worker binaries found ({:?})", workers_paths,);
 	}
 
 	let (prep_worker_path, exec_worker_path) = workers_paths.swap_remove(0);
 	if !prep_worker_path.is_executable() || !exec_worker_path.is_executable() {
-		return Err(Error::InvalidWorkerBinaries(prep_worker_path, exec_worker_path))
+		return Err(Error::InvalidWorkerBinaries { prep_worker_path, exec_worker_path })
 	}
 
 	// Do the version check.
 	let node_version = env!("SUBSTRATE_CLI_IMPL_VERSION").to_string();
-	let prep_worker_version = Command::new(&prep_worker_path).args(["--version"]).output()?.stdout;
-	let prep_worker_version = std::str::from_utf8(&prep_worker_version)
+	let worker_version = Command::new(&prep_worker_path).args(["--version"]).output()?.stdout;
+	let worker_version = std::str::from_utf8(&worker_version)
 		.expect("version is printed as a string; qed")
 		.trim()
 		.to_string();
-	if prep_worker_version != node_version {
-		return Err(Error::WorkerBinaryVersionMismatch(prep_worker_version, node_version))
+	if worker_version != node_version {
+		return Err(Error::WorkerBinaryVersionMismatch { worker_version, node_version })
 	}
-	let exec_worker_version = Command::new(&exec_worker_path).args(["--version"]).output()?.stdout;
-	let exec_worker_version = std::str::from_utf8(&exec_worker_version)
+	let worker_version = Command::new(&exec_worker_path).args(["--version"]).output()?.stdout;
+	let worker_version = std::str::from_utf8(&worker_version)
 		.expect("version is printed as a string; qed")
 		.trim()
 		.to_string();
-	if exec_worker_version != node_version {
-		return Err(Error::WorkerBinaryVersionMismatch(exec_worker_version, node_version))
+	if worker_version != node_version {
+		return Err(Error::WorkerBinaryVersionMismatch { worker_version, node_version })
 	}
 
 	// Paths are good to use.
