@@ -12953,6 +12953,7 @@ dependencies = [
 name = "tracing-gum"
 version = "0.9.43"
 dependencies = [
+ "coarsetime",
  "polkadot-node-jaeger",
  "polkadot-primitives",
  "tracing",
