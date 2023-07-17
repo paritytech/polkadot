@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{CoreIndex, Id as ParaId};
 
 use crate::{
@@ -88,7 +89,7 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 		}
 	}
 
-	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber {
+	fn get_availability_period(core_idx: CoreIndex) -> BlockNumberFor<T> {
 		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
 		if (0..parachains_cores).contains(&core_idx.0) {
 			<crate::scheduler_parachains::Pallet<T>>::get_availability_period(core_idx)

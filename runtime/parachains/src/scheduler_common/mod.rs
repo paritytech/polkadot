@@ -36,6 +36,7 @@
 //! over time.
 
 use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{
 	CollatorId, CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ParathreadEntry, ScheduledCore,
 };
@@ -109,7 +110,7 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 	// on session change
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
-	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber;
+	fn get_availability_period(core_idx: CoreIndex) -> BlockNumberFor<T>;
 
 	fn get_max_retries(core_idx: CoreIndex) -> u32;
 }

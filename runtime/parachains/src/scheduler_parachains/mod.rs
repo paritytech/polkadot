@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use frame_system::pallet_prelude::BlockNumberFor;
+
 use primitives::{CoreIndex, Id as ParaId};
 
 use crate::{configuration, paras, scheduler_common::Assignment};
@@ -59,7 +61,7 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 
 	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
 
-	fn get_availability_period(_: CoreIndex) -> T::BlockNumber {
+	fn get_availability_period(_: CoreIndex) -> BlockNumberFor<T> {
 		<configuration::Pallet<T>>::config().chain_availability_period
 	}
 

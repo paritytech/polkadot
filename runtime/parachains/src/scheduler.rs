@@ -450,7 +450,7 @@ impl<T: Config> Pallet<T> {
 
 	pub(crate) fn update_claimqueue(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
-		now: T::BlockNumber,
+		now: BlockNumberFor<T>,
 	) -> Vec<CoreAssignment> {
 		Self::move_claimqueue_forward();
 		Self::fill_claimqueue(just_freed_cores, now)
@@ -473,7 +473,7 @@ impl<T: Config> Pallet<T> {
 
 	fn fill_claimqueue(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
-		now: T::BlockNumber,
+		now: BlockNumberFor<T>,
 	) -> Vec<CoreAssignment> {
 		let (mut concluded_paras, mut timedout_paras) = Self::free_cores(just_freed_cores);
 
