@@ -156,9 +156,13 @@ fn polkadot_testnet_genesis(
 		babe: runtime::BabeConfig {
 			authorities: vec![],
 			epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
+			..Default::default()
 		},
 		grandpa: Default::default(),
-		authority_discovery: runtime::AuthorityDiscoveryConfig { keys: vec![] },
+		authority_discovery: runtime::AuthorityDiscoveryConfig {
+			keys: vec![],
+			..Default::default()
+		},
 		claims: runtime::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: runtime::VestingConfig { vesting: vec![] },
 		sudo: runtime::SudoConfig { key: Some(root_key) },

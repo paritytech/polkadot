@@ -116,7 +116,7 @@ pub mod pallet {
 		+ hrmp::Config
 	{
 		/// A randomness beacon.
-		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type Randomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 		/// An origin which is allowed to force updates to parachains.
 		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 		/// Weight information for extrinsics in this pallet.
@@ -147,7 +147,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(now: T::BlockNumber) -> Weight {
+		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
 			// The other modules are initialized in this order:
 			// - Configuration
 			// - Paras
@@ -174,7 +174,7 @@ pub mod pallet {
 			total_weight
 		}
 
-		fn on_finalize(now: T::BlockNumber) {
+		fn on_finalize(now: BlockNumberFor<T>) {
 			// reverse initialization order.
 			hrmp::Pallet::<T>::initializer_finalize();
 			dmp::Pallet::<T>::initializer_finalize();

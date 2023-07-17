@@ -1,16 +1,3 @@
-use crate::configuration::Config;
-use frame_support::traits::OnRuntimeUpgrade;
-use sp_runtime::Perbill;
-
-// mod v7 {}
-
-// pub struct MigrateToV6<T>(sp_std::marker::PhantomData<T>);
-// impl<T: Config> OnRuntimeUpgrade for MigrateToV6<T> {
-// 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-// 		frame_support::weights::Weight::zero()
-// 	}
-// }
-
 // Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
@@ -27,22 +14,22 @@ use sp_runtime::Perbill;
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-///! A module that is responsible for migration of storage.
-use crate::configuration::{self, Pallet};
+//! A module that is responsible for migration of storage.
+
+use crate::configuration::{self, Config, Pallet};
 use frame_support::{
 	pallet_prelude::*,
 	traits::{Defensive, StorageVersion},
 	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
+use primitives::SessionIndex;
+use sp_runtime::Perbill;
 use sp_std::vec::Vec;
 
-use primitives::SessionIndex;
-#[cfg(feature = "try-runtime")]
-use sp_std::prelude::*;
+use frame_support::traits::OnRuntimeUpgrade;
 
 use super::v6::V6HostConfiguration;
-// Change this once there is V8.
 type V7HostConfiguration<BlockNumber> = configuration::HostConfiguration<BlockNumber>;
 
 mod v6 {
@@ -79,7 +66,7 @@ pub struct MigrateToV7<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToV7<T> {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
-		log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade() for MigrateToV7");
+		log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
 		Ok(Vec::new())
 	}
 
@@ -132,16 +119,15 @@ validation_upgrade_cooldown              : pre.validation_upgrade_cooldown,
 validation_upgrade_delay                 : pre.validation_upgrade_delay,
 max_pov_size                             : pre.max_pov_size,
 max_downward_message_size                : pre.max_downward_message_size,
-hrmp_max_paras_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
 hrmp_sender_deposit                      : pre.hrmp_sender_deposit,
 hrmp_recipient_deposit                   : pre.hrmp_recipient_deposit,
 hrmp_channel_max_capacity                : pre.hrmp_channel_max_capacity,
 hrmp_channel_max_total_size              : pre.hrmp_channel_max_total_size,
-hrmp_max_paras_inbound_channels      : pre.hrmp_max_parachain_inbound_channels,
+hrmp_max_paras_inbound_channels          : pre.hrmp_max_parachain_inbound_channels,
 hrmp_channel_max_message_size            : pre.hrmp_channel_max_message_size,
 code_retention_period                    : pre.code_retention_period,
-on_demand_cores                         : pre.parathread_cores,
-on_demand_retries                       : pre.parathread_retries,
+on_demand_cores                          : pre.parathread_cores,
+on_demand_retries                        : pre.parathread_retries,
 group_rotation_frequency                 : pre.group_rotation_frequency,
 paras_availability_period                : pre.chain_availability_period,
 scheduling_lookahead                     : pre.scheduling_lookahead,
@@ -154,7 +140,6 @@ n_delay_tranches                         : pre.n_delay_tranches,
 zeroth_delay_tranche_width               : pre.zeroth_delay_tranche_width,
 needed_approvals                         : pre.needed_approvals,
 relay_vrf_modulo_samples                 : pre.relay_vrf_modulo_samples,
-pvf_checking_enabled                     : pre.pvf_checking_enabled,
 pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 async_backing_params                     : pre.async_backing_params,
@@ -173,9 +158,8 @@ on_demand_ttl                            : 5u32.into(),
 	let v7 = translate(v6);
 	v7::ActiveConfig::<T>::set(Some(v7));
 
-	let pending_v6 = v6::PendingConfigs::<T>::get()
-		.defensive_proof("Could not decode old pending")
-		.unwrap_or_default();
+	// Allowed to be empty.
+	let pending_v6 = v6::PendingConfigs::<T>::get().unwrap_or_default();
 	let mut pending_v7 = Vec::new();
 
 	for (session, v6) in pending_v6.into_iter() {
@@ -191,13 +175,10 @@ on_demand_ttl                            : 5u32.into(),
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{
-		configuration::HostConfiguration,
-		mock::{new_test_ext, Test},
-	};
+	use crate::mock::{new_test_ext, Test};
 
 	#[test]
-	fn v7_deserialized_from_actual_data() {
+	fn v6_deserialized_from_actual_data() {
 		// Example how to get new `raw_config`:
 		// We'll obtain the raw_config at a specified a block
 		// Steps:
@@ -212,24 +193,20 @@ mod tests {
 
 		// This exceeds the maximal line width length, but that's fine, since this is not code and
 		// doesn't need to be read and also leaving it as one line allows to easily copy it.
-		let raw_config = hex_literal::hex!["0000300000800000080000000000100000c8000005000000050000000200000002000000000000000000000000005000000010000400000000000000000000000000000000000000000000000000000000000000000000000800000000200000040000000000100000b004000000000000000000001027000080b2e60e80c3c901809698000000000000000000000000000500000014000000040000000100000001010000000006000000640000000200000019000000000000000200000002000000000200000005000000"];
+		let raw_config = hex_literal::hex!["00003000005000005555150000008000fbff0100000200000a000000c80000006400000000000000000000000000500000c800000a0000000000000000c0220fca950300000000000000000000c0220fca9503000000000000000000e8030000009001000a0000000000000000900100008070000000000000000000000a000000050000000500000001000000010500000001c80000000600000058020000020000002800000000000000020000000100000001020000000f000000"];
 
-		let v7 =
-			HostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..]).unwrap();
+		let v6 =
+			V6HostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..]).unwrap();
 
 		// We check only a sample of the values here. If we missed any fields or messed up data types
 		// that would skew all the fields coming after.
-		assert_eq!(v7.max_code_size, 3_145_728);
-		assert_eq!(v7.validation_upgrade_cooldown, 2);
-		assert_eq!(v7.max_pov_size, 5_242_880);
-		assert_eq!(v7.hrmp_channel_max_total_size, 8_192);
-		assert_eq!(v7.hrmp_max_paras_outbound_channels, 4);
-		assert_eq!(v7.paras_availability_period, 4);
-		assert_eq!(v7.n_delay_tranches, 25);
-		assert_eq!(v7.minimum_validation_upgrade_delay, 5); // This is the last field in the struct.
-		assert_eq!(v7.group_rotation_frequency, 20);
-		assert_eq!(v7.on_demand_queue_max_size, 10_000);
-		assert_eq!(v7.on_demand_ttl, 5);
+		assert_eq!(v6.max_code_size, 3_145_728);
+		assert_eq!(v6.validation_upgrade_cooldown, 200);
+		assert_eq!(v6.max_pov_size, 5_242_880);
+		assert_eq!(v6.hrmp_channel_max_message_size, 102_400);
+		assert_eq!(v6.n_delay_tranches, 40);
+		assert_eq!(v6.minimum_validation_upgrade_delay, 15);
+		assert_eq!(v6.group_rotation_frequency, 10);
 	}
 
 	#[test]
@@ -249,6 +226,7 @@ mod tests {
 			max_pov_size: 1111,
 			chain_availability_period: 33,
 			minimum_validation_upgrade_delay: 20,
+			pvf_checking_enabled: true,
 			..Default::default()
 		};
 
@@ -258,7 +236,7 @@ mod tests {
 
 		new_test_ext(Default::default()).execute_with(|| {
 			// Implant the v6 version in the state.
-			v6::ActiveConfig::<Test>::set(Some(v6.clone()));
+			v6::ActiveConfig::<Test>::set(Some(v6));
 			v6::PendingConfigs::<Test>::set(Some(pending_configs));
 
 			migrate_to_v7::<Test>();
@@ -267,49 +245,67 @@ mod tests {
 			let mut configs_to_check = v7::PendingConfigs::<Test>::get().unwrap();
 			configs_to_check.push((0, v7.clone()));
 
-			for (_, v7) in configs_to_check {
+			for (_, v6) in configs_to_check {
 				#[rustfmt::skip]
 				{
-					assert_eq!(v7.max_code_size                            , v6.max_code_size);
-					assert_eq!(v7.max_head_data_size                       , v6.max_head_data_size);
-					assert_eq!(v7.max_upward_queue_count                   , v6.max_upward_queue_count);
-					assert_eq!(v7.max_upward_queue_size                    , v6.max_upward_queue_size);
-					assert_eq!(v7.max_upward_message_size                  , v6.max_upward_message_size);
-					assert_eq!(v7.max_upward_message_num_per_candidate     , v6.max_upward_message_num_per_candidate);
-					assert_eq!(v7.hrmp_max_message_num_per_candidate       , v6.hrmp_max_message_num_per_candidate);
-					assert_eq!(v7.validation_upgrade_cooldown              , v6.validation_upgrade_cooldown);
-					assert_eq!(v7.validation_upgrade_delay                 , v6.validation_upgrade_delay);
-					assert_eq!(v7.async_backing_params                     , v6.async_backing_params);
-					assert_eq!(v7.max_pov_size                             , v6.max_pov_size);
-					assert_eq!(v7.max_downward_message_size                , v6.max_downward_message_size);
-					assert_eq!(v7.hrmp_max_paras_outbound_channels         , v6.hrmp_max_parachain_outbound_channels);
-					assert_eq!(v7.hrmp_sender_deposit                      , v6.hrmp_sender_deposit);
-					assert_eq!(v7.hrmp_recipient_deposit                   , v6.hrmp_recipient_deposit);
-					assert_eq!(v7.hrmp_channel_max_capacity                , v6.hrmp_channel_max_capacity);
-					assert_eq!(v7.hrmp_channel_max_total_size              , v6.hrmp_channel_max_total_size);
-					assert_eq!(v7.hrmp_max_paras_inbound_channels          , v6.hrmp_max_parachain_inbound_channels);
-					assert_eq!(v7.hrmp_channel_max_message_size            , v6.hrmp_channel_max_message_size);
-					assert_eq!(v7.executor_params                          , v6.executor_params);
-					assert_eq!(v7.code_retention_period                    , v6.code_retention_period);
-					assert_eq!(v7.on_demand_cores                         , v6.parathread_cores);
-					assert_eq!(v7.on_demand_retries                       , v6.parathread_retries);
-					assert_eq!(v7.group_rotation_frequency                 , v6.group_rotation_frequency);
-					assert_eq!(v7.paras_availability_period                , v6.chain_availability_period);
-					assert_eq!(v7.scheduling_lookahead                     , v6.scheduling_lookahead);
-					assert_eq!(v7.max_validators_per_core                  , v6.max_validators_per_core);
-					assert_eq!(v7.max_validators                           , v6.max_validators);
-					assert_eq!(v7.dispute_period                           , v6.dispute_period);
-					assert_eq!(v7.dispute_post_conclusion_acceptance_period, v6.dispute_post_conclusion_acceptance_period);
-					assert_eq!(v7.no_show_slots                            , v6.no_show_slots);
-					assert_eq!(v7.n_delay_tranches                         , v6.n_delay_tranches);
-					assert_eq!(v7.zeroth_delay_tranche_width               , v6.zeroth_delay_tranche_width);
-					assert_eq!(v7.needed_approvals                         , v6.needed_approvals);
-					assert_eq!(v7.relay_vrf_modulo_samples                 , v6.relay_vrf_modulo_samples);
-					assert_eq!(v7.pvf_checking_enabled                     , v6.pvf_checking_enabled);
-					assert_eq!(v7.pvf_voting_ttl                           , v6.pvf_voting_ttl);
-					assert_eq!(v7.minimum_validation_upgrade_delay         , v6.minimum_validation_upgrade_delay);
+					assert_eq!(v6.max_code_size                            , v7.max_code_size);
+					assert_eq!(v6.max_head_data_size                       , v7.max_head_data_size);
+					assert_eq!(v6.max_upward_queue_count                   , v7.max_upward_queue_count);
+					assert_eq!(v6.max_upward_queue_size                    , v7.max_upward_queue_size);
+					assert_eq!(v6.max_upward_message_size                  , v7.max_upward_message_size);
+					assert_eq!(v6.max_upward_message_num_per_candidate     , v7.max_upward_message_num_per_candidate);
+					assert_eq!(v6.hrmp_max_message_num_per_candidate       , v7.hrmp_max_message_num_per_candidate);
+					assert_eq!(v6.validation_upgrade_cooldown              , v7.validation_upgrade_cooldown);
+					assert_eq!(v6.validation_upgrade_delay                 , v7.validation_upgrade_delay);
+					assert_eq!(v6.max_pov_size                             , v7.max_pov_size);
+					assert_eq!(v6.max_downward_message_size                , v7.max_downward_message_size);
+					assert_eq!(v6.hrmp_max_parachain_outbound_channels     , v7.hrmp_max_paras_outbound_channels);
+					assert_eq!(v6.hrmp_max_parathread_outbound_channels    , v7.hrmp_max_paras_outbound_channels);
+					assert_eq!(v6.hrmp_sender_deposit                      , v7.hrmp_sender_deposit);
+					assert_eq!(v6.hrmp_recipient_deposit                   , v7.hrmp_recipient_deposit);
+					assert_eq!(v6.hrmp_channel_max_capacity                , v7.hrmp_channel_max_capacity);
+					assert_eq!(v6.hrmp_channel_max_total_size              , v7.hrmp_channel_max_total_size);
+					assert_eq!(v6.hrmp_max_parachain_inbound_channels      , v7.hrmp_max_paras_inbound_channels);
+					assert_eq!(v6.hrmp_max_parathread_inbound_channels     , v7.hrmp_max_paras_inbound_channels);
+					assert_eq!(v6.hrmp_channel_max_message_size            , v7.hrmp_channel_max_message_size);
+					assert_eq!(v6.code_retention_period                    , v7.code_retention_period);
+					assert_eq!(v6.parathread_cores                         , v7.parathread_cores);
+					assert_eq!(v6.parathread_retries                       , v7.parathread_retries);
+					assert_eq!(v6.group_rotation_frequency                 , v7.group_rotation_frequency);
+					assert_eq!(v6.chain_availability_period                , v7.paras_availability_period);
+					assert_eq!(v6.thread_availability_period               , v7.paras_availability_period);
+					assert_eq!(v6.scheduling_lookahead                     , v7.scheduling_lookahead);
+					assert_eq!(v6.max_validators_per_core                  , v7.max_validators_per_core);
+					assert_eq!(v6.max_validators                           , v7.max_validators);
+					assert_eq!(v6.dispute_period                           , v7.dispute_period);
+					assert_eq!(v6.no_show_slots                            , v7.no_show_slots);
+					assert_eq!(v6.n_delay_tranches                         , v7.n_delay_tranches);
+					assert_eq!(v6.zeroth_delay_tranche_width               , v7.zeroth_delay_tranche_width);
+					assert_eq!(v6.needed_approvals                         , v7.needed_approvals);
+					assert_eq!(v6.relay_vrf_modulo_samples                 , v7.relay_vrf_modulo_samples);
+					assert_eq!(v6.pvf_voting_ttl                           , v7.pvf_voting_ttl);
+					assert_eq!(v6.minimum_validation_upgrade_delay         , v7.minimum_validation_upgrade_delay);
+					assert_eq!(v6.async_backing_params.allowed_ancestry_len, v7.async_backing_params.allowed_ancestry_len);
+					assert_eq!(v6.async_backing_params.max_candidate_depth , v7.async_backing_params.max_candidate_depth);
+					assert_eq!(v6.executor_params						   , v7.executor_params);
 				}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
 			}
+		});
+	}
+
+	// Test that migration doesn't panic in case there're no pending configurations upgrades in pallet's storage.
+	#[test]
+	fn test_migrate_to_v7_no_pending() {
+		let v6 = V6HostConfiguration::<primitives::BlockNumber>::default();
+
+		new_test_ext(Default::default()).execute_with(|| {
+			// Implant the v6 version in the state.
+			v6::ActiveConfig::<Test>::set(Some(v6));
+			// Ensure there're no pending configs.
+			v6::PendingConfigs::<Test>::set(None);
+
+			// Shouldn't fail.
+			migrate_to_v7::<Test>();
 		});
 	}
 }

@@ -18,6 +18,7 @@
 //! This provider is tightly coupled with the configuration and paras modules.
 
 use crate::{configuration, paras, scheduler_common::AssignmentProvider};
+use frame_system::pallet_prelude::BlockNumberFor;
 pub use pallet::*;
 use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
 
@@ -52,7 +53,7 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 	/// this is a no-op in the case of a bulk assignment slot.
 	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
 
-	fn get_availability_period(_: CoreIndex) -> T::BlockNumber {
+	fn get_availability_period(_: CoreIndex) -> BlockNumberFor<T> {
 		<configuration::Pallet<T>>::config().paras_availability_period
 	}
 

@@ -32,16 +32,7 @@ use sp_std::prelude::*;
 
 use super::v5::V5HostConfiguration;
 
-#[derive(
-	Clone,
-	Encode,
-	Decode,
-	PartialEq,
-	sp_core::RuntimeDebug,
-	scale_info::TypeInfo,
-	serde::Serialize,
-	serde::Deserialize,
-)]
+#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug, Clone)]
 pub struct V6HostConfiguration<BlockNumber> {
 	pub max_code_size: u32,
 	pub max_head_data_size: u32,

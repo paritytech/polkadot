@@ -105,7 +105,6 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 		paras_availability_period: 3,
 		scheduling_lookahead: 2,
 		on_demand_retries: 1,
-		pvf_checking_enabled: false,
 		// This field does not affect anything that scheduler does. However, `HostConfiguration`
 		// is still a subject to consistency test. It requires that `minimum_validation_upgrade_delay`
 		// is greater than `chain_availability_period` and `thread_availability_period`.
