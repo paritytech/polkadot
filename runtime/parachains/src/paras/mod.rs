@@ -550,7 +550,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type UnsignedPriority: Get<TransactionPriority>;
 
-		type NextSessionRotation: EstimateNextSessionRotation<Self::BlockNumber>;
+		type NextSessionRotation: EstimateNextSessionRotation<BlockNumberFor<Self>>;
 
 		/// Retrieve how many UMP messages are enqueued for this para-chain.
 		///
@@ -623,7 +623,7 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		ValidationCodeHash,
-		PvfCheckActiveVoteState<T::BlockNumber>,
+		PvfCheckActiveVoteState<BlockNumberFor<T>>,
 		OptionQuery,
 	>;
 
@@ -662,7 +662,7 @@ pub mod pallet {
 	/// Corresponding code can be retrieved with [`CodeByHash`].
 	#[pallet::storage]
 	pub(super) type PastCodeHash<T: Config> =
-		StorageMap<_, Twox64Concat, (ParaId, T::BlockNumber), ValidationCodeHash>;
+		StorageMap<_, Twox64Concat, (ParaId, BlockNumberFor<T>), ValidationCodeHash>;
 
 	/// Past code of parachains. The parachains themselves may not be registered anymore,
 	/// but we also keep their code on-chain for the same amount of time as outdated code
@@ -670,7 +670,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn past_code_meta)]
 	pub(super) type PastCodeMeta<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, ParaPastCodeMeta<T::BlockNumber>, ValueQuery>;
+		StorageMap<_, Twox64Concat, ParaId, ParaPastCodeMeta<BlockNumberFor<T>>, ValueQuery>;
 
 	/// Which paras have past code that needs pruning and the relay-chain block at which the code was replaced.
 	/// Note that this is the actual height of the included block, not the expected height at which the
@@ -680,7 +680,7 @@ pub mod pallet {
 	/// Multiple entries for a single para are permitted. Ordered ascending by block number.
 	#[pallet::storage]
 	pub(super) type PastCodePruning<T: Config> =
-		StorageValue<_, Vec<(ParaId, T::BlockNumber)>, ValueQuery>;
+		StorageValue<_, Vec<(ParaId, BlockNumberFor<T>)>, ValueQuery>;
 
 	/// The block number at which the planned code change is expected for a para.
 	/// The change will be applied after the first parablock for this ID included which executes
@@ -688,7 +688,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn future_code_upgrade_at)]
 	pub(super) type FutureCodeUpgrades<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, T::BlockNumber>;
+		StorageMap<_, Twox64Concat, ParaId, BlockNumberFor<T>>;
 
 	/// The actual future code hash of a para.
 	///
@@ -728,7 +728,7 @@ pub mod pallet {
 	/// Ordered ascending by block number.
 	#[pallet::storage]
 	pub(super) type UpgradeCooldowns<T: Config> =
-		StorageValue<_, Vec<(ParaId, T::BlockNumber)>, ValueQuery>;
+		StorageValue<_, Vec<(ParaId, BlockNumberFor<T>)>, ValueQuery>;
 
 	/// The list of upcoming code upgrades. Each item is a pair of which para performs a code
 	/// upgrade and at which relay-chain block it is expected at.
@@ -736,7 +736,7 @@ pub mod pallet {
 	/// Ordered ascending by block number.
 	#[pallet::storage]
 	pub(super) type UpcomingUpgrades<T: Config> =
-		StorageValue<_, Vec<(ParaId, T::BlockNumber)>, ValueQuery>;
+		StorageValue<_, Vec<(ParaId, BlockNumberFor<T>)>, ValueQuery>;
 
 	/// The actions to perform during the start of a specific session index.
 	#[pallet::storage]
@@ -838,7 +838,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			para: ParaId,
 			new_code: ValidationCode,
-			relay_parent_number: T::BlockNumber,
+			relay_parent_number: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let config = configuration::Pallet::<T>::config();
@@ -1145,13 +1145,13 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Called by the initializer to initialize the paras pallet.
-	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(now: BlockNumberFor<T>) -> Weight {
 		let weight = Self::prune_old_code(now);
 		weight + Self::process_scheduled_upgrade_changes(now)
 	}
 
 	/// Called by the initializer to finalize the paras pallet.
-	pub(crate) fn initializer_finalize(now: T::BlockNumber) {
+	pub(crate) fn initializer_finalize(now: BlockNumberFor<T>) {
 		Self::process_scheduled_upgrade_cooldowns(now);
 	}
 
@@ -1159,7 +1159,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Returns the list of outgoing paras from the actions queue.
 	pub(crate) fn initializer_on_new_session(
-		notification: &SessionChangeNotification<T::BlockNumber>,
+		notification: &SessionChangeNotification<BlockNumberFor<T>>,
 	) -> Vec<ParaId> {
 		let outgoing_paras = Self::apply_actions_queue(notification.session_index);
 		Self::groom_ongoing_pvf_votes(&notification.new_config, notification.validators.len());
@@ -1275,8 +1275,8 @@ impl<T: Config> Pallet<T> {
 	// (i.e. number of `relay_parent` in the receipt)
 	fn note_past_code(
 		id: ParaId,
-		at: T::BlockNumber,
-		now: T::BlockNumber,
+		at: BlockNumberFor<T>,
+		now: BlockNumberFor<T>,
 		old_code_hash: ValidationCodeHash,
 	) -> Weight {
 		PastCodeMeta::<T>::mutate(&id, |past_meta| {
@@ -1298,7 +1298,7 @@ impl<T: Config> Pallet<T> {
 
 	// looks at old code metadata, compares them to the current acceptance window, and prunes those
 	// that are too old.
-	fn prune_old_code(now: T::BlockNumber) -> Weight {
+	fn prune_old_code(now: BlockNumberFor<T>) -> Weight {
 		let config = configuration::Pallet::<T>::config();
 		let code_retention_period = config.code_retention_period;
 		if now <= code_retention_period {
@@ -1310,7 +1310,7 @@ impl<T: Config> Pallet<T> {
 		let pruning_height = now - (code_retention_period + One::one());
 
 		let pruning_tasks_done =
-			PastCodePruning::<T>::mutate(|pruning_tasks: &mut Vec<(_, T::BlockNumber)>| {
+			PastCodePruning::<T>::mutate(|pruning_tasks: &mut Vec<(_, BlockNumberFor<T>)>| {
 				let (pruning_tasks_done, pruning_tasks_to_do) = {
 					// find all past code that has just exited the pruning window.
 					let up_to_idx =
@@ -1358,11 +1358,11 @@ impl<T: Config> Pallet<T> {
 	/// the upgrade restriction, that will happen in the `initializer_finalize` function. However,
 	/// this function does count the number of cooldown timers expired so that we can reserve weight
 	/// for the `initializer_finalize` function.
-	fn process_scheduled_upgrade_changes(now: T::BlockNumber) -> Weight {
+	fn process_scheduled_upgrade_changes(now: BlockNumberFor<T>) -> Weight {
 		// account weight for `UpcomingUpgrades::mutate`.
 		let mut weight = T::DbWeight::get().reads_writes(1, 1);
 		let upgrades_signaled = UpcomingUpgrades::<T>::mutate(
-			|upcoming_upgrades: &mut Vec<(ParaId, T::BlockNumber)>| {
+			|upcoming_upgrades: &mut Vec<(ParaId, BlockNumberFor<T>)>| {
 				let num = upcoming_upgrades.iter().take_while(|&(_, at)| at <= &now).count();
 				for (para, _) in upcoming_upgrades.drain(..num) {
 					UpgradeGoAheadSignal::<T>::insert(&para, UpgradeGoAhead::GoAhead);
@@ -1389,24 +1389,26 @@ impl<T: Config> Pallet<T> {
 	/// Actually perform unsetting the expired upgrade restrictions.
 	///
 	/// See `process_scheduled_upgrade_changes` for more details.
-	fn process_scheduled_upgrade_cooldowns(now: T::BlockNumber) {
-		UpgradeCooldowns::<T>::mutate(|upgrade_cooldowns: &mut Vec<(ParaId, T::BlockNumber)>| {
-			// Remove all expired signals and also prune the cooldowns.
-			upgrade_cooldowns.retain(|(para, at)| {
-				if at <= &now {
-					UpgradeRestrictionSignal::<T>::remove(&para);
-					false
-				} else {
-					true
-				}
-			});
-		});
+	fn process_scheduled_upgrade_cooldowns(now: BlockNumberFor<T>) {
+		UpgradeCooldowns::<T>::mutate(
+			|upgrade_cooldowns: &mut Vec<(ParaId, BlockNumberFor<T>)>| {
+				// Remove all expired signals and also prune the cooldowns.
+				upgrade_cooldowns.retain(|(para, at)| {
+					if at <= &now {
+						UpgradeRestrictionSignal::<T>::remove(&para);
+						false
+					} else {
+						true
+					}
+				});
+			},
+		);
 	}
 
 	/// Goes over all PVF votes in progress, reinitializes ballots, increments ages and prunes the
 	/// active votes that reached their time-to-live.
 	fn groom_ongoing_pvf_votes(
-		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+		cfg: &configuration::HostConfiguration<BlockNumberFor<T>>,
 		new_n_validators: usize,
 	) -> Weight {
 		let mut weight = T::DbWeight::get().reads(1);
@@ -1456,11 +1458,11 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn enact_pvf_accepted(
-		now: T::BlockNumber,
+		now: BlockNumberFor<T>,
 		code_hash: &ValidationCodeHash,
-		causes: &[PvfCheckCause<T::BlockNumber>],
+		causes: &[PvfCheckCause<BlockNumberFor<T>>],
 		sessions_observed: SessionIndex,
-		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+		cfg: &configuration::HostConfiguration<BlockNumberFor<T>>,
 	) -> Weight {
 		let mut weight = Weight::zero();
 		for cause in causes {
@@ -1503,9 +1505,9 @@ impl<T: Config> Pallet<T> {
 	fn proceed_with_upgrade(
 		id: ParaId,
 		code_hash: &ValidationCodeHash,
-		now: T::BlockNumber,
-		relay_parent_number: T::BlockNumber,
-		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+		now: BlockNumberFor<T>,
+		relay_parent_number: BlockNumberFor<T>,
+		cfg: &configuration::HostConfiguration<BlockNumberFor<T>>,
 	) -> Weight {
 		let mut weight = Weight::zero();
 
@@ -1545,7 +1547,7 @@ impl<T: Config> Pallet<T> {
 
 	fn enact_pvf_rejected(
 		code_hash: &ValidationCodeHash,
-		causes: Vec<PvfCheckCause<T::BlockNumber>>,
+		causes: Vec<PvfCheckCause<BlockNumberFor<T>>>,
 	) -> Weight {
 		let mut weight = Weight::zero();
 
@@ -1766,8 +1768,8 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
 		new_code: ValidationCode,
-		relay_parent_number: T::BlockNumber,
-		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+		relay_parent_number: BlockNumberFor<T>,
+		cfg: &configuration::HostConfiguration<BlockNumberFor<T>>,
 	) -> Weight {
 		let mut weight = T::DbWeight::get().reads(1);
 
@@ -1840,10 +1842,10 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Unconditionally increases the reference count for the passed `code`.
 	fn kick_off_pvf_check(
-		cause: PvfCheckCause<T::BlockNumber>,
+		cause: PvfCheckCause<BlockNumberFor<T>>,
 		code_hash: ValidationCodeHash,
 		code: ValidationCode,
-		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+		cfg: &configuration::HostConfiguration<BlockNumberFor<T>>,
 	) -> Weight {
 		let mut weight = Weight::zero();
 
@@ -1912,7 +1914,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn note_new_head(
 		id: ParaId,
 		new_head: HeadData,
-		execution_context: T::BlockNumber,
+		execution_context: BlockNumberFor<T>,
 	) -> Weight {
 		Heads::<T>::insert(&id, new_head);
 

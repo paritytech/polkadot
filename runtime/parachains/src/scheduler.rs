@@ -36,6 +36,7 @@
 //! over time.
 
 use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{
 	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ParathreadEntry,
 	ScheduledCore, ValidatorIndex,
@@ -109,7 +110,7 @@ pub mod pallet {
 	/// block following the session change, block number of which we save in this storage value.
 	#[pallet::storage]
 	#[pallet::getter(fn session_start_block)]
-	pub(crate) type SessionStartBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+	pub(crate) type SessionStartBlock<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
 	/// One entry for each availability core. The `VecDeque` represents the assignments to be scheduled on that core.
 	#[pallet::storage]
@@ -124,7 +125,7 @@ type ConcludedParas = BTreeMap<CoreIndex, ParaId>;
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the scheduler pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -133,7 +134,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		notification: &SessionChangeNotification<T::BlockNumber>,
+		notification: &SessionChangeNotification<BlockNumberFor<T>>,
 	) {
 		let SessionChangeNotification { validators, new_config, .. } = notification;
 		let config = new_config;
@@ -294,7 +295,7 @@ impl<T: Config> Pallet<T> {
 	/// or the block number is less than the session start index.
 	pub(crate) fn group_assigned_to_core(
 		core: CoreIndex,
-		at: T::BlockNumber,
+		at: BlockNumberFor<T>,
 	) -> Option<GroupIndex> {
 		let config = <configuration::Pallet<T>>::config();
 		let session_start_block = <SessionStartBlock<T>>::get();
@@ -309,11 +310,12 @@ impl<T: Config> Pallet<T> {
 			return None
 		}
 
-		let rotations_since_session_start: T::BlockNumber =
+		let rotations_since_session_start: BlockNumberFor<T> =
 			(at - session_start_block) / config.group_rotation_frequency.into();
 
 		let rotations_since_session_start =
-			<T::BlockNumber as TryInto<u32>>::try_into(rotations_since_session_start).unwrap_or(0);
+			<BlockNumberFor<T> as TryInto<u32>>::try_into(rotations_since_session_start)
+				.unwrap_or(0);
 		// Error case can only happen if rotations occur only once every u32::max(),
 		// so functionally no difference in behavior.
 
@@ -333,7 +335,7 @@ impl<T: Config> Pallet<T> {
 	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
 	pub(crate) fn availability_timeout_predicate(
-	) -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
+	) -> Option<Box<dyn Fn(CoreIndex, BlockNumberFor<T>) -> bool>> {
 		let now = <frame_system::Pallet<T>>::block_number();
 		let config = <configuration::Pallet<T>>::config();
 
@@ -373,7 +375,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Returns a helper for determining group rotation.
-	pub(crate) fn group_rotation_info(now: T::BlockNumber) -> GroupRotationInfo<T::BlockNumber> {
+	pub(crate) fn group_rotation_info(
+		now: BlockNumberFor<T>,
+	) -> GroupRotationInfo<BlockNumberFor<T>> {
 		let session_start_block = Self::session_start_block();
 		let group_rotation_frequency =
 			<configuration::Pallet<T>>::config().group_rotation_frequency;
