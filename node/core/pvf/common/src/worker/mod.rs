@@ -216,6 +216,14 @@ pub mod thread {
 		pub fn is_pending(&self) -> bool {
 			matches!(self, Self::Pending)
 		}
+
+		pub fn is_finished(&self) -> bool {
+			matches!(self, Self::Finished)
+		}
+
+		pub fn is_timeout(&self) -> bool {
+			matches!(self, Self::TimedOut)
+		}
 	}
 
 	/// Helper type.
@@ -332,45 +340,43 @@ pub mod thread {
 		#[test]
 		fn wait_for_threads_with_timeout_return_none_on_time_out() {
 			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
-			let outcome = wait_for_threads_with_timeout(&condvar, Duration::from_secs(1));
-			assert!(matches!(outcome, None));
+			let outcome = wait_for_threads_with_timeout(&condvar, Duration::from_millis(100));
+			assert!(outcome.is_none());
 		}
 
 		#[test]
 		fn wait_for_threads_with_timeout_returns_outcome() {
 			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
-			let condvar2 = Arc::clone(&condvar);
-			thread::spawn(move || {
-				cond_notify_all(Arc::clone(&condvar2), WaitOutcome::Finished);
-			});
+			let condvar2 = condvar.clone();
+			cond_notify_all(condvar2, WaitOutcome::Finished);
 			let outcome = wait_for_threads_with_timeout(&condvar, Duration::from_secs(2));
-			assert!(matches!(outcome.unwrap(), WaitOutcome::Finished));
+			assert!(outcome.unwrap().is_finished());
 		}
 
 		#[test]
 		fn spawn_worker_thread_should_notify_on_done() {
 			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
 			let response =
-				spawn_worker_thread("thread", || 2, Arc::clone(&condvar), WaitOutcome::TimedOut);
+				spawn_worker_thread("thread", || 2, condvar.clone(), WaitOutcome::TimedOut);
 			let (lock, _) = &*condvar;
 			let r = response.unwrap().join().unwrap();
 			assert_eq!(r, 2);
-			assert!(matches!(*lock.lock().unwrap(), WaitOutcome::TimedOut));
+			assert!(lock.lock().unwrap().is_timeout());
 		}
 
 		#[test]
-		fn spawn_worker_thread_should_not_notify() {
+		fn spawn_worker_should_not_change_finished_outcome() {
 			let condvar = Arc::new((Mutex::new(WaitOutcome::Finished), Condvar::new()));
 			let response = spawn_worker_thread(
 				"thread",
 				move || 2,
-				Arc::clone(&condvar),
+				condvar.clone(),
 				WaitOutcome::TimedOut,
 			);
 			let (lock, _) = &*condvar;
 			let r = response.unwrap().join().unwrap();
 			assert_eq!(r, 2);
-			assert!(matches!(*lock.lock().unwrap(), WaitOutcome::Finished));
+			assert!(lock.lock().unwrap().is_finished());
 		}
 	}
 }
