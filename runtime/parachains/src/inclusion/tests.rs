@@ -2037,8 +2037,8 @@ fn para_upgrade_delay_scheduled_from_inclusion() {
 		let cause = &active_vote_state.causes()[0];
 		// Upgrade block is the block of inclusion, not candidate's parent.
 		assert_matches!(cause,
-			paras::PvfCheckCause::Upgrade { id, inclusion_parent_number }
-				if id == &chain_a && inclusion_parent_number == &7
+			paras::PvfCheckCause::Upgrade { id, included_at }
+				if id == &chain_a && included_at == &7
 		);
 	});
 }
