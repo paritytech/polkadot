@@ -240,7 +240,7 @@ pub enum Error {
 	InvalidWorkerBinaries { prep_worker_path: PathBuf, exec_worker_path: PathBuf },
 
 	#[cfg(feature = "full-node")]
-	#[error("Worker binaries could not be found at workers path ({given_workers_path:?}), polkadot binary directory, or /usr/lib/polkadot")]
+	#[error("Worker binaries could not be found at given workers path ({given_workers_path:?}), polkadot binary directory, or /usr/lib/polkadot")]
 	MissingWorkerBinaries { given_workers_path: Option<PathBuf> },
 
 	#[cfg(feature = "full-node")]
@@ -618,7 +618,10 @@ pub struct NewFullParams<OverseerGenerator: OverseerGen> {
 	pub enable_beefy: bool,
 	pub jaeger_agent: Option<std::net::SocketAddr>,
 	pub telemetry_worker_handle: Option<TelemetryWorkerHandle>,
+	/// An optional path to a directory containing the workers.
 	pub workers_path: Option<std::path::PathBuf>,
+	/// Optional custom names for the prepare and execute workers (mainly for tests).
+	pub workers_names: Option<(String, String)>,
 	pub overseer_enable_anyways: bool,
 	pub overseer_gen: OverseerGenerator,
 	pub overseer_message_channel_capacity_override: Option<usize>,
@@ -695,6 +698,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		jaeger_agent,
 		telemetry_worker_handle,
 		workers_path,
+		workers_names,
 		overseer_enable_anyways,
 		overseer_gen,
 		overseer_message_channel_capacity_override,
@@ -884,7 +888,8 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
-	let (prep_worker_path, exec_worker_path) = workers::determine_workers_paths(workers_path)?;
+	let (prep_worker_path, exec_worker_path) =
+		workers::determine_workers_paths(workers_path, workers_names)?;
 
 	let candidate_validation_config = CandidateValidationConfig {
 		artifacts_cache_path: config

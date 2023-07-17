@@ -95,6 +95,8 @@ pub fn bytes_to_path(bytes: &[u8]) -> Option<PathBuf> {
 	std::str::from_utf8(bytes).ok().map(PathBuf::from)
 }
 
+// The worker version must be passed in so that we accurately get the version of the worker, and not
+// the version that this crate was compiled with.
 pub fn worker_event_loop<F, Fut>(
 	debug_id: &'static str,
 	socket_path: &str,

@@ -36,6 +36,8 @@ fn workers_lib_path_override() -> &'static Mutex<Option<PathBuf>> {
 	OVERRIDE.get_or_init(|| Mutex::new(None))
 }
 
+/// Determines the final set of paths to use for the PVF workers.
+///
 /// 1. Get the binaries from the workers path if it is passed in, or consider all possible
 /// locations on the filesystem in order and get all sets of paths at which the binaries exist.
 ///
@@ -51,8 +53,9 @@ fn workers_lib_path_override() -> &'static Mutex<Option<PathBuf>> {
 /// 6. At this point the final set of paths should be good to use.
 pub fn determine_workers_paths(
 	given_workers_path: Option<PathBuf>,
+	workers_names: Option<(String, String)>,
 ) -> Result<(PathBuf, PathBuf), Error> {
-	let mut workers_paths = list_workers_paths(given_workers_path.clone())?;
+	let mut workers_paths = list_workers_paths(given_workers_path.clone(), workers_names)?;
 	if workers_paths.is_empty() {
 		return Err(Error::MissingWorkerBinaries { given_workers_path })
 	} else if workers_paths.len() > 1 {
@@ -94,6 +97,7 @@ pub fn determine_workers_paths(
 /// locations on the filesystem. See `new_full`.
 fn list_workers_paths(
 	given_workers_path: Option<PathBuf>,
+	workers_names: Option<(String, String)>,
 ) -> Result<Vec<(PathBuf, PathBuf)>, Error> {
 	if let Some(path) = given_workers_path {
 		log::trace!("Using explicitly provided workers path {:?}", path);
@@ -102,10 +106,7 @@ fn list_workers_paths(
 			return Ok(vec![(path.clone(), path)])
 		}
 
-		let mut prep_worker = path.clone();
-		let mut exec_worker = path.clone();
-		prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
-		exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
+		let (prep_worker, exec_worker) = build_worker_paths(path, workers_names);
 
 		// Check if both workers exist. Otherwise return an empty vector which results in an error.
 		return if prep_worker.exists() && exec_worker.exists() {
@@ -119,6 +120,7 @@ fn list_workers_paths(
 
 	let mut workers_paths = vec![];
 
+	// Consider the polkadot binary directory.
 	{
 		let mut exe_path = std::env::current_exe()?;
 		let _ = exe_path.pop(); // executable file will always have a parent directory.
@@ -127,10 +129,8 @@ fn list_workers_paths(
 			exe_path = path_override.clone();
 		}
 
-		let mut prep_worker = exe_path.clone();
-		prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
-		let mut exec_worker = exe_path.clone();
-		exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
+		let (prep_worker, exec_worker) =
+			build_worker_paths(exe_path.clone(), workers_names.clone());
 
 		// Add to set if both workers exist. Warn on partial installs.
 		let (prep_worker_exists, exec_worker_exists) = (prep_worker.exists(), exec_worker.exists());
@@ -144,6 +144,7 @@ fn list_workers_paths(
 		}
 	}
 
+	// Consider the /usr/lib/polkadot/ directory.
 	{
 		#[allow(unused_mut)]
 		let mut lib_path = PathBuf::from("/usr/lib/polkadot");
@@ -152,10 +153,7 @@ fn list_workers_paths(
 			lib_path = path_override.clone();
 		}
 
-		let mut prep_worker = lib_path.clone();
-		prep_worker.push(polkadot_node_core_pvf::PREPARE_BINARY_NAME);
-		let mut exec_worker = lib_path.clone();
-		exec_worker.push(polkadot_node_core_pvf::EXECUTE_BINARY_NAME);
+		let (prep_worker, exec_worker) = build_worker_paths(lib_path, workers_names);
 
 		// Add to set if both workers exist. Warn on partial installs.
 		let (prep_worker_exists, exec_worker_exists) = (prep_worker.exists(), exec_worker.exists());
@@ -170,6 +168,23 @@ fn list_workers_paths(
 	}
 
 	Ok(workers_paths)
+}
+
+fn build_worker_paths(
+	worker_dir: PathBuf,
+	workers_names: Option<(String, String)>,
+) -> (PathBuf, PathBuf) {
+	let (prep_worker_name, exec_worker_name) = workers_names.unwrap_or((
+		polkadot_node_core_pvf::PREPARE_BINARY_NAME.to_string(),
+		polkadot_node_core_pvf::EXECUTE_BINARY_NAME.to_string(),
+	));
+
+	let mut prep_worker = worker_dir.clone();
+	prep_worker.push(prep_worker_name);
+	let mut exec_worker = worker_dir;
+	exec_worker.push(exec_worker_name);
+
+	(prep_worker, exec_worker)
 }
 
 // Tests that set up a temporary directory tree according to what scenario we want to test and
@@ -252,8 +267,8 @@ echo {}
 
 			// Try with provided workers path that has missing binaries.
 			assert_matches!(
-				determine_workers_paths(Some(given_workers_path.clone())),
-				Err(Error::MissingWorkerBinaries(Some(p))) if p == given_workers_path
+				determine_workers_paths(Some(given_workers_path.clone()), None),
+				Err(Error::MissingWorkerBinaries { given_workers_path: Some(p) }) if p == given_workers_path
 			);
 
 			// Try with provided workers path that has not executable binaries.
@@ -264,15 +279,15 @@ echo {}
 			write_worker_exe(&execute_worker_path)?;
 			fs::set_permissions(&execute_worker_path, fs::Permissions::from_mode(0o644))?;
 			assert_matches!(
-				determine_workers_paths(Some(given_workers_path.clone())),
-				Err(Error::InvalidWorkerBinaries(p1, p2)) if p1 == prepare_worker_path && p2 == execute_worker_path
+				determine_workers_paths(Some(given_workers_path.clone()), None),
+				Err(Error::InvalidWorkerBinaries { prep_worker_path: p1, exec_worker_path: p2 }) if p1 == prepare_worker_path && p2 == execute_worker_path
 			);
 
 			// Try with valid workers directory path that has executable binaries.
 			fs::set_permissions(&prepare_worker_path, fs::Permissions::from_mode(0o744))?;
 			fs::set_permissions(&execute_worker_path, fs::Permissions::from_mode(0o744))?;
 			assert_matches!(
-				determine_workers_paths(Some(given_workers_path)),
+				determine_workers_paths(Some(given_workers_path), None),
 				Ok((p1, p2)) if p1 == prepare_worker_path && p2 == execute_worker_path
 			);
 
@@ -280,7 +295,7 @@ echo {}
 			let given_workers_path = tempdir.join("usr/local/bin/puppet-worker");
 			write_worker_exe(&given_workers_path)?;
 			assert_matches!(
-				determine_workers_paths(Some(given_workers_path.clone())),
+				determine_workers_paths(Some(given_workers_path.clone()), None),
 				Ok((p1, p2)) if p1 == given_workers_path && p2 == given_workers_path
 			);
 
@@ -294,30 +309,45 @@ echo {}
 	fn missing_workers_paths_throws_error() {
 		with_temp_dir_structure(|tempdir| {
 			// Try with both binaries missing.
-			assert_matches!(determine_workers_paths(None), Err(Error::MissingWorkerBinaries(None)));
+			assert_matches!(
+				determine_workers_paths(None, None),
+				Err(Error::MissingWorkerBinaries { given_workers_path: None })
+			);
 
 			// Try with only prep worker (at bin location).
 			let prepare_worker_path = tempdir.join("usr/bin/polkadot-prepare-worker");
 			write_worker_exe(&prepare_worker_path)?;
-			assert_matches!(determine_workers_paths(None), Err(Error::MissingWorkerBinaries(None)));
+			assert_matches!(
+				determine_workers_paths(None, None),
+				Err(Error::MissingWorkerBinaries { given_workers_path: None })
+			);
 
 			// Try with only exec worker (at bin location).
 			fs::remove_file(&prepare_worker_path)?;
 			let execute_worker_path = tempdir.join("usr/bin/polkadot-execute-worker");
 			write_worker_exe(&execute_worker_path)?;
-			assert_matches!(determine_workers_paths(None), Err(Error::MissingWorkerBinaries(None)));
+			assert_matches!(
+				determine_workers_paths(None, None),
+				Err(Error::MissingWorkerBinaries { given_workers_path: None })
+			);
 
 			// Try with only prep worker (at lib location).
 			fs::remove_file(&execute_worker_path)?;
 			let prepare_worker_path = tempdir.join("usr/lib/polkadot/polkadot-prepare-worker");
 			write_worker_exe(&prepare_worker_path)?;
-			assert_matches!(determine_workers_paths(None), Err(Error::MissingWorkerBinaries(None)));
+			assert_matches!(
+				determine_workers_paths(None, None),
+				Err(Error::MissingWorkerBinaries { given_workers_path: None })
+			);
 
 			// Try with only exec worker (at lib location).
 			fs::remove_file(&prepare_worker_path)?;
 			let execute_worker_path = tempdir.join("usr/lib/polkadot/polkadot-execute-worker");
 			write_worker_exe(execute_worker_path)?;
-			assert_matches!(determine_workers_paths(None), Err(Error::MissingWorkerBinaries(None)));
+			assert_matches!(
+				determine_workers_paths(None, None),
+				Err(Error::MissingWorkerBinaries { given_workers_path: None })
+			);
 
 			Ok(())
 		})
@@ -341,12 +371,40 @@ echo {}
 				write_worker_exe(&execute_worker_lib_path)?;
 
 				assert_matches!(
-					list_workers_paths(None),
+					list_workers_paths(None, None),
 					Ok(v) if v == vec![(prepare_worker_bin_path, execute_worker_bin_path), (prepare_worker_lib_path, execute_worker_lib_path)]
 				);
 
 				Ok(())
 			})
+			.unwrap();
+	}
+
+	#[test]
+	#[serial]
+	fn should_find_workers_with_custom_names_at_all_locations() {
+		with_temp_dir_structure(|tempdir| {
+			let (prep_worker_name, exec_worker_name) = ("test-prepare", "test-execute");
+
+			let prepare_worker_bin_path = tempdir.join("usr/bin").join(prep_worker_name);
+			write_worker_exe(&prepare_worker_bin_path)?;
+
+			let execute_worker_bin_path = tempdir.join("usr/bin").join(exec_worker_name);
+			write_worker_exe(&execute_worker_bin_path)?;
+
+			let prepare_worker_lib_path = tempdir.join("usr/lib/polkadot").join(prep_worker_name);
+			write_worker_exe(&prepare_worker_lib_path)?;
+
+			let execute_worker_lib_path = tempdir.join("usr/lib/polkadot").join(exec_worker_name);
+			write_worker_exe(&execute_worker_lib_path)?;
+
+			assert_matches!(
+				list_workers_paths(None, Some((prep_worker_name.into(), exec_worker_name.into()))),
+				Ok(v) if v == vec![(prepare_worker_bin_path, execute_worker_bin_path), (prepare_worker_lib_path, execute_worker_lib_path)]
+			);
+
+			Ok(())
+		})
 			.unwrap();
 	}
 
@@ -362,8 +420,8 @@ echo {}
 			write_worker_exe_invalid_version(&prepare_worker_bin_path, bad_version)?;
 			write_worker_exe(&execute_worker_bin_path)?;
 			assert_matches!(
-				determine_workers_paths(None),
-				Err(Error::WorkerBinaryVersionMismatch(v1, v2)) if v1 == bad_version && v2 == NODE_VERSION
+				determine_workers_paths(None, None),
+				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2 }) if v1 == bad_version && v2 == NODE_VERSION
 			);
 
 			// Workers at lib location return bad version.
@@ -372,8 +430,8 @@ echo {}
 			write_worker_exe(&prepare_worker_lib_path)?;
 			write_worker_exe_invalid_version(&execute_worker_lib_path, bad_version)?;
 			assert_matches!(
-				determine_workers_paths(None),
-				Err(Error::WorkerBinaryVersionMismatch(v1, v2)) if v1 == bad_version && v2 == NODE_VERSION
+				determine_workers_paths(None, None),
+				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2 }) if v1 == bad_version && v2 == NODE_VERSION
 			);
 
 			// Workers at provided workers location return bad version.
@@ -383,16 +441,16 @@ echo {}
 			write_worker_exe_invalid_version(&prepare_worker_path, bad_version)?;
 			write_worker_exe_invalid_version(&execute_worker_path, bad_version)?;
 			assert_matches!(
-				determine_workers_paths(Some(given_workers_path)),
-				Err(Error::WorkerBinaryVersionMismatch(v1, v2)) if v1 == bad_version && v2 == NODE_VERSION
+				determine_workers_paths(Some(given_workers_path), None),
+				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2 }) if v1 == bad_version && v2 == NODE_VERSION
 			);
 
 			// Given worker binary returns bad version.
 			let given_workers_path = tempdir.join("usr/local/bin/puppet-worker");
 			write_worker_exe_invalid_version(&given_workers_path, bad_version)?;
 			assert_matches!(
-				determine_workers_paths(Some(given_workers_path)),
-				Err(Error::WorkerBinaryVersionMismatch(v1, v2)) if v1 == bad_version && v2 == NODE_VERSION
+				determine_workers_paths(Some(given_workers_path), None),
+				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2 }) if v1 == bad_version && v2 == NODE_VERSION
 			);
 
 			Ok(())
@@ -412,7 +470,7 @@ echo {}
 			write_worker_exe(&execute_worker_bin_path)?;
 
 			assert_matches!(
-				determine_workers_paths(None),
+				determine_workers_paths(None, None),
 				Ok((p1, p2)) if p1 == prepare_worker_bin_path && p2 == execute_worker_bin_path
 			);
 
@@ -429,7 +487,7 @@ echo {}
 			write_worker_exe(&execute_worker_lib_path)?;
 
 			assert_matches!(
-				determine_workers_paths(None),
+				determine_workers_paths(None, None),
 				Ok((p1, p2)) if p1 == prepare_worker_lib_path && p2 == execute_worker_lib_path
 			);
 

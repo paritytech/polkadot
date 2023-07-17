@@ -4,12 +4,13 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
+# Use artifact dependencies once stable.
+# See https://github.com/rust-lang/cargo/issues/9096.
 [[bin]]
-name = "polkadot-execute-worker"
+name = "polkadot-execute-worker-test-service"
 path = "../../core/pvf/execute-worker/src/main.rs"
-
 [[bin]]
-name = "polkadot-prepare-worker"
+name = "polkadot-prepare-worker-test-service"
 path = "../../core/pvf/prepare-worker/src/main.rs"
 
 [dependencies]

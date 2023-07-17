@@ -16,7 +16,4 @@
 
 fn main() {
 	substrate_build_script_utils::generate_cargo_keys();
-	// We do the node/worker version check in this crate. Make sure we always rebuild when the
-	// version changes.
-	substrate_build_script_utils::rerun_if_git_head_changed();
 }

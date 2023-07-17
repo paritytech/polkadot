@@ -53,7 +53,7 @@ pub fn validate_candidate(
 /// the appropriate worker, making the executable that can be used for spawning workers.
 #[macro_export]
 macro_rules! decl_puppet_worker_main {
-	() => {
+	($worker_version:expr) => {
 		fn main() {
 			$crate::sp_tracing::try_init_simple();
 
@@ -82,10 +82,10 @@ macro_rules! decl_puppet_worker_main {
 					std::thread::sleep(std::time::Duration::from_secs(5));
 				},
 				"prepare-worker" => {
-					$crate::prepare_worker_entrypoint(&socket_path, node_version);
+					$crate::prepare_worker_entrypoint(&socket_path, node_version, $worker_version);
 				},
 				"execute-worker" => {
-					$crate::execute_worker_entrypoint(&socket_path, node_version);
+					$crate::execute_worker_entrypoint(&socket_path, node_version, $worker_version);
 				},
 				other => panic!("unknown subcommand: {}", other),
 			}

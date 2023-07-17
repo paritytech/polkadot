@@ -12,12 +12,13 @@ publish = false
 name = "malus"
 path = "src/malus.rs"
 
+# Use artifact dependencies once stable.
+# See https://github.com/rust-lang/cargo/issues/9096.
 [[bin]]
 name = "polkadot-execute-worker"
 path = "../core/pvf/execute-worker/src/main.rs"
 # Prevent rustdoc error. Already documented from top-level Cargo.toml.
 doc = false
-
 [[bin]]
 name = "polkadot-prepare-worker"
 path = "../core/pvf/prepare-worker/src/main.rs"
