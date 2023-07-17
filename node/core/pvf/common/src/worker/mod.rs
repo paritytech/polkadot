@@ -367,12 +367,8 @@ pub mod thread {
 		#[test]
 		fn spawn_worker_should_not_change_finished_outcome() {
 			let condvar = Arc::new((Mutex::new(WaitOutcome::Finished), Condvar::new()));
-			let response = spawn_worker_thread(
-				"thread",
-				move || 2,
-				condvar.clone(),
-				WaitOutcome::TimedOut,
-			);
+			let response =
+				spawn_worker_thread("thread", move || 2, condvar.clone(), WaitOutcome::TimedOut);
 			let (lock, _) = &*condvar;
 			let r = response.unwrap().join().unwrap();
 			assert_eq!(r, 2);
