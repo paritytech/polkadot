@@ -51,7 +51,7 @@ impl<
 			.map_err(|_| ProcessMessageError::Unsupported)?;
 		let pre = XcmExecutor::prepare(message).map_err(|_| ProcessMessageError::Unsupported)?;
 		let required = pre.weight_of();
-		ensure!(meter.can_accrue(required), ProcessMessageError::Overweight(required));
+		ensure!(meter.can_consume(required), ProcessMessageError::Overweight(required));
 
 		let (consumed, result) = match XcmExecutor::execute(origin.into(), pre, id, Weight::zero())
 		{
@@ -60,7 +60,7 @@ impl<
 			// In the error-case we assume the worst case and consume all possible weight.
 			Outcome::Error(_) => (required, Err(ProcessMessageError::Unsupported)),
 		};
-		meter.defensive_saturating_accrue(consumed);
+		meter.consume(consumed);
 		result
 	}
 }
