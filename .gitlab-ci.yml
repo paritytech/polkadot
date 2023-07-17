@@ -33,7 +33,7 @@ variables:
   GIT_STRATEGY: fetch
   GIT_DEPTH: 100
   CI_SERVER_NAME: "GitLab CI"
-  CI_IMAGE: "paritytech/ci-linux:production"
+  CI_IMAGE: "paritytech/ci-unified:bullseye-1.70.0-2023-05-23"
   BUILDAH_IMAGE: "quay.io/buildah/stable:v1.29"
   BUILDAH_COMMAND: "buildah --storage-driver overlay2"
   DOCKER_OS: "debian:stretch"
