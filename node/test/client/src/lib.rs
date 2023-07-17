@@ -51,7 +51,7 @@ pub struct GenesisParameters;
 
 impl substrate_test_client::GenesisInit for GenesisParameters {
 	fn genesis_storage(&self) -> Storage {
-		polkadot_test_service::chain_spec::polkadot_local_testnet_genesis()
+		polkadot_test_service::chain_spec::polkadot_local_testnet_config()
 			.build_storage()
 			.expect("Builds test runtime genesis storage")
 	}

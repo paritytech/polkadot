@@ -331,7 +331,7 @@ fn rococo_session_keys(
 }
 
 #[cfg(feature = "polkadot-native")]
-fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeGenesisConfig {
+fn polkadot_staging_testnet_config_genesis() -> polkadot::RuntimeGenesisConfig {
 	// subkey inspect "$SECRET"
 	let endowed_accounts = vec![];
 
@@ -350,7 +350,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Runt
 	const STASH: u128 = 100 * DOT;
 
 	polkadot::RuntimeGenesisConfig {
-		system: polkadot::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		system: polkadot::SystemConfig::default(),
 		balances: polkadot::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
@@ -423,7 +423,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Runt
 }
 
 #[cfg(feature = "westend-native")]
-fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::RuntimeGenesisConfig {
+fn westend_staging_testnet_config_genesis() -> westend::RuntimeGenesisConfig {
 	use hex_literal::hex;
 	use sp_core::crypto::UncheckedInto;
 
@@ -545,7 +545,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 	const STASH: u128 = 100 * WND;
 
 	westend::RuntimeGenesisConfig {
-		system: westend::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		system: westend::SystemConfig::default(),
 		balances: westend::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
@@ -613,7 +613,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 }
 
 #[cfg(feature = "kusama-native")]
-fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
+fn kusama_staging_testnet_config_genesis() -> kusama::RuntimeGenesisConfig {
 	use hex_literal::hex;
 	use sp_core::crypto::UncheckedInto;
 
@@ -740,7 +740,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeG
 	const STASH: u128 = 100 * KSM;
 
 	kusama::RuntimeGenesisConfig {
-		system: kusama::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		system: kusama::SystemConfig::default(),
 		balances: kusama::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
@@ -806,9 +806,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeG
 }
 
 #[cfg(feature = "rococo-native")]
-fn rococo_staging_testnet_config_genesis(
-	wasm_binary: &[u8],
-) -> rococo_runtime::RuntimeGenesisConfig {
+fn rococo_staging_testnet_config_genesis() -> rococo_runtime::RuntimeGenesisConfig {
 	use hex_literal::hex;
 	use sp_core::crypto::UncheckedInto;
 
@@ -1052,7 +1050,7 @@ fn rococo_staging_testnet_config_genesis(
 	const STASH: u128 = 100 * ROC;
 
 	rococo_runtime::RuntimeGenesisConfig {
-		system: rococo_runtime::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		system: rococo_runtime::SystemConfig::default(),
 		balances: rococo_runtime::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
@@ -1132,14 +1130,14 @@ pub fn polkadot_chain_spec_properties() -> serde_json::map::Map<String, serde_js
 /// Polkadot staging testnet config.
 #[cfg(feature = "polkadot-native")]
 pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
-	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
 	let boot_nodes = vec![];
 
+	#[allow(deprecated)]
 	Ok(PolkadotChainSpec::from_genesis(
 		"Polkadot Staging Testnet",
 		"polkadot_staging_testnet",
 		ChainType::Live,
-		move || polkadot_staging_testnet_config_genesis(wasm_binary),
+		move || polkadot_staging_testnet_config_genesis(),
 		boot_nodes,
 		Some(
 			TelemetryEndpoints::new(vec![(POLKADOT_STAGING_TELEMETRY_URL.to_string(), 0)])
@@ -1149,20 +1147,21 @@ pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
 		None,
 		Some(polkadot_chain_spec_properties()),
 		Default::default(),
+		polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?,
 	))
 }
 
 /// Staging testnet config.
 #[cfg(feature = "kusama-native")]
 pub fn kusama_staging_testnet_config() -> Result<KusamaChainSpec, String> {
-	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
 	let boot_nodes = vec![];
 
+	#[allow(deprecated)]
 	Ok(KusamaChainSpec::from_genesis(
 		"Kusama Staging Testnet",
 		"kusama_staging_testnet",
 		ChainType::Live,
-		move || kusama_staging_testnet_config_genesis(wasm_binary),
+		move || kusama_staging_testnet_config_genesis(),
 		boot_nodes,
 		Some(
 			TelemetryEndpoints::new(vec![(KUSAMA_STAGING_TELEMETRY_URL.to_string(), 0)])
@@ -1172,20 +1171,21 @@ pub fn kusama_staging_testnet_config() -> Result<KusamaChainSpec, String> {
 		None,
 		None,
 		Default::default(),
+		kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?,
 	))
 }
 
 /// Westend staging testnet config.
 #[cfg(feature = "westend-native")]
 pub fn westend_staging_testnet_config() -> Result<WestendChainSpec, String> {
-	let wasm_binary = westend::WASM_BINARY.ok_or("Westend development wasm not available")?;
 	let boot_nodes = vec![];
 
+	#[allow(deprecated)]
 	Ok(WestendChainSpec::from_genesis(
 		"Westend Staging Testnet",
 		"westend_staging_testnet",
 		ChainType::Live,
-		move || westend_staging_testnet_config_genesis(wasm_binary),
+		move || westend_staging_testnet_config_genesis(),
 		boot_nodes,
 		Some(
 			TelemetryEndpoints::new(vec![(WESTEND_STAGING_TELEMETRY_URL.to_string(), 0)])
@@ -1195,21 +1195,22 @@ pub fn westend_staging_testnet_config() -> Result<WestendChainSpec, String> {
 		None,
 		None,
 		Default::default(),
+		westend::WASM_BINARY.ok_or("Westend development wasm not available")?,
 	))
 }
 
 /// Rococo staging testnet config.
 #[cfg(feature = "rococo-native")]
 pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?;
 	let boot_nodes = vec![];
 
+	#[allow(deprecated)]
 	Ok(RococoChainSpec::from_genesis(
 		"Rococo Staging Testnet",
 		"rococo_staging_testnet",
 		ChainType::Live,
 		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_staging_testnet_config_genesis(wasm_binary),
+			runtime_genesis_config: rococo_staging_testnet_config_genesis(),
 			session_length_in_blocks: None,
 		},
 		boot_nodes,
@@ -1221,6 +1222,7 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		None,
 		None,
 		Default::default(),
+		rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?,
 	))
 }
 
@@ -1238,15 +1240,15 @@ pub fn versi_chain_spec_properties() -> serde_json::map::Map<String, serde_json:
 /// Versi staging testnet config.
 #[cfg(feature = "rococo-native")]
 pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
 	let boot_nodes = vec![];
 
+	#[allow(deprecated)]
 	Ok(RococoChainSpec::from_genesis(
 		"Versi Staging Testnet",
 		"versi_staging_testnet",
 		ChainType::Live,
 		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_staging_testnet_config_genesis(wasm_binary),
+			runtime_genesis_config: rococo_staging_testnet_config_genesis(),
 			session_length_in_blocks: Some(100),
 		},
 		boot_nodes,
@@ -1258,6 +1260,7 @@ pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		None,
 		Some(versi_chain_spec_properties()),
 		Default::default(),
+		rococo::WASM_BINARY.ok_or("Versi development wasm not available")?,
 	))
 }
 
@@ -1345,7 +1348,6 @@ fn testnet_accounts() -> Vec<AccountId> {
 /// Helper function to create polkadot `RuntimeGenesisConfig` for testing
 #[cfg(feature = "polkadot-native")]
 pub fn polkadot_testnet_genesis(
-	wasm_binary: &[u8],
 	initial_authorities: Vec<(
 		AccountId,
 		AccountId,
@@ -1365,7 +1367,7 @@ pub fn polkadot_testnet_genesis(
 	const STASH: u128 = 100 * DOT;
 
 	polkadot::RuntimeGenesisConfig {
-		system: polkadot::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		system: polkadot::SystemConfig::default(),
 		indices: polkadot::IndicesConfig { indices: vec![] },
 		balances: polkadot::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
@@ -1436,7 +1438,6 @@ pub fn polkadot_testnet_genesis(
 /// Helper function to create kusama `RuntimeGenesisConfig` for testing
 #[cfg(feature = "kusama-native")]
 pub fn kusama_testnet_genesis(
-	wasm_binary: &[u8],
 	initial_authorities: Vec<(
 		AccountId,
 		AccountId,
@@ -1456,7 +1457,7 @@ pub fn kusama_testnet_genesis(
 	const STASH: u128 = 100 * KSM;
 
 	kusama::RuntimeGenesisConfig {
-		system: kusama::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		system: kusama::SystemConfig::default(),
 		indices: kusama::IndicesConfig { indices: vec![] },
 		balances: kusama::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
@@ -1520,7 +1521,6 @@ pub fn kusama_testnet_genesis(
 /// Helper function to create westend `RuntimeGenesisConfig` for testing
 #[cfg(feature = "westend-native")]
 pub fn westend_testnet_genesis(
-	wasm_binary: &[u8],
 	initial_authorities: Vec<(
 		AccountId,
 		AccountId,
@@ -1540,7 +1540,7 @@ pub fn westend_testnet_genesis(
 	const STASH: u128 = 100 * WND;
 
 	westend::RuntimeGenesisConfig {
-		system: westend::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		system: westend::SystemConfig::default(),
 		indices: westend::IndicesConfig { indices: vec![] },
 		balances: westend::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
@@ -1606,7 +1606,6 @@ pub fn westend_testnet_genesis(
 /// Helper function to create rococo `RuntimeGenesisConfig` for testing
 #[cfg(feature = "rococo-native")]
 pub fn rococo_testnet_genesis(
-	wasm_binary: &[u8],
 	initial_authorities: Vec<(
 		AccountId,
 		AccountId,
@@ -1626,7 +1625,7 @@ pub fn rococo_testnet_genesis(
 	const ENDOWMENT: u128 = 1_000_000 * ROC;
 
 	rococo_runtime::RuntimeGenesisConfig {
-		system: rococo_runtime::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		system: rococo_runtime::SystemConfig::default(),
 		beefy: Default::default(),
 		indices: rococo_runtime::IndicesConfig { indices: vec![] },
 		balances: rococo_runtime::BalancesConfig {
@@ -1693,9 +1692,8 @@ pub fn rococo_testnet_genesis(
 }
 
 #[cfg(feature = "polkadot-native")]
-fn polkadot_development_config_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeGenesisConfig {
+fn polkadot_development_config_genesis() -> polkadot::RuntimeGenesisConfig {
 	polkadot_testnet_genesis(
-		wasm_binary,
 		vec![get_authority_keys_from_seed_no_beefy("Alice")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
@@ -1703,9 +1701,8 @@ fn polkadot_development_config_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeG
 }
 
 #[cfg(feature = "kusama-native")]
-fn kusama_development_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
+fn kusama_development_config_genesis() -> kusama::RuntimeGenesisConfig {
 	kusama_testnet_genesis(
-		wasm_binary,
 		vec![get_authority_keys_from_seed_no_beefy("Alice")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
@@ -1713,9 +1710,8 @@ fn kusama_development_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenes
 }
 
 #[cfg(feature = "westend-native")]
-fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::RuntimeGenesisConfig {
+fn westend_development_config_genesis() -> westend::RuntimeGenesisConfig {
 	westend_testnet_genesis(
-		wasm_binary,
 		vec![get_authority_keys_from_seed_no_beefy("Alice")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
@@ -1723,9 +1719,8 @@ fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::RuntimeGen
 }
 
 #[cfg(feature = "rococo-native")]
-fn rococo_development_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGenesisConfig {
+fn rococo_development_config_genesis() -> rococo_runtime::RuntimeGenesisConfig {
 	rococo_testnet_genesis(
-		wasm_binary,
 		vec![get_authority_keys_from_seed("Alice")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
@@ -1735,71 +1730,70 @@ fn rococo_development_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::Runt
 /// Polkadot development config (single validator Alice)
 #[cfg(feature = "polkadot-native")]
 pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
-	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(PolkadotChainSpec::from_genesis(
 		"Development",
 		"polkadot_dev",
 		ChainType::Development,
-		move || polkadot_development_config_genesis(wasm_binary),
+		move || polkadot_development_config_genesis(),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Some(polkadot_chain_spec_properties()),
 		Default::default(),
+		polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?,
 	))
 }
 
 /// Kusama development config (single validator Alice)
 #[cfg(feature = "kusama-native")]
 pub fn kusama_development_config() -> Result<KusamaChainSpec, String> {
-	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(KusamaChainSpec::from_genesis(
 		"Development",
 		"kusama_dev",
 		ChainType::Development,
-		move || kusama_development_config_genesis(wasm_binary),
+		move || kusama_development_config_genesis(),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		None,
 		Default::default(),
+		kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?,
 	))
 }
 
 /// Westend development config (single validator Alice)
 #[cfg(feature = "westend-native")]
 pub fn westend_development_config() -> Result<WestendChainSpec, String> {
-	let wasm_binary = westend::WASM_BINARY.ok_or("Westend development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(WestendChainSpec::from_genesis(
 		"Development",
 		"westend_dev",
 		ChainType::Development,
-		move || westend_development_config_genesis(wasm_binary),
+		move || westend_development_config_genesis(),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		None,
 		Default::default(),
+		westend::WASM_BINARY.ok_or("Westend development wasm not available")?,
 	))
 }
 
 /// Rococo development config (single validator Alice)
 #[cfg(feature = "rococo-native")]
 pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(RococoChainSpec::from_genesis(
 		"Development",
 		"rococo_dev",
 		ChainType::Development,
 		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
+			runtime_genesis_config: rococo_development_config_genesis(),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
 		},
@@ -1809,20 +1803,20 @@ pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
 		None,
 		None,
 		Default::default(),
+		rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?,
 	))
 }
 
 /// `Versi` development config (single validator Alice)
 #[cfg(feature = "rococo-native")]
 pub fn versi_development_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(RococoChainSpec::from_genesis(
 		"Development",
 		"versi_dev",
 		ChainType::Development,
 		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
+			runtime_genesis_config: rococo_development_config_genesis(),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
 		},
@@ -1832,6 +1826,7 @@ pub fn versi_development_config() -> Result<RococoChainSpec, String> {
 		None,
 		None,
 		Default::default(),
+		rococo::WASM_BINARY.ok_or("Versi development wasm not available")?,
 	))
 }
 
@@ -1839,14 +1834,14 @@ pub fn versi_development_config() -> Result<RococoChainSpec, String> {
 #[cfg(feature = "rococo-native")]
 pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
 	const WOCOCO_DEV_PROTOCOL_ID: &str = "woco";
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?;
 
+	#[allow(deprecated)]
 	Ok(RococoChainSpec::from_genesis(
 		"Development",
 		"wococo_dev",
 		ChainType::Development,
 		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
+			runtime_genesis_config: rococo_development_config_genesis(),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
 		},
@@ -1856,13 +1851,13 @@ pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
 		None,
 		None,
 		Default::default(),
+		rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?,
 	))
 }
 
 #[cfg(feature = "polkadot-native")]
-fn polkadot_local_testnet_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeGenesisConfig {
+fn polkadot_local_testnet_genesis() -> polkadot::RuntimeGenesisConfig {
 	polkadot_testnet_genesis(
-		wasm_binary,
 		vec![
 			get_authority_keys_from_seed_no_beefy("Alice"),
 			get_authority_keys_from_seed_no_beefy("Bob"),
@@ -1875,26 +1870,25 @@ fn polkadot_local_testnet_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeGenesi
 /// Polkadot local testnet config (multivalidator Alice + Bob)
 #[cfg(feature = "polkadot-native")]
 pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
-	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(PolkadotChainSpec::from_genesis(
 		"Local Testnet",
 		"local_testnet",
 		ChainType::Local,
-		move || polkadot_local_testnet_genesis(wasm_binary),
+		move || polkadot_local_testnet_genesis(),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Some(polkadot_chain_spec_properties()),
 		Default::default(),
+		polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?,
 	))
 }
 
 #[cfg(feature = "kusama-native")]
-fn kusama_local_testnet_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
+fn kusama_local_testnet_genesis() -> kusama::RuntimeGenesisConfig {
 	kusama_testnet_genesis(
-		wasm_binary,
 		vec![
 			get_authority_keys_from_seed_no_beefy("Alice"),
 			get_authority_keys_from_seed_no_beefy("Bob"),
@@ -1907,26 +1901,25 @@ fn kusama_local_testnet_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisCon
 /// Kusama local testnet config (multivalidator Alice + Bob)
 #[cfg(feature = "kusama-native")]
 pub fn kusama_local_testnet_config() -> Result<KusamaChainSpec, String> {
-	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(KusamaChainSpec::from_genesis(
 		"Kusama Local Testnet",
 		"kusama_local_testnet",
 		ChainType::Local,
-		move || kusama_local_testnet_genesis(wasm_binary),
+		move || kusama_local_testnet_genesis(),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		None,
 		Default::default(),
+		kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?,
 	))
 }
 
 #[cfg(feature = "westend-native")]
-fn westend_local_testnet_genesis(wasm_binary: &[u8]) -> westend::RuntimeGenesisConfig {
+fn westend_local_testnet_genesis() -> westend::RuntimeGenesisConfig {
 	westend_testnet_genesis(
-		wasm_binary,
 		vec![
 			get_authority_keys_from_seed_no_beefy("Alice"),
 			get_authority_keys_from_seed_no_beefy("Bob"),
@@ -1939,26 +1932,25 @@ fn westend_local_testnet_genesis(wasm_binary: &[u8]) -> westend::RuntimeGenesisC
 /// Westend local testnet config (multivalidator Alice + Bob)
 #[cfg(feature = "westend-native")]
 pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
-	let wasm_binary = westend::WASM_BINARY.ok_or("Westend development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(WestendChainSpec::from_genesis(
 		"Westend Local Testnet",
 		"westend_local_testnet",
 		ChainType::Local,
-		move || westend_local_testnet_genesis(wasm_binary),
+		move || westend_local_testnet_genesis(),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		None,
 		Default::default(),
+		westend::WASM_BINARY.ok_or("Westend development wasm not available")?,
 	))
 }
 
 #[cfg(feature = "rococo-native")]
-fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGenesisConfig {
+fn rococo_local_testnet_genesis() -> rococo_runtime::RuntimeGenesisConfig {
 	rococo_testnet_genesis(
-		wasm_binary,
 		vec![get_authority_keys_from_seed("Alice"), get_authority_keys_from_seed("Bob")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
@@ -1968,14 +1960,13 @@ fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGe
 /// Rococo local testnet config (multivalidator Alice + Bob)
 #[cfg(feature = "rococo-native")]
 pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(RococoChainSpec::from_genesis(
 		"Rococo Local Testnet",
 		"rococo_local_testnet",
 		ChainType::Local,
 		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_local_testnet_genesis(wasm_binary),
+			runtime_genesis_config: rococo_local_testnet_genesis(),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
 		},
@@ -1985,14 +1976,14 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		None,
 		None,
 		Default::default(),
+		rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?,
 	))
 }
 
 /// Wococo is a temporary testnet that uses almost the same runtime as rococo.
 #[cfg(feature = "rococo-native")]
-fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGenesisConfig {
+fn wococo_local_testnet_genesis() -> rococo_runtime::RuntimeGenesisConfig {
 	rococo_testnet_genesis(
-		wasm_binary,
 		vec![
 			get_authority_keys_from_seed("Alice"),
 			get_authority_keys_from_seed("Bob"),
@@ -2007,14 +1998,13 @@ fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGe
 /// Wococo local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(RococoChainSpec::from_genesis(
 		"Wococo Local Testnet",
 		"wococo_local_testnet",
 		ChainType::Local,
 		move || RococoGenesisExt {
-			runtime_genesis_config: wococo_local_testnet_genesis(wasm_binary),
+			runtime_genesis_config: wococo_local_testnet_genesis(),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
 		},
@@ -2024,14 +2014,14 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		None,
 		None,
 		Default::default(),
+		rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?,
 	))
 }
 
 /// `Versi` is a temporary testnet that uses the same runtime as rococo.
 #[cfg(feature = "rococo-native")]
-fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGenesisConfig {
+fn versi_local_testnet_genesis() -> rococo_runtime::RuntimeGenesisConfig {
 	rococo_testnet_genesis(
-		wasm_binary,
 		vec![
 			get_authority_keys_from_seed("Alice"),
 			get_authority_keys_from_seed("Bob"),
@@ -2046,14 +2036,13 @@ fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::RuntimeGen
 /// `Versi` local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
-
+	#[allow(deprecated)]
 	Ok(RococoChainSpec::from_genesis(
 		"Versi Local Testnet",
 		"versi_local_testnet",
 		ChainType::Local,
 		move || RococoGenesisExt {
-			runtime_genesis_config: versi_local_testnet_genesis(wasm_binary),
+			runtime_genesis_config: versi_local_testnet_genesis(),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
 		},
@@ -2063,5 +2052,6 @@ pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
 		None,
 		None,
 		Default::default(),
+		rococo::WASM_BINARY.ok_or("Versi development wasm not available")?,
 	))
 }

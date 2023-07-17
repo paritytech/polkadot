@@ -38,6 +38,7 @@ pub type PolkadotChainSpec =
 
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
+	#[allow(deprecated)]
 	PolkadotChainSpec::from_genesis(
 		"Local Testnet",
 		"local_testnet",
@@ -49,6 +50,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 		None,
 		Some(polkadot_chain_spec_properties()),
 		Default::default(),
+		polkadot_test_runtime::WASM_BINARY.expect("Wasm binary must be built for testing"),
 	)
 }
 
@@ -115,10 +117,7 @@ fn polkadot_testnet_genesis(
 	const STASH: u128 = 100 * DOTS;
 
 	runtime::RuntimeGenesisConfig {
-		system: runtime::SystemConfig {
-			code: runtime::WASM_BINARY.expect("Wasm binary must be built for testing").to_vec(),
-			..Default::default()
-		},
+		system: runtime::SystemConfig { ..Default::default() },
 		indices: runtime::IndicesConfig { indices: vec![] },
 		balances: runtime::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
