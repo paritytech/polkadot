@@ -52,6 +52,7 @@ use {
 		peer_set::PeerSetProtocolNames, request_response::ReqProtocolNames,
 	},
 	sc_client_api::BlockBackend,
+	sc_transaction_pool_api::OffchainTransactionPoolFactory,
 	sp_core::traits::SpawnNamed,
 	sp_trie::PrefixedMemoryDB,
 };
@@ -87,7 +88,7 @@ pub use consensus_common::{Proposal, SelectChain};
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use mmr_gadget::MmrGadget;
 pub use polkadot_primitives::{Block, BlockId, BlockNumber, CollatorPair, Hash, Id as ParaId};
-pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
+pub use sc_client_api::{Backend, CallExecutor};
 pub use sc_consensus::{BlockImport, LongestChain};
 pub use sc_executor::NativeExecutionDispatch;
 use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
@@ -513,13 +514,13 @@ where
 		babe::block_import(babe_config.clone(), beefy_block_import, client.clone())?;
 
 	let slot_duration = babe_link.config().slot_duration();
-	let (import_queue, babe_worker_handle) = babe::import_queue(
-		babe_link.clone(),
-		block_import.clone(),
-		Some(Box::new(justification_import)),
-		client.clone(),
-		select_chain.clone(),
-		move |_, ()| async move {
+	let (import_queue, babe_worker_handle) = babe::import_queue(babe::ImportQueueParams {
+		link: babe_link.clone(),
+		block_import: block_import.clone(),
+		justification_import: Some(Box::new(justification_import)),
+		client: client.clone(),
+		select_chain: select_chain.clone(),
+		create_inherent_data_providers: move |_, ()| async move {
 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 			let slot =
@@ -530,10 +531,11 @@ where
 
 			Ok((slot, timestamp))
 		},
-		&task_manager.spawn_essential_handle(),
-		config.prometheus_registry(),
-		telemetry.as_ref().map(|x| x.handle()),
-	)?;
+		spawner: &task_manager.spawn_essential_handle(),
+		registry: config.prometheus_registry(),
+		telemetry: telemetry.as_ref().map(|x| x.handle()),
+		offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
+	})?;
 
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -579,9 +581,10 @@ where
 					beefy_best_block_stream: beefy_rpc_links.from_voter_best_beefy_stream.clone(),
 					subscription_executor,
 				},
+				backend: backend.clone(),
 			};
 
-			polkadot_rpc::create_full(deps, backend.clone()).map_err(Into::into)
+			polkadot_rpc::create_full(deps).map_err(Into::into)
 		}
 	};
 
@@ -824,22 +827,25 @@ where
 		})?;
 
 	if config.offchain_worker.enabled {
-		let offchain_workers = Arc::new(sc_offchain::OffchainWorkers::new_with_options(
-			client.clone(),
-			sc_offchain::OffchainWorkerOptions { enable_http_requests: false },
-		));
+		use futures::FutureExt;
 
-		// Start the offchain workers to have
 		task_manager.spawn_handle().spawn(
-			"offchain-notifications",
-			None,
-			sc_offchain::notification_future(
-				config.role.is_authority(),
-				client.clone(),
-				offchain_workers,
-				task_manager.spawn_handle().clone(),
-				network.clone(),
-			),
+			"offchain-workers-runner",
+			"offchain-work",
+			sc_offchain::OffchainWorkers::new(sc_offchain::OffchainWorkerOptions {
+				runtime_api_provider: client.clone(),
+				keystore: Some(keystore_container.keystore()),
+				offchain_db: backend.offchain_storage(),
+				transaction_pool: Some(OffchainTransactionPoolFactory::new(
+					transaction_pool.clone(),
+				)),
+				network_provider: network.clone(),
+				is_validator: role.is_authority(),
+				enable_http_requests: false,
+				custom_extensions: move |_| vec![],
+			})
+			.run(client.clone(), task_manager.spawn_handle())
+			.boxed(),
 		);
 	}
 
@@ -981,6 +987,9 @@ where
 					overseer_message_channel_capacity_override,
 					req_protocol_names,
 					peerset_protocol_names,
+					offchain_transaction_pool_factory: OffchainTransactionPoolFactory::new(
+						transaction_pool.clone(),
+					),
 				},
 			)
 			.map_err(|e| {
@@ -1026,7 +1035,7 @@ where
 		let proposer = sc_basic_authorship::ProposerFactory::new(
 			task_manager.spawn_handle(),
 			client.clone(),
-			transaction_pool,
+			transaction_pool.clone(),
 			prometheus_registry.as_ref(),
 			telemetry.as_ref().map(|x| x.handle()),
 		);
@@ -1186,6 +1195,7 @@ where
 			prometheus_registry: prometheus_registry.clone(),
 			shared_voter_state,
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
+			offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
 		};
 
 		task_manager.spawn_essential_handle().spawn_blocking(
