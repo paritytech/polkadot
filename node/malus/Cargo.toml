@@ -61,3 +61,6 @@ fast-runtime = ["polkadot-cli/fast-runtime"]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
+
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
