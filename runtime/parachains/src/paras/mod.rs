@@ -381,7 +381,7 @@ pub(crate) enum PvfCheckCause<BlockNumber> {
 		/// of its relay parent -- in order to keep PVF available in case of chain reversions.
 		///
 		/// See https://github.com/paritytech/polkadot/issues/4601 for detailed explanation.
-		relay_parent_number: BlockNumber,
+		inclusion_parent_number: BlockNumber,
 	},
 }
 
@@ -1482,9 +1482,14 @@ impl<T: Config> Pallet<T> {
 				PvfCheckCause::Onboarding(id) => {
 					weight += Self::proceed_with_onboarding(*id, sessions_observed);
 				},
-				PvfCheckCause::Upgrade { id, relay_parent_number } => {
-					weight +=
-						Self::proceed_with_upgrade(*id, code_hash, now, *relay_parent_number, cfg);
+				PvfCheckCause::Upgrade { id, inclusion_parent_number } => {
+					weight += Self::proceed_with_upgrade(
+						*id,
+						code_hash,
+						now,
+						*inclusion_parent_number,
+						cfg,
+					);
 				},
 			}
 		}
@@ -1830,7 +1835,7 @@ impl<T: Config> Pallet<T> {
 		});
 
 		weight += Self::kick_off_pvf_check(
-			PvfCheckCause::Upgrade { id, relay_parent_number: inclusion_block_number },
+			PvfCheckCause::Upgrade { id, inclusion_parent_number: inclusion_block_number },
 			code_hash,
 			new_code,
 			cfg,
