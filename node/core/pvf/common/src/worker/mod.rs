@@ -216,14 +216,6 @@ pub mod thread {
 		pub fn is_pending(&self) -> bool {
 			matches!(self, Self::Pending)
 		}
-
-		pub fn is_finished(&self) -> bool {
-			matches!(self, Self::Finished)
-		}
-
-		pub fn is_timeout(&self) -> bool {
-			matches!(self, Self::TimedOut)
-		}
 	}
 
 	/// Helper type.
@@ -328,6 +320,7 @@ pub mod thread {
 
 	#[cfg(test)]
 	mod tests {
+		use assert_matches::assert_matches;
 		use super::*;
 
 		#[test]
@@ -350,7 +343,7 @@ pub mod thread {
 			let condvar2 = condvar.clone();
 			cond_notify_all(condvar2, WaitOutcome::Finished);
 			let outcome = wait_for_threads_with_timeout(&condvar, Duration::from_secs(2));
-			assert!(outcome.unwrap().is_finished());
+			assert_matches!(outcome.unwrap(), WaitOutcome::TimedOut);
 		}
 
 		#[test]
@@ -361,7 +354,7 @@ pub mod thread {
 			let (lock, _) = &*condvar;
 			let r = response.unwrap().join().unwrap();
 			assert_eq!(r, 2);
-			assert!(lock.lock().unwrap().is_timeout());
+			assert_matches!(*lock.lock().unwrap(), WaitOutcome::TimedOut);
 		}
 
 		#[test]
@@ -372,7 +365,7 @@ pub mod thread {
 			let (lock, _) = &*condvar;
 			let r = response.unwrap().join().unwrap();
 			assert_eq!(r, 2);
-			assert!(lock.lock().unwrap().is_finished());
+			assert_matches!(*lock.lock().unwrap(), WaitOutcome::Finished);
 		}
 	}
 }
