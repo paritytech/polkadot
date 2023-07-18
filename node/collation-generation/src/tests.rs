@@ -235,11 +235,12 @@ fn requests_validation_data_for_scheduled_matches() {
 				},
 				Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					_hash,
-					RuntimeApiRequest::StagingAsyncBackingParams(
-						tx,
-					),
+					RuntimeApiRequest::StagingAsyncBackingParams(tx),
 				))) => {
-					tx.send(Err(RuntimeApiError::NotSupported { runtime_api_name: "doesnt_matter" })).unwrap();
+					tx.send(Err(RuntimeApiError::NotSupported {
+						runtime_api_name: "doesnt_matter",
+					}))
+					.unwrap();
 				},
 				Some(msg) => {
 					panic!("didn't expect any other overseer requests; got {:?}", msg)
@@ -331,11 +332,12 @@ fn sends_distribute_collation_message() {
 				},
 				Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					_hash,
-					RuntimeApiRequest::StagingAsyncBackingParams(
-						tx,
-					),
+					RuntimeApiRequest::StagingAsyncBackingParams(tx),
 				))) => {
-					tx.send(Err(RuntimeApiError::NotSupported { runtime_api_name: "doesnt_matter" })).unwrap();
+					tx.send(Err(RuntimeApiError::NotSupported {
+						runtime_api_name: "doesnt_matter",
+					}))
+					.unwrap();
 				},
 				Some(msg @ AllMessages::CollatorProtocol(_)) => {
 					inner_to_collator_protocol.lock().await.push(msg);
@@ -492,11 +494,12 @@ fn fallback_when_no_validation_code_hash_api() {
 				},
 				Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					_hash,
-					RuntimeApiRequest::StagingAsyncBackingParams(
-						tx,
-					),
+					RuntimeApiRequest::StagingAsyncBackingParams(tx),
 				))) => {
-					tx.send(Err(RuntimeApiError::NotSupported { runtime_api_name: "doesnt_matter" })).unwrap();
+					tx.send(Err(RuntimeApiError::NotSupported {
+						runtime_api_name: "doesnt_matter",
+					}))
+					.unwrap();
 				},
 				Some(msg @ AllMessages::CollatorProtocol(_)) => {
 					inner_to_collator_protocol.lock().await.push(msg);
