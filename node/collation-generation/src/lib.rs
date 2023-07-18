@@ -42,7 +42,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
-	request_validation_code_hash, request_validators,
+	request_validation_code_hash, request_validators, request_staging_async_backing_params,
 };
 use polkadot_primitives::{
 	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
@@ -201,13 +201,15 @@ async fn handle_new_activations<Context>(
 	for relay_parent in activated {
 		let _relay_parent_timer = metrics.time_new_activations_relay_parent();
 
-		let (availability_cores, validators) = join!(
+		let (availability_cores, validators, async_backing_params) = join!(
 			request_availability_cores(relay_parent, ctx.sender()).await,
 			request_validators(relay_parent, ctx.sender()).await,
+			request_staging_async_backing_params(relay_parent, ctx.sender()).await,
 		);
 
 		let availability_cores = availability_cores??;
 		let n_validators = validators??.len();
+		let async_backing_params = async_backing_params?.ok();
 
 		for (core_idx, core) in availability_cores.into_iter().enumerate() {
 			let _availability_core_timer = metrics.time_new_activations_availability_core();
@@ -215,14 +217,30 @@ async fn handle_new_activations<Context>(
 			let (scheduled_core, assumption) = match core {
 				CoreState::Scheduled(scheduled_core) =>
 					(scheduled_core, OccupiedCoreAssumption::Free),
-				CoreState::Occupied(_occupied_core) => {
-					gum::trace!(
-						target: LOG_TARGET,
-						core_idx = %core_idx,
-						relay_parent = ?relay_parent,
-						"core is occupied. Keep going.",
-					);
-					continue
+				CoreState::Occupied(occupied_core) => match async_backing_params {
+					Some(params) if params.max_candidate_depth >= 2 => {
+						// maximum candidate depth when building on top of a block
+						// pending availability is necessarily 2 - the depth of the
+						// pending block is 1, so the child has depth 2.
+
+						// TODO [now]: this assumes that next up == current.
+						// in practice we should only set `OccupiedCoreAssumption::Included`
+						// when the candidate occupying the core is also of the same para.
+						if let Some(scheduled) = occupied_core.next_up_on_available {
+							(scheduled, OccupiedCoreAssumption::Included)
+						} else {
+							continue
+						}
+					}
+					_ => {
+						gum::trace!(
+							target: LOG_TARGET,
+							core_idx = %core_idx,
+							relay_parent = ?relay_parent,
+							"core is occupied. Keep going.",
+						);
+						continue
+					}
 				},
 				CoreState::Free => {
 					gum::trace!(
