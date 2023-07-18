@@ -1260,7 +1260,9 @@ impl State {
 			if !sender_matches_validator_index {
 				gum::debug!(
 					target: LOG_TARGET,
-					"Received gossiped approval topology some {:}", self.topologies.get_topology(entry.session).is_some()
+					"Received gossiped approval topology some {:} peer_id {:}",
+					self.topologies.get_topology(entry.session).is_some(),
+					source.peer_id().map(|peer_id| peer_id.to_string()).unwrap_or("unknown".into())
 				);
 				metrics.on_gossipped_received_approval();
 			}
