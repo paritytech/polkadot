@@ -24,9 +24,12 @@ pub struct Metrics(Option<MetricsInner>);
 struct MetricsInner {
 	assignments_imported_total: prometheus::Counter<prometheus::U64>,
 	approvals_imported_total: prometheus::Counter<prometheus::U64>,
+
 	unassigned_approval_total: prometheus::Counter<prometheus::U64>,
 	delayed_approvals_processed_total: prometheus::Counter<prometheus::U64>,
-	gossipped_approval_total: prometheus::Counter<prometheus::U64>,
+	gossipped_approval_received_total: prometheus::Counter<prometheus::U64>,
+	gossipped_approval_sent_total: prometheus::Counter<prometheus::U64>,
+
 	unified_with_peer_total: prometheus::Counter<prometheus::U64>,
 	aggression_l1_messages_total: prometheus::Counter<prometheus::U64>,
 	aggression_l2_messages_total: prometheus::Counter<prometheus::U64>,
@@ -55,9 +58,15 @@ impl Metrics {
 		}
 	}
 
-	pub(crate) fn on_gossipped_approval(&self) {
+	pub(crate) fn on_gossipped_received_approval(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.gossipped_approval_total.inc();
+			metrics.gossipped_approval_received_total.inc();
+		}
+	}
+
+	pub(crate) fn on_gossipped_sent_approval(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.gossipped_approval_sent_total.inc();
 		}
 	}
 
@@ -130,9 +139,16 @@ impl MetricsTrait for Metrics {
 				)?,
 				registry,
 			)?,
-			gossipped_approval_total: prometheus::register(
+			gossipped_approval_received_total: prometheus::register(
 				prometheus::Counter::new(
-					"polkadot_parachain_gossipped_approvals_processedtotal",
+					"polkadot_parachain_gossipped_approvals_receivedtotal",
+					"Number of approvals processed that were gossiped",
+				)?,
+				registry,
+			)?,
+			gossipped_approval_sent_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_gossipped_approvals_senttotal",
 					"Number of approvals processed that were gossiped",
 				)?,
 				registry,

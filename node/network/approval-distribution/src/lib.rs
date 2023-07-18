@@ -49,16 +49,17 @@ use std::{
 };
 
 // TODO: Disable will be removed in the final version and will be replaced with a runtime configuration
-const ACTIVATION_BLOCK_NUMBER: u32 = 9000;
+// const ACTIVATION_BLOCK_NUMBER: u32 = 10;
 
-fn disable_gossiping(block: u32) -> bool {
-	if block == ACTIVATION_BLOCK_NUMBER {
-		gum::info!(
-			target: LOG_TARGET,
-			"Disable gossiping for nodes"
-		)
-	}
-	block > ACTIVATION_BLOCK_NUMBER
+fn disable_gossiping(_block: u32) -> bool {
+	// if block == ACTIVATION_BLOCK_NUMBER {
+	// 	gum::info!(
+	// 		target: LOG_TARGET,
+	// 		"Disable gossiping for nodes"
+	// 	)
+	// }
+	// block > ACTIVATION_BLOCK_NUMBER
+	return true
 }
 
 use self::metrics::Metrics;
@@ -378,6 +379,7 @@ impl State {
 					topology.session,
 					topology.topology,
 					topology.local_index,
+					metrics,
 				)
 				.await;
 			},
@@ -547,6 +549,7 @@ impl State {
 		session: SessionIndex,
 		topology: SessionGridTopology,
 		local_index: Option<ValidatorIndex>,
+		metrics: &Metrics,
 	) {
 		if local_index.is_none() {
 			// this subsystem only matters to validators.
@@ -568,6 +571,7 @@ impl State {
 						.required_routing_by_index(*validator_index, local);
 				}
 			},
+			metrics,
 		)
 		.await;
 	}
@@ -1152,7 +1156,7 @@ impl State {
 					target: LOG_TARGET,
 					"Received gossiped approval topology some {:}", self.topologies.get_topology(entry.session).is_some()
 				);
-				metrics.on_gossipped_approval();
+				metrics.on_gossipped_received_approval();
 			}
 			if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
 				metrics.on_unassigned_approval();
@@ -1464,6 +1468,13 @@ impl State {
 
 		if !peers.is_empty() {
 			let approvals = vec![vote];
+			if source.peer_id().is_some() {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Gossiped approval sent"
+				);
+				metrics.on_gossipped_sent_approval();
+			}
 			gum::trace!(
 				target: LOG_TARGET,
 				?block_hash,
@@ -1650,6 +1661,13 @@ impl State {
 					) {
 						if let Some(approval_message) = approval_message {
 							if !peer_knowledge.contains(&message_subject, MessageKind::Approval) {
+								if !message_state.local {
+									gum::debug!(
+										target: LOG_TARGET,
+										"Approval gossiped in unify with peer",
+									);
+									metrics.on_gossipped_sent_approval();
+								}
 								peer_knowledge
 									.sent
 									.insert(message_subject.clone(), MessageKind::Approval);
@@ -1740,6 +1758,7 @@ impl State {
 				}
 			},
 			|_, _, _| {},
+			metrics,
 		)
 		.await;
 
@@ -1784,6 +1803,7 @@ impl State {
 					}
 				}
 			},
+			metrics,
 		)
 		.await;
 	}
@@ -1808,6 +1828,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 	topologies: &SessionGridTopologies,
 	block_filter: BlockFilter,
 	routing_modifier: RoutingModifier,
+	metrics: &Metrics,
 ) where
 	BlockFilter: Fn(&mut BlockEntry) -> bool,
 	RoutingModifier: Fn(&mut RequiredRouting, bool, &ValidatorIndex),
@@ -1894,6 +1915,13 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 				{
 					if let Some(approval_message) = approval_message.as_ref() {
 						if !peer_knowledge.contains(&message_subject, MessageKind::Approval) {
+							if !message_state.local {
+								gum::debug!(
+									target: LOG_TARGET,
+									"Approval gossiped in adjust_required_routing_and_propagate",
+								);
+								metrics.on_gossipped_sent_approval();
+							}
 							peer_knowledge
 								.sent
 								.insert(message_subject.clone(), MessageKind::Approval);
