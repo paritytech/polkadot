@@ -116,14 +116,14 @@ mod tests {
 					Processor::process_message(msg, ORIGIN, meter, &mut id),
 					Overweight(1000.into())
 				);
-				assert_eq!(meter.consumed, 0.into());
+				assert_eq!(meter.consumed(), 0.into());
 			}
 
 			// Works with a limit of 1000.
 			let meter = &mut WeightMeter::from_limit(1000.into());
 			let mut id = [0; 32];
 			assert_ok!(Processor::process_message(msg, ORIGIN, meter, &mut id));
-			assert_eq!(meter.consumed, 1000.into());
+			assert_eq!(meter.consumed(), 1000.into());
 		}
 	}
 
