@@ -25,6 +25,7 @@ inherents = { package = "sp-inherents", git = "https://github.com/paritytech/sub
 offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-genesis-builder = { package = "sp-genesis-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
