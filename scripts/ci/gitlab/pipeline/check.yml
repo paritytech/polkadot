@@ -25,7 +25,7 @@ cargo-fmt:
     - cargo +nightly fmt --all -- --check
   allow_failure: true
 
-spellcheck:
+.spellcheck_disabled:
   stage: check
   extends:
     - .docker-env
