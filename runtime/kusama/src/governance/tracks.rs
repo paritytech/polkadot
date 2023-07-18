@@ -22,20 +22,14 @@ const fn percent(x: i32) -> sp_arithmetic::FixedI64 {
 	sp_arithmetic::FixedI64::from_rational(x as u128, 100)
 }
 use pallet_referenda::Curve;
-const APP_ROOT: Curve =
-	Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
-const SUP_ROOT: Curve =
-	Curve::make_linear(28, 28, percent(0), percent(50));
-const APP_STAKING_ADMIN: Curve =
-	Curve::make_linear(17, 28, percent(50), percent(100));
+const APP_ROOT: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
+const SUP_ROOT: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
+const APP_STAKING_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_STAKING_ADMIN: Curve =
 	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_TREASURER: Curve =
-	Curve::make_reciprocal(4, 28, percent(80), percent(66), percent(100));
-const SUP_TREASURER: Curve =
-	Curve::make_linear(28, 28, percent(0), percent(50));
-const APP_FELLOWSHIP_ADMIN: Curve =
-	Curve::make_linear(17, 28, percent(50), percent(100));
+const APP_TREASURER: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(66), percent(100));
+const SUP_TREASURER: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
+const APP_FELLOWSHIP_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_FELLOWSHIP_ADMIN: Curve =
 	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
 const APP_GENERAL_ADMIN: Curve =
@@ -46,38 +40,26 @@ const APP_AUCTION_ADMIN: Curve =
 	Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
 const SUP_AUCTION_ADMIN: Curve =
 	Curve::make_reciprocal(7, 28, percent(10), percent(0), percent(50));
-const APP_LEASE_ADMIN: Curve =
-	Curve::make_linear(17, 28, percent(50), percent(100));
-const SUP_LEASE_ADMIN: Curve =
-	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_REFERENDUM_CANCELLER: Curve =
-	Curve::make_linear(17, 28, percent(50), percent(100));
+const APP_LEASE_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
+const SUP_LEASE_ADMIN: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
+const APP_REFERENDUM_CANCELLER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_REFERENDUM_CANCELLER: Curve =
 	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_REFERENDUM_KILLER: Curve =
-	Curve::make_linear(17, 28, percent(50), percent(100));
+const APP_REFERENDUM_KILLER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_REFERENDUM_KILLER: Curve =
 	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_SMALL_TIPPER: Curve =
-	Curve::make_linear(10, 28, percent(50), percent(100));
-const SUP_SMALL_TIPPER: Curve =
-	Curve::make_reciprocal(1, 28, percent(4), percent(0), percent(50));
-const APP_BIG_TIPPER: Curve =
-	Curve::make_linear(10, 28, percent(50), percent(100));
-const SUP_BIG_TIPPER: Curve =
-	Curve::make_reciprocal(8, 28, percent(1), percent(0), percent(50));
-const APP_SMALL_SPENDER: Curve =
-	Curve::make_linear(17, 28, percent(50), percent(100));
+const APP_SMALL_TIPPER: Curve = Curve::make_linear(10, 28, percent(50), percent(100));
+const SUP_SMALL_TIPPER: Curve = Curve::make_reciprocal(1, 28, percent(4), percent(0), percent(50));
+const APP_BIG_TIPPER: Curve = Curve::make_linear(10, 28, percent(50), percent(100));
+const SUP_BIG_TIPPER: Curve = Curve::make_reciprocal(8, 28, percent(1), percent(0), percent(50));
+const APP_SMALL_SPENDER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_SMALL_SPENDER: Curve =
 	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_MEDIUM_SPENDER: Curve =
-	Curve::make_linear(23, 28, percent(50), percent(100));
+const APP_MEDIUM_SPENDER: Curve = Curve::make_linear(23, 28, percent(50), percent(100));
 const SUP_MEDIUM_SPENDER: Curve =
 	Curve::make_reciprocal(16, 28, percent(1), percent(0), percent(50));
-const APP_BIG_SPENDER: Curve =
-	Curve::make_linear(28, 28, percent(66), percent(100));
-const SUP_BIG_SPENDER: Curve =
-	Curve::make_reciprocal(20, 28, percent(1), percent(0), percent(50));
+const APP_BIG_SPENDER: Curve = Curve::make_linear(28, 28, percent(66), percent(100));
+const SUP_BIG_SPENDER: Curve = Curve::make_reciprocal(20, 28, percent(1), percent(0), percent(50));
 const APP_WHITELISTED_CALLER: Curve =
 	Curve::make_reciprocal(16, 28 * 24, percent(96), percent(50), percent(100));
 const SUP_WHITELISTED_CALLER: Curve =
