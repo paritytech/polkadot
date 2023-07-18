@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot chain configurations.
+//! RuntimeGenesisConfig-based (legacy) Polkadot chain configurations. Used for testing ChainSpecs against the JSON-based
+//! genesis configs. Entire file shall be removed once native runtime is removed.
 
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
@@ -173,24 +174,24 @@ impl sp_runtime::BuildStorage for RococoGenesisExt {
 }
 
 pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
-	PolkadotChainSpec::from_json_bytes(&include_bytes!("../chain-specs/polkadot.json")[..])
+	PolkadotChainSpec::from_json_bytes(&include_bytes!("../../chain-specs/polkadot.json")[..])
 }
 
 pub fn kusama_config() -> Result<KusamaChainSpec, String> {
-	KusamaChainSpec::from_json_bytes(&include_bytes!("../chain-specs/kusama.json")[..])
+	KusamaChainSpec::from_json_bytes(&include_bytes!("../../chain-specs/kusama.json")[..])
 }
 
 pub fn westend_config() -> Result<WestendChainSpec, String> {
-	WestendChainSpec::from_json_bytes(&include_bytes!("../chain-specs/westend.json")[..])
+	WestendChainSpec::from_json_bytes(&include_bytes!("../../chain-specs/westend.json")[..])
 }
 
 pub fn rococo_config() -> Result<RococoChainSpec, String> {
-	RococoChainSpec::from_json_bytes(&include_bytes!("../chain-specs/rococo.json")[..])
+	RococoChainSpec::from_json_bytes(&include_bytes!("../../chain-specs/rococo.json")[..])
 }
 
 /// This is a temporary testnet that uses the same runtime as rococo.
 pub fn wococo_config() -> Result<RococoChainSpec, String> {
-	RococoChainSpec::from_json_bytes(&include_bytes!("../chain-specs/wococo.json")[..])
+	RococoChainSpec::from_json_bytes(&include_bytes!("../../chain-specs/wococo.json")[..])
 }
 
 /// The default parachains host configuration.
@@ -2054,141 +2055,4 @@ pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
 		Default::default(),
 		rococo::WASM_BINARY.ok_or("Versi development wasm not available")?,
 	))
-}
-
-mod legacy_chain_spec;
-// Tests RuntimeGenesisConfig-based ChainSpecs against the JSON-genesis-config-based
-// ChainSpecs. Shall be removed once native runtime is removed.
-#[cfg(test)]
-mod json_vs_legacy_tests {
-	use super::{legacy_chain_spec as legacy, *};
-
-	#[test]
-	#[cfg(feature = "polkadot-native")]
-	fn polkadot_development_config_compare_test() {
-		let j1 = polkadot_development_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::polkadot_development_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "polkadot-native")]
-	fn polkadot_local_testnet_config_compare_test() {
-		let j1 = polkadot_local_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::polkadot_local_testnet_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "kusama-native")]
-	fn kusama_staging_testnet_config_compare_test() {
-		let j1 = kusama_staging_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::kusama_staging_testnet_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "kusama-native")]
-	fn kusama_development_config_compare_test() {
-		let j1 = kusama_development_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::kusama_development_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "kusama-native")]
-	fn kusama_local_testnet_config_compare_test() {
-		let j1 = kusama_local_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::kusama_local_testnet_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "westend-native")]
-	fn westend_staging_testnet_config_compare_test() {
-		let j1 = westend_staging_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::westend_staging_testnet_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "westend-native")]
-	fn westend_development_config_compare_test() {
-		let j1 = westend_development_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::westend_development_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "westend-native")]
-	fn westend_local_testnet_config_compare_test() {
-		let j1 = westend_local_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::westend_local_testnet_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "rococo-native")]
-	fn rococo_staging_testnet_config_compare_test() {
-		let j1 = rococo_staging_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::rococo_staging_testnet_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "rococo-native")]
-	fn rococo_development_config_compare_test() {
-		let j1 = rococo_development_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::rococo_development_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "rococo-native")]
-	fn rococo_local_testnet_config_compare_test() {
-		let j1 = rococo_local_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::rococo_local_testnet_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "rococo-native")]
-	fn wococo_development_config_compare_test() {
-		let j1 = wococo_development_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::wococo_development_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "rococo-native")]
-	fn wococo_local_testnet_config_compare_test() {
-		let j1 = wococo_local_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::wococo_local_testnet_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-
-	#[test]
-	#[cfg(feature = "rococo-native")]
-	fn versi_staging_testnet_config_compare_test() {
-		let j1 = versi_staging_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::versi_staging_testnet_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "rococo-native")]
-	fn versi_development_config_compare_test() {
-		let j1 = versi_development_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::versi_development_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
-
-	#[test]
-	#[cfg(feature = "rococo-native")]
-	fn versi_local_testnet_config_compare_test() {
-		let j1 = versi_local_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::versi_local_testnet_config().unwrap().as_json(true).unwrap();
-		assert_eq!(j1, j2);
-	}
 }
