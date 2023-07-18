@@ -343,7 +343,7 @@ pub mod thread {
 			let condvar2 = condvar.clone();
 			cond_notify_all(condvar2, WaitOutcome::Finished);
 			let outcome = wait_for_threads_with_timeout(&condvar, Duration::from_secs(2));
-			assert_matches!(outcome.unwrap(), WaitOutcome::TimedOut);
+			assert_matches!(outcome.unwrap(), WaitOutcome::Finished);
 		}
 
 		#[test]
