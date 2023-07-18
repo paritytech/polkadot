@@ -57,13 +57,13 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 	None => panic!("Observed blocks cache size must be non-zero"),
 };
 
-/// ScrapedUpdates
+/// `ScrapedUpdates`
 ///
-/// Updates to on_chain_votes and included receipts for new active leaf and its unprocessed
+/// Updates to `on_chain_votes` and included receipts for new active leaf and its unprocessed
 /// ancestors.
 ///
-/// on_chain_votes: New votes as seen on chain
-/// included_receipts: Newly included parachain block candidate receipts as seen on chain
+/// `on_chain_votes`: New votes as seen on chain
+/// `included_receipts`: Newly included parachain block candidate receipts as seen on chain
 pub struct ScrapedUpdates {
 	pub on_chain_votes: Vec<ScrapedOnChainVotes>,
 	pub included_receipts: Vec<CandidateReceipt>,
