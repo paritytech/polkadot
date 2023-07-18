@@ -19,6 +19,9 @@
 
 const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_adder_collator_puppet_worker");
 
+const WORKERS_NAMES: (&str, &str) =
+	("polkadot-prepare-worker-adder-collator", "polkadot-execute-worker-adder-collator");
+
 // If this test is failing, make sure to run all tests with the `real-overseer` feature being enabled.
 
 #[substrate_test_utils::test(flavor = "multi_thread")]
@@ -41,7 +44,8 @@ async fn collating_using_adder_collator() {
 	);
 
 	// start alice
-	let alice = polkadot_test_service::run_validator_node(alice_config, Some(PUPPET_EXE.into()));
+	let alice =
+		polkadot_test_service::run_validator_node(alice_config, Some(PUPPET_EXE.into()), None);
 
 	let bob_config = polkadot_test_service::node_config(
 		|| {},
@@ -52,7 +56,7 @@ async fn collating_using_adder_collator() {
 	);
 
 	// start bob
-	let bob = polkadot_test_service::run_validator_node(bob_config, Some(PUPPET_EXE.into()));
+	let bob = polkadot_test_service::run_validator_node(bob_config, Some(PUPPET_EXE.into()), None);
 
 	let collator = test_parachain_adder_collator::Collator::new();
 
@@ -69,6 +73,7 @@ async fn collating_using_adder_collator() {
 		|| {},
 		vec![alice.addr.clone(), bob.addr.clone()],
 		collator.collator_key(),
+		Some((WORKERS_NAMES.0.into(), WORKERS_NAMES.1.into())),
 	);
 
 	charlie

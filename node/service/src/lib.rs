@@ -244,8 +244,12 @@ pub enum Error {
 	MissingWorkerBinaries { given_workers_path: Option<PathBuf> },
 
 	#[cfg(feature = "full-node")]
-	#[error("Version of worker binaries ({worker_version}) is different from node version ({node_version})")]
-	WorkerBinaryVersionMismatch { worker_version: String, node_version: String },
+	#[error("Version of worker binary ({worker_version}) is different from node version ({node_version}), worker_path: {worker_path}")]
+	WorkerBinaryVersionMismatch {
+		worker_version: String,
+		node_version: String,
+		worker_path: PathBuf,
+	},
 }
 
 /// Identifies the variant of the chain.

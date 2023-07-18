@@ -75,7 +75,11 @@ pub fn determine_workers_paths(
 		.trim()
 		.to_string();
 	if worker_version != node_version {
-		return Err(Error::WorkerBinaryVersionMismatch { worker_version, node_version })
+		return Err(Error::WorkerBinaryVersionMismatch {
+			worker_version,
+			node_version,
+			worker_path: prep_worker_path,
+		})
 	}
 	let worker_version = Command::new(&exec_worker_path).args(["--version"]).output()?.stdout;
 	let worker_version = std::str::from_utf8(&worker_version)
@@ -83,7 +87,11 @@ pub fn determine_workers_paths(
 		.trim()
 		.to_string();
 	if worker_version != node_version {
-		return Err(Error::WorkerBinaryVersionMismatch { worker_version, node_version })
+		return Err(Error::WorkerBinaryVersionMismatch {
+			worker_version,
+			node_version,
+			worker_path: exec_worker_path,
+		})
 	}
 
 	// Paths are good to use.
@@ -421,17 +429,19 @@ echo {}
 			write_worker_exe(&execute_worker_bin_path)?;
 			assert_matches!(
 				determine_workers_paths(None, None),
-				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2 }) if v1 == bad_version && v2 == NODE_VERSION
+				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2, worker_path: p }) if v1 == bad_version && v2 == NODE_VERSION && p == prepare_worker_bin_path
 			);
 
 			// Workers at lib location return bad version.
-			let prepare_worker_lib_path = tempdir.join("usr/lib/polkadot-prepare-worker");
-			let execute_worker_lib_path = tempdir.join("usr/lib/polkadot-execute-worker");
+			fs::remove_file(prepare_worker_bin_path)?;
+			fs::remove_file(execute_worker_bin_path)?;
+			let prepare_worker_lib_path = tempdir.join("usr/lib/polkadot/polkadot-prepare-worker");
+			let execute_worker_lib_path = tempdir.join("usr/lib/polkadot/polkadot-execute-worker");
 			write_worker_exe(&prepare_worker_lib_path)?;
 			write_worker_exe_invalid_version(&execute_worker_lib_path, bad_version)?;
 			assert_matches!(
 				determine_workers_paths(None, None),
-				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2 }) if v1 == bad_version && v2 == NODE_VERSION
+				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2, worker_path: p }) if v1 == bad_version && v2 == NODE_VERSION && p == execute_worker_lib_path
 			);
 
 			// Workers at provided workers location return bad version.
@@ -442,15 +452,15 @@ echo {}
 			write_worker_exe_invalid_version(&execute_worker_path, bad_version)?;
 			assert_matches!(
 				determine_workers_paths(Some(given_workers_path), None),
-				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2 }) if v1 == bad_version && v2 == NODE_VERSION
+				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2, worker_path: p }) if v1 == bad_version && v2 == NODE_VERSION && p == prepare_worker_path
 			);
 
 			// Given worker binary returns bad version.
 			let given_workers_path = tempdir.join("usr/local/bin/puppet-worker");
 			write_worker_exe_invalid_version(&given_workers_path, bad_version)?;
 			assert_matches!(
-				determine_workers_paths(Some(given_workers_path), None),
-				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2 }) if v1 == bad_version && v2 == NODE_VERSION
+				determine_workers_paths(Some(given_workers_path.clone()), None),
+				Err(Error::WorkerBinaryVersionMismatch { worker_version: v1, node_version: v2, worker_path: p }) if v1 == bad_version && v2 == NODE_VERSION && p == given_workers_path
 			);
 
 			Ok(())

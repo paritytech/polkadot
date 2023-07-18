@@ -41,6 +41,8 @@ macro_rules! decl_worker_main {
 		}
 
 		fn main() {
+			// NOTE: We don't want sp_tracing as a dependency in this crate to reduce this size.
+			// This means callers of this macro must depend on it.
 			::sp_tracing::try_init_simple();
 
 			let args = std::env::args().collect::<Vec<_>>();

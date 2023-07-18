@@ -65,7 +65,10 @@ fn main() -> Result<()> {
 						jaeger_agent: None,
 						telemetry_worker_handle: None,
 						workers_path: None,
-						workers_names: None,
+						workers_names: Some((
+							"polkadot-prepare-worker-undying-collator".into(),
+							"polkadot-execute-worker-undying-collator".into(),
+						)),
 						overseer_enable_anyways: false,
 						overseer_gen: polkadot_service::RealOverseerGen,
 						overseer_message_channel_capacity_override: None,

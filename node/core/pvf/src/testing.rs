@@ -58,9 +58,26 @@ macro_rules! decl_puppet_worker_main {
 			$crate::sp_tracing::try_init_simple();
 
 			let args = std::env::args().collect::<Vec<_>>();
-			if args.len() < 3 {
+			if args.len() == 1 {
 				panic!("wrong number of arguments");
 			}
+
+			let entrypoint = match args[1].as_ref() {
+				"--version" | "-v" => {
+					println!("{}", $worker_version);
+					return
+				},
+				"exit" => {
+					std::process::exit(1);
+				},
+				"sleep" => {
+					std::thread::sleep(std::time::Duration::from_secs(5));
+					return
+				},
+				"prepare-worker" => $crate::prepare_worker_entrypoint,
+				"execute-worker" => $crate::execute_worker_entrypoint,
+				other => panic!("unknown subcommand: {}", other),
+			};
 
 			let mut node_version = None;
 			let mut socket_path: &str = "";
@@ -73,22 +90,7 @@ macro_rules! decl_puppet_worker_main {
 				}
 			}
 
-			let subcommand = &args[1];
-			match subcommand.as_ref() {
-				"exit" => {
-					std::process::exit(1);
-				},
-				"sleep" => {
-					std::thread::sleep(std::time::Duration::from_secs(5));
-				},
-				"prepare-worker" => {
-					$crate::prepare_worker_entrypoint(&socket_path, node_version, $worker_version);
-				},
-				"execute-worker" => {
-					$crate::execute_worker_entrypoint(&socket_path, node_version, $worker_version);
-				},
-				other => panic!("unknown subcommand: {}", other),
-			}
+			entrypoint(&socket_path, node_version, $worker_version);
 		}
 	};
 }
