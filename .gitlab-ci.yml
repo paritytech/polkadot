@@ -33,7 +33,7 @@ variables:
   GIT_STRATEGY: fetch
   GIT_DEPTH: 100
   CI_SERVER_NAME: "GitLab CI"
-  CI_IMAGE: "paritytech/ci-unified:bullseye-1.70.0-2023-05-23"
+  CI_IMAGE: !reference [.ci-unified, variables, CI_IMAGE] 
   BUILDAH_IMAGE: "quay.io/buildah/stable:v1.29"
   BUILDAH_COMMAND: "buildah --storage-driver overlay2"
   DOCKER_OS: "debian:stretch"
@@ -221,8 +221,12 @@ include:
   - scripts/ci/gitlab/pipeline/zombienet.yml
   # timestamp handler
   - project: parity/infrastructure/ci_cd/shared
-    ref: v0.2
+    ref: main
     file: /common/timestamp.yml
+  - project: parity/infrastructure/ci_cd/shared
+    ref: main
+    file: /common/ci-unified.yml   
+
 
 #### stage:                        .post
 
