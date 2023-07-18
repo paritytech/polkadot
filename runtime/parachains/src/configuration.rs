@@ -37,7 +37,6 @@ mod tests;
 mod benchmarking;
 
 pub mod migration;
-pub mod migration_ump;
 
 pub use pallet::*;
 
