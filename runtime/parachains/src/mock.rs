@@ -440,7 +440,7 @@ impl ProcessMessage for TestProcessMessage {
 			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Err(ProcessMessageError::Corrupt), // same as the real `ProcessMessage`
 		};
-		if !meter.check_accrue(required) {
+		if meter.try_consume(required).is_err() {
 			return Err(ProcessMessageError::Overweight(required))
 		}
 
