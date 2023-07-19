@@ -76,7 +76,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config + paras::Config {
-		type AssignmentProvider: AssignmentProvider<Self::BlockNumber>;
+		type AssignmentProvider: AssignmentProvider<BlockNumberFor<Self>>;
 	}
 
 	/// All the validator groups. One for each core. Indices are into `ActiveValidators` - not the

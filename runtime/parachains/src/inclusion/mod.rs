@@ -597,7 +597,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn process_candidates<GV>(
 		parent_storage_root: T::Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
-		scheduled: Vec<CoreAssignment<T::BlockNumber>>,
+		scheduled: Vec<CoreAssignment<BlockNumberFor<T>>>,
 		group_validators: GV,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
@@ -629,7 +629,7 @@ impl<T: Config> Pallet<T> {
 			let mut last_core = None;
 
 			let mut check_assignment_in_order =
-				|assignment: &CoreAssignment<T::BlockNumber>| -> DispatchResult {
+				|assignment: &CoreAssignment<BlockNumberFor<T>>| -> DispatchResult {
 					ensure!(
 						last_core.map_or(true, |core| assignment.core > core),
 						Error::<T>::ScheduledOutOfOrder,

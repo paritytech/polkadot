@@ -819,7 +819,7 @@ fn sanitize_backed_candidates<
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	scheduled: &[CoreAssignment<T::BlockNumber>],
+	scheduled: &[CoreAssignment<BlockNumberFor<T>>],
 ) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
 	// This does not assume sorting.

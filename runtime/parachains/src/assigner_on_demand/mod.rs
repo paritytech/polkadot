@@ -160,7 +160,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(_now: T::BlockNumber) -> Weight {
+		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
 			let config = <configuration::Pallet<T>>::config();
 			// Calculate spot price multiplier and store it.
 			let old_traffic = SpotTraffic::<T>::get();
@@ -204,7 +204,7 @@ pub mod pallet {
 			Weight::zero()
 		}
 
-		fn on_finalize(_now: T::BlockNumber) {}
+		fn on_finalize(_now: BlockNumberFor<T>) {}
 	}
 
 	#[pallet::call]
@@ -441,7 +441,7 @@ where
 	}
 }
 
-impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
+impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	fn session_core_count() -> u32 {
 		let config = <configuration::Pallet<T>>::config();
 		config.on_demand_cores
@@ -499,7 +499,7 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 		}
 	}
 
-	fn get_availability_period(_core_index: CoreIndex) -> T::BlockNumber {
+	fn get_availability_period(_core_index: CoreIndex) -> BlockNumberFor<T> {
 		let config = <configuration::Pallet<T>>::config();
 		config.paras_availability_period
 	}

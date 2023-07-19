@@ -36,7 +36,6 @@
 //! over time.
 
 use frame_support::pallet_prelude::*;
-use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{
 	v5::{Assignment, ParasEntry},
 	CoreIndex, GroupIndex, Id as ParaId,
@@ -79,7 +78,7 @@ pub trait AssignmentProvider<BlockNumber> {
 	/// [`HostConfiguration::chain_availability_period`] and
 	/// [`HostConfiguration::thread_availability_period`]
 	/// for more information.
-	fn get_availability_period(core_idx: CoreIndex) -> BlockNumberFor<T>;
+	fn get_availability_period(core_idx: CoreIndex) -> BlockNumber;
 
 	/// How many retries a collator gets to provide a collation in this implementation.
 	/// Zero retries means that the collator has 1 chance as per the bulk (slot auction)
