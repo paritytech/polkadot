@@ -4409,8 +4409,7 @@ dependencies = [
 [[package]]
 name = "libp2p-noise"
 version = "0.42.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c3673da89d29936bc6435bafc638e2f184180d554ce844db65915113f86ec5e"
+source = "git+https://github.com/alindima/rust-libp2p.git?rev=ac1fcfa4d4f2f742cc76a5d3ab546385c143e052#ac1fcfa4d4f2f742cc76a5d3ab546385c143e052"
 dependencies = [
  "bytes",
  "curve25519-dalek 3.2.0",

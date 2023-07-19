@@ -234,3 +234,6 @@ conf-files = [
 
 [package.metadata.spellcheck]
 config = "./scripts/ci/gitlab/spellcheck.toml"
+
+[patch.crates-io]
+libp2p-noise = { git = 'https://github.com/alindima/rust-libp2p.git', rev="ac1fcfa4d4f2f742cc76a5d3ab546385c143e052"}
