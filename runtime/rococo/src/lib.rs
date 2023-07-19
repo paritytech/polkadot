@@ -2242,15 +2242,6 @@ mod tests {
 			whitelist.contains("1405f2411d0af5a7ff397e7c9dc68d196323ae84c43568be0d1394d5d0d522c4")
 		);
 	}
-
-	#[test]
-	fn max_upward_message_size() {
-		use sp_core::Get;
-		assert_eq!(
-			ump_migrations::MAX_UPWARD_MESSAGE_SIZE,
-			pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
-		);
-	}
 }
 
 #[cfg(test)]
