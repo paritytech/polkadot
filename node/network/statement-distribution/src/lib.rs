@@ -1810,6 +1810,8 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		)
 		.map_err(FatalError::SpawnTask)?;
 
+		let mut warn_freq = gum::Freq::new();
+
 		loop {
 			select! {
 				_ = reputation_delay => {
@@ -1851,7 +1853,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 									result.ok_or(FatalError::RequesterReceiverFinished)?,
 								)
 								.await;
-							log_error(result.map_err(From::from), "handle_requester_message")?;
+							log_error(result.map_err(From::from), "handle_requester_message", &mut warn_freq)?;
 						},
 						MuxedMessage::Responder(result) => {
 							let result = self
@@ -1861,7 +1863,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 									result.ok_or(FatalError::ResponderReceiverFinished)?,
 								)
 								.await;
-							log_error(result.map_err(From::from), "handle_responder_message")?;
+							log_error(result.map_err(From::from), "handle_responder_message", &mut warn_freq)?;
 						},
 					};
 				}
