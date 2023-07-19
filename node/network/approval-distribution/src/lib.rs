@@ -452,6 +452,13 @@ struct BlockEntry {
 	/// Approval entries for whole block. These also contain all approvals in the case of multiple candidates
 	/// being claimed by assignments.
 	approval_entries: HashMap<(ValidatorIndex, CandidateBitfield), ApprovalEntry>,
+
+	unassigned_approvals: HashMap<(ValidatorIndex, CandidateIndex), UnassignedApproval>,
+}
+
+struct UnassignedApproval {
+	pub source: MessageSource,
+	pub vote: IndirectSignedApprovalVote,
 }
 
 impl BlockEntry {
@@ -671,6 +678,7 @@ impl State {
 						candidates,
 						session: meta.session,
 						approval_entries: HashMap::new(),
+						unassigned_approvals: HashMap::new(),
 					});
 
 					self.topologies.inc_session_refs(meta.session);
@@ -1364,20 +1372,31 @@ impl State {
 			send_assignments_batched(ctx.sender(), assignments, &peers).await;
 		}
 
-		// if let Some(MessageState {
-		// 	approval_state: ApprovalState::UnassignedApproval(vote, source),
-		// 	..
-		// }) = cached_approval_vote
-		// {
-		// 	gum::debug!(
-		// 		target: LOG_TARGET,
-		// 		?message_subject,
-		// 		"Delayed approval processed"
-		// 	);
-		// 	metrics.on_delayed_approval_processed();
+		let mut unassigned_approvals_to_process = Vec::new();
+		for candidate_index in claimed_candidate_indices.iter_ones() {
+			if let Some(unassigned_approval) = entry
+				.unassigned_approvals
+				.remove(&(validator_index, candidate_index as CandidateIndex))
+			{
+				unassigned_approvals_to_process.push(unassigned_approval);
+			}
+		}
 
-		// 	self.import_and_circulate_approval(ctx, metrics, source, vote).await
-		// }
+		for unassigned_approval in unassigned_approvals_to_process {
+			gum::debug!(
+				target: LOG_TARGET,
+				?message_subject,
+				"Delayed approval processed"
+			);
+			metrics.on_delayed_approval_processed();
+			self.import_and_circulate_approval(
+				ctx,
+				metrics,
+				unassigned_approval.source.clone(),
+				unassigned_approval.vote.clone(),
+			)
+			.await
+		}
 	}
 
 	async fn import_and_circulate_approval<Context>(
@@ -1447,19 +1466,16 @@ impl State {
 					// We could also receive gossiped assignments in the case when aggression is triggered, but in that
 					// case we do not care about saving them because they should arrive before their corresponding assignments,
 					// since they are sent on the same route.
-					Some(candidate_entry)
+					Some(_candidate_entry)
 						if sender_matches_validator_index &&
-							!candidate_entry.messages.contains_key(&validator_index) =>
+							!entry
+								.unassigned_approvals
+								.contains_key(&(validator_index, vote.candidate_index)) =>
 					{
-						// candidate_entry.messages.entry(validator_index).or_insert_with(|| {
-						// 	MessageState {
-						// 		required_routing_assignment: RequiredRouting::None,
-						// 		required_routing_approval: RequiredRouting::None,
-						// 		local: false,
-						// 		random_routing: Default::default(),
-						// 		approval_state: ApprovalState::UnassignedApproval(vote, source),
-						// 	}
-						// });
+						entry
+							.unassigned_approvals
+							.entry((validator_index, vote.candidate_index))
+							.or_insert(UnassignedApproval { source, vote });
 						gum::debug!(
 							target: LOG_TARGET,
 							?peer_id,
@@ -1471,7 +1487,7 @@ impl State {
 					_ => {},
 				};
 
-				gum::debug!(
+				gum::info!(
 					target: LOG_TARGET,
 					?peer_id,
 					?message_subject,
@@ -1628,6 +1644,8 @@ impl State {
 			}
 		}
 
+		let session_index = entry.session;
+
 		// The entry is created when assignment is imported, so we assume this exists.
 		let approval_entry = entry.get_approval_entry(candidate_index, validator_index);
 		if approval_entry.is_none() {
@@ -1647,68 +1665,6 @@ impl State {
 
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
 		metrics.on_approval_imported();
-		let should_trigger_aggression =
-			self.aggression_config.should_trigger_aggression(self.approval_checking_lag);
-		// let required_routing_approval = match entry.candidates.get_mut(candidate_index as usize) {
-		// 	Some(candidate_entry) => {
-		// 		// set the approval state for validator_index to Approved
-		// 		// it should be in assigned state already
-		// 		match candidate_entry.messages.remove(&validator_index) {
-		// 			Some(MessageState {
-		// 				approval_state: ApprovalState::Assigned(cert),
-		// 				required_routing_assignment,
-		// 				local,
-		// 				random_routing,
-		// 				required_routing_approval,
-		// 			}) => {
-		// 				candidate_entry.messages.insert(
-		// 					validator_index,
-		// 					MessageState {
-		// 						approval_state: ApprovalState::Approved(
-		// 							cert,
-		// 							vote.signature.clone(),
-		// 						),
-		// 						required_routing_assignment,
-		// 						local,
-		// 						random_routing,
-		// 						required_routing_approval,
-		// 					},
-		// 				);
-		// 				// When aggression is enabled gossip the approvals we received from peers, so that we reach finality.
-		// 				if required_routing_approval == RequiredRouting::None &&
-		// 					should_trigger_aggression
-		// 				{
-		// 					self.topologies
-		// 						.get_topology(entry.session)
-		// 						.zip(source.peer_id())
-		// 						.map(|(topology, peer_id)| {
-		// 							topology
-		// 								.local_grid_neighbors()
-		// 								.required_routing_by_peer_id(peer_id, local)
-		// 						})
-		// 						.unwrap_or(RequiredRouting::None)
-		// 				} else {
-		// 					required_routing_approval
-		// 				}
-		// 			},
-		// 			Some(_) => {
-		// 				unreachable!(
-		// 					"we only insert it after the metadata, checked the metadata above; qed"
-		// 				);
-		// 			},
-		// 			None => {
-		// 				// this would indicate a bug in approval-voting
-		// 				gum::warn!(
-		// 					target: LOG_TARGET,
-		// 					hash = ?block_hash,
-		// 					?candidate_index,
-		// 					?validator_index,
-		// 					"Importing an approval we don't have an assignment for",
-		// 				);
-		// 			},
-		// 		}
-		// 	},
-		// };
 
 		if let Err(err) = approval_entry.note_approval(vote.clone()) {
 			// this would indicate a bug in approval-voting:
@@ -1726,11 +1682,25 @@ impl State {
 
 			return
 		}
+		let should_trigger_aggression =
+			self.aggression_config.should_trigger_aggression(self.approval_checking_lag);
 
-		let required_routing_approval = approval_entry.routing_info().required_routing_approval;
-
-		// Dispatch a ApprovalDistributionV1Message::Approval(vote)
-		// to all peers required by the topology, with the exception of the source peer.
+		let required_routing_approval = if approval_entry.routing_info().required_routing_approval ==
+			RequiredRouting::None &&
+			should_trigger_aggression
+		{
+			self.topologies
+				.get_topology(session_index)
+				.zip(source.peer_id())
+				.map(|(topology, peer_id)| {
+					topology
+						.local_grid_neighbors()
+						.required_routing_by_peer_id(peer_id, approval_entry.routing_info().local)
+				})
+				.unwrap_or(RequiredRouting::None)
+		} else {
+			approval_entry.routing_info().required_routing_approval
+		};
 
 		let topology = self.topologies.get_topology(entry.session);
 		let source_peer = source.peer_id();
@@ -1921,50 +1891,26 @@ impl State {
 							}
 						};
 
-					let assignment_message = Some(approval_entry.get_assignment());
+					let assignment_message = approval_entry.get_assignment();
 					let approval_messages = approval_entry.get_approvals();
-					let (assignment_knowledge, message_kind) =
+					let (assignment_knowledge, _message_kind) =
 						approval_entry.create_assignment_knowledge(block);
-
-					// let assignment_message =
-					// 	message_state.approval_state.assignment_cert().map(|assignmentcert| {
-					// 		(
-					// 			IndirectAssignmentCert {
-					// 				block_hash: block,
-					// 				validator: *validator,
-					// 				cert: assignmentcert.clone(),
-					// 			},
-					// 			candidate_index,
-					// 		)
-					// 	});
-
-					// let approval_message =
-					// 	message_state.approval_state.approval_signature().map(|signature| {
-					// 		IndirectSignedApprovalVote {
-					// 			block_hash: block,
-					// 			validator: *validator,
-					// 			candidate_index,
-					// 			signature,
-					// 		}
-					// 	});
 
 					let mut assignment_sent = false;
 					if peer_filter_assignment(
 						&peer_id,
 						&mut approval_entry.routing_info_mut().random_routing,
 					) {
-						if let Some(assignment_message) = assignment_message {
-							if !peer_knowledge
-								.contains(&assignment_knowledge, MessageKind::Assignment)
-							{
-								peer_knowledge
-									.sent
-									.insert(assignment_knowledge.clone(), MessageKind::Assignment);
-								assignments_to_send.push(assignment_message);
-								assignment_sent = true;
-							}
+						if !peer_knowledge.contains(&assignment_knowledge, MessageKind::Assignment)
+						{
+							peer_knowledge
+								.sent
+								.insert(assignment_knowledge.clone(), MessageKind::Assignment);
+							assignments_to_send.push(assignment_message);
+							assignment_sent = true;
 						}
 					}
+
 					let block_number = entry.number;
 					let peer_filter_approval = move |peer_id, required_routing, local| {
 						let in_topology = topology.as_ref().map_or(false, |t| {
@@ -1976,19 +1922,27 @@ impl State {
 							assignment_sent)
 					};
 
-					if peer_filter_approval(
+					if !peer_filter_approval(
 						&peer_id,
 						approval_entry.routing_info().required_routing_approval,
 						approval_entry.routing_info().local,
 					) {
 						continue
 					}
+
 					// Filter approval votes.
 					for approval_message in approval_messages {
 						let (approval_knowledge, message_kind) = approval_entry
 							.create_approval_knowledge(block, approval_message.candidate_index);
 
 						if !peer_knowledge.contains(&approval_knowledge, message_kind) {
+							if !approval_entry.routing_info().local {
+								gum::debug!(
+									target: LOG_TARGET,
+									"Approval gossiped in unify with peer",
+								);
+								metrics.on_gossipped_sent_approval();
+							}
 							peer_knowledge.sent.insert(approval_knowledge, message_kind);
 							approvals_to_send.push(approval_message);
 						}
@@ -2158,7 +2112,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 	blocks: &mut HashMap<Hash, BlockEntry>,
 	topologies: &SessionGridTopologies,
 	block_filter: BlockFilter,
-	routing_modifier: RoutingModifier,
+	assignment_routing_modifier: RoutingModifier,
 	metrics: &Metrics,
 	peer_views: &HashMap<PeerId, PeerEntry>,
 ) where
@@ -2183,7 +2137,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 		// We just need to iterate the `approval_entries` of the block entry as these contain all assignments
 		// that also link all approval votes.
 		for approval_entry in block_entry.approval_entries.values_mut() {
-			let new_required_routing = routing_modifier(
+			let new_required_routing = assignment_routing_modifier(
 				&approval_entry.routing_info().required_routing_assignment,
 				approval_entry.routing_info().local,
 				&approval_entry.get_validator_index(),
@@ -2191,7 +2145,9 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 
 			approval_entry.update_required_routing(new_required_routing);
 
-			if approval_entry.routing_info().required_routing_assignment.is_empty() {
+			if approval_entry.routing_info().required_routing_assignment.is_empty() &&
+				approval_entry.routing_info().required_routing_approval.is_empty()
+			{
 				continue
 			}
 
@@ -2217,28 +2173,42 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 								.push(assignment_message.clone());
 						}
 					}
-				}
 
-				// Only send stuff a peer doesn't know in the context of a relay chain block.
-				if !peer_knowledge.contains(&assignment_knowledge, message_kind) {
-					peer_knowledge.sent.insert(assignment_knowledge.clone(), message_kind);
-					peer_assignments
-						.entry(*peer)
-						.or_insert_with(Vec::new)
-						.push(assignment_message.clone().unwrap());
-				}
-
-				// Filter approval votes.
-				for approval_message in &approval_messages {
-					let (approval_knowledge, message_kind) = approval_entry
-						.create_approval_knowledge(*block_hash, approval_message.candidate_index);
-
-					if !peer_knowledge.contains(&approval_knowledge, message_kind) {
-						peer_knowledge.sent.insert(approval_knowledge, message_kind);
-						peer_approvals
+					// Only send stuff a peer doesn't know in the context of a relay chain block.
+					if !peer_knowledge.contains(&assignment_knowledge, message_kind) {
+						peer_knowledge.sent.insert(assignment_knowledge.clone(), message_kind);
+						peer_assignments
 							.entry(*peer)
 							.or_insert_with(Vec::new)
-							.push(approval_message.clone());
+							.push(assignment_message.clone().unwrap());
+					}
+				}
+				if topology
+					.local_grid_neighbors()
+					.route_to_peer(approval_entry.routing_info().required_routing_approval, peer)
+				{
+					// Filter approval votes.
+					for approval_message in &approval_messages {
+						let (approval_knowledge, message_kind) = approval_entry
+							.create_approval_knowledge(
+								*block_hash,
+								approval_message.candidate_index,
+							);
+
+						if !peer_knowledge.contains(&approval_knowledge, message_kind) {
+							peer_knowledge.sent.insert(approval_knowledge, message_kind);
+							if !approval_entry.routing_info().local {
+								gum::debug!(
+									target: LOG_TARGET,
+									"Approval gossiped in adjust_required_routing_and_propagate",
+								);
+								metrics.on_gossipped_sent_approval();
+							}
+							peer_approvals
+								.entry(*peer)
+								.or_insert_with(Vec::new)
+								.push(approval_message.clone());
+						}
 					}
 				}
 			}
