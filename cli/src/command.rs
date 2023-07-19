@@ -105,8 +105,6 @@ impl SubstrateCli for Cli {
 			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
 			#[cfg(feature = "polkadot-native")]
 			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
-			#[cfg(feature = "polkadot-native")]
-			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()?),
 			"rococo" => Box::new(service::chain_spec::rococo_config()?),
 			#[cfg(feature = "rococo-native")]
 			"rococo-dev" => Box::new(service::chain_spec::rococo_development_config()?),
