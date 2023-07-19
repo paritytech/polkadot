@@ -2789,7 +2789,6 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-runtime",
- "sp-runtime",
 ]
 
 [[package]]
