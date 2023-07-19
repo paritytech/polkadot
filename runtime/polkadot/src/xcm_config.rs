@@ -42,9 +42,9 @@ use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter,
-	FixedWeightBounds, IsConcrete, MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
-	WithComputedOrigin,
+	DescribeBodyTerminal, DescribeFamily, FixedWeightBounds, HashedDescription, IsConcrete,
+	MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WithComputedOrigin,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -70,6 +70,8 @@ pub type SovereignAccountOf = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	// We can directly alias an `AccountId32` into a local account.
 	AccountId32Aliases<ThisNetwork, AccountId>,
+	// Allow governance body to be used as a sovereign account.
+	HashedDescription<AccountId, DescribeFamily<DescribeBodyTerminal>>,
 );
 
 /// Our asset transactor. This is what allows us to interact with the runtime assets from the point of

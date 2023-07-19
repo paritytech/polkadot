@@ -32,9 +32,10 @@ pub use location_conversion::ForeignChainAliasAccount;
 pub use location_conversion::{
 	Account32Hash, AccountId32Aliases, AccountKey20Aliases, AliasesIntoAccountId32,
 	ChildParachainConvertsVia, DescribeAccountId32Terminal, DescribeAccountIdTerminal,
-	DescribeAccountKey20Terminal, DescribeAllTerminal, DescribeFamily, DescribeLocation,
-	DescribePalletTerminal, DescribeTerminus, GlobalConsensusParachainConvertsFor,
-	HashedDescription, ParentIsPreset, SiblingParachainConvertsVia,
+	DescribeAccountKey20Terminal, DescribeAllTerminal, DescribeBodyTerminal, DescribeFamily,
+	DescribeLocation, DescribePalletTerminal, DescribeTerminus,
+	GlobalConsensusParachainConvertsFor, HashedDescription, ParentIsPreset,
+	SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;
