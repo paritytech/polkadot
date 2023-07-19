@@ -320,8 +320,8 @@ pub mod thread {
 
 	#[cfg(test)]
 	mod tests {
-		use assert_matches::assert_matches;
 		use super::*;
+		use assert_matches::assert_matches;
 
 		#[test]
 		fn get_condvar_should_be_pending() {
