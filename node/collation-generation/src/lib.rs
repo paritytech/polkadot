@@ -219,10 +219,10 @@ async fn handle_new_activations<Context>(
 				CoreState::Scheduled(scheduled_core) =>
 					(scheduled_core, OccupiedCoreAssumption::Free),
 				CoreState::Occupied(occupied_core) => match async_backing_params {
-					Some(params) if params.max_candidate_depth >= 2 => {
+					Some(params) if params.max_candidate_depth >= 1 => {
 						// maximum candidate depth when building on top of a block
-						// pending availability is necessarily 2 - the depth of the
-						// pending block is 1, so the child has depth 2.
+						// pending availability is necessarily 1 - the depth of the
+						// pending block is 0 so the child has depth 1.
 
 						// TODO [now]: this assumes that next up == current.
 						// in practice we should only set `OccupiedCoreAssumption::Included`
