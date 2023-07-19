@@ -23,6 +23,12 @@ primitives = { package = "polkadot-primitives", path = "../../primitives/" }
 bs58 = { version = "0.4.0", features = ["alloc"] }
 log = "0.4.17"
 
+# Required for worker binaries to build.
+polkadot-node-core-pvf-common = { path = "../core/pvf/common" }
+polkadot-node-core-pvf-execute-worker = { path = "../core/pvf/execute-worker" }
+polkadot-node-core-pvf-prepare-worker = { path = "../core/pvf/prepare-worker" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 [dev-dependencies]
 assert_cmd = "2.0.4"
 tempfile = "3.2.0"

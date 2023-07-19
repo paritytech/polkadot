@@ -13,15 +13,6 @@ path = "src/main.rs"
 name = "undying_collator_puppet_worker"
 path = "bin/puppet_worker.rs"
 
-# Use artifact dependencies once stable.
-# See https://github.com/rust-lang/cargo/issues/9096.
-[[bin]]
-name = "polkadot-execute-worker-undying-collator"
-path = "../../../../node/core/pvf/execute-worker/src/main.rs"
-[[bin]]
-name = "polkadot-prepare-worker-undying-collator"
-path = "../../../../node/core/pvf/prepare-worker/src/main.rs"
-
 [dependencies]
 parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 clap = { version = "4.0.9", features = ["derive"] }
@@ -44,12 +35,6 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 # `puppet_worker` binary, which is required for the integration test. However, this shouldn't be
 # a big problem since it is used transitively anyway.
 polkadot-node-core-pvf = { path = "../../../../node/core/pvf" }
-
-# Required for binary workers to build.
-polkadot-node-core-pvf-common = { path = "../../../../node/core/pvf/common" }
-polkadot-node-core-pvf-execute-worker = { path = "../../../../node/core/pvf/execute-worker" }
-polkadot-node-core-pvf-prepare-worker = { path = "../../../../node/core/pvf/prepare-worker" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }

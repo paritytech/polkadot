@@ -4,15 +4,6 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
-# Use artifact dependencies once stable.
-# See https://github.com/rust-lang/cargo/issues/9096.
-[[bin]]
-name = "polkadot-execute-worker-test-service"
-path = "../../core/pvf/execute-worker/src/main.rs"
-[[bin]]
-name = "polkadot-prepare-worker-test-service"
-path = "../../core/pvf/prepare-worker/src/main.rs"
-
 [dependencies]
 futures = "0.3.21"
 hex = "0.4.3"
@@ -63,20 +54,11 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-# Required for binary workers to build.
-polkadot-node-core-pvf-common = { path = "../../core/pvf/common" }
-polkadot-node-core-pvf-execute-worker = { path = "../../core/pvf/execute-worker" }
-polkadot-node-core-pvf-prepare-worker = { path = "../../core/pvf/prepare-worker" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
 [dev-dependencies]
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 serde_json = "1.0.96"
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tokio = { version = "1.24.2", features = ["macros"] }
-
-[build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 runtime-metrics=["polkadot-test-runtime/runtime-metrics"]

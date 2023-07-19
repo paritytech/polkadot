@@ -293,6 +293,7 @@ where
 				telemetry_worker_handle: None,
 				workers_path: cli.run.workers_path,
 				workers_names: None,
+				dont_use_external_workers: false,
 				overseer_enable_anyways: false,
 				overseer_gen,
 				overseer_message_channel_capacity_override: cli
@@ -426,6 +427,52 @@ pub fn run() -> Result<()> {
 					task_manager,
 				))
 			})?)
+		},
+		Some(Subcommand::PvfPrepareWorker(cmd)) => {
+			let mut builder = sc_cli::LoggerBuilder::new("");
+			builder.with_colors(false);
+			let _ = builder.init();
+
+			#[cfg(target_os = "android")]
+			{
+				return Err(sc_cli::Error::Input(
+					"PVF preparation workers are not supported under this platform".into(),
+				)
+				.into())
+			}
+
+			#[cfg(not(target_os = "android"))]
+			{
+				polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
+					&cmd.socket_path,
+					Some(&cmd.node_impl_version),
+					&cmd.node_impl_version,
+				);
+				Ok(())
+			}
+		},
+		Some(Subcommand::PvfExecuteWorker(cmd)) => {
+			let mut builder = sc_cli::LoggerBuilder::new("");
+			builder.with_colors(false);
+			let _ = builder.init();
+
+			#[cfg(target_os = "android")]
+			{
+				return Err(sc_cli::Error::Input(
+					"PVF execution workers are not supported under this platform".into(),
+				)
+				.into())
+			}
+
+			#[cfg(not(target_os = "android"))]
+			{
+				polkadot_node_core_pvf_execute_worker::worker_entrypoint(
+					&cmd.socket_path,
+					Some(&cmd.node_impl_version),
+					&cmd.node_impl_version,
+				);
+				Ok(())
+			}
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;

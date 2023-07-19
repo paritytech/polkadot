@@ -240,8 +240,11 @@ pub enum Error {
 	InvalidWorkerBinaries { prep_worker_path: PathBuf, exec_worker_path: PathBuf },
 
 	#[cfg(feature = "full-node")]
-	#[error("Worker binaries could not be found at given workers path ({given_workers_path:?}), polkadot binary directory, or /usr/lib/polkadot")]
-	MissingWorkerBinaries { given_workers_path: Option<PathBuf> },
+	#[error("Worker binaries could not be found at given workers path ({given_workers_path:?}), polkadot binary directory, or /usr/lib/polkadot, workers names: {workers_names:?}")]
+	MissingWorkerBinaries {
+		given_workers_path: Option<PathBuf>,
+		workers_names: Option<(String, String)>,
+	},
 
 	#[cfg(feature = "full-node")]
 	#[error("Version of worker binary ({worker_version}) is different from node version ({node_version}), worker_path: {worker_path}")]
@@ -624,8 +627,10 @@ pub struct NewFullParams<OverseerGenerator: OverseerGen> {
 	pub telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	/// An optional path to a directory containing the workers.
 	pub workers_path: Option<std::path::PathBuf>,
-	/// Optional custom names for the prepare and execute workers (mainly for tests).
+	/// Optional custom names for the prepare and execute workers.
 	pub workers_names: Option<(String, String)>,
+	/// Use the current binary instead of relying on external workers. *Only for tests.*
+	pub dont_use_external_workers: bool,
 	pub overseer_enable_anyways: bool,
 	pub overseer_gen: OverseerGenerator,
 	pub overseer_message_channel_capacity_override: Option<usize>,
@@ -703,6 +708,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		telemetry_worker_handle,
 		workers_path,
 		workers_names,
+		dont_use_external_workers,
 		overseer_enable_anyways,
 		overseer_gen,
 		overseer_message_channel_capacity_override,
@@ -892,8 +898,15 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
-	let (prep_worker_path, exec_worker_path) =
-		workers::determine_workers_paths(workers_path, workers_names)?;
+	let (prep_worker_path, exec_worker_path) = if dont_use_external_workers {
+		// Use the current binary.
+		let program_path = std::env::current_exe()?;
+		(program_path.clone(), program_path)
+	} else {
+		workers::determine_workers_paths(workers_path, workers_names)?
+	};
+	log::info!("🚀 Using prepare-worker binary at: {:?}", prep_worker_path);
+	log::info!("🚀 Using execute-worker binary at: {:?}", exec_worker_path);
 
 	let candidate_validation_config = CandidateValidationConfig {
 		artifacts_cache_path: config

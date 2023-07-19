@@ -73,13 +73,8 @@ pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	workers_path: Option<PathBuf>,
-	workers_names: Option<(String, String)>,
 ) -> Result<NewFull, Error> {
-	let workers_path = Some(workers_path.unwrap_or_else(get_relative_workers_path_for_test));
-	let workers_names = Some(workers_names.unwrap_or((
-		"polkadot-prepare-worker-test-service".into(),
-		"polkadot-execute-worker-test-service".into(),
-	)));
+	let dont_use_external_workers = !workers_path.is_some();
 
 	polkadot_service::new_full(
 		config,
@@ -90,7 +85,8 @@ pub fn new_full(
 			jaeger_agent: None,
 			telemetry_worker_handle: None,
 			workers_path,
-			workers_names,
+			workers_names: None,
+			dont_use_external_workers,
 			overseer_enable_anyways: false,
 			overseer_gen: polkadot_service::RealOverseerGen,
 			overseer_message_channel_capacity_override: None,
@@ -206,11 +202,10 @@ pub fn node_config(
 pub fn run_validator_node(
 	config: Configuration,
 	worker_program_path: Option<PathBuf>,
-	workers_names: Option<(String, String)>,
 ) -> PolkadotTestNode {
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
-		new_full(config, IsCollator::No, worker_program_path, workers_names)
+		new_full(config, IsCollator::No, worker_program_path)
 			.expect("could not create Polkadot test service");
 
 	let overseer_handle = overseer_handle.expect("test node must have an overseer handle");
@@ -238,12 +233,11 @@ pub fn run_collator_node(
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 	collator_pair: CollatorPair,
-	workers_names: Option<(String, String)>,
 ) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, tokio_handle, key, boot_nodes, false);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
-		new_full(config, IsCollator::Yes(collator_pair), None, workers_names)
+		new_full(config, IsCollator::Yes(collator_pair), None)
 			.expect("could not create Polkadot test service");
 
 	let overseer_handle = overseer_handle.expect("test node must have an overseer handle");
@@ -251,16 +245,6 @@ pub fn run_collator_node(
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
 	PolkadotTestNode { task_manager, client, overseer_handle, addr, rpc_handlers }
-}
-
-fn get_relative_workers_path_for_test() -> PathBuf {
-	// If no explicit worker path is passed in, we need to specify it ourselves as test binaries
-	// are in the "deps/" directory, one level below where the worker binaries are generated.
-	let mut exe_path = std::env::current_exe()
-		.expect("for test purposes it's reasonable to expect that this will not fail");
-	let _ = exe_path.pop();
-	let _ = exe_path.pop();
-	exe_path
 }
 
 /// A Polkadot test node instance used for testing.

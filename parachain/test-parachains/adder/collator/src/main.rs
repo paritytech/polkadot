@@ -65,10 +65,8 @@ fn main() -> Result<()> {
 						jaeger_agent: None,
 						telemetry_worker_handle: None,
 						workers_path: None,
-						workers_names: Some((
-							"polkadot-prepare-worker-adder-collator".into(),
-							"polkadot-execute-worker-adder-collator".into(),
-						)),
+						workers_names: None,
+						dont_use_external_workers: false,
 						overseer_enable_anyways: false,
 						overseer_gen: polkadot_service::RealOverseerGen,
 						overseer_message_channel_capacity_override: None,

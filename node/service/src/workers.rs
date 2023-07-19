@@ -55,9 +55,9 @@ pub fn determine_workers_paths(
 	given_workers_path: Option<PathBuf>,
 	workers_names: Option<(String, String)>,
 ) -> Result<(PathBuf, PathBuf), Error> {
-	let mut workers_paths = list_workers_paths(given_workers_path.clone(), workers_names)?;
+	let mut workers_paths = list_workers_paths(given_workers_path.clone(), workers_names.clone())?;
 	if workers_paths.is_empty() {
-		return Err(Error::MissingWorkerBinaries { given_workers_path })
+		return Err(Error::MissingWorkerBinaries { given_workers_path, workers_names })
 	} else if workers_paths.len() > 1 {
 		log::warn!("multiple sets of worker binaries found ({:?})", workers_paths,);
 	}
@@ -93,10 +93,6 @@ pub fn determine_workers_paths(
 			worker_path: exec_worker_path,
 		})
 	}
-
-	// Paths are good to use.
-	log::info!("using prepare-worker binary at: {:?}", prep_worker_path);
-	log::info!("using execute-worker binary at: {:?}", exec_worker_path);
 
 	Ok((prep_worker_path, exec_worker_path))
 }
@@ -276,7 +272,7 @@ echo {}
 			// Try with provided workers path that has missing binaries.
 			assert_matches!(
 				determine_workers_paths(Some(given_workers_path.clone()), None),
-				Err(Error::MissingWorkerBinaries { given_workers_path: Some(p) }) if p == given_workers_path
+				Err(Error::MissingWorkerBinaries { given_workers_path: Some(p), workers_names: None }) if p == given_workers_path
 			);
 
 			// Try with provided workers path that has not executable binaries.
@@ -319,7 +315,7 @@ echo {}
 			// Try with both binaries missing.
 			assert_matches!(
 				determine_workers_paths(None, None),
-				Err(Error::MissingWorkerBinaries { given_workers_path: None })
+				Err(Error::MissingWorkerBinaries { given_workers_path: None, workers_names: None })
 			);
 
 			// Try with only prep worker (at bin location).
@@ -327,7 +323,7 @@ echo {}
 			write_worker_exe(&prepare_worker_path)?;
 			assert_matches!(
 				determine_workers_paths(None, None),
-				Err(Error::MissingWorkerBinaries { given_workers_path: None })
+				Err(Error::MissingWorkerBinaries { given_workers_path: None, workers_names: None })
 			);
 
 			// Try with only exec worker (at bin location).
@@ -336,7 +332,7 @@ echo {}
 			write_worker_exe(&execute_worker_path)?;
 			assert_matches!(
 				determine_workers_paths(None, None),
-				Err(Error::MissingWorkerBinaries { given_workers_path: None })
+				Err(Error::MissingWorkerBinaries { given_workers_path: None, workers_names: None })
 			);
 
 			// Try with only prep worker (at lib location).
@@ -345,7 +341,7 @@ echo {}
 			write_worker_exe(&prepare_worker_path)?;
 			assert_matches!(
 				determine_workers_paths(None, None),
-				Err(Error::MissingWorkerBinaries { given_workers_path: None })
+				Err(Error::MissingWorkerBinaries { given_workers_path: None, workers_names: None })
 			);
 
 			// Try with only exec worker (at lib location).
@@ -354,7 +350,7 @@ echo {}
 			write_worker_exe(execute_worker_path)?;
 			assert_matches!(
 				determine_workers_paths(None, None),
-				Err(Error::MissingWorkerBinaries { given_workers_path: None })
+				Err(Error::MissingWorkerBinaries { given_workers_path: None, workers_names: None })
 			);
 
 			Ok(())
