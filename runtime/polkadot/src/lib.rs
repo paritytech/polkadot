@@ -1591,6 +1591,8 @@ mod benches {
 		[pallet_whitelist, Whitelist]
 		// XCM
 		[pallet_xcm, XcmPallet]
+		[pallet_xcm_benchmarks::fungible, pallet_xcm_benchmarks::fungible::Pallet::<Runtime>]
+		[pallet_xcm_benchmarks::generic, pallet_xcm_benchmarks::generic::Pallet::<Runtime>]
 	);
 }
 
@@ -2071,7 +2073,8 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkBatch>,
 			sp_runtime::RuntimeString,
 		> {
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey};
+			use frame_support::traits::WhitelistedStorageKeys;
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey, BenchmarkError};
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;
@@ -2080,6 +2083,8 @@ sp_api::impl_runtime_apis! {
 			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
+			use xcm::latest::prelude::*;
+			use xcm_config::{XcmConfig, StatemintLocation, TokenLocation, LocalCheckAccount, SovereignAccountOf};
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
@@ -2089,20 +2094,93 @@ sp_api::impl_runtime_apis! {
 			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
 			impl runtime_parachains::disputes::slashing::benchmarking::Config for Runtime {}
 
-			let whitelist: Vec<TrackedStorageKey> = vec![
-				// Block Number
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac").to_vec().into(),
-				// Total Issuance
-				hex_literal::hex!("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80").to_vec().into(),
-				// Execution Phase
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a").to_vec().into(),
-				// Event Count
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850").to_vec().into(),
-				// System Events
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
-				// Treasury Account
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da95ecffd7b6c0f78751baa9d281e0bfa3a6d6f646c70792f74727372790000000000000000000000000000000000000000").to_vec().into(),
-			];
+			let mut whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
+			let treasury_key = frame_system::Account::<Runtime>::hashed_key_for(Treasury::account_id());
+			whitelist.push(treasury_key.to_vec().into());
+
+			impl pallet_xcm_benchmarks::Config for Runtime {
+				type XcmConfig = XcmConfig;
+				type AccountIdConverter = SovereignAccountOf;
+				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
+					Ok(StatemintLocation::get())
+				}
+				fn worst_case_holding(_depositable_count: u32) -> MultiAssets {
+					// Polkadot only knows about DOT
+					vec![MultiAsset { id: Concrete(TokenLocation::get()), fun: Fungible(1_000_000 * UNITS) }].into()
+				}
+			}
+
+			parameter_types! {
+				pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
+					StatemintLocation::get(),
+					MultiAsset { id: Concrete(TokenLocation::get()), fun: Fungible(1 * UNITS) }
+				));
+				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = None;
+			}
+
+			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
+				type TransactAsset = Balances;
+
+				type CheckedAccount = LocalCheckAccount;
+				type TrustedTeleporter = TrustedTeleporter;
+				type TrustedReserve = TrustedReserve;
+
+				fn get_multi_asset() -> MultiAsset {
+					MultiAsset {
+						id: Concrete(TokenLocation::get()),
+						fun: Fungible(1 * UNITS)
+					}
+				}
+			}
+
+			impl pallet_xcm_benchmarks::generic::Config for Runtime {
+				type RuntimeCall = RuntimeCall;
+
+				fn worst_case_response() -> (u64, Response) {
+					(0u64, Response::Version(Default::default()))
+				}
+
+				fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError> {
+					// Polkadot doesn't support asset exchanges
+					Err(BenchmarkError::Skip)
+				}
+
+				fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError> {
+					// The XCM executor of Polkadot doesn't have a configured `UniversalAliases`
+					Err(BenchmarkError::Skip)
+				}
+
+				fn transact_origin_and_runtime_call() -> Result<(MultiLocation, RuntimeCall), BenchmarkError> {
+					Ok((StatemintLocation::get(), frame_system::Call::remark_with_event { remark: vec![] }.into()))
+				}
+
+				fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(StatemintLocation::get())
+				}
+
+				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
+					let origin = StatemintLocation::get();
+					let assets: MultiAssets = (Concrete(TokenLocation::get()), 1_000 * UNITS).into();
+					let ticket = MultiLocation { parents: 0, interior: Here };
+					Ok((origin, ticket, assets))
+				}
+
+				fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
+					// Polkadot doesn't support asset locking
+					Err(BenchmarkError::Skip)
+				}
+
+				fn export_message_origin_and_destination(
+				) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError> {
+					// Polkadot doesn't support exporting messages
+					Err(BenchmarkError::Skip)
+				}
+
+				fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
+					// The XCM executor of Polkadot doesn't have a configured `Aliasers`
+					Err(BenchmarkError::Skip)
+				}
+			}
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
@@ -2292,7 +2370,11 @@ mod test_fees {
 
 #[cfg(test)]
 mod test {
+	use std::collections::HashSet;
+
 	use super::*;
+	use frame_support::traits::WhitelistedStorageKeys;
+	use sp_core::hexdisplay::HexDisplay;
 
 	#[test]
 	fn call_size() {
@@ -2301,6 +2383,43 @@ mod test {
 			"size of RuntimeCall is more than 230 bytes: some calls have too big arguments, use Box to \
 			reduce the size of RuntimeCall.
 			If the limit is too strong, maybe consider increase the limit",
+		);
+	}
+
+	#[test]
+	fn check_whitelist() {
+		let whitelist: HashSet<String> = AllPalletsWithSystem::whitelisted_storage_keys()
+			.iter()
+			.map(|e| HexDisplay::from(&e.key).to_string())
+			.collect();
+
+		// Block number
+		assert!(
+			whitelist.contains("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac")
+		);
+		// Total issuance
+		assert!(
+			whitelist.contains("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80")
+		);
+		// Execution phase
+		assert!(
+			whitelist.contains("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a")
+		);
+		// Event count
+		assert!(
+			whitelist.contains("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850")
+		);
+		// System events
+		assert!(
+			whitelist.contains("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7")
+		);
+		// XcmPallet VersionDiscoveryQueue
+		assert!(
+			whitelist.contains("1405f2411d0af5a7ff397e7c9dc68d194a222ba0333561192e474c59ed8e30e1")
+		);
+		// XcmPallet SafeXcmVersion
+		assert!(
+			whitelist.contains("1405f2411d0af5a7ff397e7c9dc68d196323ae84c43568be0d1394d5d0d522c4")
 		);
 	}
 }
