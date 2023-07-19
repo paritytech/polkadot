@@ -1962,8 +1962,11 @@ fn para_upgrade_delay_scheduled_from_inclusion() {
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			para_id: chain_a,
-			kind: AssignmentKind::Parachain,
+			paras_entry: ParasEntry {
+				assignment: Assignment { para_id: chain_a },
+				retries: 0,
+				ttl: 5,
+			},
 			group_idx: GroupIndex::from(0),
 		};
 
@@ -1997,7 +2000,7 @@ fn para_upgrade_delay_scheduled_from_inclusion() {
 			)
 			.expect("candidates scheduled, in order, and backed");
 
-		assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
+		assert_eq!(occupied_cores, vec![(CoreIndex::from(0), chain_a)]);
 
 		// Run a couple of blocks before the inclusion.
 		run_to_block(7, |_| None);
