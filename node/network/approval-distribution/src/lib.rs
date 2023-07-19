@@ -1754,7 +1754,7 @@ impl State {
 				);
 				metrics.on_gossipped_sent_approval();
 			}
-			gum::trace!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?block_hash,
 				?candidate_index,

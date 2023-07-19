@@ -1343,7 +1343,7 @@ fn our_view_updates_decreasing_order_and_limited_to_max() {
 fn network_protocol_versioning_view_update() {
 	let (oracle, handle) = make_sync_oracle(false);
 	test_harness(Box::new(oracle), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer, shared } = test_harness;
+		let TestHarness { mut network_handle, mut virtual_overseer, shared: _ } = test_harness;
 
 		let peer_ids: Vec<_> = (0..2).map(|_| PeerId::random()).collect();
 		let peers = [
@@ -1397,7 +1397,7 @@ fn network_protocol_versioning_view_update() {
 fn network_protocol_versioning_subsystem_msg() {
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Box::new(oracle), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer, shared } = test_harness;
+		let TestHarness { mut network_handle, mut virtual_overseer, shared: _ } = test_harness;
 
 		let peer = PeerId::random();
 
