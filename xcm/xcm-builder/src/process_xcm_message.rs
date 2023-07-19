@@ -26,7 +26,7 @@ use sp_std::{fmt::Debug, marker::PhantomData};
 use sp_weights::{Weight, WeightMeter};
 use xcm::prelude::*;
 
-/// A message processor that delegates execution to an [XcmExecutor].
+/// A message processor that delegates execution to an [`XcmExecutor`].
 pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>(
 	PhantomData<(MessageOrigin, XcmExecutor, Call)>,
 );

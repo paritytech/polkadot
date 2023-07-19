@@ -42,7 +42,7 @@ impl Default for ReputationAggregator {
 }
 
 impl ReputationAggregator {
-	/// New ReputationAggregator
+	/// New `ReputationAggregator`
 	///
 	/// # Arguments
 	///

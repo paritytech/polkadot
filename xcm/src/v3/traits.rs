@@ -510,7 +510,7 @@ pub type SendResult<T> = result::Result<(T, MultiAssets), SendError>;
 /// # }
 /// ```
 pub trait SendXcm {
-	/// Intermediate value which connects the two phaases of the send operation.
+	/// Intermediate value which connects the two phases of the send operation.
 	type Ticket;
 
 	/// Check whether the given `_message` is deliverable to the given `_destination` and if so
