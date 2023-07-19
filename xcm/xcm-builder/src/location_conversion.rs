@@ -345,6 +345,47 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 	}
 }
 
+/// Converts a location which is a top-level relay chain (which provides its own consensus) into a 32-byte `AccountId`.
+///
+/// This will always result in the *same account ID* being returned for the same Relay-chain, regardless of the relative security of
+/// this Relay-chain compared to the local chain.
+///
+/// Note: No distinction is made when the local chain happens to be the relay chain in
+/// question or its Relay-chain.
+///
+/// WARNING: This results in the same `AccountId` value being generated regardless
+/// of the relative security of the local chain and the Relay-chain of the input
+/// location. This may not have any immediate security risks, however since it creates
+/// commonalities between chains with different security characteristics, it could
+/// possibly form part of a more sophisticated attack scenario.
+pub struct GlobalConsensusConvertsFor<UniversalLocation, AccountId>(
+	PhantomData<(UniversalLocation, AccountId)>,
+);
+impl<UniversalLocation: Get<InteriorMultiLocation>, AccountId: From<[u8; 32]> + Clone>
+	ConvertLocation<AccountId> for GlobalConsensusConvertsFor<UniversalLocation, AccountId>
+{
+	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
+		let universal_source = UniversalLocation::get();
+		log::trace!(
+			target: "xcm::location_conversion",
+			"GlobalConsensusConvertsFor universal_source: {:?}, location: {:?}",
+			universal_source, location,
+		);
+		let devolved = ensure_is_remote(universal_source, *location).ok()?;
+		let (remote_network, remote_location) = devolved;
+
+		match remote_location {
+			Here => Some(AccountId::from(Self::from_params(&remote_network))),
+			_ => None,
+		}
+	}
+}
+impl<UniversalLocation, AccountId> GlobalConsensusConvertsFor<UniversalLocation, AccountId> {
+	fn from_params(network: &NetworkId) -> [u8; 32] {
+		(b"glblcnsnss_", network).using_encoded(blake2_256)
+	}
+}
+
 /// Converts a location which is a top-level parachain (i.e. a parachain held on a
 /// Relay-chain which provides its own consensus) into a 32-byte `AccountId`.
 ///
@@ -471,6 +512,90 @@ mod tests {
 		let input = MultiLocation { parents: 99, interior: X1(Parachain(88)) };
 		let inverted = UniversalLocation::get().invert_target(&input);
 		assert_eq!(inverted, Err(()));
+	}
+
+	#[test]
+	fn global_consensus_converts_for_works() {
+		parameter_types! {
+			pub UniversalLocation: InteriorMultiLocation = X2(GlobalConsensus(ByGenesis([9; 32])), Parachain(1234));
+		}
+
+		let test_data = vec![
+			(MultiLocation::parent(), false),
+			(MultiLocation::new(0, Here), false),
+			(MultiLocation::new(0, X1(GlobalConsensus(ByGenesis([9; 32])))), false),
+			(MultiLocation::new(1, X1(GlobalConsensus(ByGenesis([9; 32])))), false),
+			(MultiLocation::new(2, X1(GlobalConsensus(ByGenesis([9; 32])))), false),
+			(MultiLocation::new(0, X1(GlobalConsensus(ByGenesis([0; 32])))), false),
+			(MultiLocation::new(1, X1(GlobalConsensus(ByGenesis([0; 32])))), false),
+			(MultiLocation::new(2, X1(GlobalConsensus(ByGenesis([0; 32])))), true),
+			(
+				MultiLocation::new(0, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))),
+				false,
+			),
+			(
+				MultiLocation::new(1, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))),
+				false,
+			),
+			(
+				MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))),
+				false,
+			),
+		];
+
+		for (location, expected_result) in test_data {
+			let result =
+				GlobalConsensusConvertsFor::<UniversalLocation, [u8; 32]>::convert_location(
+					&location,
+				);
+			match result {
+				Some(account) => {
+					assert_eq!(
+						true, expected_result,
+						"expected_result: {}, but conversion passed: {:?}, location: {:?}",
+						expected_result, account, location
+					);
+					match &location {
+						MultiLocation { interior: X1(GlobalConsensus(network)), .. } =>
+							assert_eq!(
+								account,
+								GlobalConsensusConvertsFor::<UniversalLocation, [u8; 32]>::from_params(network),
+								"expected_result: {}, but conversion passed: {:?}, location: {:?}", expected_result, account, location
+							),
+						_ => assert_eq!(
+							true,
+							expected_result,
+							"expected_result: {}, conversion passed: {:?}, but MultiLocation does not match expected pattern, location: {:?}", expected_result, account, location
+						)
+					}
+				},
+				None => {
+					assert_eq!(
+						false, expected_result,
+						"expected_result: {} - but conversion failed, location: {:?}",
+						expected_result, location
+					);
+				},
+			}
+		}
+
+		// all success
+		let res_gc_a = GlobalConsensusConvertsFor::<UniversalLocation, [u8; 32]>::convert_location(
+			&MultiLocation::new(2, X1(GlobalConsensus(ByGenesis([3; 32])))),
+		)
+		.expect("conversion is ok");
+		let res_gc_b = GlobalConsensusConvertsFor::<UniversalLocation, [u8; 32]>::convert_location(
+			&MultiLocation::new(2, X1(GlobalConsensus(ByGenesis([4; 32])))),
+		)
+		.expect("conversion is ok");
+		let res_gc_c = GlobalConsensusConvertsFor::<UniversalLocation, [u8; 32]>::convert_location(
+			&MultiLocation::new(2, X1(GlobalConsensus(ByGenesis([5; 32])))),
+		)
+		.expect("conversion is ok");
+
+		assert_ne!(res_gc_a, res_gc_b);
+		assert_ne!(res_gc_b, res_gc_c);
+		assert_ne!(res_gc_a, res_gc_c);
 	}
 
 	#[test]
