@@ -884,10 +884,13 @@ impl<T: Config> Pallet<T> {
 		// initial weight is config read.
 		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 		if let Some(new_code) = commitments.new_validation_code {
+			// Block number of candidate's inclusion.
+			let now = <frame_system::Pallet<T>>::block_number();
+
 			weight.saturating_add(<paras::Pallet<T>>::schedule_code_upgrade(
 				receipt.descriptor.para_id,
 				new_code,
-				relay_parent_number,
+				now,
 				&config,
 			));
 		}
