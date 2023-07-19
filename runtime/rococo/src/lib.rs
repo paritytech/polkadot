@@ -1514,114 +1514,12 @@ pub type UncheckedExtrinsic =
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
-pub type Migrations = (
-	migrations::V0940,
-	migrations::V0941,
-	migrations::V0942,
-	migrations::V0943,
-	migrations::Unreleased,
-);
+pub type Migrations = migrations::Unreleased;
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
-	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
-
-	pub type V0940 = ();
-	pub type V0941 = (); // Node only release - no migrations.
-	pub type V0942 = (
-		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-		pallet_offences::migration::v1::MigrateToV1<Runtime>,
-	);
-	pub type V0943 = (
-		SetStorageVersions,
-		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
-		ump_migrations::UpdateUmpLimits,
-	);
-
-	/// Migrations that set `StorageVersion`s we missed to set.
-	///
-	/// It's *possible* that these pallets have not in fact been migrated to the versions being set,
-	/// which we should keep in mind in the future if we notice any strange behavior.
-	/// We opted to not check exactly what on-chain versions each pallet is at, since it would be
-	/// an involved effort, this is testnet, and no one has complained
-	/// (https://github.com/paritytech/polkadot/issues/6657#issuecomment-1552956439).
-	pub struct SetStorageVersions;
-
-	impl OnRuntimeUpgrade for SetStorageVersions {
-		fn on_runtime_upgrade() -> Weight {
-			let mut writes = 0;
-			let mut reads = 0;
-
-			// Council
-			if Council::on_chain_storage_version() < 4 {
-				// Safe to assume Council was created with V4 pallet.
-				StorageVersion::new(4).put::<Council>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// Technical Committee
-			if TechnicalCommittee::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<TechnicalCommittee>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// PhragmenElection
-			if PhragmenElection::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<PhragmenElection>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// TechnicalMembership
-			if TechnicalMembership::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<TechnicalMembership>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// Scheduler
-			if Scheduler::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<Scheduler>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// Bounties
-			if Bounties::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<Bounties>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// Tips
-			if Tips::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<Tips>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// NisCounterpartBalances
-			if NisCounterpartBalances::on_chain_storage_version() < 1 {
-				StorageVersion::new(1).put::<NisCounterpartBalances>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// Crowdloan
-			if Crowdloan::on_chain_storage_version() < 2 {
-				StorageVersion::new(2).put::<Crowdloan>();
-				writes += 1;
-			}
-			reads += 1;
-
-			RocksDbWeight::get().reads_writes(reads, writes)
-		}
-	}
 
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
@@ -1629,24 +1527,6 @@ pub mod migrations {
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 	);
-}
-
-/// Helpers to configure all migrations.
-pub mod ump_migrations {
-	use runtime_parachains::configuration::migration_ump;
-
-	pub const MAX_UPWARD_QUEUE_SIZE: u32 = 8 * 1024 * 1024;
-	pub const MAX_UPWARD_QUEUE_COUNT: u32 = 1398101;
-	pub const MAX_UPWARD_MESSAGE_SIZE: u32 = (1 << 15) - 5; // Checked in test `max_upward_message_size`.
-	pub const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32 = 1024;
-
-	pub type UpdateUmpLimits = migration_ump::latest::ScheduleConfigUpdate<
-		super::Runtime,
-		MAX_UPWARD_QUEUE_SIZE,
-		MAX_UPWARD_QUEUE_COUNT,
-		MAX_UPWARD_MESSAGE_SIZE,
-		MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE,
-	>;
 }
 
 /// Executive: handles dispatch to the various modules.
@@ -2337,20 +2217,6 @@ mod encoding_tests {
 	#[test]
 	fn nis_hold_reason_encoding_is_correct() {
 		assert_eq!(RuntimeHoldReason::Nis(pallet_nis::HoldReason::NftReceipt).encode(), [38, 0]);
-	}
-}
-
-#[cfg(test)]
-mod test {
-	use super::*;
-
-	#[test]
-	fn max_upward_message_size() {
-		use sp_core::Get;
-		assert_eq!(
-			ump_migrations::MAX_UPWARD_MESSAGE_SIZE,
-			pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
-		);
 	}
 }
 
