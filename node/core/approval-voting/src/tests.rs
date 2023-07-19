@@ -17,8 +17,11 @@
 use super::*;
 use polkadot_node_primitives::{
 	approval::{
-		AssignmentCert, AssignmentCertKind, DelayTranche, VrfOutput, VrfProof, VrfSignature,
-		RELAY_VRF_MODULO_CONTEXT,
+		v1::{
+			AssignmentCert, AssignmentCertKind, DelayTranche, VrfOutput, VrfProof, VrfSignature,
+			RELAY_VRF_MODULO_CONTEXT,
+		},
+		v2::{AssignmentCertKindV2, AssignmentCertV2},
 	},
 	AvailableData, BlockData, PoV,
 };
@@ -51,7 +54,7 @@ use std::{
 };
 
 use super::{
-	approval_db::v1::StoredBlockRange,
+	approval_db::v2::StoredBlockRange,
 	backend::BackendWriteOp,
 	import::tests::{
 		garbage_vrf_signature, AllowedSlots, BabeEpoch, BabeEpochConfiguration,
@@ -111,7 +114,7 @@ fn make_sync_oracle(val: bool) -> (Box<dyn SyncOracle + Send>, TestSyncOracleHan
 
 #[cfg(test)]
 pub mod test_constants {
-	use crate::approval_db::v1::Config as DatabaseConfig;
+	use crate::approval_db::v2::Config as DatabaseConfig;
 	const DATA_COL: u32 = 0;
 
 	pub(crate) const NUM_COLUMNS: u32 = 1;
@@ -231,7 +234,7 @@ where
 	fn compute_assignments(
 		&self,
 		_keystore: &LocalKeystore,
-		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
+		_relay_vrf_story: polkadot_node_primitives::approval::v1::RelayVRFStory,
 		_config: &criteria::Config,
 		_leaving_cores: Vec<(
 			CandidateHash,
@@ -244,13 +247,13 @@ where
 
 	fn check_assignment_cert(
 		&self,
-		_claimed_core_index: polkadot_primitives::CoreIndex,
+		_claimed_core_bitfield: polkadot_node_primitives::approval::v2::CoreBitfield,
 		validator_index: ValidatorIndex,
 		_config: &criteria::Config,
-		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
-		_assignment: &polkadot_node_primitives::approval::AssignmentCert,
-		_backing_group: polkadot_primitives::GroupIndex,
-	) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
+		_relay_vrf_story: polkadot_node_primitives::approval::v1::RelayVRFStory,
+		_assignment: &polkadot_node_primitives::approval::v2::AssignmentCertV2,
+		_backing_groups: Vec<polkadot_primitives::GroupIndex>,
+	) -> Result<polkadot_node_primitives::approval::v1::DelayTranche, criteria::InvalidAssignment> {
 		self.1(validator_index)
 	}
 }
@@ -281,6 +284,13 @@ impl Backend for TestStoreInner {
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateEntry>> {
 		Ok(self.candidate_entries.get(candidate_hash).cloned())
+	}
+
+	fn load_candidate_entry_v1(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>> {
+		self.load_candidate_entry(candidate_hash)
 	}
 
 	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
@@ -356,6 +366,13 @@ impl Backend for TestStore {
 		store.load_candidate_entry(candidate_hash)
 	}
 
+	fn load_candidate_entry_v1(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>> {
+		self.load_candidate_entry(candidate_hash)
+	}
+
 	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
 		let store = self.store.lock();
 		store.load_blocks_at_height(height)
@@ -389,6 +406,17 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let out = inout.to_output();
 
 	AssignmentCert { kind, vrf: VrfSignature { output: VrfOutput(out), proof: VrfProof(proof) } }
+}
+
+fn garbage_assignment_cert_v2(kind: AssignmentCertKindV2) -> AssignmentCertV2 {
+	let ctx = schnorrkel::signing_context(RELAY_VRF_MODULO_CONTEXT);
+	let msg = b"test-garbage";
+	let mut prng = rand_core::OsRng;
+	let keypair = schnorrkel::Keypair::generate_with(&mut prng);
+	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
+	let out = inout.to_output();
+
+	AssignmentCertV2 { kind, vrf: VrfSignature { output: VrfOutput(out), proof: VrfProof(proof) } }
 }
 
 fn sign_approval(
@@ -617,12 +645,13 @@ async fn check_and_import_assignment(
 		overseer,
 		FromOrchestra::Communication {
 			msg: ApprovalVotingMessage::CheckAndImportAssignment(
-				IndirectAssignmentCert {
+				IndirectAssignmentCertV2 {
 					block_hash,
 					validator,
-					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
+					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
+						.into(),
 				},
-				candidate_index,
+				candidate_index.into(),
 				tx,
 			),
 		},
@@ -631,6 +660,38 @@ async fn check_and_import_assignment(
 	rx
 }
 
+async fn check_and_import_assignment_v2(
+	overseer: &mut VirtualOverseer,
+	block_hash: Hash,
+	core_indices: Vec<u32>,
+	validator: ValidatorIndex,
+) -> oneshot::Receiver<AssignmentCheckResult> {
+	let (tx, rx) = oneshot::channel();
+	overseer_send(
+		overseer,
+		FromOrchestra::Communication {
+			msg: ApprovalVotingMessage::CheckAndImportAssignment(
+				IndirectAssignmentCertV2 {
+					block_hash,
+					validator,
+					cert: garbage_assignment_cert_v2(AssignmentCertKindV2::RelayVRFModuloCompact {
+						core_bitfield: core_indices
+							.clone()
+							.into_iter()
+							.map(|c| CoreIndex(c))
+							.collect::<Vec<_>>()
+							.try_into()
+							.unwrap(),
+					}),
+				},
+				core_indices.try_into().unwrap(),
+				tx,
+			),
+		},
+	)
+	.await;
+	rx
+}
 struct BlockConfig {
 	slot: Slot,
 	candidates: Option<Vec<(CandidateReceipt, CoreIndex, GroupIndex)>>,
@@ -1060,14 +1121,15 @@ fn blank_subsystem_act_on_bad_block() {
 			&mut virtual_overseer,
 			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
-					IndirectAssignmentCert {
-						block_hash: bad_block_hash,
+					IndirectAssignmentCertV2 {
+						block_hash: bad_block_hash.clone(),
 						validator: 0u32.into(),
 						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
 							sample: 0,
-						}),
+						})
+						.into(),
 					},
-					0u32,
+					0u32.into(),
 					tx,
 				),
 			},
@@ -1323,9 +1385,22 @@ fn subsystem_accepts_duplicate_assignment() {
 			}
 		);
 
-		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_index = 0;
 		let validator = ValidatorIndex(0);
+		let candidate_index = 0;
+		let block_hash = Hash::repeat_byte(0x01);
+
+		let candidate_receipt1 = {
+			let mut receipt = dummy_candidate_receipt(block_hash);
+			receipt.descriptor.para_id = ParaId::from(1_u32);
+			receipt
+		};
+		let candidate_receipt2 = {
+			let mut receipt = dummy_candidate_receipt(block_hash);
+			receipt.descriptor.para_id = ParaId::from(2_u32);
+			receipt
+		};
+		let candidate_index1 = 0;
+		let candidate_index2 = 1;
 
 		// Add block hash 00.
 		ChainBuilder::new()
@@ -1333,11 +1408,30 @@ fn subsystem_accepts_duplicate_assignment() {
 				block_hash,
 				ChainBuilder::GENESIS_HASH,
 				1,
-				BlockConfig { slot: Slot::from(1), candidates: None, session_info: None },
+				BlockConfig {
+					slot: Slot::from(1),
+					candidates: Some(vec![
+						(candidate_receipt1, CoreIndex(0), GroupIndex(1)),
+						(candidate_receipt2, CoreIndex(1), GroupIndex(1)),
+					]),
+					session_info: None,
+				},
 			)
 			.build(&mut virtual_overseer)
 			.await;
 
+		// Initial assignment.
+		let rx = check_and_import_assignment_v2(
+			&mut virtual_overseer,
+			block_hash,
+			vec![candidate_index1, candidate_index2],
+			validator,
+		)
+		.await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+
+		// Test with single assigned core.
 		let rx = check_and_import_assignment(
 			&mut virtual_overseer,
 			block_hash,
@@ -1346,12 +1440,14 @@ fn subsystem_accepts_duplicate_assignment() {
 		)
 		.await;
 
-		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::AcceptedDuplicate));
 
-		let rx = check_and_import_assignment(
+		// Test with multiple assigned cores. This cannot happen in practice, as tranche0 assignments
+		// are sent first, but we should still ensure correct behavior.
+		let rx = check_and_import_assignment_v2(
 			&mut virtual_overseer,
 			block_hash,
-			candidate_index,
+			vec![candidate_index1, candidate_index2],
 			validator,
 		)
 		.await;
@@ -1728,14 +1824,15 @@ fn linear_import_act_on_leaf() {
 			&mut virtual_overseer,
 			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
-					IndirectAssignmentCert {
+					IndirectAssignmentCertV2 {
 						block_hash: head,
 						validator: 0u32.into(),
 						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
 							sample: 0,
-						}),
+						})
+						.into(),
 					},
-					0u32,
+					0u32.into(),
 					tx,
 				),
 			},
@@ -1798,14 +1895,15 @@ fn forkful_import_at_same_height_act_on_leaf() {
 				&mut virtual_overseer,
 				FromOrchestra::Communication {
 					msg: ApprovalVotingMessage::CheckAndImportAssignment(
-						IndirectAssignmentCert {
+						IndirectAssignmentCertV2 {
 							block_hash: head,
 							validator: 0u32.into(),
 							cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
 								sample: 0,
-							}),
+							})
+							.into(),
 						},
-						0u32,
+						0u32.into(),
 						tx,
 					),
 				},
@@ -2249,8 +2347,24 @@ fn subsystem_validate_approvals_cache() {
 			let mut assignments = HashMap::new();
 			let _ = assignments.insert(
 				CoreIndex(0),
-				approval_db::v1::OurAssignment {
-					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
+				approval_db::v2::OurAssignment {
+					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
+						.into(),
+					tranche: 0,
+					validator_index: ValidatorIndex(0),
+					triggered: false,
+				}
+				.into(),
+			);
+
+			let _ = assignments.insert(
+				CoreIndex(0),
+				approval_db::v2::OurAssignment {
+					cert: garbage_assignment_cert_v2(AssignmentCertKindV2::RelayVRFModuloCompact {
+						core_bitfield: vec![CoreIndex(0), CoreIndex(1), CoreIndex(2)]
+							.try_into()
+							.unwrap(),
+					}),
 					tranche: 0,
 					validator_index: ValidatorIndex(0),
 					triggered: false,
@@ -2356,9 +2470,9 @@ async fn handle_double_assignment_import(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
 			_,
-			c_index,
+			c_indices,
 		)) => {
-			assert_eq!(candidate_index, c_index);
+			assert_eq!(Into::<CandidateBitfield>::into(candidate_index), c_indices);
 		}
 	);
 
@@ -2371,7 +2485,7 @@ async fn handle_double_assignment_import(
 			_,
 			c_index
 		)) => {
-			assert_eq!(candidate_index, c_index);
+			assert_eq!(Into::<CandidateBitfield>::into(candidate_index), c_index);
 		}
 	);
 
@@ -2392,7 +2506,6 @@ async fn handle_double_assignment_import(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(_))
 	);
-
 	// Assert that there are no more messages being sent by the subsystem
 	assert!(overseer_recv(virtual_overseer).timeout(TIMEOUT / 2).await.is_none());
 }
@@ -2467,8 +2580,9 @@ where
 			let mut assignments = HashMap::new();
 			let _ = assignments.insert(
 				CoreIndex(0),
-				approval_db::v1::OurAssignment {
-					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
+				approval_db::v2::OurAssignment {
+					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
+						.into(),
 					tranche: our_assigned_tranche,
 					validator_index: ValidatorIndex(0),
 					triggered: false,
@@ -2602,14 +2716,12 @@ async fn step_until_done(clock: &MockClock) {
 		futures_timer::Delay::new(Duration::from_millis(200)).await;
 		let mut clock = clock.inner.lock();
 		if let Some(tick) = clock.next_wakeup() {
-			println!("TICK: {:?}", tick);
 			relevant_ticks.push(tick);
 			clock.set_tick(tick);
 		} else {
 			break
 		}
 	}
-	println!("relevant_ticks: {:?}", relevant_ticks);
 }
 
 #[test]

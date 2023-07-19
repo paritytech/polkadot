@@ -17,7 +17,7 @@
 //! Time utilities for approval voting.
 
 use futures::prelude::*;
-use polkadot_node_primitives::approval::DelayTranche;
+use polkadot_node_primitives::approval::v1::DelayTranche;
 use sp_consensus_slots::Slot;
 use std::{
 	pin::Pin,

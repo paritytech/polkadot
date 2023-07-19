@@ -27,7 +27,7 @@ use polkadot_primitives::{BlockNumber, CandidateHash, Hash};
 use std::collections::HashMap;
 
 use super::{
-	approval_db::v1::StoredBlockRange,
+	approval_db::v2::StoredBlockRange,
 	persisted_entries::{BlockEntry, CandidateEntry},
 };
 
@@ -44,11 +44,18 @@ pub enum BackendWriteOp {
 }
 
 /// An abstraction over backend storage for the logic of this subsystem.
+/// Implementation must always target latest storage version, but we might introduce
+/// methods to enable db migration, like `load_candidate_entry_v1`.
 pub trait Backend {
 	/// Load a block entry from the DB.
 	fn load_block_entry(&self, hash: &Hash) -> SubsystemResult<Option<BlockEntry>>;
 	/// Load a candidate entry from the DB.
 	fn load_candidate_entry(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>>;
+	/// Load a candidate entry from the DB with scheme version 1.
+	fn load_candidate_entry_v1(
 		&self,
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateEntry>>;

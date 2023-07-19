@@ -54,6 +54,8 @@ struct OurAssignment {
   tranche: DelayTranche,
   validator_index: ValidatorIndex,
   triggered: bool,
+  /// A subset of the core indices obtained from the VRF output.
+  assignment_bitfield: AssignmentBitfield,
 }
 
 struct ApprovalEntry {
