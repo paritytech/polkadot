@@ -197,6 +197,12 @@ pub struct LocatableAssetId {
 	pub location: MultiLocation,
 }
 
+impl LocatableAssetId {
+	pub fn new(asset_id: AssetId, location: MultiLocation) -> Self {
+		LocatableAssetId { asset_id, location }
+	}
+}
+
 /// Adapter `struct` which implements a conversion from any `AssetKind` into a [LocatableAsset]
 /// value using a fixed `Location` for the `location` field.
 pub struct FixedLocation<Location>(sp_std::marker::PhantomData<Location>);
