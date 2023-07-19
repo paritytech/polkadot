@@ -25,7 +25,8 @@ cargo-fmt:
     - cargo +nightly fmt --all -- --check
   allow_failure: true
 
-spellcheck:
+# Disabled in https://github.com/paritytech/polkadot/pull/7512
+.spellcheck_disabled:
   stage: check
   extends:
     - .docker-env
