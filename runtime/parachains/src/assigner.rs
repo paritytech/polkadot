@@ -45,6 +45,17 @@ pub mod pallet {
 type ParachainAssigner<T> = <T as Config>::ParachainsAssignmentProvider;
 type OnDemandAssigner<T> = <T as Config>::OnDemandAssignmentProvider;
 
+impl<T: Config> Pallet<T> {
+	// Helper fn for the AssignmentProvider implementation.
+	// Assumes that the first allocation of cores is to bulk parachains.
+	// This function will return false if there are no cores assigned to the bulk parachain assigner.
+	fn is_parachain_core(core_idx: &CoreIndex) -> bool {
+		let parachain_cores =
+			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::session_core_count();
+		(0..parachain_cores).contains(&core_idx.0)
+	}
+}
+
 impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	fn session_core_count() -> u32 {
 		let parachain_cores =
@@ -60,10 +71,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 		core_idx: CoreIndex,
 		concluded_para: Option<ParaId>,
 	) -> Option<Assignment> {
-		let parachain_cores =
-			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::session_core_count();
-
-		if (0..parachain_cores).contains(&core_idx.0) {
+		if Pallet::<T>::is_parachain_core(&core_idx) {
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::pop_assignment_for_core(
 				core_idx,
 				concluded_para,
@@ -77,9 +85,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	}
 
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
-		let parachain_cores =
-			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::session_core_count();
-		if (0..parachain_cores).contains(&core_idx.0) {
+		if Pallet::<T>::is_parachain_core(&core_idx) {
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::push_assignment_for_core(
 				core_idx, assignment,
 			)
@@ -91,10 +97,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	}
 
 	fn get_availability_period(core_idx: CoreIndex) -> BlockNumberFor<T> {
-		let parachain_cores =
-			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::session_core_count();
-
-		if (0..parachain_cores).contains(&core_idx.0) {
+		if Pallet::<T>::is_parachain_core(&core_idx) {
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_availability_period(
 				core_idx,
 			)
@@ -106,10 +109,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	}
 
 	fn get_max_retries(core_idx: CoreIndex) -> u32 {
-		let parachain_cores =
-			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::session_core_count();
-
-		if (0..parachain_cores).contains(&core_idx.0) {
+		if Pallet::<T>::is_parachain_core(&core_idx) {
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_max_retries(
 				core_idx,
 			)
