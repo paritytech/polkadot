@@ -37,13 +37,11 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config + paras::Config {
 		type ParachainsAssignmentProvider: AssignmentProvider<BlockNumberFor<Self>>;
-		type OnDemandAssignmentProvider: AssignmentProvider<BlockNumberFor<Self>>;
 	}
 }
 
 // Aliases to make the impl more readable.
 type ParachainAssigner<T> = <T as Config>::ParachainsAssignmentProvider;
-type OnDemandAssigner<T> = <T as Config>::OnDemandAssignmentProvider;
 
 impl<T: Config> Pallet<T> {
 	// Helper fn for the AssignmentProvider implementation.
@@ -60,10 +58,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	fn session_core_count() -> u32 {
 		let parachain_cores =
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::session_core_count();
-		let on_demand_cores =
-			<OnDemandAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::session_core_count();
-
-		parachain_cores.saturating_add(on_demand_cores)
+		parachain_cores
 	}
 
 	/// Pops an `Assignment` from a specified `CoreIndex`
@@ -77,10 +72,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 				concluded_para,
 			)
 		} else {
-			<OnDemandAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::pop_assignment_for_core(
-				core_idx,
-				concluded_para,
-			)
+			return None
 		}
 	}
 
@@ -88,11 +80,8 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 		if Pallet::<T>::is_parachain_core(&core_idx) {
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::push_assignment_for_core(
 				core_idx, assignment,
-			)
+				)
 		} else {
-			<OnDemandAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::push_assignment_for_core(
-				core_idx, assignment,
-			)
 		}
 	}
 
@@ -102,9 +91,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 				core_idx,
 			)
 		} else {
-			<OnDemandAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_availability_period(
-				core_idx,
-			)
+			1u32.into()
 		}
 	}
 
@@ -114,9 +101,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 				core_idx,
 			)
 		} else {
-			<OnDemandAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_max_retries(
-				core_idx,
-			)
+			0u32
 		}
 	}
 }

@@ -24,7 +24,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod assigner;
-pub mod assigner_on_demand;
 pub mod assigner_parachains;
 pub mod configuration;
 pub mod disputes;
