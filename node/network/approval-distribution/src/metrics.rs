@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_metrics::metrics::{prometheus, Metrics as MetricsTrait};
+use polkadot_node_primitives::approval::v2::AssignmentCertKindV2;
 
 /// Approval Distribution metrics.
 #[derive(Default, Clone)]
@@ -22,21 +23,34 @@ pub struct Metrics(Option<MetricsInner>);
 
 #[derive(Clone)]
 struct MetricsInner {
-	assignments_imported_total: prometheus::Counter<prometheus::U64>,
+	assignments_imported_total: prometheus::CounterVec<prometheus::U64>,
 	approvals_imported_total: prometheus::Counter<prometheus::U64>,
 	unified_with_peer_total: prometheus::Counter<prometheus::U64>,
 	aggression_l1_messages_total: prometheus::Counter<prometheus::U64>,
 	aggression_l2_messages_total: prometheus::Counter<prometheus::U64>,
-
 	time_unify_with_peer: prometheus::Histogram,
 	time_import_pending_now_known: prometheus::Histogram,
 	time_awaiting_approval_voting: prometheus::Histogram,
 }
 
+trait AsLabel {
+	fn as_label(&self) -> &str;
+}
+
+impl AsLabel for &AssignmentCertKindV2 {
+	fn as_label(&self) -> &str {
+		match self {
+			AssignmentCertKindV2::RelayVRFDelay { .. } => "VRF Delay",
+			AssignmentCertKindV2::RelayVRFModulo { .. } => "VRF Modulo",
+			AssignmentCertKindV2::RelayVRFModuloCompact { .. } => "VRF Modulo Compact",
+		}
+	}
+}
+
 impl Metrics {
-	pub(crate) fn on_assignment_imported(&self) {
+	pub(crate) fn on_assignment_imported(&self, kind: &AssignmentCertKindV2) {
 		if let Some(metrics) = &self.0 {
-			metrics.assignments_imported_total.inc();
+			metrics.assignments_imported_total.with_label_values(&[kind.as_label()]).inc();
 		}
 	}
 
@@ -89,9 +103,12 @@ impl MetricsTrait for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			assignments_imported_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_assignments_imported_total",
-					"Number of valid assignments imported locally or from other peers.",
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"polkadot_parachain_assignments_imported_total",
+						"Number of valid assignments imported locally or from other peers.",
+					),
+					&["kind"],
 				)?,
 				registry,
 			)?,
@@ -124,10 +141,16 @@ impl MetricsTrait for Metrics {
 				registry,
 			)?,
 			time_unify_with_peer: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_time_unify_with_peer",
-					"Time spent within fn `unify_with_peer`.",
-				).buckets(vec![0.000625, 0.00125,0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,]))?,
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_time_unify_with_peer",
+						"Time spent within fn `unify_with_peer`.",
+					)
+					.buckets(vec![
+						0.000625, 0.00125, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.1, 0.25,
+						0.5, 1.0, 2.5, 5.0, 10.0,
+					]),
+				)?,
 				registry,
 			)?,
 			time_import_pending_now_known: prometheus::register(

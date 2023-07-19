@@ -17,7 +17,7 @@
 use super::{relay_chain_selection::*, *};
 
 use futures::channel::oneshot::Receiver;
-use polkadot_node_primitives::approval::VrfSignature;
+use polkadot_node_primitives::approval::v2::VrfSignature;
 use polkadot_node_subsystem::messages::{AllMessages, BlockDescription};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;

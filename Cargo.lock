@@ -3668,9 +3668,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.10.3"
+version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9a9d19fa1e79b6215ff29b9d6880b706147f16e9b1dbb1e4e5947b5b02bc5e3"
+checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
 dependencies = [
  "either",
 ]
@@ -6827,9 +6827,11 @@ name = "polkadot-approval-distribution"
 version = "0.9.43"
 dependencies = [
  "assert_matches",
+ "bitvec",
  "env_logger 0.9.0",
  "futures",
  "futures-timer",
+ "itertools",
  "log",
  "polkadot-node-jaeger",
  "polkadot-node-metrics",
@@ -7135,6 +7137,7 @@ dependencies = [
  "derive_more",
  "futures",
  "futures-timer",
+ "itertools",
  "kvdb",
  "kvdb-memorydb",
  "lru 0.9.0",
@@ -7580,6 +7583,7 @@ dependencies = [
 name = "polkadot-node-primitives"
 version = "0.9.43"
 dependencies = [
+ "bitvec",
  "bounded-vec",
  "futures",
  "parity-scale-codec",
@@ -7630,6 +7634,7 @@ name = "polkadot-node-subsystem-types"
 version = "0.9.43"
 dependencies = [
  "async-trait",
+ "bitvec",
  "derive_more",
  "futures",
  "orchestra",
