@@ -521,6 +521,7 @@ pub mod pallet {
 	/// Default version to encode XCM when latest version of destination is unknown. If `None`,
 	/// then the destinations whose XCM version is unknown are considered unreachable.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	pub(super) type SafeXcmVersion<T: Config> = StorageValue<_, XcmVersion, OptionQuery>;
 
 	/// The Latest versions that we know various locations support.
@@ -571,6 +572,7 @@ pub mod pallet {
 	/// the `u32` counter is the number of times that a send to the destination has been attempted,
 	/// which is used as a prioritization.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	pub(super) type VersionDiscoveryQueue<T: Config> = StorageValue<
 		_,
 		BoundedVec<(VersionedMultiLocation, u32), VersionDiscoveryQueueSize<T>>,
