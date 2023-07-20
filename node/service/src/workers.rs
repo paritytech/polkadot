@@ -241,6 +241,8 @@ echo {}
 		)
 	}
 
+	/// Sets up an empty temp dir structure where the workers can be put by tests. Uses the temp dir
+	/// to override the standard locations where the node searches for the workers.
 	fn with_temp_dir_structure(
 		f: impl FnOnce(PathBuf) -> Result<(), Box<dyn std::error::Error>>,
 	) -> Result<(), Box<dyn std::error::Error>> {

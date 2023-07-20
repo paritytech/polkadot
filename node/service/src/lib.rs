@@ -633,7 +633,8 @@ pub struct NewFullParams<OverseerGenerator: OverseerGen> {
 	pub enable_beefy: bool,
 	pub jaeger_agent: Option<std::net::SocketAddr>,
 	pub telemetry_worker_handle: Option<TelemetryWorkerHandle>,
-	/// The version of the node. `None` can be passed to skip the version check (only for tests).
+	/// The version of the node. `None` can be passed to skip the node/worker version check (only
+	/// for tests).
 	pub node_version: Option<String>,
 	/// An optional path to a directory containing the workers.
 	pub workers_path: Option<std::path::PathBuf>,
