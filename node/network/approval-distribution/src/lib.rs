@@ -186,7 +186,7 @@ struct State {
 	/// Config for aggression.
 	aggression_config: AggressionConfig,
 
-	/// HashMap from active leaves to spans
+	/// `HashMap` from active leaves to spans
 	spans: HashMap<Hash, jaeger::PerLeafSpan>,
 
 	/// Current approval checking finality lag.
