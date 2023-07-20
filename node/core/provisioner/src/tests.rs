@@ -340,7 +340,9 @@ mod select_candidates {
 		use ChainApiMessage::BlockNumber;
 		use RuntimeApiMessage::Request;
 
-		let mut candidates = expected.iter().map(BackedCandidate::hash);
+		let mut candidates = expected
+			.iter()
+			.map(|candidate| (candidate.hash(), candidate.descriptor().relay_parent));
 
 		while let Some(from_job) = receiver.next().await {
 			match from_job {

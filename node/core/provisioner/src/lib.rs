@@ -558,7 +558,7 @@ async fn select_candidate_hashes_from_tracked(
 	candidates: &[CandidateReceipt],
 	relay_parent: Hash,
 	sender: &mut impl overseer::ProvisionerSenderTrait,
-) -> Result<Vec<CandidateHash>, Error> {
+) -> Result<Vec<(CandidateHash, Hash)>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
 	let mut selected_candidates =
@@ -628,7 +628,7 @@ async fn select_candidate_hashes_from_tracked(
 				"Selected candidate receipt",
 			);
 
-			selected_candidates.push(candidate_hash);
+			selected_candidates.push((candidate_hash, candidate.descriptor.relay_parent));
 		}
 	}
 
@@ -644,7 +644,7 @@ async fn request_backable_candidates(
 	bitfields: &[SignedAvailabilityBitfield],
 	relay_parent: Hash,
 	sender: &mut impl overseer::ProvisionerSenderTrait,
-) -> Result<Vec<CandidateHash>, Error> {
+) -> Result<Vec<(CandidateHash, Hash)>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
 	let mut selected_candidates = Vec::with_capacity(availability_cores.len());
@@ -685,11 +685,10 @@ async fn request_backable_candidates(
 			CoreState::Free => continue,
 		};
 
-		let candidate_hash =
-			get_backable_candidate(relay_parent, para_id, required_path, sender).await?;
+		let response = get_backable_candidate(relay_parent, para_id, required_path, sender).await?;
 
-		match candidate_hash {
-			Some(hash) => selected_candidates.push(hash),
+		match response {
+			Some((hash, relay_parent)) => selected_candidates.push((hash, relay_parent)),
 			None => {
 				gum::debug!(
 					target: LOG_TARGET,
@@ -732,13 +731,7 @@ async fn select_candidates(
 	};
 
 	// now get the backed candidates corresponding to these candidate receipts
-	let (tx, rx) = oneshot::channel();
-	sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
-		relay_parent,
-		selected_candidates.clone(),
-		tx,
-	));
-	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
+	let mut candidates = request_backable_candidates_receipts(&selected_candidates, sender).await?;
 	gum::trace!(target: LOG_TARGET, leaf_hash=?relay_parent,
 				"Got {} backed candidates", candidates.len());
 
@@ -750,7 +743,7 @@ async fn select_candidates(
 	// in order, we can ensure that the backed candidates are also in order.
 	let mut backed_idx = 0;
 	for selected in selected_candidates {
-		if selected ==
+		if selected.0 ==
 			candidates.get(backed_idx).ok_or(Error::BackedCandidateOrderingProblem)?.hash()
 		{
 			backed_idx += 1;
@@ -785,6 +778,39 @@ async fn select_candidates(
 	Ok(candidates)
 }
 
+async fn request_backable_candidates_receipts(
+	selected_candidates: &[(CandidateHash, Hash)],
+	sender: &mut impl overseer::ProvisionerSenderTrait,
+) -> Result<Vec<BackedCandidate>, Error> {
+	let mut response = Vec::with_capacity(selected_candidates.len());
+	let mut selected_iter = selected_candidates.into_iter();
+	let mut candidate = selected_iter.next();
+
+	while let Some((candidate_hash, relay_parent)) = candidate {
+		let mut hashes = vec![*candidate_hash];
+		loop {
+			candidate = selected_iter.next();
+			match candidate {
+				Some((c, rp)) if rp == relay_parent => {
+					hashes.push(*c);
+				},
+				_ => break,
+			};
+		}
+
+		let (tx, rx) = oneshot::channel();
+		sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
+			*relay_parent,
+			hashes,
+			tx,
+		));
+		let mut backed = rx.await.map_err(Error::CanceledBackedCandidates)?;
+		response.append(&mut backed);
+	}
+
+	Ok(response)
+}
+
 /// Produces a block number 1 higher than that of the relay parent
 /// in the event of an invalid `relay_parent`, returns `Ok(0)`
 async fn get_block_number_under_construction(
@@ -808,7 +834,7 @@ async fn get_backable_candidate(
 	para_id: ParaId,
 	required_path: Vec<CandidateHash>,
 	sender: &mut impl overseer::ProvisionerSenderTrait,
-) -> Result<Option<CandidateHash>, Error> {
+) -> Result<Option<(CandidateHash, Hash)>, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send_message(ProspectiveParachainsMessage::GetBackableCandidate(
