@@ -151,6 +151,7 @@ impl pallet_babe::Config for Test {
 	type DisabledValidators = ();
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = ConstU32<0>;
 	type KeyOwnerProof = sp_core::Void;
 	type EquivocationReportSystem = ();
 }
@@ -439,7 +440,7 @@ impl ProcessMessage for TestProcessMessage {
 			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Err(ProcessMessageError::Corrupt), // same as the real `ProcessMessage`
 		};
-		if !meter.check_accrue(required) {
+		if meter.try_consume(required).is_err() {
 			return Err(ProcessMessageError::Overweight(required))
 		}
 

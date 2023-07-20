@@ -91,6 +91,7 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for KusamaXcmWeight<RuntimeCall> {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
 	fn reserve_asset_deposited(assets: &MultiAssets) -> Weight {
+		// Kusama doesn't support ReserveAssetDeposited, so this benchmark has a default weight
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::reserve_asset_deposited())
 	}
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {
@@ -166,7 +167,7 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for KusamaXcmWeight<RuntimeCall> {
 		_reserve: &MultiLocation,
 		_xcm: &Xcm<()>,
 	) -> Weight {
-		assets.weigh_multi_assets(XcmGeneric::<Runtime>::initiate_reserve_withdraw())
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::initiate_reserve_withdraw())
 	}
 	fn initiate_teleport(
 		assets: &MultiAssetFilter,
