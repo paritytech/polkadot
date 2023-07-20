@@ -340,9 +340,11 @@ mod select_candidates {
 		use ChainApiMessage::BlockNumber;
 		use RuntimeApiMessage::Request;
 
-		let mut candidates = expected
+		let mut candidates_iter = expected
 			.iter()
 			.map(|candidate| (candidate.hash(), candidate.descriptor().relay_parent));
+
+		let mut backed_iter = expected.clone().into_iter();
 
 		while let Some(from_job) = receiver.next().await {
 			match from_job {
@@ -355,20 +357,25 @@ mod select_candidates {
 				AllMessages::RuntimeApi(Request(_parent_hash, AvailabilityCores(tx))) =>
 					tx.send(Ok(mock_availability_cores())).unwrap(),
 				AllMessages::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(
-					_,
+					relay_parent,
 					hashes,
 					sender,
 				)) => {
+					let response: Vec<BackedCandidate> =
+						backed_iter.by_ref().take(hashes.len()).collect();
 					let expected_hashes: Vec<CandidateHash> =
-						expected.iter().map(BackedCandidate::hash).collect();
+						response.iter().map(BackedCandidate::hash).collect();
+
 					assert_eq!(expected_hashes, hashes);
-					let _ = sender.send(expected.clone());
+					assert!(response.iter().all(|c| c.descriptor().relay_parent == relay_parent));
+
+					let _ = sender.send(response);
 				},
 				AllMessages::ProspectiveParachains(
 					ProspectiveParachainsMessage::GetBackableCandidate(.., tx),
 				) => match prospective_parachains_mode {
 					ProspectiveParachainsMode::Enabled { .. } => {
-						let _ = tx.send(candidates.next());
+						let _ = tx.send(candidates_iter.next());
 					},
 					ProspectiveParachainsMode::Disabled =>
 						panic!("unexpected prospective parachains request"),
@@ -579,6 +586,72 @@ mod select_candidates {
 			.enumerate()
 			.map(|(idx, mut candidate)| {
 				candidate.descriptor.para_id = idx.into();
+				candidate
+			})
+			.collect();
+
+		// why those particular indices? see the comments on mock_availability_cores()
+		let expected_candidates: Vec<_> =
+			[1, 4, 7, 8, 10].iter().map(|&idx| candidates[idx].clone()).collect();
+		// Expect prospective parachains subsystem requests.
+		let prospective_parachains_mode =
+			ProspectiveParachainsMode::Enabled { max_candidate_depth: 0, allowed_ancestry_len: 0 };
+
+		let expected_backed = expected_candidates
+			.iter()
+			.map(|c| BackedCandidate {
+				candidate: CommittedCandidateReceipt {
+					descriptor: c.descriptor.clone(),
+					commitments: Default::default(),
+				},
+				validity_votes: Vec::new(),
+				validator_indices: default_bitvec(MOCK_GROUP_SIZE),
+			})
+			.collect();
+
+		test_harness(
+			|r| mock_overseer(r, expected_backed, prospective_parachains_mode),
+			|mut tx: TestSubsystemSender| async move {
+				let result = select_candidates(
+					&mock_cores,
+					&[],
+					&[],
+					prospective_parachains_mode,
+					Default::default(),
+					&mut tx,
+				)
+				.await
+				.unwrap();
+
+				result.into_iter().for_each(|c| {
+					assert!(
+						expected_candidates.iter().any(|c2| c.candidate.corresponds_to(c2)),
+						"Failed to find candidate: {:?}",
+						c,
+					)
+				});
+			},
+		)
+	}
+
+	#[test]
+	fn request_receipts_based_on_relay_parent() {
+		let mock_cores = mock_availability_cores();
+		let empty_hash = PersistedValidationData::<Hash, BlockNumber>::default().hash();
+
+		let mut descriptor_template = dummy_candidate_descriptor(dummy_hash());
+		descriptor_template.persisted_validation_data_hash = empty_hash;
+		let candidate_template = CandidateReceipt {
+			descriptor: descriptor_template,
+			commitments_hash: CandidateCommitments::default().hash(),
+		};
+
+		let candidates: Vec<_> = std::iter::repeat(candidate_template)
+			.take(mock_cores.len())
+			.enumerate()
+			.map(|(idx, mut candidate)| {
+				candidate.descriptor.para_id = idx.into();
+				candidate.descriptor.relay_parent = Hash::repeat_byte(idx as u8);
 				candidate
 			})
 			.collect();
