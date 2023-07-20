@@ -11,10 +11,10 @@ version.workspace = true
 # various unnecessary Substrate-specific endpoints.
 parity-scale-codec = { version = "3.6.1", default-features = false, features = [ "derive" ] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive", "serde"] }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v1.0.0" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["serde"] , branch = "polkadot-v1.0.0" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["serde"] , branch = "polkadot-v1.0.0" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v1.0.0" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "release-v1.0.0-cumulus" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["serde"] , branch = "release-v1.0.0-cumulus" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["serde"] , branch = "release-v1.0.0-cumulus" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "release-v1.0.0-cumulus" }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 derive_more = "0.99.11"
 bounded-collections = { version = "0.1.8", default-features = false, features = ["serde"] }

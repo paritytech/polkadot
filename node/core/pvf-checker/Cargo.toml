@@ -15,14 +15,14 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-overseer = { path = "../../overseer" }
 
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers"}
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
 futures-timer = "3.0.2"

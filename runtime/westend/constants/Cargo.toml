@@ -7,12 +7,12 @@ edition.workspace = true
 [dependencies]
 smallvec = "1.8.0"
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v1.0.0" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "release-v1.0.0-cumulus" }
 primitives = { package = "polkadot-primitives", path = "../../../primitives", default-features = false }
 runtime-common = { package = "polkadot-runtime-common", path = "../../common", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v1.0.0" }
-sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v1.0.0" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v1.0.0" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "release-v1.0.0-cumulus" }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "release-v1.0.0-cumulus" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "release-v1.0.0-cumulus" }
 
 [features]
 default = ["std"]

@@ -26,22 +26,22 @@ polkadot-node-core-pvf-execute-worker = { path = "../node/core/pvf/execute-worke
 polkadot-node-core-pvf-prepare-worker = { path = "../node/core/pvf/prepare-worker", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v1.0.0" }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v1.0.0" }
-sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v1.0.0" }
-sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v1.0.0" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "release-v1.0.0-cumulus" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "release-v1.0.0-cumulus" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "release-v1.0.0-cumulus" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "release-v1.0.0-cumulus" }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v1.0.0" }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "release-v1.0.0-cumulus" }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
 
 [features]
 default = ["db", "cli", "full-node"]

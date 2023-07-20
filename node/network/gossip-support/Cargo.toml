@@ -5,10 +5,10 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
 
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -22,10 +22,10 @@ rand_chacha = { version = "0.3.1", default-features = false }
 gum = { package = "tracing-gum", path = "../../gum" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 

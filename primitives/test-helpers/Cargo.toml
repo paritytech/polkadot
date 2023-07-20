@@ -5,9 +5,9 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v1.0.0" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "polkadot-v1.0.0" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "release-v1.0.0-cumulus" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "release-v1.0.0-cumulus" }
 polkadot-primitives = { path = "../" }
 rand = "0.8.5"

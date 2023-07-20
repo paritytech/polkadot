@@ -7,26 +7,26 @@ edition.workspace = true
 [dependencies]
 jsonrpsee = { version = "0.16.2", features = ["server"] }
 polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-consensus-beefy = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-consensus-beefy-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-consensus-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-consensus-beefy = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-consensus-beefy-rpc = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-consensus-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }
+substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "release-v1.0.0-cumulus" }

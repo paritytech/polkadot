@@ -8,8 +8,8 @@ edition.workspace = true
 paste = "1.0"
 enumn = "0.1.8"
 parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v1.0.0" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v1.0.0" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "release-v1.0.0-cumulus" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "release-v1.0.0-cumulus" }
 
 [features]
 default = ["std"]
