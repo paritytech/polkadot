@@ -72,7 +72,7 @@ where
 
 	/// Intercept incoming `Second` requests from the `collator-protocol` subsystem.
 	fn intercept_incoming(
-		&self,
+		&mut self,
 		subsystem_sender: &mut Sender,
 		msg: FromOrchestra<Self::Message>,
 	) -> Option<FromOrchestra<Self::Message>> {

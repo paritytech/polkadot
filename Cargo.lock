@@ -8257,6 +8257,7 @@ dependencies = [
  "polkadot-node-core-dispute-coordinator",
  "polkadot-node-core-pvf-execute-worker",
  "polkadot-node-core-pvf-prepare-worker",
+ "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
