@@ -45,11 +45,12 @@ pub async fn spawn(
 	program_path: &Path,
 	executor_params: ExecutorParams,
 	spawn_timeout: Duration,
+	node_version: &str,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	let (mut idle_worker, worker_handle) = spawn_with_program_path(
 		"execute",
 		program_path,
-		&["execute-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
+		&["execute-worker", "--node-impl-version", node_version],
 		spawn_timeout,
 	)
 	.await?;

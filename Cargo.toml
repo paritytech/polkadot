@@ -2,14 +2,6 @@
 name = "polkadot"
 path = "src/main.rs"
 
-[[bin]]
-name = "polkadot-execute-worker"
-path = "node/core/pvf/execute-worker/src/main.rs"
-
-[[bin]]
-name = "polkadot-prepare-worker"
-path = "node/core/pvf/prepare-worker/src/main.rs"
-
 [package]
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
@@ -30,15 +22,10 @@ version = "0.9.43"
 color-eyre = { version = "0.6.1", default-features = false }
 tikv-jemallocator = "0.5.0"
 
-# Needed for worker binaries.
-polkadot-node-core-pvf-common = { path = "node/core/pvf/common" }
-polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
-polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
 # Crates in our workspace, defined as dependencies so we can pass them feature flags.
 polkadot-cli = { path = "cli", features = [ "polkadot-native", "kusama-native", "westend-native", "rococo-native" ]  }
 polkadot-node-core-pvf = { path = "node/core/pvf" }
+polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
 polkadot-overseer = { path = "node/overseer" }
 
 [dev-dependencies]

@@ -93,6 +93,8 @@ const DEFAULT_APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 pub struct Config {
 	/// The path where candidate validation can store compiled artifacts for PVFs.
 	pub artifacts_cache_path: PathBuf,
+	/// The version of the node.
+	pub node_version: String,
 	/// Path to the preparation worker binary
 	pub prep_worker_path: PathBuf,
 	/// Path to the execution worker binary
@@ -125,16 +127,9 @@ impl CandidateValidationSubsystem {
 #[overseer::subsystem(CandidateValidation, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CandidateValidationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(
-			ctx,
-			self.metrics,
-			self.pvf_metrics,
-			self.config.artifacts_cache_path,
-			self.config.prep_worker_path,
-			self.config.exec_worker_path,
-		)
-		.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-		.boxed();
+		let future = run(ctx, self.metrics, self.pvf_metrics, self.config)
+			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
+			.boxed();
 		SpawnedSubsystem { name: "candidate-validation-subsystem", future }
 	}
 }
@@ -144,12 +139,15 @@ async fn run<Context>(
 	mut ctx: Context,
 	metrics: Metrics,
 	pvf_metrics: polkadot_node_core_pvf::Metrics,
-	cache_path: PathBuf,
-	prep_worker_path: PathBuf,
-	exec_worker_path: PathBuf,
+	Config { artifacts_cache_path, node_version, prep_worker_path, exec_worker_path }: Config,
 ) -> SubsystemResult<()> {
 	let (validation_host, task) = polkadot_node_core_pvf::start(
-		polkadot_node_core_pvf::Config::new(cache_path, prep_worker_path, exec_worker_path),
+		polkadot_node_core_pvf::Config::new(
+			artifacts_cache_path,
+			node_version,
+			prep_worker_path,
+			exec_worker_path,
+		),
 		pvf_metrics,
 	);
 	ctx.spawn_blocking("pvf-validation-host", task.boxed())?;

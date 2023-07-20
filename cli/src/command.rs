@@ -291,6 +291,7 @@ where
 				enable_beefy,
 				jaeger_agent,
 				telemetry_worker_handle: None,
+				node_version: env!("SUBSTRATE_CLI_IMPL_VERSION").to_string(),
 				workers_path: cli.run.workers_path,
 				workers_names: None,
 				dont_use_external_workers: false,

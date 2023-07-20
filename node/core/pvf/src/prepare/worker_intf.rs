@@ -45,11 +45,12 @@ use tokio::{io, net::UnixStream};
 pub async fn spawn(
 	program_path: &Path,
 	spawn_timeout: Duration,
+	node_version: &str,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	spawn_with_program_path(
 		"prepare",
 		program_path,
-		&["prepare-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
+		&["prepare-worker", "--node-impl-version", node_version],
 		spawn_timeout,
 	)
 	.await

@@ -625,6 +625,8 @@ pub struct NewFullParams<OverseerGenerator: OverseerGen> {
 	pub enable_beefy: bool,
 	pub jaeger_agent: Option<std::net::SocketAddr>,
 	pub telemetry_worker_handle: Option<TelemetryWorkerHandle>,
+	/// The version of the node.
+	pub node_version: String,
 	/// An optional path to a directory containing the workers.
 	pub workers_path: Option<std::path::PathBuf>,
 	/// Optional custom names for the prepare and execute workers.
@@ -706,6 +708,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		enable_beefy,
 		jaeger_agent,
 		telemetry_worker_handle,
+		node_version,
 		workers_path,
 		workers_names,
 		dont_use_external_workers,
@@ -914,6 +917,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 			.path()
 			.ok_or(Error::DatabasePathRequired)?
 			.join("pvf-artifacts"),
+		node_version,
 		prep_worker_path,
 		exec_worker_path,
 	};
