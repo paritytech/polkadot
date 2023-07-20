@@ -160,7 +160,7 @@ struct MetricsInner {
 	time_db_transaction: prometheus::Histogram,
 	time_recover_and_approve: prometheus::Histogram,
 	candidate_signatures_requests_total: prometheus::Counter<prometheus::U64>,
-	unapproved_candidates_in_unfinalized_chain: prometheus::Counter<prometheus::U64>,
+	unapproved_candidates_in_unfinalized_chain: prometheus::GaugeVec<prometheus::U64>,
 }
 
 /// Approval Voting metrics.
@@ -248,9 +248,12 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| metrics.time_recover_and_approve.start_timer())
 	}
 
-	fn on_unapproved_candidates_in_unfinalized_chain(&self, count: usize) {
+	fn on_unapproved_candidates_in_unfinalized_chain(&self, count: usize, depth: usize) {
 		if let Some(metrics) = &self.0 {
-			metrics.unapproved_candidates_in_unfinalized_chain.inc_by(count as u64);
+			metrics
+				.unapproved_candidates_in_unfinalized_chain
+				.with_label_values(&[&count.to_string(), &depth.to_string()])
+				.set(count as u64);
 		}
 	}
 }
@@ -344,9 +347,12 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			unapproved_candidates_in_unfinalized_chain: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_approval_unapproved_candidates_in_unfinalized_chain",
-					"Number of unapproved candidates in unfinalized chain",
+				prometheus::GaugeVec::new(
+					prometheus::Opts::new(
+						"polkadot_parachain_approval_unapproved_candidates_in_unfinalized_chain",
+						"Number of unapproved candidates in unfinalized chain",
+					),
+					&["count", "depth"]
 				)?,
 				registry,
 			)?,
@@ -1442,6 +1448,7 @@ async fn handle_approved_ancestor<Context>(
 ) -> SubsystemResult<Option<HighestApprovedAncestorBlock>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
+	const LOGGING_DEPTH_THRESHOLD: usize = 10;
 	let mut span = span
 		.child("handle-approved-ancestor")
 		.with_stage(jaeger::Stage::ApprovalChecking);
@@ -1550,7 +1557,15 @@ async fn handle_approved_ancestor<Context>(
 				unapproved.len(),
 				entry.candidates().len(),
 			);
-			metrics.on_unapproved_candidates_in_unfinalized_chain(unapproved.len());
+			if bits.len() > LOGGING_DEPTH_THRESHOLD {
+				gum::trace!(
+					target: LOG_TARGET,
+					"Unapproved blocks on depth {}: {:?}",
+					bits.len(),
+					unapproved
+				)
+			}
+			metrics.on_unapproved_candidates_in_unfinalized_chain(unapproved.len(), bits.len());
 			entry_span.add_uint_tag("unapproved-candidates", unapproved.len() as u64);
 			for candidate_hash in unapproved {
 				match db.load_candidate_entry(&candidate_hash)? {
