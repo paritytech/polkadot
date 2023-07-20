@@ -53,7 +53,7 @@ pub fn validate_candidate(
 /// the appropriate worker, making the executable that can be used for spawning workers.
 #[macro_export]
 macro_rules! decl_puppet_worker_main {
-	($worker_version:expr) => {
+	() => {
 		fn main() {
 			$crate::sp_tracing::try_init_simple();
 
@@ -63,10 +63,6 @@ macro_rules! decl_puppet_worker_main {
 			}
 
 			let entrypoint = match args[1].as_ref() {
-				"--version" | "-v" => {
-					println!("{}", $worker_version);
-					return
-				},
 				"exit" => {
 					std::process::exit(1);
 				},
@@ -90,7 +86,7 @@ macro_rules! decl_puppet_worker_main {
 				}
 			}
 
-			entrypoint(&socket_path, node_version, $worker_version);
+			entrypoint(&socket_path, node_version, None);
 		}
 	};
 }

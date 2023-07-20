@@ -113,7 +113,7 @@ struct Pool {
 	program_path: PathBuf,
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
-	node_version: String,
+	node_version: Option<String>,
 
 	to_pool: mpsc::Receiver<ToPool>,
 	from_pool: mpsc::UnboundedSender<FromPool>,
@@ -206,7 +206,7 @@ fn handle_to_pool(
 	program_path: &Path,
 	cache_path: &Path,
 	spawn_timeout: Duration,
-	node_version: String,
+	node_version: Option<String>,
 	spawned: &mut HopSlotMap<Worker, WorkerData>,
 	mux: &mut Mux,
 	to_pool: ToPool,
@@ -259,12 +259,18 @@ fn handle_to_pool(
 async fn spawn_worker_task(
 	program_path: PathBuf,
 	spawn_timeout: Duration,
-	node_version: String,
+	node_version: Option<String>,
 ) -> PoolEvent {
 	use futures_timer::Delay;
 
 	loop {
-		match worker_intf::spawn(&program_path, spawn_timeout, &node_version).await {
+		match worker_intf::spawn(
+			&program_path,
+			spawn_timeout,
+			node_version.as_ref().map(|v| v.as_str()),
+		)
+		.await
+		{
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err);
@@ -431,7 +437,7 @@ pub fn start(
 	program_path: PathBuf,
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
-	node_version: String,
+	node_version: Option<String>,
 ) -> (mpsc::Sender<ToPool>, mpsc::UnboundedReceiver<FromPool>, impl Future<Output = ()>) {
 	let (to_pool_tx, to_pool_rx) = mpsc::channel(10);
 	let (from_pool_tx, from_pool_rx) = mpsc::unbounded();

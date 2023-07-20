@@ -64,9 +64,13 @@ fn main() -> Result<()> {
 						enable_beefy: false,
 						jaeger_agent: None,
 						telemetry_worker_handle: None,
+						// Skip the version check since we don't use external binaries.
+						node_version: None,
 						workers_path: None,
 						workers_names: None,
-						dont_use_external_workers: false,
+						// Don't use workers to make this test binary self-contained and easier to
+						// use. External binaries are for increased security in production.
+						dont_use_external_workers: true,
 						overseer_enable_anyways: false,
 						overseer_gen: polkadot_service::RealOverseerGen,
 						overseer_message_channel_capacity_override: None,

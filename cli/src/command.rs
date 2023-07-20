@@ -291,7 +291,7 @@ where
 				enable_beefy,
 				jaeger_agent,
 				telemetry_worker_handle: None,
-				node_version: env!("SUBSTRATE_CLI_IMPL_VERSION").to_string(),
+				node_version: Some(env!("SUBSTRATE_CLI_IMPL_VERSION").to_string()),
 				workers_path: cli.run.workers_path,
 				workers_names: None,
 				dont_use_external_workers: false,
@@ -447,7 +447,7 @@ pub fn run() -> Result<()> {
 				polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
 					&cmd.socket_path,
 					Some(&cmd.node_impl_version),
-					&cmd.node_impl_version,
+					Some(&cmd.node_impl_version),
 				);
 				Ok(())
 			}
@@ -470,7 +470,7 @@ pub fn run() -> Result<()> {
 				polkadot_node_core_pvf_execute_worker::worker_entrypoint(
 					&cmd.socket_path,
 					Some(&cmd.node_impl_version),
-					&cmd.node_impl_version,
+					Some(&cmd.node_impl_version),
 				);
 				Ok(())
 			}

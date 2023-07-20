@@ -140,7 +140,7 @@ struct Queue {
 	// Some variables related to the current session.
 	program_path: PathBuf,
 	spawn_timeout: Duration,
-	node_version: String,
+	node_version: Option<String>,
 
 	/// The queue of jobs that are waiting for a worker to pick up.
 	queue: VecDeque<ExecuteJob>,
@@ -154,7 +154,7 @@ impl Queue {
 		program_path: PathBuf,
 		worker_capacity: usize,
 		spawn_timeout: Duration,
-		node_version: String,
+		node_version: Option<String>,
 		to_queue_rx: mpsc::Receiver<ToQueue>,
 	) -> Self {
 		Self {
@@ -424,7 +424,7 @@ async fn spawn_worker_task(
 	program_path: PathBuf,
 	job: ExecuteJob,
 	spawn_timeout: Duration,
-	node_version: String,
+	node_version: Option<String>,
 ) -> QueueEvent {
 	use futures_timer::Delay;
 
@@ -433,7 +433,7 @@ async fn spawn_worker_task(
 			&program_path,
 			job.executor_params.clone(),
 			spawn_timeout,
-			&node_version,
+			node_version.as_ref().map(|v| v.as_str()),
 		)
 		.await
 		{
@@ -497,7 +497,7 @@ pub fn start(
 	program_path: PathBuf,
 	worker_capacity: usize,
 	spawn_timeout: Duration,
-	node_version: String,
+	node_version: Option<String>,
 ) -> (mpsc::Sender<ToQueue>, impl Future<Output = ()>) {
 	let (to_queue_tx, to_queue_rx) = mpsc::channel(20);
 	let run = Queue::new(

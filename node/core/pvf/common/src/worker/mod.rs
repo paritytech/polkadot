@@ -82,7 +82,7 @@ macro_rules! decl_worker_main {
 				}
 			}
 
-			$entrypoint(&socket_path, node_version, $worker_version);
+			$entrypoint(&socket_path, node_version, Some($worker_version));
 		}
 	};
 }
@@ -103,7 +103,7 @@ pub fn worker_event_loop<F, Fut>(
 	debug_id: &'static str,
 	socket_path: &str,
 	node_version: Option<&str>,
-	worker_version: &str,
+	worker_version: Option<&str>,
 	mut event_loop: F,
 ) where
 	F: FnMut(UnixStream) -> Fut,
@@ -113,7 +113,7 @@ pub fn worker_event_loop<F, Fut>(
 	gum::debug!(target: LOG_TARGET, %worker_pid, "starting pvf worker ({})", debug_id);
 
 	// Check for a mismatch between the node and worker versions.
-	if let Some(node_version) = node_version {
+	if let (Some(node_version), Some(worker_version)) = (node_version, worker_version) {
 		if node_version != worker_version {
 			gum::error!(
 				target: LOG_TARGET,

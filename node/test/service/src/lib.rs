@@ -84,6 +84,7 @@ pub fn new_full(
 			enable_beefy: true,
 			jaeger_agent: None,
 			telemetry_worker_handle: None,
+			node_version: None,
 			workers_path,
 			workers_names: None,
 			dont_use_external_workers,

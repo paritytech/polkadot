@@ -150,8 +150,8 @@ struct ExecutePvfInputs {
 pub struct Config {
 	/// The root directory where the prepared artifacts can be stored.
 	pub cache_path: PathBuf,
-	/// The version of the node.
-	pub node_version: String,
+	/// The version of the node. `None` can be passed to skip the version check (only for tests).
+	pub node_version: Option<String>,
 	/// The path to the program that can be used to spawn the prepare workers.
 	pub prepare_worker_program_path: PathBuf,
 	/// The time allotted for a prepare worker to spawn and report to the host.
@@ -173,7 +173,7 @@ impl Config {
 	/// Create a new instance of the configuration.
 	pub fn new(
 		cache_path: PathBuf,
-		node_version: String,
+		node_version: Option<String>,
 		prepare_worker_program_path: PathBuf,
 		execute_worker_program_path: PathBuf,
 	) -> Self {

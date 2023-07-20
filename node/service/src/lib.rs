@@ -625,8 +625,8 @@ pub struct NewFullParams<OverseerGenerator: OverseerGen> {
 	pub enable_beefy: bool,
 	pub jaeger_agent: Option<std::net::SocketAddr>,
 	pub telemetry_worker_handle: Option<TelemetryWorkerHandle>,
-	/// The version of the node.
-	pub node_version: String,
+	/// The version of the node. `None` can be passed to skip the version check (only for tests).
+	pub node_version: Option<String>,
 	/// An optional path to a directory containing the workers.
 	pub workers_path: Option<std::path::PathBuf>,
 	/// Optional custom names for the prepare and execute workers.
@@ -906,7 +906,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		let program_path = std::env::current_exe()?;
 		(program_path.clone(), program_path)
 	} else {
-		workers::determine_workers_paths(workers_path, workers_names)?
+		workers::determine_workers_paths(workers_path, workers_names, node_version.clone())?
 	};
 	log::info!("🚀 Using prepare-worker binary at: {:?}", prep_worker_path);
 	log::info!("🚀 Using execute-worker binary at: {:?}", exec_worker_path);

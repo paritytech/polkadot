@@ -118,7 +118,11 @@ async fn send_response(stream: &mut UnixStream, result: PrepareResult) -> io::Re
 ///
 /// 7. Send the result of preparation back to the host. If any error occurred in the above steps, we
 ///    send that in the `PrepareResult`.
-pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>, worker_version: &str) {
+pub fn worker_entrypoint(
+	socket_path: &str,
+	node_version: Option<&str>,
+	worker_version: Option<&str>,
+) {
 	worker_event_loop(
 		"prepare",
 		socket_path,

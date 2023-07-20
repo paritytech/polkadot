@@ -123,7 +123,11 @@ async fn send_response(stream: &mut UnixStream, response: Response) -> io::Resul
 /// `node_version`, if `Some`, is checked against the worker version. A mismatch results in
 /// immediate worker termination. `None` is used for tests and in other situations when version
 /// check is not necessary.
-pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>, worker_version: &str) {
+pub fn worker_entrypoint(
+	socket_path: &str,
+	node_version: Option<&str>,
+	worker_version: Option<&str>,
+) {
 	worker_event_loop(
 		"execute",
 		socket_path,

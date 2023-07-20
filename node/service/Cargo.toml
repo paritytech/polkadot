@@ -148,9 +148,6 @@ assert_matches = "1.5.0"
 serial_test = "2.0.0"
 tempfile = "3.2"
 
-[build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
 [features]
 default = ["db", "full-node"]
 
