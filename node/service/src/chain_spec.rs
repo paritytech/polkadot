@@ -70,8 +70,6 @@ use westend_runtime as westend;
 #[cfg(feature = "westend-native")]
 use westend_runtime_constants::currency::UNITS as WND;
 
-#[cfg(feature = "polkadot-native")]
-const POLKADOT_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "kusama-native")]
 const KUSAMA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "westend-native")]

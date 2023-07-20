@@ -261,6 +261,7 @@ impl pallet_babe::Config for Runtime {
 	type DisabledValidators = Session;
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = ConstU32<0>;
 	type KeyOwnerProof =
 		<Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
 	type EquivocationReportSystem =
@@ -671,6 +672,7 @@ impl pallet_grandpa::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = ConstU32<0>;
 	type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
 	type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
 	type EquivocationReportSystem =
@@ -1273,6 +1275,7 @@ parameter_types! {
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = ConstU32<0>;
 	type MaxSetIdSessionEntries = BeefySetIdSessionEntries;
 	type OnNewValidatorSet = MmrLeaf;
 	type WeightInfo = ();
@@ -1523,114 +1526,12 @@ pub type UncheckedExtrinsic =
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
-pub type Migrations = (
-	migrations::V0940,
-	migrations::V0941,
-	migrations::V0942,
-	migrations::V0943,
-	migrations::Unreleased,
-);
+pub type Migrations = migrations::Unreleased;
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
-	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
-
-	pub type V0940 = ();
-	pub type V0941 = (); // Node only release - no migrations.
-	pub type V0942 = (
-		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-		pallet_offences::migration::v1::MigrateToV1<Runtime>,
-	);
-	pub type V0943 = (
-		SetStorageVersions,
-		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
-		ump_migrations::UpdateUmpLimits,
-	);
-
-	/// Migrations that set `StorageVersion`s we missed to set.
-	///
-	/// It's *possible* that these pallets have not in fact been migrated to the versions being set,
-	/// which we should keep in mind in the future if we notice any strange behavior.
-	/// We opted to not check exactly what on-chain versions each pallet is at, since it would be
-	/// an involved effort, this is testnet, and no one has complained
-	/// (https://github.com/paritytech/polkadot/issues/6657#issuecomment-1552956439).
-	pub struct SetStorageVersions;
-
-	impl OnRuntimeUpgrade for SetStorageVersions {
-		fn on_runtime_upgrade() -> Weight {
-			let mut writes = 0;
-			let mut reads = 0;
-
-			// Council
-			if Council::on_chain_storage_version() < 4 {
-				// Safe to assume Council was created with V4 pallet.
-				StorageVersion::new(4).put::<Council>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// Technical Committee
-			if TechnicalCommittee::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<TechnicalCommittee>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// PhragmenElection
-			if PhragmenElection::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<PhragmenElection>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// TechnicalMembership
-			if TechnicalMembership::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<TechnicalMembership>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// Scheduler
-			if Scheduler::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<Scheduler>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// Bounties
-			if Bounties::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<Bounties>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// Tips
-			if Tips::on_chain_storage_version() < 4 {
-				StorageVersion::new(4).put::<Tips>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// NisCounterpartBalances
-			if NisCounterpartBalances::on_chain_storage_version() < 1 {
-				StorageVersion::new(1).put::<NisCounterpartBalances>();
-				writes += 1;
-			}
-			reads += 1;
-
-			// Crowdloan
-			if Crowdloan::on_chain_storage_version() < 2 {
-				StorageVersion::new(2).put::<Crowdloan>();
-				writes += 1;
-			}
-			reads += 1;
-
-			RocksDbWeight::get().reads_writes(reads, writes)
-		}
-	}
 
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
@@ -1638,24 +1539,6 @@ pub mod migrations {
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 	);
-}
-
-/// Helpers to configure all migrations.
-pub mod ump_migrations {
-	use runtime_parachains::configuration::migration_ump;
-
-	pub const MAX_UPWARD_QUEUE_SIZE: u32 = 8 * 1024 * 1024;
-	pub const MAX_UPWARD_QUEUE_COUNT: u32 = 1398101;
-	pub const MAX_UPWARD_MESSAGE_SIZE: u32 = (1 << 15) - 5; // Checked in test `max_upward_message_size`.
-	pub const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32 = 1024;
-
-	pub type UpdateUmpLimits = migration_ump::latest::ScheduleConfigUpdate<
-		super::Runtime,
-		MAX_UPWARD_QUEUE_SIZE,
-		MAX_UPWARD_QUEUE_COUNT,
-		MAX_UPWARD_MESSAGE_SIZE,
-		MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE,
-	>;
 }
 
 /// Executive: handles dispatch to the various modules.
@@ -2215,12 +2098,13 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkBatch>,
 			sp_runtime::RuntimeString,
 		> {
+			use frame_support::traits::WhitelistedStorageKeys;
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey, BenchmarkError};
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 			use xcm::latest::prelude::*;
 			use xcm_config::{
-				LocalCheckAccount, LocationConverter, Statemine, TokenLocation, XcmConfig,
+				LocalCheckAccount, LocationConverter, Rockmine, TokenLocation, XcmConfig,
 			};
 
 			impl frame_system_benchmarking::Config for Runtime {}
@@ -2229,7 +2113,7 @@ sp_api::impl_runtime_apis! {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = LocationConverter;
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
-					Ok(Statemine::get())
+					Ok(Rockmine::get())
 				}
 				fn worst_case_holding(_depositable_count: u32) -> MultiAssets {
 					// Rococo only knows about ROC
@@ -2242,13 +2126,10 @@ sp_api::impl_runtime_apis! {
 
 			parameter_types! {
 				pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
-					Statemine::get(),
+					Rockmine::get(),
 					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
-				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
-					Statemine::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
-				));
+				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = None;
 			}
 
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
@@ -2256,6 +2137,7 @@ sp_api::impl_runtime_apis! {
 
 				type CheckedAccount = LocalCheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
+				type TrustedReserve = TrustedReserve;
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
@@ -2283,15 +2165,15 @@ sp_api::impl_runtime_apis! {
 				}
 
 				fn transact_origin_and_runtime_call() -> Result<(MultiLocation, RuntimeCall), BenchmarkError> {
-					Ok((Statemine::get(), frame_system::Call::remark_with_event { remark: vec![] }.into()))
+					Ok((Rockmine::get(), frame_system::Call::remark_with_event { remark: vec![] }.into()))
 				}
 
 				fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
-					Ok(Statemine::get())
+					Ok(Rockmine::get())
 				}
 
 				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
-					let origin = Statemine::get();
+					let origin = Rockmine::get();
 					let assets: MultiAssets = (Concrete(TokenLocation::get()), 1_000 * UNITS).into();
 					let ticket = MultiLocation { parents: 0, interior: Here };
 					Ok((origin, ticket, assets))
@@ -2314,20 +2196,9 @@ sp_api::impl_runtime_apis! {
 				}
 			}
 
-			let whitelist: Vec<TrackedStorageKey> = vec![
-				// Block Number
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac").to_vec().into(),
-				// Total Issuance
-				hex_literal::hex!("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80").to_vec().into(),
-				// Execution Phase
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a").to_vec().into(),
-				// Event Count
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850").to_vec().into(),
-				// System Events
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
-				// Treasury Account
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da95ecffd7b6c0f78751baa9d281e0bfa3a6d6f646c70792f74727372790000000000000000000000000000000000000000").to_vec().into(),
-			];
+			let mut whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
+			let treasury_key = frame_system::Account::<Runtime>::hashed_key_for(Treasury::account_id());
+			whitelist.push(treasury_key.to_vec().into());
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
@@ -2350,26 +2221,58 @@ sp_api::impl_runtime_apis! {
 }
 
 #[cfg(test)]
+mod tests {
+	use std::collections::HashSet;
+
+	use super::*;
+	use frame_support::traits::WhitelistedStorageKeys;
+	use sp_core::hexdisplay::HexDisplay;
+
+	#[test]
+	fn check_whitelist() {
+		let whitelist: HashSet<String> = AllPalletsWithSystem::whitelisted_storage_keys()
+			.iter()
+			.map(|e| HexDisplay::from(&e.key).to_string())
+			.collect();
+
+		// Block number
+		assert!(
+			whitelist.contains("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac")
+		);
+		// Total issuance
+		assert!(
+			whitelist.contains("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80")
+		);
+		// Execution phase
+		assert!(
+			whitelist.contains("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a")
+		);
+		// Event count
+		assert!(
+			whitelist.contains("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850")
+		);
+		// System events
+		assert!(
+			whitelist.contains("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7")
+		);
+		// XcmPallet VersionDiscoveryQueue
+		assert!(
+			whitelist.contains("1405f2411d0af5a7ff397e7c9dc68d194a222ba0333561192e474c59ed8e30e1")
+		);
+		// XcmPallet SafeXcmVersion
+		assert!(
+			whitelist.contains("1405f2411d0af5a7ff397e7c9dc68d196323ae84c43568be0d1394d5d0d522c4")
+		);
+	}
+}
+
+#[cfg(test)]
 mod encoding_tests {
 	use super::*;
 
 	#[test]
 	fn nis_hold_reason_encoding_is_correct() {
 		assert_eq!(RuntimeHoldReason::Nis(pallet_nis::HoldReason::NftReceipt).encode(), [38, 0]);
-	}
-}
-
-#[cfg(test)]
-mod test {
-	use super::*;
-
-	#[test]
-	fn max_upward_message_size() {
-		use sp_core::Get;
-		assert_eq!(
-			ump_migrations::MAX_UPWARD_MESSAGE_SIZE,
-			pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
-		);
 	}
 }
 
