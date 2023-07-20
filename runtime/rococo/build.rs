@@ -17,9 +17,34 @@
 use substrate_wasm_builder::WasmBuilder;
 
 fn main() {
-	WasmBuilder::new()
-		.with_current_project()
-		.import_memory()
-		.export_heap_base()
-		.build()
+	#[cfg(feature = "std")]
+	{
+		WasmBuilder::new()
+			.with_current_project()
+			.import_memory()
+			.export_heap_base()
+			.build();
+	}
+
+	#[cfg(feature = "std")]
+	{
+		WasmBuilder::new()
+			.with_current_project()
+			.set_file_name("rococo_runtime_fast_runtime_1m.rs")
+			.import_memory()
+			.export_heap_base()
+			.enable_feature("fast-runtime")
+			.build();
+	}
+
+	#[cfg(feature = "std")]
+	{
+		WasmBuilder::new()
+			.with_current_project()
+			.set_file_name("rococo_runtime_fast_runtime_10m.rs")
+			.import_memory()
+			.export_heap_base()
+			.enable_feature("fast-runtime-10m")
+			.build()
+	}
 }
