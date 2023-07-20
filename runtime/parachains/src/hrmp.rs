@@ -1019,10 +1019,9 @@ impl<T: Config> Pallet<T> {
 		let mut remaining = Vec::with_capacity(recipients.len());
 
 		for recipient in recipients {
-			let Some(channel) =
-				HrmpChannels::<T>::get(&HrmpChannelId { sender, recipient }) else {
-					continue
-				};
+			let Some(channel) = HrmpChannels::<T>::get(&HrmpChannelId { sender, recipient }) else {
+				continue
+			};
 			remaining.push((
 				recipient,
 				(
