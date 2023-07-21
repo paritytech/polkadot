@@ -1521,7 +1521,7 @@ fn backwards_compatible() {
 			&leaf_a,
 			para_id,
 			vec![],
-			Some(candidate_hash_a),
+			Some((candidate_hash_a, candidate_relay_parent)),
 		)
 		.await;
 
