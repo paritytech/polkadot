@@ -12,14 +12,6 @@ authors.workspace = true
 edition.workspace = true
 version.workspace = true
 
-[[bin]]
-name = "polkadot-execute-worker"
-path = "node/core/pvf/execute-worker/src/main.rs"
-
-[[bin]]
-name = "polkadot-prepare-worker"
-path = "node/core/pvf/prepare-worker/src/main.rs"
-
 [workspace.package]
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
@@ -35,11 +27,6 @@ polkadot-cli = { path = "cli", features = [ "polkadot-native", "kusama-native", 
 polkadot-node-core-pvf = { path = "node/core/pvf" }
 polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
 polkadot-overseer = { path = "node/overseer" }
-
-# Needed for worker binaries.
-polkadot-node-core-pvf-common = { path = "node/core/pvf/common" }
-polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 assert_cmd = "2.0.4"

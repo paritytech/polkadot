@@ -45,6 +45,3 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 tokio = { version = "1.24.2", features = ["macros"] }
-
-[build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }

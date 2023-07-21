@@ -12,20 +12,8 @@ publish = false
 name = "malus"
 path = "src/malus.rs"
 
-# Use artifact dependencies once stable.
-# See https://github.com/rust-lang/cargo/issues/9096.
-[[bin]]
-name = "polkadot-execute-worker"
-path = "../core/pvf/execute-worker/src/main.rs"
-# Prevent rustdoc error. Already documented from top-level Cargo.toml.
-doc = false
-[[bin]]
-name = "polkadot-prepare-worker"
-path = "../core/pvf/prepare-worker/src/main.rs"
-# Prevent rustdoc error. Already documented from top-level Cargo.toml.
-doc = false
-
 [dependencies]
+# Note that malus depends on the worker binaries that are built by polkadot-cli.
 polkadot-cli = { path = "../../cli", features = [ "malus", "rococo-native", "kusama-native", "westend-native", "polkadot-native" ] }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
@@ -47,12 +35,6 @@ gum = { package = "tracing-gum", path = "../gum/" }
 erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
 rand = "0.8.5"
 
-# Required for worker binaries to build.
-polkadot-node-core-pvf-common = { path = "../core/pvf/common" }
-polkadot-node-core-pvf-execute-worker = { path = "../core/pvf/execute-worker" }
-polkadot-node-core-pvf-prepare-worker = { path = "../core/pvf/prepare-worker" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
 [features]
 default = []
 fast-runtime = ["polkadot-cli/fast-runtime"]
@@ -61,6 +43,3 @@ fast-runtime = ["polkadot-cli/fast-runtime"]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
-
-[build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }

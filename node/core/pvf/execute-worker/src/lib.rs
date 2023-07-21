@@ -43,8 +43,6 @@ use std::{
 };
 use tokio::{io, net::UnixStream};
 
-pub const WORKER_IMPL_VERSION: &'static str = env!("SUBSTRATE_CLI_IMPL_VERSION");
-
 // Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
 // That native code does not create any stacks and just reuses the stack of the thread that
 // wasmtime was invoked from.

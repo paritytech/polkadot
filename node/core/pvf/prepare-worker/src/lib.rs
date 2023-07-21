@@ -51,8 +51,6 @@ use std::{
 };
 use tokio::{io, net::UnixStream};
 
-pub const WORKER_IMPL_VERSION: &'static str = env!("SUBSTRATE_CLI_IMPL_VERSION");
-
 /// Contains the bytes for a successfully compiled artifact.
 pub struct CompiledArtifact(Vec<u8>);
 

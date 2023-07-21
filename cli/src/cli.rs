@@ -19,6 +19,9 @@
 use clap::Parser;
 use std::path::PathBuf;
 
+/// The version of the node and workers.
+pub const CLI_IMPL_VERSION: &'static str = env!("SUBSTRATE_CLI_IMPL_VERSION");
+
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
 pub enum Subcommand {
