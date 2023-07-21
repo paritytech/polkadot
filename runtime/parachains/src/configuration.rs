@@ -37,7 +37,6 @@ mod tests;
 mod benchmarking;
 
 pub mod migration;
-pub mod migration_ump;
 
 pub use pallet::*;
 
@@ -502,6 +501,7 @@ pub mod pallet {
 
 	/// The active configuration for the current session.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	#[pallet::getter(fn config)]
 	pub(crate) type ActiveConfig<T: Config> =
 		StorageValue<_, HostConfiguration<BlockNumberFor<T>>, ValueQuery>;
