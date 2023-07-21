@@ -186,6 +186,15 @@ async fn activate_leaf(
 	leaf: &TestLeaf,
 	test_state: &TestState,
 ) {
+	activate_leaf_with_params(virtual_overseer, leaf, test_state, ASYNC_BACKING_PARAMETERS).await;
+}
+
+async fn activate_leaf_with_params(
+	virtual_overseer: &mut VirtualOverseer,
+	leaf: &TestLeaf,
+	test_state: &TestState,
+	async_backing_params: AsyncBackingParams,
+) {
 	let TestLeaf { number, hash, .. } = leaf;
 
 	let activated = ActivatedLeaf {
@@ -201,13 +210,14 @@ async fn activate_leaf(
 		))))
 		.await;
 
-	handle_leaf_activation(virtual_overseer, leaf, test_state).await;
+	handle_leaf_activation(virtual_overseer, leaf, test_state, async_backing_params).await;
 }
 
 async fn handle_leaf_activation(
 	virtual_overseer: &mut VirtualOverseer,
 	leaf: &TestLeaf,
 	test_state: &TestState,
+	async_backing_params: AsyncBackingParams,
 ) {
 	let TestLeaf { number, hash, para_data } = leaf;
 
@@ -216,7 +226,7 @@ async fn handle_leaf_activation(
 		AllMessages::RuntimeApi(
 			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParams(tx))
 		) if parent == *hash => {
-			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
+			tx.send(Ok(async_backing_params)).unwrap();
 		}
 	);
 
@@ -241,14 +251,16 @@ async fn handle_leaf_activation(
 			.collect();
 	let ancestry_numbers = (min_min..*number).rev();
 	let ancestry_iter = ancestry_hashes.clone().into_iter().zip(ancestry_numbers).peekable();
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::ChainApi(
-			ChainApiMessage::Ancestors{hash: block_hash, k, response_channel: tx}
-		) if block_hash == *hash && k == ALLOWED_ANCESTRY_LEN as usize => {
-			tx.send(Ok(ancestry_hashes.clone())).unwrap();
-		}
-	);
+	if ancestry_len > 0 {
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ChainApi(
+				ChainApiMessage::Ancestors{hash: block_hash, k, response_channel: tx}
+			) if block_hash == *hash && k == ALLOWED_ANCESTRY_LEN as usize => {
+				tx.send(Ok(ancestry_hashes.clone())).unwrap();
+			}
+		);
+	}
 
 	for (hash, number) in ancestry_iter {
 		send_block_header(virtual_overseer, hash, number).await;
@@ -1301,7 +1313,13 @@ fn correctly_updates_leaves() {
 		virtual_overseer
 			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)))
 			.await;
-		handle_leaf_activation(&mut virtual_overseer, &leaf_c, &test_state).await;
+		handle_leaf_activation(
+			&mut virtual_overseer,
+			&leaf_c,
+			&test_state,
+			ASYNC_BACKING_PARAMETERS,
+		)
+		.await;
 
 		// Remove all remaining leaves.
 		let update = ActiveLeavesUpdate {
@@ -1326,7 +1344,13 @@ fn correctly_updates_leaves() {
 		virtual_overseer
 			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)))
 			.await;
-		handle_leaf_activation(&mut virtual_overseer, &leaf_a, &test_state).await;
+		handle_leaf_activation(
+			&mut virtual_overseer,
+			&leaf_a,
+			&test_state,
+			ASYNC_BACKING_PARAMETERS,
+		)
+		.await;
 
 		// Remove the leaf again. Send some unnecessary hashes.
 		let update = ActiveLeavesUpdate {
@@ -1436,6 +1460,88 @@ fn persists_pending_availability_candidate() {
 			Some(candidate_hash_b),
 		)
 		.await;
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn backwards_compatible() {
+	let mut test_state = TestState::default();
+	let para_id = ParaId::from(1);
+	test_state.availability_cores = test_state
+		.availability_cores
+		.into_iter()
+		.filter(|core| core.para_id().map_or(false, |id| id == para_id))
+		.collect();
+	assert_eq!(test_state.availability_cores.len(), 1);
+
+	test_harness(|mut virtual_overseer| async move {
+		let para_head = HeadData(vec![1, 2, 3]);
+
+		let leaf_b_hash = Hash::repeat_byte(15);
+		let candidate_relay_parent = get_parent_hash(leaf_b_hash);
+		let candidate_relay_parent_number = 100;
+
+		let leaf_a = TestLeaf {
+			number: candidate_relay_parent_number,
+			hash: candidate_relay_parent,
+			para_data: vec![(
+				para_id,
+				PerParaData::new(candidate_relay_parent_number, para_head.clone()),
+			)],
+		};
+
+		// Activate leaf.
+		activate_leaf_with_params(
+			&mut virtual_overseer,
+			&leaf_a,
+			&test_state,
+			AsyncBackingParams { allowed_ancestry_len: 0, max_candidate_depth: 0 },
+		)
+		.await;
+
+		// Candidate A
+		let (candidate_a, pvd_a) = make_candidate(
+			candidate_relay_parent,
+			candidate_relay_parent_number,
+			para_id,
+			para_head.clone(),
+			HeadData(vec![1]),
+			test_state.validation_code_hash,
+		);
+		let candidate_hash_a = candidate_a.hash();
+
+		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a).await;
+		second_candidate(&mut virtual_overseer, candidate_a.clone()).await;
+		back_candidate(&mut virtual_overseer, &candidate_a, candidate_hash_a).await;
+
+		get_backable_candidate(
+			&mut virtual_overseer,
+			&leaf_a,
+			para_id,
+			vec![],
+			Some(candidate_hash_a),
+		)
+		.await;
+
+		let leaf_b = TestLeaf {
+			number: candidate_relay_parent_number + 1,
+			hash: leaf_b_hash,
+			para_data: vec![(
+				para_id,
+				PerParaData::new(candidate_relay_parent_number + 1, para_head.clone()),
+			)],
+		};
+		activate_leaf_with_params(
+			&mut virtual_overseer,
+			&leaf_b,
+			&test_state,
+			AsyncBackingParams { allowed_ancestry_len: 0, max_candidate_depth: 0 },
+		)
+		.await;
+
+		get_backable_candidate(&mut virtual_overseer, &leaf_b, para_id, vec![], None).await;
 
 		virtual_overseer
 	});

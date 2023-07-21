@@ -94,15 +94,14 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 		prev: Option<BlockNumber>,
 	) -> Option<(Hash, BlockNumber)> {
 		let pos = self.buffer.iter().position(|(rp, _)| rp == &relay_parent)?;
+		let age = (self.buffer.len() - 1) - pos;
+		let number = self.latest_number - BlockNumber::from(age as u32);
 
 		if let Some(prev) = prev {
-			if prev >= self.latest_number {
+			if prev > number {
 				return None
 			}
 		}
-
-		let age = (self.buffer.len() - 1) - pos;
-		let number = self.latest_number - BlockNumber::from(age as u32);
 
 		Some((self.buffer[pos].1, number))
 	}
