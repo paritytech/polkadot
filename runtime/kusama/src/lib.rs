@@ -55,10 +55,11 @@ use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignatu
 use frame_election_provider_support::{
 	generate_solution_type, onchain, NposSolution, SequentialPhragmen,
 };
+
+#[cfg(not(feature = "disable-genesis-builder"))]
+use frame_support::genesis_builder_helper::{build_config, create_default_config};
 use frame_support::{
-	construct_runtime,
-	genesis_builder_helper::{build_config, create_default_config},
-	parameter_types,
+	construct_runtime, parameter_types,
 	traits::{
 		ConstU32, Contains, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem,
 		PrivilegeCmp, ProcessMessage, ProcessMessageError, StorageMapShim, WithdrawReasons,
@@ -2219,6 +2220,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[cfg(not(feature = "disable-genesis-builder"))]
 	impl sp_genesis_builder::GenesisBuilder<Block> for Runtime {
 		fn create_default_config() -> Vec<u8> {
 			create_default_config::<RuntimeGenesisConfig>()
