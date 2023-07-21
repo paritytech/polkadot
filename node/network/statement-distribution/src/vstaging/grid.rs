@@ -429,6 +429,13 @@ impl GridTracker {
 		// and receiving groups, we may overwrite a `Full` manifest with a `Acknowledgement`
 		// one.
 		for (v, manifest_mode) in sending_group_manifests.chain(receiving_group_manifests) {
+			gum::trace!(
+				target: LOG_TARGET,
+				validator_index = ?v,
+				?manifest_mode,
+				"Preparing to send manifest/acknowledgement"
+			);
+
 			self.pending_manifests
 				.entry(v)
 				.or_default()

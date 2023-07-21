@@ -924,6 +924,12 @@ pub(crate) async fn share_local_statement<Context>(
 		Some(x) => x,
 	};
 
+	gum::debug!(
+		target: LOG_TARGET,
+		statement = ?statement.payload().to_compact(),
+		"Sharing Statement",
+	);
+
 	let per_session = match state.per_session.get(&per_relay_parent.session) {
 		Some(s) => s,
 		None => return Ok(()),
@@ -1169,8 +1175,14 @@ async fn circulate_statement<Context>(
 	}
 
 	// ship off the network messages to the network bridge.
-
 	if !statement_to.is_empty() {
+		gum::debug!(
+			target: LOG_TARGET,
+			?compact_statement,
+			n_peers = ?statement_to.len(),
+			"Sending statement to peers",
+		);
+
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			statement_to,
 			Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::Statement(
@@ -1615,7 +1627,7 @@ async fn provide_candidate_to_grid<Context>(
 	let grid_view = match per_session.grid_view {
 		Some(ref t) => t,
 		None => {
-			gum::trace!(
+			gum::debug!(
 				target: LOG_TARGET,
 				session = relay_parent_state.session,
 				"Cannot handle backable candidate due to lack of topology",
@@ -1717,6 +1729,13 @@ async fn provide_candidate_to_grid<Context>(
 	}
 
 	if !manifest_peers.is_empty() {
+		gum::debug!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			n_peers = manifest_peers.len(),
+			"Sending manifest to peers"
+		);
+
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			manifest_peers,
 			manifest_message.into(),
@@ -1725,6 +1744,13 @@ async fn provide_candidate_to_grid<Context>(
 	}
 
 	if !ack_peers.is_empty() {
+		gum::debug!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			n_peers = ack_peers.len(),
+			"Sending acknowledgement to peers"
+		);
+
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			ack_peers,
 			ack_message.into(),
@@ -2051,6 +2077,13 @@ async fn handle_incoming_manifest<Context>(
 	manifest: net_protocol::vstaging::BackedCandidateManifest,
 	reputation: &mut ReputationAggregator,
 ) {
+	gum::debug!(
+		target: LOG_TARGET,
+		candidate_hash = ?manifest.candidate_hash,
+		?peer,
+		"Received incoming manifest",
+	);
+
 	let x = match handle_incoming_manifest_common(
 		ctx,
 		peer,
@@ -2079,6 +2112,11 @@ async fn handle_incoming_manifest<Context>(
 
 	if acknowledge {
 		// 4. if already known within grid (confirmed & backed), acknowledge candidate
+		gum::trace!(
+			target: LOG_TARGET,
+			candidate_hash = ?manifest.candidate_hash,
+			"Known candidate - acknowledging manifest",
+		);
 
 		let local_knowledge = {
 			let group_size = match per_session.groups.get(manifest.group_index) {
@@ -2110,6 +2148,12 @@ async fn handle_incoming_manifest<Context>(
 		}
 	} else if !state.candidates.is_confirmed(&manifest.candidate_hash) {
 		// 5. if unconfirmed, add request entry
+		gum::trace!(
+			target: LOG_TARGET,
+			candidate_hash = ?manifest.candidate_hash,
+			"Unknown candidate - requesting",
+		);
+
 		state
 			.request_manager
 			.get_or_insert(manifest.relay_parent, manifest.candidate_hash, manifest.group_index)
@@ -2178,6 +2222,13 @@ async fn handle_incoming_acknowledgement<Context>(
 	// The key difference between acknowledgments and full manifests is that only
 	// the candidate hash is included alongside the bitfields, so the candidate
 	// must be confirmed for us to even process it.
+
+	gum::debug!(
+		target: LOG_TARGET,
+		candidate_hash = ?acknowledgement.candidate_hash,
+		?peer,
+		"Received incoming acknowledgement",
+	);
 
 	let candidate_hash = acknowledgement.candidate_hash;
 	let (relay_parent, parent_head_data_hash, group_index, para_id) = {
@@ -2276,6 +2327,13 @@ pub(crate) async fn handle_backed_candidate_message<Context>(
 		None => return,
 		Some(s) => s,
 	};
+
+	gum::debug!(
+		target: LOG_TARGET,
+		?candidate_hash,
+		group_index = ?confirmed.group_index(),
+		"Candidate Backed - initiating grid distribution & child fetches"
+	);
 
 	provide_candidate_to_grid(
 		ctx,
