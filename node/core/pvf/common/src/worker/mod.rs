@@ -16,6 +16,8 @@
 
 //! Functionality common to both prepare and execute workers.
 
+pub mod security;
+
 use crate::LOG_TARGET;
 use cpu_time::ProcessTime;
 use futures::never::Never;
@@ -176,7 +178,7 @@ pub fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String
 
 /// In case of node and worker version mismatch (as a result of in-place upgrade), send `SIGTERM`
 /// to the node to tear it down and prevent it from raising disputes on valid candidates. Node
-/// restart should be handled by the node owner. As node exits, unix sockets opened to workers
+/// restart should be handled by the node owner. As node exits, Unix sockets opened to workers
 /// get closed by the OS and other workers receive error on socket read and also exit. Preparation
 /// jobs are written to the temporary files that are renamed to real artifacts on the node side, so
 /// no leftover artifacts are possible.
@@ -203,7 +205,7 @@ pub mod thread {
 	};
 
 	/// Contains the outcome of waiting on threads, or `Pending` if none are ready.
-	#[derive(Clone, Copy)]
+	#[derive(Debug, Clone, Copy)]
 	pub enum WaitOutcome {
 		Finished,
 		TimedOut,
@@ -224,8 +226,14 @@ pub mod thread {
 		Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()))
 	}
 
-	/// Runs a thread, afterwards notifying the threads waiting on the condvar. Catches panics and
-	/// resumes them after triggering the condvar, so that the waiting thread is notified on panics.
+	/// Runs a worker thread. Will first enable security features, and afterwards notify the threads waiting on the
+	/// condvar. Catches panics during execution and resumes the panics after triggering the condvar, so that the
+	/// waiting thread is notified on panics.
+	///
+	/// # Returns
+	///
+	/// Returns the thread's join handle. Calling `.join()` on it returns the result of executing
+	/// `f()`, as well as whether we were able to enable sandboxing.
 	pub fn spawn_worker_thread<F, R>(
 		name: &str,
 		f: F,

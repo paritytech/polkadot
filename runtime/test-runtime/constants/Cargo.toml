@@ -19,5 +19,8 @@ default = ["std"]
 std = [
 	"sp-core/std",
 	"sp-runtime/std",
-	"sp-weights/std"
+	"sp-weights/std",
+	"runtime-common/std",
+	"primitives/std",
+	"frame-support/std",
 ]

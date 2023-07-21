@@ -174,7 +174,7 @@ mod tests {
 		PeerId,
 	};
 	use polkadot_primitives::Hash;
-	use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName};
+	use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName, ReputationChange};
 	use sp_keyring::Sr25519Keyring;
 	use std::collections::{HashMap, HashSet};
 
@@ -254,7 +254,7 @@ mod tests {
 		) {
 		}
 
-		fn report_peer(&self, _: PeerId, _: crate::Rep) {
+		fn report_peer(&self, _: PeerId, _: ReputationChange) {
 			panic!()
 		}
 
