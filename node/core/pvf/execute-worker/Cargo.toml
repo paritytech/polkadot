@@ -18,9 +18,9 @@ polkadot-node-core-pvf-common = { path = "../common" }
 polkadot-parachain = { path = "../../../../parachain" }
 polkadot-primitives = { path = "../../../../primitives" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tikv-jemalloc-ctl = "0.5.0"

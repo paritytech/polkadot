@@ -5,10 +5,10 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sc-network = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
 
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -22,10 +22,10 @@ rand_chacha = { version = "0.3.1", default-features = false }
 gum = { package = "tracing-gum", path = "../../gum" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 

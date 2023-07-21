@@ -19,8 +19,8 @@ futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../../gum" }
 
 [dev-dependencies]
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

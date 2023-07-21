@@ -12,11 +12,11 @@ parking_lot = "0.12.0"
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", rev = "02334a851587e65542cec57a12c9c7201b330e2d" }
 
 [dev-dependencies]
 polkadot-overseer = { path = "../overseer" }
