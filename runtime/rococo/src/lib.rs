@@ -1937,12 +1937,12 @@ sp_api::impl_runtime_apis! {
 			)
 		}
 
-		fn staging_para_backing_state(para_id: ParaId) -> Option<primitives::vstaging::BackingState> {	
-			runtime_parachains::runtime_api_impl::vstaging::backing_state::<Runtime>(para_id)	
-		}	
+		fn staging_para_backing_state(para_id: ParaId) -> Option<primitives::vstaging::BackingState> {
+			runtime_parachains::runtime_api_impl::vstaging::backing_state::<Runtime>(para_id)
+		}
 
-		fn staging_async_backing_params() -> primitives::vstaging::AsyncBackingParams {	
-			runtime_parachains::runtime_api_impl::vstaging::async_backing_params::<Runtime>()	
+		fn staging_async_backing_params() -> primitives::vstaging::AsyncBackingParams {
+			runtime_parachains::runtime_api_impl::vstaging::async_backing_params::<Runtime>()
 		}
 	}
 
