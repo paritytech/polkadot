@@ -235,7 +235,7 @@ pub mod pallet {
 			para_id: ParaId,
 			keep_alive: bool,
 		) -> DispatchResult {
-			// Is tx signed
+			// Is the tx signed
 			let sender = ensure_signed(origin)?;
 
 			// Traffic always falls back to 1.0
@@ -288,8 +288,6 @@ where
 	/// The spot price multiplier. This is based on the transaction fee calculations defined in:
 	/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#setting-transaction-fees
 	///
-	/// Returns:
-	/// - A `Result<FixedU128, SpotTrafficCalculationError>` in the range of  `Config::TrafficDefaultValue` - `FixedU128::MAX`
 	/// Parameters:
 	/// - `traffic`: The previously calculated multiplier, can never go below 1.0.
 	/// - `queue_capacity`: The max size of the order book.
@@ -298,7 +296,14 @@ where
 	/// - `variability`: A variability factor, i.e. how quickly the spot price adjusts. This number can be chosen by
 	///                  p/(k*(1-s)) where p is the desired ratio increase in spot price over k number of blocks.
 	///                  s is the target_queue_utilisation. A concrete example: v = 0.05/(20*(1-0.25)) = 0.0033.
-	// TODO maybe replace with impls of Multiplier/TargetedFeeAdjustment from pallet-transaction-payment
+	///
+	/// Returns:
+	/// - A `FixedU128` in the range of  `Config::TrafficDefaultValue` - `FixedU128::MAX` on success.
+	///
+	/// Errors:
+	/// - `SpotTrafficCalculationErr::QueueCapacityIsZero`
+	/// - `SpotTrafficCalculationErr::QueueSizeLargerThanCapacity`
+	/// - `SpotTrafficCalculationErr::Division`
 	pub(crate) fn calculate_spot_traffic(
 		traffic: FixedU128,
 		queue_capacity: u32,
