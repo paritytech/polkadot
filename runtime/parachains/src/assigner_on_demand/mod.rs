@@ -203,8 +203,6 @@ pub mod pallet {
 			//TODO this has some weight
 			Weight::zero()
 		}
-
-		fn on_finalize(_now: BlockNumberFor<T>) {}
 	}
 
 	#[pallet::call]
