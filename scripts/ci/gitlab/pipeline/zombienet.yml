@@ -428,3 +428,35 @@ zombienet-tests-async-backing-collator-mix:
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
+
+
+zombienet-tests-async-backing-enabled-col-val-upgraded:
+  stage:                             zombienet
+  extends:
+    - .kubernetes-env
+    - .zombienet-refs
+  image:                           "${ZOMBIENET_IMAGE}"
+  needs:
+    - job:                         publish-polkadot-debug-image
+    - job:                         publish-test-collators-image
+    - job:                         build-linux-stable
+      artifacts:                   true
+  variables:
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/async_backing"
+  before_script:
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export COL_IMAGE="paritypr/polkadot-parachain-debug:2330-564c05c6" # latest builded image from cumulus branch `slumber-async-backing-feature`
+    - echo "${COL_IMAGE}"
+  script:
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="004-async-backing-active-col-upgraded-val-upgraded.zndsl"
+  allow_failure:                   false
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
