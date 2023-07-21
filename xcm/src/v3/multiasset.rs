@@ -38,6 +38,11 @@ use core::{
 use parity_scale_codec::{self as codec, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
+// Type aliases to simplify
+pub type Asset = MultiAsset;
+pub type Assets = MultiAssets;
+pub type AssetFilter = MultiAssetFilter;
+
 /// A general identifier for an instance of a non-fungible asset class.
 #[derive(
 	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen,

@@ -25,6 +25,9 @@ use core::{
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
+pub type Location = MultiLocation;
+pub type InteriorLocation = InteriorMultiLocation;
+
 /// A relative path between state-bearing consensus systems.
 ///
 /// A location in a consensus system is defined as an *isolatable state machine* held within global
