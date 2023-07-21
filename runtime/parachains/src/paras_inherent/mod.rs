@@ -314,8 +314,7 @@ impl<T: Config> Pallet<T> {
 	/// not be applied (inconsitencies, weight limit, ...) it is removed.
 	///
 	/// When called from `create_inherent` the `context` must be set to `ProcessInherentDataContext::ProvideInherent`
-	/// so it provides the invariant that thew wieght of candidates, bitfields and disputes do not exceed the block
-	/// limit.
+	/// so it guarantees the invariant that inherent is not overweight.
 	///  
 	/// It is **mandatory** that calls from `enter` set `context` to `ProcessInherentDataContext::Enter` to ensure
 	/// the weight invariant is checked.
