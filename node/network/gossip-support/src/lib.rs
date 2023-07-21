@@ -35,7 +35,7 @@ use futures_timer::Delay;
 use rand::{seq::SliceRandom as _, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
-use sc_network::Multiaddr;
+use sc_network::{config::parse_addr, Multiaddr};
 use sp_application_crypto::{AppCrypto, ByteArray};
 use sp_keystore::{Keystore, KeystorePtr};
 
@@ -265,11 +265,13 @@ where
 					update_gossip_topology(
 						sender,
 						our_index,
-						session_info.discovery_keys,
+						session_info.discovery_keys.clone(),
 						relay_parent,
 						session_index,
 					)
 					.await?;
+
+					self.update_authority_ids(sender, session_info.discovery_keys).await;
 				}
 			}
 		}
@@ -383,6 +385,45 @@ where
 		};
 	}
 
+	async fn update_authority_ids<Sender>(
+		&mut self,
+		sender: &mut Sender,
+		authorities: Vec<AuthorityDiscoveryId>,
+	) where
+		Sender: overseer::GossipSupportSenderTrait,
+	{
+		let mut authority_ids: HashMap<PeerId, HashSet<AuthorityDiscoveryId>> = HashMap::new();
+		for authority in authorities {
+			let peer_id = self
+				.authority_discovery
+				.get_addresses_by_authority_id(authority.clone())
+				.await
+				.into_iter()
+				.flat_map(|list| list.into_iter())
+				.find_map(|addr| parse_addr(addr).ok().map(|(p, _)| p));
+
+			if let Some(p) = peer_id {
+				authority_ids.entry(p).or_default().insert(authority);
+			}
+		}
+
+		for (peer_id, auths) in authority_ids {
+			if self.connected_authorities_by_peer_id.get(&peer_id) != Some(&auths) {
+				sender
+					.send_message(NetworkBridgeRxMessage::UpdatedAuthorityIds {
+						peer_id,
+						authority_ids: auths.clone(),
+					})
+					.await;
+
+				auths.iter().for_each(|a| {
+					self.connected_authorities.insert(a.clone(), peer_id);
+				});
+				self.connected_authorities_by_peer_id.insert(peer_id, auths);
+			}
+		}
+	}
+
 	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSupportNetworkMessage>) {
 		match ev {
 			NetworkBridgeEvent::PeerConnected(peer_id, _, _, o_authority) => {
@@ -400,6 +441,9 @@ where
 						self.connected_authorities.remove(&a);
 					});
 				}
+			},
+			NetworkBridgeEvent::UpdatedAuthorityIds(_, _) => {
+				// The `gossip-support` subsystem itself issues these messages.
 			},
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},

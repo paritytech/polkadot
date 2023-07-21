@@ -1858,6 +1858,27 @@ pub(crate) async fn handle_network_update<Context, R>(
 		NetworkBridgeEvent::OurViewChange(_view) => {
 			// handled by `ActiveLeavesUpdate`
 		},
+		NetworkBridgeEvent::UpdatedAuthorityIds(peer, authority_ids) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?peer,
+				?authority_ids,
+				"Updated `AuthorityDiscoveryId`s"
+			);
+
+			// Remove the authority IDs which were previously mapped to the peer
+			// but aren't part of the new set.
+			authorities.retain(|a, p| p != &peer || authority_ids.contains(a));
+
+			// Map the new authority IDs to the peer.
+			for a in authority_ids.iter().cloned() {
+				authorities.insert(a, peer);
+			}
+
+			if let Some(data) = peers.get_mut(&peer) {
+				data.maybe_authority = Some(authority_ids);
+			}
+		},
 	}
 }
 

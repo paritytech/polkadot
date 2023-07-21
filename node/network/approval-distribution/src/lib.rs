@@ -196,7 +196,7 @@ struct State {
 	/// Config for aggression.
 	aggression_config: AggressionConfig,
 
-	/// HashMap from active leaves to spans
+	/// `HashMap` from active leaves to spans
 	spans: HashMap<Hash, jaeger::PerLeafSpan>,
 
 	/// Current approval checking finality lag.
@@ -417,6 +417,9 @@ impl State {
 			},
 			NetworkBridgeEvent::PeerMessage(peer_id, msg) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg, rng).await;
+			},
+			NetworkBridgeEvent::UpdatedAuthorityIds { .. } => {
+				// The approval-distribution subsystem doesn't deal with `AuthorityDiscoveryId`s.
 			},
 		}
 	}

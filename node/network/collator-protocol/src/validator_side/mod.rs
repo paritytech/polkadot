@@ -1429,6 +1429,9 @@ async fn handle_network_msg<Context>(
 		PeerMessage(remote, msg) => {
 			process_incoming_peer_message(ctx, state, remote, msg).await;
 		},
+		UpdatedAuthorityIds { .. } => {
+			// The validator side doesn't deal with `AuthorityDiscoveryId`s.
+		},
 	}
 
 	Ok(())
@@ -1599,6 +1602,9 @@ async fn run_inner<Context>(
 	let next_inactivity_stream = tick_stream(ACTIVITY_POLL);
 	futures::pin_mut!(next_inactivity_stream);
 
+	let mut network_error_freq = gum::Freq::new();
+	let mut canceled_freq = gum::Freq::new();
+
 	loop {
 		select! {
 			_ = reputation_delay => {
@@ -1625,7 +1631,12 @@ async fn run_inner<Context>(
 			}
 
 			resp = state.collation_requests.select_next_some() => {
-				let res = match handle_collation_fetch_response(&mut state, resp).await {
+				let res = match handle_collation_fetch_response(
+					&mut state,
+					resp,
+					&mut network_error_freq,
+					&mut canceled_freq,
+				).await {
 					Err(Some((peer_id, rep))) => {
 						modify_reputation(&mut state.reputation, ctx.sender(), peer_id, rep).await;
 						continue
@@ -1862,6 +1873,8 @@ async fn disconnect_inactive_peers(
 async fn handle_collation_fetch_response(
 	state: &mut State,
 	response: <CollationFetchRequest as Future>::Output,
+	network_error_freq: &mut gum::Freq,
+	canceled_freq: &mut gum::Freq,
 ) -> std::result::Result<PendingCollationFetch, Option<(PeerId, Rep)>> {
 	let (CollationEvent { collator_id, pending_collation }, response) = response;
 	// Remove the cancellation handle, as the future already completed.
@@ -1915,7 +1928,9 @@ async fn handle_collation_fetch_response(
 			Err(None)
 		},
 		Err(RequestError::NetworkError(err)) => {
-			gum::debug!(
+			gum::warn_if_frequent!(
+				freq: network_error_freq,
+				max_rate: gum::Times::PerHour(100),
 				target: LOG_TARGET,
 				hash = ?pending_collation.relay_parent,
 				para_id = ?pending_collation.para_id,
@@ -1930,7 +1945,9 @@ async fn handle_collation_fetch_response(
 			Err(Some((pending_collation.peer_id, COST_NETWORK_ERROR)))
 		},
 		Err(RequestError::Canceled(err)) => {
-			gum::debug!(
+			gum::warn_if_frequent!(
+				freq: canceled_freq,
+				max_rate: gum::Times::PerHour(100),
 				target: LOG_TARGET,
 				hash = ?pending_collation.relay_parent,
 				para_id = ?pending_collation.para_id,

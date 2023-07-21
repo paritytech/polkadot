@@ -189,6 +189,8 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		// Sender/Receiver for getting news from our responder task.
 		let (v1_res_sender, mut v1_res_receiver) = mpsc::channel(1);
 
+		let mut warn_freq = gum::Freq::new();
+
 		ctx.spawn(
 			"large-statement-responder",
 			v1_respond_task(
@@ -259,7 +261,11 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						&mut self.reputation,
 					)
 					.await;
-					log_error(result.map_err(From::from), "handle_requester_message")?;
+					log_error(
+						result.map_err(From::from),
+						"handle_requester_message",
+						&mut warn_freq,
+					)?;
 				},
 				MuxedMessage::V1Responder(result) => {
 					let result = crate::legacy_v1::handle_responder_message(
@@ -267,7 +273,11 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						result.ok_or(FatalError::ResponderReceiverFinished)?,
 					)
 					.await;
-					log_error(result.map_err(From::from), "handle_responder_message")?;
+					log_error(
+						result.map_err(From::from),
+						"handle_responder_message",
+						&mut warn_freq,
+					)?;
 				},
 				MuxedMessage::Responder(result) => {
 					vstaging::answer_request(

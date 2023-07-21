@@ -51,7 +51,7 @@ impl frame_system::Config for Test {
 	type BlockLength = ();
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
-	type Index = u64;
+	type Nonce = u64;
 	type Hash = H256;
 	type RuntimeCall = RuntimeCall;
 	type Hashing = BlakeTwo256;
@@ -132,7 +132,7 @@ impl xcm_executor::Config for XcmConfig {
 	type XcmSender = DevNull;
 	type AssetTransactor = AssetTransactor;
 	type OriginConverter = ();
-	type IsReserve = ();
+	type IsReserve = TrustedReserves;
 	type IsTeleporter = TrustedTeleporters;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
@@ -171,12 +171,17 @@ impl crate::Config for Test {
 	}
 }
 
-pub type TrustedTeleporters = (xcm_builder::Case<TeleportConcreteFungible>,);
+pub type TrustedTeleporters = xcm_builder::Case<TeleportConcreteFungible>;
+pub type TrustedReserves = xcm_builder::Case<ReserveConcreteFungible>;
 
 parameter_types! {
 	pub const CheckingAccount: Option<(u64, MintLocation)> = Some((100, MintLocation::Local));
 	pub const ChildTeleporter: MultiLocation = Parachain(1000).into_location();
 	pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
+		ChildTeleporter::get(),
+		MultiAsset { id: Concrete(Here.into_location()), fun: Fungible(100) },
+	));
+	pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
 		ChildTeleporter::get(),
 		MultiAsset { id: Concrete(Here.into_location()), fun: Fungible(100) },
 	));
@@ -190,6 +195,7 @@ impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
 	type CheckedAccount = CheckingAccount;
 	type TrustedTeleporter = TrustedTeleporter;
+	type TrustedReserve = TrustedReserve;
 
 	fn get_multi_asset() -> MultiAsset {
 		let amount =

@@ -187,7 +187,8 @@ async fn handle_active_leaves_update<Context>(
 			.await
 			.map_err(JfyiError::Runtime)?;
 
-		let ProspectiveParachainsMode::Enabled { max_candidate_depth, allowed_ancestry_len } = mode else {
+		let ProspectiveParachainsMode::Enabled { max_candidate_depth, allowed_ancestry_len } = mode
+		else {
 			gum::trace!(
 				target: LOG_TARGET,
 				block_hash = ?hash,

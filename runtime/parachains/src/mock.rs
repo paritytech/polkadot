@@ -96,8 +96,7 @@ impl frame_system::Config for Test {
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
-	type Index = u64;
-
+	type Nonce = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
@@ -152,6 +151,7 @@ impl pallet_babe::Config for Test {
 	type DisabledValidators = ();
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = ConstU32<0>;
 	type KeyOwnerProof = sp_core::Void;
 	type EquivocationReportSystem = ();
 }
@@ -220,6 +220,7 @@ parameter_types! {
 impl crate::hrmp::Config for Test {
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeEvent = RuntimeEvent;
+	type ChannelManager = frame_system::EnsureRoot<u64>;
 	type Currency = pallet_balances::Pallet<Test>;
 	type WeightInfo = crate::hrmp::TestWeightInfo;
 }
@@ -439,7 +440,7 @@ impl ProcessMessage for TestProcessMessage {
 			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Err(ProcessMessageError::Corrupt), // same as the real `ProcessMessage`
 		};
-		if !meter.check_accrue(required) {
+		if meter.try_consume(required).is_err() {
 			return Err(ProcessMessageError::Overweight(required))
 		}
 

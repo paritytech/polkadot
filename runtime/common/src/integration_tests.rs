@@ -116,8 +116,7 @@ impl frame_system::Config for Test {
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
-	type Index = u64;
-
+	type Nonce = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
@@ -150,6 +149,7 @@ impl pallet_babe::Config for Test {
 	type DisabledValidators = ();
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = ConstU32<0>;
 	type KeyOwnerProof = sp_core::Void;
 	type EquivocationReportSystem = ();
 }

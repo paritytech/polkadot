@@ -1178,6 +1178,10 @@ async fn handle_network_msg<Context>(
 		PeerMessage(remote, msg) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
 		},
+		UpdatedAuthorityIds(peer_id, authority_ids) => {
+			gum::trace!(target: LOG_TARGET, ?peer_id, ?authority_ids, "Updated authority ids");
+			state.peer_ids.insert(peer_id, authority_ids);
+		},
 		NewGossipTopology { .. } => {
 			// impossible!
 		},
