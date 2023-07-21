@@ -259,7 +259,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			let _lock = submit_lock.lock().await;
 
-			let mut ext = match crate::create_election_ext::<Runtime, Block>(rpc.clone(), Some(hash), vec![]).await {
+			let mut ext = match crate::create_election_ext::<Runtime>(rpc.clone(), Some(hash), vec![]).await {
 				Ok(ext) => ext,
 				Err(err) => {
 					log::debug!(target: LOG_TARGET, "Skipping block {}; {}", at.number, err);
