@@ -102,7 +102,7 @@ impl DisputedBitfield {
 #[derive(PartialEq)]
 pub enum ProcessInherentDataContext {
 	/// Enables filtering/limits weight of inherent up to maximum block weight.
-	/// Invariant: InherentWeight <= BlocklWeight.
+	/// Invariant: InherentWeight <= BlockWeight.
 	ProvideInherent,
 	/// Checks the InherentWeight invariant.
 	Enter,
