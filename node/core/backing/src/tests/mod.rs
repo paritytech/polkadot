@@ -732,8 +732,7 @@ fn backing_works_while_validation_ongoing() {
 
 		let (tx, rx) = oneshot::channel();
 		let msg = CandidateBackingMessage::GetBackedCandidates(
-			test_state.relay_parent,
-			vec![candidate_a.hash()],
+			vec![(candidate_a.hash(), test_state.relay_parent)],
 			tx,
 		);
 
@@ -1386,8 +1385,7 @@ fn backing_works_after_failed_validation() {
 		// and check that it is still alive.
 		let (tx, rx) = oneshot::channel();
 		let msg = CandidateBackingMessage::GetBackedCandidates(
-			test_state.relay_parent,
-			vec![candidate.hash()],
+			vec![(candidate.hash(), test_state.relay_parent)],
 			tx,
 		);
 

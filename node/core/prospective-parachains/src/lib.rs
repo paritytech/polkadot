@@ -547,7 +547,7 @@ fn answer_get_backable_candidate(
 	relay_parent: Hash,
 	para: ParaId,
 	required_path: Vec<CandidateHash>,
-	tx: oneshot::Sender<Option<CandidateHash>>,
+	tx: oneshot::Sender<Option<(CandidateHash, Hash)>>,
 ) {
 	let data = match view.active_leaves.get(&relay_parent) {
 		None => {
@@ -594,7 +594,22 @@ fn answer_get_backable_candidate(
 		Some(s) => s,
 	};
 
-	let _ = tx.send(tree.select_child(&required_path, |candidate| storage.is_backed(candidate)));
+	let Some(child_hash) = tree.select_child(&required_path, |candidate| storage.is_backed(candidate)) else {
+		let _ = tx.send(None);
+		return
+	};
+	let Some(candidate_relay_parent) = storage.relay_parent_by_candidate_hash(&child_hash) else {
+		gum::error!(
+			target: LOG_TARGET,
+			?child_hash,
+			para_id = ?para,
+			"Candidate is present in fragment tree but not in candidate's storage!",
+		);
+		let _ = tx.send(None);
+		return
+	};
+
+	let _ = tx.send(Some((child_hash, candidate_relay_parent)));
 }
 
 fn answer_hypothetical_frontier_request(

@@ -738,16 +738,8 @@ async fn handle_communication<Context>(
 		CandidateBackingMessage::Statement(relay_parent, statement) => {
 			handle_statement_message(ctx, state, relay_parent, statement, metrics).await?;
 		},
-		CandidateBackingMessage::GetBackedCandidates(relay_parent, requested_candidates, tx) =>
-			if let Some(rp_state) = state.per_relay_parent.get(&relay_parent) {
-				handle_get_backed_candidates_message(rp_state, requested_candidates, tx, metrics)?;
-			} else {
-				gum::debug!(
-					target: LOG_TARGET,
-					?relay_parent,
-					"Received `GetBackedCandidates` for an unknown relay parent."
-				);
-			},
+		CandidateBackingMessage::GetBackedCandidates(requested_candidates, tx) =>
+			handle_get_backed_candidates_message(state, requested_candidates, tx, metrics)?,
 		CandidateBackingMessage::CanSecond(request, tx) =>
 			handle_can_second_request(ctx, state, request, tx).await,
 	}
@@ -1985,8 +1977,8 @@ async fn handle_statement_message<Context>(
 }
 
 fn handle_get_backed_candidates_message(
-	rp_state: &PerRelayParentState,
-	requested_candidates: Vec<CandidateHash>,
+	state: &State,
+	requested_candidates: Vec<(CandidateHash, Hash)>,
 	tx: oneshot::Sender<Vec<BackedCandidate>>,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
@@ -1994,10 +1986,22 @@ fn handle_get_backed_candidates_message(
 
 	let backed = requested_candidates
 		.into_iter()
-		.filter_map(|hash| {
+		.filter_map(|(candidate_hash, relay_parent)| {
+			let rp_state = match state.per_relay_parent.get(&relay_parent) {
+				Some(rp_state) => rp_state,
+				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?relay_parent,
+						?candidate_hash,
+						"Requested candidate's relay parent is out of view",
+					);
+					return None
+				},
+			};
 			rp_state
 				.table
-				.attested_candidate(&hash, &rp_state.table_context)
+				.attested_candidate(&candidate_hash, &rp_state.table_context)
 				.and_then(|attested| table_attested_to_backed(attested, &rp_state.table_context))
 		})
 		.collect();

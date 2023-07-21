@@ -399,7 +399,7 @@ async fn get_backable_candidate(
 	leaf: &TestLeaf,
 	para_id: ParaId,
 	required_path: Vec<CandidateHash>,
-	expected_candidate_hash: Option<CandidateHash>,
+	expected_result: Option<(CandidateHash, Hash)>,
 ) {
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
@@ -413,7 +413,7 @@ async fn get_backable_candidate(
 		})
 		.await;
 	let resp = rx.await.unwrap();
-	assert_eq!(resp, expected_candidate_hash);
+	assert_eq!(resp, expected_result);
 }
 
 async fn get_hypothetical_frontier(
@@ -924,7 +924,7 @@ fn check_backable_query() {
 			&leaf_a,
 			1.into(),
 			vec![],
-			Some(candidate_hash_a),
+			Some((candidate_hash_a, leaf_a.hash)),
 		)
 		.await;
 		get_backable_candidate(
@@ -932,7 +932,7 @@ fn check_backable_query() {
 			&leaf_a,
 			1.into(),
 			vec![candidate_hash_a],
-			Some(candidate_hash_b),
+			Some((candidate_hash_b, leaf_a.hash)),
 		)
 		.await;
 
@@ -1457,7 +1457,7 @@ fn persists_pending_availability_candidate() {
 			&leaf_b,
 			para_id,
 			vec![candidate_hash_a],
-			Some(candidate_hash_b),
+			Some((candidate_hash_b, leaf_b_hash)),
 		)
 		.await;
 
@@ -1521,7 +1521,7 @@ fn backwards_compatible() {
 			&leaf_a,
 			para_id,
 			vec![],
-			Some(candidate_hash_a),
+			Some((candidate_hash_a, candidate_relay_parent)),
 		)
 		.await;
 

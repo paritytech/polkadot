@@ -558,7 +558,7 @@ async fn select_candidate_hashes_from_tracked(
 	candidates: &[CandidateReceipt],
 	relay_parent: Hash,
 	sender: &mut impl overseer::ProvisionerSenderTrait,
-) -> Result<Vec<CandidateHash>, Error> {
+) -> Result<Vec<(CandidateHash, Hash)>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
 	let mut selected_candidates =
@@ -628,7 +628,7 @@ async fn select_candidate_hashes_from_tracked(
 				"Selected candidate receipt",
 			);
 
-			selected_candidates.push(candidate_hash);
+			selected_candidates.push((candidate_hash, candidate.descriptor.relay_parent));
 		}
 	}
 
@@ -644,7 +644,7 @@ async fn request_backable_candidates(
 	bitfields: &[SignedAvailabilityBitfield],
 	relay_parent: Hash,
 	sender: &mut impl overseer::ProvisionerSenderTrait,
-) -> Result<Vec<CandidateHash>, Error> {
+) -> Result<Vec<(CandidateHash, Hash)>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
 	let mut selected_candidates = Vec::with_capacity(availability_cores.len());
@@ -685,11 +685,10 @@ async fn request_backable_candidates(
 			CoreState::Free => continue,
 		};
 
-		let candidate_hash =
-			get_backable_candidate(relay_parent, para_id, required_path, sender).await?;
+		let response = get_backable_candidate(relay_parent, para_id, required_path, sender).await?;
 
-		match candidate_hash {
-			Some(hash) => selected_candidates.push(hash),
+		match response {
+			Some((hash, relay_parent)) => selected_candidates.push((hash, relay_parent)),
 			None => {
 				gum::debug!(
 					target: LOG_TARGET,
@@ -734,7 +733,6 @@ async fn select_candidates(
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
 	sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
-		relay_parent,
 		selected_candidates.clone(),
 		tx,
 	));
@@ -750,7 +748,7 @@ async fn select_candidates(
 	// in order, we can ensure that the backed candidates are also in order.
 	let mut backed_idx = 0;
 	for selected in selected_candidates {
-		if selected ==
+		if selected.0 ==
 			candidates.get(backed_idx).ok_or(Error::BackedCandidateOrderingProblem)?.hash()
 		{
 			backed_idx += 1;
@@ -808,7 +806,7 @@ async fn get_backable_candidate(
 	para_id: ParaId,
 	required_path: Vec<CandidateHash>,
 	sender: &mut impl overseer::ProvisionerSenderTrait,
-) -> Result<Option<CandidateHash>, Error> {
+) -> Result<Option<(CandidateHash, Hash)>, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send_message(ProspectiveParachainsMessage::GetBackableCandidate(
