@@ -357,17 +357,17 @@ mod select_candidates {
 				AllMessages::RuntimeApi(Request(_parent_hash, AvailabilityCores(tx))) =>
 					tx.send(Ok(mock_availability_cores())).unwrap(),
 				AllMessages::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(
-					relay_parent,
 					hashes,
 					sender,
 				)) => {
 					let response: Vec<BackedCandidate> =
 						backed_iter.by_ref().take(hashes.len()).collect();
-					let expected_hashes: Vec<CandidateHash> =
-						response.iter().map(BackedCandidate::hash).collect();
+					let expected_hashes: Vec<(CandidateHash, Hash)> = response
+						.iter()
+						.map(|candidate| (candidate.hash(), candidate.descriptor().relay_parent))
+						.collect();
 
 					assert_eq!(expected_hashes, hashes);
-					assert!(response.iter().all(|c| c.descriptor().relay_parent == relay_parent));
 
 					let _ = sender.send(response);
 				},

@@ -731,7 +731,12 @@ async fn select_candidates(
 	};
 
 	// now get the backed candidates corresponding to these candidate receipts
-	let mut candidates = request_backable_candidates_receipts(&selected_candidates, sender).await?;
+	let (tx, rx) = oneshot::channel();
+	sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
+		selected_candidates.clone(),
+		tx,
+	));
+	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
 	gum::trace!(target: LOG_TARGET, leaf_hash=?relay_parent,
 				"Got {} backed candidates", candidates.len());
 
@@ -776,39 +781,6 @@ async fn select_candidates(
 	);
 
 	Ok(candidates)
-}
-
-async fn request_backable_candidates_receipts(
-	selected_candidates: &[(CandidateHash, Hash)],
-	sender: &mut impl overseer::ProvisionerSenderTrait,
-) -> Result<Vec<BackedCandidate>, Error> {
-	let mut response = Vec::with_capacity(selected_candidates.len());
-	let mut selected_iter = selected_candidates.into_iter();
-	let mut candidate = selected_iter.next();
-
-	while let Some((candidate_hash, relay_parent)) = candidate {
-		let mut hashes = vec![*candidate_hash];
-		loop {
-			candidate = selected_iter.next();
-			match candidate {
-				Some((c, rp)) if rp == relay_parent => {
-					hashes.push(*c);
-				},
-				_ => break,
-			};
-		}
-
-		let (tx, rx) = oneshot::channel();
-		sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
-			*relay_parent,
-			hashes,
-			tx,
-		));
-		let mut backed = rx.await.map_err(Error::CanceledBackedCandidates)?;
-		response.append(&mut backed);
-	}
-
-	Ok(response)
 }
 
 /// Produces a block number 1 higher than that of the relay parent
