@@ -77,13 +77,13 @@ fn tracker_acquire_info() {
 	tracker.update(relay_parent, state_root, 1u32, max_ancestry_len);
 	let (relay_parent, state_root) = blocks[2];
 	tracker.update(relay_parent, state_root, 2u32, max_ancestry_len);
-	for (block_num, (rp, state_root)) in blocks.iter().enumerate() {
+	for (block_num, (rp, state_root)) in blocks.iter().enumerate().take(2) {
 		assert_matches!(
 			tracker.acquire_info(*rp, None),
 			Some((s, b)) if &s == state_root && b == block_num as u32
 		);
 
-		assert!(tracker.acquire_info(*rp, Some(block_num as u32)).is_none());
+		assert!(tracker.acquire_info(*rp, Some(2)).is_none());
 	}
 
 	for (block_num, (rp, state_root)) in blocks.iter().enumerate().skip(1) {

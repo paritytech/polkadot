@@ -98,7 +98,7 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 		let number = self.latest_number - BlockNumber::from(age as u32);
 
 		if let Some(prev) = prev {
-			if prev >= number {
+			if prev > number {
 				return None
 			}
 		}
