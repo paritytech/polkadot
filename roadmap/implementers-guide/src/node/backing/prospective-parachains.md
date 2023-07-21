@@ -93,8 +93,8 @@ prospective validation data. This is unlikely to change.
   - Sent by the Backing Subsystem after it successfully imports a
     statement giving a candidate the necessary quorum of backing votes.
 - `ProspectiveParachainsMessage::GetBackableCandidate`
-  - Get a backable candidate hash for a given parachain, under a given
-    relay-parent hash, which is a descendant of given candidate hashes.
+  - Get a backable candidate hash along with its relay parent for a given parachain,
+    under a given relay-parent (leaf) hash, which is a descendant of given candidate hashes.
   - Sent by the Provisioner when requesting backable candidates, when
     selecting candidates for a given relay-parent.
 - `ProspectiveParachainsMessage::GetHypotheticalFrontier`
