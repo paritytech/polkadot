@@ -249,6 +249,7 @@ fn place_order_works() {
 	let alice = 1u64;
 	let amt = 10_000_000u128;
 	let para_a = ParaId::from(111);
+	let reap_account = true;
 
 	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		// Initialize the parathread and wait for it to be ready.
@@ -259,9 +260,6 @@ fn place_order_works() {
 		run_to_block(100, |n| if n == 100 { Some(Default::default()) } else { None });
 
 		assert!(Paras::is_parathread(para_a));
-
-		// should the account be reaped
-		let reap_account = true;
 
 		// Does not work unsigned
 		assert_noop!(
@@ -279,6 +277,47 @@ fn place_order_works() {
 				reap_account
 			),
 			Error::<Test>::SpotPriceHigherThanMaxAmount,
+		);
+
+		// Works
+		assert_ok!(OnDemandAssigner::place_order(RuntimeOrigin::signed(alice), amt, para_a, false));
+	});
+}
+
+#[test]
+fn add_on_demand_assignment_works() {
+	let para_a = ParaId::from(111);
+	let assignment = Assignment::new(para_a);
+
+	let mut genesis = GenesisConfigBuilder::default();
+	genesis.on_demand_max_queue_size = 1;
+	new_test_ext(genesis.build()).execute_with(|| {
+		// Initialize the parathread and wait for it to be ready.
+		schedule_blank_para(para_a, ParaKind::Parathread);
+
+		// `para_a` is not onboarded as a parathread yet.
+		assert_noop!(
+			OnDemandAssigner::add_on_demand_assignment(
+				assignment.clone(),
+				QueuePushDirection::Back
+			),
+			Error::<Test>::InvalidParaId
+		);
+
+		assert!(!Paras::is_parathread(para_a));
+		run_to_block(100, |n| if n == 100 { Some(Default::default()) } else { None });
+		assert!(Paras::is_parathread(para_a));
+
+		// `para_a` is now onboarded as a valid parathread.
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment.clone(),
+			QueuePushDirection::Back
+		));
+
+		// Max queue size is 1, queue should be full.
+		assert_noop!(
+			OnDemandAssigner::add_on_demand_assignment(assignment, QueuePushDirection::Back),
+			Error::<Test>::QueueFull
 		);
 	});
 }
@@ -300,16 +339,16 @@ fn spotqueue_push_directions() {
 		let assignment_b = Assignment { para_id: para_b };
 		let assignment_c = Assignment { para_id: para_c };
 
-		assert_ok!(OnDemandAssigner::add_parathread_assignment(
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
 			assignment_a.clone(),
 			QueuePushDirection::Front
 		));
-		assert_ok!(OnDemandAssigner::add_parathread_assignment(
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
 			assignment_b.clone(),
 			QueuePushDirection::Front
 		));
 
-		assert_ok!(OnDemandAssigner::add_parathread_assignment(
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
 			assignment_c.clone(),
 			QueuePushDirection::Back
 		));
@@ -336,7 +375,7 @@ fn affinity_changes_work() {
 
 		// Add enough assignments to the order queue.
 		for _ in 0..10 {
-			OnDemandAssigner::add_parathread_assignment(
+			OnDemandAssigner::add_on_demand_assignment(
 				assignment_a.clone(),
 				QueuePushDirection::Front,
 			)
@@ -404,13 +443,13 @@ fn affinity_prohibits_parallel_scheduling() {
 		assert!(OnDemandAssigner::get_affinity_map(para_b).is_none());
 
 		// Add 2 assignments for para_a for every para_b.
-		OnDemandAssigner::add_parathread_assignment(assignment_a.clone(), QueuePushDirection::Back)
+		OnDemandAssigner::add_on_demand_assignment(assignment_a.clone(), QueuePushDirection::Back)
 			.expect("Invalid paraid or queue full");
 
-		OnDemandAssigner::add_parathread_assignment(assignment_a.clone(), QueuePushDirection::Back)
+		OnDemandAssigner::add_on_demand_assignment(assignment_a.clone(), QueuePushDirection::Back)
 			.expect("Invalid paraid or queue full");
 
-		OnDemandAssigner::add_parathread_assignment(assignment_b.clone(), QueuePushDirection::Back)
+		OnDemandAssigner::add_on_demand_assignment(assignment_b.clone(), QueuePushDirection::Back)
 			.expect("Invalid paraid or queue full");
 
 		assert_eq!(OnDemandAssigner::queue_size(), 3);
@@ -434,13 +473,13 @@ fn affinity_prohibits_parallel_scheduling() {
 		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_b.clone()));
 
 		// Add 2 assignments for para_a for every para_b.
-		OnDemandAssigner::add_parathread_assignment(assignment_a.clone(), QueuePushDirection::Back)
+		OnDemandAssigner::add_on_demand_assignment(assignment_a.clone(), QueuePushDirection::Back)
 			.expect("Invalid paraid or queue full");
 
-		OnDemandAssigner::add_parathread_assignment(assignment_a.clone(), QueuePushDirection::Back)
+		OnDemandAssigner::add_on_demand_assignment(assignment_a.clone(), QueuePushDirection::Back)
 			.expect("Invalid paraid or queue full");
 
-		OnDemandAssigner::add_parathread_assignment(assignment_b.clone(), QueuePushDirection::Back)
+		OnDemandAssigner::add_on_demand_assignment(assignment_b.clone(), QueuePushDirection::Back)
 			.expect("Invalid paraid or queue full");
 
 		// Approximate having 2 cores.

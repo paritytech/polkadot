@@ -265,7 +265,7 @@ pub mod pallet {
 
 			let assignment = Assignment::new(para_id);
 
-			let res = Pallet::<T>::add_parathread_assignment(assignment, QueuePushDirection::Back);
+			let res = Pallet::<T>::add_on_demand_assignment(assignment, QueuePushDirection::Back);
 
 			match res {
 				Ok(_) => {
@@ -355,7 +355,13 @@ where
 	/// - `location`: Whether to push this entry to the back or the front of the queue.
 	///               Pushing an entry to the front of the queue is only used when the scheduler
 	///               wants to push back an entry it has already popped.
-	pub fn add_parathread_assignment(
+	/// Returns:
+	/// - The unit type on success.
+	///
+	/// Errors:
+	/// - `InvalidParaId`
+	/// - `QueueFull`
+	pub fn add_on_demand_assignment(
 		assignment: Assignment,
 		location: QueuePushDirection,
 	) -> Result<(), DispatchError> {
@@ -493,7 +499,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
 		Pallet::<T>::decrease_affinity(assignment.para_id, core_idx);
 		// Skip the queue on push backs from scheduler
-		match Pallet::<T>::add_parathread_assignment(assignment, QueuePushDirection::Front) {
+		match Pallet::<T>::add_on_demand_assignment(assignment, QueuePushDirection::Front) {
 			Ok(_) => {},
 			Err(_) => {},
 		}
