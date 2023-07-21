@@ -559,7 +559,7 @@ mod tests {
 								GlobalConsensusConvertsFor::<UniversalLocationInNetworkAbc, [u8; 32]>::from_params(network),
 								"expected_result: {}, but conversion passed: {:?}, location: {:?}", expected_result, account, location
 							),
-						_ => assert!(false, "expected_result: {}, conversion passed: {:?}, but MultiLocation does not match expected pattern, location: {:?}", expected_result, account, location)
+						_ => panic!("expected_result: {}, conversion passed: {:?}, but MultiLocation does not match expected pattern, location: {:?}", expected_result, account, location)
 					}
 				},
 				None => {
