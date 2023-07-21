@@ -55,6 +55,19 @@ mod tests;
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
 
+pub trait WeightInfo {
+	fn place_order() -> Weight;
+}
+
+/// A weight info that is only suitable for testing.
+pub struct TestWeightInfo;
+
+impl WeightInfo for TestWeightInfo {
+	fn place_order() -> Weight {
+		Weight::MAX
+	}
+}
+
 /// Keeps track of how many assignments a scheduler currently has at a specific `CoreIndex` for a specific `ParaId`.
 #[derive(Encode, Decode, Default, Clone, Copy, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
@@ -85,7 +98,7 @@ pub enum SpotTrafficCalculationErr {
 	Division,
 }
 
-#[frame_support::pallet(dev_mode)]
+#[frame_support::pallet]
 pub mod pallet {
 
 	use super::*;
@@ -101,6 +114,9 @@ pub mod pallet {
 
 		/// The runtime's definition of a Currency.
 		type Currency: Currency<Self::AccountId>;
+
+		/// Something that provides the weight of this pallet.
+		type WeightInfo: WeightInfo;
 
 		/// The default value for the spot traffic multiplier.
 		#[pallet::constant]
@@ -177,7 +193,8 @@ pub mod pallet {
 						SpotTraffic::<T>::set(new_traffic);
 						Pallet::<T>::deposit_event(Event::<T>::SpotTrafficSet {
 							traffic: new_traffic,
-						})
+						});
+						return T::DbWeight::get().reads_writes(2, 1)
 					}
 				},
 				Err(SpotTrafficCalculationErr::QueueCapacityIsZero) => {
@@ -199,9 +216,7 @@ pub mod pallet {
 					);
 				},
 			};
-
-			//TODO this has some weight
-			Weight::zero()
+			T::DbWeight::get().reads_writes(2, 0)
 		}
 	}
 
@@ -224,9 +239,8 @@ pub mod pallet {
 		///
 		/// Events:
 		/// - `SpotOrderPlaced`
-		// TODO weights
 		#[pallet::call_index(0)]
-		#[pallet::weight(1_000)]
+		#[pallet::weight(<T as Config>::WeightInfo::place_order())]
 		pub fn place_order(
 			origin: OriginFor<T>,
 			max_amount: BalanceOf<T>,
