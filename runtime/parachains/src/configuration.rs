@@ -300,7 +300,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 pub enum InconsistentError<BlockNumber> {
 	/// `group_rotation_frequency` is set to zero.
 	ZeroGroupRotationFrequency,
-	/// `chain_availability_period` is set to zero.
+	/// `paras_availability_period` is set to zero.
 	ZeroParasAvailabilityPeriod,
 	/// `no_show_slots` is set to zero.
 	ZeroNoShowSlots,
