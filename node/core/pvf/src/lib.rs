@@ -101,7 +101,7 @@ mod worker_intf;
 pub mod testing;
 
 // Used by `decl_puppet_worker_main!`.
-#[doc(hidden)]
+#[cfg(feature = "test-utils")]
 pub use sp_tracing;
 
 pub use error::{InvalidCandidate, ValidationError};

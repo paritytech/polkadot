@@ -14,9 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::PUPPET_EXE;
-use polkadot_node_core_pvf::testing::{spawn_with_program_path, SpawnErr};
 use std::time::Duration;
+
+use polkadot_node_core_pvf::testing::{spawn_with_program_path, SpawnErr};
+
+use crate::PUPPET_EXE;
 
 // Test spawning a program that immediately exits with a failure code.
 #[tokio::test]

@@ -22,10 +22,12 @@
 #[doc(hidden)]
 pub use crate::worker_intf::{spawn_with_program_path, SpawnErr};
 
+#[cfg(feature = "test-utils")]
 use polkadot_primitives::ExecutorParams;
 
 /// A function that emulates the stitches together behaviors of the preparation and the execution
 /// worker in a single synchronous function.
+#[cfg(feature = "test-utils")]
 pub fn validate_candidate(
 	code: &[u8],
 	params: &[u8],
@@ -52,6 +54,7 @@ pub fn validate_candidate(
 /// Use this macro to declare a `fn main() {}` that will check the arguments and dispatch them to
 /// the appropriate worker, making the executable that can be used for spawning workers.
 #[macro_export]
+#[cfg(feature = "test-utils")]
 macro_rules! decl_puppet_worker_main {
 	() => {
 		fn main() {

@@ -34,3 +34,6 @@ tempfile = "3.3.0"
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[features]
+test-utils = []
