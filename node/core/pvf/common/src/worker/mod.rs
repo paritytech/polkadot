@@ -362,10 +362,21 @@ pub mod thread {
 			let condvar = Arc::new((Mutex::new(WaitOutcome::Finished), Condvar::new()));
 			let response =
 				spawn_worker_thread("thread", move || 2, condvar.clone(), WaitOutcome::TimedOut);
-			let (lock, _) = &*condvar;
+
 			let r = response.unwrap().join().unwrap();
 			assert_eq!(r, 2);
-			assert_matches!(*lock.lock().unwrap(), WaitOutcome::Finished);
+			assert_matches!(*condvar.0.lock().unwrap(), WaitOutcome::Finished);
+		}
+
+		#[test]
+		fn cond_notify_on_done_should_update_wait_outcome_when_panic() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+			let err = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+				cond_notify_on_done(|| panic!("test"), condvar.clone(), WaitOutcome::Finished)
+			}));
+
+			assert_matches!(*condvar.0.lock().unwrap(), WaitOutcome::Finished);
+			assert!(err.is_err());
 		}
 	}
 }
