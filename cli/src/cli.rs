@@ -19,8 +19,8 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-/// The version of the node and workers.
-pub const CLI_IMPL_VERSION: &'static str = env!("SUBSTRATE_CLI_IMPL_VERSION");
+/// The version of the node. The passed-in version of the workers should match this.
+pub const NODE_VERSION: &'static str = env!("SUBSTRATE_CLI_IMPL_VERSION");
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]

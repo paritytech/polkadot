@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::{Cli, Subcommand, CLI_IMPL_VERSION};
+use crate::cli::{Cli, Subcommand, NODE_VERSION};
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
@@ -55,7 +55,7 @@ impl SubstrateCli for Cli {
 	}
 
 	fn impl_version() -> String {
-		env!("SUBSTRATE_CLI_IMPL_VERSION").into()
+		NODE_VERSION.into()
 	}
 
 	fn description() -> String {
@@ -289,7 +289,7 @@ where
 				enable_beefy,
 				jaeger_agent,
 				telemetry_worker_handle: None,
-				node_version: Some(CLI_IMPL_VERSION.to_string()),
+				node_version: Some(NODE_VERSION.to_string()),
 				workers_path: cli.run.workers_path,
 				workers_names: None,
 				dont_use_external_workers: false,
@@ -444,7 +444,7 @@ pub fn run() -> Result<()> {
 			{
 				polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
 					&cmd.socket_path,
-					Some(&cmd.node_impl_version),
+					Some(NODE_VERSION),
 					Some(&cmd.node_impl_version),
 				);
 				Ok(())
@@ -467,7 +467,7 @@ pub fn run() -> Result<()> {
 			{
 				polkadot_node_core_pvf_execute_worker::worker_entrypoint(
 					&cmd.socket_path,
-					Some(&cmd.node_impl_version),
+					Some(NODE_VERSION),
 					Some(&cmd.node_impl_version),
 				);
 				Ok(())
