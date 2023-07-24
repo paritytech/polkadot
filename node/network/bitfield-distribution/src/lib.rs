@@ -453,7 +453,7 @@ async fn relay_message<Context>(
 		let v2_peers =
 			filter_by_peer_version(&interested_peers, ValidationVersion::VStaging.into());
 
-		if v1_peers.len() > 0 {
+		if !v1_peers.is_empty() {
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 				v1_peers,
 				message.clone().into_validation_protocol(ValidationVersion::V1.into()),
@@ -461,7 +461,7 @@ async fn relay_message<Context>(
 			.await;
 		}
 
-		if v2_peers.len() > 0 {
+		if !v2_peers.is_empty() {
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 				v2_peers,
 				message.into_validation_protocol(ValidationVersion::VStaging.into()),

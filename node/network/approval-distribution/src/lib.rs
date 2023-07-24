@@ -382,17 +382,13 @@ impl Knowledge {
 		// entries for each assigned candidate. This fakes knowledge of individual assignments, but
 		// we need to share the same `MessageSubject` with the followup approval candidate index.
 		if kind == MessageKind::Assignment && success && message.1.count_ones() > 1 {
-			message
-				.1
-				.iter_ones()
-				.map(|candidate_index| candidate_index as CandidateIndex)
-				.fold(success, |success, candidate_index| {
-					success &
-						self.insert(
-							MessageSubject(message.0, candidate_index.into(), message.2),
-							kind,
-						)
-				})
+			for candidate_index in message.1.iter_ones() {
+				success = success &&
+					self.insert(
+						MessageSubject(message.0, candidate_index.into(), message.2),
+						kind,
+					);
+			}
 		} else {
 			success
 		}
@@ -1530,7 +1526,7 @@ impl State {
 			let v1_peers = filter_by_peer_version(&peers, ValidationVersion::V1.into());
 			let v2_peers = filter_by_peer_version(&peers, ValidationVersion::VStaging.into());
 
-			if v1_peers.len() > 0 {
+			if !v1_peers.is_empty() {
 				ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 					v1_peers,
 					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
@@ -1540,7 +1536,7 @@ impl State {
 				.await;
 			}
 
-			if v2_peers.len() > 0 {
+			if !v2_peers.is_empty() {
 				ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 					v2_peers,
 					Versioned::VStaging(
@@ -2186,7 +2182,7 @@ pub(crate) async fn send_assignments_batched(
 	let v1_peers = filter_by_peer_version(peers, ValidationVersion::V1.into());
 	let v2_peers = filter_by_peer_version(peers, ValidationVersion::VStaging.into());
 
-	if v1_peers.len() > 0 {
+	if !v1_peers.is_empty() {
 		// Older peers(v1) do not understand `AssignmentsV2` messages, so we have to filter these out.
 		let v1_assignments = v2_assignments
 			.clone()
@@ -2201,7 +2197,7 @@ pub(crate) async fn send_assignments_batched(
 		}
 	}
 
-	if v2_peers.len() > 0 {
+	if !v2_peers.is_empty() {
 		let mut v2_batches = v2_assignments.into_iter().peekable();
 
 		while v2_batches.peek().is_some() {
@@ -2221,7 +2217,7 @@ pub(crate) async fn send_approvals_batched(
 	let v1_peers = filter_by_peer_version(peers, ValidationVersion::V1.into());
 	let v2_peers = filter_by_peer_version(peers, ValidationVersion::VStaging.into());
 
-	if v1_peers.len() > 0 {
+	if !v1_peers.is_empty() {
 		let mut batches = approvals.clone().into_iter().peekable();
 
 		while batches.peek().is_some() {
@@ -2238,7 +2234,7 @@ pub(crate) async fn send_approvals_batched(
 		}
 	}
 
-	if v2_peers.len() > 0 {
+	if !v2_peers.is_empty() {
 		let mut batches = approvals.into_iter().peekable();
 
 		while batches.peek().is_some() {

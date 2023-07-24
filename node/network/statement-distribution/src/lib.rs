@@ -1119,7 +1119,7 @@ async fn circulate_statement<'a, Context>(
 		let v1_peers = filter_by_peer_version(&peers_to_send, ValidationVersion::V1.into());
 		let v2_peers = filter_by_peer_version(&peers_to_send, ValidationVersion::VStaging.into());
 
-		if v1_peers.len() > 0 {
+		if !v1_peers.is_empty() {
 			let payload = statement_message(
 				relay_parent,
 				stored.statement.clone(),
@@ -1130,7 +1130,7 @@ async fn circulate_statement<'a, Context>(
 				.await;
 		}
 
-		if v2_peers.len() > 0 {
+		if !v2_peers.is_empty() {
 			let payload = statement_message(
 				relay_parent,
 				stored.statement.clone(),
