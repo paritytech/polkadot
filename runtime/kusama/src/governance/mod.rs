@@ -16,7 +16,6 @@
 
 //! New governance configurations for the Kusama runtime.
 
-
 use super::*;
 use frame_support::{
 	parameter_types,
