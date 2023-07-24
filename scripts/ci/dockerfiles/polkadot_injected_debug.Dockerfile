@@ -39,6 +39,8 @@ USER polkadot
 
 # check if executable works in this container
 RUN /usr/local/bin/polkadot --version
+RUN /usr/local/bin/polkadot-execute-worker --version
+RUN /usr/local/bin/polkadot-prepare-worker --version
 
 EXPOSE 30333 9933 9944
 VOLUME ["/polkadot"]
