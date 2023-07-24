@@ -24,7 +24,7 @@ id = 100
   [parachains.collator]
   name = "collator01"
   image = "{{COL_IMAGE}}"
-  command = "undying-collator"
+  command = "polkadot-parachain"
   args = ["-lparachain=debug"]
 
 [types.Header]
