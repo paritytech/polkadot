@@ -433,7 +433,7 @@ async fn spawn_worker_task(
 			&program_path,
 			job.executor_params.clone(),
 			spawn_timeout,
-			node_version.as_ref().map(|v| v.as_str()),
+			node_version.as_deref(),
 		)
 		.await
 		{

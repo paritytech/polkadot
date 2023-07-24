@@ -264,13 +264,7 @@ async fn spawn_worker_task(
 	use futures_timer::Delay;
 
 	loop {
-		match worker_intf::spawn(
-			&program_path,
-			spawn_timeout,
-			node_version.as_ref().map(|v| v.as_str()),
-		)
-		.await
-		{
+		match worker_intf::spawn(&program_path, spawn_timeout, node_version.as_deref()).await {
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err);
