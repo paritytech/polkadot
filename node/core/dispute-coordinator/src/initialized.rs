@@ -92,7 +92,7 @@ pub struct InitialData {
 pub(crate) struct Initialized {
 	keystore: Arc<LocalKeystore>,
 	runtime_info: RuntimeInfo,
-	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doen't matter if it was
+	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doesn't matter if it was
 	/// cached successfully or not. It is used to detect ancient disputes.
 	highest_session_seen: SessionIndex,
 	/// Will be set to `true` if an error occured during the last caching attempt

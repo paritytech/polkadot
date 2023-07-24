@@ -302,6 +302,13 @@ pub enum NetworkBridgeRxMessage {
 		/// to the index in `canonical_shuffling`
 		shuffled_indices: Vec<usize>,
 	},
+	/// Inform the distribution subsystems about `AuthorityDiscoveryId` key rotations.
+	UpdatedAuthorityIds {
+		/// The `PeerId` of the peer that updated its `AuthorityDiscoveryId`s.
+		peer_id: PeerId,
+		/// The updated authority discovery keys of the peer.
+		authority_ids: HashSet<AuthorityDiscoveryId>,
+	},
 }
 
 /// Type of peer reporting

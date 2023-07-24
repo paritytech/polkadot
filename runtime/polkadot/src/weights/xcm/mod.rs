@@ -25,7 +25,7 @@ use xcm::{latest::prelude::*, DoubleEncoded};
 use pallet_xcm_benchmarks_fungible::WeightInfo as XcmBalancesWeight;
 use pallet_xcm_benchmarks_generic::WeightInfo as XcmGeneric;
 
-/// Types of asset supported by the Rococo runtime.
+/// Types of asset supported by the Polkadot runtime.
 pub enum AssetTypes {
 	/// An asset backed by `pallet-balances`.
 	Balances,
@@ -47,7 +47,7 @@ trait WeighMultiAssets {
 	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight;
 }
 
-// Rococo only knows about one asset, the balances pallet.
+// Polkadot only knows about one asset, the balances pallet.
 const MAX_ASSETS: u64 = 1;
 
 impl WeighMultiAssets for MultiAssetFilter {
@@ -62,7 +62,7 @@ impl WeighMultiAssets for MultiAssetFilter {
 					AssetTypes::Unknown => Weight::MAX,
 				})
 				.fold(Weight::zero(), |acc, x| acc.saturating_add(x)),
-			// We don't support any NFTs on Rococo, so these two variants will always match
+			// We don't support any NFTs on Polkadot, so these two variants will always match
 			// only 1 kind of fungible asset.
 			Self::Wild(AllOf { .. } | AllOfCounted { .. }) => balances_weight,
 			Self::Wild(AllCounted(count)) =>
@@ -85,13 +85,13 @@ impl WeighMultiAssets for MultiAssets {
 	}
 }
 
-pub struct RococoXcmWeight<RuntimeCall>(core::marker::PhantomData<RuntimeCall>);
-impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for RococoXcmWeight<RuntimeCall> {
+pub struct PolkadotXcmWeight<RuntimeCall>(core::marker::PhantomData<RuntimeCall>);
+impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for PolkadotXcmWeight<RuntimeCall> {
 	fn withdraw_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
 	fn reserve_asset_deposited(assets: &MultiAssets) -> Weight {
-		// Rococo doesn't support ReserveAssetDeposited, so this benchmark has a default weight
+		// Polkadot doesn't support ReserveAssetDeposited, so this benchmark has a default weight
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::reserve_asset_deposited())
 	}
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {
@@ -159,7 +159,7 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for RococoXcmWeight<RuntimeCall> {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_reserve_asset())
 	}
 	fn exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
-		// Rococo does not currently support exchange asset operations
+		// Polkadot does not currently support exchange asset operations
 		Weight::MAX
 	}
 	fn initiate_reserve_withdraw(
@@ -240,27 +240,27 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for RococoXcmWeight<RuntimeCall> {
 		XcmGeneric::<Runtime>::clear_transact_status()
 	}
 	fn universal_origin(_: &Junction) -> Weight {
-		// Rococo does not currently support universal origin operations
+		// Polkadot does not currently support universal origin operations
 		Weight::MAX
 	}
 	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
-		// Rococo relay should not support export message operations
+		// Polkadot relay should not support export message operations
 		Weight::MAX
 	}
 	fn lock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Rococo does not currently support asset locking operations
+		// Polkadot does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn unlock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Rococo does not currently support asset locking operations
+		// Polkadot does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn note_unlockable(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Rococo does not currently support asset locking operations
+		// Polkadot does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn request_unlock(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Rococo does not currently support asset locking operations
+		// Polkadot does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn set_fees_mode(_: &bool) -> Weight {
