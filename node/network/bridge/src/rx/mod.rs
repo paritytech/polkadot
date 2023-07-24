@@ -19,7 +19,10 @@ use super::*;
 
 use always_assert::never;
 use bytes::Bytes;
-use futures::stream::BoxStream;
+use futures::{
+	stream::{BoxStream, FuturesUnordered, StreamExt},
+	Future,
+};
 use parity_scale_codec::{Decode, DecodeAll};
 
 use sc_network::Event as NetworkEvent;
@@ -55,6 +58,7 @@ pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 use std::{
 	collections::{hash_map, HashMap},
 	iter::ExactSizeIterator,
+	pin::Pin,
 };
 
 use super::validator_discovery;
@@ -890,6 +894,30 @@ fn dispatch_collation_event_to_all_unbounded(
 	}
 }
 
+fn try_send_validation_event<E>(
+	event: E,
+	sender: &mut (impl overseer::NetworkBridgeRxSenderTrait + overseer::SubsystemSender<E>),
+	delayed_queue: &FuturesUnordered<Pin<Box<dyn Future<Output = ()> + Send>>>,
+) where
+	E: Send + 'static,
+{
+	match sender.try_send_message(event) {
+		Ok(()) => {},
+		Err(overseer::TrySendError::Full(event)) => {
+			let mut sender = sender.clone();
+			delayed_queue.push(Box::pin(async move {
+				sender.send_message(event).await;
+			}));
+		},
+		Err(overseer::TrySendError::Closed(_)) => {
+			panic!(
+				"NetworkBridgeRxSender is closed when trying to send event of type: {}",
+				std::any::type_name::<E>()
+			);
+		},
+	}
+}
+
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
 	sender: &mut impl overseer::NetworkBridgeRxSenderTrait,
@@ -897,14 +925,24 @@ async fn dispatch_validation_events_to_all<I>(
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
 {
+	let delayed_messages: FuturesUnordered<Pin<Box<dyn Future<Output = ()> + Send>>> =
+		FuturesUnordered::new();
 	for event in events {
-		sender
-			.send_messages(event.focus().map(StatementDistributionMessage::from))
-			.await;
-		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;
-		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
-		sender.send_messages(event.focus().map(GossipSupportMessage::from)).await;
+		if let Ok(msg) = event.focus().map(StatementDistributionMessage::from) {
+			try_send_validation_event(msg, sender, &delayed_messages);
+		}
+		if let Ok(msg) = event.focus().map(BitfieldDistributionMessage::from) {
+			try_send_validation_event(msg, sender, &delayed_messages);
+		}
+		if let Ok(msg) = event.focus().map(ApprovalDistributionMessage::from) {
+			try_send_validation_event(msg, sender, &delayed_messages);
+		}
+		if let Ok(msg) = event.focus().map(GossipSupportMessage::from) {
+			try_send_validation_event(msg, sender, &delayed_messages);
+		}
 	}
+
+	let _: Vec<()> = delayed_messages.collect().await;
 }
 
 async fn dispatch_collation_events_to_all<I>(

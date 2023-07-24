@@ -108,6 +108,7 @@ pub use orchestra::{
 	OrchestraError as OverseerError, SignalsReceived, Spawner, Subsystem, SubsystemContext,
 	SubsystemIncomingMessages, SubsystemInstance, SubsystemMeterReadouts, SubsystemMeters,
 	SubsystemSender, TimeoutExt, ToOrchestra,
+	TrySendError,
 };
 
 /// Store 2 days worth of blocks, not accounting for forks,
