@@ -429,7 +429,7 @@ impl<T: Config> Pallet<T> {
 				);
 			}
 
-			ensure!(full_weight.all_lte(max_block_weight), Error::<T>::InherentOverweight,);
+			ensure!(full_weight.all_lte(max_block_weight), Error::<T>::InherentOverweight);
 			full_weight
 		};
 

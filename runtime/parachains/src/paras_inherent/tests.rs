@@ -28,7 +28,6 @@ mod enter {
 	};
 	use assert_matches::assert_matches;
 	use frame_support::assert_ok;
-	use sp_runtime::ModuleError;
 	use sp_std::collections::btree_map::BTreeMap;
 
 	struct TestConfig {
@@ -722,14 +721,7 @@ mod enter {
 			.unwrap_err()
 			.error;
 
-			assert_matches!(
-				dispatch_error,
-				DispatchError::Module(ModuleError {
-					index: _,
-					error: _,
-					message: Some("InherentOverweight")
-				})
-			);
+			assert_eq!(dispatch_error, Error::<Test>::InherentOverweight.into());
 		});
 	}
 
