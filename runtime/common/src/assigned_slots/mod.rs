@@ -158,14 +158,15 @@ pub mod pallet {
 	pub type MaxPermanentSlots<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::genesis_config]
-	#[derive(Default)]
-	pub struct GenesisConfig {
+	#[derive(frame_support::DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
 		pub max_temporary_slots: u32,
 		pub max_permanent_slots: u32,
+		pub _config: PhantomData<T>,
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			<MaxPermanentSlots<T>>::put(&self.max_permanent_slots);
 			<MaxTemporarySlots<T>>::put(&self.max_temporary_slots);
