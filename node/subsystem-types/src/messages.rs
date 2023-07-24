@@ -302,6 +302,13 @@ pub enum NetworkBridgeRxMessage {
 		/// to the index in `canonical_shuffling`
 		shuffled_indices: Vec<usize>,
 	},
+	/// Inform the distribution subsystems about `AuthorityDiscoveryId` key rotations.
+	UpdatedAuthorityIds {
+		/// The `PeerId` of the peer that updated its `AuthorityDiscoveryId`s.
+		peer_id: PeerId,
+		/// The updated authority discovery keys of the peer.
+		authority_ids: HashSet<AuthorityDiscoveryId>,
+	},
 }
 
 /// Type of peer reporting
@@ -462,9 +469,10 @@ pub enum AvailabilityStoreMessage {
 		tx: oneshot::Sender<Result<(), ()>>,
 	},
 
-	/// Store a `AvailableData` and all of its chunks in the AV store.
+	/// Computes and checks the erasure root of `AvailableData` before storing all of its chunks in
+	/// the AV store.
 	///
-	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
+	/// Return `Ok(())` if the store operation succeeded, `Err(StoreAvailableData)` if it failed.
 	StoreAvailableData {
 		/// A hash of the candidate this `available_data` belongs to.
 		candidate_hash: CandidateHash,
@@ -472,9 +480,19 @@ pub enum AvailabilityStoreMessage {
 		n_validators: u32,
 		/// The `AvailableData` itself.
 		available_data: AvailableData,
+		/// Erasure root we expect to get after chunking.
+		expected_erasure_root: Hash,
 		/// Sending side of the channel to send result to.
-		tx: oneshot::Sender<Result<(), ()>>,
+		tx: oneshot::Sender<Result<(), StoreAvailableDataError>>,
 	},
+}
+
+/// The error result type of a [`AvailabilityStoreMessage::StoreAvailableData`] request.
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
+pub enum StoreAvailableDataError {
+	#[error("The computed erasure root did not match expected one")]
+	InvalidErasureRoot,
 }
 
 /// A response channel for the result of a chain API request.

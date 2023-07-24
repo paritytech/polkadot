@@ -4,6 +4,7 @@ description = "Integration tests using the test-parachains"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+publish = false
 
 [dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
