@@ -222,8 +222,15 @@ pub fn run_node(
 	run: Cli,
 	overseer_gen: impl service::OverseerGen,
 	malus_finality_delay: Option<u32>,
+	dont_use_external_workers: bool,
 ) -> Result<()> {
-	run_node_inner(run, overseer_gen, malus_finality_delay, |_logger_builder, _config| {})
+	run_node_inner(
+		run,
+		overseer_gen,
+		malus_finality_delay,
+		|_logger_builder, _config| {},
+		dont_use_external_workers,
+	)
 }
 
 fn run_node_inner<F>(
@@ -231,6 +238,7 @@ fn run_node_inner<F>(
 	overseer_gen: impl service::OverseerGen,
 	maybe_malus_finality_delay: Option<u32>,
 	logger_hook: F,
+	dont_use_external_workers: bool,
 ) -> Result<()>
 where
 	F: FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration),
@@ -292,7 +300,7 @@ where
 				node_version: Some(NODE_VERSION.to_string()),
 				workers_path: cli.run.workers_path,
 				workers_names: None,
-				dont_use_external_workers: false,
+				dont_use_external_workers,
 				overseer_enable_anyways: false,
 				overseer_gen,
 				overseer_message_channel_capacity_override: cli
@@ -348,6 +356,7 @@ pub fn run() -> Result<()> {
 			service::RealOverseerGen,
 			None,
 			polkadot_node_metrics::logger_hook(),
+			false,
 		),
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;

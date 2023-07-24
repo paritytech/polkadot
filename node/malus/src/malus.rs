@@ -55,7 +55,12 @@ impl MalusCli {
 			NemesisVariant::BackGarbageCandidate(opts) => {
 				let BackGarbageCandidateOptions { percentage, cli } = opts;
 
-				polkadot_cli::run_node(cli, BackGarbageCandidates { percentage }, finality_delay)?
+				polkadot_cli::run_node(
+					cli,
+					BackGarbageCandidates { percentage },
+					finality_delay,
+					true,
+				)?
 			},
 			NemesisVariant::SuggestGarbageCandidate(opts) => {
 				let SuggestGarbageCandidateOptions { percentage, cli } = opts;
@@ -64,6 +69,7 @@ impl MalusCli {
 					cli,
 					SuggestGarbageCandidates { percentage },
 					finality_delay,
+					true,
 				)?
 			},
 			NemesisVariant::DisputeAncestor(opts) => {
@@ -78,6 +84,7 @@ impl MalusCli {
 					cli,
 					DisputeValidCandidates { fake_validation, fake_validation_error, percentage },
 					finality_delay,
+					true,
 				)?
 			},
 		}

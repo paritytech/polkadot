@@ -13,7 +13,6 @@ name = "malus"
 path = "src/malus.rs"
 
 [dependencies]
-# Note that malus depends on the worker binaries that are built by polkadot-cli.
 polkadot-cli = { path = "../../cli", features = [ "malus", "rococo-native", "kusama-native", "westend-native", "polkadot-native" ] }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
@@ -35,11 +34,11 @@ gum = { package = "tracing-gum", path = "../gum/" }
 erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
 rand = "0.8.5"
 
-[features]
-default = []
-fast-runtime = ["polkadot-cli/fast-runtime"]
-
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
+
+[features]
+default = []
+fast-runtime = ["polkadot-cli/fast-runtime"]
