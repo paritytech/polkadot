@@ -1488,7 +1488,6 @@ pub type Migrations = migrations::Unreleased;
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
-	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
 
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
