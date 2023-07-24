@@ -1478,7 +1478,7 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 	}
 }
 
-/// All migrations that will run on the next runtime upgrade.
+/// All migrations that will run on the next runtime upgrade .
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
