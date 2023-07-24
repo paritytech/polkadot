@@ -515,6 +515,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 		},
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -1022,6 +1023,7 @@ fn rococo_staging_testnet_config_genesis(
 		},
 		xcm_pallet: Default::default(),
 		nis_counterpart_balances: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -1483,6 +1485,7 @@ pub fn westend_testnet_genesis(
 		},
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -1572,6 +1575,7 @@ pub fn rococo_testnet_genesis(
 		},
 		xcm_pallet: Default::default(),
 		nis_counterpart_balances: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
