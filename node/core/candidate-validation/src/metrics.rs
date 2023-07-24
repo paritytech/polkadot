@@ -23,7 +23,7 @@ pub(crate) struct MetricsInner {
 	pub(crate) validate_from_chain_state: prometheus::Histogram,
 	pub(crate) validate_from_exhaustive: prometheus::Histogram,
 	pub(crate) validate_candidate_exhaustive: prometheus::Histogram,
-	pub(crate) pov_size: prometheus::Histogram,
+	pub(crate) pov_size: prometheus::HistogramVec,
 	pub(crate) code_size: prometheus::Histogram,
 }
 
@@ -77,9 +77,12 @@ impl Metrics {
 		}
 	}
 
-	pub fn observe_pov_size(&self, pov_size: usize) {
+	pub fn observe_pov_size(&self, pov_size: usize, compressed: bool) {
 		if let Some(metrics) = &self.0 {
-			metrics.pov_size.observe(pov_size as f64);
+			metrics
+				.pov_size
+				.with_label_values(&[if compressed { "true" } else { "false" }])
+				.observe(pov_size as f64);
 		}
 	}
 }
@@ -119,15 +122,16 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			pov_size: prometheus::register(
-				prometheus::Histogram::with_opts(
+				prometheus::HistogramVec::new(
 					prometheus::HistogramOpts::new(
 						"polkadot_parachain_candidate_validation_pov_size",
-						"The size of the decompressed proof of validity of a candidate",
+						"The compressed and decompressed size of the proof of validity of a candidate",
 					)
 					.buckets(
 						prometheus::exponential_buckets(16384.0, 2.0, 10)
 							.expect("arguments are always valid; qed"),
 					),
+					&["compressed"],
 				)?,
 				registry,
 			)?,

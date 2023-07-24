@@ -40,8 +40,8 @@ use xcm_builder::{
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit, TinkernetMultisigAsAccountId, TinkernetMultisigAsNative,
-	TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	TakeWeightCredit, TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin,
+	WithUniqueTopic,
 };
 use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
 
@@ -53,12 +53,8 @@ parameter_types! {
 	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
 }
 
-pub type LocationConverter = (
-	ChildParachainConvertsVia<ParaId, AccountId>,
-	AccountId32Aliases<ThisNetwork, AccountId>,
-	// We can derive a local account from a Tinkernet XCMultisig MultiLocation.
-	TinkernetMultisigAsAccountId<AccountId>,
-);
+pub type LocationConverter =
+	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<ThisNetwork, AccountId>);
 
 /// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
 /// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
@@ -87,8 +83,6 @@ type LocalOriginConverter = (
 	SignedAccountId32AsNative<ThisNetwork, RuntimeOrigin>,
 	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
 	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
-	// Converts a Tinkernet XCMultisig MultiLocation into a `Signed` origin.
-	TinkernetMultisigAsNative<RuntimeOrigin>,
 );
 
 parameter_types! {
@@ -113,7 +107,7 @@ pub type XcmRouter = WithUniqueTopic<(
 
 parameter_types! {
 	pub const Roc: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const Statemine: MultiLocation = Parachain(1000).into_location();
+	pub const Rockmine: MultiLocation = Parachain(1000).into_location();
 	pub const Contracts: MultiLocation = Parachain(1002).into_location();
 	pub const Encointer: MultiLocation = Parachain(1003).into_location();
 	pub const Tick: MultiLocation = Parachain(100).into_location();
@@ -122,7 +116,7 @@ parameter_types! {
 	pub const RocForTick: (MultiAssetFilter, MultiLocation) = (Roc::get(), Tick::get());
 	pub const RocForTrick: (MultiAssetFilter, MultiLocation) = (Roc::get(), Trick::get());
 	pub const RocForTrack: (MultiAssetFilter, MultiLocation) = (Roc::get(), Track::get());
-	pub const RocForStatemine: (MultiAssetFilter, MultiLocation) = (Roc::get(), Statemine::get());
+	pub const RocForRockmine: (MultiAssetFilter, MultiLocation) = (Roc::get(), Rockmine::get());
 	pub const RocForContracts: (MultiAssetFilter, MultiLocation) = (Roc::get(), Contracts::get());
 	pub const RocForEncointer: (MultiAssetFilter, MultiLocation) = (Roc::get(), Encointer::get());
 	pub const MaxInstructions: u32 = 100;
@@ -132,7 +126,7 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RocForTick>,
 	xcm_builder::Case<RocForTrick>,
 	xcm_builder::Case<RocForTrack>,
-	xcm_builder::Case<RocForStatemine>,
+	xcm_builder::Case<RocForRockmine>,
 	xcm_builder::Case<RocForContracts>,
 	xcm_builder::Case<RocForEncointer>,
 );

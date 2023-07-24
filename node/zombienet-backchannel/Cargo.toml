@@ -15,7 +15,7 @@ tokio-tungstenite = "0.17"
 futures-util = "0.3.23"
 lazy_static = "1.4.0"
 parity-scale-codec = { version = "3.6.1", features = ["derive"] }
-reqwest = "0.11"
+reqwest = { version = "0.11", features = ["rustls-tls"], default-features = false }
 thiserror = "1.0.31"
 gum = { package = "tracing-gum", path = "../gum/" }
 serde = { version = "1.0", features = ["derive"] }
