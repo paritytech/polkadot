@@ -1021,10 +1021,7 @@ pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		.with_protocol_id("versi")
 		.with_properties(versi_chain_spec_properties())
 		.with_extensions(Default::default())
-		.with_code(
-			rococo::rococo_runtime_fast_runtime_10m::WASM_BINARY
-				.ok_or("Versi development wasm not available")?,
-		)
+		.with_code(rococo::WASM_BINARY.ok_or("Versi development wasm not available")?)
 		.build())
 }
 
@@ -1455,10 +1452,7 @@ pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
 		.with_genesis_config_patch(rococo_development_config_genesis())
 		.with_protocol_id(DEFAULT_PROTOCOL_ID)
 		.with_extensions(Default::default())
-		.with_code(
-			rococo::rococo_runtime_fast_runtime_1m::WASM_BINARY
-				.ok_or("Rococo development wasm not available")?,
-		)
+		.with_code(rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?)
 		.build())
 }
 
@@ -1472,10 +1466,7 @@ pub fn versi_development_config() -> Result<RococoChainSpec, String> {
 		.with_genesis_config_patch(rococo_development_config_genesis())
 		.with_protocol_id("versi")
 		.with_extensions(Default::default())
-		.with_code(
-			rococo::rococo_runtime_fast_runtime_1m::WASM_BINARY
-				.ok_or("Versi development wasm not available")?,
-		)
+		.with_code(rococo::WASM_BINARY.ok_or("Versi development wasm not available")?)
 		.build())
 }
 
@@ -1490,10 +1481,7 @@ pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
 		.with_genesis_config_patch(rococo_development_config_genesis())
 		.with_protocol_id(WOCOCO_DEV_PROTOCOL_ID)
 		.with_extensions(Default::default())
-		.with_code(
-			rococo::rococo_runtime_fast_runtime_1m::WASM_BINARY
-				.ok_or("Wococo development wasm not available")?,
-		)
+		.with_code(rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?)
 		.build())
 }
 
@@ -1595,10 +1583,7 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		.with_genesis_config_patch(rococo_local_testnet_genesis())
 		.with_protocol_id(DEFAULT_PROTOCOL_ID)
 		.with_extensions(Default::default())
-		.with_code(
-			rococo::rococo_runtime_fast_runtime_1m::WASM_BINARY
-				.ok_or("Rococo development wasm not available")?,
-		)
+		.with_code(rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?)
 		.build())
 }
 
@@ -1627,10 +1612,7 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		.with_genesis_config_patch(wococo_local_testnet_genesis())
 		.with_protocol_id(DEFAULT_PROTOCOL_ID)
 		.with_extensions(Default::default())
-		.with_code(
-			rococo::rococo_runtime_fast_runtime_1m::WASM_BINARY
-				.ok_or("Wococo development wasm not available")?,
-		)
+		.with_code(rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?)
 		.build())
 }
 
@@ -1659,10 +1641,7 @@ pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
 		.with_genesis_config_patch(versi_local_testnet_genesis())
 		.with_protocol_id("versi")
 		.with_extensions(Default::default())
-		.with_code(
-			rococo::rococo_runtime_fast_runtime_1m::WASM_BINARY
-				.ok_or("Versi development wasm not available")?,
-		)
+		.with_code(rococo::WASM_BINARY.ok_or("Versi development wasm not available")?)
 		.build())
 }
 
@@ -1760,8 +1739,9 @@ mod json_vs_legacy_tests {
 	#[test]
 	#[cfg(feature = "rococo-native")]
 	fn rococo_staging_testnet_config_compare_test() {
-		let j1 = rococo_staging_testnet_config().unwrap().as_json(true).unwrap();
-		let j2 = legacy::rococo_staging_testnet_config().unwrap().as_json(true).unwrap();
+		let mut j1 = rococo_staging_testnet_config().unwrap().as_json(true).unwrap();
+		let mut j2 = legacy::rococo_staging_testnet_config().unwrap().as_json(true).unwrap();
+		(j1, j2) = adjust_rococo_output(j1, j2);
 		assert_eq!(j1, j2);
 	}
 
@@ -1770,11 +1750,7 @@ mod json_vs_legacy_tests {
 	fn rococo_development_config_compare_test() {
 		let mut j1 = rococo_development_config().unwrap().as_json(true).unwrap();
 		let mut j2 = legacy::rococo_development_config().unwrap().as_json(true).unwrap();
-		std::fs::write("/tmp/j1.o.json", j1.clone()).unwrap();
-		std::fs::write("/tmp/j2.o.json", j2.clone()).unwrap();
 		(j1, j2) = adjust_rococo_output(j1, j2);
-		std::fs::write("/tmp/j1.json", j1.clone()).unwrap();
-		std::fs::write("/tmp/j2.json", j2.clone()).unwrap();
 		assert_eq!(j1, j2);
 	}
 

@@ -108,16 +108,6 @@ impl_runtime_weights!(rococo_runtime_constants);
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-#[cfg(feature = "std")]
-pub mod rococo_runtime_fast_runtime_10m {
-	include!(concat!(env!("OUT_DIR"), "/rococo_runtime_fast_runtime_10m.rs"));
-}
-
-#[cfg(feature = "std")]
-pub mod rococo_runtime_fast_runtime_1m {
-	include!(concat!(env!("OUT_DIR"), "/rococo_runtime_fast_runtime_1m.rs"));
-}
-
 /// Runtime version (Rococo).
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {

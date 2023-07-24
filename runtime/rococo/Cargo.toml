@@ -275,6 +275,5 @@ disable-runtime-api = []
 
 # Set timing constants (e.g. session period) to faster versions to speed up testing.
 fast-runtime = [ "rococo-runtime-constants/fast-runtime" ]
-fast-runtime-10m = [ "rococo-runtime-constants/fast-runtime-10m" ]
 
 runtime-metrics = ["runtime-parachains/runtime-metrics", "sp-io/with-tracing"]

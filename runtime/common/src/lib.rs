@@ -269,15 +269,6 @@ macro_rules! prod_or_fast {
 			$prod
 		}
 	};
-	($prod:expr, $feature1:expr, $value1:expr, $feature2:expr, $value2:expr) => {
-		if cfg!(feature = $feature1) {
-			$value1
-		} else if cfg!(feature = $feature2) {
-			$value2
-		} else {
-			$prod
-		}
-	};
 	($prod:expr, $test:expr, $env:expr) => {
 		if cfg!(feature = "fast-runtime") {
 			core::option_env!($env).map(|s| s.parse().ok()).flatten().unwrap_or($test)

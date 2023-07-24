@@ -27,4 +27,3 @@ std = [
 
 # Set timing constants (e.g. session period) to faster versions to speed up testing.
 fast-runtime = []
-fast-runtime-10m = []
