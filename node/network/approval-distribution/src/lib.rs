@@ -389,6 +389,9 @@ impl State {
 					live
 				});
 			},
+			NetworkBridgeEvent::UpdatedAuthorityIds { .. } => {
+				// The approval-distribution subsystem doesn't deal with `AuthorityDiscoveryId`s.
+			},
 			NetworkBridgeEvent::PeerMessage(peer_id, Versioned::V1(msg)) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg, rng).await;
 			},
