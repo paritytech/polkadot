@@ -64,8 +64,7 @@ fn main() -> Result<()> {
 						enable_beefy: false,
 						jaeger_agent: None,
 						telemetry_worker_handle: None,
-						// Skip the version check since we don't use external binaries.
-						node_version: None,
+						node_version: Some(env!("SUBSTRATE_CLI_IMPL_VERSION").into()),
 						workers_path: None,
 						workers_names: None,
 						// Don't use workers to make this test binary self-contained and easier to

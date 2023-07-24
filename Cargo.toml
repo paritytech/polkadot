@@ -2,6 +2,14 @@
 name = "polkadot"
 path = "src/main.rs"
 
+[[bin]]
+name = "polkadot-execute-worker"
+path = "src/bin/execute-worker.rs"
+
+[[bin]]
+name = "polkadot-prepare-worker"
+path = "src/bin/prepare-worker.rs"
+
 [package]
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
@@ -28,6 +36,11 @@ polkadot-node-core-pvf = { path = "node/core/pvf" }
 polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
 polkadot-overseer = { path = "node/overseer" }
 
+# Needed for worker binaries.
+polkadot-node-core-pvf-common = { path = "node/core/pvf/common" }
+polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 [dev-dependencies]
 assert_cmd = "2.0.4"
 nix = { version = "0.26.1", features = ["signal"] }
@@ -35,6 +48,9 @@ tempfile = "3.2.0"
 tokio = "1.24.2"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
+
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [workspace]
 members = [
