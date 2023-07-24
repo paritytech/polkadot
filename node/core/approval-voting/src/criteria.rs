@@ -265,7 +265,6 @@ pub(crate) trait AssignmentCriteria {
 		assignment: &AssignmentCertV2,
 		// Backing groups for each "leaving core".
 		backing_groups: Vec<GroupIndex>,
-		// TODO: maybe define record or something else than tuple
 	) -> Result<DelayTranche, InvalidAssignment>;
 }
 
