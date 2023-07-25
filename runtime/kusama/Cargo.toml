@@ -104,6 +104,8 @@ xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
 
+pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v1.0.0" }
+
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
@@ -173,6 +175,7 @@ std = [
 	"pallet-session/std",
 	"pallet-society/std",
 	"pallet-staking/std",
+	"pallet-sudo/std",
 	"pallet-staking-runtime-api/std",
 	"pallet-state-trie-migration/std",
 	"pallet-timestamp/std",

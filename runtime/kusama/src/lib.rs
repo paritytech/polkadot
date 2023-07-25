@@ -1486,6 +1486,7 @@ construct_runtime! {
 
 		// Generalized message queue
 		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 100,
+		Sudo: pallet_sudo = 255,
 	}
 }
 
@@ -1565,8 +1566,7 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (
-	);
+	pub type Unreleased = ();
 
 	/// Migrations that set `StorageVersion`s we missed to set.
 	pub struct SetStorageVersions;
@@ -2556,4 +2556,10 @@ mod init_state_migration {
 			Ok(())
 		}
 	}
+}
+
+impl pallet_sudo::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
+	type WeightInfo = ();
 }

@@ -350,6 +350,9 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Runt
 	const STASH: u128 = 100 * DOT;
 
 	polkadot::RuntimeGenesisConfig {
+		sudo: polkadot::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 		system: polkadot::SystemConfig { code: wasm_binary.to_vec() },
 		balances: polkadot::BalancesConfig {
 			balances: endowed_accounts
@@ -731,6 +734,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeG
 	const STASH: u128 = 100 * KSM;
 
 	kusama::RuntimeGenesisConfig {
+		sudo: kusama::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 		system: kusama::SystemConfig { code: wasm_binary.to_vec() },
 		balances: kusama::BalancesConfig {
 			balances: endowed_accounts
@@ -1347,6 +1353,9 @@ pub fn polkadot_testnet_genesis(
 	const STASH: u128 = 100 * DOT;
 
 	polkadot::RuntimeGenesisConfig {
+		sudo: polkadot::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 		system: polkadot::SystemConfig { code: wasm_binary.to_vec() },
 		indices: polkadot::IndicesConfig { indices: vec![] },
 		balances: polkadot::BalancesConfig {
@@ -1434,6 +1443,9 @@ pub fn kusama_testnet_genesis(
 	const STASH: u128 = 100 * KSM;
 
 	kusama::RuntimeGenesisConfig {
+		sudo: kusama::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 		system: kusama::SystemConfig { code: wasm_binary.to_vec() },
 		indices: kusama::IndicesConfig { indices: vec![] },
 		balances: kusama::BalancesConfig {

@@ -1630,8 +1630,7 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (
-	);
+	pub type Unreleased = ();
 }
 
 /// Helpers to configure all migrations.
