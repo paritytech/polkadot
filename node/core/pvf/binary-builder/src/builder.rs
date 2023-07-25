@@ -300,7 +300,7 @@ fn build_project(
 		file_name,
 		format!(
 			r#"
-				pub const {constant_name}: Option<&[u8]> = Some(include_bytes!("{binary}"));
+				pub const {constant_name}: &'static [u8] = include_bytes!("{binary}");
 			"#,
 		),
 	);

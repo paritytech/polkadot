@@ -34,6 +34,7 @@ const LOG_TARGET: &str = "parachain::pvf::common";
 use std::mem;
 use tokio::io::{self, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
 
+#[doc(hidden)]
 pub mod tests {
 	use std::time::Duration;
 

@@ -137,7 +137,7 @@ struct Queue {
 	/// The receiver that receives messages to the pool.
 	to_queue_rx: mpsc::Receiver<ToQueue>,
 
-	program_path: PathBuf,
+	program_path: Option<PathBuf>,
 	spawn_timeout: Duration,
 
 	/// The queue of jobs that are waiting for a worker to pick up.
@@ -149,7 +149,7 @@ struct Queue {
 impl Queue {
 	fn new(
 		metrics: Metrics,
-		program_path: PathBuf,
+		program_path: Option<PathBuf>,
 		worker_capacity: usize,
 		spawn_timeout: Duration,
 		to_queue_rx: mpsc::Receiver<ToQueue>,
@@ -409,14 +409,14 @@ fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
 /// the queue would have to kill a newly started worker and spawn another one.
 /// Nevertheless, if the worker finishes executing the job, it becomes idle and may be used to execute other jobs with a compatible execution environment.
 async fn spawn_worker_task(
-	program_path: PathBuf,
+	program_path: Option<PathBuf>,
 	job: ExecuteJob,
 	spawn_timeout: Duration,
 ) -> QueueEvent {
 	use futures_timer::Delay;
 
 	loop {
-		match super::worker_intf::spawn(&program_path, job.executor_params.clone(), spawn_timeout)
+		match super::worker_intf::spawn(program_path.clone(), job.executor_params.clone(), spawn_timeout)
 			.await
 		{
 			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle, job),
@@ -476,7 +476,7 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 
 pub fn start(
 	metrics: Metrics,
-	program_path: PathBuf,
+	program_path: Option<PathBuf>,
 	worker_capacity: usize,
 	spawn_timeout: Duration,
 ) -> (mpsc::Sender<ToQueue>, impl Future<Output = ()>) {

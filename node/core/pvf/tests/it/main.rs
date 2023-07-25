@@ -29,7 +29,7 @@ use tokio::sync::Mutex;
 mod adder;
 mod worker_common;
 
-const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_puppet_worker");
+const PUPPET_EXE_PATH: &str = env!("CARGO_BIN_EXE_puppet_worker");
 const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 const TEST_PREPARATION_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -48,8 +48,7 @@ impl TestHost {
 		F: FnOnce(&mut Config),
 	{
 		let cache_dir = tempfile::tempdir().unwrap().path().join("pvf-artifacts");
-		let workers_dir = tempfile::tempdir().unwrap().path().join("pvf-workers");
-		let mut config = Config::new(cache_dir.to_owned(), workers_dir.to_owned(), None);
+		let mut config = Config::new(cache_dir.to_owned(), None);
 		f(&mut config);
 		let (host, task) = start(config, Metrics::default());
 		let _ = tokio::task::spawn(task);
@@ -85,6 +84,8 @@ impl TestHost {
 
 #[tokio::test]
 async fn terminates_on_timeout() {
+	sp_tracing::init_for_tests();
+
 	let host = TestHost::new();
 
 	let start = std::time::Instant::now();

@@ -22,6 +22,7 @@ polkadot-node-metrics = { path = "../../metrics" }
 
 [target.'cfg(not(any(target_os = "android", target_os = "unknown")))'.dependencies]
 polkadot-node-core-pvf = { path = "../pvf" }
+polkadot-node-core-pvf-common = { path = "../pvf/common" }
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
