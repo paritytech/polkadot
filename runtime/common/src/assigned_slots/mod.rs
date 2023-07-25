@@ -760,9 +760,9 @@ mod tests {
 		.unwrap();
 
 		crate::assigned_slots::GenesisConfig::<Test> {
-				max_temporary_slots: 6,
-				max_permanent_slots: 2,
-				_config: Default::default()
+			max_temporary_slots: 6,
+			max_permanent_slots: 2,
+			_config: Default::default(),
 		}
 		.assimilate_storage(&mut t)
 		.unwrap();
