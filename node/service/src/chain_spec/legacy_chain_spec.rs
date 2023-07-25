@@ -71,8 +71,6 @@ use westend_runtime as westend;
 #[cfg(feature = "westend-native")]
 use westend_runtime_constants::currency::UNITS as WND;
 
-#[cfg(feature = "polkadot-native")]
-const POLKADOT_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "kusama-native")]
 const KUSAMA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "westend-native")]
@@ -110,13 +108,6 @@ pub struct Extensions {
 #[cfg(feature = "polkadot-native")]
 pub type PolkadotChainSpec = service::GenericChainSpec<polkadot::RuntimeGenesisConfig, Extensions>;
 
-// Dummy chain spec, in case when we don't have the native runtime.
-pub type DummyChainSpec = service::GenericChainSpec<(), Extensions>;
-
-// Dummy chain spec, but that is fine when we don't have the native runtime.
-#[cfg(not(feature = "polkadot-native"))]
-pub type PolkadotChainSpec = DummyChainSpec;
-
 /// The `ChainSpec` parameterized for the kusama runtime.
 #[cfg(feature = "kusama-native")]
 pub type KusamaChainSpec = service::GenericChainSpec<kusama::RuntimeGenesisConfig, Extensions>;
@@ -138,11 +129,6 @@ pub type WestendChainSpec = DummyChainSpec;
 /// The `ChainSpec` parameterized for the rococo runtime.
 #[cfg(feature = "rococo-native")]
 pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extensions>;
-
-/// The `ChainSpec` parameterized for the `versi` runtime.
-///
-/// As of now `Versi` will just be a clone of `Rococo`, until we need it to differ.
-pub type VersiChainSpec = RococoChainSpec;
 
 /// The `ChainSpec` parameterized for the rococo runtime.
 // Dummy chain spec, but that is fine when we don't have the native runtime.
@@ -171,27 +157,6 @@ impl sp_runtime::BuildStorage for RococoGenesisExt {
 		});
 		self.runtime_genesis_config.assimilate_storage(storage)
 	}
-}
-
-pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
-	PolkadotChainSpec::from_json_bytes(&include_bytes!("../../chain-specs/polkadot.json")[..])
-}
-
-pub fn kusama_config() -> Result<KusamaChainSpec, String> {
-	KusamaChainSpec::from_json_bytes(&include_bytes!("../../chain-specs/kusama.json")[..])
-}
-
-pub fn westend_config() -> Result<WestendChainSpec, String> {
-	WestendChainSpec::from_json_bytes(&include_bytes!("../../chain-specs/westend.json")[..])
-}
-
-pub fn rococo_config() -> Result<RococoChainSpec, String> {
-	RococoChainSpec::from_json_bytes(&include_bytes!("../../chain-specs/rococo.json")[..])
-}
-
-/// This is a temporary testnet that uses the same runtime as rococo.
-pub fn wococo_config() -> Result<RococoChainSpec, String> {
-	RococoChainSpec::from_json_bytes(&include_bytes!("../../chain-specs/wococo.json")[..])
 }
 
 /// The default parachains host configuration.
