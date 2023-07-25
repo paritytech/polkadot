@@ -245,9 +245,10 @@ pub enum Error {
 	InvalidWorkerBinaries { prep_worker_path: PathBuf, exec_worker_path: PathBuf },
 
 	#[cfg(feature = "full-node")]
-	#[error("Worker binaries could not be found at given workers path ({given_workers_path:?}), polkadot binary directory, or /usr/lib/polkadot, workers names: {workers_names:?}")]
+	#[error("Worker binaries could not be found, make sure polkadot was built/installed correctly. Searched given workers path ({given_workers_path:?}), polkadot binary path ({current_exe_path:?}), and lib path (/usr/lib/polkadot), workers names: {workers_names:?}")]
 	MissingWorkerBinaries {
 		given_workers_path: Option<PathBuf>,
+		current_exe_path: PathBuf,
 		workers_names: Option<(String, String)>,
 	},
 

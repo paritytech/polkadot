@@ -16,6 +16,7 @@ description = "Implementation of a `https://polkadot.network` node in Rust based
 license = "GPL-3.0-only"
 rust-version = "1.64.0" # workspace properties
 readme = "README.md"
+default-run = "polkadot"
 authors.workspace = true
 edition.workspace = true
 version.workspace = true

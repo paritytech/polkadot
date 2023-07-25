@@ -58,7 +58,12 @@ pub fn determine_workers_paths(
 ) -> Result<(PathBuf, PathBuf), Error> {
 	let mut workers_paths = list_workers_paths(given_workers_path.clone(), workers_names.clone())?;
 	if workers_paths.is_empty() {
-		return Err(Error::MissingWorkerBinaries { given_workers_path, workers_names })
+		let current_exe_path = get_exe_path()?;
+		return Err(Error::MissingWorkerBinaries {
+			given_workers_path,
+			current_exe_path,
+			workers_names,
+		})
 	} else if workers_paths.len() > 1 {
 		log::warn!("multiple sets of worker binaries found ({:?})", workers_paths,);
 	}
@@ -128,12 +133,7 @@ fn list_workers_paths(
 
 	// Consider the polkadot binary directory.
 	{
-		let mut exe_path = std::env::current_exe()?;
-		let _ = exe_path.pop(); // executable file will always have a parent directory.
-		#[cfg(test)]
-		if let Some(ref path_override) = *workers_exe_path_override().lock().unwrap() {
-			exe_path = path_override.clone();
-		}
+		let exe_path = get_exe_path()?;
 
 		let (prep_worker, exec_worker) =
 			build_worker_paths(exe_path.clone(), workers_names.clone());
@@ -174,6 +174,16 @@ fn list_workers_paths(
 	}
 
 	Ok(workers_paths)
+}
+
+fn get_exe_path() -> Result<PathBuf, Error> {
+	let mut exe_path = std::env::current_exe()?;
+	let _ = exe_path.pop(); // executable file will always have a parent directory.
+	#[cfg(test)]
+	if let Some(ref path_override) = *workers_exe_path_override().lock().unwrap() {
+		exe_path = path_override.clone();
+	}
+	Ok(exe_path)
 }
 
 fn build_worker_paths(
@@ -244,7 +254,7 @@ echo {}
 	/// Sets up an empty temp dir structure where the workers can be put by tests. Uses the temp dir
 	/// to override the standard locations where the node searches for the workers.
 	fn with_temp_dir_structure(
-		f: impl FnOnce(PathBuf) -> Result<(), Box<dyn std::error::Error>>,
+		f: impl FnOnce(PathBuf, PathBuf) -> Result<(), Box<dyn std::error::Error>>,
 	) -> Result<(), Box<dyn std::error::Error>> {
 		// Set up <tmp>/usr/lib/polkadot and <tmp>/usr/bin, both empty.
 
@@ -257,29 +267,29 @@ echo {}
 		let exe_path = tempdir.join("usr/bin");
 		let _ = fs::remove_dir_all(&exe_path);
 		fs::create_dir_all(&exe_path)?;
-		*workers_exe_path_override().lock()? = Some(exe_path);
+		*workers_exe_path_override().lock()? = Some(exe_path.clone());
 
 		// Set up custom path at <tmp>/usr/local/bin.
 		let custom_path = tempdir.join("usr/local/bin");
 		let _ = fs::remove_dir_all(&custom_path);
 		fs::create_dir_all(&custom_path)?;
 
-		f(tempdir)
+		f(tempdir, exe_path)
 	}
 
 	#[test]
 	#[serial]
 	fn test_given_worker_path() {
-		with_temp_dir_structure(|tempdir| {
+		with_temp_dir_structure(|tempdir, exe_path| {
 			let given_workers_path = tempdir.join("usr/local/bin");
 
 			// Try with provided workers path that has missing binaries.
 			assert_matches!(
 				determine_workers_paths(Some(given_workers_path.clone()), None, Some(NODE_VERSION.into())),
-				Err(Error::MissingWorkerBinaries { given_workers_path: Some(p), workers_names: None }) if p == given_workers_path
+				Err(Error::MissingWorkerBinaries { given_workers_path: Some(p1), current_exe_path: p2, workers_names: None }) if p1 == given_workers_path && p2 == exe_path
 			);
 
-			// Try with provided workers path that has not executable binaries.
+			// Try with provided workers path that has non-executable binaries.
 			let prepare_worker_path = given_workers_path.join("polkadot-prepare-worker");
 			write_worker_exe(&prepare_worker_path)?;
 			fs::set_permissions(&prepare_worker_path, fs::Permissions::from_mode(0o644))?;
@@ -315,11 +325,11 @@ echo {}
 	#[test]
 	#[serial]
 	fn missing_workers_paths_throws_error() {
-		with_temp_dir_structure(|tempdir| {
+		with_temp_dir_structure(|tempdir, exe_path| {
 			// Try with both binaries missing.
 			assert_matches!(
 				determine_workers_paths(None, None, Some(NODE_VERSION.into())),
-				Err(Error::MissingWorkerBinaries { given_workers_path: None, workers_names: None })
+				Err(Error::MissingWorkerBinaries { given_workers_path: None, current_exe_path: p, workers_names: None }) if p == exe_path
 			);
 
 			// Try with only prep worker (at bin location).
@@ -327,7 +337,7 @@ echo {}
 			write_worker_exe(&prepare_worker_path)?;
 			assert_matches!(
 				determine_workers_paths(None, None, Some(NODE_VERSION.into())),
-				Err(Error::MissingWorkerBinaries { given_workers_path: None, workers_names: None })
+				Err(Error::MissingWorkerBinaries { given_workers_path: None, current_exe_path: p, workers_names: None }) if p == exe_path
 			);
 
 			// Try with only exec worker (at bin location).
@@ -336,7 +346,7 @@ echo {}
 			write_worker_exe(&execute_worker_path)?;
 			assert_matches!(
 				determine_workers_paths(None, None, Some(NODE_VERSION.into())),
-				Err(Error::MissingWorkerBinaries { given_workers_path: None, workers_names: None })
+				Err(Error::MissingWorkerBinaries { given_workers_path: None, current_exe_path: p, workers_names: None }) if p == exe_path
 			);
 
 			// Try with only prep worker (at lib location).
@@ -345,7 +355,7 @@ echo {}
 			write_worker_exe(&prepare_worker_path)?;
 			assert_matches!(
 				determine_workers_paths(None, None, Some(NODE_VERSION.into())),
-				Err(Error::MissingWorkerBinaries { given_workers_path: None, workers_names: None })
+				Err(Error::MissingWorkerBinaries { given_workers_path: None, current_exe_path: p, workers_names: None }) if p == exe_path
 			);
 
 			// Try with only exec worker (at lib location).
@@ -354,7 +364,7 @@ echo {}
 			write_worker_exe(execute_worker_path)?;
 			assert_matches!(
 				determine_workers_paths(None, None, Some(NODE_VERSION.into())),
-				Err(Error::MissingWorkerBinaries { given_workers_path: None, workers_names: None })
+				Err(Error::MissingWorkerBinaries { given_workers_path: None, current_exe_path: p, workers_names: None }) if p == exe_path
 			);
 
 			Ok(())
@@ -365,7 +375,7 @@ echo {}
 	#[test]
 	#[serial]
 	fn should_find_workers_at_all_locations() {
-		with_temp_dir_structure(|tempdir| {
+		with_temp_dir_structure(|tempdir, _| {
 				let prepare_worker_bin_path = tempdir.join("usr/bin/polkadot-prepare-worker");
 				write_worker_exe(&prepare_worker_bin_path)?;
 
@@ -391,7 +401,7 @@ echo {}
 	#[test]
 	#[serial]
 	fn should_find_workers_with_custom_names_at_all_locations() {
-		with_temp_dir_structure(|tempdir| {
+		with_temp_dir_structure(|tempdir, _| {
 			let (prep_worker_name, exec_worker_name) = ("test-prepare", "test-execute");
 
 			let prepare_worker_bin_path = tempdir.join("usr/bin").join(prep_worker_name);
@@ -421,7 +431,7 @@ echo {}
 	fn workers_version_mismatch_throws_error() {
 		let bad_version = "v9.9.9.9";
 
-		with_temp_dir_structure(|tempdir| {
+		with_temp_dir_structure(|tempdir, _| {
 			// Workers at bin location return bad version.
 			let prepare_worker_bin_path = tempdir.join("usr/bin/polkadot-prepare-worker");
 			let execute_worker_bin_path = tempdir.join("usr/bin/polkadot-execute-worker");
@@ -472,7 +482,7 @@ echo {}
 	#[serial]
 	fn should_find_valid_workers() {
 		// Test bin location.
-		with_temp_dir_structure(|tempdir| {
+		with_temp_dir_structure(|tempdir, _| {
 			let prepare_worker_bin_path = tempdir.join("usr/bin/polkadot-prepare-worker");
 			write_worker_exe(&prepare_worker_bin_path)?;
 
@@ -489,7 +499,7 @@ echo {}
 		.unwrap();
 
 		// Test lib location.
-		with_temp_dir_structure(|tempdir| {
+		with_temp_dir_structure(|tempdir, _| {
 			let prepare_worker_lib_path = tempdir.join("usr/lib/polkadot/polkadot-prepare-worker");
 			write_worker_exe(&prepare_worker_lib_path)?;
 
