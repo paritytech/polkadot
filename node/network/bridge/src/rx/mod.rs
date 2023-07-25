@@ -948,6 +948,9 @@ async fn dispatch_validation_events_to_all<I>(
 {
 	let delayed_messages: FuturesUnordered<Pin<Box<dyn Future<Output = ()> + Send>>> =
 		FuturesUnordered::new();
+
+	// Fast path for sending events to subsystems, if any subsystem's queue is full, we hold
+	// the slow path future in the `delayed_messages` queue.
 	for event in events {
 		if let Ok(msg) = event.focus().map(StatementDistributionMessage::from) {
 			try_send_validation_event(msg, sender, &delayed_messages);
@@ -963,6 +966,7 @@ async fn dispatch_validation_events_to_all<I>(
 		}
 	}
 
+	// Here we wait for all the delayed messages to be sent.
 	let _: Vec<()> = delayed_messages.collect().await;
 }
 
