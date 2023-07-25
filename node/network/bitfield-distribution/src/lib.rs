@@ -698,6 +698,9 @@ async fn handle_network_msg<Context>(
 		},
 		NetworkBridgeEvent::PeerMessage(remote, Versioned::V1(message)) =>
 			process_incoming_peer_message(ctx, state, metrics, remote, message, rng).await,
+		NetworkBridgeEvent::UpdatedAuthorityIds { .. } => {
+			// The bitfield-distribution subsystem doesn't deal with `AuthorityDiscoveryId`s.
+		},
 	}
 }
 
