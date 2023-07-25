@@ -209,7 +209,7 @@ benchmarks! {
 			assets.clone().into(),
 			&XcmContext {
 				origin: Some(origin.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		);
@@ -266,7 +266,7 @@ benchmarks! {
 			max_response_weight,
 			&XcmContext {
 				origin: Some(origin.clone()),
-				message_hash: [0; 32],
+				message_id: [0; 32],
 				topic: None,
 			},
 		).map_err(|_| "Could not start subscription")?;
@@ -279,21 +279,6 @@ benchmarks! {
 		executor.bench_process(xcm)?;
 	} verify {
 		assert!(!<T::XcmConfig as xcm_executor::Config>::SubscriptionService::is_subscribed(&origin));
-	}
-
-	initiate_reserve_withdraw {
-		let holding = T::worst_case_holding(1);
-		let assets_filter = MultiAssetFilter::Definite(holding.clone());
-		let reserve = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
-		let mut executor = new_executor::<T>(Default::default());
-		executor.set_holding(holding.into());
-		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };
-		let xcm = Xcm(vec![instruction]);
-	}: {
-		executor.bench_process(xcm)?;
-	} verify {
-		// The execute completing successfully is as good as we can check.
-		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
 	}
 
 	burn_asset {
@@ -632,6 +617,19 @@ benchmarks! {
 		let xcm = Xcm(vec![instruction]);
 	}: {
 		executor.bench_process(xcm)?;
+	}
+
+	alias_origin {
+		let (origin, target) = T::alias_origin().map_err(|_| BenchmarkError::Skip)?;
+
+		let mut executor = new_executor::<T>(origin);
+
+		let instruction = Instruction::AliasOrigin(target.clone());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert_eq!(executor.origin(), &Some(target));
 	}
 
 	impl_benchmark_test_suite!(

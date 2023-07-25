@@ -55,8 +55,9 @@
 //!    older by a predefined parameter. This process is run very rarely (say, once a day). Once the
 //!    artifact is expired it is removed from disk eagerly atomically.
 
-use crate::{error::PrepareError, host::PrepareResultSender, prepare::PrepareStats};
+use crate::host::PrepareResultSender;
 use always_assert::always;
+use polkadot_node_core_pvf_common::{error::PrepareError, prepare::PrepareStats, pvf::PvfPrepData};
 use polkadot_parachain::primitives::ValidationCodeHash;
 use polkadot_primitives::ExecutorParamsHash;
 use std::{
@@ -64,22 +65,6 @@ use std::{
 	path::{Path, PathBuf},
 	time::{Duration, SystemTime},
 };
-
-/// Contains the bytes for a successfully compiled artifact.
-pub struct CompiledArtifact(Vec<u8>);
-
-impl CompiledArtifact {
-	/// Creates a `CompiledArtifact`.
-	pub fn new(code: Vec<u8>) -> Self {
-		Self(code)
-	}
-}
-
-impl AsRef<[u8]> for CompiledArtifact {
-	fn as_ref(&self) -> &[u8] {
-		self.0.as_slice()
-	}
-}
 
 /// Identifier of an artifact. Encodes a code hash of the PVF and a hash of executor parameter set.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -94,6 +79,11 @@ impl ArtifactId {
 	/// Creates a new artifact ID with the given hash.
 	pub fn new(code_hash: ValidationCodeHash, executor_params_hash: ExecutorParamsHash) -> Self {
 		Self { code_hash, executor_params_hash }
+	}
+
+	/// Returns an artifact ID that corresponds to the PVF with given executor params.
+	pub fn from_pvf_prep_data(pvf: &PvfPrepData) -> Self {
+		Self::new(pvf.code_hash(), pvf.executor_params().hash())
 	}
 
 	/// Tries to recover the artifact id from the given file name.
@@ -304,7 +294,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn artifacts_removes_cache_on_startup() {
-		let fake_cache_path = crate::worker_common::tmpfile("test-cache").await.unwrap();
+		let fake_cache_path = crate::worker_intf::tmpfile("test-cache").await.unwrap();
 		let fake_artifact_path = {
 			let mut p = fake_cache_path.clone();
 			p.push("wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234");

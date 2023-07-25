@@ -169,7 +169,7 @@ impl UnsafeVRFOutput {
 		let pubkey = schnorrkel::PublicKey::from_bytes(author.as_slice())
 			.map_err(ApprovalError::SchnorrkelSignature)?;
 
-		let transcript = sp_consensus_babe::make_transcript(randomness, self.slot, epoch_index);
+		let transcript = sp_consensus_babe::make_vrf_transcript(randomness, self.slot, epoch_index);
 
 		let inout = self
 			.vrf_output

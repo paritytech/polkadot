@@ -40,7 +40,8 @@ use xcm_builder::{
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit, UsingComponents, WeightInfoBounds, WithComputedOrigin,
+	TakeWeightCredit, TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin,
+	WithUniqueTopic,
 };
 use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
 
@@ -95,18 +96,18 @@ parameter_types! {
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
-pub type XcmRouter = (
+pub type XcmRouter = WithUniqueTopic<(
 	// Only one router so far - use DMP to communicate with child parachains.
 	ChildParachainRouter<
 		Runtime,
 		XcmPallet,
 		ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, Dmp>,
 	>,
-);
+)>;
 
 parameter_types! {
 	pub const Roc: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const Statemine: MultiLocation = Parachain(1000).into_location();
+	pub const Rockmine: MultiLocation = Parachain(1000).into_location();
 	pub const Contracts: MultiLocation = Parachain(1002).into_location();
 	pub const Encointer: MultiLocation = Parachain(1003).into_location();
 	pub const Tick: MultiLocation = Parachain(100).into_location();
@@ -115,7 +116,7 @@ parameter_types! {
 	pub const RocForTick: (MultiAssetFilter, MultiLocation) = (Roc::get(), Tick::get());
 	pub const RocForTrick: (MultiAssetFilter, MultiLocation) = (Roc::get(), Trick::get());
 	pub const RocForTrack: (MultiAssetFilter, MultiLocation) = (Roc::get(), Track::get());
-	pub const RocForStatemine: (MultiAssetFilter, MultiLocation) = (Roc::get(), Statemine::get());
+	pub const RocForRockmine: (MultiAssetFilter, MultiLocation) = (Roc::get(), Rockmine::get());
 	pub const RocForContracts: (MultiAssetFilter, MultiLocation) = (Roc::get(), Contracts::get());
 	pub const RocForEncointer: (MultiAssetFilter, MultiLocation) = (Roc::get(), Encointer::get());
 	pub const MaxInstructions: u32 = 100;
@@ -125,7 +126,7 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RocForTick>,
 	xcm_builder::Case<RocForTrick>,
 	xcm_builder::Case<RocForTrack>,
-	xcm_builder::Case<RocForStatemine>,
+	xcm_builder::Case<RocForRockmine>,
 	xcm_builder::Case<RocForContracts>,
 	xcm_builder::Case<RocForEncointer>,
 );
@@ -137,7 +138,7 @@ match_types! {
 }
 
 /// The barriers one of which must be passed for an XCM message to be executed.
-pub type Barrier = (
+pub type Barrier = TrailingSetTopicAsId<(
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// Expected responses are OK.
@@ -154,7 +155,7 @@ pub type Barrier = (
 		UniversalLocation,
 		ConstU32<8>,
 	>,
-);
+)>;
 
 /// A call filter for the XCM Transact instruction. This is a temporary measure until we
 /// properly account for proof size weights.
@@ -258,19 +259,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_identity::Call::remove_sub { .. } |
 				pallet_identity::Call::quit_sub { .. },
 			) |
-			RuntimeCall::Society(
-				pallet_society::Call::bid { .. } |
-				pallet_society::Call::unbid { .. } |
-				pallet_society::Call::vouch { .. } |
-				pallet_society::Call::unvouch { .. } |
-				pallet_society::Call::vote { .. } |
-				pallet_society::Call::defender_vote { .. } |
-				pallet_society::Call::payout { .. } |
-				pallet_society::Call::unfound { .. } |
-				pallet_society::Call::judge_suspended_member { .. } |
-				pallet_society::Call::judge_suspended_candidate { .. } |
-				pallet_society::Call::set_max_members { .. },
-			) |
+			RuntimeCall::Society(..) |
 			RuntimeCall::Recovery(..) |
 			RuntimeCall::Vesting(..) |
 			RuntimeCall::Bounties(
@@ -330,6 +319,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = WithOriginFilter<SafeCallFilter>;
 	type SafeCallFilter = SafeCallFilter;
+	type Aliasers = Nothing;
 }
 
 parameter_types! {
@@ -384,6 +374,8 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = LocationConverter;
 	type MaxLockers = ConstU32<8>;
+	type MaxRemoteLockConsumers = ConstU32<0>;
+	type RemoteLockConsumerIdentifier = ();
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;

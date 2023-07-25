@@ -22,15 +22,18 @@
 
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
-	error::PrepareError,
 	execute::{self, PendingExecutionRequest},
 	metrics::Metrics,
-	prepare, PrepareResult, Priority, PvfPrepData, ValidationError, LOG_TARGET,
+	prepare, Priority, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use futures::{
 	channel::{mpsc, oneshot},
 	Future, FutureExt, SinkExt, StreamExt,
+};
+use polkadot_node_core_pvf_common::{
+	error::{PrepareError, PrepareResult},
+	pvf::PvfPrepData,
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
@@ -137,6 +140,7 @@ struct ExecutePvfInputs {
 }
 
 /// Configuration for the validation host.
+#[derive(Debug)]
 pub struct Config {
 	/// The root directory where the prepared artifacts can be stored.
 	pub cache_path: PathBuf,
@@ -186,6 +190,11 @@ impl Config {
 /// In that case all pending requests will be canceled, dropping the result senders and new ones
 /// will be rejected.
 pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<Output = ()>) {
+	gum::debug!(target: LOG_TARGET, ?config, "starting PVF validation host");
+
+	// Run checks for supported security features once per host startup.
+	warn_if_no_landlock();
+
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
 	let validation_host = ValidationHost { to_host_tx };
@@ -423,7 +432,7 @@ async fn handle_precheck_pvf(
 	pvf: PvfPrepData,
 	result_sender: PrepareResultSender,
 ) -> Result<(), Fatal> {
-	let artifact_id = pvf.as_artifact_id();
+	let artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
@@ -467,7 +476,7 @@ async fn handle_execute_pvf(
 	inputs: ExecutePvfInputs,
 ) -> Result<(), Fatal> {
 	let ExecutePvfInputs { pvf, exec_timeout, params, priority, result_tx } = inputs;
-	let artifact_id = pvf.as_artifact_id();
+	let artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
 	let executor_params = (*pvf.executor_params()).clone();
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
@@ -590,7 +599,7 @@ async fn handle_heads_up(
 	let now = SystemTime::now();
 
 	for active_pvf in active_pvfs {
-		let artifact_id = active_pvf.as_artifact_id();
+		let artifact_id = ArtifactId::from_pvf_prep_data(&active_pvf);
 		if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 			match state {
 				ArtifactState::Prepared { last_time_needed, .. } => {
@@ -851,12 +860,37 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 	.map(|_| ())
 }
 
+/// Check if landlock is supported and emit a warning if not.
+fn warn_if_no_landlock() {
+	#[cfg(target_os = "linux")]
+	{
+		use polkadot_node_core_pvf_common::worker::security::landlock;
+		let status = landlock::get_status();
+		if !landlock::status_is_fully_enabled(&status) {
+			let abi = landlock::LANDLOCK_ABI as u8;
+			gum::warn!(
+				target: LOG_TARGET,
+				?status,
+				%abi,
+				"Cannot fully enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider upgrading the kernel version for maximum security."
+			);
+		}
+	}
+
+	#[cfg(not(target_os = "linux"))]
+	gum::warn!(
+		target: LOG_TARGET,
+		"Cannot enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider running on Linux with landlock support for maximum security."
+	);
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::*;
-	use crate::{prepare::PrepareStats, InvalidCandidate, PrepareError};
+	use crate::InvalidCandidate;
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
+	use polkadot_node_core_pvf_common::{error::PrepareError, prepare::PrepareStats};
 
 	const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 	pub(crate) const TEST_PREPARATION_TIMEOUT: Duration = Duration::from_secs(30);
@@ -877,7 +911,7 @@ pub(crate) mod tests {
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn artifact_id(descriminator: u32) -> ArtifactId {
-		PvfPrepData::from_discriminator(descriminator).as_artifact_id()
+		ArtifactId::from_pvf_prep_data(&PvfPrepData::from_discriminator(descriminator))
 	}
 
 	fn artifact_path(descriminator: u32) -> PathBuf {
@@ -1211,7 +1245,9 @@ pub(crate) mod tests {
 
 		// First, test a simple precheck request.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx)
+			.await
+			.unwrap();
 
 		// The queue received the prepare request.
 		assert_matches!(
@@ -1235,7 +1271,9 @@ pub(crate) mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(PvfPrepData::from_discriminator(2), result_tx).await.unwrap();
+			host.precheck_pvf(PvfPrepData::from_discriminator_precheck(2), result_tx)
+				.await
+				.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 		// Received prepare request.
@@ -1285,7 +1323,9 @@ pub(crate) mod tests {
 		);
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx)
+			.await
+			.unwrap();
 
 		// Suppose the preparation failed, the execution queue is empty and both
 		// "clients" receive their results.
@@ -1307,7 +1347,9 @@ pub(crate) mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(PvfPrepData::from_discriminator(2), result_tx).await.unwrap();
+			host.precheck_pvf(PvfPrepData::from_discriminator_precheck(2), result_tx)
+				.await
+				.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 
@@ -1353,7 +1395,9 @@ pub(crate) mod tests {
 
 		// Submit a precheck request that fails.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx)
+			.await
+			.unwrap();
 
 		// The queue received the prepare request.
 		assert_matches!(
@@ -1375,7 +1419,7 @@ pub(crate) mod tests {
 
 		// Submit another precheck request.
 		let (result_tx_2, result_rx_2) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx_2)
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx_2)
 			.await
 			.unwrap();
 
@@ -1391,7 +1435,7 @@ pub(crate) mod tests {
 
 		// Submit another precheck request.
 		let (result_tx_3, result_rx_3) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx_3)
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx_3)
 			.await
 			.unwrap();
 

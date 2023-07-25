@@ -18,26 +18,30 @@ use super::*;
 
 use frame_support::assert_ok;
 use keyring::Sr25519Keyring;
-use primitives::{BlockNumber, CollatorId, SessionIndex, ValidatorId};
+use primitives::{BlockNumber, CollatorId, SessionIndex, ValidationCode, ValidatorId};
 
 use crate::{
 	configuration::HostConfiguration,
 	initializer::SessionChangeNotification,
 	mock::{
-		new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, Scheduler, System, Test,
+		new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, RuntimeOrigin,
+		Scheduler, System, Test,
 	},
 	paras::{ParaGenesisArgs, ParaKind},
 };
 
 fn schedule_blank_para(id: ParaId, parakind: ParaKind) {
+	let validation_code: ValidationCode = vec![1, 2, 3].into();
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		ParaGenesisArgs {
 			genesis_head: Vec::new().into(),
-			validation_code: vec![1, 2, 3].into(),
+			validation_code: validation_code.clone(),
 			para_kind: parakind,
 		}
 	));
+
+	assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), validation_code));
 }
 
 fn run_to_block(
@@ -99,7 +103,6 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 		thread_availability_period: 5,
 		scheduling_lookahead: 2,
 		parathread_retries: 1,
-		pvf_checking_enabled: false,
 		// This field does not affect anything that scheduler does. However, `HostConfiguration`
 		// is still a subject to consistency test. It requires that `minimum_validation_upgrade_delay`
 		// is greater than `chain_availability_period` and `thread_availability_period`.

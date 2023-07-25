@@ -21,17 +21,20 @@ use frame_support::{
 	weights::Weight,
 };
 
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
-
 const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 pub mod v1 {
 	use super::*;
 
-	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
+	/// Named with the 'VersionUnchecked'-prefix because although this implements some version
+	/// checking, the version checking is not complete as it will begin failing after the upgrade is
+	/// enacted on-chain.
+	///
+	/// Use experimental [`VersionCheckedMigrateToV1`] instead.
+	pub struct VersionUncheckedMigrateToV1<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config> OnRuntimeUpgrade for VersionUncheckedMigrateToV1<T> {
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<sp_std::vec::Vec<u8>, &'static str> {
+		fn pre_upgrade() -> Result<sp_std::vec::Vec<u8>, sp_runtime::TryRuntimeError> {
 			ensure!(StorageVersion::get::<Pallet<T>>() == 0, "must upgrade linearly");
 
 			Ok(sp_std::vec::Vec::new())
@@ -51,7 +54,7 @@ pub mod v1 {
 				VersionNotifyTargets::<T>::translate_values(translate);
 
 				log::info!("v1 applied successfully");
-				STORAGE_VERSION.put::<Pallet<T>>();
+				StorageVersion::new(1).put::<Pallet<T>>();
 
 				weight.saturating_add(T::DbWeight::get().writes(1))
 			} else {
@@ -60,4 +63,17 @@ pub mod v1 {
 			}
 		}
 	}
+
+	/// Version checked migration to v1.
+	///
+	/// Wrapped in VersionedRuntimeUpgrade so the pre/post checks don't begin failing after the
+	/// upgrade is enacted on-chain.
+	#[cfg(feature = "experimental")]
+	pub type VersionCheckedMigrateToV1<T> = frame_support::migrations::VersionedRuntimeUpgrade<
+		0,
+		1,
+		VersionUncheckedMigrateToV1<T>,
+		crate::pallet::Pallet<T>,
+		<T as frame_system::Config>::DbWeight,
+	>;
 }
