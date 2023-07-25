@@ -54,7 +54,7 @@ parameter_types! {
 
 /// Scenario:
 /// Account #3 on the local chain, Parachain(42), controls an amount of funds on Parachain(2).
-/// PayOverXcm::pay creates the correct message for account #3 to pay another account, account #5, on Parachain(2), remotely, in its native token.
+/// `PayOverXcm::pay` creates the correct message for account #3 to pay another account, account #5, on Parachain(2), remotely, in its native token.
 #[test]
 fn pay_over_xcm_works() {
 	let who = 5u64;
@@ -93,7 +93,7 @@ fn pay_over_xcm_works() {
 
 /// Scenario:
 /// A pluralistic body, a Treasury, on the local chain, Parachain(42), controls an amount of funds on Parachain(2).
-/// PayOverXcm::pay creates the correct message for the treasury to pay another account, account #7, on Parachain(2), remotely, in the relay's token.
+/// `PayOverXcm::pay` creates the correct message for the treasury to pay another account, account #7, on Parachain(2), remotely, in the relay's token.
 #[test]
 fn pay_over_xcm_governance_body() {
 	let who = 7u64;

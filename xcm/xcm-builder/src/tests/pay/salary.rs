@@ -136,6 +136,10 @@ fn run_to(block_number: BlockNumber) {
 	}
 }
 
+/// Scenario:
+/// The salary pallet is used to pay a member over XCM
+/// The correct XCM message is generated and when executed in the remote chain,
+/// the member receives the salary.
 #[test]
 fn salary_pay_over_xcm_works() {
 	let admin_account_id = AccountId::new([0u8; 32]);
