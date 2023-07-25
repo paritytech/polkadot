@@ -351,13 +351,16 @@ pub fn run() -> Result<()> {
 	}
 
 	match &cli.subcommand {
-		None => run_node_inner(
-			cli,
-			service::RealOverseerGen,
-			None,
-			polkadot_node_metrics::logger_hook(),
-			false,
-		),
+		None => {
+			let dont_use_external_workers = cli.run.dont_use_external_workers;
+			run_node_inner(
+				cli,
+				service::RealOverseerGen,
+				None,
+				polkadot_node_metrics::logger_hook(),
+				dont_use_external_workers,
+			)
+		},
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run(config.chain_spec, config.network))?)

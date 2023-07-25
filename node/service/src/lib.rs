@@ -253,7 +253,7 @@ pub enum Error {
 	},
 
 	#[cfg(feature = "full-node")]
-	#[error("Version of worker binary ({worker_version}) is different from node version ({node_version}), worker_path: {worker_path}")]
+	#[error("Version of worker binary ({worker_version}) is different from node version ({node_version}), worker_path: {worker_path}. TESTING ONLY: this check can be disabled with --dont-use-external-workers")]
 	WorkerBinaryVersionMismatch {
 		worker_version: String,
 		node_version: String,

@@ -154,11 +154,15 @@ pub struct RunCmd {
 	pub overseer_channel_capacity_override: Option<usize>,
 
 	/// Path to the directory where auxiliary worker binaries reside. If not specified, the main
-	/// binary's directory is searched first, then `/usr/lib/polkadot` is searched. If the path
-	/// points to an executable rather then directory, that executable is used both as preparation
-	/// and execution worker (supposed to be used for tests only).
+	/// binary's directory is searched first, then `/usr/lib/polkadot` is searched. TESTING ONLY: if
+	/// the path points to an executable rather then directory, that executable is used both as
+	/// preparation and execution worker.
 	#[arg(long, value_name = "PATH")]
 	pub workers_path: Option<PathBuf>,
+
+	/// TESTING ONLY: don't use secure external PVF worker binaries.
+	#[arg(long, hide = true)]
+	pub dont_use_external_workers: bool,
 }
 
 #[allow(missing_docs)]
