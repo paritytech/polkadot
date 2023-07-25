@@ -759,13 +759,12 @@ mod tests {
 		.assimilate_storage(&mut t)
 		.unwrap();
 
-		GenesisBuild::<Test>::assimilate_storage(
-			&crate::assigned_slots::GenesisConfig {
+		crate::assigned_slots::GenesisConfig::<Test> {
 				max_temporary_slots: 6,
 				max_permanent_slots: 2,
-			},
-			&mut t,
-		)
+				_config: Default::default()
+		}
+		.assimilate_storage(&mut t)
 		.unwrap();
 
 		t.into()
