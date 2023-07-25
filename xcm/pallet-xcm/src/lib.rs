@@ -1085,10 +1085,11 @@ pub mod pallet {
 			match (maybe_assets, maybe_dest) {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
+					let count = assets.len() as u32;
 					let mut message = Xcm(vec![
 						WithdrawAsset(assets),
 						SetFeesMode { jit_withdraw: true },
-						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
+						InitiateTeleport { assets: Wild(AllCounted(count)), dest, xcm: Xcm(vec![]) },
 					]);
 					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::teleport_assets().saturating_add(w))
 				}
