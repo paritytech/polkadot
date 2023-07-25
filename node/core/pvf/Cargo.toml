@@ -50,4 +50,5 @@ halt = { package = "test-parachain-halt", path = "../../../parachain/test-parach
 
 [features]
 ci-only-tests = []
+# This feature is used to export test code to other crates without putting it in the production build.
 test-utils = []

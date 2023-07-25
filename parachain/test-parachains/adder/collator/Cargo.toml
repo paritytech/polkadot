@@ -47,4 +47,6 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master
 tokio = { version = "1.24.2", features = ["macros"] }
 
 [features]
+# This feature is used to export test code to other crates without putting it in the production build.
+# This is also used by the `puppet_worker` binary.
 test-utils = ["polkadot-node-core-pvf/test-utils"]
