@@ -27,6 +27,12 @@ jobs:
           - name: 'Ledger <> Polkadot Coordination'
             room: '!EoIhaKfGPmFOBrNSHT:web3.foundation'
             pre-release: true
+          - name: 'General: Rust, Polkadot, Substrate'
+            room: '!aJymqQYtCjjqImFLSb:parity.io'
+            pre-release: false
+          - name: 'Team: DevOps'
+            room: '!lUslSijLMgNcEKcAiE:parity.io'
+            pre-release: true
 
     runs-on: ubuntu-latest
     steps:
