@@ -64,7 +64,7 @@ jobs:
         if: steps.create-issue.outputs.url != ''
         with:
           room_id: ${{ matrix.channel.room }}
-          access_token: ${{ secrets.MATRIX_V2_ACCESS_TOKEN }}
+          access_token: ${{ secrets.RELEASENOTES_MATRIX_V2_ACCESS_TOKEN }}
           server: m.parity.io
           message: |
             Release process for polkadot ${{ steps.compute_tag.outputs.version }} has been started.
