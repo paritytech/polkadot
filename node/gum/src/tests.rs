@@ -51,6 +51,21 @@ fn wo_unnecessary() {
 }
 
 #[test]
+fn if_frequent() {
+	let a: i32 = 7;
+	let mut f = Freq::new();
+	warn_if_frequent!(
+		freq: f,
+		max_rate: Times::PerSecond(1),
+		target: "bar",
+		a = a,
+		b = ?Y::default(),
+		"fff {c}",
+		c = a,
+	);
+}
+
+#[test]
 fn w_candidate_hash_value_assignment() {
 	let a: i32 = 7;
 	info!(target: "bar",
@@ -101,4 +116,51 @@ fn w_candidate_hash_aliased_unnecessary() {
 		c = a,
 		"xxx",
 	);
+}
+
+#[test]
+fn frequent_at_fourth_time() {
+	let mut freq = Freq::new();
+
+	assert!(!freq.is_frequent(Times::PerSecond(1)));
+	assert!(!freq.is_frequent(Times::PerSecond(1)));
+	assert!(!freq.is_frequent(Times::PerSecond(1)));
+
+	assert!(freq.is_frequent(Times::PerSecond(1)));
+}
+
+#[test]
+fn not_frequent_at_fourth_time_if_slow() {
+	let mut freq = Freq::new();
+
+	assert!(!freq.is_frequent(Times::PerSecond(1000)));
+	assert!(!freq.is_frequent(Times::PerSecond(1000)));
+	assert!(!freq.is_frequent(Times::PerSecond(1000)));
+
+	std::thread::sleep(std::time::Duration::from_millis(10));
+	assert!(!freq.is_frequent(Times::PerSecond(1000)));
+}
+
+#[test]
+fn calculate_rate_per_second() {
+	let rate: f32 = Times::PerSecond(100).into();
+	assert_eq!(rate, 100.0)
+}
+
+#[test]
+fn calculate_rate_per_minute() {
+	let rate: f32 = Times::PerMinute(100).into();
+	assert_eq!(rate, 1.6666666)
+}
+
+#[test]
+fn calculate_rate_per_hour() {
+	let rate: f32 = Times::PerHour(100).into();
+	assert_eq!(rate, 0.027777778)
+}
+
+#[test]
+fn calculate_rate_per_day() {
+	let rate: f32 = Times::PerDay(100).into();
+	assert_eq!(rate, 0.0011574074)
 }
