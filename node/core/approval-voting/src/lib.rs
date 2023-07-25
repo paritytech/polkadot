@@ -161,7 +161,6 @@ struct MetricsInner {
 	time_recover_and_approve: prometheus::Histogram,
 	candidate_signatures_requests_total: prometheus::Counter<prometheus::U64>,
 	unapproved_candidates_in_unfinalized_chain: prometheus::Gauge<prometheus::U64>,
-	unfinalized_chain_depth: prometheus::Gauge<prometheus::U64>,
 }
 
 /// Approval Voting metrics.
@@ -252,12 +251,6 @@ impl Metrics {
 	fn on_unapproved_candidates_in_unfinalized_chain(&self, count: usize) {
 		if let Some(metrics) = &self.0 {
 			metrics.unapproved_candidates_in_unfinalized_chain.set(count as u64);
-		}
-	}
-
-	fn on_unfinalized_chain_depth(&self, depth: usize) {
-		if let Some(metrics) = &self.0 {
-			metrics.unfinalized_chain_depth.set(depth as u64);
 		}
 	}
 }
@@ -353,13 +346,6 @@ impl metrics::Metrics for Metrics {
 			unapproved_candidates_in_unfinalized_chain: prometheus::register(
 				prometheus::Gauge::new(
 					"polkadot_parachain_approval_unapproved_candidates_in_unfinalized_chain",
-					"Number of unapproved candidates in unfinalized chain",
-				)?,
-				registry,
-			)?,
-			unfinalized_chain_depth: prometheus::register(
-				prometheus::Gauge::new(
-					"polkadot_parachain_approval_unfinalized_chain_depth",
 					"Number of unapproved candidates in unfinalized chain",
 				)?,
 				registry,
@@ -1574,7 +1560,6 @@ async fn handle_approved_ancestor<Context>(
 				)
 			}
 			metrics.on_unapproved_candidates_in_unfinalized_chain(unapproved.len());
-			metrics.on_unfinalized_chain_depth(bits.len());
 			entry_span.add_uint_tag("unapproved-candidates", unapproved.len() as u64);
 			for candidate_hash in unapproved {
 				match db.load_candidate_entry(&candidate_hash)? {
