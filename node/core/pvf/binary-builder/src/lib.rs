@@ -231,3 +231,8 @@ impl std::ops::Deref for CargoCommandVersioned {
 fn color_output_enabled() -> bool {
 	env::var(crate::BUILD_NO_COLOR).is_err()
 }
+
+/// Returns `true` when we are building for a musl target.
+fn is_musl_target(target: &str) -> bool {
+	target.ends_with("-musl")
+}

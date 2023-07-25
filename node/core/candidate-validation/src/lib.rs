@@ -24,9 +24,9 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats, PvfPrepData,
-	ValidationError, ValidationHost,
+	InvalidCandidate as WasmInvalidCandidate, ValidationError, ValidationHost,
 };
+use polkadot_node_core_pvf_common::{error::PrepareError, pvf::PvfPrepData, PrepareStats};
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
 };

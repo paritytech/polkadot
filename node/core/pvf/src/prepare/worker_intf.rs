@@ -16,11 +16,12 @@
 
 //! Host interface to the prepare worker.
 
+use polkadot_node_core_pvf_prepare_worker::PREPARE_EXE;
 use crate::{
 	metrics::Metrics,
 	worker_intf::{
-		framed_recv, framed_send, path_to_bytes, spawn_with_program_path, tmpfile_in, IdleWorker,
-		SpawnErr, WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
+		framed_recv, framed_send, path_to_bytes, spawn_job_with_worker_source, tmpfile_in, IdleWorker,
+		SpawnErr, WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR, JobKind, WorkerSource
 	},
 	LOG_TARGET,
 };
@@ -38,16 +39,26 @@ use std::{
 };
 use tokio::{io, net::UnixStream};
 
-/// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
+/// Spawns a new worker with the given parameters.
 ///
-/// The program should be able to handle `<program-path> prepare-worker <socket-path>` invocation.
+/// If the `program_path` is passed, will use that to spawn the worker. Otherwise we create the
+/// worker in-memory from `PREPARE_EXE`; see [`spawn_job_with_worker_source`].
+///
+/// The program should be able to handle this invocation:
+/// ```
+/// prepare-worker --socket path <socket-path> --node-impl-version <node-version>
+/// ```
 pub async fn spawn(
-	program_path: &Path,
+	program_path: Option<PathBuf>,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	spawn_with_program_path(
-		"prepare",
-		program_path,
+	let worker_source = match program_path {
+		Some(path) => WorkerSource::ProgramPath(path),
+		None => WorkerSource::InMemoryBytes(PREPARE_EXE),
+	};
+	spawn_job_with_worker_source(
+		&JobKind::Prepare,
+		worker_source,
 		&["prepare-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
 		spawn_timeout,
 	)

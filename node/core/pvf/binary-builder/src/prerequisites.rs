@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{write_file_if_changed, CargoCommand, CargoCommandVersioned};
+use crate::{write_file_if_changed, CargoCommand, CargoCommandVersioned, is_musl_target};
 
 use std::{fs, path::Path};
 
@@ -49,11 +49,15 @@ pub(crate) fn check(target: &str) -> Result<CargoCommandVersioned, String> {
 
 /// Create the project that will be used to check that the required target is installed and to
 /// extract the rustc version.
-fn create_check_target_project(project_dir: &Path) {
+fn create_check_target_project(project_dir: &Path, target: &str) {
 	let lib_rs_file = project_dir.join("src/lib.rs");
 	let main_rs_file = project_dir.join("src/main.rs");
 	let build_rs_file = project_dir.join("build.rs");
 	let manifest_path = project_dir.join("Cargo.toml");
+
+	// TODO: Make this generalizable.
+	//       See <https://github.com/paritytech/substrate/issues/13982>.
+	let crate_type = if is_musl_target(target) { "staticlib" } else { "cdylib" };
 
 	write_file_if_changed(
 		&manifest_path,
@@ -66,10 +70,12 @@ fn create_check_target_project(project_dir: &Path) {
 
 			[lib]
 			name = "builder_test"
-			crate-type = ["cdylib"]
+			crate-type = ["{}"]
 
 			[workspace]
-		"#,
+		"#
+		.to_string()
+		.replace("{}", crate_type),
 	);
 	write_file_if_changed(lib_rs_file, "pub fn test() {}");
 
@@ -118,10 +124,10 @@ fn check_target_installed(
 ) -> Result<CargoCommandVersioned, String> {
 	let temp = tempdir().expect("Creating temp dir does not fail; qed");
 	fs::create_dir_all(temp.path().join("src")).expect("Creating src dir does not fail; qed");
-	create_check_target_project(temp.path());
+	create_check_target_project(temp.path(), target);
 
 	let err_msg =
-		print_error_message(&format!("{} target not installed, please install it!", target));
+		print_error_message(&format!("could not build with {} target, please make sure it is installed and check below for more info", target));
 	let manifest_path = temp.path().join("Cargo.toml").display().to_string();
 
 	let mut build_cmd = cargo_command.command();

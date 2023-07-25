@@ -108,4 +108,5 @@ pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
 pub use worker_intf::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
 
-const LOG_TARGET: &str = "parachain::pvf";
+/// The log target for this crate.
+pub const LOG_TARGET: &str = "parachain::pvf";

@@ -35,14 +35,9 @@ use polkadot_node_core_pvf_common::{
 	error::{PrepareError, PrepareResult},
 	pvf::PvfPrepData,
 };
-use polkadot_node_core_pvf_execute_worker::EXECUTE_EXE;
-use polkadot_node_core_pvf_prepare_worker::PREPARE_EXE;
 use polkadot_parachain::primitives::ValidationResult;
-use sp_maybe_compressed_blob::{decompress, CODE_BLOB_BOMB_LIMIT};
 use std::{
 	collections::HashMap,
-	fs::OpenOptions,
-	io::Write,
 	path::{Path, PathBuf},
 	time::{Duration, SystemTime},
 };
@@ -149,10 +144,9 @@ struct ExecutePvfInputs {
 pub struct Config {
 	/// The root directory where the prepared artifacts can be stored.
 	pub cache_path: PathBuf,
-	/// If we are using the embedded worker binaries, the directory where they are extracted to.
-	pub workers_path: Option<PathBuf>,
-	/// The path to the program that can be used to spawn the prepare workers.
-	pub prepare_worker_program_path: PathBuf,
+	/// The path to the program that can be used to spawn the prepare workers. Use the in-memory
+	/// binary if `None`.
+	pub prepare_worker_program_path: Option<PathBuf>,
 	/// The time allotted for a prepare worker to spawn and report to the host.
 	pub prepare_worker_spawn_timeout: Duration,
 	/// The maximum number of workers that can be spawned in the prepare pool for tasks with the
@@ -160,8 +154,9 @@ pub struct Config {
 	pub prepare_workers_soft_max_num: usize,
 	/// The absolute number of workers that can be spawned in the prepare pool.
 	pub prepare_workers_hard_max_num: usize,
-	/// The path to the program that can be used to spawn the execute workers.
-	pub execute_worker_program_path: PathBuf,
+	/// The path to the program that can be used to spawn the execute workers. Use the in-memory
+	/// binary if `None`.
+	pub execute_worker_program_path: Option<PathBuf>,
 	/// The time allotted for an execute worker to spawn and report to the host.
 	pub execute_worker_spawn_timeout: Duration,
 	/// The maximum number of execute workers that can run at the same time.
@@ -171,31 +166,21 @@ pub struct Config {
 impl Config {
 	/// Create a new instance of the configuration.
 	///
-	/// The binary at `program_path` will be used if that is `Some`, otherwise the embedded workers
-	/// will be extracted to `workers_path` and used.
-	pub fn new(
-		cache_path: std::path::PathBuf,
-		workers_path: std::path::PathBuf,
-		program_path: Option<std::path::PathBuf>,
-	) -> Self {
+	/// The binary at `program_path` will be used if that is `Some`, otherwise the embedded worker
+	/// binaries will be extracted and used.
+	pub fn new(cache_path: std::path::PathBuf, program_path: Option<std::path::PathBuf>) -> Self {
 		// Do not contaminate the other parts of the codebase with the types from `tokio`.
 		let cache_path = PathBuf::from(cache_path);
 
-		let (prepare_worker_path, execute_worker_path, workers_path) =
-			if let Some(path) = program_path {
-				let path = PathBuf::from(path);
-				(path.clone(), path, None)
-			} else {
-				(
-					worker_path(&workers_path, "prepare"),
-					worker_path(&workers_path, "execute"),
-					Some(workers_path),
-				)
-			};
+		let (prepare_worker_path, execute_worker_path) = if let Some(path) = program_path {
+			let path = PathBuf::from(path);
+			(Some(path.clone()), Some(path))
+		} else {
+			(None, None)
+		};
 
 		Self {
 			cache_path,
-			workers_path,
 			prepare_worker_program_path: prepare_worker_path.clone(),
 			prepare_worker_spawn_timeout: Duration::from_secs(3),
 			prepare_workers_soft_max_num: 1,
@@ -247,17 +232,6 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 	let run_sweeper = sweeper_task(to_sweeper_rx);
 
 	let run_host = async move {
-		if let Some(workers_path) = config.workers_path {
-			// Make sure that the workers path directory and all its parents are created.
-			// TODO?: First delete any existing binaries.
-			// let _ = tokio::fs::remove_dir_all(config.workers_path).await;
-			let _ = tokio::fs::create_dir_all(workers_path).await;
-			extract_worker_binaries(
-				&config.prepare_worker_program_path,
-				&config.execute_worker_program_path,
-			)
-			.await;
-		}
 		let artifacts = Artifacts::new(&config.cache_path).await;
 
 		run(Inner {
@@ -890,76 +864,6 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 		}
 	})
 	.map(|_| ())
-}
-
-// TODO: Should we purge unneeded binaries?
-// TODO: Test on windows.
-/// Extracts the worker binaries embedded in this binary onto disk and returns their paths. Skips
-/// extraction if the binaries are already present.
-async fn extract_worker_binaries(prepare_worker_path: &Path, execute_worker_path: &Path) {
-	// Options for opening a binary file. Should create only if it doesn't already exist, and create
-	// with secure permissions.
-	#[cfg(unix)]
-	use std::os::unix::fs::OpenOptionsExt;
-	let mut open_options = OpenOptions::new();
-	#[cfg(unix)]
-	open_options.write(true).create_new(true).mode(0o744);
-	#[cfg(not(unix))]
-	open_options.write(true).create_new(true);
-
-	gum::debug!(
-		target: LOG_TARGET,
-		"extracting prepare-worker binary to {}",
-		prepare_worker_path.display()
-	);
-	if !prepare_worker_path.exists() {
-		let prepare_exe = decompress(
-			PREPARE_EXE.expect(
-				"prepare-worker binary is not available. \
-				 This means it was built with `BUILDER_SKIP_BUILD` flag",
-			),
-			CODE_BLOB_BOMB_LIMIT,
-		)
-		.expect("binary should have been built correctly; qed");
-		let _ = open_options
-			.open(prepare_worker_path)
-			.and_then(|mut file| file.write_all(&prepare_exe));
-	}
-
-	gum::debug!(
-		target: LOG_TARGET,
-		"extracting execute-worker binary to {}",
-		execute_worker_path.display()
-	);
-	if !execute_worker_path.exists() {
-		let execute_exe = decompress(
-			EXECUTE_EXE.expect(
-				"execute-worker binary is not available. \
-				 This means it was built with `BUILDER_SKIP_BUILD` flag",
-			),
-			CODE_BLOB_BOMB_LIMIT,
-		)
-		.expect("binary should have been built correctly; qed");
-		let _ = open_options
-			.open(execute_worker_path)
-			.and_then(|mut file| file.write_all(&execute_exe));
-	}
-}
-
-/// Returns the expected path to this worker given the root of the cache.
-///
-/// Appends with the version (including the commit) to avoid conflicts with other versions of
-/// polkadot running, i.e. in testnets.
-fn worker_path(workers_path: &Path, job_kind: &str) -> PathBuf {
-	// Windows needs the .exe path for executables.
-	#[cfg(windows)]
-	let extension = ".exe";
-	#[cfg(not(windows))]
-	let extension = "";
-
-	let file_name =
-		format!("{}-worker_{}{}", job_kind, env!("SUBSTRATE_CLI_IMPL_VERSION"), extension);
-	workers_path.join(file_name)
 }
 
 #[cfg(test)]

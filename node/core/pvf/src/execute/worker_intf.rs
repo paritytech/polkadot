@@ -16,11 +16,12 @@
 
 //! Host interface to the execute worker.
 
+use polkadot_node_core_pvf_execute_worker::EXECUTE_EXE;
 use crate::{
 	artifacts::ArtifactPathId,
 	worker_intf::{
-		framed_recv, framed_send, path_to_bytes, spawn_with_program_path, IdleWorker, SpawnErr,
-		WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
+		framed_recv, framed_send, path_to_bytes, spawn_job_with_worker_source, IdleWorker, SpawnErr,
+		WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR, JobKind, WorkerSource
 	},
 	LOG_TARGET,
 };
@@ -30,21 +31,31 @@ use parity_scale_codec::{Decode, Encode};
 
 use polkadot_parachain::primitives::ValidationResult;
 use polkadot_primitives::ExecutorParams;
-use std::{path::Path, time::Duration};
+use std::{path::{Path, PathBuf}, time::Duration};
 use tokio::{io, net::UnixStream};
 
-/// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
-/// Sends a handshake message to the worker as soon as it is spawned.
+/// Spawns a new worker with the given parameters. Sends a handshake message to the worker as soon
+/// as it is spawned.
 ///
-/// The program should be able to handle `<program-path> execute-worker <socket-path>` invocation.
+/// If the `program_path` is passed, will use that to spawn the worker. Otherwise we create the
+/// worker in-memory from `EXECUTE_EXE`; see [`spawn_job_with_worker_source`].
+///
+/// The program should be able to handle this invocation:
+/// ```
+/// execute-worker --socket path <socket-path> --node-impl-version <node-version>
+/// ```
 pub async fn spawn(
-	program_path: &Path,
+	program_path: Option<PathBuf>,
 	executor_params: ExecutorParams,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	let (mut idle_worker, worker_handle) = spawn_with_program_path(
-		"execute",
-		program_path,
+	let worker_source = match program_path {
+		Some(path) => WorkerSource::ProgramPath(path),
+		None => WorkerSource::InMemoryBytes(EXECUTE_EXE),
+	};
+	let (mut idle_worker, worker_handle) = spawn_job_with_worker_source(
+		&JobKind::Execute,
+		worker_source,
 		&["execute-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
 		spawn_timeout,
 	)

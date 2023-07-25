@@ -110,7 +110,7 @@ enum PoolEvent {
 type Mux = FuturesUnordered<BoxFuture<'static, PoolEvent>>;
 
 struct Pool {
-	program_path: PathBuf,
+	program_path: Option<PathBuf>,
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
 	to_pool: mpsc::Receiver<ToPool>,
@@ -152,7 +152,7 @@ async fn run(
 				let to_pool = break_if_fatal!(to_pool.ok_or(Fatal));
 				handle_to_pool(
 					&metrics,
-					&program_path,
+					program_path.clone(),
 					&cache_path,
 					spawn_timeout,
 					&mut spawned,
@@ -198,7 +198,7 @@ async fn purge_dead(
 
 fn handle_to_pool(
 	metrics: &Metrics,
-	program_path: &Path,
+	program_path: Option<PathBuf>,
 	cache_path: &Path,
 	spawn_timeout: Duration,
 	spawned: &mut HopSlotMap<Worker, WorkerData>,
@@ -209,7 +209,7 @@ fn handle_to_pool(
 		ToPool::Spawn => {
 			gum::debug!(target: LOG_TARGET, "spawning a new prepare worker");
 			metrics.prepare_worker().on_begin_spawn();
-			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
+			mux.push(spawn_worker_task(program_path, spawn_timeout).boxed());
 		},
 		ToPool::StartWork { worker, pvf, artifact_path } => {
 			if let Some(data) = spawned.get_mut(worker) {
@@ -248,11 +248,11 @@ fn handle_to_pool(
 	}
 }
 
-async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> PoolEvent {
+async fn spawn_worker_task(program_path: Option<PathBuf>, spawn_timeout: Duration) -> PoolEvent {
 	use futures_timer::Delay;
 
 	loop {
-		match worker_intf::spawn(&program_path, spawn_timeout).await {
+		match worker_intf::spawn(program_path.clone(), spawn_timeout).await {
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err);
@@ -416,7 +416,7 @@ fn handle_concluded_no_rip(
 /// Spins up the pool and returns the future that should be polled to make the pool functional.
 pub fn start(
 	metrics: Metrics,
-	program_path: PathBuf,
+	program_path: Option<PathBuf>,
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
 ) -> (mpsc::Sender<ToPool>, mpsc::UnboundedReceiver<FromPool>, impl Future<Output = ()>) {

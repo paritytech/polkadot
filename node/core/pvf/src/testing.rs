@@ -20,7 +20,7 @@
 //!      artifact even for production builds.
 
 #[doc(hidden)]
-pub use crate::worker_intf::{spawn_with_program_path, SpawnErr};
+pub use crate::worker_intf::{spawn_job_with_worker_source, JobKind, SpawnErr, WorkerSource};
 
 use polkadot_primitives::ExecutorParams;
 
@@ -33,6 +33,7 @@ macro_rules! decl_puppet_worker_main {
 			sp_tracing::try_init_simple();
 
 			let args = std::env::args().collect::<Vec<_>>();
+			gum::trace!(target: $crate::LOG_TARGET, ?args, "running puppet worker");
 			if args.len() < 3 {
 				panic!("wrong number of arguments");
 			}

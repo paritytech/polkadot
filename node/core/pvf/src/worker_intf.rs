@@ -17,10 +17,11 @@
 //! Common logic for implementation of worker processes.
 
 use crate::LOG_TARGET;
-use futures::FutureExt as _;
+use futures::{FutureExt as _, Future, poll};
 use futures_timer::Delay;
 use pin_project::pin_project;
 use rand::Rng;
+use sp_maybe_compressed_blob::{decompress, CODE_BLOB_BOMB_LIMIT};
 use std::{
 	fmt, mem,
 	path::{Path, PathBuf},
@@ -29,6 +30,7 @@ use std::{
 	time::Duration,
 };
 use tokio::{
+	fs::File,
 	io::{self, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf},
 	net::{UnixListener, UnixStream},
 	process,
@@ -38,23 +40,73 @@ use tokio::{
 /// wall clock time). This is lenient because CPU time may go slower than wall clock time.
 pub const JOB_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
 
+/// The kind of job.
+pub enum JobKind {
+	/// Prepare job.
+	Prepare,
+	/// Execute job.
+	Execute,
+	///	For PUPPET_EXE tests.
+	#[doc(hidden)]
+	IntegrationTest,
+}
+
+impl fmt::Display for JobKind {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			JobKind::Execute => write!(f, "execute"),
+			JobKind::Prepare => write!(f, "prepare"),
+			JobKind::IntegrationTest => write!(f, "integration-test"),
+		}
+	}
+}
+
+/// The source to spawn the worker binary from.
+pub enum WorkerSource {
+	/// An on-disk path.
+	ProgramPath(PathBuf),
+	/// In-memory bytes.
+	InMemoryBytes(&'static [u8]),
+}
+
+impl fmt::Debug for WorkerSource {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			WorkerSource::ProgramPath(path) =>
+				f.write_str(&format!("WorkerSource::ProgramPath({:?})", path)),
+			WorkerSource::InMemoryBytes(_bytes) =>
+				f.write_str("WorkerSource::InMemoryBytes({{...}}))"),
+		}
+	}
+}
+
 /// This is publicly exposed only for integration tests.
 #[doc(hidden)]
-pub async fn spawn_with_program_path(
-	debug_id: &'static str,
-	program_path: impl Into<PathBuf>,
+pub async fn spawn_job_with_worker_source(
+	job_kind: &'static JobKind,
+	worker_source: WorkerSource,
 	extra_args: &'static [&'static str],
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	let program_path = program_path.into();
-	with_transient_socket_path(debug_id, |socket_path| {
+	let debug_id = job_kind.to_string();
+	with_transient_socket_path(&job_kind, |socket_path| {
 		let socket_path = socket_path.to_owned();
+		gum::trace!(
+			target: LOG_TARGET,
+			%job_kind,
+			?worker_source,
+			?extra_args,
+			?socket_path,
+			?spawn_timeout,
+			"spawning a worker",
+		);
+
 		async move {
 			let listener = UnixListener::bind(&socket_path).map_err(|err| {
 				gum::warn!(
 					target: LOG_TARGET,
 					%debug_id,
-					?program_path,
+					?worker_source,
 					?extra_args,
 					"cannot bind unix socket: {:?}",
 					err,
@@ -62,18 +114,47 @@ pub async fn spawn_with_program_path(
 				SpawnErr::Bind
 			})?;
 
-			let handle =
-				WorkerHandle::spawn(&program_path, extra_args, socket_path).map_err(|err| {
+			let mut handle = match worker_source {
+				WorkerSource::ProgramPath(ref program_path) =>
+					WorkerHandle::spawn_with_program_path(
+						program_path.clone(),
+						extra_args,
+						socket_path,
+					)
+					.map_err(|err| {
+						gum::warn!(
+							target: LOG_TARGET,
+							%debug_id,
+							?worker_source,
+							?extra_args,
+							"cannot spawn a worker from path: {:?}",
+							err,
+						);
+						SpawnErr::ProcessSpawnFromPath
+					})?,
+				WorkerSource::InMemoryBytes(worker_bytes) => WorkerHandle::spawn_with_worker_bytes(
+					&job_kind,
+					&worker_bytes,
+					extra_args,
+					socket_path,
+				)
+				.await
+				.map_err(|err| {
 					gum::warn!(
-						target: LOG_TARGET,
+						target:LOG_TARGET,
 						%debug_id,
-						?program_path,
 						?extra_args,
-						"cannot spawn a worker: {:?}",
+						"cannot spawn a worker from in-memory bytes: {:?}",
 						err,
 					);
-					SpawnErr::ProcessSpawn
-				})?;
+					SpawnErr::ProcessSpawnFromBytes
+				})?,
+			};
+
+			match poll!(&mut handle) {
+				Poll::Ready(_) => println!("ready"),
+				Poll::Pending => println!("pending"),
+			}
 
 			futures::select! {
 				accept_result = listener.accept().fuse() => {
@@ -81,7 +162,7 @@ pub async fn spawn_with_program_path(
 						gum::warn!(
 							target: LOG_TARGET,
 							%debug_id,
-							?program_path,
+							?worker_source,
 							?extra_args,
 							"cannot accept a worker: {:?}",
 							err,
@@ -94,7 +175,7 @@ pub async fn spawn_with_program_path(
 					gum::warn!(
 						target: LOG_TARGET,
 						%debug_id,
-						?program_path,
+						?worker_source,
 						?extra_args,
 						?spawn_timeout,
 						"spawning and connecting to socket timed out",
@@ -107,12 +188,15 @@ pub async fn spawn_with_program_path(
 	.await
 }
 
-async fn with_transient_socket_path<T, F, Fut>(debug_id: &'static str, f: F) -> Result<T, SpawnErr>
+async fn with_transient_socket_path<T, F, Fut>(
+	job_kind: &'static JobKind,
+	f: F,
+) -> Result<T, SpawnErr>
 where
 	F: FnOnce(&Path) -> Fut,
 	Fut: futures::Future<Output = Result<T, SpawnErr>> + 'static,
 {
-	let socket_path = tmpfile(&format!("pvf-host-{}", debug_id))
+	let socket_path = tmpfile(&format!("pvf-host-{}-", job_kind))
 		.await
 		.map_err(|_| SpawnErr::TmpFile)?;
 	let result = f(&socket_path).await;
@@ -186,8 +270,10 @@ pub enum SpawnErr {
 	Bind,
 	/// An error happened during accepting a connection to the socket.
 	Accept,
-	/// An error happened during spawning the process.
-	ProcessSpawn,
+	/// An error happened during spawning the process from a program path.
+	ProcessSpawnFromPath,
+	/// An error happened during spawning the process from in-memory bytes.
+	ProcessSpawnFromBytes,
 	/// The deadline allotted for the worker spawning and connecting to the socket has elapsed.
 	AcceptTimeout,
 	/// Failed to send handshake after successful spawning was signaled
@@ -209,14 +295,51 @@ pub struct WorkerHandle {
 	stdout: process::ChildStdout,
 	program: PathBuf,
 	drop_box: Box<[u8]>,
+	// ///  Hold the file descriptor as part of the worker. We remove the binary from the filesystem,
+	// /// so the fd needs to stay open for the file to stay alive.
+	// file_handle: File,
 }
 
 impl WorkerHandle {
-	fn spawn(
+	fn new(
+		child: process::Child,
+		child_id: u32,
+		stdout: process::ChildStdout,
+		program: PathBuf,
+		// file_handle: File,
+	) -> Self {
+		WorkerHandle {
+			child,
+			child_id,
+			stdout,
+			program,
+			// We don't expect the bytes to be ever read. But in case we do, we should not use a buffer
+			// of a small size, because otherwise if the child process does return any data we will end up
+			// issuing a syscall for each byte. We also prefer not to do allocate that on the stack, since
+			// each poll the buffer will be allocated and initialized (and that's due `poll_read` takes &mut [u8]
+			// and there are no guarantees that a `poll_read` won't ever read from there even though that's
+			// unlikely).
+			//
+			// OTOH, we also don't want to be super smart here and we could just afford to allocate a buffer
+			// for that here.
+			drop_box: vec![0; 8192].into_boxed_slice(),
+			// file_handle,
+		}
+	}
+
+	fn spawn_with_program_path(
 		program: impl AsRef<Path>,
 		extra_args: &[&str],
 		socket_path: impl AsRef<Path>,
 	) -> io::Result<Self> {
+		gum::trace!(
+			target: LOG_TARGET,
+			program_path = ?program.as_ref(),
+			?extra_args,
+			socket_path = ?socket_path.as_ref(),
+			"spawning with program path",
+		);
+
 		let mut child = process::Command::new(program.as_ref())
 			.args(extra_args)
 			.arg("--socket-path")
@@ -233,22 +356,171 @@ impl WorkerHandle {
 			.take()
 			.expect("the process spawned with piped stdout should have the stdout handle");
 
-		Ok(WorkerHandle {
-			child,
-			child_id,
-			stdout,
-			program: program.as_ref().to_path_buf(),
-			// We don't expect the bytes to be ever read. But in case we do, we should not use a buffer
-			// of a small size, because otherwise if the child process does return any data we will end up
-			// issuing a syscall for each byte. We also prefer not to do allocate that on the stack, since
-			// each poll the buffer will be allocated and initialized (and that's due `poll_read` takes &mut [u8]
-			// and there are no guarantees that a `poll_read` won't ever read from there even though that's
-			// unlikely).
-			//
-			// OTOH, we also don't want to be super smart here and we could just afford to allocate a buffer
-			// for that here.
-			drop_box: vec![0; 8192].into_boxed_slice(),
-		})
+		Ok(WorkerHandle::new(child, child_id, stdout, program.as_ref().to_owned()))
+	}
+
+	// TODO: On Linux, use memfd_create.
+	// TODO: File sealing!!
+	/// Spawn the worker from in-memory bytes.
+	#[cfg(linux)]
+	async fn spawn_with_worker_bytes(
+		job_kind: &JobKind,
+		worker_bytes: &'static [u8],
+		extra_args: &'static [&'static str],
+		socket_path: impl AsRef<Path>,
+	) -> io::Result<Self> {
+		let bytes = decompress(
+			worker_bytes.expect(&format!(
+				"{}-worker binary is not available. \
+				 This means it was built with `BUILDER_SKIP_BUILD` flag",
+				job_kind,
+			)),
+			CODE_BLOB_BOMB_LIMIT,
+		)
+		.expect("binary should have been built correctly; qed");
+	}
+
+	/// Spawn the worker from in-memory bytes.
+	///
+	/// On MacOS there is no good way to open files directly from memory. The best we can do is to
+	/// write the bytes on-disk to a random filename, launch the process, and clean up the file when
+	/// the worker shuts down to remove it from the file system. This leaves a possible race
+	/// condition between writing and unlinking, and we may not have permissions to write or execute
+	/// the file, but that is acceptable -- MacOS is mainly a development environment and not a
+	/// secure platform to run validators on.
+	///
+	/// Will first try to spawn the worker from a tmp directory. If that doesn't work (i.e. we don't
+	/// have execute permission), we try the directory of the current exe, since we should be
+	/// allowed to execute files in this directory. The issue with this latter approach is that when
+	/// testing, the binary is located in the target/ directory, and any changes here trigger a
+	/// rebuild by `binary-builder`. For this reason it's a last resort.
+	#[cfg(all(unix, not(linux)))]
+	async fn spawn_with_worker_bytes(
+		job_kind: &JobKind,
+		worker_bytes: &'static [u8],
+		extra_args: &'static [&'static str],
+		socket_path: impl AsRef<Path>,
+	) -> io::Result<Self> {
+		use tokio::fs::{self, OpenOptions};
+
+		// Shared helper code. Needs to be a function because async closures are unstable.
+		async fn write_and_execute_bytes(
+			parent_path: &Path,
+			program_path: &Path,
+			bytes: &[u8],
+			extra_args: &'static [&'static str],
+			socket_path: &Path,
+			job_kind: &JobKind,
+		) -> io::Result<WorkerHandle> {
+			gum::trace!(
+				target: LOG_TARGET,
+				%job_kind,
+				?program_path,
+				?parent_path,
+				bytes_len = %bytes.len(),
+				"writing worker bytes to disk",
+			);
+
+			// Make sure the directory exists.
+			fs::create_dir_all(parent_path).await?;
+
+			// Overwrite if the worker binary already exists on-disk (e.g. race condition).
+			let file = OpenOptions::new()
+				.write(true)
+				.create(true)
+				.truncate(true)
+				.mode(0o744)
+				.open(&program_path)
+				.await?;
+
+			async fn handle_file(
+				mut file: fs::File,
+				program_path: &Path,
+				bytes: &[u8],
+				extra_args: &[&str],
+				socket_path: &Path,
+			) -> io::Result<WorkerHandle> {
+				file.write_all(&bytes).await?;
+				file.sync_all().await?;
+				std::mem::forget(file);
+
+				// Try to execute file. Use `spawn_with_program_path` because MacOS lacks `fexecve`.
+				WorkerHandle::spawn_with_program_path(&program_path, extra_args, socket_path)
+			}
+			let result = handle_file(file, &program_path, bytes, extra_args, socket_path).await;
+			// Delete/unlink file.
+			std::thread::sleep(Duration::from_millis(100));
+			if let Err(err) = fs::remove_file(&program_path).await {
+				gum::warn!(
+					target: LOG_TARGET,
+					?program_path,
+					"error removing file: {}",
+					err,
+				);
+			}
+			result
+		}
+
+		let worker_bytes = decompress(worker_bytes, CODE_BLOB_BOMB_LIMIT)
+			.expect("binary should have been built correctly; qed");
+
+		let file_name_prefix = format!("pvf-{}-worker-", job_kind);
+
+		// First, try with a temp file.
+		let parent_path = tempfile::tempdir()?.path().to_owned();
+		let program_path = tmpfile_in(&file_name_prefix, &parent_path).await?;
+		match write_and_execute_bytes(
+			&parent_path,
+			&program_path,
+			&worker_bytes,
+			extra_args,
+			socket_path.as_ref(),
+			job_kind,
+		)
+		.await
+		{
+			Ok(worker) => return Ok(worker),
+			Err(err) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					%job_kind,
+					?program_path,
+					"could not write and execute bytes; error: {}",
+					err,
+				);
+			},
+		};
+
+		// If that didn't work, try in the current directory.
+		let parent_path = std::env::current_exe()?
+			.parent()
+			.expect("exe always has a parent directory; qed")
+			.to_owned();
+		let program_path = tmpfile_in(&file_name_prefix, &parent_path).await?;
+		match write_and_execute_bytes(
+			&parent_path,
+			&program_path,
+			&worker_bytes,
+			extra_args,
+			socket_path.as_ref(),
+			job_kind,
+		)
+		.await
+		{
+			Ok(worker) => return Ok(worker),
+			Err(err) => gum::warn!(
+				target: LOG_TARGET,
+				%job_kind,
+				?program_path,
+				"could not write and execute bytes; error: {}",
+				err,
+			),
+		};
+
+		Err(std::io::Error::new(
+			std::io::ErrorKind::Other,
+			format!("could not extract and execute {}-worker binary", job_kind),
+		))
 	}
 
 	/// Returns the process id of this worker.
@@ -257,7 +529,7 @@ impl WorkerHandle {
 	}
 }
 
-impl futures::Future for WorkerHandle {
+impl Future for WorkerHandle {
 	type Output = ();
 
 	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
