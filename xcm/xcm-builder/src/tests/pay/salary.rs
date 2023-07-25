@@ -171,10 +171,13 @@ fn salary_pay_over_xcm_works() {
 		run_to(7);
 		assert_ok!(Salary::payout(RuntimeOrigin::signed(account_id.clone())));
 
-		// TODO: Should take the message sent by the salary pallet.
-		// But `sent_xcm` returns `Xcm<()>` and I need `Xcm<RuntimeCall>`
-		// let (_, message, hash) = sent_xcm().first().unwrap();
-		let message: Xcm<RuntimeCall> = Xcm::<RuntimeCall>(vec![
+		// Get message from mock transport layer
+		let (_, message, hash) = sent_xcm()[0].clone();
+		// Change type from `Xcm<()>` to `Xcm<RuntimeCall>` to be able to execute later
+		let message =
+			Xcm::<<XcmConfig as xcm_executor::Config>::RuntimeCall>::from(message.clone());
+
+		let expected_message: Xcm<RuntimeCall> = Xcm::<RuntimeCall>(vec![
 			DescendOrigin(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into()),
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
@@ -187,7 +190,7 @@ fn salary_pay_over_xcm_works() {
 				beneficiary: AccountId32 { id: account_id.clone().into(), network: None }.into(),
 			},
 		]);
-		let hash = fake_message_hash(&message);
+		assert_eq!(message, expected_message);
 
 		// Execute message as the asset hub
 		XcmExecutor::<XcmConfig>::execute_xcm((Parent, Parachain(42)), message, hash, Weight::MAX);
