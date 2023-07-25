@@ -24,7 +24,7 @@ use parity_scale_codec::Encode;
 use sc_network::{
 	config::parse_addr, multiaddr::Multiaddr, types::ProtocolName, Event as NetworkEvent,
 	IfDisconnected, NetworkEventStream, NetworkNotification, NetworkPeers, NetworkRequest,
-	NetworkService, OutboundFailure, ReputationChange, RequestFailure,
+	NetworkService, ObservedRole, OutboundFailure, ReputationChange, RequestFailure,
 };
 
 use polkadot_node_network_protocol::{
@@ -117,6 +117,9 @@ pub trait Network: Clone + Send + 'static {
 
 	/// Write a notification to a peer on the given protocol.
 	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>);
+
+	/// Get peer role.
+	fn peer_role(&self, who: PeerId, handshake: Vec<u8>) -> Option<ObservedRole>;
 }
 
 #[async_trait]
@@ -223,6 +226,10 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			pending_response,
 			if_disconnected,
 		);
+	}
+
+	fn peer_role(&self, who: PeerId, handshake: Vec<u8>) -> Option<ObservedRole> {
+		NetworkService::peer_role(self, who, handshake)
 	}
 }
 

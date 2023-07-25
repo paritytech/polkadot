@@ -22,8 +22,12 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 use std::collections::HashSet;
 
-use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName, ReputationChange};
+use sc_network::{
+	Event as NetworkEvent, IfDisconnected, ObservedRole as SubstrateObservedRole, ProtocolName,
+	ReputationChange, Roles,
+};
 
+use parity_scale_codec::DecodeAll;
 use polkadot_node_network_protocol::{
 	peer_set::PeerSetProtocolNames,
 	request_response::{outgoing::Requests, ReqProtocolNames},
@@ -147,6 +151,12 @@ impl Network for TestNetwork {
 			.lock()
 			.unbounded_send(NetworkAction::WriteNotification(who, peer_set, message))
 			.unwrap();
+	}
+
+	fn peer_role(&self, _peer_id: PeerId, handshake: Vec<u8>) -> Option<SubstrateObservedRole> {
+		Roles::decode_all(&mut &handshake[..])
+			.ok()
+			.and_then(|role| Some(SubstrateObservedRole::from(role)))
 	}
 }
 
