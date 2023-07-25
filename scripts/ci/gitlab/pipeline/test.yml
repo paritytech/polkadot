@@ -42,6 +42,9 @@ test-linux-stable:
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
     - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics,try-runtime,ci-only-tests
+    # Run `polkadot-runtime-parachains` tests a second time because `paras_inherent::enter` tests are gated by not having
+    # the `runtime-benchmarks` feature enabled.
+    - time cargo test --profile testnet --verbose --locked --features=runtime-metrics,try-runtime -p polkadot-runtime-parachains
 
 test-linux-oldkernel-stable:
   extends: test-linux-stable

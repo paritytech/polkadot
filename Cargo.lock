@@ -7175,6 +7175,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "sc-network",
+ "sc-network-common",
  "sp-application-crypto",
  "sp-authority-discovery",
  "sp-consensus-babe",

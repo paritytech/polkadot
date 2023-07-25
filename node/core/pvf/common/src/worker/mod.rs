@@ -317,4 +317,91 @@ pub mod thread {
 			Some(*result.0)
 		}
 	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use assert_matches::assert_matches;
+
+		#[test]
+		fn get_condvar_should_be_pending() {
+			let condvar = get_condvar();
+			let outcome = *condvar.0.lock().unwrap();
+			assert!(outcome.is_pending());
+		}
+
+		#[test]
+		fn wait_for_threads_with_timeout_return_none_on_time_out() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+			let outcome = wait_for_threads_with_timeout(&condvar, Duration::from_millis(100));
+			assert!(outcome.is_none());
+		}
+
+		#[test]
+		fn wait_for_threads_with_timeout_returns_outcome() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+			let condvar2 = condvar.clone();
+			cond_notify_all(condvar2, WaitOutcome::Finished);
+			let outcome = wait_for_threads_with_timeout(&condvar, Duration::from_secs(2));
+			assert_matches!(outcome.unwrap(), WaitOutcome::Finished);
+		}
+
+		#[test]
+		fn spawn_worker_thread_should_notify_on_done() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+			let response =
+				spawn_worker_thread("thread", || 2, condvar.clone(), WaitOutcome::TimedOut);
+			let (lock, _) = &*condvar;
+			let r = response.unwrap().join().unwrap();
+			assert_eq!(r, 2);
+			assert_matches!(*lock.lock().unwrap(), WaitOutcome::TimedOut);
+		}
+
+		#[test]
+		fn spawn_worker_should_not_change_finished_outcome() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Finished), Condvar::new()));
+			let response =
+				spawn_worker_thread("thread", move || 2, condvar.clone(), WaitOutcome::TimedOut);
+
+			let r = response.unwrap().join().unwrap();
+			assert_eq!(r, 2);
+			assert_matches!(*condvar.0.lock().unwrap(), WaitOutcome::Finished);
+		}
+
+		#[test]
+		fn cond_notify_on_done_should_update_wait_outcome_when_panic() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+			let err = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+				cond_notify_on_done(|| panic!("test"), condvar.clone(), WaitOutcome::Finished)
+			}));
+
+			assert_matches!(*condvar.0.lock().unwrap(), WaitOutcome::Finished);
+			assert!(err.is_err());
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::sync::mpsc::channel;
+
+	#[test]
+	fn cpu_time_monitor_loop_should_return_time_elapsed() {
+		let cpu_time_start = ProcessTime::now();
+		let timeout = Duration::from_secs(0);
+		let (_tx, rx) = channel();
+		let result = cpu_time_monitor_loop(cpu_time_start, timeout, rx);
+		assert_ne!(result, None);
+	}
+
+	#[test]
+	fn cpu_time_monitor_loop_should_return_none() {
+		let cpu_time_start = ProcessTime::now();
+		let timeout = Duration::from_secs(10);
+		let (tx, rx) = channel();
+		tx.send(()).unwrap();
+		let result = cpu_time_monitor_loop(cpu_time_start, timeout, rx);
+		assert_eq!(result, None);
+	}
 }
