@@ -234,3 +234,8 @@ conf-files = [
 
 [package.metadata.spellcheck]
 config = "./scripts/ci/gitlab/spellcheck.toml"
+
+[patch.crates-io]
+pprof = { git = "https://github.com/gen-xu/pprof-rs.git", branch = "gen/fix_misaligned_dereference" }
+pyroscope = { git = "https://github.com/alindima/pyroscope-rs.git", branch = "expose-frame-pointer-feature" }
+pyroscope_pprofrs = { git = "https://github.com/alindima/pyroscope-rs.git", branch = "expose-frame-pointer-feature" }
