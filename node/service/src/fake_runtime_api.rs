@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Provides "fake" runtime api implementations
+//! Provides "fake" runtime API implementations
 //!
-//! These are used to provide a type that implements these runtime apis without requiring to import the native runtimes.
+//! These are used to provide a type that implements these runtime APIs without requiring to import the native runtimes.
 
 use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
 use grandpa_primitives::AuthorityId as GrandpaId;
@@ -40,7 +40,7 @@ use sp_weights::Weight;
 use std::collections::BTreeMap;
 
 sp_api::decl_runtime_apis! {
-	/// This runtime api is only implemented for the test runtime!
+	/// This runtime API is only implemented for the test runtime!
 	pub trait GetLastTimestamp {
 		/// Returns the last timestamp of a runtime.
 		fn get_last_timestamp() -> u64;

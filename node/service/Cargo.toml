@@ -24,6 +24,7 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network-sync = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -85,7 +86,7 @@ parity-db = { version = "0.4.8", optional = true }
 codec = { package = "parity-scale-codec", version = "3.6.1" }
 
 async-trait = "0.1.57"
-lru = "0.9"
+lru = "0.11"
 log = "0.4.17"
 
 # Polkadot
