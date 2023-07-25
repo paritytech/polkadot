@@ -19,14 +19,13 @@
 use crate::{AssetChecking, MintLocation};
 use frame_support::{
 	ensure,
-	traits::{tokens::nonfungibles_v2, Get}
+	traits::{tokens::nonfungibles_v2, Get, Incrementable},
 };
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, Error as MatchError, MatchesNonFungibles, TransactAsset};
+use xcm_executor::traits::{ConvertLocation, Error as MatchError, MatchesNonFungibles, TransactAsset};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use pallet_nfts::Incrementable;
 
 const LOG_TARGET: &str = "xcm::nonfungibles_v2_adapter";
 pub struct NonFungiblesV2TransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
@@ -35,7 +34,7 @@ pub struct NonFungiblesV2TransferAdapter<Assets, Matcher, AccountIdConverter, Ac
 impl<
 		Assets: nonfungibles_v2::Transfer<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 	> TransactAsset for NonFungiblesV2TransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>
 {
@@ -55,8 +54,8 @@ impl<
 		);
 		// Check we handle this asset.
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
-		let destination = AccountIdConverter::convert_ref(to)
-			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		let destination = AccountIdConverter::convert_location(to)
+			.ok_or(MatchError::AccountIdConversionFailed)?;
 		Assets::transfer(&class, &instance, &destination)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())
@@ -77,7 +76,7 @@ where ItemConfig: Default;
 impl<
 		Assets: nonfungibles_v2::Mutate<AccountId, ItemConfig>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
@@ -121,7 +120,7 @@ impl<
 impl<
 		Assets: nonfungibles_v2::Mutate<AccountId, ItemConfig>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
@@ -223,8 +222,8 @@ impl<
 		);
 		// Check we handle this asset.
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
-		let who = AccountIdConverter::convert_ref(who)
-			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		let who = AccountIdConverter::convert_location(who)
+			.ok_or(MatchError::AccountIdConversionFailed)?;
 
 		Assets::mint_into(&class, &instance, &who, &ItemConfig::default(), true)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))
@@ -243,8 +242,8 @@ impl<
 			maybe_context,
 		);
 		// Check we handle this asset.
-		let who = AccountIdConverter::convert_ref(who)
-			.map_err(|()| MatchError::AccountIdConversionFailed)?;
+		let who = AccountIdConverter::convert_location(who)
+			.ok_or(MatchError::AccountIdConversionFailed)?;
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
 		Assets::burn(&class, &instance, Some(&who))
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
@@ -265,7 +264,7 @@ where ItemConfig: Default;
 impl<
 		Assets: nonfungibles_v2::Mutate<AccountId, ItemConfig> + nonfungibles_v2::Transfer<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
@@ -389,12 +388,12 @@ impl MultiLocationCollectionId {
 }
 // Should eventually move to frame_support::traits::incrementable
 impl Incrementable for MultiLocationCollectionId {
-	fn increment(&self) -> Self {
-		MultiLocation {parents: 0, interior: Here}.into()
+	fn increment(&self) -> Option<Self> {
+		None
 	}
 
-	fn initial_value() -> Self {
-		MultiLocation {parents: 0, interior: Here}.into()
+	fn initial_value() -> Option<Self> {
+		None
 	}
 }
 

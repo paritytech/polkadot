@@ -24,7 +24,7 @@ use frame_support::{
 use sp_runtime::traits::{Bounded, Zero};
 use sp_std::{prelude::*, vec};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, TransactAsset};
+use xcm_executor::traits::{ConvertLocation, TransactAsset};
 
 benchmarks_instance_pallet! {
 	where_clause { where
@@ -75,7 +75,7 @@ benchmarks_instance_pallet! {
 		// this xcm doesn't use holding
 
 		let dest_location = T::valid_destination()?;
-		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
+		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 
 		<AssetTransactorOf<T>>::deposit_asset(
 			&asset,
@@ -101,7 +101,7 @@ benchmarks_instance_pallet! {
 	transfer_reserve_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
 		let dest_location = T::valid_destination()?;
-		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
+		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 
 		let asset = T::get_multi_asset();
 		<AssetTransactorOf<T>>::deposit_asset(
@@ -129,6 +129,38 @@ benchmarks_instance_pallet! {
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
 		// TODO: Check sender queue is not empty. #4426
+	}
+
+	reserve_asset_deposited {
+		let (trusted_reserve, transferable_reserve_asset) = T::TrustedReserve::get()
+			.ok_or(BenchmarkError::Override(
+				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
+			))?;
+
+		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
+
+		let mut executor = new_executor::<T>(trusted_reserve);
+		let instruction = Instruction::ReserveAssetDeposited(assets.clone());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert!(executor.holding().ensure_contains(&assets).is_ok());
+	}
+
+	initiate_reserve_withdraw {
+		let holding = T::worst_case_holding(1);
+		let assets_filter = MultiAssetFilter::Definite(holding.clone());
+		let reserve = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
+		let mut executor = new_executor::<T>(Default::default());
+		executor.set_holding(holding.into());
+		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		// The execute completing successfully is as good as we can check.
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
 	}
 
 	receive_teleported_asset {
@@ -171,7 +203,7 @@ benchmarks_instance_pallet! {
 
 		// our dest must have no balance initially.
 		let dest_location = T::valid_destination()?;
-		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
+		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(Default::default());
@@ -197,7 +229,7 @@ benchmarks_instance_pallet! {
 
 		// our dest must have no balance initially.
 		let dest_location = T::valid_destination()?;
-		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
+		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(Default::default());

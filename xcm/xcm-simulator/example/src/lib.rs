@@ -19,8 +19,9 @@ mod relay_chain;
 
 use frame_support::sp_tracing;
 use pallet_nfts::{CollectionConfig, CollectionSettings};
+use sp_runtime::BuildStorage;
 use xcm::prelude::*;
-use xcm_executor::traits::Convert;
+use xcm_executor::traits::ConvertLocation;
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain, TestExt};
 
 pub const ALICE: sp_runtime::AccountId32 = sp_runtime::AccountId32::new([0u8; 32]);
@@ -68,33 +69,33 @@ decl_test_network! {
 
 pub fn parent_account_id() -> parachain::AccountId {
 	let location = (Parent,);
-	parachain::LocationToAccountId::convert(location.into()).unwrap()
+	parachain::LocationToAccountId::convert_location(&location.into()).unwrap()
 }
 
 pub fn child_account_id(para: u32) -> relay_chain::AccountId {
 	let location = (Parachain(para),);
-	relay_chain::LocationToAccountId::convert(location.into()).unwrap()
+	relay_chain::LocationToAccountId::convert_location(&location.into()).unwrap()
 }
 
 pub fn child_account_account_id(para: u32, who: sp_runtime::AccountId32) -> relay_chain::AccountId {
 	let location = (Parachain(para), AccountId32 { network: None, id: who.into() });
-	relay_chain::LocationToAccountId::convert(location.into()).unwrap()
+	relay_chain::LocationToAccountId::convert_location(&location.into()).unwrap()
 }
 
 pub fn sibling_account_account_id(para: u32, who: sp_runtime::AccountId32) -> parachain::AccountId {
 	let location = (Parent, Parachain(para), AccountId32 { network: None, id: who.into() });
-	parachain::LocationToAccountId::convert(location.into()).unwrap()
+	parachain::LocationToAccountId::convert_location(&location.into()).unwrap()
 }
 
 pub fn parent_account_account_id(who: sp_runtime::AccountId32) -> parachain::AccountId {
 	let location = (Parent, AccountId32 { network: None, id: who.into() });
-	parachain::LocationToAccountId::convert(location.into()).unwrap()
+	parachain::LocationToAccountId::convert_location(&location.into()).unwrap()
 }
 
 pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 	use parachain::{MsgQueue, Runtime, System};
 
-	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+	let mut t = frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
 
 	pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![(ALICE, INITIAL_BALANCE), (parent_account_id(), INITIAL_BALANCE)],
@@ -114,7 +115,7 @@ pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 pub fn relay_ext() -> sp_io::TestExternalities {
 	use relay_chain::{Runtime, RuntimeOrigin, System, Uniques};
 
-	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+	let mut t = frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
 
 	pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
