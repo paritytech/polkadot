@@ -673,6 +673,59 @@ mod enter {
 			);
 		});
 	}
+
+	#[test]
+	// Ensure that overweight parachain inherents are always rejected by the runtime.
+	// Runtime should panic and return `InherentOverweight` error.
+	fn inherent_create_weight_invariant() {
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			// Create an overweight inherent and oversized block
+			let mut dispute_statements = BTreeMap::new();
+			dispute_statements.insert(2, 100);
+			dispute_statements.insert(3, 200);
+			dispute_statements.insert(4, 300);
+
+			let mut backed_and_concluding = BTreeMap::new();
+
+			for i in 0..30 {
+				backed_and_concluding.insert(i, i);
+			}
+
+			let scenario = make_inherent_data(TestConfig {
+				dispute_statements,
+				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
+				backed_and_concluding,
+				num_validators_per_core: 5,
+				code_upgrade: None,
+			});
+
+			let expected_para_inherent_data = scenario.data.clone();
+			assert!(max_block_weight().any_lt(inherent_data_weight(&expected_para_inherent_data)));
+
+			// Check the para inherent data is as expected:
+			// * 1 bitfield per validator (5 validators per core, 30 backed candidates, 3 disputes => 5*33 = 165)
+			assert_eq!(expected_para_inherent_data.bitfields.len(), 165);
+			// * 30 backed candidates
+			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 30);
+			// * 3 disputes.
+			assert_eq!(expected_para_inherent_data.disputes.len(), 3);
+			let mut inherent_data = InherentData::new();
+			inherent_data
+				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+				.unwrap();
+
+			let dispatch_error = Pallet::<Test>::enter(
+				frame_system::RawOrigin::None.into(),
+				expected_para_inherent_data,
+			)
+			.unwrap_err()
+			.error;
+
+			assert_eq!(dispatch_error, Error::<Test>::InherentOverweight.into());
+		});
+	}
+
+	// TODO: Test process inherent invariant
 }
 
 fn default_header() -> primitives::Header {
