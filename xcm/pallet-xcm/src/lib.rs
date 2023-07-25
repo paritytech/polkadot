@@ -180,7 +180,7 @@ pub mod pallet {
 
 		/// A lockable currency.
 		// TODO: We should really use a trait which can handle multiple currencies.
-		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
+		type Currency: LockableCurrency<Self::AccountId, Moment = BlockNumberFor<Self>>;
 
 		/// The `MultiAsset` matcher for `Currency`.
 		type CurrencyMatcher: MatchesFungible<BalanceOf<Self>>;
@@ -508,7 +508,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn query)]
 	pub(super) type Queries<T: Config> =
-		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
+		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<BlockNumberFor<T>>, OptionQuery>;
 
 	/// The existing asset traps.
 	///
@@ -521,6 +521,7 @@ pub mod pallet {
 	/// Default version to encode XCM when latest version of destination is unknown. If `None`,
 	/// then the destinations whose XCM version is unknown are considered unreachable.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	pub(super) type SafeXcmVersion<T: Config> = StorageValue<_, XcmVersion, OptionQuery>;
 
 	/// The Latest versions that we know various locations support.
@@ -571,6 +572,7 @@ pub mod pallet {
 	/// the `u32` counter is the number of times that a send to the destination has been attempted,
 	/// which is used as a prioritization.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	pub(super) type VersionDiscoveryQueue<T: Config> = StorageValue<
 		_,
 		BoundedVec<(VersionedMultiLocation, u32), VersionDiscoveryQueueSize<T>>,
@@ -633,19 +635,21 @@ pub mod pallet {
 	pub(super) type XcmExecutionSuspended<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	#[pallet::genesis_config]
-	pub struct GenesisConfig {
+	pub struct GenesisConfig<T: Config> {
+		#[serde(skip)]
+		pub _config: sp_std::marker::PhantomData<T>,
 		/// The default version to encode outgoing XCM messages with.
 		pub safe_xcm_version: Option<XcmVersion>,
 	}
 
-	impl Default for GenesisConfig {
+	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
-			Self { safe_xcm_version: Some(XCM_VERSION) }
+			Self { safe_xcm_version: Some(XCM_VERSION), _config: Default::default() }
 		}
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			SafeXcmVersion::<T>::set(self.safe_xcm_version);
 		}
@@ -741,7 +745,7 @@ pub mod pallet {
 
 			if on_chain_storage_version < 1 {
 				let mut count = 0;
-				Queries::<T>::translate::<QueryStatusV0<T::BlockNumber>, _>(|_key, value| {
+				Queries::<T>::translate::<QueryStatusV0<BlockNumberFor<T>>, _>(|_key, value| {
 					count += 1;
 					Some(value.into())
 				});
@@ -1081,10 +1085,11 @@ pub mod pallet {
 			match (maybe_assets, maybe_dest) {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
+					let count = assets.len() as u32;
 					let mut message = Xcm(vec![
 						WithdrawAsset(assets),
 						SetFeesMode { jit_withdraw: true },
-						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
+						InitiateTeleport { assets: Wild(AllCounted(count)), dest, xcm: Xcm(vec![]) },
 					]);
 					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::teleport_assets().saturating_add(w))
 				}
@@ -1128,14 +1133,14 @@ const MAX_ASSETS_FOR_TRANSFER: usize = 2;
 
 impl<T: Config> QueryHandler for Pallet<T> {
 	type QueryId = u64;
-	type BlockNumber = T::BlockNumber;
+	type BlockNumber = BlockNumberFor<T>;
 	type Error = XcmError;
 	type UniversalLocation = T::UniversalLocation;
 
 	/// Attempt to create a new query ID and register it as a query that is yet to respond.
 	fn new_query(
 		responder: impl Into<MultiLocation>,
-		timeout: Self::BlockNumber,
+		timeout: BlockNumberFor<T>,
 		match_querier: impl Into<MultiLocation>,
 	) -> Self::QueryId {
 		Self::do_new_query(responder, None, timeout, match_querier).into()
@@ -1538,7 +1543,7 @@ impl<T: Config> Pallet<T> {
 	fn do_new_query(
 		responder: impl Into<MultiLocation>,
 		maybe_notify: Option<(u8, u8)>,
-		timeout: T::BlockNumber,
+		timeout: BlockNumberFor<T>,
 		match_querier: impl Into<MultiLocation>,
 	) -> u64 {
 		QueryCounter::<T>::mutate(|q| {
@@ -1583,7 +1588,7 @@ impl<T: Config> Pallet<T> {
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
 		notify: impl Into<<T as Config>::RuntimeCall>,
-		timeout: T::BlockNumber,
+		timeout: BlockNumberFor<T>,
 	) -> Result<(), XcmError> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
@@ -1603,7 +1608,7 @@ impl<T: Config> Pallet<T> {
 	pub fn new_notify_query(
 		responder: impl Into<MultiLocation>,
 		notify: impl Into<<T as Config>::RuntimeCall>,
-		timeout: T::BlockNumber,
+		timeout: BlockNumberFor<T>,
 		match_querier: impl Into<MultiLocation>,
 	) -> u64 {
 		let notify = notify.into().using_encoded(|mut bytes| Decode::decode(&mut bytes)).expect(

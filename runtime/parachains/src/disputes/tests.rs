@@ -28,6 +28,7 @@ use frame_support::{
 	assert_err, assert_noop, assert_ok,
 	traits::{OnFinalize, OnInitialize},
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::BlockNumber;
 use sp_core::{crypto::CryptoType, Pair};
 
@@ -42,14 +43,39 @@ fn filter_dispute_set(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeSta
 	stmts
 		.into_iter()
 		.filter_map(|set| {
-			let filter = Pallet::<Test>::filter_dispute_data(
-				&set,
-				post_conclusion_acceptance_period,
-				VerifyDisputeSignatures::Skip,
-			);
+			let filter =
+				Pallet::<Test>::filter_dispute_data(&set, post_conclusion_acceptance_period);
 			filter.filter_statement_set(set)
 		})
 		.collect::<Vec<_>>()
+}
+
+/// Returns `true` if duplicate items were found, otherwise `false`.
+///
+/// `check_equal(a: &T, b: &T)` _must_ return `true`, iff `a` and `b` are equal, otherwise `false.
+/// The definition of _equal_ is to be defined by the user.
+///
+/// Attention: Requires the input `iter` to be sorted, such that _equals_
+/// would be adjacent in respect whatever `check_equal` defines as equality!
+fn contains_duplicates_in_sorted_iter<
+	'a,
+	T: 'a,
+	I: 'a + IntoIterator<Item = &'a T>,
+	C: 'static + FnMut(&T, &T) -> bool,
+>(
+	iter: I,
+	mut check_equal: C,
+) -> bool {
+	let mut iter = iter.into_iter();
+	if let Some(mut previous) = iter.next() {
+		while let Some(current) = iter.next() {
+			if check_equal(previous, current) {
+				return true
+			}
+			previous = current;
+		}
+	}
+	return false
 }
 
 // All arguments for `initializer::on_new_session`
@@ -2029,9 +2055,10 @@ fn deduplication_and_sorting_works() {
 
 		let disputes_orig = disputes.clone();
 
-		<Pallet<Test> as DisputesHandler<
-				<Test as frame_system::Config>::BlockNumber,
-			>>::deduplicate_and_sort_dispute_data(&mut disputes).unwrap_err();
+		<Pallet<Test> as DisputesHandler<BlockNumberFor<Test>>>::deduplicate_and_sort_dispute_data(
+			&mut disputes,
+		)
+		.unwrap_err();
 
 		// assert ordering of local only disputes, and at the same time, and being free of duplicates
 		assert_eq!(disputes_orig.len(), disputes.len() + 1);
@@ -2058,11 +2085,11 @@ fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
 
 	let mut acc = Vec::<CheckedDisputeStatementSet>::new();
 	for dispute_statement in sets {
-		if let Some(checked) = <Pallet<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
-			dispute_statement,
-			post_conclusion_acceptance_period,
-			VerifyDisputeSignatures::Yes,
-		) {
+		if let Some(checked) =
+			<Pallet<T> as DisputesHandler<BlockNumberFor<T>>>::filter_dispute_data(
+				dispute_statement,
+				post_conclusion_acceptance_period,
+			) {
 			acc.push(checked);
 		}
 	}
@@ -2134,13 +2161,11 @@ fn filter_removes_duplicates_within_set() {
 		};
 
 		let post_conclusion_acceptance_period = 10;
-		let statements = <Pallet<Test> as DisputesHandler<
-			<Test as frame_system::Config>::BlockNumber,
-		>>::filter_dispute_data(
-			statements,
-			post_conclusion_acceptance_period,
-			VerifyDisputeSignatures::Yes,
-		);
+		let statements =
+			<Pallet<Test> as DisputesHandler<BlockNumberFor<Test>>>::filter_dispute_data(
+				statements,
+				post_conclusion_acceptance_period,
+			);
 
 		assert_eq!(
 			statements,
@@ -2426,7 +2451,7 @@ fn filter_removes_duplicate_statements_sets() {
 
 		// `Err(())` indicates presence of duplicates
 		assert!(<Pallet::<Test> as DisputesHandler<
-			<Test as frame_system::Config>::BlockNumber,
+			BlockNumberFor<Test>,
 		>>::deduplicate_and_sort_dispute_data(&mut sets)
 		.is_err());
 
@@ -2438,144 +2463,6 @@ fn filter_removes_duplicate_statements_sets() {
 				statements,
 			}]
 		);
-	})
-}
-
-#[test]
-fn assure_no_duplicate_statements_sets_are_fine() {
-	new_test_ext(Default::default()).execute_with(|| {
-		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
-		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
-
-		run_to_block(3, |b| {
-			// a new session at each block
-			Some((
-				true,
-				b,
-				vec![(&0, v0.public()), (&1, v1.public())],
-				Some(vec![(&0, v0.public()), (&1, v1.public())]),
-			))
-		});
-
-		let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
-
-		let payload = ExplicitDisputeStatement {
-			valid: true,
-			candidate_hash: candidate_hash_a.clone(),
-			session: 1,
-		}
-		.signing_payload();
-
-		let payload_against = ExplicitDisputeStatement {
-			valid: false,
-			candidate_hash: candidate_hash_a.clone(),
-			session: 1,
-		}
-		.signing_payload();
-
-		let sig_a = v0.sign(&payload);
-		let sig_a_against = v1.sign(&payload_against);
-
-		let statements = vec![
-			(
-				DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-				ValidatorIndex(0),
-				sig_a.clone(),
-			),
-			(
-				DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-				ValidatorIndex(1),
-				sig_a_against.clone(),
-			),
-		];
-
-		let sets = vec![
-			DisputeStatementSet {
-				candidate_hash: candidate_hash_a.clone(),
-				session: 1,
-				statements: statements.clone(),
-			},
-			DisputeStatementSet {
-				candidate_hash: candidate_hash_a.clone(),
-				session: 2,
-				statements: statements.clone(),
-			},
-		];
-
-		// `Err(())` indicates presence of duplicates
-		assert!(<Pallet::<Test> as DisputesHandler<
-			<Test as frame_system::Config>::BlockNumber,
-		>>::assure_deduplicated_and_sorted(&sets)
-		.is_ok());
-	})
-}
-
-#[test]
-fn assure_detects_duplicate_statements_sets() {
-	new_test_ext(Default::default()).execute_with(|| {
-		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
-		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
-
-		run_to_block(3, |b| {
-			// a new session at each block
-			Some((
-				true,
-				b,
-				vec![(&0, v0.public()), (&1, v1.public())],
-				Some(vec![(&0, v0.public()), (&1, v1.public())]),
-			))
-		});
-
-		let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
-
-		let payload = ExplicitDisputeStatement {
-			valid: true,
-			candidate_hash: candidate_hash_a.clone(),
-			session: 1,
-		}
-		.signing_payload();
-
-		let payload_against = ExplicitDisputeStatement {
-			valid: false,
-			candidate_hash: candidate_hash_a.clone(),
-			session: 1,
-		}
-		.signing_payload();
-
-		let sig_a = v0.sign(&payload);
-		let sig_a_against = v1.sign(&payload_against);
-
-		let statements = vec![
-			(
-				DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-				ValidatorIndex(0),
-				sig_a.clone(),
-			),
-			(
-				DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-				ValidatorIndex(1),
-				sig_a_against.clone(),
-			),
-		];
-
-		let sets = vec![
-			DisputeStatementSet {
-				candidate_hash: candidate_hash_a.clone(),
-				session: 1,
-				statements: statements.clone(),
-			},
-			DisputeStatementSet {
-				candidate_hash: candidate_hash_a.clone(),
-				session: 1,
-				statements: statements.clone(),
-			},
-		];
-
-		// `Err(())` indicates presence of duplicates
-		assert!(<Pallet::<Test> as DisputesHandler<
-			<Test as frame_system::Config>::BlockNumber,
-		>>::assure_deduplicated_and_sorted(&sets)
-		.is_err());
 	})
 }
 

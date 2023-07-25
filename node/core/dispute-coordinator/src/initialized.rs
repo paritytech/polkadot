@@ -37,10 +37,10 @@ use polkadot_node_subsystem::{
 		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
 		DisputeDistributionMessage, ImportStatementsResult,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, RuntimeApiError,
 };
 use polkadot_node_subsystem_util::runtime::{
-	key_ownership_proof, submit_report_dispute_lost, RuntimeInfo,
+	self, key_ownership_proof, submit_report_dispute_lost, RuntimeInfo,
 };
 use polkadot_primitives::{
 	vstaging, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
@@ -92,7 +92,7 @@ pub struct InitialData {
 pub(crate) struct Initialized {
 	keystore: Arc<LocalKeystore>,
 	runtime_info: RuntimeInfo,
-	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doen't matter if it was
+	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doesn't matter if it was
 	/// cached successfully or not. It is used to detect ancient disputes.
 	highest_session_seen: SessionIndex,
 	/// Will be set to `true` if an error occured during the last caching attempt
@@ -424,8 +424,19 @@ impl Initialized {
 							dispute_proofs.push(dispute_proof);
 						},
 						Ok(None) => {},
-						Err(error) => {
+						Err(runtime::Error::RuntimeRequest(RuntimeApiError::NotSupported {
+							..
+						})) => {
 							gum::debug!(
+								target: LOG_TARGET,
+								?session_index,
+								?candidate_hash,
+								?validator_id,
+								"Key ownership proof not yet supported.",
+							);
+						},
+						Err(error) => {
+							gum::warn!(
 								target: LOG_TARGET,
 								?error,
 								?session_index,
@@ -480,6 +491,16 @@ impl Initialized {
 				.await;
 
 				match res {
+					Err(runtime::Error::RuntimeRequest(RuntimeApiError::NotSupported {
+						..
+					})) => {
+						gum::debug!(
+							target: LOG_TARGET,
+							?session_index,
+							?candidate_hash,
+							"Reporting pending slash not yet supported",
+						);
+					},
 					Err(error) => {
 						gum::warn!(
 							target: LOG_TARGET,
@@ -982,6 +1003,16 @@ impl Initialized {
 
 		gum::trace!(target: LOG_TARGET, ?candidate_hash, ?session, "Loaded votes");
 
+		let controlled_indices = env.controlled_indices();
+		let own_statements = statements
+			.iter()
+			.filter(|(statement, validator_index)| {
+				controlled_indices.contains(validator_index) &&
+					*statement.candidate_hash() == candidate_hash
+			})
+			.cloned()
+			.collect::<Vec<_>>();
+
 		let import_result = {
 			let intermediate_result = old_state.import_statements(&env, statements, now);
 
@@ -1286,6 +1317,16 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'valid' result",
 			);
+			for (statement, validator_index) in own_statements.iter() {
+				if statement.statement().indicates_invalidity() {
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?validator_index,
+						"Voted against a candidate that was concluded valid.",
+					);
+				}
+			}
 			self.metrics.on_concluded_valid();
 		}
 		if import_result.is_freshly_concluded_against() {
@@ -1295,6 +1336,16 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'invalid' result",
 			);
+			for (statement, validator_index) in own_statements.iter() {
+				if statement.statement().indicates_validity() {
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?validator_index,
+						"Voted for a candidate that was concluded invalid.",
+					);
+				}
+			}
 			self.metrics.on_concluded_invalid();
 		}
 

@@ -184,7 +184,7 @@ pub type PayAccountId32OnChainOverXcm<
 	FixedLocation<DestinationChain>,
 >;
 
-/// Simple struct which contains both an XCM `location` and `asset_id` to identift an asset which
+/// Simple struct which contains both an XCM `location` and `asset_id` to identify an asset which
 /// exists on some chain.
 pub struct LocatableAssetId {
 	/// The asset's ID.
