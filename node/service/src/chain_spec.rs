@@ -70,8 +70,6 @@ use westend_runtime as westend;
 #[cfg(feature = "westend-native")]
 use westend_runtime_constants::currency::UNITS as WND;
 
-#[cfg(feature = "polkadot-native")]
-const POLKADOT_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "kusama-native")]
 const KUSAMA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "westend-native")]
@@ -327,98 +325,6 @@ fn rococo_session_keys(
 		para_assignment,
 		authority_discovery,
 		beefy,
-	}
-}
-
-#[cfg(feature = "polkadot-native")]
-fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeGenesisConfig {
-	// subkey inspect "$SECRET"
-	let endowed_accounts = vec![];
-
-	let initial_authorities: Vec<(
-		AccountId,
-		AccountId,
-		BabeId,
-		GrandpaId,
-		ImOnlineId,
-		ValidatorId,
-		AssignmentId,
-		AuthorityDiscoveryId,
-	)> = vec![];
-
-	const ENDOWMENT: u128 = 1_000_000 * DOT;
-	const STASH: u128 = 100 * DOT;
-
-	polkadot::RuntimeGenesisConfig {
-		system: polkadot::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
-		balances: polkadot::BalancesConfig {
-			balances: endowed_accounts
-				.iter()
-				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
-				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
-				.collect(),
-		},
-		indices: polkadot::IndicesConfig { indices: vec![] },
-		session: polkadot::SessionConfig {
-			keys: initial_authorities
-				.iter()
-				.map(|x| {
-					(
-						x.0.clone(),
-						x.0.clone(),
-						polkadot_session_keys(
-							x.2.clone(),
-							x.3.clone(),
-							x.4.clone(),
-							x.5.clone(),
-							x.6.clone(),
-							x.7.clone(),
-						),
-					)
-				})
-				.collect::<Vec<_>>(),
-		},
-		staking: polkadot::StakingConfig {
-			validator_count: 50,
-			minimum_validator_count: 4,
-			stakers: initial_authorities
-				.iter()
-				.map(|x| (x.0.clone(), x.0.clone(), STASH, polkadot::StakerStatus::Validator))
-				.collect(),
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-			force_era: Forcing::ForceNone,
-			slash_reward_fraction: Perbill::from_percent(10),
-			..Default::default()
-		},
-		phragmen_election: Default::default(),
-		democracy: Default::default(),
-		council: polkadot::CouncilConfig { members: vec![], phantom: Default::default() },
-		technical_committee: polkadot::TechnicalCommitteeConfig {
-			members: vec![],
-			phantom: Default::default(),
-		},
-		technical_membership: Default::default(),
-		babe: polkadot::BabeConfig {
-			authorities: Default::default(),
-			epoch_config: Some(polkadot::BABE_GENESIS_EPOCH_CONFIG),
-			..Default::default()
-		},
-		grandpa: Default::default(),
-		im_online: Default::default(),
-		authority_discovery: polkadot::AuthorityDiscoveryConfig {
-			keys: vec![],
-			..Default::default()
-		},
-		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
-		vesting: polkadot::VestingConfig { vesting: vec![] },
-		treasury: Default::default(),
-		hrmp: Default::default(),
-		configuration: polkadot::ConfigurationConfig {
-			config: default_parachains_host_configuration(),
-		},
-		paras: Default::default(),
-		xcm_pallet: Default::default(),
-		nomination_pools: Default::default(),
 	}
 }
 
@@ -1127,29 +1033,6 @@ pub fn polkadot_chain_spec_properties() -> serde_json::map::Map<String, serde_js
 	.as_object()
 	.expect("Map given; qed")
 	.clone()
-}
-
-/// Polkadot staging testnet config.
-#[cfg(feature = "polkadot-native")]
-pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
-	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
-	let boot_nodes = vec![];
-
-	Ok(PolkadotChainSpec::from_genesis(
-		"Polkadot Staging Testnet",
-		"polkadot_staging_testnet",
-		ChainType::Live,
-		move || polkadot_staging_testnet_config_genesis(wasm_binary),
-		boot_nodes,
-		Some(
-			TelemetryEndpoints::new(vec![(POLKADOT_STAGING_TELEMETRY_URL.to_string(), 0)])
-				.expect("Polkadot Staging telemetry url is valid; qed"),
-		),
-		Some(DEFAULT_PROTOCOL_ID),
-		None,
-		Some(polkadot_chain_spec_properties()),
-		Default::default(),
-	))
 }
 
 /// Staging testnet config.
