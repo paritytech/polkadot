@@ -90,6 +90,7 @@ where
 	}
 
 	fn try_send_message(&mut self, msg: OutgoingMessage) -> Result<(), TrySendError<OutgoingMessage>> {
+		self.inner.
 		// TODO: think about `intercept_outgoing` implementation here, as it seems
 		// that we cannot perform conversion `AllMessages` -> `OutgoingMessage` in that particular
 		// direction (the opposite conversion `OutgoingMessage` -> `AllMessage` is permitted).
