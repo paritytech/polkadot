@@ -16,26 +16,18 @@
 
 use super::*;
 
-use frame_support::{
-	macro_magic::use_attr,
-	traits::{AsEnsureOriginWithArg, Nothing},
-};
+use frame_support::traits::{AsEnsureOriginWithArg, Nothing};
 
-#[use_attr]
 use frame_support::derive_impl;
 
 use frame_support::{
-	assert_ok, construct_runtime, parameter_types,
-	traits::{tokens::ConvertRank, ConstU32, Everything, RankedMembers},
+	construct_runtime, parameter_types,
+	traits::{ConstU32, Everything},
 };
 use frame_system::{EnsureRoot, EnsureSigned};
 use polkadot_test_runtime::SignedExtra;
 use primitives::{AccountIndex, BlakeTwo256, Signature};
-use sp_runtime::{
-	generic,
-	traits::{Convert, ConvertToValue, MaybeEquivalence},
-	AccountId32, DispatchResult,
-};
+use sp_runtime::{generic, traits::MaybeEquivalence, AccountId32};
 use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 
 pub type Address = sp_runtime::MultiAddress<AccountId, AccountIndex>;
@@ -63,7 +55,7 @@ parameter_types! {
 
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig as frame_system::DefaultConfig)]
 impl frame_system::Config for Test {
-	type Block = generic::Block<Header, UncheckedExtrinsic>;
+	type Block = Block;
 	type BlockHashCount = BlockHashCount;
 	type BaseCallFilter = frame_support::traits::Everything;
 	type RuntimeOrigin = RuntimeOrigin;
@@ -252,6 +244,11 @@ impl ConvertLocation<AccountId> for TreasuryToAccount {
 }
 
 type SovereignAccountOf = (AccountId32Aliases<(), AccountId>, TreasuryToAccount);
+
+#[cfg(feature = "runtime-benchmarks")]
+parameter_types! {
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
+}
 
 impl pallet_xcm::Config for Test {
 	type RuntimeEvent = RuntimeEvent;

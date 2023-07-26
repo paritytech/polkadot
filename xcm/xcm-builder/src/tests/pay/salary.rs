@@ -22,7 +22,7 @@ use frame_support::{
 	assert_ok,
 	traits::{
 		fungibles::{Create, Mutate},
-		tokens::{ConvertRank, GetSalary},
+		tokens::GetSalary,
 		RankedMembers,
 	},
 };
@@ -103,7 +103,7 @@ parameter_types! {
 
 pub struct FixedSalary;
 impl GetSalary<Rank, AccountId, Balance> for FixedSalary {
-	fn get_salary(rank: Rank, who: &AccountId) -> Balance {
+	fn get_salary(_rank: Rank, _who: &AccountId) -> Balance {
 		FixedSalaryAmount::get()
 	}
 }

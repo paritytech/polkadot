@@ -421,8 +421,8 @@ impl<T: Config, BlockNumber: sp_runtime::traits::Zero> QueryHandler
 
 	fn new_query(
 		responder: impl Into<MultiLocation>,
-		timeout: Self::BlockNumber,
-		match_querier: impl Into<MultiLocation>,
+		_timeout: Self::BlockNumber,
+		_match_querier: impl Into<MultiLocation>,
 	) -> Self::QueryId {
 		let query_id = 1;
 		expect_response(query_id, responder.into());
