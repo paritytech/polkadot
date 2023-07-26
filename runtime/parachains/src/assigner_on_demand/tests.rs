@@ -15,16 +15,18 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+
 use crate::{
 	assigner_on_demand::Error,
 	initializer::SessionChangeNotification,
 	mock::{
-		new_test_ext, MockGenesisConfig, OnDemandAssigner, Paras, ParasShared, RuntimeOrigin,
-		Scheduler, System, Test,
+		new_test_ext, Balances, MockGenesisConfig, OnDemandAssigner, Paras, ParasShared,
+		RuntimeOrigin, Scheduler, System, Test,
 	},
 	paras::{ParaGenesisArgs, ParaKind},
 };
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
+use pallet_balances::Error as BalancesError;
 use primitives::{
 	v5::{Assignment, ValidationCode},
 	Balance, BlockNumber, SessionIndex,
@@ -279,7 +281,15 @@ fn place_order_works() {
 			Error::<Test>::SpotPriceHigherThanMaxAmount,
 		);
 
+		// Does not work with insufficient balance
+		assert_noop!(
+			OnDemandAssigner::place_order(RuntimeOrigin::signed(alice), amt, para_a, false),
+			BalancesError::<Test, _>::InsufficientBalance
+		);
+
 		// Works
+		Balances::make_free_balance_be(&alice, amt);
+		run_to_block(101, |n| if n == 101 { Some(Default::default()) } else { None });
 		assert_ok!(OnDemandAssigner::place_order(RuntimeOrigin::signed(alice), amt, para_a, false));
 	});
 }
