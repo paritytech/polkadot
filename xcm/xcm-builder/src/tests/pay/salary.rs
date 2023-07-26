@@ -26,7 +26,7 @@ use frame_support::{
 		RankedMembers,
 	},
 };
-use sp_runtime::{traits::ConvertToValue, DispatchResult};
+use sp_runtime::{traits::ConvertToValue, BuildStorage, DispatchResult};
 
 parameter_types! {
 	pub Interior: InteriorMultiLocation = Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into();
@@ -120,7 +120,7 @@ impl pallet_salary::Config for Test {
 }
 
 fn new_test_ext() -> sp_io::TestExternalities {
-	let t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	let t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
 	ext

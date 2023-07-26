@@ -32,11 +32,7 @@ pub type BlockNumber = u32;
 pub type AccountId = AccountId32;
 
 construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = primitives::Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
-	{
+	pub struct Test {
 		System: frame_system,
 		Balances: pallet_balances,
 		Assets: pallet_assets,
@@ -45,8 +41,14 @@ construct_runtime!(
 	}
 );
 
+parameter_types! {
+	pub const BlockHashCount: BlockNumber = 250;
+}
+
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig as frame_system::DefaultConfig)]
 impl frame_system::Config for Test {
+	type Block = generic::Block<Header, UncheckedExtrinsic>;
+	type BlockHashCount = BlockHashCount;
 	type BaseCallFilter = frame_support::traits::Everything;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
@@ -54,7 +56,6 @@ impl frame_system::Config for Test {
 	type PalletInfo = PalletInfo;
 	type OnSetCode = ();
 	type AccountData = pallet_balances::AccountData<Balance>;
-	type BlockNumber = BlockNumber;
 	type AccountId = AccountId;
 	type Lookup = sp_runtime::traits::IdentityLookup<AccountId>;
 }
