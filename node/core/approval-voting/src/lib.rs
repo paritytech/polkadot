@@ -1492,6 +1492,8 @@ async fn handle_approved_ancestor<Context>(
 	let mut block_descriptions = Vec::new();
 
 	let mut bits: BitVec<u8, Lsb0> = Default::default();
+	// Could be `len() - 1` but we add the target at the beginning of the following for-loop
+	let oldest_ancestor_idx = ancestry.len();
 	for (i, block_hash) in std::iter::once(target).chain(ancestry).enumerate() {
 		let mut entry_span =
 			span.child("load-block-entry").with_stage(jaeger::Stage::ApprovalChecking);
@@ -1551,7 +1553,7 @@ async fn handle_approved_ancestor<Context>(
 				unapproved.len(),
 				entry.candidates().len(),
 			);
-			if bits.len() > LOGGING_DEPTH_THRESHOLD {
+			if i == oldest_ancestor_idx && bits.len() > LOGGING_DEPTH_THRESHOLD {
 				gum::trace!(
 					target: LOG_TARGET,
 					"Unapproved blocks on depth {}: {:?}",
