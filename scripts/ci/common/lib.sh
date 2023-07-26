@@ -193,3 +193,50 @@ check_bootnode(){
     echo "    Bootnode appears unreachable"
     return 1
 }
+
+# Assumes the ENV are set:
+# - RELEASE_ID
+# - GITHUB_TOKEN
+# - OWNER
+# - REPO
+fetch_release_artifacts() {
+  echo "Using release ID: $RELEASE_ID"
+  curl -L -s \
+    -H "Accept: application/vnd.github+json" \
+    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    https://api.github.com/repos/$OWNER/$REPO/releases/$RELEASE_ID > release.json
+
+  # Get Asset ids
+  ids=($(cat release.json | jq -r '.assets[].id'))
+  count=$(cat release.json | jq '.assets|length')
+
+  # Fetch artifacts
+  mkdir -p artifacts
+  pushd artifacts > /dev/null
+
+  iter=1
+  for id in "${ids[@]}"
+  do
+      echo " - $iter/$count: downloading asset id: $id..."
+      curl -s -OJ -L -H "Accept: application/octet-stream" \
+          -H "Authorization: Token ${GITHUB_TOKEN}" \
+          "https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/$id"
+      iter=$((iter + 1))
+  done
+
+  ls -al --color
+  popd > /dev/null
+}
+
+# Check the checksum for a given binary
+function check_sha256() {
+    echo "Checking SHA256 for $1"
+    shasum -qc $1.sha256
+}
+
+# Check the GPG signature for a given binary
+function check_gpg() {
+    echo "Checking GPG Signature for $1"
+    gpg --verify -q $1.asc $1
+}
