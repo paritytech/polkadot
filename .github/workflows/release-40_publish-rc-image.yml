@@ -45,7 +45,10 @@ jobs:
 
     steps:
       - name: Check ${{ matrix.binary }}
+        working-directory: ./artifacts
         run: |
+          . ./scripts/ci/common/lib.sh
+
           echo "Checking binary ${{ matrix.binary }}"
           check_sha256 ${{ matrix.binary }}
           check_gpg ${{ matrix.binary }}
