@@ -460,7 +460,7 @@ impl<T: Config, BlockNumber: sp_runtime::traits::Zero> QueryHandler
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn expect_response(id: Self::QueryId, response: xcm::latest::Response) {
+	fn expect_response(_id: Self::QueryId, _response: xcm::latest::Response) {
 		// Unnecessary since it's only a test implementation
 	}
 }
