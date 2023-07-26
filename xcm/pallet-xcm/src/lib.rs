@@ -521,6 +521,7 @@ pub mod pallet {
 	/// Default version to encode XCM when latest version of destination is unknown. If `None`,
 	/// then the destinations whose XCM version is unknown are considered unreachable.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	pub(super) type SafeXcmVersion<T: Config> = StorageValue<_, XcmVersion, OptionQuery>;
 
 	/// The Latest versions that we know various locations support.
@@ -571,6 +572,7 @@ pub mod pallet {
 	/// the `u32` counter is the number of times that a send to the destination has been attempted,
 	/// which is used as a prioritization.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	pub(super) type VersionDiscoveryQueue<T: Config> = StorageValue<
 		_,
 		BoundedVec<(VersionedMultiLocation, u32), VersionDiscoveryQueueSize<T>>,
@@ -1083,10 +1085,11 @@ pub mod pallet {
 			match (maybe_assets, maybe_dest) {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
+					let count = assets.len() as u32;
 					let mut message = Xcm(vec![
 						WithdrawAsset(assets),
 						SetFeesMode { jit_withdraw: true },
-						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
+						InitiateTeleport { assets: Wild(AllCounted(count)), dest, xcm: Xcm(vec![]) },
 					]);
 					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::teleport_assets().saturating_add(w))
 				}
