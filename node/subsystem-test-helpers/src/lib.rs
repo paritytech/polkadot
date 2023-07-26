@@ -20,7 +20,7 @@
 
 use polkadot_node_subsystem::{
 	messages::AllMessages, overseer, FromOrchestra, OverseerSignal, SpawnGlue, SpawnedSubsystem,
-	SubsystemError, SubsystemResult,
+	SubsystemError, SubsystemResult, TrySendError,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 
@@ -158,6 +158,14 @@ where
 {
 	async fn send_message(&mut self, msg: OutgoingMessage) {
 		self.tx.send(msg.into()).await.expect("test overseer no longer live");
+	}
+
+	fn try_send_message(
+		&mut self,
+		msg: OutgoingMessage,
+	) -> Result<(), TrySendError<OutgoingMessage>> {
+		self.tx.unbounded_send(msg.into()).expect("test overseer no longer live");
+		Ok(())
 	}
 
 	async fn send_messages<I>(&mut self, msgs: I)
