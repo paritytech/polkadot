@@ -43,6 +43,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	inclusion_emulator::staging::{Constraints, RelayChainBlockInfo},
+	request_session_index_for_child,
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 };
 use polkadot_primitives::vstaging::{
@@ -594,7 +595,9 @@ fn answer_get_backable_candidate(
 		Some(s) => s,
 	};
 
-	let Some(child_hash) = tree.select_child(&required_path, |candidate| storage.is_backed(candidate)) else {
+	let Some(child_hash) =
+		tree.select_child(&required_path, |candidate| storage.is_backed(candidate))
+	else {
 		let _ = tx.send(None);
 		return
 	};
@@ -861,9 +864,14 @@ async fn fetch_ancestry<Context>(
 	.await;
 
 	let hashes = rx.map_err(JfyiError::ChainApiRequestCanceled).await??;
+	let required_session = request_session_index_for_child(relay_hash, ctx.sender())
+		.await
+		.await
+		.map_err(JfyiError::RuntimeApiRequestCanceled)??;
+
 	let mut block_info = Vec::with_capacity(hashes.len());
 	for hash in hashes {
-		match fetch_block_info(ctx, cache, hash).await? {
+		let info = match fetch_block_info(ctx, cache, hash).await? {
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -872,11 +880,24 @@ async fn fetch_ancestry<Context>(
 				);
 
 				// Return, however far we got.
-				return Ok(block_info)
+				break
 			},
-			Some(info) => {
-				block_info.push(info);
-			},
+			Some(info) => info,
+		};
+
+		// The relay chain cannot accept blocks backed from previous sessions, with
+		// potentially previous validators. This is a technical limitation we need to
+		// respect here.
+
+		let session = request_session_index_for_child(hash, ctx.sender())
+			.await
+			.await
+			.map_err(JfyiError::RuntimeApiRequestCanceled)??;
+
+		if session == required_session {
+			block_info.push(info);
+		} else {
+			break
 		}
 	}
 
