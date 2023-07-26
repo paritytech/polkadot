@@ -236,7 +236,5 @@ conf-files = [
 config = "./scripts/ci/gitlab/spellcheck.toml"
 
 [patch.crates-io]
-pprof = { git = "https://github.com/gen-xu/pprof-rs.git", branch = "gen/fix_misaligned_dereference" }
 pyroscope = { git = "https://github.com/alindima/pyroscope-rs.git", rev = "8bc106eabd508f05a4e480ed2845c22cf2d68524" }
 pyroscope_pprofrs = { git = "https://github.com/alindima/pyroscope-rs.git", rev = "8bc106eabd508f05a4e480ed2845c22cf2d68524" }
-

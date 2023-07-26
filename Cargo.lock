@@ -8093,8 +8093,9 @@ checksum = "26f6a7b87c2e435a3241addceeeff740ff8b7e76b74c13bf9acb17fa454ea00b"
 
 [[package]]
 name = "pprof"
-version = "0.12.0"
-source = "git+https://github.com/gen-xu/pprof-rs.git?branch=gen/fix_misaligned_dereference#d715918957106e923ee320c8aa3b9c988cd7dfba"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "978385d59daf9269189d052ca8a84c1acfd0715c0599a5d5188d4acc078ca46a"
 dependencies = [
  "backtrace",
  "cfg-if",
