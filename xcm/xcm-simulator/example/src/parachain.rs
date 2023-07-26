@@ -29,8 +29,7 @@ use sp_core::{ConstU32, ConstU64, H256};
 use sp_runtime::{
 	testing::Header,
 	traits::{Get, Hash, IdentityLookup, Verify},
-	AccountId32,
-	MultiSignature
+	AccountId32, MultiSignature,
 };
 use sp_std::prelude::*;
 
@@ -43,21 +42,22 @@ use xcm::{latest::prelude::*, VersionedXcm};
 use xcm_builder::{
 	Account32Hash, AccountId32Aliases, AllowUnpaidExecutionFrom, ConvertedConcreteId,
 	CurrencyAdapter as XcmCurrencyAdapter, EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds,
-	IsConcrete, NativeAsset, NoChecking, ParentIsPreset,
-	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, MultiLocationCollectionId, NonFungiblesV2Adapter,
+	IsConcrete, MultiLocationCollectionId, NativeAsset, NoChecking, NonFungiblesV2Adapter,
+	ParentIsPreset, SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation,
 };
 use xcm_executor::{
 	traits::{ConvertLocation, JustTry},
 	Config, XcmExecutor,
 };
 
-use pallet_nfts::{PalletFeatures, ItemConfig};
+use pallet_nfts::{ItemConfig, PalletFeatures};
 
 pub type SovereignAccountOf = (
 	SiblingParachainConvertsVia<Sibling, AccountId>,
 	AccountId32Aliases<RelayNetwork, AccountId>,
 	ParentIsPreset<AccountId>,
+	Account32Hash<(), AccountId>,
 );
 
 pub type AccountId = AccountId32;
@@ -149,15 +149,8 @@ parameter_types! {
 	pub UniversalLocation: InteriorMultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
 }
 
-pub type LocationToAccountId = (
-	ParentIsPreset<AccountId>,
-	SiblingParachainConvertsVia<Sibling, AccountId>,
-	AccountId32Aliases<RelayNetwork, AccountId>,
-	Account32Hash<(), AccountId>,
-);
-
 pub type XcmOriginToCallOrigin = (
-	SovereignSignedViaLocation<LocationToAccountId, RuntimeOrigin>,
+	SovereignSignedViaLocation<SovereignAccountOf, RuntimeOrigin>,
 	SignedAccountId32AsNative<RelayNetwork, RuntimeOrigin>,
 	XcmPassthrough<RuntimeOrigin>,
 );
@@ -171,17 +164,16 @@ parameter_types! {
 }
 
 pub type LocalAssetTransactor = (
-	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, LocationToAccountId, AccountId, ()>,
+	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, SovereignAccountOf, AccountId, ()>,
 	NonFungiblesV2Adapter<
-		ForeignNfts, 
+		ForeignNfts,
 		ConvertedConcreteId<MultiLocationCollectionId, AssetInstance, JustTry, JustTry>,
 		SovereignAccountOf,
 		AccountId,
 		NoChecking,
 		(),
-		ItemConfig
+		ItemConfig,
 	>,
-	
 );
 
 pub type XcmRouter = super::ParachainXcmRouter<MsgQueue>;
@@ -410,7 +402,7 @@ impl pallet_xcm::Config for Runtime {
 	type Currency = Balances;
 	type CurrencyMatcher = ();
 	type TrustedLockers = TrustedLockers;
-	type SovereignAccountOf = LocationToAccountId;
+	type SovereignAccountOf = SovereignAccountOf;
 	type MaxLockers = ConstU32<8>;
 	type MaxRemoteLockConsumers = ConstU32<0>;
 	type RemoteLockConsumerIdentifier = ();
@@ -423,7 +415,6 @@ impl pallet_xcm::Config for Runtime {
 parameter_types! {
 	pub storage Features: PalletFeatures = PalletFeatures::all_enabled();
 }
-
 
 pub type Signature = MultiSignature;
 pub type AccountPublic = <Signature as Verify>::Signer;

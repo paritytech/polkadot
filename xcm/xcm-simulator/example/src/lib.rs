@@ -25,6 +25,7 @@ use xcm_executor::traits::ConvertLocation;
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain, TestExt};
 
 pub const ALICE: sp_runtime::AccountId32 = sp_runtime::AccountId32::new([0u8; 32]);
+pub const BOB: sp_runtime::AccountId32 = sp_runtime::AccountId32::new([0u8; 32]);
 pub const INITIAL_BALANCE: u128 = 1_000_000_000;
 
 decl_test_parachain! {
@@ -69,27 +70,27 @@ decl_test_network! {
 
 pub fn parent_account_id() -> parachain::AccountId {
 	let location = (Parent,);
-	parachain::LocationToAccountId::convert_location(&location.into()).unwrap()
+	parachain::SovereignAccountOf::convert_location(&location.into()).unwrap()
 }
 
 pub fn child_account_id(para: u32) -> relay_chain::AccountId {
 	let location = (Parachain(para),);
-	relay_chain::LocationToAccountId::convert_location(&location.into()).unwrap()
+	relay_chain::SovereignAccountOf::convert_location(&location.into()).unwrap()
 }
 
 pub fn child_account_account_id(para: u32, who: sp_runtime::AccountId32) -> relay_chain::AccountId {
 	let location = (Parachain(para), AccountId32 { network: None, id: who.into() });
-	relay_chain::LocationToAccountId::convert_location(&location.into()).unwrap()
+	relay_chain::SovereignAccountOf::convert_location(&location.into()).unwrap()
 }
 
 pub fn sibling_account_account_id(para: u32, who: sp_runtime::AccountId32) -> parachain::AccountId {
 	let location = (Parent, Parachain(para), AccountId32 { network: None, id: who.into() });
-	parachain::LocationToAccountId::convert_location(&location.into()).unwrap()
+	parachain::SovereignAccountOf::convert_location(&location.into()).unwrap()
 }
 
 pub fn parent_account_account_id(who: sp_runtime::AccountId32) -> parachain::AccountId {
 	let location = (Parent, AccountId32 { network: None, id: who.into() });
-	parachain::LocationToAccountId::convert_location(&location.into()).unwrap()
+	parachain::SovereignAccountOf::convert_location(&location.into()).unwrap()
 }
 
 pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
@@ -146,7 +147,7 @@ mod tests {
 	use super::*;
 
 	use codec::Encode;
-	use frame_support::{assert_ok, weights::Weight, traits::tokens::nonfungibles_v2::Inspect};
+	use frame_support::{assert_ok, traits::tokens::nonfungibles_v2::Inspect, weights::Weight};
 	use pallet_nfts::MintSettings;
 	use xcm::latest::QueryResponseInfo;
 	use xcm_builder::MultiLocationCollectionId;
@@ -155,6 +156,15 @@ mod tests {
 	// Helper function for forming buy execution message
 	fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {
 		BuyExecution { fees: fees.into(), weight_limit: Unlimited }
+	}
+
+	// helper function for CollectionConfig
+	fn get_collection_config() -> CollectionConfig<Balance, u64, MultiLocationCollectionId> {
+		CollectionConfig {
+			settings: CollectionSettings::all_enabled(),
+			max_supply: None,
+			mint_settings: MintSettings::default(),
+		}
 	}
 
 	#[test]
@@ -369,7 +379,7 @@ mod tests {
 	#[test]
 	fn teleport_nft() {
 		MockNet::reset();
-		let collection_id = MultiLocation {parents: 1, interior: X1(GeneralIndex(1))}.into();
+		let collection_id = MultiLocation { parents: 1, interior: X1(GeneralIndex(1)) }.into();
 		Relay::execute_with(|| {
 			// Mint the NFT (1, 69) and give it to our "parachain#1 alias".
 			assert_ok!(relay_chain::Uniques::mint(
@@ -387,27 +397,16 @@ mod tests {
 		});
 		ParaA::execute_with(|| {
 			use pallet_nfts::Event;
-			
-			let collection_config: CollectionConfig<Balance, u64, MultiLocationCollectionId> = 
-				CollectionConfig { 
-					settings: CollectionSettings::all_enabled(), 
-					max_supply: None, 
-					mint_settings: MintSettings::default() 
-				};
-			
-			
-			assert_ok!(
-				parachain::ForeignNfts::do_create_collection(
-					collection_id,
-					ALICE,
-					ALICE,
-					collection_config,
 
-					1000u128,
-					Event::ForceCreated { collection: collection_id, owner: ALICE },
-				)
-			);
-			
+			assert_ok!(parachain::ForeignNfts::do_create_collection(
+				collection_id,
+				ALICE,
+				ALICE,
+				get_collection_config(),
+				1000u128,
+				Event::ForceCreated { collection: collection_id, owner: ALICE },
+			));
+
 			assert_eq!(parachain::Balances::reserved_balance(&ALICE), 1000);
 
 			// IRL Alice would probably just execute this locally on the Relay-chain, but we can't
@@ -428,10 +427,7 @@ mod tests {
 			assert_ok!(ParachainPalletXcm::send_xcm(alice, Parent, message));
 		});
 		ParaA::execute_with(|| {
-			assert_eq!(
-				parachain::ForeignNfts::owner(collection_id, 69u32.into()),
-				Some(ALICE),
-			);
+			assert_eq!(parachain::ForeignNfts::owner(collection_id, 69u32.into()), Some(ALICE),);
 			assert_eq!(parachain::Balances::reserved_balance(&ALICE), 2000);
 		});
 		Relay::execute_with(|| {
@@ -447,7 +443,7 @@ mod tests {
 	#[test]
 	fn reserve_asset_transfer_nft() {
 		MockNet::reset();
-		let collection_id = MultiLocation {parents: 1, interior: X1(GeneralIndex(2))}.into();
+		let collection_id = MultiLocation { parents: 1, interior: X1(GeneralIndex(2)) }.into();
 		Relay::execute_with(|| {
 			assert_ok!(relay_chain::Uniques::force_create(
 				relay_chain::RuntimeOrigin::root(),
@@ -468,28 +464,16 @@ mod tests {
 		});
 		ParaA::execute_with(|| {
 			use pallet_nfts::Event;
-			let collection_config: CollectionConfig<Balance, u64, MultiLocationCollectionId> = 
-				CollectionConfig { 
-					settings: CollectionSettings::all_enabled(), 
-					max_supply: None, 
-					mint_settings: MintSettings::default() 
-				};
-			
-			assert_ok!(
-				parachain::ForeignNfts::do_create_collection(
-					collection_id,
-					ALICE,
-					ALICE,
-					collection_config,
 
-					1000u128,
-					Event::ForceCreated { collection: collection_id, owner: ALICE },
-				)
-			);
-			assert_eq!(
-				parachain::ForeignNfts::owner(collection_id, 69u32.into()),
-				None,
-			);
+			assert_ok!(parachain::ForeignNfts::do_create_collection(
+				collection_id,
+				ALICE,
+				ALICE,
+				get_collection_config(),
+				1000u128,
+				Event::ForceCreated { collection: collection_id, owner: ALICE },
+			));
+			assert_eq!(parachain::ForeignNfts::owner(collection_id, 69u32.into()), None,);
 			assert_eq!(parachain::Balances::reserved_balance(&ALICE), 1000);
 
 			let message = Xcm(vec![
@@ -508,10 +492,7 @@ mod tests {
 			assert_ok!(ParachainPalletXcm::send_xcm(alice, Parent, message));
 		});
 		ParaA::execute_with(|| {
-			assert_eq!(
-				parachain::ForeignNfts::owner(collection_id, 69u32.into()),
-				Some(ALICE),
-			);
+			assert_eq!(parachain::ForeignNfts::owner(collection_id, 69u32.into()), Some(ALICE),);
 			assert_eq!(parachain::Balances::reserved_balance(&ALICE), 2000);
 		});
 
@@ -521,77 +502,114 @@ mod tests {
 	}
 
 	/// Scenario:
-	/// The relay-chain creates an asset class on a parachain and then Alice transfers her NFT into
-	/// that parachain's sovereign account, who then mints a trustless-backed-derivative locally.
-	///
-	/// Asserts that the parachain accounts are updated as expected.
-	#[ignore] // TODO: Fix issue upstream
+	/// Alice on Parachain A transfers an NFT into a parachain B's sovereign account.
+	/// Parachain B then mints a derivative NFT locally. Alice then transfers the derivative
+	/// NFT to Bob on Parachain B. Bob then withdraws the derivative NFT on Parachain B and
+	/// transfers the NFT to himself on Parachain A. The derivative is burned on Parachain B
+	/// and the original is transfered to Bob on Parachain A.
 	#[test]
-	fn reserve_asset_class_create_and_reserve_transfer() {
+	fn two_way_reserve_asset_transfer_nft() {
+		use pallet_nfts::Event;
 		MockNet::reset();
-
-		Relay::execute_with(|| {
-			assert_ok!(relay_chain::Uniques::force_create(
-				relay_chain::RuntimeOrigin::root(),
-				2,
-				ALICE,
-				false
-			));
-			assert_ok!(relay_chain::Uniques::mint(
-				relay_chain::RuntimeOrigin::signed(ALICE),
-				2,
-				69,
-				child_account_account_id(1, ALICE)
-			));
-			assert_eq!(
-				relay_chain::Uniques::owner(2, 69),
-				Some(child_account_account_id(1, ALICE))
-			);
-
-			let collection_config: CollectionConfig<Balance, u64, MultiLocationCollectionId> = 
-				CollectionConfig { 
-					settings: CollectionSettings::all_enabled(), 
-					max_supply: None, 
-					mint_settings: MintSettings::default() 
-				};
-
-			let message = Xcm(vec![Transact {
-				origin_kind: OriginKind::Xcm,
-				require_weight_at_most: Weight::from_parts(1_000_000_000, 1024 * 1024),
-				call: parachain::RuntimeCall::from(
-					pallet_nfts::Call::<parachain::Runtime>::create {
-						admin: parent_account_id(),
-						config: collection_config,
-					},
-				)
-				.encode()
-				.into(),
-			}]);
-			// Send creation.
-			assert_ok!(RelayChainPalletXcm::send_xcm(Here, Parachain(1), message));
-		});
+		let collection_id = MultiLocation { parents: 0, interior: X1(GeneralIndex(2)) }.into();
 		ParaA::execute_with(|| {
-			// Then transfer
+			assert_ok!(parachain::ForeignNfts::do_create_collection(
+				collection_id,
+				ALICE,
+				ALICE,
+				get_collection_config(),
+				1000,
+				Event::ForceCreated { collection: collection_id, owner: ALICE },
+			));
+
+			assert_ok!(parachain::ForeignNfts::mint(
+				parachain::RuntimeOrigin::signed(ALICE),
+				collection_id,
+				Index(69),
+				sibling_account_account_id(2, ALICE),
+				None
+			));
+
+			assert_eq!(
+				parachain::ForeignNfts::owner(collection_id, Index(69)),
+				Some(sibling_account_account_id(2, ALICE))
+			);
+		});
+
+		let foreign_collection_id =
+			MultiLocation { parents: 1, interior: X2(Parachain(1), GeneralIndex(2)) }.into();
+
+		ParaB::execute_with(|| {
+			assert_ok!(parachain::ForeignNfts::do_create_collection(
+				foreign_collection_id,
+				ALICE,
+				ALICE,
+				get_collection_config(),
+				1000,
+				Event::ForceCreated { collection: foreign_collection_id, owner: ALICE },
+			));
+
 			let message = Xcm(vec![
 				WithdrawAsset((GeneralIndex(2), 69u32).into()),
 				DepositReserveAsset {
 					assets: AllCounted(1).into(),
-					dest: Parachain(1).into(),
+					dest: (Parent, Parachain(2)).into(),
 					xcm: Xcm(vec![DepositAsset {
 						assets: AllCounted(1).into(),
 						beneficiary: (AccountId32 { id: ALICE.into(), network: None },).into(),
 					}]),
 				},
 			]);
+			// Send transfer
+
 			let alice = AccountId32 { id: ALICE.into(), network: None };
-			assert_ok!(ParachainPalletXcm::send_xcm(alice, Parent, message));
+			assert_ok!(ParachainPalletXcm::send_xcm(alice, (Parent, Parachain(1)), message));
 		});
-		ParaA::execute_with(|| {
-			assert_eq!(parachain::Balances::reserved_balance(&parent_account_id()), 1000);
+
+		ParaB::execute_with(|| {
 			assert_eq!(
-				parachain::ForeignNfts::collection_owner(MultiLocation {parents: 1, interior: X1(GeneralIndex(2))}.into()),
-				Some(parent_account_id())
+				parachain::ForeignNfts::owner(foreign_collection_id, Index(69)),
+				Some(ALICE)
 			);
+
+			let message = Xcm(vec![TransferAsset {
+				assets: (foreign_collection_id, 69u32).into(),
+				beneficiary: (AccountId32 { id: BOB.into(), network: None },).into(),
+			}]);
+
+			assert_ok!(ParachainPalletXcm::execute(
+				parachain::RuntimeOrigin::signed(ALICE),
+				Box::new(VersionedXcm::V3(message)),
+				Weight::MAX
+			));
+
+			assert_eq!(parachain::ForeignNfts::owner(foreign_collection_id, Index(69)), Some(BOB));
+		});
+
+		ParaB::execute_with(|| {
+			let message: Xcm<_> = Xcm(vec![
+				WithdrawAsset((foreign_collection_id, 69u32).into()),
+				InitiateReserveWithdraw {
+					assets: AllCounted(1).into(),
+					reserve: (Parent, Parachain(1)).into(),
+					xcm: Xcm(vec![DepositAsset {
+						assets: AllCounted(1).into(),
+						beneficiary: (AccountId32 { id: BOB.into(), network: None },).into(),
+					}]),
+				},
+			]);
+
+			assert_ok!(ParachainPalletXcm::execute(
+				parachain::RuntimeOrigin::signed(BOB),
+				Box::new(VersionedXcm::V3(message)),
+				Weight::MAX
+			));
+
+			assert_eq!(parachain::ForeignNfts::owner(foreign_collection_id, Index(69)), None);
+		});
+
+		ParaA::execute_with(|| {
+			assert_eq!(parachain::ForeignNfts::owner(collection_id, Index(69)), Some(BOB));
 		});
 	}
 

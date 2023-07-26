@@ -79,7 +79,8 @@ pub use nonfungibles_adapter::{
 
 mod nonfungibles_v2_adapter;
 pub use nonfungibles_v2_adapter::{
-	NonFungiblesV2Adapter, NonFungiblesV2MutateAdapter, NonFungiblesV2TransferAdapter, MultiLocationCollectionId,
+	MultiLocationCollectionId, NonFungiblesV2Adapter, NonFungiblesV2MutateAdapter,
+	NonFungiblesV2TransferAdapter,
 };
 
 mod weight;

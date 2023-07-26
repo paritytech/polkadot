@@ -21,11 +21,13 @@ use frame_support::{
 	ensure,
 	traits::{tokens::nonfungibles_v2, Get, Incrementable},
 };
-use sp_std::{marker::PhantomData, prelude::*, result};
-use xcm::latest::prelude::*;
-use xcm_executor::traits::{ConvertLocation, Error as MatchError, MatchesNonFungibles, TransactAsset};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
+use sp_std::{marker::PhantomData, prelude::*, result};
+use xcm::latest::prelude::*;
+use xcm_executor::traits::{
+	ConvertLocation, Error as MatchError, MatchesNonFungibles, TransactAsset,
+};
 
 const LOG_TARGET: &str = "xcm::nonfungibles_v2_adapter";
 pub struct NonFungiblesV2TransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
@@ -70,8 +72,19 @@ pub struct NonFungiblesV2MutateAdapter<
 	CheckAsset,
 	CheckingAccount,
 	ItemConfig,
->(PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount, ItemConfig)>)
-where ItemConfig: Default;
+>(
+	PhantomData<(
+		Assets,
+		Matcher,
+		AccountIdConverter,
+		AccountId,
+		CheckAsset,
+		CheckingAccount,
+		ItemConfig,
+	)>,
+)
+where
+	ItemConfig: Default;
 
 impl<
 		Assets: nonfungibles_v2::Mutate<AccountId, ItemConfig>,
@@ -107,7 +120,14 @@ impl<
 	}
 	fn accrue_checked(class: Assets::CollectionId, instance: Assets::ItemId) {
 		if let Some(checking_account) = CheckingAccount::get() {
-			let ok = Assets::mint_into(&class, &instance, &checking_account, &ItemConfig::default(), true).is_ok();
+			let ok = Assets::mint_into(
+				&class,
+				&instance,
+				&checking_account,
+				&ItemConfig::default(),
+				true,
+			)
+			.is_ok();
 			debug_assert!(ok, "`mint_into` cannot generally fail; qed");
 		}
 	}
@@ -259,8 +279,19 @@ pub struct NonFungiblesV2Adapter<
 	CheckAsset,
 	CheckingAccount,
 	ItemConfig,
->(PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount, ItemConfig)>)
-where ItemConfig: Default;
+>(
+	PhantomData<(
+		Assets,
+		Matcher,
+		AccountIdConverter,
+		AccountId,
+		CheckAsset,
+		CheckingAccount,
+		ItemConfig,
+	)>,
+)
+where
+	ItemConfig: Default;
 impl<
 		Assets: nonfungibles_v2::Mutate<AccountId, ItemConfig> + nonfungibles_v2::Transfer<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
@@ -270,7 +301,15 @@ impl<
 		CheckingAccount: Get<Option<AccountId>>,
 		ItemConfig: Default,
 	> TransactAsset
-	for NonFungiblesV2Adapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount, ItemConfig>
+	for NonFungiblesV2Adapter<
+		Assets,
+		Matcher,
+		AccountIdConverter,
+		AccountId,
+		CheckAsset,
+		CheckingAccount,
+		ItemConfig,
+	>
 {
 	fn can_check_in(origin: &MultiLocation, what: &MultiAsset, context: &XcmContext) -> XcmResult {
 		NonFungiblesV2MutateAdapter::<
@@ -360,19 +399,8 @@ impl<
 	}
 }
 
-
 #[derive(
-	Copy,
-	Clone,
-	Decode,
-	Encode,
-	Eq,
-	PartialEq,
-	Ord,
-	PartialOrd,
-	Debug,
-	TypeInfo,
-	MaxEncodedLen,
+	Copy, Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen,
 )]
 pub struct MultiLocationCollectionId(MultiLocation);
 impl MultiLocationCollectionId {
@@ -386,7 +414,7 @@ impl MultiLocationCollectionId {
 		&self.0
 	}
 }
-// Should eventually move to frame_support::traits::incrementable
+
 impl Incrementable for MultiLocationCollectionId {
 	fn increment(&self) -> Option<Self> {
 		None

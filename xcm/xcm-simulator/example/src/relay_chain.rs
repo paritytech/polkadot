@@ -132,18 +132,18 @@ parameter_types! {
 	pub UnitWeightCost: u64 = 1_000;
 }
 
-pub type LocationToAccountId = (
+pub type SovereignAccountOf = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	AccountId32Aliases<RelayNetwork, AccountId>,
 	Account32Hash<(), AccountId>,
 );
 
 pub type LocalAssetTransactor = (
-	XcmCurrencyAdapter<Balances, IsConcrete<TokenLocation>, LocationToAccountId, AccountId, ()>,
+	XcmCurrencyAdapter<Balances, IsConcrete<TokenLocation>, SovereignAccountOf, AccountId, ()>,
 	NonFungiblesAdapter<
 		Uniques,
 		ConvertedConcreteId<u32, u32, AsPrefixedGeneralIndex<(), u32, JustTry>, JustTry>,
-		LocationToAccountId,
+		SovereignAccountOf,
 		AccountId,
 		NoChecking,
 		(),
@@ -151,7 +151,7 @@ pub type LocalAssetTransactor = (
 );
 
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<LocationToAccountId, RuntimeOrigin>,
+	SovereignSignedViaLocation<SovereignAccountOf, RuntimeOrigin>,
 	ChildParachainAsNative<origin::Origin, RuntimeOrigin>,
 	SignedAccountId32AsNative<RelayNetwork, RuntimeOrigin>,
 	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
@@ -222,7 +222,7 @@ impl pallet_xcm::Config for Runtime {
 	type Currency = Balances;
 	type CurrencyMatcher = IsConcrete<TokenLocation>;
 	type TrustedLockers = ();
-	type SovereignAccountOf = LocationToAccountId;
+	type SovereignAccountOf = SovereignAccountOf;
 	type MaxLockers = ConstU32<8>;
 	type MaxRemoteLockConsumers = ConstU32<0>;
 	type RemoteLockConsumerIdentifier = ();
