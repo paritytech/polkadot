@@ -20,7 +20,7 @@ env:
   # paritytech
   OWNER: ${{ github.repository_owner }}
   # polkadot
-  REPO_NAME: ${{ github.event.repository.name }}
+  REPO: ${{ github.event.repository.name }}
 
 jobs:
   fetch-artifacts:
