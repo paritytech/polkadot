@@ -26,6 +26,10 @@
 //! that `CoreIndex`. This affinity mechanism can be removed if it can be shown that parallel
 //! execution is valid.
 
+mod benchmarking;
+#[cfg(test)]
+mod tests;
+
 use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 
 use frame_support::{
@@ -47,13 +51,6 @@ use sp_std::{collections::vec_deque::VecDeque, prelude::*};
 const LOG_TARGET: &str = "runtime::parachains::on-demand-assigner";
 
 pub use pallet::*;
-
-#[cfg(test)]
-mod tests;
-
-// TODO enable benchmarks maybe?
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
 
 pub trait WeightInfo {
 	fn place_order() -> Weight;
