@@ -75,9 +75,10 @@ pub struct CanSecondRequest {
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingMessage {
-	/// Requests a set of backable candidates that could be backed in a child of the given
-	/// relay-parent, referenced by its hash.
-	GetBackedCandidates(Hash, Vec<CandidateHash>, oneshot::Sender<Vec<BackedCandidate>>),
+	/// Requests a set of backable candidates attested by the subsystem.
+	///
+	/// Each pair is (candidate_hash, candidate_relay_parent).
+	GetBackedCandidates(Vec<(CandidateHash, Hash)>, oneshot::Sender<Vec<BackedCandidate>>),
 	/// Request the subsystem to check whether it's allowed to second given candidate.
 	/// The rule is to only fetch collations that are either built on top of the root
 	/// of some fragment tree or have a parent node which represents backed candidate.
@@ -1080,10 +1081,15 @@ pub enum ProspectiveParachainsMessage {
 	/// has been backed. This requires that the candidate was successfully introduced in
 	/// the past.
 	CandidateBacked(ParaId, CandidateHash),
-	/// Get a backable candidate hash for the given parachain, under the given relay-parent hash,
-	/// which is a descendant of the given candidate hashes. Returns `None` on the channel
-	/// if no such candidate exists.
-	GetBackableCandidate(Hash, ParaId, Vec<CandidateHash>, oneshot::Sender<Option<CandidateHash>>),
+	/// Get a backable candidate hash along with its relay parent for the given parachain,
+	/// under the given relay-parent hash, which is a descendant of the given candidate hashes.
+	/// Returns `None` on the channel if no such candidate exists.
+	GetBackableCandidate(
+		Hash,
+		ParaId,
+		Vec<CandidateHash>,
+		oneshot::Sender<Option<(CandidateHash, Hash)>>,
+	),
 	/// Get the hypothetical frontier membership of candidates with the given properties
 	/// under the specified active leaves' fragment trees.
 	///

@@ -251,6 +251,14 @@ impl CandidateStorage {
 			})
 	}
 
+	/// Returns candidate's relay parent, if present.
+	pub(crate) fn relay_parent_by_candidate_hash(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> Option<Hash> {
+		self.by_candidate_hash.get(candidate_hash).map(|entry| entry.relay_parent)
+	}
+
 	fn iter_para_children<'a>(
 		&'a self,
 		parent_head_hash: &Hash,
@@ -1152,10 +1160,11 @@ mod tests {
 	#[test]
 	fn storage_add_candidate() {
 		let mut storage = CandidateStorage::new();
+		let relay_parent = Hash::repeat_byte(69);
 
 		let (pvd, candidate) = make_committed_candidate(
 			ParaId::from(5u32),
-			Hash::repeat_byte(69),
+			relay_parent,
 			8,
 			vec![4, 5, 6].into(),
 			vec![1, 2, 3].into(),
@@ -1168,6 +1177,8 @@ mod tests {
 		storage.add_candidate(candidate, pvd).unwrap();
 		assert!(storage.contains(&candidate_hash));
 		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 1);
+
+		assert_eq!(storage.relay_parent_by_candidate_hash(&candidate_hash), Some(relay_parent));
 	}
 
 	#[test]
