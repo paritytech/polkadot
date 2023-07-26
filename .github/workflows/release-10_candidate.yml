@@ -67,5 +67,5 @@ jobs:
           access_token: ${{ secrets.RELEASENOTES_MATRIX_V2_ACCESS_TOKEN }}
           server: m.parity.io
           message: |
-            Release process for polkadot ${{ steps.compute_tag.outputs.version }} has been started.
+            Release process for polkadot ${{ steps.compute_tag.outputs.version }} has been started.<br/>
             Tracking issue: ${{ steps.create-issue.outputs.url }}
