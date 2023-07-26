@@ -15,17 +15,20 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Benchmarking for assigned_slots pallet
+
 #![cfg(feature = "runtime-benchmarks")]
 use super::{Pallet as AssignedSlots, *};
 
 use frame_benchmarking::v2::*;
 use frame_support::assert_ok;
-use frame_system::RawOrigin;
+use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use primitives::Id as ParaId;
 
+#[cfg(test)]
 #[benchmarks]
 mod benchmarks {
 	use super::*;
+
 	use crate::mock::TestRegistrar;
 	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 
@@ -46,7 +49,7 @@ mod benchmarks {
 		register_parachain::<T>(para_id);
 
 		let counter = PermanentSlotCount::<T>::get();
-		let current_lease_period: T::BlockNumber =
+		let current_lease_period: BlockNumberFor<T> =
 			T::Leaser::lease_period_index(frame_system::Pallet::<T>::block_number())
 				.and_then(|x| Some(x.0))
 				.unwrap();
@@ -69,7 +72,7 @@ mod benchmarks {
 		let caller = RawOrigin::Root;
 		register_parachain::<T>(para_id);
 
-		let current_lease_period: T::BlockNumber =
+		let current_lease_period: BlockNumberFor<T> =
 			T::Leaser::lease_period_index(frame_system::Pallet::<T>::block_number())
 				.and_then(|x| Some(x.0))
 				.unwrap();
@@ -82,7 +85,7 @@ mod benchmarks {
 			manager: whitelisted_caller(),
 			period_begin: current_lease_period,
 			period_count: LeasePeriodOf::<T>::from(T::TemporarySlotLeasePeriodLength::get()),
-			last_lease: Some(T::BlockNumber::zero()),
+			last_lease: Some(BlockNumberFor::<T>::zero()),
 			lease_count: 1,
 		};
 		assert_eq!(TemporarySlots::<T>::get(para_id), Some(tmp));
