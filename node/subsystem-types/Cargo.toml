@@ -13,7 +13,7 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-jaeger = { path = "../jaeger" }
-orchestra = { version = "0.3.1", default-features = false, features=["futures_channel"] }
+orchestra = { git = "https://github.com/paritytech/orchestra", branch = "vstakhov-fix-send-trait", default-features = false, features=["futures_channel"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }

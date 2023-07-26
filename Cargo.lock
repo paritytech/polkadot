@@ -5067,8 +5067,7 @@ checksum = "28988d872ab76095a6e6ac88d99b54fd267702734fd7ffe610ca27f533ddb95a"
 [[package]]
 name = "orchestra"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56da69666aadbd9566c09e9b463c4c6008935e188ccdc19a7e14bb77ab8516eb"
+source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-fix-send-trait#873a790360cc46b7b4d4ba41cac192d2d4c75300"
 dependencies = [
  "async-trait",
  "dyn-clonable",
@@ -5076,7 +5075,7 @@ dependencies = [
  "futures-timer",
  "orchestra-proc-macro",
  "pin-project",
- "prioritized-metered-channel",
+ "prioritized-metered-channel 0.5.0 (git+https://github.com/paritytech/orchestra?branch=vstakhov-fix-send-trait)",
  "thiserror",
  "tracing",
 ]
@@ -5084,8 +5083,7 @@ dependencies = [
 [[package]]
 name = "orchestra-proc-macro"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5427dd88aaee2ff99c324cfbf00cf6b79304621ea72c1de025f1fb467557a6de"
+source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-fix-send-trait#873a790360cc46b7b4d4ba41cac192d2d4c75300"
 dependencies = [
  "anyhow",
  "expander 2.0.0",
@@ -7166,7 +7164,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-test-service",
- "prioritized-metered-channel",
+ "prioritized-metered-channel 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "prometheus-parse",
  "sc-cli",
  "sc-service",
@@ -7305,7 +7303,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "prioritized-metered-channel",
+ "prioritized-metered-channel 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.8.5",
  "sp-application-crypto",
  "sp-core",
@@ -7333,7 +7331,7 @@ dependencies = [
  "polkadot-node-subsystem-types",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "prioritized-metered-channel",
+ "prioritized-metered-channel 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sc-client-api",
  "sp-api",
  "sp-core",
@@ -8177,6 +8175,21 @@ name = "prioritized-metered-channel"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f53856ea849891d553517558a065015a80fbd41bf6eebbcbc8fd53e23bc29e0a"
+dependencies = [
+ "coarsetime",
+ "crossbeam-queue",
+ "derive_more",
+ "futures",
+ "futures-timer",
+ "nanorand",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "prioritized-metered-channel"
+version = "0.5.0"
+source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-fix-send-trait#873a790360cc46b7b4d4ba41cac192d2d4c75300"
 dependencies = [
  "coarsetime",
  "crossbeam-queue",
