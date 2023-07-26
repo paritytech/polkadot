@@ -75,8 +75,7 @@ pub trait AssignmentProvider<BlockNumber> {
 
 	/// Returns the availability period specified by the implementation.
 	/// See
-	/// [`HostConfiguration::chain_availability_period`] and
-	/// [`HostConfiguration::thread_availability_period`]
+	/// [`HostConfiguration::paras_availability_period`]
 	/// for more information.
 	fn get_availability_period(core_idx: CoreIndex) -> BlockNumber;
 
