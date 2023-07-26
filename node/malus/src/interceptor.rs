@@ -89,6 +89,15 @@ where
 		}
 	}
 
+	fn try_send_message(&mut self, msg: OutgoingMessage) -> Result<(), TrySendError<OutgoingMessage>> {
+		// TODO: think about `intercept_outgoing` implementation here, as it seems
+		// that we cannot perform conversion `AllMessages` -> `OutgoingMessage` in that particular
+		// direction (the opposite conversion `OutgoingMessage` -> `AllMessage` is permitted).
+		// On the other hand, `intercept_outgoing` is not used anywhere so far, so it
+		// might be redesigned somehow.
+		self.inner.try_send_message(msg)
+	}
+
 	async fn send_messages<T>(&mut self, msgs: T)
 	where
 		T: IntoIterator<Item = OutgoingMessage> + Send,
