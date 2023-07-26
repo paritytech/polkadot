@@ -20,8 +20,8 @@ use super::*;
 use always_assert::never;
 use bytes::Bytes;
 use futures::{
+	future::BoxFuture,
 	stream::{BoxStream, FuturesUnordered, StreamExt},
-	Future,
 };
 use parity_scale_codec::{Decode, DecodeAll};
 
@@ -58,7 +58,6 @@ pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 use std::{
 	collections::{hash_map, HashMap},
 	iter::ExactSizeIterator,
-	pin::Pin,
 };
 
 use super::validator_discovery;
@@ -918,7 +917,7 @@ fn dispatch_collation_event_to_all_unbounded(
 fn try_send_validation_event<E>(
 	event: E,
 	sender: &mut (impl overseer::NetworkBridgeRxSenderTrait + overseer::SubsystemSender<E>),
-	delayed_queue: &FuturesUnordered<Pin<Box<dyn Future<Output = ()> + Send>>>,
+	delayed_queue: &FuturesUnordered<BoxFuture<'static, ()>>,
 ) where
 	E: Send + 'static,
 {
@@ -946,8 +945,7 @@ async fn dispatch_validation_events_to_all<I>(
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
 {
-	let delayed_messages: FuturesUnordered<Pin<Box<dyn Future<Output = ()> + Send>>> =
-		FuturesUnordered::new();
+	let delayed_messages: FuturesUnordered<BoxFuture<'static, ()>> = FuturesUnordered::new();
 
 	// Fast path for sending events to subsystems, if any subsystem's queue is full, we hold
 	// the slow path future in the `delayed_messages` queue.
