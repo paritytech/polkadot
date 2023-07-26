@@ -137,7 +137,7 @@ fn run_to(block_number: BlockNumber) {
 }
 
 /// Scenario:
-/// The salary pallet is used to pay a member over XCM
+/// The salary pallet is used to pay a member over XCM.
 /// The correct XCM message is generated and when executed in the remote chain,
 /// the member receives the salary.
 #[test]
