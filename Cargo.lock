@@ -8370,7 +8370,7 @@ dependencies = [
 [[package]]
 name = "pyroscope"
 version = "0.5.6"
-source = "git+https://github.com/alindima/pyroscope-rs.git?branch=expose-frame-pointer-feature#a562eeedf96a8d85a492e1a4caa5c27291b5964e"
+source = "git+https://github.com/alindima/pyroscope-rs.git?rev=8bc106eabd508f05a4e480ed2845c22cf2d68524#8bc106eabd508f05a4e480ed2845c22cf2d68524"
 dependencies = [
  "json",
  "libc",
@@ -8387,7 +8387,7 @@ dependencies = [
 [[package]]
 name = "pyroscope_pprofrs"
 version = "0.2.6"
-source = "git+https://github.com/alindima/pyroscope-rs.git?branch=expose-frame-pointer-feature#a562eeedf96a8d85a492e1a4caa5c27291b5964e"
+source = "git+https://github.com/alindima/pyroscope-rs.git?rev=8bc106eabd508f05a4e480ed2845c22cf2d68524#8bc106eabd508f05a4e480ed2845c22cf2d68524"
 dependencies = [
  "log",
  "pprof",
