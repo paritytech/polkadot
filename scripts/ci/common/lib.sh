@@ -200,7 +200,10 @@ check_bootnode(){
 # - OWNER
 # - REPO
 fetch_release_artifacts() {
-  echo "Using release ID: $RELEASE_ID"
+  echo "Release ID : $RELEASE_ID"
+  echo "Owner      : $OWNER"
+  echo "Repo       : $REPO"
+
   curl -L -s \
     -H "Accept: application/vnd.github+json" \
     -H "Authorization: Bearer ${GITHUB_TOKEN}" \
