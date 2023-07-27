@@ -427,9 +427,8 @@ impl_versioned_try_from!(
 /// - assignment cert type changed, see `IndirectAssignmentCertV2`.
 pub mod vstaging {
 	use parity_scale_codec::{Decode, Encode};
-	use polkadot_node_primitives::approval::{
-		v1::IndirectSignedApprovalVote,
-		v2::{CandidateBitfield, IndirectAssignmentCertV2},
+	use polkadot_node_primitives::approval::v2::{
+		CandidateBitfield, IndirectAssignmentCertV2, IndirectSignedApprovalVoteV2,
 	};
 
 	// Re-export stuff that has not changed since v1.
@@ -468,7 +467,7 @@ pub mod vstaging {
 		Assignments(Vec<(IndirectAssignmentCertV2, CandidateBitfield)>),
 		/// Approvals for candidates in some recent, unfinalized block.
 		#[codec(index = 1)]
-		Approvals(Vec<IndirectSignedApprovalVote>),
+		Approvals(Vec<IndirectSignedApprovalVoteV2>),
 	}
 }
 

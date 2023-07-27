@@ -35,8 +35,8 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::{
-	CandidateCommitments, CandidateEvent, CoreIndex, GroupIndex, Header, Id as ParaId, IndexedVec,
-	ValidationCode, ValidatorSignature,
+	ApprovalVote, CandidateCommitments, CandidateEvent, CoreIndex, GroupIndex, Header,
+	Id as ParaId, IndexedVec, ValidationCode, ValidatorSignature,
 };
 use std::time::Duration;
 
@@ -427,6 +427,15 @@ fn sign_approval(
 	key.sign(&ApprovalVote(candidate_hash).signing_payload(session_index)).into()
 }
 
+fn sign_approval_multiple_candidates(
+	key: Sr25519Keyring,
+	candidate_hashes: Vec<CandidateHash>,
+	session_index: SessionIndex,
+) -> ValidatorSignature {
+	key.sign(&ApprovalVoteMultipleCandidates(candidate_hashes).signing_payload(session_index))
+		.into()
+}
+
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalVotingMessage>;
 
 #[derive(Default)]
@@ -616,7 +625,12 @@ async fn check_and_import_approval(
 		overseer,
 		FromOrchestra::Communication {
 			msg: ApprovalVotingMessage::CheckAndImportApproval(
-				IndirectSignedApprovalVote { block_hash, candidate_index, validator, signature },
+				IndirectSignedApprovalVoteV2 {
+					block_hash,
+					candidate_indices: candidate_index.into(),
+					validator,
+					signature,
+				},
 				tx,
 			),
 		},
@@ -1913,6 +1927,91 @@ fn forkful_import_at_same_height_act_on_leaf() {
 		}
 		virtual_overseer
 	});
+}
+
+#[test]
+fn test_signing_a_single_candidate_is_backwards_compatible() {
+	let session_index = 1;
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_descriptors = (1..10)
+		.into_iter()
+		.map(|val| make_candidate(ParaId::from(val as u32), &block_hash))
+		.collect::<Vec<CandidateReceipt>>();
+
+	let candidate_hashes = candidate_descriptors
+		.iter()
+		.map(|candidate_descriptor| candidate_descriptor.hash())
+		.collect_vec();
+
+	let first_descriptor = candidate_descriptors.first().expect("TODO");
+
+	let candidate_hash = first_descriptor.hash();
+
+	let sig_a = sign_approval(Sr25519Keyring::Alice, candidate_hash, session_index);
+
+	let sig_b = sign_approval(Sr25519Keyring::Alice, candidate_hash, session_index);
+
+	assert!(DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
+		.check_signature(
+			&Sr25519Keyring::Alice.public().into(),
+			candidate_hash,
+			session_index,
+			&sig_a,
+		)
+		.is_ok());
+
+	assert!(DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
+		.check_signature(
+			&Sr25519Keyring::Alice.public().into(),
+			candidate_hash,
+			session_index,
+			&sig_b,
+		)
+		.is_ok());
+
+	let sig_c = sign_approval_multiple_candidates(
+		Sr25519Keyring::Alice,
+		vec![candidate_hash],
+		session_index,
+	);
+
+	assert!(DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(vec![
+		candidate_hash
+	]))
+	.check_signature(&Sr25519Keyring::Alice.public().into(), candidate_hash, session_index, &sig_c,)
+	.is_ok());
+
+	assert!(DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
+		.check_signature(
+			&Sr25519Keyring::Alice.public().into(),
+			candidate_hash,
+			session_index,
+			&sig_c,
+		)
+		.is_ok());
+
+	assert!(DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(vec![
+		candidate_hash
+	]))
+	.check_signature(&Sr25519Keyring::Alice.public().into(), candidate_hash, session_index, &sig_a,)
+	.is_ok());
+
+	let sig_all = sign_approval_multiple_candidates(
+		Sr25519Keyring::Alice,
+		candidate_hashes.clone(),
+		session_index,
+	);
+
+	assert!(DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(
+		candidate_hashes.clone()
+	))
+	.check_signature(
+		&Sr25519Keyring::Alice.public().into(),
+		*candidate_hashes.first().expect("test"),
+		session_index,
+		&sig_all,
+	)
+	.is_ok());
 }
 
 #[test]

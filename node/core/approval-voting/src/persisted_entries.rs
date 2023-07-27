@@ -25,8 +25,8 @@ use polkadot_node_primitives::approval::{
 	v2::AssignmentCertV2,
 };
 use polkadot_primitives::{
-	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
-	ValidatorIndex, ValidatorSignature,
+	BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex, GroupIndex, Hash,
+	SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 use sp_consensus_slots::Slot;
 
@@ -358,6 +358,14 @@ pub struct BlockEntry {
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
 	pub approved_bitfield: Bitfield,
 	pub children: Vec<Hash>,
+	// A list of candidates that has been approved, but we didn't not sign and
+	// advertise the vote yet.
+	pub candidates_pending_signature: BTreeMap<CandidateIndex, CandidateSigningContext>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CandidateSigningContext {
+	pub candidate_hash: CandidateHash,
 }
 
 impl BlockEntry {
@@ -446,6 +454,11 @@ impl From<crate::approval_db::v2::BlockEntry> for BlockEntry {
 			candidates: entry.candidates,
 			approved_bitfield: entry.approved_bitfield,
 			children: entry.children,
+			candidates_pending_signature: entry
+				.candidates_pending_signature
+				.into_iter()
+				.map(|(candidate_index, signing_context)| (candidate_index, signing_context.into()))
+				.collect(),
 		}
 	}
 }
@@ -462,7 +475,24 @@ impl From<BlockEntry> for crate::approval_db::v2::BlockEntry {
 			candidates: entry.candidates,
 			approved_bitfield: entry.approved_bitfield,
 			children: entry.children,
+			candidates_pending_signature: entry
+				.candidates_pending_signature
+				.into_iter()
+				.map(|(candidate_index, signing_context)| (candidate_index, signing_context.into()))
+				.collect(),
 		}
+	}
+}
+
+impl From<crate::approval_db::v2::CandidateSigningContext> for CandidateSigningContext {
+	fn from(signing_context: crate::approval_db::v2::CandidateSigningContext) -> Self {
+		Self { candidate_hash: signing_context.candidate_hash }
+	}
+}
+
+impl From<CandidateSigningContext> for crate::approval_db::v2::CandidateSigningContext {
+	fn from(signing_context: CandidateSigningContext) -> Self {
+		Self { candidate_hash: signing_context.candidate_hash }
 	}
 }
 

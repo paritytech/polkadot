@@ -107,8 +107,9 @@ impl ValidCandidateVotes {
 				ValidDisputeStatementKind::BackingValid(_) |
 				ValidDisputeStatementKind::BackingSeconded(_) => false,
 				ValidDisputeStatementKind::Explicit |
-				ValidDisputeStatementKind::ApprovalChecking => {
-					occupied.insert((kind, sig));
+				ValidDisputeStatementKind::ApprovalChecking |
+				ValidDisputeStatementKind::ApprovalCheckingV2(_) => {
+					occupied.insert((kind.clone(), sig));
 					kind != occupied.get().0
 				},
 			},

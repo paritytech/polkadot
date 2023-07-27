@@ -219,7 +219,9 @@ pub mod v2 {
 	use std::ops::BitOr;
 
 	use bitvec::{prelude::Lsb0, vec::BitVec};
-	use polkadot_primitives::{CandidateIndex, CoreIndex, Hash, ValidatorIndex};
+	use polkadot_primitives::{
+		CandidateIndex, CoreIndex, Hash, ValidatorIndex, ValidatorSignature,
+	};
 
 	/// A static context associated with producing randomness for a core.
 	pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE v2";
@@ -361,14 +363,16 @@ pub mod v2 {
 		/// candidates were included.
 		///
 		/// The context is [`v2::RELAY_VRF_MODULO_CONTEXT`]
+		#[codec(index = 0)]
 		RelayVRFModuloCompact {
 			/// A bitfield representing the core indices claimed by this assignment.
 			core_bitfield: CoreBitfield,
-		} = 0,
+		},
 		/// An assignment story based on the VRF that authorized the relay-chain block where the
 		/// candidate was included combined with the index of a particular core.
 		///
 		/// The context is [`v2::RELAY_VRF_DELAY_CONTEXT`]
+		#[codec(index = 1)]
 		RelayVRFDelay {
 			/// The core index chosen in this cert.
 			core_index: CoreIndex,
@@ -378,6 +382,7 @@ pub mod v2 {
 		/// candidate was included combined with a sample number.
 		///
 		/// The context used to produce bytes is [`v1::RELAY_VRF_MODULO_CONTEXT`]
+		#[codec(index = 2)]
 		RelayVRFModulo {
 			/// The sample number used in this cert.
 			sample: u32,
@@ -464,6 +469,59 @@ pub mod v2 {
 				cert: indirect_cert.cert.try_into()?,
 			})
 		}
+	}
+
+	impl From<super::v1::IndirectSignedApprovalVote> for IndirectSignedApprovalVoteV2 {
+		fn from(value: super::v1::IndirectSignedApprovalVote) -> Self {
+			Self {
+				block_hash: value.block_hash,
+				validator: value.validator,
+				candidate_indices: value.candidate_index.into(),
+				signature: value.signature,
+			}
+		}
+	}
+
+	/// Errors that can occur when trying to convert to/from approvals v1/v2
+	#[derive(Debug)]
+	pub enum ApprovalConversionError {
+		/// More than one candidate was signed.
+		MoreThanOneCandidate(usize),
+	}
+
+	impl TryFrom<IndirectSignedApprovalVoteV2> for super::v1::IndirectSignedApprovalVote {
+		type Error = ApprovalConversionError;
+
+		fn try_from(value: IndirectSignedApprovalVoteV2) -> Result<Self, Self::Error> {
+			if value.candidate_indices.count_ones() != 1 {
+				return Err(ApprovalConversionError::MoreThanOneCandidate(
+					value.candidate_indices.count_ones(),
+				))
+			}
+			Ok(Self {
+				block_hash: value.block_hash,
+				validator: value.validator,
+				candidate_index: value.candidate_indices.first_one().expect("Qed we checked above")
+					as u32,
+				signature: value.signature,
+			})
+		}
+	}
+
+	/// A signed approval vote which references the candidate indirectly via the block.
+	///
+	/// In practice, we have a look-up from block hash and candidate index to candidate hash,
+	/// so this can be transformed into a `SignedApprovalVote`.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct IndirectSignedApprovalVoteV2 {
+		/// A block hash where the candidate appears.
+		pub block_hash: Hash,
+		/// The index of the candidate in the list of candidates fully included as-of the block.
+		pub candidate_indices: CandidateBitfield,
+		/// The validator index.
+		pub validator: ValidatorIndex,
+		/// The signature by the validator.
+		pub signature: ValidatorSignature,
 	}
 }
 

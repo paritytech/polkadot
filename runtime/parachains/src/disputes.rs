@@ -25,11 +25,11 @@ use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_runtime_metrics::get_current_time;
 use primitives::{
-	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash,
-	CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CompactStatement, ConsensusLog,
-	DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
-	InvalidDisputeStatementKind, MultiDisputeStatementSet, SessionIndex, SigningContext,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
+	byzantine_threshold, supermajority_threshold, vstaging::ApprovalVoteMultipleCandidates,
+	ApprovalVote, CandidateHash, CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet,
+	CompactStatement, ConsensusLog, DisputeState, DisputeStatement, DisputeStatementSet,
+	ExplicitDisputeStatement, InvalidDisputeStatementKind, MultiDisputeStatementSet, SessionIndex,
+	SigningContext, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -1345,6 +1345,9 @@ fn check_signature(
 			}),
 		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) =>
 			ApprovalVote(candidate_hash).signing_payload(session),
+		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(_)) =>
+		// TODO: Fixme
+			ApprovalVoteMultipleCandidates(vec![candidate_hash]).signing_payload(session),
 		DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit) =>
 			ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
 	};

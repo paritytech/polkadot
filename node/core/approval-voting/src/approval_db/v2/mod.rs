@@ -21,8 +21,8 @@ use polkadot_node_primitives::approval::{v1::DelayTranche, v2::AssignmentCertV2}
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::{
-	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
-	ValidatorIndex, ValidatorSignature,
+	BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex, GroupIndex, Hash,
+	SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 
 use sp_consensus_slots::Slot;
@@ -238,6 +238,16 @@ pub struct BlockEntry {
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
 	pub approved_bitfield: Bitfield,
 	pub children: Vec<Hash>,
+	// A list of candidates that has been approved, but we didn't not sign and
+	// advertise the vote yet.
+	pub candidates_pending_signature: BTreeMap<CandidateIndex, CandidateSigningContext>,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+
+/// Context needed for creating an approval signature  for a given candidate.
+pub struct CandidateSigningContext {
+	pub candidate_hash: CandidateHash,
 }
 
 impl From<crate::Tick> for Tick {

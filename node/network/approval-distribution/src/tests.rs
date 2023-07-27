@@ -746,14 +746,14 @@ fn import_approval_happy_path() {
 		);
 
 		// send the an approval from peer_b
-		let approval = IndirectSignedApprovalVote {
+		let approval = IndirectSignedApprovalVoteV2 {
 			block_hash: hash,
-			candidate_index,
+			candidate_indices: candidate_index.into(),
 			validator: validator_index,
 			signature: dummy_signature(),
 		};
-		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
-		send_message_from_peer(overseer, &peer_b, msg).await;
+		let msg = protocol_vstaging::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
+		send_message_from_peer_v2(overseer, &peer_b, msg).await;
 
 		assert_matches!(
 			overseer_recv(overseer).await,
@@ -814,14 +814,14 @@ fn import_approval_bad() {
 		let cert = fake_assignment_cert(hash, validator_index);
 
 		// send the an approval from peer_b, we don't have an assignment yet
-		let approval = IndirectSignedApprovalVote {
+		let approval = IndirectSignedApprovalVoteV2 {
 			block_hash: hash,
-			candidate_index,
+			candidate_indices: candidate_index.into(),
 			validator: validator_index,
 			signature: dummy_signature(),
 		};
-		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
-		send_message_from_peer(overseer, &peer_b, msg).await;
+		let msg = protocol_vstaging::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
+		send_message_from_peer_v2(overseer, &peer_b, msg).await;
 
 		expect_reputation_change(overseer, &peer_b, COST_UNEXPECTED_MESSAGE).await;
 
@@ -846,8 +846,8 @@ fn import_approval_bad() {
 		expect_reputation_change(overseer, &peer_b, BENEFIT_VALID_MESSAGE_FIRST).await;
 
 		// and try again
-		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
-		send_message_from_peer(overseer, &peer_b, msg).await;
+		let msg = protocol_vstaging::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
+		send_message_from_peer_v2(overseer, &peer_b, msg).await;
 
 		assert_matches!(
 			overseer_recv(overseer).await,
@@ -1162,14 +1162,14 @@ fn import_remotely_then_locally() {
 		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
 
 		// send the approval remotely
-		let approval = IndirectSignedApprovalVote {
+		let approval = IndirectSignedApprovalVoteV2 {
 			block_hash: hash,
-			candidate_index,
+			candidate_indices: candidate_index.into(),
 			validator: validator_index,
 			signature: dummy_signature(),
 		};
-		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
-		send_message_from_peer(overseer, peer, msg).await;
+		let msg = protocol_vstaging::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
+		send_message_from_peer_v2(overseer, peer, msg).await;
 
 		assert_matches!(
 			overseer_recv(overseer).await,
@@ -1234,8 +1234,11 @@ fn sends_assignments_even_when_state_is_approved() {
 		)
 		.await;
 
-		overseer_send(overseer, ApprovalDistributionMessage::DistributeApproval(approval.clone()))
-			.await;
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeApproval(approval.clone().into()),
+		)
+		.await;
 
 		// connect the peer.
 		setup_peer_with_view(overseer, peer, view![hash], ValidationVersion::V1).await;
@@ -1313,9 +1316,9 @@ fn sends_assignments_even_when_state_is_approved_v2() {
 		// Assumes candidate index == core index.
 		let approvals = cores
 			.iter()
-			.map(|core| IndirectSignedApprovalVote {
+			.map(|core| IndirectSignedApprovalVoteV2 {
 				block_hash: hash,
-				candidate_index: *core,
+				candidate_indices: (*core).into(),
 				validator: validator_index,
 				signature: dummy_signature(),
 			})
@@ -1366,8 +1369,8 @@ fn sends_assignments_even_when_state_is_approved_v2() {
 			)) => {
 				// Construct a hashmaps of approvals for comparison. Approval distribution reorders messages because they are kept in a
 				// hashmap as well.
-				let sent_approvals = sent_approvals.into_iter().map(|approval| (approval.candidate_index, approval)).collect::<HashMap<_,_>>();
-				let approvals = approvals.into_iter().map(|approval| (approval.candidate_index, approval)).collect::<HashMap<_,_>>();
+				let sent_approvals = sent_approvals.into_iter().map(|approval| (approval.candidate_indices.clone(), approval)).collect::<HashMap<_,_>>();
+				let approvals = approvals.into_iter().map(|approval| (approval.candidate_indices.clone(), approval)).collect::<HashMap<_,_>>();
 
 				assert_eq!(peers, vec![peer.clone()]);
 				assert_eq!(sent_approvals, approvals);
@@ -1520,8 +1523,11 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 		)
 		.await;
 
-		overseer_send(overseer, ApprovalDistributionMessage::DistributeApproval(approval.clone()))
-			.await;
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeApproval(approval.clone().into()),
+		)
+		.await;
 
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let approvals = vec![approval.clone()];
@@ -1771,8 +1777,11 @@ fn propagates_to_required_after_connect() {
 		)
 		.await;
 
-		overseer_send(overseer, ApprovalDistributionMessage::DistributeApproval(approval.clone()))
-			.await;
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeApproval(approval.clone().into()),
+		)
+		.await;
 
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let approvals = vec![approval.clone()];
@@ -1899,8 +1908,11 @@ fn sends_to_more_peers_after_getting_topology() {
 		)
 		.await;
 
-		overseer_send(overseer, ApprovalDistributionMessage::DistributeApproval(approval.clone()))
-			.await;
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeApproval(approval.clone().into()),
+		)
+		.await;
 
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let approvals = vec![approval.clone()];
@@ -2061,8 +2073,11 @@ fn originator_aggression_l1() {
 		)
 		.await;
 
-		overseer_send(overseer, ApprovalDistributionMessage::DistributeApproval(approval.clone()))
-			.await;
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeApproval(approval.clone().into()),
+		)
+		.await;
 
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let approvals = vec![approval.clone()];
@@ -2600,9 +2615,9 @@ fn batch_test_round(message_count: usize) {
 			.collect();
 
 		let approvals: Vec<_> = validators
-			.map(|index| IndirectSignedApprovalVote {
+			.map(|index| IndirectSignedApprovalVoteV2 {
 				block_hash: Hash::zero(),
-				candidate_index: 0,
+				candidate_indices: 0u32.into(),
 				validator: ValidatorIndex(index as u32),
 				signature: dummy_signature(),
 			})
@@ -2669,7 +2684,7 @@ fn batch_test_round(message_count: usize) {
 					assert_eq!(peers.len(), 1);
 
 					for (message_index,  approval) in sent_approvals.iter().enumerate() {
-						assert_eq!(approval, &approvals[approval_index + message_index]);
+						assert_eq!(approval, &approvals[approval_index + message_index].clone().try_into().unwrap());
 					}
 				}
 			);

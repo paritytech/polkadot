@@ -34,7 +34,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::approval::{
 	v1::{BlockApprovalMeta, IndirectSignedApprovalVote},
-	v2::{AsBitIndex, CandidateBitfield, IndirectAssignmentCertV2},
+	v2::{AsBitIndex, CandidateBitfield, IndirectAssignmentCertV2, IndirectSignedApprovalVoteV2},
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -109,7 +109,7 @@ struct ApprovalEntry {
 	// The candidates claimed by the certificate. A mapping between bit index and candidate index.
 	candidates: CandidateBitfield,
 	// The approval signatures for each `CandidateIndex` claimed by the assignment certificate.
-	approvals: HashMap<CandidateIndex, IndirectSignedApprovalVote>,
+	approvals: HashMap<CandidateIndex, IndirectSignedApprovalVoteV2>,
 	// The validator index of the assignment signer.
 	validator_index: ValidatorIndex,
 	// Information required for gossiping to other peers using the grid topology.
@@ -177,7 +177,8 @@ impl ApprovalEntry {
 	// Records a new approval. Returns false if the claimed candidate is not found or we already have received the approval.
 	pub fn note_approval(
 		&mut self,
-		approval: IndirectSignedApprovalVote,
+		approval: IndirectSignedApprovalVoteV2,
+		candidate_index: CandidateIndex,
 	) -> Result<(), ApprovalEntryError> {
 		// First do some sanity checks:
 		// - check validator index matches
@@ -187,19 +188,18 @@ impl ApprovalEntry {
 			return Err(ApprovalEntryError::InvalidValidatorIndex)
 		}
 
-		if self.candidates.len() <= approval.candidate_index as usize {
+		if self.candidates.len() <= candidate_index as usize {
 			return Err(ApprovalEntryError::CandidateIndexOutOfBounds)
 		}
-
-		if !self.candidates.bit_at(approval.candidate_index.as_bit_index()) {
+		if !self.candidates.bit_at((candidate_index).as_bit_index()) {
 			return Err(ApprovalEntryError::InvalidCandidateIndex)
 		}
 
-		if self.approvals.contains_key(&approval.candidate_index) {
+		if self.approvals.contains_key(&candidate_index) {
 			return Err(ApprovalEntryError::DuplicateApproval)
 		}
 
-		self.approvals.insert(approval.candidate_index, approval);
+		self.approvals.insert(candidate_index, approval.clone());
 		Ok(())
 	}
 
@@ -209,7 +209,7 @@ impl ApprovalEntry {
 	}
 
 	// Get all approvals for all candidates claimed by the assignment.
-	pub fn get_approvals(&self) -> Vec<IndirectSignedApprovalVote> {
+	pub fn get_approvals(&self) -> Vec<IndirectSignedApprovalVoteV2> {
 		self.approvals.values().cloned().collect::<Vec<_>>()
 	}
 
@@ -217,7 +217,7 @@ impl ApprovalEntry {
 	pub fn get_approval(
 		&self,
 		candidate_index: CandidateIndex,
-	) -> Option<IndirectSignedApprovalVote> {
+	) -> Option<IndirectSignedApprovalVoteV2> {
 		self.approvals.get(&candidate_index).cloned()
 	}
 
@@ -552,7 +552,7 @@ impl MessageSource {
 
 enum PendingMessage {
 	Assignment(IndirectAssignmentCertV2, CandidateBitfield),
-	Approval(IndirectSignedApprovalVote),
+	Approval(IndirectSignedApprovalVoteV2),
 }
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
@@ -822,6 +822,48 @@ impl State {
 		}
 	}
 
+	async fn process_incoming_approvals<Context>(
+		&mut self,
+		ctx: &mut Context,
+		metrics: &Metrics,
+		peer_id: PeerId,
+		approvals: Vec<IndirectSignedApprovalVoteV2>,
+	) {
+		gum::trace!(
+			target: LOG_TARGET,
+			peer_id = %peer_id,
+			num = approvals.len(),
+			"Processing approvals from a peer",
+		);
+		for approval_vote in approvals.into_iter() {
+			if let Some(pending) = self.pending_known.get_mut(&approval_vote.block_hash) {
+				let block_hash = approval_vote.block_hash;
+				let validator_index = approval_vote.validator;
+
+				gum::trace!(
+					target: LOG_TARGET,
+					%peer_id,
+					?block_hash,
+					?validator_index,
+					"Pending assignment candidates {:?}",
+					approval_vote.candidate_indices,
+				);
+
+				pending.push((peer_id, PendingMessage::Approval(approval_vote)));
+
+				continue
+			}
+
+			self.import_and_circulate_approval(
+				ctx,
+				metrics,
+				MessageSource::Peer(peer_id),
+				approval_vote,
+			)
+			.await;
+		}
+	}
+
 	async fn process_incoming_peer_message<Context, R>(
 		&mut self,
 		ctx: &mut Context,
@@ -869,42 +911,17 @@ impl State {
 			},
 			Versioned::VStaging(protocol_vstaging::ApprovalDistributionMessage::Approvals(
 				approvals,
-			)) |
+			)) => {
+				self.process_incoming_approvals(ctx, metrics, peer_id, approvals).await;
+			},
 			Versioned::V1(protocol_v1::ApprovalDistributionMessage::Approvals(approvals)) => {
-				gum::trace!(
-					target: LOG_TARGET,
-					peer_id = %peer_id,
-					num = approvals.len(),
-					"Processing approvals from a peer",
-				);
-				for approval_vote in approvals.into_iter() {
-					if let Some(pending) = self.pending_known.get_mut(&approval_vote.block_hash) {
-						let block_hash = approval_vote.block_hash;
-						let candidate_index = approval_vote.candidate_index;
-						let validator_index = approval_vote.validator;
-
-						gum::trace!(
-							target: LOG_TARGET,
-							%peer_id,
-							?block_hash,
-							?candidate_index,
-							?validator_index,
-							"Pending assignment",
-						);
-
-						pending.push((peer_id, PendingMessage::Approval(approval_vote)));
-
-						continue
-					}
-
-					self.import_and_circulate_approval(
-						ctx,
-						metrics,
-						MessageSource::Peer(peer_id),
-						approval_vote,
-					)
-					.await;
-				}
+				self.process_incoming_approvals(
+					ctx,
+					metrics,
+					peer_id,
+					approvals.into_iter().map(|approval| approval.into()).collect::<Vec<_>>(),
+				)
+				.await;
 			},
 		}
 	}
@@ -1287,7 +1304,7 @@ impl State {
 		ctx: &mut Context,
 		metrics: &Metrics,
 		source: MessageSource,
-		vote: IndirectSignedApprovalVote,
+		vote: IndirectSignedApprovalVoteV2,
 	) {
 		let _span = self
 			.spans
@@ -1306,10 +1323,13 @@ impl State {
 
 		let block_hash = vote.block_hash;
 		let validator_index = vote.validator;
-		let candidate_index = vote.candidate_index;
-
+		let candidate_indices = &vote.candidate_indices;
 		let entry = match self.blocks.get_mut(&block_hash) {
-			Some(entry) if entry.contains_approval_entry(candidate_index, validator_index) => entry,
+			Some(entry)
+				if vote.candidate_indices.iter_ones().fold(true, |result, candidate_index| {
+					entry.contains_approval_entry(candidate_index as _, validator_index) && result
+				}) =>
+				entry,
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
@@ -1321,60 +1341,74 @@ impl State {
 		};
 
 		// compute metadata on the assignment.
-		let message_subject = MessageSubject(block_hash, candidate_index.into(), validator_index);
+		let message_subjects = candidate_indices
+			.iter_ones()
+			.map(|candidate_index| {
+				MessageSubject(
+					block_hash,
+					(candidate_index as CandidateIndex).into(),
+					validator_index,
+				)
+			})
+			.collect_vec();
 		let message_kind = MessageKind::Approval;
 
 		if let Some(peer_id) = source.peer_id() {
-			if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
-				gum::debug!(
-					target: LOG_TARGET,
-					?peer_id,
-					?message_subject,
-					"Unknown approval assignment",
-				);
-				modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
-				return
-			}
-
-			// check if our knowledge of the peer already contains this approval
-			match entry.known_by.entry(peer_id) {
-				hash_map::Entry::Occupied(mut knowledge) => {
-					let peer_knowledge = knowledge.get_mut();
-					if peer_knowledge.contains(&message_subject, message_kind) {
-						if !peer_knowledge.received.insert(message_subject.clone(), message_kind) {
-							gum::debug!(
-								target: LOG_TARGET,
-								?peer_id,
-								?message_subject,
-								"Duplicate approval",
-							);
-
-							modify_reputation(ctx.sender(), peer_id, COST_DUPLICATE_MESSAGE).await;
-						}
-						return
-					}
-				},
-				hash_map::Entry::Vacant(_) => {
+			for message_subject in &message_subjects {
+				if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
 					gum::debug!(
 						target: LOG_TARGET,
 						?peer_id,
 						?message_subject,
-						"Approval from a peer is out of view",
+						"Unknown approval assignment",
 					);
 					modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
-				},
-			}
-
-			// if the approval is known to be valid, reward the peer
-			if entry.knowledge.contains(&message_subject, message_kind) {
-				gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
-				modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE).await;
-				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-					peer_knowledge.received.insert(message_subject.clone(), message_kind);
+					return
 				}
-				return
-			}
 
+				// check if our knowledge of the peer already contains this approval
+				match entry.known_by.entry(peer_id) {
+					hash_map::Entry::Occupied(mut knowledge) => {
+						let peer_knowledge = knowledge.get_mut();
+						if peer_knowledge.contains(&message_subject, message_kind) {
+							if !peer_knowledge
+								.received
+								.insert(message_subject.clone(), message_kind)
+							{
+								gum::debug!(
+									target: LOG_TARGET,
+									?peer_id,
+									?message_subject,
+									"Duplicate approval",
+								);
+
+								modify_reputation(ctx.sender(), peer_id, COST_DUPLICATE_MESSAGE)
+									.await;
+							}
+							return
+						}
+					},
+					hash_map::Entry::Vacant(_) => {
+						gum::debug!(
+							target: LOG_TARGET,
+							?peer_id,
+							?message_subject,
+							"Approval from a peer is out of view",
+						);
+						modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
+					},
+				}
+
+				// if the approval is known to be valid, reward the peer
+				if entry.knowledge.contains(&message_subject, message_kind) {
+					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
+					modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE).await;
+					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+						peer_knowledge.received.insert(message_subject.clone(), message_kind);
+					}
+					return
+				}
+			}
 			let (tx, rx) = oneshot::channel();
 
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
@@ -1393,7 +1427,6 @@ impl State {
 			gum::trace!(
 				target: LOG_TARGET,
 				?peer_id,
-				?message_subject,
 				?result,
 				"Checked approval",
 			);
@@ -1401,9 +1434,11 @@ impl State {
 				ApprovalCheckResult::Accepted => {
 					modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE_FIRST).await;
 
-					entry.knowledge.insert(message_subject.clone(), message_kind);
-					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(message_subject.clone(), message_kind);
+					for message_subject in &message_subjects {
+						entry.knowledge.insert(message_subject.clone(), message_kind);
+						if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+							peer_knowledge.received.insert(message_subject.clone(), message_kind);
+						}
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
@@ -1418,61 +1453,63 @@ impl State {
 				},
 			}
 		} else {
-			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
-				// if we already imported an approval, there is no need to distribute it again
+			let all_approvals_imported_already =
+				message_subjects.iter().fold(true, |result, message_subject| {
+					!entry.knowledge.insert(message_subject.clone(), message_kind) && result
+				});
+			if all_approvals_imported_already {
+				// if we already imported all approvals, there is no need to distribute it again
 				gum::warn!(
 					target: LOG_TARGET,
-					?message_subject,
 					"Importing locally an already known approval",
 				);
 				return
 			} else {
 				gum::debug!(
 					target: LOG_TARGET,
-					?message_subject,
 					"Importing locally a new approval",
 				);
 			}
 		}
+		let mut required_routing = RequiredRouting::None;
 
-		// The entry is created when assignment is imported, so we assume this exists.
-		let approval_entry = entry.get_approval_entry(candidate_index, validator_index);
-		if approval_entry.is_none() {
-			let peer_id = source.peer_id();
-			// This indicates a bug in approval-distribution, since we check the knowledge at the begining of the function.
-			gum::warn!(
-				target: LOG_TARGET,
-				?peer_id,
-				?message_subject,
-				"Unknown approval assignment",
-			);
-			// No rep change as this is caused by an issue
-			return
+		for candidate_index in candidate_indices.iter_ones() {
+			// The entry is created when assignment is imported, so we assume this exists.
+			let approval_entry = entry.get_approval_entry(candidate_index as _, validator_index);
+			if approval_entry.is_none() {
+				let peer_id = source.peer_id();
+				// This indicates a bug in approval-distribution, since we check the knowledge at the begining of the function.
+				gum::warn!(
+					target: LOG_TARGET,
+					?peer_id,
+					"Unknown approval assignment",
+				);
+				// No rep change as this is caused by an issue
+				return
+			}
+
+			let approval_entry = approval_entry.expect("Just checked above; qed");
+
+			if let Err(err) = approval_entry.note_approval(vote.clone(), candidate_index as _) {
+				// this would indicate a bug in approval-voting:
+				// - validator index mismatch
+				// - candidate index mismatch
+				// - duplicate approval
+				gum::warn!(
+					target: LOG_TARGET,
+					hash = ?block_hash,
+					?candidate_index,
+					?validator_index,
+					?err,
+					"Possible bug: Vote import failed",
+				);
+
+				return
+			}
+			required_routing = approval_entry.routing_info().required_routing;
 		}
-
-		let approval_entry = approval_entry.expect("Just checked above; qed");
-
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
 		metrics.on_approval_imported();
-
-		if let Err(err) = approval_entry.note_approval(vote.clone()) {
-			// this would indicate a bug in approval-voting:
-			// - validator index mismatch
-			// - candidate index mismatch
-			// - duplicate approval
-			gum::warn!(
-				target: LOG_TARGET,
-				hash = ?block_hash,
-				?candidate_index,
-				?validator_index,
-				?err,
-				"Possible bug: Vote import failed",
-			);
-
-			return
-		}
-
-		let required_routing = approval_entry.routing_info().required_routing;
 
 		// Dispatch a ApprovalDistributionV1Message::Approval(vote)
 		// to all peers required by the topology, with the exception of the source peer.
@@ -1480,7 +1517,7 @@ impl State {
 		let topology = self.topologies.get_topology(entry.session);
 		let source_peer = source.peer_id();
 
-		let message_subject = &message_subject;
+		let message_subjects_clone = message_subjects.clone();
 		let peer_filter = move |peer, knowledge: &PeerKnowledge| {
 			if Some(peer) == source_peer.as_ref() {
 				return false
@@ -1497,7 +1534,10 @@ impl State {
 			//   3. Any randomly selected peers have been sent the assignment already.
 			let in_topology = topology
 				.map_or(false, |t| t.local_grid_neighbors().route_to_peer(required_routing, peer));
-			in_topology || knowledge.sent.contains(message_subject, MessageKind::Assignment)
+			in_topology ||
+				message_subjects_clone.iter().fold(false, |result, message_subject| {
+					result || knowledge.sent.contains(message_subject, MessageKind::Assignment)
+				})
 		};
 
 		let peers = entry
@@ -1511,7 +1551,9 @@ impl State {
 		for peer in peers.iter() {
 			// we already filtered peers above, so this should always be Some
 			if let Some(entry) = entry.known_by.get_mut(&peer.0) {
-				entry.sent.insert(message_subject.clone(), message_kind);
+				for message_subject in &message_subjects {
+					entry.sent.insert(message_subject.clone(), message_kind);
+				}
 			}
 		}
 
@@ -1520,7 +1562,6 @@ impl State {
 			gum::trace!(
 				target: LOG_TARGET,
 				?block_hash,
-				?candidate_index,
 				local = source.peer_id().is_none(),
 				num_peers = peers.len(),
 				"Sending an approval to peers",
@@ -1533,7 +1574,18 @@ impl State {
 				ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 					v1_peers,
 					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-						protocol_v1::ApprovalDistributionMessage::Approvals(approvals.clone()),
+						protocol_v1::ApprovalDistributionMessage::Approvals(
+							approvals
+								.clone()
+								.into_iter()
+								.filter(|approval| approval.candidate_indices.count_ones() == 1)
+								.map(|approval| {
+									approval
+										.try_into()
+										.expect("We checked len() == 1 so it should not fail; qed")
+								})
+								.collect::<Vec<IndirectSignedApprovalVote>>(),
+						),
 					)),
 				))
 				.await;
@@ -1557,7 +1609,7 @@ impl State {
 	fn get_approval_signatures(
 		&mut self,
 		indices: HashSet<(Hash, CandidateIndex)>,
-	) -> HashMap<ValidatorIndex, ValidatorSignature> {
+	) -> HashMap<ValidatorIndex, (Hash, Vec<CandidateIndex>, ValidatorSignature)> {
 		let mut all_sigs = HashMap::new();
 		for (hash, index) in indices {
 			let _span = self
@@ -1584,8 +1636,22 @@ impl State {
 				.get_approval_entries(index)
 				.into_iter()
 				.filter_map(|approval_entry| approval_entry.get_approval(index))
-				.map(|approval| (approval.validator, approval.signature))
-				.collect::<HashMap<ValidatorIndex, ValidatorSignature>>();
+				.map(|approval| {
+					(
+						approval.validator,
+						(
+							hash,
+							approval
+								.candidate_indices
+								.iter_ones()
+								.map(|val| val as CandidateIndex)
+								.collect_vec(),
+							approval.signature,
+						),
+					)
+				})
+				.collect::<HashMap<ValidatorIndex, (Hash, Vec<CandidateIndex>, ValidatorSignature)>>(
+				);
 			all_sigs.extend(sigs);
 		}
 		all_sigs
@@ -1670,12 +1736,20 @@ impl State {
 
 					// Filter approval votes.
 					for approval_message in approval_messages {
-						let (approval_knowledge, message_kind) = approval_entry
-							.create_approval_knowledge(block, approval_message.candidate_index);
+						let mut queued_to_be_sent = false;
+						for approval_candidate_index in
+							approval_message.candidate_indices.iter_ones()
+						{
+							let (approval_knowledge, message_kind) = approval_entry
+								.create_approval_knowledge(block, approval_candidate_index as _);
 
-						if !peer_knowledge.contains(&approval_knowledge, message_kind) {
-							peer_knowledge.sent.insert(approval_knowledge, message_kind);
-							approvals_to_send.push(approval_message);
+							if !peer_knowledge.contains(&approval_knowledge, message_kind) {
+								peer_knowledge.sent.insert(approval_knowledge, message_kind);
+								if !queued_to_be_sent {
+									approvals_to_send.push(approval_message.clone());
+									queued_to_be_sent = true;
+								}
+							}
 						}
 					}
 				}
@@ -1901,15 +1975,21 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 
 				// Filter approval votes.
 				for approval_message in &approval_messages {
-					let (approval_knowledge, message_kind) = approval_entry
-						.create_approval_knowledge(*block_hash, approval_message.candidate_index);
+					let mut queued_to_be_sent: bool = false;
+					for approval_candidate_index in approval_message.candidate_indices.iter_ones() {
+						let (approval_knowledge, message_kind) = approval_entry
+							.create_approval_knowledge(*block_hash, approval_candidate_index as _);
 
-					if !peer_knowledge.contains(&approval_knowledge, message_kind) {
-						peer_knowledge.sent.insert(approval_knowledge, message_kind);
-						peer_approvals
-							.entry(*peer)
-							.or_insert_with(Vec::new)
-							.push(approval_message.clone());
+						if !peer_knowledge.contains(&approval_knowledge, message_kind) {
+							peer_knowledge.sent.insert(approval_knowledge, message_kind);
+							if !queued_to_be_sent {
+								peer_approvals
+									.entry(*peer)
+									.or_insert_with(Vec::new)
+									.push(approval_message.clone());
+								queued_to_be_sent = false;
+							}
+						}
 					}
 				}
 			}
@@ -2065,9 +2145,9 @@ impl ApprovalDistribution {
 			ApprovalDistributionMessage::DistributeApproval(vote) => {
 				gum::debug!(
 					target: LOG_TARGET,
-					"Distributing our approval vote on candidate (block={}, index={})",
+					"Distributing our approval vote on candidate (block={}, index={:?})",
 					vote.block_hash,
-					vote.candidate_index,
+					vote.candidate_indices,
 				);
 
 				state
@@ -2121,7 +2201,7 @@ pub const MAX_ASSIGNMENT_BATCH_SIZE: usize = ensure_size_not_zero(
 
 /// The maximum amount of approvals per batch is 33% of maximum allowed by protocol.
 pub const MAX_APPROVAL_BATCH_SIZE: usize = ensure_size_not_zero(
-	MAX_NOTIFICATION_SIZE as usize / std::mem::size_of::<IndirectSignedApprovalVote>() / 3,
+	MAX_NOTIFICATION_SIZE as usize / std::mem::size_of::<IndirectSignedApprovalVoteV2>() / 3,
 );
 
 // Low level helper for sending assignments.
@@ -2214,14 +2294,19 @@ pub(crate) async fn send_assignments_batched(
 /// Send approvals while honoring the `max_notification_size` of the protocol and peer version.
 pub(crate) async fn send_approvals_batched(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	approvals: impl IntoIterator<Item = IndirectSignedApprovalVote> + Clone,
+	approvals: impl IntoIterator<Item = IndirectSignedApprovalVoteV2> + Clone,
 	peers: &[(PeerId, ProtocolVersion)],
 ) {
 	let v1_peers = filter_by_peer_version(peers, ValidationVersion::V1.into());
 	let v2_peers = filter_by_peer_version(peers, ValidationVersion::VStaging.into());
 
 	if !v1_peers.is_empty() {
-		let mut batches = approvals.clone().into_iter().peekable();
+		let mut batches = approvals
+			.clone()
+			.into_iter()
+			.filter(|approval| approval.candidate_indices.count_ones() == 1)
+			.map(|val| val.try_into().expect("We checked conversion should succeed; qed"))
+			.peekable();
 
 		while batches.peek().is_some() {
 			let batch: Vec<_> = batches.by_ref().take(MAX_APPROVAL_BATCH_SIZE).collect();
