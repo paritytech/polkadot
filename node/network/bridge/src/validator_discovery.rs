@@ -156,7 +156,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 fn extract_peer_ids(multiaddr: impl Iterator<Item = Multiaddr>) -> HashSet<PeerId> {
 	multiaddr
 		.filter_map(|mut addr| match addr.pop() {
-			Some(multiaddr::Protocol::P2p(key)) => PeerId::from_multihash(key).ok(),
+			Some(multiaddr::Protocol::P2p(key)) => PeerId::from_multihash(key.into()).ok(),
 			_ => None,
 		})
 		.collect()
