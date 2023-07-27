@@ -40,7 +40,6 @@ polkadot-overseer = { path = "node/overseer" }
 # Needed for worker binaries.
 polkadot-node-core-pvf-common = { path = "node/core/pvf/common" }
 polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
