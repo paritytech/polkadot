@@ -53,9 +53,9 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex,
-	DisputeStatement, GroupIndex, Hash, PvfExecTimeoutKind, SessionIndex, SessionInfo,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
+	GroupIndex, Hash, PvfExecTimeoutKind, SessionIndex, SessionInfo, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -1087,10 +1087,9 @@ fn get_assignment_core_indices(
 		AssignmentCertKindV2::RelayVRFModulo { sample: _ } => block_entry
 			.candidates()
 			.iter()
-			.position(|(_, h)| candidate_hash == h)
-			.map(|index| {
-				CoreBitfield::try_from(vec![CoreIndex(index as u32)])
-					.expect("Not an empty vec; qed")
+			.find(|(_core_index, h)| candidate_hash == h)
+			.map(|(core_index, _candidate_hash)| {
+				CoreBitfield::try_from(vec![*core_index]).expect("Not an empty vec; qed")
 			}),
 		AssignmentCertKindV2::RelayVRFDelay { core_index } =>
 			Some(CoreBitfield::try_from(vec![*core_index]).expect("Not an empty vec; qed")),
