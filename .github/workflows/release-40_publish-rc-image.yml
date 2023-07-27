@@ -8,6 +8,8 @@ on:
         description: 'Release ID'
         required: true
         type: string
+        # TODO: to be removed, this eases testing
+        default: "62185729"
       registry:
         description: "Container registry"
         required: true
