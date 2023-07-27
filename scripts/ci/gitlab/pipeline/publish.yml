@@ -146,7 +146,7 @@ publish-staking-miner-image-description:
   rules:
     - if: $CI_COMMIT_REF_NAME == "master"
       changes:
-        - scripts/ci/dockerfiles/staking-miner/staking-miner.Dockerfile.README.md
+        - scripts/ci/dockerfiles/staking-miner/staking-miner_Dockerfile.README.md
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
   script:
