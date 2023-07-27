@@ -23,32 +23,27 @@ env:
   REPO: ${{ github.event.repository.name }}
 
 jobs:
-  fetch-artifacts:
+  build-containers:
     runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
-
-      - name: Fetch all artifacts
-        run: |
-          . ./scripts/ci/common/lib.sh
-          fetch_release_artifacts
-
-  build-container:
-    runs-on: ubuntu-latest
-    needs: fetch-artifacts
-
     strategy:
       matrix:
         binary: ["polkadot", "staking-miner"]
 
     steps:
-      - name: Check ${{ matrix.binary }}
-        working-directory: ./artifacts
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Source common lib
         run: |
           . ./scripts/ci/common/lib.sh
 
+      - name: Fetch all artifacts
+        run: |
+          fetch_release_artifacts
+
+      - name: Check ${{ matrix.binary }}
+        working-directory: ./artifacts
+        run: |
           echo "Checking binary ${{ matrix.binary }}"
           check_sha256 ${{ matrix.binary }}
           check_gpg ${{ matrix.binary }}
