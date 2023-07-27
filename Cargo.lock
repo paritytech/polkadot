@@ -14777,7 +14777,6 @@ dependencies = [
  "impl-trait-for-tuples",
  "log",
  "pallet-balances",
- "pallet-nfts",
  "pallet-transaction-payment",
  "pallet-xcm",
  "parity-scale-codec",

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
+//! Adapters to work with `frame_support::traits::tokens::nonfungibles_v2` through XCM.
 
 use crate::{AssetChecking, MintLocation};
 use frame_support::{
