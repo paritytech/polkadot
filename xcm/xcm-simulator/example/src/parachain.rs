@@ -27,7 +27,6 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use sp_core::{ConstU32, ConstU64, H256};
 use sp_runtime::{
-	testing::Header,
 	traits::{Get, Hash, IdentityLookup, Verify},
 	AccountId32, MultiSignature,
 };
@@ -133,7 +132,7 @@ impl EnsureOriginWithArg<RuntimeOrigin, MultiLocationCollectionId> for ForeignCr
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn try_successful_origin(a: &MultiLocation) -> Result<RuntimeOrigin, ()> {
+	fn try_successful_origin(a: &MultiLocationCollectionId) -> Result<RuntimeOrigin, ()> {
 		Ok(pallet_xcm::Origin::Xcm(a.clone()).into())
 	}
 }

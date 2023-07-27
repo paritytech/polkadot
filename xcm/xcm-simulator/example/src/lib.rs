@@ -18,7 +18,6 @@ mod parachain;
 mod relay_chain;
 
 use frame_support::sp_tracing;
-use pallet_nfts::{CollectionConfig, CollectionSettings};
 use sp_runtime::BuildStorage;
 use xcm::prelude::*;
 use xcm_executor::traits::ConvertLocation;
@@ -149,6 +148,7 @@ mod tests {
 	use codec::Encode;
 	use frame_support::{assert_ok, traits::tokens::nonfungibles_v2::Inspect, weights::Weight};
 	use pallet_nfts::MintSettings;
+	use pallet_nfts::{CollectionConfig, CollectionSettings};
 	use xcm::latest::QueryResponseInfo;
 	use xcm_builder::MultiLocationCollectionId;
 	use xcm_simulator::TestExt;
