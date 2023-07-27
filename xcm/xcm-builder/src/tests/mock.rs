@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Mock implementations to test XCM builder configuration types.
+
 use crate::{
 	barriers::{AllowSubscriptionsFrom, RespectSuspension, TrailingSetTopicAsId},
 	test_utils::*,
@@ -410,6 +412,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 	})
 }
 
+/// Mock implementation of the [`QueryHandler`] trait for creating XCM success queries and expecting responses.
 pub struct TestQueryHandler<T, BlockNumber>(core::marker::PhantomData<(T, BlockNumber)>);
 impl<T: Config, BlockNumber: sp_runtime::traits::Zero> QueryHandler
 	for TestQueryHandler<T, BlockNumber>
