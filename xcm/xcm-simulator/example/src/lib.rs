@@ -146,9 +146,8 @@ mod tests {
 	use super::*;
 
 	use codec::Encode;
-	use frame_support::{assert_ok, traits::tokens::nonfungibles_v2::Inspect, weights::Weight};
-	use pallet_nfts::MintSettings;
-	use pallet_nfts::{CollectionConfig, CollectionSettings};
+	use frame_support::{assert_ok, weights::Weight};
+	use pallet_nfts::{CollectionConfig, CollectionSettings, MintSettings};
 	use xcm::latest::QueryResponseInfo;
 	use xcm_builder::MultiLocationCollectionId;
 	use xcm_simulator::TestExt;

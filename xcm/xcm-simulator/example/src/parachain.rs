@@ -133,7 +133,7 @@ impl EnsureOriginWithArg<RuntimeOrigin, MultiLocationCollectionId> for ForeignCr
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn try_successful_origin(a: &MultiLocationCollectionId) -> Result<RuntimeOrigin, ()> {
-		Ok(pallet_xcm::Origin::Xcm(a.clone()).into())
+		Ok(pallet_xcm::Origin::Xcm(a.clone().into()).into())
 	}
 }
 
