@@ -107,6 +107,7 @@ impl MalusCli {
 					polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
 						&cmd.socket_path,
 						None,
+						None,
 					);
 				}
 			},
@@ -120,6 +121,7 @@ impl MalusCli {
 				{
 					polkadot_node_core_pvf_execute_worker::worker_entrypoint(
 						&cmd.socket_path,
+						None,
 						None,
 					);
 				}
