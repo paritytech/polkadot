@@ -428,7 +428,6 @@ fn receive_duplicate_messages() {
 }
 
 #[test]
-// FIXME <https://github.com/paritytech/polkadot/issues/7407>
 fn delay_reputation_change() {
 	use polkadot_node_subsystem_util::reputation::add_reputation;
 
