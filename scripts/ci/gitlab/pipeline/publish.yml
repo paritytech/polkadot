@@ -114,6 +114,46 @@ publish-staking-miner-image:
     - job: build-staking-miner
       artifacts: true
 
+publish-polkadot-image-description:
+  stage: publish
+  variables:
+    CI_IMAGE: paritytech/dockerhub-description
+    DOCKER_USER: ${Docker_Hub_User_Parity}
+    DOCKER_PASS: ${Docker_Hub_Pass_Parity}
+    DOCKERHUB_REPOSITORY: parity/polkadot
+    SHORT_DESCRIPTION: "Polkadot Official Docker Image"
+    README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/polkadot_Dockerfile.README.md
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "master"
+      changes:
+        - scripts/ci/dockerfiles/staking-miner/polkadot_Dockerfile.README.md
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+  script:
+    - cd / && sh entrypoint.sh
+  tags:
+    - kubernetes-parity-build
+
+publish-staking-miner-image-description:
+  stage: publish
+  variables:
+    CI_IMAGE: paritytech/dockerhub-description
+    DOCKER_USER: ${Docker_Hub_User_Parity}
+    DOCKER_PASS: ${Docker_Hub_Pass_Parity}
+    DOCKERHUB_REPOSITORY: paritytech/staking-miner
+    SHORT_DESCRIPTION: "Staking-miner Docker Image"
+    README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/staking-miner/staking-miner_Dockerfile.README.md
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "master"
+      changes:
+        - scripts/ci/dockerfiles/staking-miner/staking-miner.Dockerfile.README.md
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+  script:
+    - cd / && sh entrypoint.sh
+  tags:
+    - kubernetes-parity-build
+
 publish-s3-release:
   stage: publish
   extends:
