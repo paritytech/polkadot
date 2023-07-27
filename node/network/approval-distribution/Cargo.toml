@@ -9,12 +9,14 @@ polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 rand = "0.8"
 itertools = "0.10.5"
 
 futures = "0.3.21"
+futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../../gum" }
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 
@@ -22,7 +24,6 @@ bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }
 

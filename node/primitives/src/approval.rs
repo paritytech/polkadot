@@ -355,6 +355,7 @@ pub mod v2 {
 
 	/// Certificate is changed compared to `AssignmentCertKind`:
 	/// - introduced RelayVRFModuloCompact
+	#[repr(u8)]
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum AssignmentCertKindV2 {
 		/// Multiple assignment stories based on the VRF that authorized the relay-chain block where the
