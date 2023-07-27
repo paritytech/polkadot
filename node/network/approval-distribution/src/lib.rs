@@ -385,7 +385,11 @@ impl Knowledge {
 			for candidate_index in message.1.iter_ones() {
 				success = success &&
 					self.insert(
-						MessageSubject(message.0, vec![candidate_index as u32].try_into().expect("Non-empty vec; qed"), message.2),
+						MessageSubject(
+							message.0,
+							vec![candidate_index as u32].try_into().expect("Non-empty vec; qed"),
+							message.2,
+						),
 						kind,
 					);
 			}
