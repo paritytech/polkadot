@@ -118,8 +118,8 @@ pub use polkadot_node_core_pvf_common::{
 };
 
 // Re-export worker entrypoints.
-pub use polkadot_node_core_pvf_execute_worker::worker_entrypoint as execute_worker_entrypoint;
-pub use polkadot_node_core_pvf_prepare_worker::worker_entrypoint as prepare_worker_entrypoint;
+// pub use polkadot_node_core_pvf_execute_worker::worker_entrypoint as execute_worker_entrypoint;
+// pub use polkadot_node_core_pvf_prepare_worker::worker_entrypoint as prepare_worker_entrypoint;
 
 /// The log target for this crate.
 pub const LOG_TARGET: &str = "parachain::pvf";

@@ -25,16 +25,19 @@ parity-scale-codec = { version = "3.6.1", default-features = false, features = [
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-core-pvf-common = { path = "common" }
-polkadot-node-core-pvf-execute-worker = { path = "execute-worker" }
-polkadot-node-core-pvf-prepare-worker = { path = "prepare-worker" }
+# polkadot-node-core-pvf-execute-worker = { path = "execute-worker" }
+# polkadot-node-core-pvf-prepare-worker = { path = "prepare-worker" }
 polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-primitives = { path = "../../../primitives" }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+pvf-executor = { git = "https://github.com/paritytech/pvf-executor", branch = "main" }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }

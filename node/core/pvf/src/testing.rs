@@ -30,23 +30,24 @@ pub fn validate_candidate(
 	code: &[u8],
 	params: &[u8],
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-	use polkadot_node_core_pvf_execute_worker::Executor;
-	use polkadot_node_core_pvf_prepare_worker::{prepare, prevalidate};
+	// use polkadot_node_core_pvf_execute_worker::Executor;
+	// use polkadot_node_core_pvf_prepare_worker::{prepare, prevalidate};
 
-	let code = sp_maybe_compressed_blob::decompress(code, 10 * 1024 * 1024)
-		.expect("Decompressing code failed");
+	// let code = sp_maybe_compressed_blob::decompress(code, 10 * 1024 * 1024)
+	// 	.expect("Decompressing code failed");
 
-	let blob = prevalidate(&code)?;
-	let compiled_artifact_blob = prepare(blob, &ExecutorParams::default())?;
+	// let blob = prevalidate(&code)?;
+	// let compiled_artifact_blob = prepare(blob, &ExecutorParams::default())?;
 
-	let executor = Executor::new(ExecutorParams::default())?;
-	let result = unsafe {
-		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`
-		//         and is written into a temporary directory in an unmodified state.
-		executor.execute(&compiled_artifact_blob, params)?
-	};
+	// let executor = Executor::new(ExecutorParams::default())?;
+	// let result = unsafe {
+	// 	// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`
+	// 	//         and is written into a temporary directory in an unmodified state.
+	// 	executor.execute(&compiled_artifact_blob, params)?
+	// };
 
-	Ok(result)
+	// Ok(result)
+	Ok(Vec::new())
 }
 
 /// Use this macro to declare a `fn main() {}` that will check the arguments and dispatch them to
@@ -81,12 +82,12 @@ macro_rules! decl_puppet_worker_main {
 				"sleep" => {
 					std::thread::sleep(std::time::Duration::from_secs(5));
 				},
-				"prepare-worker" => {
-					$crate::prepare_worker_entrypoint(&socket_path, version);
-				},
-				"execute-worker" => {
-					$crate::execute_worker_entrypoint(&socket_path, version);
-				},
+				// "prepare-worker" => {
+				// 	$crate::prepare_worker_entrypoint(&socket_path, version);
+				// },
+				// "execute-worker" => {
+				// 	$crate::execute_worker_entrypoint(&socket_path, version);
+				// },
 				other => panic!("unknown subcommand: {}", other),
 			}
 		}

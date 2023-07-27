@@ -20,6 +20,12 @@
 //! The validation host is represented by a future/task that runs an event-loop and by a handle,
 //! [`ValidationHost`], that allows communication with that event-loop.
 
+use pvf_executor::PvfError;
+use polkadot_node_core_pvf_common::execute::Response;
+use parity_scale_codec::Decode;
+use pvf_executor::RawPvf;
+use pvf_executor::IntelX64Compiler;
+use pvf_executor::PvfInstance;
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
 	execute::{self, PendingExecutionRequest},
@@ -33,7 +39,7 @@ use futures::{
 };
 use polkadot_node_core_pvf_common::{
 	error::{PrepareError, PrepareResult},
-	pvf::PvfPrepData,
+	pvf::PvfPrepData, prepare::PrepareStats,
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
@@ -199,28 +205,28 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 
 	let validation_host = ValidationHost { to_host_tx };
 
-	let (to_prepare_pool, from_prepare_pool, run_prepare_pool) = prepare::start_pool(
-		metrics.clone(),
-		config.prepare_worker_program_path.clone(),
-		config.cache_path.clone(),
-		config.prepare_worker_spawn_timeout,
-	);
+	// let (to_prepare_pool, from_prepare_pool, run_prepare_pool) = prepare::start_pool(
+	// 	metrics.clone(),
+	// 	config.prepare_worker_program_path.clone(),
+	// 	config.cache_path.clone(),
+	// 	config.prepare_worker_spawn_timeout,
+	// );
 
-	let (to_prepare_queue_tx, from_prepare_queue_rx, run_prepare_queue) = prepare::start_queue(
-		metrics.clone(),
-		config.prepare_workers_soft_max_num,
-		config.prepare_workers_hard_max_num,
-		config.cache_path.clone(),
-		to_prepare_pool,
-		from_prepare_pool,
-	);
+	// let (to_prepare_queue_tx, from_prepare_queue_rx, run_prepare_queue) = prepare::start_queue(
+	// 	metrics.clone(),
+	// 	config.prepare_workers_soft_max_num,
+	// 	config.prepare_workers_hard_max_num,
+	// 	config.cache_path.clone(),
+	// 	to_prepare_pool,
+	// 	from_prepare_pool,
+	// );
 
-	let (to_execute_queue_tx, run_execute_queue) = execute::start(
-		metrics,
-		config.execute_worker_program_path.to_owned(),
-		config.execute_workers_max_num,
-		config.execute_worker_spawn_timeout,
-	);
+	// let (to_execute_queue_tx, run_execute_queue) = execute::start(
+	// 	metrics,
+	// 	config.execute_worker_program_path.to_owned(),
+	// 	config.execute_workers_max_num,
+	// 	config.execute_worker_spawn_timeout,
+	// );
 
 	let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(100);
 	let run_sweeper = sweeper_task(to_sweeper_rx);
@@ -234,9 +240,9 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 			artifact_ttl: Duration::from_secs(3600 * 24),
 			artifacts,
 			to_host_rx,
-			to_prepare_queue_tx,
-			from_prepare_queue_rx,
-			to_execute_queue_tx,
+			// to_prepare_queue_tx,
+			// from_prepare_queue_rx,
+			// to_execute_queue_tx,
 			to_sweeper_tx,
 			awaiting_prepare: AwaitingPrepare::default(),
 		})
@@ -247,9 +253,9 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		// Bundle the sub-components' tasks together into a single future.
 		futures::select! {
 			_ = run_host.fuse() => {},
-			_ = run_prepare_queue.fuse() => {},
-			_ = run_prepare_pool.fuse() => {},
-			_ = run_execute_queue.fuse() => {},
+			// _ = run_prepare_queue.fuse() => {},
+			// _ = run_prepare_pool.fuse() => {},
+			// _ = run_execute_queue.fuse() => {},
 			_ = run_sweeper.fuse() => {},
 		};
 	};
@@ -280,10 +286,10 @@ struct Inner {
 
 	to_host_rx: mpsc::Receiver<ToHost>,
 
-	to_prepare_queue_tx: mpsc::Sender<prepare::ToQueue>,
-	from_prepare_queue_rx: mpsc::UnboundedReceiver<prepare::FromQueue>,
+	// to_prepare_queue_tx: mpsc::Sender<prepare::ToQueue>,
+	// from_prepare_queue_rx: mpsc::UnboundedReceiver<prepare::FromQueue>,
 
-	to_execute_queue_tx: mpsc::Sender<execute::ToQueue>,
+	// to_execute_queue_tx: mpsc::Sender<execute::ToQueue>,
 	to_sweeper_tx: mpsc::Sender<PathBuf>,
 
 	awaiting_prepare: AwaitingPrepare,
@@ -299,9 +305,9 @@ async fn run(
 		artifact_ttl,
 		mut artifacts,
 		to_host_rx,
-		from_prepare_queue_rx,
-		mut to_prepare_queue_tx,
-		mut to_execute_queue_tx,
+		// from_prepare_queue_rx,
+		// mut to_prepare_queue_tx,
+		// mut to_execute_queue_tx,
 		mut to_sweeper_tx,
 		mut awaiting_prepare,
 	}: Inner,
@@ -326,7 +332,7 @@ async fn run(
 	futures::pin_mut!(cleanup_pulse);
 
 	let mut to_host_rx = to_host_rx.fuse();
-	let mut from_prepare_queue_rx = from_prepare_queue_rx.fuse();
+	// let mut from_prepare_queue_rx = from_prepare_queue_rx.fuse();
 
 	loop {
 		// biased to make it behave deterministically for tests.
@@ -359,33 +365,33 @@ async fn run(
 				break_if_fatal!(handle_to_host(
 					&cache_path,
 					&mut artifacts,
-					&mut to_prepare_queue_tx,
-					&mut to_execute_queue_tx,
+					// &mut to_prepare_queue_tx,
+					// &mut to_execute_queue_tx,
 					&mut awaiting_prepare,
 					to_host,
 				)
 				.await);
 			},
-			from_prepare_queue = from_prepare_queue_rx.next() => {
-				let from_queue = break_if_fatal!(from_prepare_queue.ok_or(Fatal));
+			// from_prepare_queue = from_prepare_queue_rx.next() => {
+			// 	let from_queue = break_if_fatal!(from_prepare_queue.ok_or(Fatal));
 
-				// Note that the preparation outcome is always reported as concluded.
-				//
-				// That's because the error conditions are written into the artifact and will be
-				// reported at the time of the execution. It potentially, but not necessarily, can
-				// be scheduled for execution as a result of this function call, in case there are
-				// pending executions.
-				//
-				// We could be eager in terms of reporting and plumb the result from the preparation
-				// worker but we don't for the sake of simplicity.
-				break_if_fatal!(handle_prepare_done(
-					&cache_path,
-					&mut artifacts,
-					&mut to_execute_queue_tx,
-					&mut awaiting_prepare,
-					from_queue,
-				).await);
-			},
+			// 	// Note that the preparation outcome is always reported as concluded.
+			// 	//
+			// 	// That's because the error conditions are written into the artifact and will be
+			// 	// reported at the time of the execution. It potentially, but not necessarily, can
+			// 	// be scheduled for execution as a result of this function call, in case there are
+			// 	// pending executions.
+			// 	//
+			// 	// We could be eager in terms of reporting and plumb the result from the preparation
+			// 	// worker but we don't for the sake of simplicity.
+			// 	break_if_fatal!(handle_prepare_done(
+			// 		&cache_path,
+			// 		&mut artifacts,
+			// 		&mut to_execute_queue_tx,
+			// 		&mut awaiting_prepare,
+			// 		from_queue,
+			// 	).await);
+			// },
 		}
 	}
 }
@@ -393,28 +399,31 @@ async fn run(
 async fn handle_to_host(
 	cache_path: &Path,
 	artifacts: &mut Artifacts,
-	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
+	// prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
+	// execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
 	to_host: ToHost,
 ) -> Result<(), Fatal> {
 	match to_host {
-		ToHost::PrecheckPvf { pvf, result_tx } => {
-			handle_precheck_pvf(artifacts, prepare_queue, pvf, result_tx).await?;
+		ToHost::PrecheckPvf { pvf: _, result_tx } => {
+			// handle_precheck_pvf(artifacts, prepare_queue, pvf, result_tx).await?;
+			result_tx.send(Ok(PrepareStats::default()));
 		},
 		ToHost::ExecutePvf(inputs) => {
 			handle_execute_pvf(
 				cache_path,
 				artifacts,
-				prepare_queue,
-				execute_queue,
+				// prepare_queue,
+				// execute_queue,
 				awaiting_prepare,
 				inputs,
 			)
 			.await?;
 		},
 		ToHost::HeadsUp { active_pvfs } =>
-			handle_heads_up(artifacts, prepare_queue, active_pvfs).await?,
+			handle_heads_up(artifacts,
+			 // prepare_queue,
+			  active_pvfs).await?,
 	}
 
 	Ok(())
@@ -426,34 +435,60 @@ async fn handle_to_host(
 /// `PvfPrepData`.
 ///
 /// If the prepare job failed previously, we may retry it under certain conditions.
-async fn handle_precheck_pvf(
-	artifacts: &mut Artifacts,
-	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	pvf: PvfPrepData,
-	result_sender: PrepareResultSender,
-) -> Result<(), Fatal> {
-	let artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
+// async fn handle_precheck_pvf(
+// 	artifacts: &mut Artifacts,
+// 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
+// 	pvf: PvfPrepData,
+// 	result_sender: PrepareResultSender,
+// ) -> Result<(), Fatal> {
+// 	let artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
 
-	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
-		match state {
-			ArtifactState::Prepared { last_time_needed, prepare_stats } => {
-				*last_time_needed = SystemTime::now();
-				let _ = result_sender.send(Ok(prepare_stats.clone()));
-			},
-			ArtifactState::Preparing { waiting_for_response, num_failures: _ } =>
-				waiting_for_response.push(result_sender),
-			ArtifactState::FailedToProcess { error, .. } => {
-				// Do not retry failed preparation if another pre-check request comes in. We do not retry pre-checking,
-				// anyway.
-				let _ = result_sender.send(PrepareResult::Err(error.clone()));
-			},
-		}
-	} else {
-		artifacts.insert_preparing(artifact_id, vec![result_sender]);
-		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf })
-			.await?;
-	}
-	Ok(())
+// 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
+// 		match state {
+// 			ArtifactState::Prepared { last_time_needed, prepare_stats } => {
+// 				*last_time_needed = SystemTime::now();
+// 				let _ = result_sender.send(Ok(prepare_stats.clone()));
+// 			},
+// 			ArtifactState::Preparing { waiting_for_response, num_failures: _ } =>
+// 				waiting_for_response.push(result_sender),
+// 			ArtifactState::FailedToProcess { error, .. } => {
+// 				// Do not retry failed preparation if another pre-check request comes in. We do not retry pre-checking,
+// 				// anyway.
+// 				let _ = result_sender.send(PrepareResult::Err(error.clone()));
+// 			},
+// 		}
+// 	} else {
+// 		artifacts.insert_preparing(artifact_id, vec![result_sender]);
+// 		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf })
+// 			.await?;
+// 	}
+// 	Ok(())
+// }
+
+macro_rules! r_offset {
+	($e:expr) => (($e) as u32)
+}
+
+macro_rules! r_length {
+	($e:expr) => ((($e) >> 32) as u32)
+}
+
+#[inline]
+fn polka_wasm_result_to_slice<'a>(instance: &'a PvfInstance, result: u64) -> &'a [u8] {
+	instance.memory_slice(r_offset!(result), r_length!(result))
+}
+
+#[inline]
+fn polka_wasm_result_to_str<'a>(instance: &'a PvfInstance, result: u64) -> &'a str {
+	unsafe { std::str::from_utf8_unchecked(polka_wasm_result_to_slice(instance, result)) }
+}
+
+#[no_mangle]
+fn ext_logging_log_version_1(instance: &PvfInstance, level: u32, target: u64, message: u64) {
+	let target = polka_wasm_result_to_str(instance, target);
+	let message = polka_wasm_result_to_slice(instance, message);
+
+	sp_io::logging::log(level.into(), target, message);
 }
 
 /// Handles PVF execution.
@@ -468,186 +503,213 @@ async fn handle_precheck_pvf(
 /// When preparing for execution, we use a more lenient timeout ([`LENIENT_PREPARATION_TIMEOUT`])
 /// than when prechecking.
 async fn handle_execute_pvf(
-	cache_path: &Path,
-	artifacts: &mut Artifacts,
-	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
-	awaiting_prepare: &mut AwaitingPrepare,
+	_cache_path: &Path,
+	_artifacts: &mut Artifacts,
+	// prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
+	// execute_queue: &mut mpsc::Sender<execute::ToQueue>,
+	_awaiting_prepare: &mut AwaitingPrepare,
 	inputs: ExecutePvfInputs,
 ) -> Result<(), Fatal> {
-	let ExecutePvfInputs { pvf, exec_timeout, params, priority, result_tx } = inputs;
-	let artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
-	let executor_params = (*pvf.executor_params()).clone();
+	let ExecutePvfInputs { pvf, exec_timeout: _, params, priority: _, result_tx } = inputs;
+	let _artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
+	let _executor_params = (*pvf.executor_params()).clone();
 
-	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
-		match state {
-			ArtifactState::Prepared { last_time_needed, .. } => {
-				let file_metadata = std::fs::metadata(artifact_id.path(cache_path));
-
-				if file_metadata.is_ok() {
-					*last_time_needed = SystemTime::now();
-
-					// This artifact has already been prepared, send it to the execute queue.
-					send_execute(
-						execute_queue,
-						execute::ToQueue::Enqueue {
-							artifact: ArtifactPathId::new(artifact_id, cache_path),
-							pending_execution_request: PendingExecutionRequest {
-								exec_timeout,
-								params,
-								executor_params,
-								result_tx,
-							},
-						},
-					)
-					.await?;
-				} else {
-					gum::warn!(
-						target: LOG_TARGET,
-						?pvf,
-						?artifact_id,
-						"handle_execute_pvf: Re-queuing PVF preparation for prepared artifact with missing file."
-					);
-
-					// The artifact has been prepared previously but the file is missing, prepare it again.
-					*state = ArtifactState::Preparing {
-						waiting_for_response: Vec::new(),
-						num_failures: 0,
-					};
-					enqueue_prepare_for_execute(
-						prepare_queue,
-						awaiting_prepare,
-						pvf,
-						priority,
-						artifact_id,
-						PendingExecutionRequest {
-							exec_timeout,
-							params,
-							executor_params,
-							result_tx,
-						},
-					)
-					.await?;
-				}
-			},
-			ArtifactState::Preparing { .. } => {
-				awaiting_prepare.add(
-					artifact_id,
-					PendingExecutionRequest { exec_timeout, params, executor_params, result_tx },
-				);
-			},
-			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
-				if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
-					gum::warn!(
-						target: LOG_TARGET,
-						?pvf,
-						?artifact_id,
-						?last_time_failed,
-						%num_failures,
-						%error,
-						"handle_execute_pvf: Re-trying failed PVF preparation."
-					);
-
-					// If we are allowed to retry the failed prepare job, change the state to
-					// Preparing and re-queue this job.
-					*state = ArtifactState::Preparing {
-						waiting_for_response: Vec::new(),
-						num_failures: *num_failures,
-					};
-					enqueue_prepare_for_execute(
-						prepare_queue,
-						awaiting_prepare,
-						pvf,
-						priority,
-						artifact_id,
-						PendingExecutionRequest {
-							exec_timeout,
-							params,
-							executor_params,
-							result_tx,
-						},
-					)
-					.await?;
-				} else {
-					let _ = result_tx.send(Err(ValidationError::from(error.clone())));
-				}
-			},
+	let mut raw: RawPvf = RawPvf::from_bytes(&pvf.code());
+	raw.set_import_resolver(|module, name, _ty| {
+		let host_functions: HashMap<_, _> = [
+			("ext_logging_log_version_1", ext_logging_log_version_1 as *const u8)
+		].into();
+		if module == "env" {
+			let func = host_functions.get(name).expect("Host function provided");
+			Ok(*func)
+		} else {
+			Err(PvfError::UnresolvedImport(name.to_owned()))
 		}
-	} else {
-		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
-		// PVF.
-		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
-		enqueue_prepare_for_execute(
-			prepare_queue,
-			awaiting_prepare,
-			pvf,
-			priority,
-			artifact_id,
-			PendingExecutionRequest { exec_timeout, params, executor_params, result_tx },
-		)
-		.await?;
-	}
+	});
+	let mut ir = raw.translate().unwrap();
+	ir.optimize();
+	let mut codegen = IntelX64Compiler::new();
+	let pvf = ir.compile(&mut codegen);
+	let mut instance = PvfInstance::instantiate(&pvf);
+	let off = instance.alloc_heap(params.len() as u32).unwrap();
+	instance.memory_slice_mut(off, params.len() as u32).copy_from_slice(&params);
+
+	let res = unsafe { instance.call::<_, _, u64>("validate_block", (off, params.len() as u32)) }.unwrap();
+
+    let res = instance.memory_slice_mut(r_offset!(res), r_length!(res));
+	let vr = ValidationResult::decode(&mut &res[..]).expect("Cannot decode result");
+
+	result_tx.send(Ok(vr));
+
+	// if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
+	// 	match state {
+	// 		ArtifactState::Prepared { last_time_needed, .. } => {
+	// 			let file_metadata = std::fs::metadata(artifact_id.path(cache_path));
+
+	// 			if file_metadata.is_ok() {
+	// 				*last_time_needed = SystemTime::now();
+
+	// 				// This artifact has already been prepared, send it to the execute queue.
+	// 				send_execute(
+	// 					execute_queue,
+	// 					execute::ToQueue::Enqueue {
+	// 						artifact: ArtifactPathId::new(artifact_id, cache_path),
+	// 						pending_execution_request: PendingExecutionRequest {
+	// 							exec_timeout,
+	// 							params,
+	// 							executor_params,
+	// 							result_tx,
+	// 						},
+	// 					},
+	// 				)
+	// 				.await?;
+	// 			} else {
+	// 				gum::warn!(
+	// 					target: LOG_TARGET,
+	// 					?pvf,
+	// 					?artifact_id,
+	// 					"handle_execute_pvf: Re-queuing PVF preparation for prepared artifact with missing file."
+	// 				);
+
+	// 				// The artifact has been prepared previously but the file is missing, prepare it again.
+	// 				*state = ArtifactState::Preparing {
+	// 					waiting_for_response: Vec::new(),
+	// 					num_failures: 0,
+	// 				};
+	// 				enqueue_prepare_for_execute(
+	// 					prepare_queue,
+	// 					awaiting_prepare,
+	// 					pvf,
+	// 					priority,
+	// 					artifact_id,
+	// 					PendingExecutionRequest {
+	// 						exec_timeout,
+	// 						params,
+	// 						executor_params,
+	// 						result_tx,
+	// 					},
+	// 				)
+	// 				.await?;
+	// 			}
+	// 		},
+	// 		ArtifactState::Preparing { .. } => {
+	// 			awaiting_prepare.add(
+	// 				artifact_id,
+	// 				PendingExecutionRequest { exec_timeout, params, executor_params, result_tx },
+	// 			);
+	// 		},
+	// 		ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
+	// 			if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
+	// 				gum::warn!(
+	// 					target: LOG_TARGET,
+	// 					?pvf,
+	// 					?artifact_id,
+	// 					?last_time_failed,
+	// 					%num_failures,
+	// 					%error,
+	// 					"handle_execute_pvf: Re-trying failed PVF preparation."
+	// 				);
+
+	// 				// If we are allowed to retry the failed prepare job, change the state to
+	// 				// Preparing and re-queue this job.
+	// 				*state = ArtifactState::Preparing {
+	// 					waiting_for_response: Vec::new(),
+	// 					num_failures: *num_failures,
+	// 				};
+	// 				enqueue_prepare_for_execute(
+	// 					prepare_queue,
+	// 					awaiting_prepare,
+	// 					pvf,
+	// 					priority,
+	// 					artifact_id,
+	// 					PendingExecutionRequest {
+	// 						exec_timeout,
+	// 						params,
+	// 						executor_params,
+	// 						result_tx,
+	// 					},
+	// 				)
+	// 				.await?;
+	// 			} else {
+	// 				let _ = result_tx.send(Err(ValidationError::from(error.clone())));
+	// 			}
+	// 		},
+	// 	}
+	// } else {
+	// 	// Artifact is unknown: register it and enqueue a job with the corresponding priority and
+	// 	// PVF.
+	// 	artifacts.insert_preparing(artifact_id.clone(), Vec::new());
+	// 	enqueue_prepare_for_execute(
+	// 		prepare_queue,
+	// 		awaiting_prepare,
+	// 		pvf,
+	// 		priority,
+	// 		artifact_id,
+	// 		PendingExecutionRequest { exec_timeout, params, executor_params, result_tx },
+	// 	)
+	// 	.await?;
+	// }
 
 	Ok(())
 }
 
 async fn handle_heads_up(
 	artifacts: &mut Artifacts,
-	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
+	// prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
 	active_pvfs: Vec<PvfPrepData>,
 ) -> Result<(), Fatal> {
-	let now = SystemTime::now();
+	let _now = SystemTime::now();
 
-	for active_pvf in active_pvfs {
-		let artifact_id = ArtifactId::from_pvf_prep_data(&active_pvf);
-		if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
-			match state {
-				ArtifactState::Prepared { last_time_needed, .. } => {
-					*last_time_needed = now;
-				},
-				ArtifactState::Preparing { .. } => {
-					// The artifact is already being prepared, so we don't need to do anything.
-				},
-				ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
-					if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
-						gum::warn!(
-							target: LOG_TARGET,
-							?active_pvf,
-							?artifact_id,
-							?last_time_failed,
-							%num_failures,
-							%error,
-							"handle_heads_up: Re-trying failed PVF preparation."
-						);
+	// for active_pvf in active_pvfs {
+	// 	let artifact_id = ArtifactId::from_pvf_prep_data(&active_pvf);
+	// 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
+	// 		match state {
+	// 			ArtifactState::Prepared { last_time_needed, .. } => {
+	// 				*last_time_needed = now;
+	// 			},
+	// 			ArtifactState::Preparing { .. } => {
+	// 				// The artifact is already being prepared, so we don't need to do anything.
+	// 			},
+	// 			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
+	// 				if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
+	// 					gum::warn!(
+	// 						target: LOG_TARGET,
+	// 						?active_pvf,
+	// 						?artifact_id,
+	// 						?last_time_failed,
+	// 						%num_failures,
+	// 						%error,
+	// 						"handle_heads_up: Re-trying failed PVF preparation."
+	// 					);
 
-						// If we are allowed to retry the failed prepare job, change the state to
-						// Preparing and re-queue this job.
-						*state = ArtifactState::Preparing {
-							waiting_for_response: vec![],
-							num_failures: *num_failures,
-						};
-						send_prepare(
-							prepare_queue,
-							prepare::ToQueue::Enqueue {
-								priority: Priority::Normal,
-								pvf: active_pvf,
-							},
-						)
-						.await?;
-					}
-				},
-			}
-		} else {
-			// It's not in the artifacts, so we need to enqueue a job to prepare it.
-			artifacts.insert_preparing(artifact_id.clone(), Vec::new());
+	// 					// If we are allowed to retry the failed prepare job, change the state to
+	// 					// Preparing and re-queue this job.
+	// 					*state = ArtifactState::Preparing {
+	// 						waiting_for_response: vec![],
+	// 						num_failures: *num_failures,
+	// 					};
+	// 					send_prepare(
+	// 						prepare_queue,
+	// 						prepare::ToQueue::Enqueue {
+	// 							priority: Priority::Normal,
+	// 							pvf: active_pvf,
+	// 						},
+	// 					)
+	// 					.await?;
+	// 				}
+	// 			},
+	// 		}
+	// 	} else {
+	// 		// It's not in the artifacts, so we need to enqueue a job to prepare it.
+	// 		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
 
-			send_prepare(
-				prepare_queue,
-				prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf: active_pvf },
-			)
-			.await?;
-		}
-	}
+	// 		send_prepare(
+	// 			prepare_queue,
+	// 			prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf: active_pvf },
+	// 		)
+	// 		.await?;
+	// 	}
+	// }
 
 	Ok(())
 }
@@ -967,9 +1029,9 @@ pub(crate) mod tests {
 				artifact_ttl,
 				artifacts,
 				to_host_rx,
-				to_prepare_queue_tx,
-				from_prepare_queue_rx,
-				to_execute_queue_tx,
+				// to_prepare_queue_tx,
+				// from_prepare_queue_rx,
+				// to_execute_queue_tx,
 				to_sweeper_tx,
 				awaiting_prepare: AwaitingPrepare::default(),
 			})
