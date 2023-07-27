@@ -36,6 +36,14 @@ enum NemesisVariant {
 	BackGarbageCandidate(BackGarbageCandidateOptions),
 	/// Delayed disputing of ancestors that are perfectly fine.
 	DisputeAncestor(DisputeAncestorOptions),
+
+	#[allow(missing_docs)]
+	#[command(name = "prepare-worker", hide = true)]
+	PvfPrepareWorker(polkadot_cli::ValidationWorkerCommand),
+
+	#[allow(missing_docs)]
+	#[command(name = "execute-worker", hide = true)]
+	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
 }
 
 #[derive(Debug, Parser)]
@@ -86,6 +94,35 @@ impl MalusCli {
 					finality_delay,
 					true,
 				)?
+			},
+			NemesisVariant::PvfPrepareWorker(cmd) => {
+				#[cfg(target_os = "android")]
+				{
+					return Err("PVF preparation workers are not supported under this platform")
+						.into()
+				}
+
+				#[cfg(not(target_os = "android"))]
+				{
+					polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
+						&cmd.socket_path,
+						None,
+					);
+				}
+			},
+			NemesisVariant::PvfExecuteWorker(cmd) => {
+				#[cfg(target_os = "android")]
+				{
+					return Err("PVF execution workers are not supported under this platform").into()
+				}
+
+				#[cfg(not(target_os = "android"))]
+				{
+					polkadot_node_core_pvf_execute_worker::worker_entrypoint(
+						&cmd.socket_path,
+						None,
+					);
+				}
 			},
 		}
 		Ok(())
