@@ -38,7 +38,8 @@ use core::{
 use parity_scale_codec::{self as codec, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
-// Type aliases to simplify
+// Type aliases to simplify,
+// TODO: Will be the real names in v4
 pub type Asset = MultiAsset;
 pub type Assets = MultiAssets;
 pub type AssetFilter = MultiAssetFilter;

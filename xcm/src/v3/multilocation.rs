@@ -25,6 +25,8 @@ use core::{
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
+// Type aliases to simplify
+// TODO: Will be the real names in v4
 pub type Location = MultiLocation;
 pub type InteriorLocation = InteriorMultiLocation;
 
