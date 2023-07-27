@@ -177,13 +177,12 @@ impl frame_system::Config for Runtime {
 	type BlockLength = BlockLength;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
-	type Index = Nonce;
-	type BlockNumber = BlockNumber;
+	type Nonce = Nonce;
 	type Hash = Hash;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = AccountIdLookup<AccountId, ()>;
-	type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = RocksDbWeight;
@@ -280,6 +279,7 @@ impl pallet_babe::Config for Runtime {
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = MaxNominatorRewardedPerValidator;
 }
 
 parameter_types! {
@@ -739,6 +739,7 @@ impl pallet_grandpa::Config for Runtime {
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = MaxNominatorRewardedPerValidator;
 	type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
 
 	type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
@@ -757,7 +758,7 @@ where
 		call: RuntimeCall,
 		public: <Signature as Verify>::Signer,
 		account: AccountId,
-		nonce: <Runtime as frame_system::Config>::Index,
+		nonce: <Runtime as frame_system::Config>::Nonce,
 	) -> Option<(RuntimeCall, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		use sp_runtime::traits::StaticLookup;
 		// take the biggest period possible.
@@ -1179,6 +1180,7 @@ impl parachains_dmp::Config for Runtime {}
 impl parachains_hrmp::Config for Runtime {
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeEvent = RuntimeEvent;
+	type ChannelManager = EitherOf<EnsureRoot<Self::AccountId>, GeneralAdmin>;
 	type Currency = Balances;
 	type WeightInfo = weights::runtime_parachains_hrmp::WeightInfo<Runtime>;
 }
@@ -1399,10 +1401,7 @@ impl pallet_state_trie_migration::Config for Runtime {
 }
 
 construct_runtime! {
-	pub enum Runtime where
-		Block = Block,
-		NodeBlock = primitives::Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
+	pub enum Runtime
 	{
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>} = 0,
@@ -1561,88 +1560,24 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
-pub type Migrations = (
-	migrations::V0940,
-	migrations::V0941,
-	migrations::V0942,
-	migrations::V0943,
-	migrations::Unreleased,
-);
+pub type Migrations = (migrations::Unreleased,);
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
-	use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
-
-	pub type V0940 = (
-		pallet_nomination_pools::migration::v4::MigrateToV4<
-			Runtime,
-			NominationPoolsMigrationV4OldPallet,
-		>,
-		pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
-	);
-	pub type V0941 = (); // Node only release - no migrations.
-	pub type V0942 = (
-		parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-		pallet_offences::migration::v1::MigrateToV1<Runtime>,
-		runtime_common::session::migration::ClearOldSessionStorage<Runtime>,
-	);
-
-	pub type V0943 = (
-		SetStorageVersions,
-		// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-		parachains_configuration::migration::v6::MigrateToV6<Runtime>,
-		ump_migrations::UpdateUmpLimits,
-	);
 
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = (
 		init_state_migration::InitMigrate,
-		pallet_society::migrations::MigrateToV2<Runtime, (), past_payouts::PastPayouts>,
+		pallet_society::migrations::VersionCheckedMigrateToV2<
+			Runtime,
+			(),
+			past_payouts::PastPayouts,
+		>,
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 	);
-
-	/// Migrations that set `StorageVersion`s we missed to set.
-	pub struct SetStorageVersions;
-
-	impl OnRuntimeUpgrade for SetStorageVersions {
-		fn on_runtime_upgrade() -> Weight {
-			// The `NisCounterpartBalances` pallet was added to the chain after/with the migration.
-			// So, the migration never needed to be executed, but we also did not set the proper `StorageVersion`.
-			let storage_version = NisCounterpartBalances::on_chain_storage_version();
-			if storage_version < 1 {
-				StorageVersion::new(1).put::<NisCounterpartBalances>();
-			}
-
-			// Was missed as part of: `runtime_common::session::migration::ClearOldSessionStorage<Runtime>`.
-			let storage_version = Historical::on_chain_storage_version();
-			if storage_version < 1 {
-				StorageVersion::new(1).put::<Historical>();
-			}
-
-			RocksDbWeight::get().reads_writes(2, 2)
-		}
-	}
-}
-
-/// Helpers to configure the ump migrations.
-pub mod ump_migrations {
-	use runtime_parachains::configuration::migration_ump;
-
-	pub const MAX_UPWARD_QUEUE_SIZE: u32 = 4 * 1024 * 1024;
-	pub const MAX_UPWARD_QUEUE_COUNT: u32 = 699050;
-	pub const MAX_UPWARD_MESSAGE_SIZE: u32 = (1 << 16) - 5; // Checked in test `max_upward_message_size`.
-	pub const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32 = 128;
-
-	pub type UpdateUmpLimits = migration_ump::latest::ScheduleConfigUpdate<
-		super::Runtime,
-		MAX_UPWARD_QUEUE_SIZE,
-		MAX_UPWARD_QUEUE_COUNT,
-		MAX_UPWARD_MESSAGE_SIZE,
-		MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE,
-	>;
 }
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -2199,6 +2134,7 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkBatch>,
 			sp_runtime::RuntimeString,
 		> {
+			use frame_support::traits::WhitelistedStorageKeys;
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey, BenchmarkError};
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
@@ -2241,6 +2177,7 @@ sp_api::impl_runtime_apis! {
 					Statemine::get(),
 					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
+				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = None;
 			}
 
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
@@ -2248,6 +2185,7 @@ sp_api::impl_runtime_apis! {
 
 				type CheckedAccount = LocalCheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
+				type TrustedReserve = TrustedReserve;
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
@@ -2306,24 +2244,9 @@ sp_api::impl_runtime_apis! {
 				}
 			}
 
-			let whitelist: Vec<TrackedStorageKey> = vec![
-				// Block Number
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac").to_vec().into(),
-				// Total Issuance
-				hex_literal::hex!("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80").to_vec().into(),
-				// Execution Phase
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a").to_vec().into(),
-				// Event Count
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850").to_vec().into(),
-				// System Events
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
-				// Treasury Account
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da95ecffd7b6c0f78751baa9d281e0bfa3a6d6f646c70792f74727372790000000000000000000000000000000000000000").to_vec().into(),
-				// Configuration ActiveConfig
-				hex_literal::hex!("06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385").to_vec().into(),
-				// The transactional storage limit.
-				hex_literal::hex!("3a7472616e73616374696f6e5f6c6576656c3a").to_vec().into(),
-			];
+			let mut whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
+			let treasury_key = frame_system::Account::<Runtime>::hashed_key_for(Treasury::account_id());
+			whitelist.push(treasury_key.to_vec().into());
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);

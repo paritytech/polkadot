@@ -140,13 +140,12 @@ impl frame_system::Config for Runtime {
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
-	type Index = Nonce;
-	type BlockNumber = BlockNumber;
+	type Nonce = Nonce;
 	type Hash = HashT;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = Indices;
-	type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = Version;
@@ -187,6 +186,7 @@ impl pallet_babe::Config for Runtime {
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = MaxNominatorRewardedPerValidator;
 
 	type KeyOwnerProof =
 		<Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
@@ -371,6 +371,7 @@ impl pallet_grandpa::Config for Runtime {
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = MaxNominatorRewardedPerValidator;
 	type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
 
 	type KeyOwnerProof = sp_core::Void;
@@ -385,7 +386,7 @@ where
 		call: RuntimeCall,
 		public: <Signature as Verify>::Signer,
 		account: AccountId,
-		nonce: <Runtime as frame_system::Config>::Index,
+		nonce: <Runtime as frame_system::Config>::Nonce,
 	) -> Option<(RuntimeCall, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		let period =
 			BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
@@ -544,6 +545,7 @@ parameter_types! {
 impl parachains_hrmp::Config for Runtime {
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeEvent = RuntimeEvent;
+	type ChannelManager = frame_system::EnsureRoot<AccountId>;
 	type Currency = Balances;
 	type WeightInfo = parachains_hrmp::TestWeightInfo;
 }
@@ -646,10 +648,7 @@ pub mod pallet_test_notifier {
 }
 
 construct_runtime! {
-	pub enum Runtime where
-		Block = Block,
-		NodeBlock = primitives::Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
+	pub enum Runtime
 	{
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>},

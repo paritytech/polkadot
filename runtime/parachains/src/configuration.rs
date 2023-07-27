@@ -37,7 +37,6 @@ mod tests;
 mod benchmarking;
 
 pub mod migration;
-pub mod migration_ump;
 
 pub use pallet::*;
 
@@ -480,7 +479,8 @@ pub mod pallet {
 	///      + <https://github.com/paritytech/polkadot/pull/6961>
 	///      + <https://github.com/paritytech/polkadot/pull/6934>
 	/// v5-v6: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(6);
+	/// v6-v7: <https://github.com/paritytech/polkadot/pull/7396>
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -501,9 +501,10 @@ pub mod pallet {
 
 	/// The active configuration for the current session.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	#[pallet::getter(fn config)]
 	pub(crate) type ActiveConfig<T: Config> =
-		StorageValue<_, HostConfiguration<T::BlockNumber>, ValueQuery>;
+		StorageValue<_, HostConfiguration<BlockNumberFor<T>>, ValueQuery>;
 
 	/// Pending configuration changes.
 	///
@@ -514,7 +515,7 @@ pub mod pallet {
 	/// 2 items: for the next session and for the `scheduled_session`.
 	#[pallet::storage]
 	pub(crate) type PendingConfigs<T: Config> =
-		StorageValue<_, Vec<(SessionIndex, HostConfiguration<T::BlockNumber>)>, ValueQuery>;
+		StorageValue<_, Vec<(SessionIndex, HostConfiguration<BlockNumberFor<T>>)>, ValueQuery>;
 
 	/// If this is set, then the configuration setters will bypass the consistency checks. This
 	/// is meant to be used only as the last resort.
@@ -524,7 +525,7 @@ pub mod pallet {
 	#[pallet::genesis_config]
 	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
-		pub config: HostConfiguration<T::BlockNumber>,
+		pub config: HostConfiguration<BlockNumberFor<T>>,
 	}
 
 	#[pallet::genesis_build]
@@ -545,7 +546,7 @@ pub mod pallet {
 		))]
 		pub fn set_validation_upgrade_cooldown(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -561,7 +562,7 @@ pub mod pallet {
 		))]
 		pub fn set_validation_upgrade_delay(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -577,7 +578,7 @@ pub mod pallet {
 		))]
 		pub fn set_code_retention_period(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -658,7 +659,7 @@ pub mod pallet {
 		))]
 		pub fn set_group_rotation_frequency(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -674,7 +675,7 @@ pub mod pallet {
 		))]
 		pub fn set_chain_availability_period(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -690,7 +691,7 @@ pub mod pallet {
 		))]
 		pub fn set_thread_availability_period(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -761,7 +762,7 @@ pub mod pallet {
 		))]
 		pub fn set_dispute_post_conclusion_acceptance_period(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -1087,7 +1088,7 @@ pub mod pallet {
 		))]
 		pub fn set_minimum_validation_upgrade_delay(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -1162,7 +1163,7 @@ pub struct SessionChangeOutcome<BlockNumber> {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -1176,7 +1177,7 @@ impl<T: Config> Pallet<T> {
 	/// be the same.
 	pub(crate) fn initializer_on_new_session(
 		session_index: &SessionIndex,
-	) -> SessionChangeOutcome<T::BlockNumber> {
+	) -> SessionChangeOutcome<BlockNumberFor<T>> {
 		let pending_configs = <PendingConfigs<T>>::get();
 		let prev_config = ActiveConfig::<T>::get();
 
@@ -1217,7 +1218,7 @@ impl<T: Config> Pallet<T> {
 	/// Forcibly set the active config. This should be used with extreme care, and typically
 	/// only when enabling parachains runtime pallets for the first time on a chain which has
 	/// been running without them.
-	pub fn force_set_active_config(config: HostConfiguration<T::BlockNumber>) {
+	pub fn force_set_active_config(config: HostConfiguration<BlockNumberFor<T>>) {
 		ActiveConfig::<T>::set(config);
 	}
 
@@ -1237,7 +1238,7 @@ impl<T: Config> Pallet<T> {
 	// the sake of essentially avoiding an indirect call. Doesn't worth it.
 	#[inline(never)]
 	pub(crate) fn schedule_config_update(
-		updater: impl FnOnce(&mut HostConfiguration<T::BlockNumber>),
+		updater: impl FnOnce(&mut HostConfiguration<BlockNumberFor<T>>),
 	) -> DispatchResult {
 		let mut pending_configs = <PendingConfigs<T>>::get();
 
