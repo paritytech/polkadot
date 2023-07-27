@@ -35,6 +35,13 @@ jobs:
           . ./scripts/ci/common/lib.sh
           fetch_release_artifacts
 
+      - name: Cache the artifacts
+        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        with:
+          key: artifacts-${{ github.sha }}
+          path: |
+            artifacts/**/*
+
   build-container:
     runs-on: ubuntu-latest
     needs: fetch-artifacts
@@ -44,6 +51,13 @@ jobs:
         binary: ["polkadot", "staking-miner"]
 
     steps:
+      - name: Get artifacts from cache
+        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        with:
+          key: artifacts-${{ github.sha }}
+          path: |
+            artifacts/**/*
+
       - name: Check ${{ matrix.binary }}
         working-directory: ./artifacts
         run: |
