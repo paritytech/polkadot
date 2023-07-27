@@ -298,7 +298,7 @@ where
 	BalanceOf<T>: FixedPointOperand,
 {
 	/// The spot price multiplier. This is based on the transaction fee calculations defined in:
-	/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#setting-transaction-fees
+	/// https://research.web3.foundation/Polkadot/overview/token-economics#setting-transaction-fees
 	///
 	/// Parameters:
 	/// - `traffic`: The previously calculated multiplier, can never go below 1.0.
