@@ -120,8 +120,9 @@ publish-polkadot-image-description:
     CI_IMAGE: paritytech/dockerhub-description
     DOCKER_USER: ${Docker_Hub_User_Parity}
     DOCKER_PASS: ${Docker_Hub_Pass_Parity}
+    DOCKERHUB_REPOSITORY: parity/polkadot
     SHORT_DESCRIPTION: "Polkadot Official Docker Image"
-    README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/polkadot.Dockerfile.README.md
+    README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/polkadot_Dockerfile.README.md
   rules:
     - if: $CI_COMMIT_REF_NAME == "master"
       changes:
@@ -139,6 +140,7 @@ publish-staking-miner-image-description:
     CI_IMAGE: paritytech/dockerhub-description
     DOCKER_USER: ${Docker_Hub_User_Parity}
     DOCKER_PASS: ${Docker_Hub_Pass_Parity}
+    DOCKERHUB_REPOSITORY: paritytech/staking-miner
     SHORT_DESCRIPTION: "Staking-miner Docker Image"
     README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/staking-miner/staking-miner_Dockerfile.README.md
   rules:
