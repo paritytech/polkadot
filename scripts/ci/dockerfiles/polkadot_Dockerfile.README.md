@@ -1,7 +1,7 @@
 # Polkadot official Docker image
 
-[Polkadot](https://polkadot.network/)
+## [Polkadot](https://polkadot.network/)
 
-[GitHub](https://github.com/paritytech/polkadot)
+## [GitHub](https://github.com/paritytech/polkadot)
 
-[Polkadot Wiki](https://wiki.polkadot.network/)
+## [Polkadot Wiki](https://wiki.polkadot.network/)
