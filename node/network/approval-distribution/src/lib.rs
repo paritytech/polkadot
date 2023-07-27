@@ -360,7 +360,7 @@ impl Knowledge {
 	}
 
 	fn insert(&mut self, message: MessageSubject, kind: MessageKind) -> bool {
-		let success = match self.known_messages.entry(message.clone()) {
+		let mut success = match self.known_messages.entry(message.clone()) {
 			hash_map::Entry::Vacant(vacant) => {
 				vacant.insert(kind);
 				// If there are multiple candidates assigned in the message, create
@@ -385,13 +385,12 @@ impl Knowledge {
 			for candidate_index in message.1.iter_ones() {
 				success = success &&
 					self.insert(
-						MessageSubject(message.0, candidate_index.into(), message.2),
+						MessageSubject(message.0, vec![candidate_index as u32].try_into().expect("Non-empty vec; qed"), message.2),
 						kind,
 					);
 			}
-		} else {
-			success
 		}
+		success
 	}
 }
 
