@@ -350,8 +350,9 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 /// This will always result in the *same account ID* being returned for the same Relay-chain, regardless of the relative security of
 /// this Relay-chain compared to the local chain.
 ///
-/// Note: No distinction is made when the local chain happens to be the relay chain in
-/// question or its Relay-chain.
+/// Note: No distinction is made between the cases when the given `UniversalLocation` lies within
+/// the same consensus system (i.e. is itself or a parent) and when it is a foreign consensus
+/// system.
 ///
 /// WARNING: This results in the same `AccountId` value being generated regardless
 /// of the relative security of the local chain and the Relay-chain of the input
