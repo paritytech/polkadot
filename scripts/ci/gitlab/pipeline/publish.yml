@@ -118,8 +118,8 @@ publish-polkadot-image-description:
   stage: publish
   image: paritytech/dockerhub-description
   variables:
-    DOCKER_USER: ${Docker_Hub_User_Parity}
-    DOCKER_PASS: ${Docker_Hub_Pass_Parity}
+    DOCKER_USERNAME: ${Docker_Hub_User_Parity}
+    DOCKER_PASSWORD: ${Docker_Hub_Pass_Parity}
     DOCKERHUB_REPOSITORY: parity/polkadot
     SHORT_DESCRIPTION: "Polkadot Official Docker Image"
     README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/polkadot_Dockerfile.README.md
@@ -138,8 +138,8 @@ publish-staking-miner-image-description:
   stage: publish
   image: paritytech/dockerhub-description
   variables:
-    DOCKER_USER: ${Docker_Hub_User_Parity}
-    DOCKER_PASS: ${Docker_Hub_Pass_Parity}
+    DOCKER_USERNAME: ${Docker_Hub_User_Parity}
+    DOCKER_PASSWORD: ${Docker_Hub_Pass_Parity}
     DOCKERHUB_REPOSITORY: paritytech/staking-miner
     SHORT_DESCRIPTION: "Staking-miner Docker Image"
     README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/staking-miner/staking-miner_Dockerfile.README.md
