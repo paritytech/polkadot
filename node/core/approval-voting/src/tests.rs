@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::backend::V1ReadBackend;
 use polkadot_node_primitives::{
 	approval::{
 		v1::{
