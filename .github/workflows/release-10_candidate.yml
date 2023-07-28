@@ -7,6 +7,12 @@ on:
 jobs:
   tag_rc:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        channel:
+          - name: "RelEng: Polkadot Release Coordination"
+            room: '!cqAmzdIcbOFwrdrubV:parity.io'
+
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
@@ -33,6 +39,7 @@ jobs:
             echo "new_tag=$version-rc1" >> $GITHUB_OUTPUT
             echo "first_rc=true" >> $GITHUB_OUTPUT
           fi
+
       - name: Apply new tag
         uses: tvdias/github-tagger@ed7350546e3e503b5e942dffd65bc8751a95e49d # v0.0.2
         with:
@@ -41,6 +48,7 @@ jobs:
           # RELEASE_BRANCH_TOKEN requires public_repo OAuth scope
           repo-token: "${{ secrets.RELEASE_BRANCH_TOKEN }}"
           tag: ${{ steps.compute_tag.outputs.new_tag }}
+
       - id: create-issue
         uses: JasonEtco/create-an-issue@e27dddc79c92bc6e4562f268fffa5ed752639abd # v2.9.1
         # Only create the issue if it's the first release candidate
@@ -50,11 +58,14 @@ jobs:
           VERSION: ${{ steps.compute_tag.outputs.version }}
         with:
           filename: .github/ISSUE_TEMPLATE/release.md
-      - name: Send Matrix message
-        uses: s3krit/matrix-message-action@v0.0.3
+
+      - name: Send Matrix message to ${{ matrix.channel.name }}
+        uses: s3krit/matrix-message-action@70ad3fb812ee0e45ff8999d6af11cafad11a6ecf # v0.0.3
         if: steps.create-issue.outputs.url != ''
         with:
-          room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
-          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
-          server: "matrix.parity.io"
-          message: "Release process for polkadot ${{ steps.compute_tag.outputs.version }} has been started. Tracking issue: ${{ steps.create-issue.outputs.url }}"
+          room_id: ${{ matrix.channel.room }}
+          access_token: ${{ secrets.RELEASENOTES_MATRIX_V2_ACCESS_TOKEN }}
+          server: m.parity.io
+          message: |
+            Release process for polkadot ${{ steps.compute_tag.outputs.version }} has been started.<br/>
+            Tracking issue: ${{ steps.create-issue.outputs.url }}
