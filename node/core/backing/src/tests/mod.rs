@@ -2060,3 +2060,62 @@ fn cannot_second_multiple_candidates_per_parent() {
 		virtual_overseer
 	});
 }
+
+#[test]
+fn new_leaf_view_doesnt_clobber_old() {
+	let mut test_state = TestState::default();
+	let relay_parent_2 = Hash::repeat_byte(1);
+	assert_ne!(test_state.relay_parent, relay_parent_2);
+	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
+		test_startup(&mut virtual_overseer, &test_state).await;
+
+		// New leaf that doesn't clobber old.
+		{
+			let old_relay_parent = test_state.relay_parent;
+			test_state.relay_parent = relay_parent_2;
+			test_startup(&mut virtual_overseer, &test_state).await;
+			test_state.relay_parent = old_relay_parent;
+		}
+
+		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
+		let pvd = dummy_pvd();
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+
+		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+		let pov_hash = pov.hash();
+		let candidate = TestCandidateBuilder {
+			para_id: test_state.chain_ids[0],
+			relay_parent: test_state.relay_parent,
+			pov_hash,
+			head_data: expected_head_data.clone(),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
+			persisted_validation_data_hash: pvd.hash(),
+			validation_code: validation_code.0.clone(),
+			..Default::default()
+		}
+		.build();
+
+		let second = CandidateBackingMessage::Second(
+			test_state.relay_parent,
+			candidate.to_plain(),
+			pvd.clone(),
+			pov.clone(),
+		);
+
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
+
+		// If the old leaf was clobbered by the first, the seconded candidate
+		// would be ignored.
+		assert!(
+			virtual_overseer
+				.recv()
+				.timeout(std::time::Duration::from_millis(500))
+				.await
+				.is_some(),
+			"first leaf appears to be inactive"
+		);
+
+		virtual_overseer
+	});
+}
