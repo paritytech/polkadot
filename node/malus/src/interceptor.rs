@@ -40,7 +40,7 @@ where
 	/// For non-trivial cases, the `sender` can be used to send
 	/// multiple messages after doing some additional processing.
 	fn intercept_incoming(
-		&self,
+		&mut self,
 		_sender: &mut Sender,
 		msg: FromOrchestra<Self::Message>,
 	) -> Option<FromOrchestra<Self::Message>> {

@@ -1,0 +1,21 @@
+Description: PVF preparation & execution time
+Network: ./0005-parachains-aggression-enabled.toml
+Creds: config
+
+# Check authority status.
+alice: reports node_roles is 4
+bob: reports node_roles is 4
+charlie: reports node_roles is 4
+dave: reports node_roles is 4
+eve: reports node_roles is 4
+ferdie: reports node_roles is 4
+one: reports node_roles is 4
+two: reports node_roles is 4
+
+# Ensure parachains are registered.
+alice: parachain 2000 is registered within 60 seconds
+
+
+# Ensure parachains made progress.
+# alice: parachain 2000 block height is at least 30 within 600 seconds
+alice: reports substrate_block_height{status="finalized"} is at least 40 within 400 seconds

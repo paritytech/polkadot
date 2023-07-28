@@ -590,6 +590,7 @@ async fn check_and_import_approval(
 			msg: ApprovalVotingMessage::CheckAndImportApproval(
 				IndirectSignedApprovalVote { block_hash, candidate_index, validator, signature },
 				tx,
+				false,
 			),
 		},
 	)

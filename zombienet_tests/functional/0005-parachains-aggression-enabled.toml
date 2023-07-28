@@ -1,0 +1,130 @@
+[settings]
+timeout = 1000
+
+[relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
+  needed_approvals = 8
+
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "rococo-local"
+chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
+
+[relaychain.default_resources]
+limits = { memory = "4G", cpu = "2" }
+requests = { memory = "2G", cpu = "1" }
+
+  [[relaychain.nodes]]
+  name = "alice"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=0"
+  args = [ "--alice", "-lparachain=debug,runtime=debug" ]
+
+  [[relaychain.nodes]]
+  name = "bob"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=0"
+  args = [ "--bob", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "charlie"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=0"
+  args = [ "--charlie", "-lparachain=debug,runtime=debug" ]
+
+  [[relaychain.nodes]]
+  name = "dave"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=0"
+  args = [ "--dave", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "ferdie"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=1"
+  args = [ "--ferdie", "-lparachain=debug,runtime=debug" ]
+
+  [[relaychain.nodes]]
+  name = "eve"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=1"
+  args = [ "--eve", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "one"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=1"
+  args = [ "--one", "-lparachain=debug,runtime=debug" ]
+
+  [[relaychain.nodes]]
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=1"
+  name = "two"
+  args = [ "--two", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode8"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=2"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+  
+  [[relaychain.nodes]]
+  name = "newnode9"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=2"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode10"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=2"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode11"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=2"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode12"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=3"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode13"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=3"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode14"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=3"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode15"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=3"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode16"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=4"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode17"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=4"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode18"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=4"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "newnode19"
+  command = "malus withold-approvals-distribution --num-network-groups=5 --assigned-network-group=4"
+  args = [ "--validator", "-lparachain=debug,runtime=debug"]
+
+[[parachains]]
+id = 2000
+addToGenesis = true
+genesis_state_generator = "undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=1"
+
+  [parachains.collator]
+  name = "collator01"
+  image = "{{COL_IMAGE}}"
+  command = "undying-collator"
+  args = ["-lparachain=debug", "--pov-size=100000", "--pvf-complexity=1", "--parachain-id=2000"]
+
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"

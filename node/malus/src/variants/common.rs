@@ -205,7 +205,7 @@ where
 
 	// Capture all (approval and backing) candidate validation requests and depending on configuration fail them.
 	fn intercept_incoming(
-		&self,
+		&mut self,
 		subsystem_sender: &mut Sender,
 		msg: FromOrchestra<Self::Message>,
 	) -> Option<FromOrchestra<Self::Message>> {

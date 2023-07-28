@@ -36,6 +36,8 @@ enum NemesisVariant {
 	BackGarbageCandidate(BackGarbageCandidateOptions),
 	/// Delayed disputing of ancestors that are perfectly fine.
 	DisputeAncestor(DisputeAncestorOptions),
+	/// Do not distribute approvals to all nodes
+	WitholdApprovalsDistribution(WitholdApprovalsDistributionOptions),
 
 	#[allow(missing_docs)]
 	#[command(name = "prepare-worker", hide = true)]
@@ -59,6 +61,7 @@ impl MalusCli {
 	/// Launch a malus node.
 	fn launch(self) -> eyre::Result<()> {
 		let finality_delay = self.finality_delay;
+
 		match self.variant {
 			NemesisVariant::BackGarbageCandidate(opts) => {
 				let BackGarbageCandidateOptions { percentage, cli } = opts;
@@ -88,6 +91,15 @@ impl MalusCli {
 					finality_delay,
 				)?
 			},
+			NemesisVariant::WitholdApprovalsDistribution(WitholdApprovalsDistributionOptions {
+				num_network_groups,
+				assigned_network_group,
+				cli,
+			}) => polkadot_cli::run_node(
+				cli,
+				WitholdApprovalsDistribution { num_network_groups, assigned_network_group },
+				finality_delay,
+			)?,
 			NemesisVariant::PvfPrepareWorker(cmd) => {
 				#[cfg(target_os = "android")]
 				{

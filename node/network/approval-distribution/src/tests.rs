@@ -689,26 +689,15 @@ fn import_approval_happy_path() {
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportApproval(
 				vote,
 				tx,
+				_,
 			)) => {
 				assert_eq!(vote, approval);
 				tx.send(ApprovalCheckResult::Accepted).unwrap();
 			}
 		);
-
+		// We expect only reputation changes, because approvals from peers are not gossiped unless agression is enabled.
 		expect_reputation_change(overseer, &peer_b, BENEFIT_VALID_MESSAGE_FIRST).await;
 
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
-				peers,
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
-				))
-			)) => {
-				assert_eq!(peers.len(), 1);
-				assert_eq!(approvals.len(), 1);
-			}
-		);
 		virtual_overseer
 	});
 }
@@ -783,6 +772,7 @@ fn import_approval_bad() {
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportApproval(
 				vote,
 				tx,
+				false,
 			)) => {
 				assert_eq!(vote, approval);
 				tx.send(ApprovalCheckResult::Bad(ApprovalCheckError::UnknownBlock(hash))).unwrap();
@@ -1094,6 +1084,7 @@ fn import_remotely_then_locally() {
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportApproval(
 				vote,
 				tx,
+				false
 			)) => {
 				assert_eq!(vote, approval);
 				tx.send(ApprovalCheckResult::Accepted).unwrap();
@@ -1333,7 +1324,7 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let approvals = vec![approval.clone()];
 
-		let assignment_sent_peers = assert_matches!(
+		let _assignment_sent_peers = assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
 				sent_peers,
@@ -1363,7 +1354,10 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 				))
 			)) => {
 				// Random sampling is reused from the assignment.
-				assert_eq!(sent_peers, assignment_sent_peers);
+				for peer in &peers {
+					assert!(sent_peers.contains(&peer.0));
+				}
+				assert_eq!(sent_peers.len(), peers.len());
 				assert_eq!(sent_approvals, approvals);
 			}
 		);
@@ -1519,11 +1513,10 @@ fn propagates_to_required_after_connect() {
 	let hash = Hash::repeat_byte(0xAA);
 
 	let peers = make_peers_and_authority_ids(100);
+	let omitted = [0, 10, 50, 51];
 
 	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
-
-		let omitted = [0, 10, 50, 51];
 
 		// Connect all peers except omitted.
 		for (i, (peer, _)) in peers.iter().enumerate() {
@@ -1581,7 +1574,7 @@ fn propagates_to_required_after_connect() {
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let approvals = vec![approval.clone()];
 
-		let assignment_sent_peers = assert_matches!(
+		let _assignment_sent_peers = assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
 				sent_peers,
@@ -1610,8 +1603,10 @@ fn propagates_to_required_after_connect() {
 					protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
 				))
 			)) => {
-				// Random sampling is reused from the assignment.
-				assert_eq!(sent_peers, assignment_sent_peers);
+				// Approvals should be sent to all peers.
+				for (_, peer) in  peers.iter().enumerate().filter(|(index, _)| !omitted.contains(index)){
+					assert!(sent_peers.contains(&peer.0));
+				}
 				assert_eq!(sent_approvals, approvals);
 			}
 		);
@@ -1707,7 +1702,12 @@ fn sends_to_more_peers_after_getting_topology() {
 		let approvals = vec![approval.clone()];
 
 		let mut expected_indices = vec![0, 10, 20, 30, 50, 51, 52, 53];
-		let assignment_sent_peers = assert_matches!(
+
+		// Approvals are sent to all peers
+		let mut expected_indices_approvals: Vec<usize> = (0..peers.len()).collect();
+
+		// We sent only assignment when we don't a topology set yet.
+		let _assignment_sent_peers = assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
 				sent_peers,
@@ -1723,23 +1723,10 @@ fn sends_to_more_peers_after_getting_topology() {
 					// Remove them from the expected indices so we don't expect
 					// them to get the messages again after the assignment.
 					expected_indices.retain(|&i2| i2 != i);
+
 				}
 				assert_eq!(sent_assignments, assignments);
 				sent_peers
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
-				sent_peers,
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
-				))
-			)) => {
-				// Random sampling is reused from the assignment.
-				assert_eq!(sent_peers, assignment_sent_peers);
-				assert_eq!(sent_approvals, approvals);
 			}
 		);
 
@@ -1751,7 +1738,6 @@ fn sends_to_more_peers_after_getting_topology() {
 		.await;
 
 		let mut expected_indices_assignments = expected_indices.clone();
-		let mut expected_indices_approvals = expected_indices.clone();
 
 		for _ in 0..expected_indices_assignments.len() {
 			assert_matches!(
@@ -1790,7 +1776,6 @@ fn sends_to_more_peers_after_getting_topology() {
 					let pos = expected_indices_approvals.iter()
 						.position(|i| &peers[*i].0 == &sent_peers[0])
 						.unwrap();
-
 					expected_indices_approvals.remove(pos);
 				}
 			);
@@ -1879,14 +1864,18 @@ fn originator_aggression_l1() {
 			}
 		);
 
-		assert_matches!(
+		let prev_sent_approvals = assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
-				_,
+				sent_peers,
 				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(_)
 				))
-			)) => { }
+			)) => {
+				sent_peers.into_iter()
+				.filter_map(|sp| peers.iter().position(|p| &p.0 == &sp))
+				.collect::<Vec<_>>()
+			 }
 		);
 
 		// Add blocks until aggression L1 is triggered.
@@ -1917,6 +1906,10 @@ fn originator_aggression_l1() {
 		let unsent_indices =
 			(0..peers.len()).filter(|i| !prev_sent_indices.contains(&i)).collect::<Vec<_>>();
 
+		let unsent_indices_approvals = (0..peers.len())
+			.filter(|i| !prev_sent_approvals.contains(&i))
+			.collect::<Vec<_>>();
+
 		for _ in 0..unsent_indices.len() {
 			assert_matches!(
 				overseer_recv(overseer).await,
@@ -1937,7 +1930,7 @@ fn originator_aggression_l1() {
 			);
 		}
 
-		for _ in 0..unsent_indices.len() {
+		for _ in 0..unsent_indices_approvals.len() {
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(

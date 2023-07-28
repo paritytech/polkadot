@@ -1269,7 +1269,7 @@ async fn handle_from_overseer<Context>(
 
 				actions
 			},
-			ApprovalVotingMessage::CheckAndImportApproval(a, res) =>
+			ApprovalVotingMessage::CheckAndImportApproval(a, res, sender_is_originator) =>
 				check_and_import_approval(
 					ctx.sender(),
 					state,
@@ -1277,6 +1277,7 @@ async fn handle_from_overseer<Context>(
 					session_info_provider,
 					metrics,
 					a,
+					sender_is_originator,
 					|r| {
 						let _ = res.send(r);
 					},
@@ -1930,6 +1931,7 @@ async fn check_and_import_approval<T, Sender>(
 	session_info_provider: &mut RuntimeInfo,
 	metrics: &Metrics,
 	approval: IndirectSignedApprovalVote,
+	sender_is_originator: bool,
 	with_response: impl FnOnce(ApprovalCheckResult) -> T,
 ) -> SubsystemResult<(Vec<Action>, T)>
 where
@@ -1997,17 +1999,21 @@ where
 	};
 
 	// Signature check:
-	match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
-		&pubkey,
-		approved_candidate_hash,
-		block_entry.session(),
-		&approval.signature,
-	) {
-		Err(_) => respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidSignature(
-			approval.validator
-		),)),
-		Ok(()) => {},
-	};
+	// We perform signatures checks just for the cases where the approvals weren't received directly from
+	// peer and we received them via gossipping.
+	if !sender_is_originator {
+		match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
+			&pubkey,
+			approved_candidate_hash,
+			block_entry.session(),
+			&approval.signature,
+		) {
+			Err(_) => respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::InvalidSignature(approval.validator),
+			)),
+			Ok(()) => {},
+		};
+	}
 
 	let candidate_entry = match db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,

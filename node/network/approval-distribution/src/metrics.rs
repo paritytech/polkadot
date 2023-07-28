@@ -24,6 +24,12 @@ pub struct Metrics(Option<MetricsInner>);
 struct MetricsInner {
 	assignments_imported_total: prometheus::Counter<prometheus::U64>,
 	approvals_imported_total: prometheus::Counter<prometheus::U64>,
+
+	unassigned_approval_total: prometheus::Counter<prometheus::U64>,
+	delayed_approvals_processed_total: prometheus::Counter<prometheus::U64>,
+	gossipped_approval_received_total: prometheus::Counter<prometheus::U64>,
+	gossipped_approval_sent_total: prometheus::Counter<prometheus::U64>,
+
 	unified_with_peer_total: prometheus::Counter<prometheus::U64>,
 	aggression_l1_messages_total: prometheus::Counter<prometheus::U64>,
 	aggression_l2_messages_total: prometheus::Counter<prometheus::U64>,
@@ -43,6 +49,30 @@ impl Metrics {
 	pub(crate) fn on_approval_imported(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.approvals_imported_total.inc();
+		}
+	}
+
+	pub(crate) fn on_unassigned_approval(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.unassigned_approval_total.inc();
+		}
+	}
+
+	pub(crate) fn on_gossipped_received_approval(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.gossipped_approval_received_total.inc();
+		}
+	}
+
+	pub(crate) fn on_gossipped_sent_approval(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.gossipped_approval_sent_total.inc();
+		}
+	}
+
+	pub(crate) fn on_delayed_approval_processed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.delayed_approvals_processed_total.inc();
 		}
 	}
 
@@ -92,6 +122,34 @@ impl MetricsTrait for Metrics {
 				prometheus::Counter::new(
 					"polkadot_parachain_assignments_imported_total",
 					"Number of valid assignments imported locally or from other peers.",
+				)?,
+				registry,
+			)?,
+			unassigned_approval_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_unassigned_approval_total",
+					"Number of approvals received for which we didn't received the approval yet.",
+				)?,
+				registry,
+			)?,
+			delayed_approvals_processed_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_delayed_approvals_processedtotal",
+					"Number of approvals processed with delay after we received the assignment.",
+				)?,
+				registry,
+			)?,
+			gossipped_approval_received_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_gossipped_approvals_receivedtotal",
+					"Number of approvals processed that were gossiped",
+				)?,
+				registry,
+			)?,
+			gossipped_approval_sent_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_gossipped_approvals_senttotal",
+					"Number of approvals processed that were gossiped",
 				)?,
 				registry,
 			)?,

@@ -834,8 +834,13 @@ pub enum ApprovalVotingMessage {
 	/// Check if the approval vote is valid and can be accepted by our view of the
 	/// protocol.
 	///
+	/// * `IndirectSignedApprovalVote` - The vote to be imported
+	/// * `oneshot::Sender<ApprovalCheckResult>` - The channel used for sending the reply back
+	/// * `bool` - If the sender of the messages is the originator of it, when false it means
+	/// the message has been gossipped.
+	///
 	/// Should not be sent unless the block hash within the indirect vote is known.
-	CheckAndImportApproval(IndirectSignedApprovalVote, oneshot::Sender<ApprovalCheckResult>),
+	CheckAndImportApproval(IndirectSignedApprovalVote, oneshot::Sender<ApprovalCheckResult>, bool),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
 	/// acceptable to vote on finality for.
 	/// The `BlockNumber` provided is the number of the block's ancestor which is the
