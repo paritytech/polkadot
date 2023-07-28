@@ -372,8 +372,7 @@ impl<UniversalLocation: Get<InteriorMultiLocation>, AccountId: From<[u8; 32]> + 
 			"GlobalConsensusConvertsFor universal_source: {:?}, location: {:?}",
 			universal_source, location,
 		);
-		let devolved = ensure_is_remote(universal_source, *location).ok()?;
-		let (remote_network, remote_location) = devolved;
+		let (remote_network, remote_location) = ensure_is_remote(universal_source, *location).ok()?;
 
 		match remote_location {
 			Here => Some(AccountId::from(Self::from_params(&remote_network))),
