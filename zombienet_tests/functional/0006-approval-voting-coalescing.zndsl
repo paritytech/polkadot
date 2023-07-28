@@ -1,0 +1,51 @@
+Description: Approval voting coalescing does not lag finality
+Network: ./0006-approval-voting-coalescing.toml
+Creds: config
+
+# Check authority status.
+alice: reports node_roles is 4
+bob: reports node_roles is 4
+charlie: reports node_roles is 4
+dave: reports node_roles is 4
+eve: reports node_roles is 4
+ferdie: reports node_roles is 4
+one: reports node_roles is 4
+two: reports node_roles is 4
+
+# Ensure parachains are registered.
+alice: parachain 2000 is registered within 60 seconds
+bob: parachain 2001 is registered within 60 seconds
+charlie: parachain 2002 is registered within 60 seconds
+dave: parachain 2003 is registered within 60 seconds
+ferdie: parachain 2004 is registered within 60 seconds
+eve: parachain 2005 is registered within 60 seconds
+one: parachain 2006 is registered within 60 seconds
+two: parachain 2007 is registered within 60 seconds
+
+# Ensure parachains made progress.
+alice: parachain 2000 block height is at least 10 within 300 seconds
+alice: parachain 2001 block height is at least 10 within 300 seconds
+alice: parachain 2002 block height is at least 10 within 300 seconds
+alice: parachain 2003 block height is at least 10 within 300 seconds
+alice: parachain 2004 block height is at least 10 within 300 seconds
+alice: parachain 2005 block height is at least 10 within 300 seconds
+alice: parachain 2006 block height is at least 10 within 300 seconds
+alice: parachain 2007 block height is at least 10 within 300 seconds
+
+alice: reports substrate_block_height{status="finalized"} is at least 30 within 400 seconds
+bob: reports substrate_block_height{status="finalized"} is at least 30 within 400 seconds
+charlie: reports substrate_block_height{status="finalized"} is at least 30 within 400 seconds
+dave: reports substrate_block_height{status="finalized"} is at least 30 within 400 seconds
+eve: reports substrate_block_height{status="finalized"} is at least 30 within 400 seconds
+ferdie: reports substrate_block_height{status="finalized"} is at least 30 within 400 seconds
+one: reports substrate_block_height{status="finalized"} is at least 30 within 400 seconds
+two: reports substrate_block_height{status="finalized"} is at least 30 within 400 seconds
+
+alice: reports polkadot_parachain_approval_checking_finality_lag is 0
+bob: reports polkadot_parachain_approval_checking_finality_lag is 0
+charlie: reports polkadot_parachain_approval_checking_finality_lag is 0
+dave: reports polkadot_parachain_approval_checking_finality_lag is 0
+ferdie: reports polkadot_parachain_approval_checking_finality_lag is 0
+eve: reports polkadot_parachain_approval_checking_finality_lag is 0
+one: reports polkadot_parachain_approval_checking_finality_lag is 0
+two: reports polkadot_parachain_approval_checking_finality_lag is 0
