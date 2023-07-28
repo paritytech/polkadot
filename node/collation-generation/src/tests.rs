@@ -151,6 +151,14 @@ fn requests_availability_per_relay_parent() {
 				Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(_hash, RuntimeApiRequest::Validators(tx)))) => {
 					tx.send(Ok(vec![dummy_validator(); 3])).unwrap();
 				}
+				Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_hash,
+					RuntimeApiRequest::StagingAsyncBackingParams(
+						tx,
+					),
+				))) => {
+					tx.send(Err(RuntimeApiError::NotSupported { runtime_api_name: "doesnt_matter" })).unwrap();
+				},
 				Some(msg) => panic!("didn't expect any other overseer requests given no availability cores; got {:?}", msg),
 			}
 		}
@@ -224,6 +232,15 @@ fn requests_validation_data_for_scheduled_matches() {
 					RuntimeApiRequest::Validators(tx),
 				))) => {
 					tx.send(Ok(vec![dummy_validator(); 3])).unwrap();
+				},
+				Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_hash,
+					RuntimeApiRequest::StagingAsyncBackingParams(tx),
+				))) => {
+					tx.send(Err(RuntimeApiError::NotSupported {
+						runtime_api_name: "doesnt_matter",
+					}))
+					.unwrap();
 				},
 				Some(msg) => {
 					panic!("didn't expect any other overseer requests; got {:?}", msg)
@@ -312,6 +329,15 @@ fn sends_distribute_collation_message() {
 					),
 				))) => {
 					tx.send(Ok(Some(ValidationCode(vec![1, 2, 3]).hash()))).unwrap();
+				},
+				Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_hash,
+					RuntimeApiRequest::StagingAsyncBackingParams(tx),
+				))) => {
+					tx.send(Err(RuntimeApiError::NotSupported {
+						runtime_api_name: "doesnt_matter",
+					}))
+					.unwrap();
 				},
 				Some(msg @ AllMessages::CollatorProtocol(_)) => {
 					inner_to_collator_protocol.lock().await.push(msg);
@@ -465,6 +491,15 @@ fn fallback_when_no_validation_code_hash_api() {
 					RuntimeApiRequest::ValidationCode(_para_id, OccupiedCoreAssumption::Free, tx),
 				))) => {
 					tx.send(Ok(Some(ValidationCode(vec![1, 2, 3])))).unwrap();
+				},
+				Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_hash,
+					RuntimeApiRequest::StagingAsyncBackingParams(tx),
+				))) => {
+					tx.send(Err(RuntimeApiError::NotSupported {
+						runtime_api_name: "doesnt_matter",
+					}))
+					.unwrap();
 				},
 				Some(msg @ AllMessages::CollatorProtocol(_)) => {
 					inner_to_collator_protocol.lock().await.push(msg);
