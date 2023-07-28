@@ -23,8 +23,8 @@ publish-polkadot-debug-image:
     GIT_STRATEGY: none
     DOCKER_USER: ${PARITYPR_USER}
     DOCKER_PASS: ${PARITYPR_PASS}
-    # scripts/ci/dockerfiles/polkadot_injected_debug.Dockerfile
-    DOCKERFILE: ci/dockerfiles/polkadot_injected_debug.Dockerfile
+    # scripts/ci/dockerfiles/polkadot_injected.Dockerfile
+    DOCKERFILE: ci/dockerfiles/polkadot_injected.Dockerfile
     IMAGE_NAME: docker.io/paritypr/polkadot-debug
   needs:
     - job: build-linux-stable
