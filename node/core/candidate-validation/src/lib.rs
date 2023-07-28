@@ -107,7 +107,7 @@ pub struct CandidateValidationSubsystem {
 	pub metrics: Metrics,
 	#[allow(missing_docs)]
 	pub pvf_metrics: polkadot_node_core_pvf::Metrics,
-	config: Config,
+	config: Option<Config>,
 }
 
 impl CandidateValidationSubsystem {
@@ -116,7 +116,7 @@ impl CandidateValidationSubsystem {
 	///
 	/// Check out [`IsolationStrategy`] to get more details.
 	pub fn with_config(
-		config: Config,
+		config: Option<Config>,
 		metrics: Metrics,
 		pvf_metrics: polkadot_node_core_pvf::Metrics,
 	) -> Self {
@@ -127,10 +127,14 @@ impl CandidateValidationSubsystem {
 #[overseer::subsystem(CandidateValidation, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CandidateValidationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(ctx, self.metrics, self.pvf_metrics, self.config)
-			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-			.boxed();
-		SpawnedSubsystem { name: "candidate-validation-subsystem", future }
+		if let Some(config) = self.config {
+			let future = run(ctx, self.metrics, self.pvf_metrics, config)
+				.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
+				.boxed();
+			SpawnedSubsystem { name: "candidate-validation-subsystem", future }
+		} else {
+			polkadot_overseer::DummySubsystem.start(ctx)
+		}
 	}
 }
 

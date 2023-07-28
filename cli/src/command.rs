@@ -222,15 +222,8 @@ pub fn run_node(
 	run: Cli,
 	overseer_gen: impl service::OverseerGen,
 	malus_finality_delay: Option<u32>,
-	dont_use_external_workers: bool,
 ) -> Result<()> {
-	run_node_inner(
-		run,
-		overseer_gen,
-		malus_finality_delay,
-		|_logger_builder, _config| {},
-		dont_use_external_workers,
-	)
+	run_node_inner(run, overseer_gen, malus_finality_delay, |_logger_builder, _config| {})
 }
 
 fn run_node_inner<F>(
@@ -238,7 +231,6 @@ fn run_node_inner<F>(
 	overseer_gen: impl service::OverseerGen,
 	maybe_malus_finality_delay: Option<u32>,
 	logger_hook: F,
-	dont_use_external_workers: bool,
 ) -> Result<()>
 where
 	F: FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration),
@@ -280,6 +272,9 @@ where
 		None
 	};
 
+	let node_version =
+		if cli.run.disable_worker_version_check { None } else { Some(NODE_VERSION.to_string()) };
+
 	runner.run_node_until_exit(move |config| async move {
 		let hwbench = (!cli.run.no_hardware_benchmarks)
 			.then_some(config.database.path().map(|database_path| {
@@ -297,10 +292,9 @@ where
 				enable_beefy,
 				jaeger_agent,
 				telemetry_worker_handle: None,
-				node_version: Some(NODE_VERSION.to_string()),
+				node_version,
 				workers_path: cli.run.workers_path,
 				workers_names: None,
-				dont_use_external_workers,
 				overseer_enable_anyways: false,
 				overseer_gen,
 				overseer_message_channel_capacity_override: cli
@@ -351,16 +345,12 @@ pub fn run() -> Result<()> {
 	}
 
 	match &cli.subcommand {
-		None => {
-			let dont_use_external_workers = cli.run.dont_use_external_workers;
-			run_node_inner(
-				cli,
-				service::RealOverseerGen,
-				None,
-				polkadot_node_metrics::logger_hook(),
-				dont_use_external_workers,
-			)
-		},
+		None => run_node_inner(
+			cli,
+			service::RealOverseerGen,
+			None,
+			polkadot_node_metrics::logger_hook(),
+		),
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run(config.chain_spec, config.network))?)
@@ -438,52 +428,6 @@ pub fn run() -> Result<()> {
 					task_manager,
 				))
 			})?)
-		},
-		Some(Subcommand::PvfPrepareWorker(cmd)) => {
-			let mut builder = sc_cli::LoggerBuilder::new("");
-			builder.with_colors(false);
-			let _ = builder.init();
-
-			#[cfg(target_os = "android")]
-			{
-				return Err(sc_cli::Error::Input(
-					"PVF preparation workers are not supported under this platform".into(),
-				)
-				.into())
-			}
-
-			#[cfg(not(target_os = "android"))]
-			{
-				polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
-					&cmd.socket_path,
-					Some(NODE_VERSION),
-					Some(&cmd.node_impl_version),
-				);
-				Ok(())
-			}
-		},
-		Some(Subcommand::PvfExecuteWorker(cmd)) => {
-			let mut builder = sc_cli::LoggerBuilder::new("");
-			builder.with_colors(false);
-			let _ = builder.init();
-
-			#[cfg(target_os = "android")]
-			{
-				return Err(sc_cli::Error::Input(
-					"PVF execution workers are not supported under this platform".into(),
-				)
-				.into())
-			}
-
-			#[cfg(not(target_os = "android"))]
-			{
-				polkadot_node_core_pvf_execute_worker::worker_entrypoint(
-					&cmd.socket_path,
-					Some(NODE_VERSION),
-					Some(&cmd.node_impl_version),
-				);
-				Ok(())
-			}
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;

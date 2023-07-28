@@ -39,7 +39,7 @@ RUN apt-get update && \
 
 
 # add malus binary to docker image
-COPY ./malus /usr/local/bin
+COPY ./malus ./polkadot-execute-worker ./polkadot-prepare-worker /usr/local/bin
 
 USER nonroot
 

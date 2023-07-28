@@ -36,14 +36,6 @@ enum NemesisVariant {
 	BackGarbageCandidate(BackGarbageCandidateOptions),
 	/// Delayed disputing of ancestors that are perfectly fine.
 	DisputeAncestor(DisputeAncestorOptions),
-
-	#[allow(missing_docs)]
-	#[command(name = "prepare-worker", hide = true)]
-	PvfPrepareWorker(polkadot_cli::ValidationWorkerCommand),
-
-	#[allow(missing_docs)]
-	#[command(name = "execute-worker", hide = true)]
-	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
 }
 
 #[derive(Debug, Parser)]
@@ -63,12 +55,7 @@ impl MalusCli {
 			NemesisVariant::BackGarbageCandidate(opts) => {
 				let BackGarbageCandidateOptions { percentage, cli } = opts;
 
-				polkadot_cli::run_node(
-					cli,
-					BackGarbageCandidates { percentage },
-					finality_delay,
-					true,
-				)?
+				polkadot_cli::run_node(cli, BackGarbageCandidates { percentage }, finality_delay)?
 			},
 			NemesisVariant::SuggestGarbageCandidate(opts) => {
 				let SuggestGarbageCandidateOptions { percentage, cli } = opts;
@@ -77,7 +64,6 @@ impl MalusCli {
 					cli,
 					SuggestGarbageCandidates { percentage },
 					finality_delay,
-					true,
 				)?
 			},
 			NemesisVariant::DisputeAncestor(opts) => {
@@ -92,39 +78,7 @@ impl MalusCli {
 					cli,
 					DisputeValidCandidates { fake_validation, fake_validation_error, percentage },
 					finality_delay,
-					true,
 				)?
-			},
-			NemesisVariant::PvfPrepareWorker(cmd) => {
-				#[cfg(target_os = "android")]
-				{
-					return Err("PVF preparation workers are not supported under this platform")
-						.into()
-				}
-
-				#[cfg(not(target_os = "android"))]
-				{
-					polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
-						&cmd.socket_path,
-						None,
-						None,
-					);
-				}
-			},
-			NemesisVariant::PvfExecuteWorker(cmd) => {
-				#[cfg(target_os = "android")]
-				{
-					return Err("PVF execution workers are not supported under this platform").into()
-				}
-
-				#[cfg(not(target_os = "android"))]
-				{
-					polkadot_node_core_pvf_execute_worker::worker_entrypoint(
-						&cmd.socket_path,
-						None,
-						None,
-					);
-				}
 			},
 		}
 		Ok(())

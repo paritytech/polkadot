@@ -99,6 +99,8 @@ pub fn determine_workers_paths(
 				worker_path: exec_worker_path,
 			})
 		}
+	} else {
+		log::warn!("Skipping node/worker version checks. This could result in incorrect behavior in PVF workers.");
 	}
 
 	Ok((prep_worker_path, exec_worker_path))

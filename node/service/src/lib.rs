@@ -251,7 +251,7 @@ pub enum Error {
 	},
 
 	#[cfg(feature = "full-node")]
-	#[error("Version of worker binary ({worker_version}) is different from node version ({node_version}), worker_path: {worker_path}. TESTING ONLY: this check can be disabled with --dont-use-external-workers")]
+	#[error("Version of worker binary ({worker_version}) is different from node version ({node_version}), worker_path: {worker_path}. TESTING ONLY: this check can be disabled with --disable-worker-version-check")]
 	WorkerBinaryVersionMismatch {
 		worker_version: String,
 		node_version: String,
@@ -632,15 +632,13 @@ pub struct NewFullParams<OverseerGenerator: OverseerGen> {
 	pub enable_beefy: bool,
 	pub jaeger_agent: Option<std::net::SocketAddr>,
 	pub telemetry_worker_handle: Option<TelemetryWorkerHandle>,
-	/// The version of the node. `None` can be passed to skip the node/worker version check (only
-	/// for tests).
+	/// The version of the node. TESTING ONLY: `None` can be passed to skip the node/worker version
+	/// check, both on startup and in the workers.
 	pub node_version: Option<String>,
 	/// An optional path to a directory containing the workers.
 	pub workers_path: Option<std::path::PathBuf>,
 	/// Optional custom names for the prepare and execute workers.
 	pub workers_names: Option<(String, String)>,
-	/// Use the current binary instead of relying on external workers. *Only for tests.*
-	pub dont_use_external_workers: bool,
 	pub overseer_enable_anyways: bool,
 	pub overseer_gen: OverseerGenerator,
 	pub overseer_message_channel_capacity_override: Option<usize>,
@@ -719,7 +717,6 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		node_version,
 		workers_path,
 		workers_names,
-		dont_use_external_workers,
 		overseer_enable_anyways,
 		overseer_gen,
 		overseer_message_channel_capacity_override,
@@ -912,25 +909,24 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
-	let (prep_worker_path, exec_worker_path) = if dont_use_external_workers {
-		// Use the current binary.
-		let program_path = std::env::current_exe()?;
-		(program_path.clone(), program_path)
+	let candidate_validation_config = if is_collator.is_collator() {
+		None
 	} else {
-		workers::determine_workers_paths(workers_path, workers_names, node_version.clone())?
-	};
-	log::info!("🚀 Using prepare-worker binary at: {:?}", prep_worker_path);
-	log::info!("🚀 Using execute-worker binary at: {:?}", exec_worker_path);
+		let (prep_worker_path, exec_worker_path) =
+			workers::determine_workers_paths(workers_path, workers_names, node_version.clone())?;
+		log::info!("🚀 Using prepare-worker binary at: {:?}", prep_worker_path);
+		log::info!("🚀 Using execute-worker binary at: {:?}", exec_worker_path);
 
-	let candidate_validation_config = CandidateValidationConfig {
-		artifacts_cache_path: config
-			.database
-			.path()
-			.ok_or(Error::DatabasePathRequired)?
-			.join("pvf-artifacts"),
-		node_version,
-		prep_worker_path,
-		exec_worker_path,
+		Some(CandidateValidationConfig {
+			artifacts_cache_path: config
+				.database
+				.path()
+				.ok_or(Error::DatabasePathRequired)?
+				.join("pvf-artifacts"),
+			node_version,
+			prep_worker_path,
+			exec_worker_path,
+		})
 	};
 
 	let chain_selection_config = ChainSelectionConfig {

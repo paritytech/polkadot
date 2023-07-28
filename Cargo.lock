@@ -6566,8 +6566,6 @@ dependencies = [
  "frame-benchmarking-cli",
  "futures",
  "log",
- "polkadot-node-core-pvf-execute-worker",
- "polkadot-node-core-pvf-prepare-worker",
  "polkadot-node-metrics",
  "polkadot-performance-test",
  "polkadot-service",
@@ -6877,6 +6875,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
+ "polkadot-overseer",
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
@@ -7885,6 +7884,7 @@ dependencies = [
  "polkadot-node-core-backing",
  "polkadot-node-core-candidate-validation",
  "polkadot-node-core-dispute-coordinator",
+ "polkadot-node-core-pvf-common",
  "polkadot-node-core-pvf-execute-worker",
  "polkadot-node-core-pvf-prepare-worker",
  "polkadot-node-primitives",
@@ -7896,6 +7896,7 @@ dependencies = [
  "rand 0.8.5",
  "sp-core",
  "sp-keystore",
+ "substrate-build-script-utils",
  "tracing-gum",
 ]
 

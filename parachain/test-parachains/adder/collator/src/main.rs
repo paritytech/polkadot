@@ -65,14 +65,10 @@ fn main() -> Result<()> {
 						jaeger_agent: None,
 						telemetry_worker_handle: None,
 
-						// Cumulus doesn't spawn PVF workers, so we can disable version checks and secure
-						// external workers.
+						// Collators don't spawn PVF workers, so we can disable version checks.
 						node_version: None,
 						workers_path: None,
 						workers_names: None,
-						// Don't use workers to make this test binary self-contained and easier to
-						// use. External binaries are for increased security in production.
-						dont_use_external_workers: true,
 
 						overseer_enable_anyways: false,
 						overseer_gen: polkadot_service::RealOverseerGen,

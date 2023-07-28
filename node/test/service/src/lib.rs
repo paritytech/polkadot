@@ -74,7 +74,7 @@ pub fn new_full(
 	is_collator: IsCollator,
 	workers_path: Option<PathBuf>,
 ) -> Result<NewFull, Error> {
-	let dont_use_external_workers = !workers_path.is_some();
+	let workers_path = Some(workers_path.unwrap_or_else(get_relative_workers_path_for_test));
 
 	polkadot_service::new_full(
 		config,
@@ -87,7 +87,6 @@ pub fn new_full(
 			node_version: None,
 			workers_path,
 			workers_names: None,
-			dont_use_external_workers,
 			overseer_enable_anyways: false,
 			overseer_gen: polkadot_service::RealOverseerGen,
 			overseer_message_channel_capacity_override: None,
@@ -95,6 +94,16 @@ pub fn new_full(
 			hwbench: None,
 		},
 	)
+}
+
+fn get_relative_workers_path_for_test() -> PathBuf {
+	// If no explicit worker path is passed in, we need to specify it ourselves as test binaries
+	// are in the "deps/" directory, one level below where the worker binaries are generated.
+	let mut exe_path = std::env::current_exe()
+		.expect("for test purposes it's reasonable to expect that this will not fail");
+	let _ = exe_path.pop();
+	let _ = exe_path.pop();
+	exe_path
 }
 
 /// Returns a prometheus config usable for testing.

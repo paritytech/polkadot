@@ -46,14 +46,6 @@ pub enum Subcommand {
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
 
-	#[allow(missing_docs)]
-	#[command(name = "prepare-worker", hide = true)]
-	PvfPrepareWorker(ValidationWorkerCommand),
-
-	#[allow(missing_docs)]
-	#[command(name = "execute-worker", hide = true)]
-	PvfExecuteWorker(ValidationWorkerCommand),
-
 	/// Sub-commands concerned with benchmarking.
 	/// The pallet benchmarking moved to the `pallet` sub-command.
 	#[command(subcommand)]
@@ -160,9 +152,9 @@ pub struct RunCmd {
 	#[arg(long, value_name = "PATH")]
 	pub workers_path: Option<PathBuf>,
 
-	/// TESTING ONLY: don't use secure external PVF worker binaries.
+	/// TESTING ONLY: disable the version check between nodes and workers.
 	#[arg(long, hide = true)]
-	pub dont_use_external_workers: bool,
+	pub disable_worker_version_check: bool,
 }
 
 #[allow(missing_docs)]
