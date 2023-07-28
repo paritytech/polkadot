@@ -116,8 +116,8 @@ publish-staking-miner-image:
 
 publish-polkadot-image-description:
   stage: publish
+  image: paritytech/dockerhub-description
   variables:
-    CI_IMAGE: paritytech/dockerhub-description
     DOCKER_USER: ${Docker_Hub_User_Parity}
     DOCKER_PASS: ${Docker_Hub_Pass_Parity}
     DOCKERHUB_REPOSITORY: parity/polkadot
@@ -126,7 +126,7 @@ publish-polkadot-image-description:
   rules:
     - if: $CI_COMMIT_REF_NAME == "master"
       changes:
-        - scripts/ci/dockerfiles/staking-miner/polkadot_Dockerfile.README.md
+        - scripts/ci/dockerfiles/polkadot_Dockerfile.README.md
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
   script:
@@ -136,8 +136,8 @@ publish-polkadot-image-description:
 
 publish-staking-miner-image-description:
   stage: publish
+  image: paritytech/dockerhub-description
   variables:
-    CI_IMAGE: paritytech/dockerhub-description
     DOCKER_USER: ${Docker_Hub_User_Parity}
     DOCKER_PASS: ${Docker_Hub_Pass_Parity}
     DOCKERHUB_REPOSITORY: paritytech/staking-miner
