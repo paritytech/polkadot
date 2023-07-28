@@ -355,21 +355,22 @@ pub mod v2 {
 
 	/// Certificate is changed compared to `AssignmentCertKind`:
 	/// - introduced RelayVRFModuloCompact
-	#[repr(u8)]
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum AssignmentCertKindV2 {
 		/// Multiple assignment stories based on the VRF that authorized the relay-chain block where the
 		/// candidates were included.
 		///
 		/// The context is [`v2::RELAY_VRF_MODULO_CONTEXT`]
+		#[codec(index = 0)]
 		RelayVRFModuloCompact {
 			/// A bitfield representing the core indices claimed by this assignment.
 			core_bitfield: CoreBitfield,
-		} = 0,
+		},
 		/// An assignment story based on the VRF that authorized the relay-chain block where the
 		/// candidate was included combined with the index of a particular core.
 		///
 		/// The context is [`v2::RELAY_VRF_DELAY_CONTEXT`]
+		#[codec(index = 1)]
 		RelayVRFDelay {
 			/// The core index chosen in this cert.
 			core_index: CoreIndex,
@@ -379,6 +380,7 @@ pub mod v2 {
 		/// candidate was included combined with a sample number.
 		///
 		/// The context used to produce bytes is [`v1::RELAY_VRF_MODULO_CONTEXT`]
+		#[codec(index = 2)]
 		RelayVRFModulo {
 			/// The sample number used in this cert.
 			sample: u32,

@@ -274,6 +274,15 @@ struct TestStoreInner {
 	candidate_entries: HashMap<CandidateHash, CandidateEntry>,
 }
 
+impl V1ReadBackend for TestStoreInner {
+	fn load_candidate_entry_v1(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>> {
+		self.load_candidate_entry(candidate_hash)
+	}
+}
+
 impl Backend for TestStoreInner {
 	fn load_block_entry(&self, block_hash: &Hash) -> SubsystemResult<Option<BlockEntry>> {
 		Ok(self.block_entries.get(block_hash).cloned())
@@ -284,13 +293,6 @@ impl Backend for TestStoreInner {
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateEntry>> {
 		Ok(self.candidate_entries.get(candidate_hash).cloned())
-	}
-
-	fn load_candidate_entry_v1(
-		&self,
-		candidate_hash: &CandidateHash,
-	) -> SubsystemResult<Option<CandidateEntry>> {
-		self.load_candidate_entry(candidate_hash)
 	}
 
 	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
@@ -352,6 +354,15 @@ pub struct TestStore {
 	store: Arc<Mutex<TestStoreInner>>,
 }
 
+impl V1ReadBackend for TestStore {
+	fn load_candidate_entry_v1(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>> {
+		self.load_candidate_entry(candidate_hash)
+	}
+}
+
 impl Backend for TestStore {
 	fn load_block_entry(&self, block_hash: &Hash) -> SubsystemResult<Option<BlockEntry>> {
 		let store = self.store.lock();
@@ -364,13 +375,6 @@ impl Backend for TestStore {
 	) -> SubsystemResult<Option<CandidateEntry>> {
 		let store = self.store.lock();
 		store.load_candidate_entry(candidate_hash)
-	}
-
-	fn load_candidate_entry_v1(
-		&self,
-		candidate_hash: &CandidateHash,
-	) -> SubsystemResult<Option<CandidateEntry>> {
-		self.load_candidate_entry(candidate_hash)
 	}
 
 	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {

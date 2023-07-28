@@ -101,9 +101,9 @@ impl RecentlyOutdated {
 
 // Contains topology routing information for assignments and approvals.
 struct ApprovalRouting {
-	pub required_routing: RequiredRouting,
-	pub local: bool,
-	pub random_routing: RandomRouting,
+	required_routing: RequiredRouting,
+	local: bool,
+	random_routing: RandomRouting,
 }
 
 // This struct is responsible for tracking the full state of an assignment and grid routing information.
@@ -1529,48 +1529,46 @@ impl State {
 			}
 		}
 
-		// The entry is created when assignment is imported, so we assume this exists.
-		let approval_entry = entry.get_approval_entry(candidate_index, validator_index);
-		if approval_entry.is_none() {
-			let peer_id = source.peer_id();
-			// This indicates a bug in approval-distribution, since we check the knowledge at the begining of the function.
-			gum::warn!(
-				target: LOG_TARGET,
-				?peer_id,
-				?message_subject,
-				"Unknown approval assignment",
-			);
-			// No rep change as this is caused by an issue
-			return
-		}
+		let required_routing = match entry.get_approval_entry(candidate_index, validator_index) {
+			Some(approval_entry) => {
+				// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
+				metrics.on_approval_imported();
 
-		let approval_entry = approval_entry.expect("Just checked above; qed");
+				if let Err(err) = approval_entry.note_approval(vote.clone()) {
+					// this would indicate a bug in approval-voting:
+					// - validator index mismatch
+					// - candidate index mismatch
+					// - duplicate approval
+					gum::warn!(
+						target: LOG_TARGET,
+						hash = ?block_hash,
+						?candidate_index,
+						?validator_index,
+						?err,
+						"Possible bug: Vote import failed",
+					);
 
-		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
-		metrics.on_approval_imported();
+					return
+				}
 
-		if let Err(err) = approval_entry.note_approval(vote.clone()) {
-			// this would indicate a bug in approval-voting:
-			// - validator index mismatch
-			// - candidate index mismatch
-			// - duplicate approval
-			gum::warn!(
-				target: LOG_TARGET,
-				hash = ?block_hash,
-				?candidate_index,
-				?validator_index,
-				?err,
-				"Possible bug: Vote import failed",
-			);
-
-			return
-		}
-
-		let required_routing = approval_entry.routing_info().required_routing;
+				approval_entry.routing_info().required_routing
+			},
+			None => {
+				let peer_id = source.peer_id();
+				// This indicates a bug in approval-distribution, since we check the knowledge at the begining of the function.
+				gum::warn!(
+					target: LOG_TARGET,
+					?peer_id,
+					?message_subject,
+					"Unknown approval assignment",
+				);
+				// No rep change as this is caused by an issue
+				return
+			},
+		};
 
 		// Dispatch a ApprovalDistributionV1Message::Approval(vote)
 		// to all peers required by the topology, with the exception of the source peer.
-
 		let topology = self.topologies.get_topology(entry.session);
 		let source_peer = source.peer_id();
 

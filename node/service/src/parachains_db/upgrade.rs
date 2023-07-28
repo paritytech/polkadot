@@ -23,7 +23,7 @@ use std::{
 };
 
 use polkadot_node_core_approval_voting::approval_db::v2::{
-	migrate_approval_db_v1_to_v2, Config as ApprovalDbConfig,
+	migration_helpers::v1_to_v2, Config as ApprovalDbConfig,
 };
 type Version = u32;
 
@@ -187,8 +187,7 @@ fn migrate_from_version_3_to_4(path: &Path, db_kind: DatabaseKind) -> Result<Ver
 				super::columns::v3::ORDERED_COL,
 			);
 
-			migrate_approval_db_v1_to_v2(Arc::new(db), approval_db_config)
-				.map_err(|_| Error::MigrationFailed)?;
+			v1_to_v2(Arc::new(db), approval_db_config).map_err(|_| Error::MigrationFailed)?;
 		},
 		DatabaseKind::RocksDB => {
 			let db_path = path
@@ -201,8 +200,7 @@ fn migrate_from_version_3_to_4(path: &Path, db_kind: DatabaseKind) -> Result<Ver
 				&super::columns::v3::ORDERED_COL,
 			);
 
-			migrate_approval_db_v1_to_v2(Arc::new(db), approval_db_config)
-				.map_err(|_| Error::MigrationFailed)?;
+			v1_to_v2(Arc::new(db), approval_db_config).map_err(|_| Error::MigrationFailed)?;
 		},
 	};
 
@@ -411,7 +409,7 @@ mod tests {
 		columns::{v2::COL_SESSION_WINDOW_DATA, v4::*},
 		*,
 	};
-	use polkadot_node_core_approval_voting::approval_db::v2::migrate_approval_db_v1_to_v2_fill_test_data;
+	use polkadot_node_core_approval_voting::approval_db::v2::migration_helpers::v1_to_v2_fill_test_data;
 
 	#[test]
 	fn test_paritydb_migrate_0_to_1() {
@@ -551,7 +549,7 @@ mod tests {
 	#[test]
 	fn test_migrate_3_to_4() {
 		use kvdb_rocksdb::{Database, DatabaseConfig};
-		use polkadot_node_core_approval_voting::approval_db::v2::migrate_approval_db_v1_to_v2_sanity_check;
+		use polkadot_node_core_approval_voting::approval_db::v2::migration_helpers::v1_to_v2_sanity_check;
 		use polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter;
 
 		let db_dir = tempfile::tempdir().unwrap();
@@ -569,11 +567,7 @@ mod tests {
 			assert_eq!(db.num_columns(), super::columns::v3::NUM_COLUMNS as u32);
 			let db = DbAdapter::new(db, columns::v3::ORDERED_COL);
 			// Fill the approval voting column with test data.
-			migrate_approval_db_v1_to_v2_fill_test_data(
-				std::sync::Arc::new(db),
-				approval_cfg.clone(),
-			)
-			.unwrap()
+			v1_to_v2_fill_test_data(std::sync::Arc::new(db), approval_cfg.clone()).unwrap()
 		};
 
 		try_upgrade_db(&db_dir.path(), DatabaseKind::RocksDB, 4).unwrap();
@@ -582,12 +576,8 @@ mod tests {
 		let db = Database::open(&db_cfg, db_path).unwrap();
 		let db = DbAdapter::new(db, columns::v4::ORDERED_COL);
 
-		migrate_approval_db_v1_to_v2_sanity_check(
-			std::sync::Arc::new(db),
-			approval_cfg.clone(),
-			expected_candidates,
-		)
-		.unwrap();
+		v1_to_v2_sanity_check(std::sync::Arc::new(db), approval_cfg.clone(), expected_candidates)
+			.unwrap();
 	}
 
 	#[test]

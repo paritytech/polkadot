@@ -98,7 +98,7 @@ We want checkers for candidate equivocations that lie outside our preferred rela
 
 Assignment criteria compute actual assignments using stories and the validators' secret approval assignment key.  Assignment criteria output a `Position` consisting of both a `ParaId` to be checked, as well as a precedence `DelayTranche` for when the assignment becomes valid.
 
-Assignment criteria come in three flavors, `RelayVRFModuloCompact`, `RelayVRFDelay`, `RelayEquivocation` and the deprecated `RelayVRFModulo`.  Among these, `RelayVRFModulo`, `RelayVRFModuloCompact` and `RelayVRFDelay` run a VRF whose input is the output of a `RelayVRFStory`, while `RelayEquivocation` runs a VRF whose input is the output of a `RelayEquivocationStory`.
+Assignment criteria come in four flavors, `RelayVRFModuloCompact`, `RelayVRFDelay`, `RelayEquivocation` and the deprecated `RelayVRFModulo`.  Among these, `RelayVRFModulo`, `RelayVRFModuloCompact` and `RelayVRFDelay` run a VRF whose input is the output of a `RelayVRFStory`, while `RelayEquivocation` runs a VRF whose input is the output of a `RelayEquivocationStory`.
 
 Among these, we have two distinct VRF output computations:
 

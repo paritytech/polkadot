@@ -1397,7 +1397,7 @@ fn network_protocol_versioning_view_update() {
 fn network_protocol_versioning_subsystem_msg() {
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Box::new(oracle), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer, ..} = test_harness;
+		let TestHarness { mut network_handle, mut virtual_overseer, .. } = test_harness;
 
 		let peer = PeerId::random();
 
