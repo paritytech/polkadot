@@ -353,12 +353,6 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 /// Note: No distinction is made between the cases when the given `UniversalLocation` lies within
 /// the same consensus system (i.e. is itself or a parent) and when it is a foreign consensus
 /// system.
-///
-/// WARNING: This results in the same `AccountId` value being generated regardless
-/// of the relative security of the local chain and the Relay-chain of the input
-/// location. This may not have any immediate security risks, however since it creates
-/// commonalities between chains with different security characteristics, it could
-/// possibly form part of a more sophisticated attack scenario.
 pub struct GlobalConsensusConvertsFor<UniversalLocation, AccountId>(
 	PhantomData<(UniversalLocation, AccountId)>,
 );
@@ -372,7 +366,8 @@ impl<UniversalLocation: Get<InteriorMultiLocation>, AccountId: From<[u8; 32]> + 
 			"GlobalConsensusConvertsFor universal_source: {:?}, location: {:?}",
 			universal_source, location,
 		);
-		let (remote_network, remote_location) = ensure_is_remote(universal_source, *location).ok()?;
+		let (remote_network, remote_location) =
+			ensure_is_remote(universal_source, *location).ok()?;
 
 		match remote_location {
 			Here => Some(AccountId::from(Self::from_params(&remote_network))),
@@ -517,32 +512,32 @@ mod tests {
 	#[test]
 	fn global_consensus_converts_for_works() {
 		parameter_types! {
-			pub UniversalLocationInNetworkAbc: InteriorMultiLocation = X2(GlobalConsensus(ByGenesis([9; 32])), Parachain(1234));
+			pub UniversalLocationInNetwork1: InteriorMultiLocation = X2(GlobalConsensus(ByGenesis([1; 32])), Parachain(1234));
+			pub UniversalLocationInNetwork2: InteriorMultiLocation = X2(GlobalConsensus(ByGenesis([2; 32])), Parachain(1234));
 		}
-		let network_abc =
-			UniversalLocationInNetworkAbc::get().global_consensus().expect("NetworkId");
-		let network_xyz = ByGenesis([0; 32]);
-		let network_efg = ByGenesis([3; 32]);
-		let network_hjk = ByGenesis([4; 32]);
-		let network_mno = ByGenesis([5; 32]);
+		let network_1 = UniversalLocationInNetwork1::get().global_consensus().expect("NetworkId");
+		let network_2 = UniversalLocationInNetwork2::get().global_consensus().expect("NetworkId");
+		let network_3 = ByGenesis([3; 32]);
+		let network_4 = ByGenesis([4; 32]);
+		let network_5 = ByGenesis([5; 32]);
 
 		let test_data = vec![
 			(MultiLocation::parent(), false),
 			(MultiLocation::new(0, Here), false),
-			(MultiLocation::new(0, X1(GlobalConsensus(network_abc))), false),
-			(MultiLocation::new(1, X1(GlobalConsensus(network_abc))), false),
-			(MultiLocation::new(2, X1(GlobalConsensus(network_abc))), false),
-			(MultiLocation::new(0, X1(GlobalConsensus(network_xyz))), false),
-			(MultiLocation::new(1, X1(GlobalConsensus(network_xyz))), false),
-			(MultiLocation::new(2, X1(GlobalConsensus(network_xyz))), true),
-			(MultiLocation::new(0, X2(GlobalConsensus(network_xyz), Parachain(1000))), false),
-			(MultiLocation::new(1, X2(GlobalConsensus(network_xyz), Parachain(1000))), false),
-			(MultiLocation::new(2, X2(GlobalConsensus(network_xyz), Parachain(1000))), false),
+			(MultiLocation::new(0, X1(GlobalConsensus(network_1))), false),
+			(MultiLocation::new(1, X1(GlobalConsensus(network_1))), false),
+			(MultiLocation::new(2, X1(GlobalConsensus(network_1))), false),
+			(MultiLocation::new(0, X1(GlobalConsensus(network_2))), false),
+			(MultiLocation::new(1, X1(GlobalConsensus(network_2))), false),
+			(MultiLocation::new(2, X1(GlobalConsensus(network_2))), true),
+			(MultiLocation::new(0, X2(GlobalConsensus(network_2), Parachain(1000))), false),
+			(MultiLocation::new(1, X2(GlobalConsensus(network_2), Parachain(1000))), false),
+			(MultiLocation::new(2, X2(GlobalConsensus(network_2), Parachain(1000))), false),
 		];
 
 		for (location, expected_result) in test_data {
 			let result =
-				GlobalConsensusConvertsFor::<UniversalLocationInNetworkAbc, [u8; 32]>::convert_location(
+				GlobalConsensusConvertsFor::<UniversalLocationInNetwork1, [u8; 32]>::convert_location(
 					&location,
 				);
 			match result {
@@ -556,7 +551,7 @@ mod tests {
 						MultiLocation { interior: X1(GlobalConsensus(network)), .. } =>
 							assert_eq!(
 								account,
-								GlobalConsensusConvertsFor::<UniversalLocationInNetworkAbc, [u8; 32]>::from_params(network),
+								GlobalConsensusConvertsFor::<UniversalLocationInNetwork1, [u8; 32]>::from_params(network),
 								"expected_result: {}, but conversion passed: {:?}, location: {:?}", expected_result, account, location
 							),
 						_ => panic!("expected_result: {}, conversion passed: {:?}, but MultiLocation does not match expected pattern, location: {:?}", expected_result, account, location)
@@ -573,22 +568,44 @@ mod tests {
 		}
 
 		// all success
-		let res_gc_efg = GlobalConsensusConvertsFor::<UniversalLocationInNetworkAbc, [u8; 32]>::convert_location(
-			&MultiLocation::new(2, X1(GlobalConsensus(network_efg))),
-		)
-		.expect("conversion is ok");
-		let res_gc_hjk = GlobalConsensusConvertsFor::<UniversalLocationInNetworkAbc, [u8; 32]>::convert_location(
-			&MultiLocation::new(2, X1(GlobalConsensus(network_hjk))),
-		)
-		.expect("conversion is ok");
-		let res_gc_mno = GlobalConsensusConvertsFor::<UniversalLocationInNetworkAbc, [u8; 32]>::convert_location(
-			&MultiLocation::new(2, X1(GlobalConsensus(network_mno))),
-		)
-		.expect("conversion is ok");
+		let res_1_gc_network_3 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork1, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_3))),
+			)
+			.expect("conversion is ok");
+		let res_2_gc_network_3 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork2, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_3))),
+			)
+			.expect("conversion is ok");
+		let res_1_gc_network_4 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork1, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_4))),
+			)
+			.expect("conversion is ok");
+		let res_2_gc_network_4 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork2, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_4))),
+			)
+			.expect("conversion is ok");
+		let res_1_gc_network_5 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork1, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_5))),
+			)
+			.expect("conversion is ok");
+		let res_2_gc_network_5 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork2, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_5))),
+			)
+			.expect("conversion is ok");
 
-		assert_ne!(res_gc_efg, res_gc_hjk);
-		assert_ne!(res_gc_hjk, res_gc_mno);
-		assert_ne!(res_gc_efg, res_gc_mno);
+		assert_ne!(res_1_gc_network_3, res_1_gc_network_4);
+		assert_ne!(res_1_gc_network_4, res_1_gc_network_5);
+		assert_ne!(res_1_gc_network_3, res_1_gc_network_5);
+
+		assert_eq!(res_1_gc_network_3, res_2_gc_network_3);
+		assert_eq!(res_1_gc_network_4, res_2_gc_network_4);
+		assert_eq!(res_1_gc_network_5, res_2_gc_network_5);
 	}
 
 	#[test]
