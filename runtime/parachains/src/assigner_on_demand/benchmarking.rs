@@ -18,22 +18,48 @@
 
 #![cfg(feature = "runtime-benchmarks")]
 
-use super::*;
-use crate::assigner_on_demand::Pallet;
+use super::{Pallet, *};
+use crate::{
+	paras::{Pallet as ParasPallet, ParaGenesisArgs, ParaKind, ParachainsCache},
+	shared::Pallet as ParasShared,
+};
 
 use frame_benchmarking::v2::*;
 use frame_system::RawOrigin;
 use sp_runtime::traits::Bounded;
 
-use primitives::Id as ParaId;
+use primitives::{HeadData, Id as ParaId, SessionIndex, ValidationCode};
+
+// Constants for the benchmarking
+const SESSION_INDEX: SessionIndex = 1;
+
+// Initialize a parathread for benchmarking.
+pub fn init_parathread<T>(para_id: ParaId)
+where
+	T: Config + crate::paras::Config + crate::shared::Config,
+{
+	ParasShared::<T>::set_session_index(SESSION_INDEX);
+	let mut parachains = ParachainsCache::new();
+	ParasPallet::<T>::initialize_para_now(
+		&mut parachains,
+		para_id,
+		&ParaGenesisArgs {
+			para_kind: ParaKind::Parathread,
+			genesis_head: HeadData(vec![1, 2, 3, 4]),
+			validation_code: ValidationCode(vec![1, 2, 3, 4]),
+		},
+	);
+}
 
 #[benchmarks]
 mod benchmarks {
 	use super::*;
 	#[benchmark]
 	fn place_order() {
+		// Setup
 		let caller = whitelisted_caller();
 		let para_id = ParaId::from(111u32);
+		init_parathread::<T>(para_id);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
 		#[extrinsic_call]
@@ -42,7 +68,9 @@ mod benchmarks {
 
 	impl_benchmark_test_suite!(
 		Pallet,
-		crate::mock::new_test_ext(Default::default()),
+		crate::mock::new_test_ext(
+			crate::assigner_on_demand::mock_helpers::benchmark_genesis_config().build()
+		),
 		crate::mock::Test
 	);
 }

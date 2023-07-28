@@ -27,6 +27,8 @@
 //! execution is valid.
 
 mod benchmarking;
+mod mock_helpers;
+
 #[cfg(test)]
 mod tests;
 

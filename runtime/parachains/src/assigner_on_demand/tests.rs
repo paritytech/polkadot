@@ -17,11 +17,11 @@
 use super::*;
 
 use crate::{
-	assigner_on_demand::Error,
+	assigner_on_demand::{mock_helpers::GenesisConfigBuilder, Error},
 	initializer::SessionChangeNotification,
 	mock::{
-		new_test_ext, Balances, MockGenesisConfig, OnDemandAssigner, Paras, ParasShared,
-		RuntimeOrigin, Scheduler, System, Test,
+		new_test_ext, Balances, OnDemandAssigner, Paras, ParasShared, RuntimeOrigin, Scheduler,
+		System, Test,
 	},
 	paras::{ParaGenesisArgs, ParaKind},
 };
@@ -29,18 +29,9 @@ use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use pallet_balances::Error as BalancesError;
 use primitives::{
 	v5::{Assignment, ValidationCode},
-	Balance, BlockNumber, SessionIndex,
+	BlockNumber, SessionIndex,
 };
 use sp_std::collections::btree_map::BTreeMap;
-
-fn default_genesis_config() -> MockGenesisConfig {
-	MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: crate::configuration::HostConfiguration { ..Default::default() },
-		},
-		..Default::default()
-	}
-}
 
 fn schedule_blank_para(id: ParaId, parakind: ParaKind) {
 	let validation_code: ValidationCode = vec![1, 2, 3].into();
@@ -86,40 +77,6 @@ fn run_to_block(
 
 		// In the real runtime this is expected to be called by the `InclusionInherent` pallet.
 		Scheduler::update_claimqueue(BTreeMap::new(), b + 1);
-	}
-}
-
-#[derive(Debug)]
-pub(super) struct GenesisConfigBuilder {
-	parathread_cores: u32,
-	on_demand_base_fee: Balance,
-	on_demand_fee_variability: Perbill,
-	on_demand_max_queue_size: u32,
-	on_demand_target_queue_utilization: Perbill,
-}
-
-impl Default for GenesisConfigBuilder {
-	fn default() -> Self {
-		Self {
-			parathread_cores: 10,
-			on_demand_base_fee: 10_000,
-			on_demand_fee_variability: Perbill::from_percent(1),
-			on_demand_max_queue_size: 100,
-			on_demand_target_queue_utilization: Perbill::from_percent(25),
-		}
-	}
-}
-
-impl GenesisConfigBuilder {
-	pub(super) fn build(self) -> crate::mock::MockGenesisConfig {
-		let mut genesis = default_genesis_config();
-		let config = &mut genesis.configuration.config;
-		config.on_demand_cores = self.parathread_cores;
-		config.on_demand_base_fee = self.on_demand_base_fee;
-		config.on_demand_fee_variability = self.on_demand_fee_variability;
-		config.on_demand_queue_max_size = self.on_demand_max_queue_size;
-		config.on_demand_target_queue_utilization = self.on_demand_target_queue_utilization;
-		genesis
 	}
 }
 
