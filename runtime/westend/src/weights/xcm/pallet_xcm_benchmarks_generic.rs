@@ -32,7 +32,6 @@
 // --execution=wasm
 // --wasm-execution=compiled
 // --heap-pages=4096
-// --json-file=/var/lib/gitlab-runner/builds/zyw4fam_/0/parity/mirrors/polkadot/.git/.artifacts/bench.json
 // --pallet=pallet_xcm_benchmarks::generic
 // --chain=westend-dev
 // --header=./file_header.txt
@@ -214,29 +213,6 @@ impl<T: frame_system::Config> WeightInfo<T> {
 		// Minimum execution time: 4_983_000 picoseconds.
 		Weight::from_parts(5_132_000, 0)
 			.saturating_add(T::DbWeight::get().writes(1))
-	}
-	/// Storage: unknown `0x3a696e747261626c6f636b5f656e74726f7079` (r:1 w:1)
-	/// Proof Skipped: unknown `0x3a696e747261626c6f636b5f656e74726f7079` (r:1 w:1)
-	/// Storage: Dmp DeliveryFeeFactor (r:1 w:0)
-	/// Proof Skipped: Dmp DeliveryFeeFactor (max_values: None, max_size: None, mode: Measured)
-	/// Storage: XcmPallet SupportedVersion (r:1 w:0)
-	/// Proof Skipped: XcmPallet SupportedVersion (max_values: None, max_size: None, mode: Measured)
-	/// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
-	/// Proof Skipped: XcmPallet VersionDiscoveryQueue (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
-	/// Proof Skipped: XcmPallet SafeXcmVersion (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Dmp DownwardMessageQueues (r:1 w:1)
-	/// Proof Skipped: Dmp DownwardMessageQueues (max_values: None, max_size: None, mode: Measured)
-	/// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
-	/// Proof Skipped: Dmp DownwardMessageQueueHeads (max_values: None, max_size: None, mode: Measured)
-	pub(crate) fn initiate_reserve_withdraw() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `169`
-		//  Estimated: `3634`
-		// Minimum execution time: 29_375_000 picoseconds.
-		Weight::from_parts(30_320_000, 3634)
-			.saturating_add(T::DbWeight::get().reads(7))
-			.saturating_add(T::DbWeight::get().writes(4))
 	}
 	pub(crate) fn burn_asset() -> Weight {
 		// Proof Size summary in bytes:

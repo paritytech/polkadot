@@ -89,12 +89,13 @@ pub struct FullDeps<C, P, SC, B> {
 	pub grandpa: GrandpaDeps<B>,
 	/// BEEFY specific dependencies.
 	pub beefy: BeefyDeps,
+	/// Backend used by the node.
+	pub backend: Arc<B>,
 }
 
 /// Instantiate all RPC extensions.
 pub fn create_full<C, P, SC, B>(
-	deps: FullDeps<C, P, SC, B>,
-	backend: Arc<B>,
+	FullDeps { client, pool, select_chain, chain_spec, deny_unsafe, babe, grandpa, beefy, backend } : FullDeps<C, P, SC, B>,
 ) -> Result<RpcExtension, Box<dyn std::error::Error + Send + Sync>>
 where
 	C: ProvideRuntimeApi<Block>
@@ -112,7 +113,7 @@ where
 	P: TransactionPool + Sync + Send + 'static,
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
-	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
+	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashingFor<Block>>,
 {
 	use frame_rpc_system::{System, SystemApiServer};
 	use mmr_rpc::{Mmr, MmrApiServer};
@@ -124,8 +125,6 @@ where
 	use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
 
 	let mut io = RpcModule::new(());
-	let FullDeps { client, pool, select_chain, chain_spec, deny_unsafe, babe, grandpa, beefy } =
-		deps;
 	let BabeDeps { babe_worker_handle, keystore } = babe;
 	let GrandpaDeps {
 		shared_voter_state,
@@ -135,10 +134,18 @@ where
 		finality_provider,
 	} = grandpa;
 
-	io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
+	io.merge(StateMigration::new(client.clone(), backend.clone(), deny_unsafe).into_rpc())?;
 	io.merge(System::new(client.clone(), pool.clone(), deny_unsafe).into_rpc())?;
 	io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
-	io.merge(Mmr::new(client.clone()).into_rpc())?;
+	io.merge(
+		Mmr::new(
+			client.clone(),
+			backend
+				.offchain_storage()
+				.ok_or("Backend doesn't provide the required offchain storage")?,
+		)
+		.into_rpc(),
+	)?;
 	io.merge(
 		Babe::new(client.clone(), babe_worker_handle.clone(), keystore, select_chain, deny_unsafe)
 			.into_rpc(),

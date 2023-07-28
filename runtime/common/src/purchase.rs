@@ -105,7 +105,7 @@ pub mod pallet {
 		/// Vesting Pallet
 		type VestingSchedule: VestingSchedule<
 			Self::AccountId,
-			Moment = Self::BlockNumber,
+			Moment = BlockNumberFor<Self>,
 			Currency = Self::Currency,
 		>;
 
@@ -144,7 +144,7 @@ pub mod pallet {
 		/// A new statement was set.
 		StatementUpdated,
 		/// A new statement was set. `[block_number]`
-		UnlockBlockUpdated { block_number: T::BlockNumber },
+		UnlockBlockUpdated { block_number: BlockNumberFor<T> },
 	}
 
 	#[pallet::error]
@@ -182,7 +182,7 @@ pub mod pallet {
 
 	// The block where all locked dots will unlock.
 	#[pallet::storage]
-	pub(super) type UnlockBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+	pub(super) type UnlockBlock<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -403,7 +403,7 @@ pub mod pallet {
 		#[pallet::weight(T::DbWeight::get().writes(1))]
 		pub fn set_unlock_block(
 			origin: OriginFor<T>,
-			unlock_block: T::BlockNumber,
+			unlock_block: BlockNumberFor<T>,
 		) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			ensure!(
@@ -486,21 +486,16 @@ mod tests {
 		traits::{Currency, WithdrawReasons},
 	};
 	use sp_runtime::{
-		testing::Header,
 		traits::{BlakeTwo256, Dispatchable, IdentifyAccount, Identity, IdentityLookup, Verify},
-		ArithmeticError, MultiSignature,
+		ArithmeticError, BuildStorage, MultiSignature,
 	};
 
-	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
 
 	frame_support::construct_runtime!(
-		pub enum Test where
-			Block = Block,
-			NodeBlock = Block,
-			UncheckedExtrinsic = UncheckedExtrinsic,
+		pub enum Test
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Vesting: pallet_vesting::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Purchase: purchase::{Pallet, Call, Storage, Event<T>},
@@ -519,13 +514,12 @@ mod tests {
 		type DbWeight = ();
 		type RuntimeOrigin = RuntimeOrigin;
 		type RuntimeCall = RuntimeCall;
-		type Index = u64;
-		type BlockNumber = u64;
+		type Nonce = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<AccountId>;
-		type Header = Header;
+		type Block = Block;
 		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
@@ -601,7 +595,7 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup. It also executes our `setup` function which sets up this pallet for use.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		let mut ext = sp_io::TestExternalities::new(t);
 		ext.execute_with(|| setup());
 		ext

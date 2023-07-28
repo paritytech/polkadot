@@ -14,7 +14,7 @@ rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.163", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
-smallvec = "1.8.0"
+smallvec = "1.11.0"
 
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -70,9 +70,10 @@ pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-referenda = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["experimental"] }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -173,6 +174,7 @@ std = [
 	"pallet-society/std",
 	"pallet-staking/std",
 	"pallet-staking-runtime-api/std",
+	"pallet-state-trie-migration/std",
 	"pallet-timestamp/std",
 	"pallet-tips/std",
 	"pallet-treasury/std",
@@ -290,6 +292,7 @@ try-runtime = [
 	"pallet-session/try-runtime",
 	"pallet-society/try-runtime",
 	"pallet-staking/try-runtime",
+	"pallet-state-trie-migration/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-tips/try-runtime",
 	"pallet-treasury/try-runtime",
