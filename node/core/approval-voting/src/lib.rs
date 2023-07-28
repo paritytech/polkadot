@@ -55,10 +55,10 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::{
-	vstaging::ApprovalVoteMultipleCandidates, BlockNumber, CandidateHash, CandidateIndex,
-	CandidateReceipt, DisputeStatement, GroupIndex, Hash, PvfExecTimeoutKind, SessionIndex,
-	SessionInfo, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair,
-	ValidatorSignature, MAX_APPROVAL_COALESCE_COUNT, MAX_APPROVAL_COALESCE_WAIT_MILLIS,
+	vstaging::{ApprovalVoteMultipleCandidates, ApprovalVotingParams},
+	BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement, GroupIndex,
+	Hash, PvfExecTimeoutKind, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -2964,6 +2964,28 @@ async fn issue_approval<Context>(
 		},
 	};
 
+	let (s_tx, s_rx) = oneshot::channel();
+
+	ctx.send_message(RuntimeApiMessage::Request(
+		block_hash,
+		RuntimeApiRequest::ApprovalVotingParams(s_tx),
+	))
+	.await;
+
+	let approval_params = match s_rx.await {
+		Ok(Ok(s)) => s,
+		_ => {
+			gum::error!(
+				target: LOG_TARGET,
+				"Could not request approval voting params from runtime using defaults"
+			);
+			ApprovalVotingParams {
+				max_approval_coalesce_count: 1,
+				max_approval_coalesce_wait_millis: 0,
+			}
+		},
+	};
+
 	let candidate_index = match block_entry.candidates().iter().position(|e| e.1 == candidate_hash)
 	{
 		None => {
@@ -3015,10 +3037,16 @@ async fn issue_approval<Context>(
 		.candidates_pending_signature
 		.insert(candidate_index as _, CandidateSigningContext { candidate_hash });
 
-	let should_create_signature =
-		block_entry.candidates_pending_signature.len() >= MAX_APPROVAL_COALESCE_COUNT as usize;
+	let should_create_signature = block_entry.candidates_pending_signature.len() >=
+		approval_params.max_approval_coalesce_count as usize;
 
-	let delay = Delay::new(Duration::from_millis(MAX_APPROVAL_COALESCE_WAIT_MILLIS));
+	gum::debug!(
+		target: LOG_TARGET,
+		"Approval coalese params{:?}", approval_params
+	);
+
+	let delay =
+		Delay::new(Duration::from_millis(approval_params.max_approval_coalesce_wait_millis as _));
 
 	sign_approvals_timers.timers.push_back(Box::pin(async move {
 		delay.await;
@@ -3077,7 +3105,9 @@ async fn maybe_create_signature<Context>(
 	let mut block_entry = match db.load_block_entry(&block_hash)? {
 		Some(b) => b,
 		None => {
-			gum::error!(
+			// not a cause for alarm - just lost a race with pruning, most likely.
+			metrics.on_approval_stale();
+			gum::trace!(
 				target: LOG_TARGET,
 				"Could not find block that needs signature {:}", block_hash
 			);
@@ -3088,6 +3118,10 @@ async fn maybe_create_signature<Context>(
 	// If the candidate that woke us is not pending do nothing and let one of the wakeup of the
 	// pending candidates create the
 	// signature.
+	gum::debug!(
+		target: LOG_TARGET,
+		"Candidates pending signatures {:}", block_entry.candidates_pending_signature.len()
+	);
 	if !block_entry
 		.candidates_pending_signature
 		.values()

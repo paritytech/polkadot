@@ -353,12 +353,12 @@ pub mod well_known_keys {
 /// Unique identifier for the Parachains Inherent
 pub const PARACHAINS_INHERENT_IDENTIFIER: InherentIdentifier = *b"parachn0";
 
-/// TODO: Make this two a parachain host configuration.
-/// Maximum allowed candidates to be signed withing a signle approval votes.
-pub const MAX_APPROVAL_COALESCE_COUNT: u64 = 6;
-/// The maximum time we await for an approval to be coalesced with other approvals
-/// before we sign it and distribute to our peers
-pub const MAX_APPROVAL_COALESCE_WAIT_MILLIS: u64 = 500;
+// /// TODO: Make this two a parachain host configuration.
+// /// Maximum allowed candidates to be signed withing a signle approval votes.
+// pub const MAX_APPROVAL_COALESCE_COUNT: u64 = 6;
+// /// The maximum time we await for an approval to be coalesced with other approvals
+// /// before we sign it and distribute to our peers
+// pub const MAX_APPROVAL_COALESCE_WAIT_MILLIS: u64 = 500;
 
 /// The key type ID for parachain assignment key.
 pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");

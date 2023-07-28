@@ -20,12 +20,12 @@ use lru::LruCache;
 use sp_consensus_babe::Epoch;
 
 use polkadot_primitives::{
-	vstaging, AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
-	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams,
-	GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
-	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	vstaging::{self, ApprovalVotingParams},
+	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 /// For consistency we have the same capacity for all caches. We use 128 as we'll only need that
@@ -64,6 +64,8 @@ pub(crate) struct RequestResultCache {
 		LruCache<(Hash, ParaId, OccupiedCoreAssumption), Option<ValidationCodeHash>>,
 	version: LruCache<Hash, u32>,
 	disputes: LruCache<Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
+	approval_voting_params: LruCache<Hash, ApprovalVotingParams>,
+
 	unapplied_slashes:
 		LruCache<Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>>,
 	key_ownership_proof:
@@ -97,6 +99,7 @@ impl Default for RequestResultCache {
 			disputes: LruCache::new(DEFAULT_CACHE_CAP),
 			unapplied_slashes: LruCache::new(DEFAULT_CACHE_CAP),
 			key_ownership_proof: LruCache::new(DEFAULT_CACHE_CAP),
+			approval_voting_params: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
 }
@@ -393,6 +396,21 @@ impl RequestResultCache {
 		self.disputes.put(relay_parent, value);
 	}
 
+	pub(crate) fn approval_voting_params(
+		&mut self,
+		relay_parent: &Hash,
+	) -> Option<&ApprovalVotingParams> {
+		self.approval_voting_params.get(relay_parent)
+	}
+
+	pub(crate) fn cache_approval_voting_params(
+		&mut self,
+		relay_parent: Hash,
+		value: ApprovalVotingParams,
+	) {
+		self.approval_voting_params.put(relay_parent, value);
+	}
+
 	pub(crate) fn unapplied_slashes(
 		&mut self,
 		relay_parent: &Hash,
@@ -476,4 +494,5 @@ pub(crate) enum RequestResult {
 		vstaging::slashing::OpaqueKeyOwnershipProof,
 		Option<()>,
 	),
+	ApprovalVotingParams(Hash, ApprovalVotingParams),
 }

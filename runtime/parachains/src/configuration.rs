@@ -24,8 +24,8 @@ use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
 use primitives::{
-	vstaging::AsyncBackingParams, Balance, ExecutorParams, SessionIndex, MAX_CODE_SIZE,
-	MAX_HEAD_DATA_SIZE, MAX_POV_SIZE,
+	vstaging::{ApprovalVotingParams, AsyncBackingParams},
+	Balance, ExecutorParams, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE,
 };
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
@@ -246,6 +246,10 @@ pub struct HostConfiguration<BlockNumber> {
 	/// This value should be greater than [`chain_availability_period`] and
 	/// [`thread_availability_period`].
 	pub minimum_validation_upgrade_delay: BlockNumber,
+
+	/// Params used by approval-voting
+	/// TODO: fixme this is not correctly migrated
+	pub approval_voting_params: ApprovalVotingParams,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
@@ -295,6 +299,10 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
 			executor_params: Default::default(),
+			approval_voting_params: ApprovalVotingParams {
+				max_approval_coalesce_count: 1,
+				max_approval_coalesce_wait_millis: 0,
+			},
 		}
 	}
 }
@@ -426,7 +434,7 @@ where
 		if self.hrmp_max_parachain_inbound_channels > crate::hrmp::HRMP_MAX_INBOUND_CHANNELS_BOUND {
 			return Err(MaxHrmpInboundChannelsExceeded)
 		}
-
+		// TODO: add consistency check for approval-voting-params
 		Ok(())
 	}
 
@@ -1155,6 +1163,22 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.executor_params = new;
+			})
+		}
+
+		/// Set PVF executor parameters.
+		#[pallet::call_index(47)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_executor_params(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_approval_voting_params(
+			origin: OriginFor<T>,
+			new: ApprovalVotingParams,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.approval_voting_params = new;
 			})
 		}
 	}

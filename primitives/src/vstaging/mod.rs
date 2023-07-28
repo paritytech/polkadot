@@ -50,3 +50,26 @@ pub struct AsyncBackingParams {
 	/// When async backing is disabled, the only valid value is 0.
 	pub allowed_ancestry_len: u32,
 }
+
+/// Approval voting configuration parameters
+#[derive(
+	RuntimeDebug,
+	Copy,
+	Clone,
+	PartialEq,
+	Encode,
+	Decode,
+	TypeInfo,
+	serde::Serialize,
+	serde::Deserialize,
+)]
+pub struct ApprovalVotingParams {
+	/// The maximum number of candidates `approval-voting` can vote for with
+	/// a single signatures.
+	///
+	/// Setting it to 1, means we send the approval as soon as we have it available.
+	pub max_approval_coalesce_count: u32,
+	/// The maximum time we await for a candidate approval to be coalesced with
+	/// the ones for other candidate before we sign it and distribute to our peers
+	pub max_approval_coalesce_wait_millis: u32,
+}
