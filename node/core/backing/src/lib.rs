@@ -789,9 +789,15 @@ async fn handle_active_leaves_update<Context>(
 	// as a result.
 	//
 	// when prospective parachains are disabled, the implicit view is empty,
-	// which means we'll clean up everything. This is correct.
+	// which means we'll clean up everything that's not a leaf - the expected behavior
+	// for pre-asynchronous backing.
 	{
-		let remaining: HashSet<_> = state.implicit_view.all_allowed_relay_parents().collect();
+		let remaining: HashSet<_> = state
+			.per_leaf
+			.keys()
+			.chain(state.implicit_view.all_allowed_relay_parents())
+			.collect();
+
 		state.per_relay_parent.retain(|r, _| remaining.contains(&r));
 	}
 

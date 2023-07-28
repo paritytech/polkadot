@@ -260,10 +260,27 @@ async fn handle_leaf_activation(
 				tx.send(Ok(ancestry_hashes.clone())).unwrap();
 			}
 		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionIndexForChild(tx))
+			) if parent == *hash => {
+				tx.send(Ok(1)).unwrap();
+			}
+		);
 	}
 
 	for (hash, number) in ancestry_iter {
 		send_block_header(virtual_overseer, hash, number).await;
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionIndexForChild(tx))
+			) if parent == hash => {
+				tx.send(Ok(1)).unwrap();
+			}
+		);
 	}
 
 	for _ in 0..test_state.availability_cores.len() {
@@ -1542,6 +1559,91 @@ fn backwards_compatible() {
 		.await;
 
 		get_backable_candidate(&mut virtual_overseer, &leaf_b, para_id, vec![], None).await;
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn uses_ancestry_only_within_session() {
+	test_harness(|mut virtual_overseer| async move {
+		let number = 5;
+		let hash = Hash::repeat_byte(5);
+		let ancestry_len = 3;
+		let session = 2;
+
+		let ancestry_hashes =
+			vec![Hash::repeat_byte(4), Hash::repeat_byte(3), Hash::repeat_byte(2)];
+		let session_change_hash = Hash::repeat_byte(3);
+
+		let activated = ActivatedLeaf {
+			hash,
+			number,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+
+		virtual_overseer
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
+				ActiveLeavesUpdate::start_work(activated),
+			)))
+			.await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParams(tx))
+			) if parent == hash => {
+				tx.send(Ok(AsyncBackingParams { max_candidate_depth: 0, allowed_ancestry_len: ancestry_len })).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::AvailabilityCores(tx))
+			) if parent == hash => {
+				tx.send(Ok(Vec::new())).unwrap();
+			}
+		);
+
+		send_block_header(&mut virtual_overseer, hash, number).await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ChainApi(
+				ChainApiMessage::Ancestors{hash: block_hash, k, response_channel: tx}
+			) if block_hash == hash && k == ancestry_len as usize => {
+				tx.send(Ok(ancestry_hashes.clone())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionIndexForChild(tx))
+			) if parent == hash => {
+				tx.send(Ok(session)).unwrap();
+			}
+		);
+
+		for (i, hash) in ancestry_hashes.into_iter().enumerate() {
+			let number = number - (i + 1) as BlockNumber;
+			send_block_header(&mut virtual_overseer, hash, number).await;
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionIndexForChild(tx))
+				) if parent == hash => {
+					if hash == session_change_hash {
+						tx.send(Ok(session - 1)).unwrap();
+						break
+					} else {
+						tx.send(Ok(session)).unwrap();
+					}
+				}
+			);
+		}
 
 		virtual_overseer
 	});
