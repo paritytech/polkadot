@@ -534,7 +534,7 @@ impl parachains_paras::Config for Runtime {
 	type UnsignedPriority = ParasUnsignedPriority;
 	type QueueFootprinter = ParaInclusion;
 	type NextSessionRotation = Babe;
-	type OnNewHead = Registrar;
+	type OnNewHead = ();
 }
 
 impl parachains_dmp::Config for Runtime {}
