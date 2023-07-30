@@ -791,6 +791,7 @@ mod tests {
 		type UnsignedPriority = ParasUnsignedPriority;
 		type QueueFootprinter = ();
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
+		type OnNewHead = ();
 	}
 
 	impl configuration::Config for Test {
