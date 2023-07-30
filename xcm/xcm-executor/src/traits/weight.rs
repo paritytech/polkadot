@@ -51,7 +51,7 @@ pub trait WeightTrader: Sized {
 	/// for the `weight`, then an error is returned.
 	fn buy_weight(
 		&mut self,
-		ctx: &XcmContext,
+		ctx: Option<&XcmContext>,
 		weight: Weight,
 		payment: Assets,
 	) -> Result<Assets, XcmError>;
@@ -60,7 +60,7 @@ pub trait WeightTrader: Sized {
 	/// purchased using `buy_weight`.
 	///
 	/// Default implementation refunds nothing.
-	fn refund_weight(&mut self, _ctx: &XcmContext, _weight: Weight) -> Option<MultiAsset> {
+	fn refund_weight(&mut self, _ctx: Option<&XcmContext>, _weight: Weight) -> Option<MultiAsset> {
 		None
 	}
 }
@@ -73,7 +73,7 @@ impl WeightTrader for Tuple {
 
 	fn buy_weight(
 		&mut self,
-		ctx: &XcmContext,
+		ctx: Option<&XcmContext>,
 		weight: Weight,
 		payment: Assets,
 	) -> Result<Assets, XcmError> {
@@ -102,7 +102,7 @@ impl WeightTrader for Tuple {
 		})
 	}
 
-	fn refund_weight(&mut self, ctx: &XcmContext, weight: Weight) -> Option<MultiAsset> {
+	fn refund_weight(&mut self, ctx: Option<&XcmContext>, weight: Weight) -> Option<MultiAsset> {
 		for_tuples!( #(
 			if let Some(asset) = Tuple.refund_weight(ctx, weight) {
 				return Some(asset);

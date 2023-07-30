@@ -142,7 +142,7 @@ impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 
 	fn buy_weight(
 		&mut self,
-		_ctx: &XcmContext,
+		_ctx: Option<&XcmContext>,
 		weight: Weight,
 		payment: Assets,
 	) -> Result<Assets, XcmError> {
@@ -165,7 +165,7 @@ impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 		Ok(unused)
 	}
 
-	fn refund_weight(&mut self, _ctx: &XcmContext, weight: Weight) -> Option<MultiAsset> {
+	fn refund_weight(&mut self, _ctx: Option<&XcmContext>, weight: Weight) -> Option<MultiAsset> {
 		log::trace!(target: "xcm::weight", "FixedRateOfFungible::refund_weight weight: {:?}", weight);
 		let (id, units_per_second, units_per_mb) = T::get();
 		let weight = weight.min(self.0);
@@ -217,7 +217,7 @@ impl<
 
 	fn buy_weight(
 		&mut self,
-		_ctx: &XcmContext,
+		_ctx: Option<&XcmContext>,
 		weight: Weight,
 		payment: Assets,
 	) -> Result<Assets, XcmError> {
@@ -231,7 +231,7 @@ impl<
 		Ok(unused)
 	}
 
-	fn refund_weight(&mut self, _ctx: &XcmContext, weight: Weight) -> Option<MultiAsset> {
+	fn refund_weight(&mut self, _ctx: Option<&XcmContext>, weight: Weight) -> Option<MultiAsset> {
 		log::trace!(target: "xcm::weight", "UsingComponents::refund_weight weight: {:?}", weight);
 		let weight = weight.min(self.0);
 		let amount = WeightToFee::weight_to_fee(&weight);
