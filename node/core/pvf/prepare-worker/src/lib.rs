@@ -45,7 +45,7 @@ use polkadot_node_core_pvf_common::{
 };
 use polkadot_primitives::ExecutorParams;
 use std::{
-	path::PathBuf,
+	path::{Path, PathBuf},
 	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
@@ -116,9 +116,37 @@ async fn send_response(stream: &mut UnixStream, result: PrepareResult) -> io::Re
 ///
 /// 7. Send the result of preparation back to the host. If any error occurred in the above steps, we
 ///    send that in the `PrepareResult`.
-pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
+pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>, temp_artifact_dir: &Path) {
 	worker_event_loop("prepare", socket_path, node_version, |mut stream| async move {
 		let worker_pid = std::process::id();
+
+		// Try to enable landlock.
+		{
+			#[cfg(target_os = "linux")]
+			let landlock_status = {
+				use polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread;
+
+				try_restrict_thread(landlock::path_beneath_rules(
+					&[temp_artifact_dir],
+					landlock::AccessFs::from_write(abi),
+				))
+				.map(LandlockStatus::from_ruleset_status)
+				.map_err(|e| e.to_string())
+			};
+			#[cfg(not(target_os = "linux"))]
+			let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
+
+			// TODO: return an error?
+			// Log if landlock threw an error.
+			if let Err(err) = landlock_status {
+				gum::warn!(
+					target: LOG_TARGET,
+					%worker_pid,
+					"error enabling landlock: {}",
+					err
+				);
+			}
+		}
 
 		loop {
 			let (pvf, temp_artifact_dest) = recv_request(&mut stream).await?;
@@ -127,6 +155,10 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				%worker_pid,
 				"worker: preparing artifact",
 			);
+
+			if !temp_artifact_dest.starts_with(temp_artifact_dir) {
+				return Err(io::Error::new(io::ErrorKind::Other, format!("received an artifact path {temp_artifact_dest:?} that does not belong to expected artifact dir {temp_artifact_dir:?}")))
+			}
 
 			let preparation_timeout = pvf.prep_timeout();
 			let prepare_job_kind = pvf.prep_kind();
@@ -157,14 +189,6 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let prepare_thread = thread::spawn_worker_thread(
 				"prepare thread",
 				move || {
-					// Try to enable landlock.
-					#[cfg(target_os = "linux")]
-					let landlock_status = polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread()
-						.map(LandlockStatus::from_ruleset_status)
-						.map_err(|e| e.to_string());
-					#[cfg(not(target_os = "linux"))]
-					let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
-
 					#[allow(unused_mut)]
 					let mut result = prepare_artifact(pvf, cpu_time_start);
 
@@ -183,7 +207,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 						});
 					}
 
-					(result, landlock_status)
+					result
 				},
 				Arc::clone(&condvar),
 				WaitOutcome::Finished,
@@ -196,16 +220,13 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 					let _ = cpu_time_monitor_tx.send(());
 
 					match prepare_thread.join().unwrap_or_else(|err| {
-						(
-							Err(PrepareError::Panic(stringify_panic_payload(err))),
-							Ok(LandlockStatus::Unavailable),
-						)
+						Err(PrepareError::Panic(stringify_panic_payload(err)))
 					}) {
-						(Err(err), _) => {
+						Err(err) => {
 							// Serialized error will be written into the socket.
 							Err(err)
 						},
-						(Ok(ok), landlock_status) => {
+						Ok(ok) => {
 							#[cfg(not(target_os = "linux"))]
 							let (artifact, cpu_time_elapsed) = ok;
 							#[cfg(target_os = "linux")]
@@ -220,16 +241,6 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 								#[cfg(target_os = "linux")]
 								max_rss: extract_max_rss_stat(max_rss, worker_pid),
 							};
-
-							// Log if landlock threw an error.
-							if let Err(err) = landlock_status {
-								gum::warn!(
-									target: LOG_TARGET,
-									%worker_pid,
-									"error enabling landlock: {}",
-									err
-								);
-							}
 
 							// Write the serialized artifact into a temp file.
 							//

@@ -37,7 +37,7 @@ use polkadot_node_core_pvf_common::{
 };
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
-	path::PathBuf,
+	path::{Path, PathBuf},
 	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
@@ -121,9 +121,37 @@ async fn send_response(stream: &mut UnixStream, response: Response) -> io::Resul
 /// `node_version`, if `Some`, is checked against the worker version. A mismatch results in
 /// immediate worker termination. `None` is used for tests and in other situations when version
 /// check is not necessary.
-pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
+pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>, artifact_dir: &Path) {
 	worker_event_loop("execute", socket_path, node_version, |mut stream| async move {
 		let worker_pid = std::process::id();
+
+		// Try to enable landlock.
+		{
+			#[cfg(target_os = "linux")]
+			let landlock_status = {
+				use polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread;
+
+				try_restrict_thread(landlock::path_beneath_rules(
+					&[artifact_dir],
+					landlock::AccessFs::from_read(abi),
+				))
+				.map(LandlockStatus::from_ruleset_status)
+				.map_err(|e| e.to_string())
+			};
+			#[cfg(not(target_os = "linux"))]
+			let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
+
+			// TODO: return an error?
+			// Log if landlock threw an error.
+			if let Err(err) = landlock_status {
+				gum::warn!(
+					target: LOG_TARGET,
+					%worker_pid,
+					"error enabling landlock: {}",
+					err
+				);
+			}
+		}
 
 		let handshake = recv_handshake(&mut stream).await?;
 		let executor = Executor::new(handshake.executor_params).map_err(|e| {
@@ -139,9 +167,11 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				artifact_path.display(),
 			);
 
+			if !artifact_path.starts_with(artifact_dir) {
+				return Err(io::Error::new(io::ErrorKind::Other, format!("received an artifact path {artifact_path:?} that does not belong to expected artifact dir {artifact_dir:?}")))
+			}
+
 			// Get the artifact bytes.
-			//
-			// We do this outside the thread so that we can lock down filesystem access there.
 			let compiled_artifact_blob = match std::fs::read(artifact_path) {
 				Ok(bytes) => bytes,
 				Err(err) => {
@@ -172,22 +202,11 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let execute_thread = thread::spawn_worker_thread_with_stack_size(
 				"execute thread",
 				move || {
-					// Try to enable landlock.
-					#[cfg(target_os = "linux")]
-					let landlock_status = polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread()
-						.map(LandlockStatus::from_ruleset_status)
-						.map_err(|e| e.to_string());
-					#[cfg(not(target_os = "linux"))]
-					let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
-
-					(
-						validate_using_artifact(
-							&compiled_artifact_blob,
-							&params,
-							executor_2,
-							cpu_time_start,
-						),
-						landlock_status,
+					validate_using_artifact(
+						&compiled_artifact_blob,
+						&params,
+						executor_2,
+						cpu_time_start,
 					)
 				},
 				Arc::clone(&condvar),
@@ -200,22 +219,9 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let response = match outcome {
 				WaitOutcome::Finished => {
 					let _ = cpu_time_monitor_tx.send(());
-					let (result, landlock_status) = execute_thread.join().unwrap_or_else(|e| {
-						(
-							Response::Panic(stringify_panic_payload(e)),
-							Ok(LandlockStatus::Unavailable),
-						)
-					});
-
-					// Log if landlock threw an error.
-					if let Err(err) = landlock_status {
-						gum::warn!(
-							target: LOG_TARGET,
-							%worker_pid,
-							"error enabling landlock: {}",
-							err
-						);
-					}
+					let result = execute_thread
+						.join()
+						.unwrap_or_else(|e| Response::Panic(stringify_panic_payload(e)));
 
 					result
 				},

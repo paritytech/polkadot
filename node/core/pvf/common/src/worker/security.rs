@@ -110,18 +110,21 @@ pub mod landlock {
 
 	/// Tries to restrict the current thread with the following landlock access controls:
 	///
-	/// 1. all global filesystem access
-	/// 2. ... more may be supported in the future.
+	/// 1. all global filesystem access restricted, with optional exceptions
+	/// 2. ... more sandbox types (e.g. networking) may be supported in the future.
 	///
 	/// If landlock is not supported in the current environment this is simply a noop.
 	///
 	/// # Returns
 	///
 	/// The status of the restriction (whether it was fully, partially, or not-at-all enforced).
-	pub fn try_restrict_thread() -> Result<RulesetStatus, RulesetError> {
+	pub fn try_restrict_thread(
+		fs_exceptions: impl Iterator<Item = Result<PathBeneath<PathFd>, RulesetError>>,
+	) -> Result<RulesetStatus, RulesetError> {
 		let status = Ruleset::new()
 			.handle_access(AccessFs::from_all(LANDLOCK_ABI))?
 			.create()?
+			.add_rules(fs_exceptions)?
 			.restrict_self()?;
 		Ok(status.ruleset)
 	}
