@@ -35,7 +35,7 @@ use sp_std::{prelude::*, result};
 use crate::traits::{OnSwap, Registrar};
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
-use runtime_parachains::paras::{ParaKind, OnNewHead};
+use runtime_parachains::paras::{OnNewHead, ParaKind};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{CheckedSub, Saturating},
