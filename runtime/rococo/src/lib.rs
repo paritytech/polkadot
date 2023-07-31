@@ -1111,7 +1111,7 @@ impl parachains_assigner_on_demand::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type TrafficDefaultValue = OnDemandTrafficDefaultValue;
-	type WeightInfo = parachains_assigner_on_demand::TestWeightInfo;
+	type WeightInfo = weights::runtime_parachains_assigner_on_demand::WeightInfo<Runtime>;
 }
 
 impl parachains_assigner_parachains::Config for Runtime {}
