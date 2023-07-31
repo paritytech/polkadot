@@ -43,12 +43,14 @@ pub const JOB_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
 pub async fn spawn_with_program_path(
 	debug_id: &'static str,
 	program_path: impl Into<PathBuf>,
-	extra_args: &'static [&'static str],
+	extra_args: &[&str],
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	let program_path = program_path.into();
 	with_transient_socket_path(debug_id, |socket_path| {
 		let socket_path = socket_path.to_owned();
+		let extra_args: Vec<String> = extra_args.iter().map(|arg| arg.to_string()).collect();
+
 		async move {
 			let listener = UnixListener::bind(&socket_path).map_err(|err| {
 				gum::warn!(
@@ -63,7 +65,7 @@ pub async fn spawn_with_program_path(
 			})?;
 
 			let handle =
-				WorkerHandle::spawn(&program_path, extra_args, socket_path).map_err(|err| {
+				WorkerHandle::spawn(&program_path, &extra_args, socket_path).map_err(|err| {
 					gum::warn!(
 						target: LOG_TARGET,
 						%debug_id,
@@ -214,7 +216,7 @@ pub struct WorkerHandle {
 impl WorkerHandle {
 	fn spawn(
 		program: impl AsRef<Path>,
-		extra_args: &[&str],
+		extra_args: &[String],
 		socket_path: impl AsRef<Path>,
 	) -> io::Result<Self> {
 		let mut child = process::Command::new(program.as_ref())
