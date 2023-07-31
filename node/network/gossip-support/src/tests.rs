@@ -106,7 +106,7 @@ impl MockAuthorityDiscovery {
 			.clone()
 			.into_iter()
 			.map(|(p, a)| {
-				let multiaddr = Multiaddr::empty().with(Protocol::P2p(p.into()));
+				let multiaddr = Multiaddr::empty().with(Protocol::P2p(p));
 				(a, HashSet::from([multiaddr]))
 			})
 			.collect();
@@ -566,11 +566,11 @@ fn test_log_output() {
 	let unconnected_authorities = {
 		let mut m = HashMap::new();
 		let peer_id = PeerId::random();
-		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id.into()));
+		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id));
 		let addrs = HashSet::from([addr.clone(), addr]);
 		m.insert(alice, addrs);
 		let peer_id = PeerId::random();
-		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id.into()));
+		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id));
 		let addrs = HashSet::from([addr.clone(), addr]);
 		m.insert(bob, addrs);
 		m
