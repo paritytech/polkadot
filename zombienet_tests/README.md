@@ -18,7 +18,7 @@ To run any test locally use the native provider (`zombienet test -p native ...`)
 
 * adder-collator -> polkadot/target/testnet/adder-collator
 * malus -> polkadot/target/testnet/malus
-* polkadot -> polkadot/target/testnet/polkadot
+* polkadot -> polkadot/target/testnet/polkadot, polkadot/target/testnet/polkadot-prepare-worker, polkadot/target/testnet/polkadot-execute-worker
 * polkadot-collator -> cumulus/target/release/polkadot-parachain
 * undying-collator -> polkadot/target/testnet/undying-collator
 

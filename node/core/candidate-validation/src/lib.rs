@@ -93,9 +93,12 @@ const DEFAULT_APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 pub struct Config {
 	/// The path where candidate validation can store compiled artifacts for PVFs.
 	pub artifacts_cache_path: PathBuf,
-	/// The path to the executable which can be used for spawning PVF compilation & validation
-	/// workers.
-	pub program_path: PathBuf,
+	/// The version of the node. `None` can be passed to skip the version check (only for tests).
+	pub node_version: Option<String>,
+	/// Path to the preparation worker binary
+	pub prep_worker_path: PathBuf,
+	/// Path to the execution worker binary
+	pub exec_worker_path: PathBuf,
 }
 
 /// The candidate validation subsystem.
@@ -104,7 +107,7 @@ pub struct CandidateValidationSubsystem {
 	pub metrics: Metrics,
 	#[allow(missing_docs)]
 	pub pvf_metrics: polkadot_node_core_pvf::Metrics,
-	config: Config,
+	config: Option<Config>,
 }
 
 impl CandidateValidationSubsystem {
@@ -113,7 +116,7 @@ impl CandidateValidationSubsystem {
 	///
 	/// Check out [`IsolationStrategy`] to get more details.
 	pub fn with_config(
-		config: Config,
+		config: Option<Config>,
 		metrics: Metrics,
 		pvf_metrics: polkadot_node_core_pvf::Metrics,
 	) -> Self {
@@ -124,16 +127,14 @@ impl CandidateValidationSubsystem {
 #[overseer::subsystem(CandidateValidation, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CandidateValidationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(
-			ctx,
-			self.metrics,
-			self.pvf_metrics,
-			self.config.artifacts_cache_path,
-			self.config.program_path,
-		)
-		.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-		.boxed();
-		SpawnedSubsystem { name: "candidate-validation-subsystem", future }
+		if let Some(config) = self.config {
+			let future = run(ctx, self.metrics, self.pvf_metrics, config)
+				.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
+				.boxed();
+			SpawnedSubsystem { name: "candidate-validation-subsystem", future }
+		} else {
+			polkadot_overseer::DummySubsystem.start(ctx)
+		}
 	}
 }
 
@@ -142,11 +143,15 @@ async fn run<Context>(
 	mut ctx: Context,
 	metrics: Metrics,
 	pvf_metrics: polkadot_node_core_pvf::Metrics,
-	cache_path: PathBuf,
-	program_path: PathBuf,
+	Config { artifacts_cache_path, node_version, prep_worker_path, exec_worker_path }: Config,
 ) -> SubsystemResult<()> {
 	let (validation_host, task) = polkadot_node_core_pvf::start(
-		polkadot_node_core_pvf::Config::new(cache_path, program_path),
+		polkadot_node_core_pvf::Config::new(
+			artifacts_cache_path,
+			node_version,
+			prep_worker_path,
+			exec_worker_path,
+		),
 		pvf_metrics,
 	);
 	ctx.spawn_blocking("pvf-validation-host", task.boxed())?;
