@@ -31,6 +31,3 @@ landlock = "0.2.0"
 [dev-dependencies]
 assert_matches = "1.4.0"
 tempfile = "3.3.0"
-
-[build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
