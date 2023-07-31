@@ -82,9 +82,9 @@ impl WeightTrader for DummyWeightTrader {
 
 	fn buy_weight(
 		&mut self,
-		_ctx: Option<&XcmContext>,
 		_weight: Weight,
 		_payment: Assets,
+		_context: &XcmContext,
 	) -> Result<Assets, XcmError> {
 		Ok(Assets::default())
 	}
