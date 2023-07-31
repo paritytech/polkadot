@@ -910,8 +910,6 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 	};
 
 	let candidate_validation_config = if role.is_authority() && !is_collator.is_collator() {
-		None
-	} else {
 		let (prep_worker_path, exec_worker_path) =
 			workers::determine_workers_paths(workers_path, workers_names, node_version.clone())?;
 		log::info!("🚀 Using prepare-worker binary at: {:?}", prep_worker_path);
@@ -927,6 +925,8 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 			prep_worker_path,
 			exec_worker_path,
 		})
+	} else {
+		None
 	};
 
 	let chain_selection_config = ChainSelectionConfig {
