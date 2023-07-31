@@ -82,7 +82,7 @@ impl WeightTrader for DummyWeightTrader {
 
 	fn buy_weight(
 		&mut self,
-		_ctx: &XcmContext,
+		_ctx: Option<&XcmContext>,
 		_weight: Weight,
 		_payment: Assets,
 	) -> Result<Assets, XcmError> {
