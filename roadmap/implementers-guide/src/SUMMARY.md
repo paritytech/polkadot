@@ -60,6 +60,7 @@
   - [Utility Subsystems](node/utility/README.md)
     - [Availability Store](node/utility/availability-store.md)
     - [Candidate Validation](node/utility/candidate-validation.md)
+      - [PVF Host and Workers](node/utility/pvf-host-and-workers.md)
     - [Provisioner](node/utility/provisioner.md)
     - [Network Bridge](node/utility/network-bridge.md)
     - [Gossip Support](node/utility/gossip-support.md)

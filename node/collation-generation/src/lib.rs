@@ -25,7 +25,7 @@
 //!   * Determine if the para is scheduled on any core by fetching the `availability_cores` Runtime API.
 //!   * Use the Runtime API subsystem to fetch the full validation data.
 //!   * Invoke the `collator`, and use its outputs to produce a [`CandidateReceipt`], signed with the configuration's `key`.
-//!   * Dispatch a [`CollatorProtocolMessage::DistributeCollation`](receipt, pov)`.
+//!   * Dispatch a [`CollatorProtocolMessage::DistributeCollation`]`(receipt, pov)`.
 
 #![deny(missing_docs)]
 
