@@ -289,30 +289,31 @@ impl<T: Config> Pallet<T> {
 			for (idx, _) in (0u32..).zip(availability_cores) {
 				let core_idx = CoreIndex(idx);
 				if let Some(core_claimqueue) = cq.get_mut(&core_idx) {
-					core_claimqueue.retain_mut(|maybe_entry| {
-						let mut should_retain = true;
+					let mut dropped_claims: Vec<Option<ParaId>> = vec![];
+					core_claimqueue.retain(|maybe_entry| {
 						if let Some(entry) = maybe_entry {
 							if entry.ttl < now {
-								match T::AssignmentProvider::pop_assignment_for_core(
-									core_idx,
-									Some(entry.para_id()),
-								) {
-									Some(assignment) => {
-										let ttl =
-											<configuration::Pallet<T>>::config().on_demand_ttl;
-										*entry = ParasEntry::new(assignment.clone(), now + ttl);
-									},
-									None => {
-										// The only case where it's okay to drop claims is when there exists some entry
-										// for which the ttl is lower than the current blockheight and there is nothing
-										// queued in the assignmentprovider for the core.
-										should_retain = false
-									},
-								}
+								dropped_claims.push(Some(entry.para_id()));
+								return false
 							}
 						}
-						should_retain
+						true
 					});
+
+					// For all claims dropped due to TTL, attempt to pop a new entry to
+					// the back of the claimqueue.
+					for drop in dropped_claims {
+						match T::AssignmentProvider::pop_assignment_for_core(core_idx, drop) {
+							Some(assignment) => {
+								let ttl = <configuration::Pallet<T>>::config().on_demand_ttl;
+								core_claimqueue.push_back(Some(ParasEntry::new(
+									assignment.clone(),
+									now + ttl,
+								)));
+							},
+							None => (),
+						}
+					}
 				}
 			}
 		});
