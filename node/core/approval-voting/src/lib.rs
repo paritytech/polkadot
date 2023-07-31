@@ -1929,7 +1929,6 @@ where
 			"Oversized bitfield",
 		);
 
-		println!("Oversized bitfield {:?}", n_cores);
 		return Ok((
 			AssignmentCheckResult::Bad(AssignmentCheckError::InvalidBitfield(
 				candidate_indices.len(),
