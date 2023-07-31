@@ -33,8 +33,10 @@ use polkadot_node_network_protocol::{
 	Versioned, View,
 };
 use polkadot_node_primitives::approval::{
-	v1::{BlockApprovalMeta, IndirectSignedApprovalVote},
-	v2::{AsBitIndex, CandidateBitfield, IndirectAssignmentCertV2},
+	v1::{
+		AssignmentCertKind, BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote,
+	},
+	v2::{AsBitIndex, AssignmentCertKindV2, CandidateBitfield, IndirectAssignmentCertV2},
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -66,10 +68,14 @@ const COST_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent identical 
 const COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE: Rep =
 	Rep::CostMinor("The vote was valid but too far in the future");
 const COST_INVALID_MESSAGE: Rep = Rep::CostMajor("The vote was bad");
+const COST_OVERSIZED_BITFIELD: Rep = Rep::CostMajor("Oversized certificate or candidate bitfield");
 
 const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Peer sent a valid message");
 const BENEFIT_VALID_MESSAGE_FIRST: Rep =
 	Rep::BenefitMinorFirst("Valid message with new information");
+
+// Maximum valid size for the `CandidateBitfield` in the assignment messages.
+const MAX_BITFIELD_SIZE: usize = 500;
 
 /// The Approval Distribution subsystem.
 pub struct ApprovalDistribution {
@@ -855,7 +861,17 @@ impl State {
 					num = assignments.len(),
 					"Processing assignments from a peer",
 				);
-				self.process_incoming_assignments(ctx, metrics, peer_id, assignments, rng).await;
+				let sanitized_assignments =
+					self.sanitize_v2_assignments(peer_id, ctx.sender(), assignments).await;
+
+				self.process_incoming_assignments(
+					ctx,
+					metrics,
+					peer_id,
+					sanitized_assignments,
+					rng,
+				)
+				.await;
 			},
 			Versioned::V1(protocol_v1::ApprovalDistributionMessage::Assignments(assignments)) => {
 				gum::trace!(
@@ -865,14 +881,14 @@ impl State {
 					"Processing assignments from a peer",
 				);
 
+				let sanitized_assignments =
+					self.sanitize_v1_assignments(peer_id, ctx.sender(), assignments).await;
+
 				self.process_incoming_assignments(
 					ctx,
 					metrics,
 					peer_id,
-					assignments
-						.into_iter()
-						.map(|(cert, candidate)| (cert.into(), candidate.into()))
-						.collect::<Vec<_>>(),
+					sanitized_assignments,
 					rng,
 				)
 				.await;
@@ -1912,6 +1928,80 @@ impl State {
 			&self.peer_views,
 		)
 		.await;
+	}
+
+	// Filter out invalid candidate index and certificate core bitfields.
+	// For each invalid assignment we also punish the peer.
+	async fn sanitize_v1_assignments(
+		&mut self,
+		peer_id: PeerId,
+		sender: &mut impl overseer::ApprovalDistributionSenderTrait,
+		assignments: Vec<(IndirectAssignmentCert, CandidateIndex)>,
+	) -> Vec<(IndirectAssignmentCertV2, CandidateBitfield)> {
+		let mut sanitized_assignments = Vec::new();
+		for (cert, candidate_index) in assignments.into_iter() {
+			let cert_bitfield_bits = match cert.cert.kind {
+				AssignmentCertKind::RelayVRFDelay { core_index } => core_index.0 as usize + 1,
+				// We don't want to run the VRF yet, but the output is always bounded by `n_cores`.
+				// We assume `candidate_bitfield` length for the core bitfield and we just check against
+				// `MAX_BITFIELD_SIZE` later.
+				AssignmentCertKind::RelayVRFModulo { .. } => candidate_index as usize + 1,
+			};
+
+			// Ensure bitfields length under hard limit.
+			if cert_bitfield_bits > MAX_BITFIELD_SIZE ||
+				cert_bitfield_bits != candidate_index as usize + 1
+			{
+				// Punish the peer for the invalid message.
+				modify_reputation(&mut self.reputation, sender, peer_id, COST_OVERSIZED_BITFIELD)
+					.await;
+			} else {
+				sanitized_assignments.push((cert.into(), candidate_index.into()))
+			}
+		}
+
+		sanitized_assignments
+	}
+
+	// Filter out oversized candidate and certificate core bitfields.
+	// For each invalid assignment we also punish the peer.
+	async fn sanitize_v2_assignments(
+		&mut self,
+		peer_id: PeerId,
+		sender: &mut impl overseer::ApprovalDistributionSenderTrait,
+		assignments: Vec<(IndirectAssignmentCertV2, CandidateBitfield)>,
+	) -> Vec<(IndirectAssignmentCertV2, CandidateBitfield)> {
+		let mut sanitized_assignments = Vec::new();
+		for (cert, candidate_bitfield) in assignments.into_iter() {
+			let cert_bitfield_bits = match &cert.cert.kind {
+				AssignmentCertKindV2::RelayVRFDelay { core_index } => core_index.0 as usize + 1,
+				// We don't want to run the VRF yet, but the output is always bounded by `n_cores`.
+				// We assume `candidate_bitfield` length for the core bitfield and we just check against
+				// `MAX_BITFIELD_SIZE` later.
+				AssignmentCertKindV2::RelayVRFModulo { .. } => candidate_bitfield.len(),
+				AssignmentCertKindV2::RelayVRFModuloCompact { core_bitfield } =>
+					core_bitfield.len(),
+			};
+
+			let candidate_bitfield_len = candidate_bitfield.len();
+			// Our bitfield has `Lsb0`.
+			let msb = candidate_bitfield_len - 1;
+
+			// Ensure bitfields length under hard limit.
+			if cert_bitfield_bits > MAX_BITFIELD_SIZE
+				|| cert_bitfield_bits != candidate_bitfield_len
+				// Ensure minimum bitfield size - MSB needs to be one.
+				|| !candidate_bitfield.bit_at(msb.as_bit_index())
+			{
+				// Punish the peer for the invalid message.
+				modify_reputation(&mut self.reputation, sender, peer_id, COST_OVERSIZED_BITFIELD)
+					.await;
+			} else {
+				sanitized_assignments.push((cert, candidate_bitfield))
+			}
+		}
+
+		sanitized_assignments
 	}
 }
 

@@ -808,7 +808,7 @@ fn session_info(keys: &[Sr25519Keyring]) -> SessionInfo {
 			vec![ValidatorIndex(0)],
 			vec![ValidatorIndex(1)],
 		]),
-		n_cores: keys.len() as _,
+		n_cores: 10,
 		needed_approvals: 2,
 		zeroth_delay_tranche_width: 5,
 		relay_vrf_modulo_samples: 3,
@@ -1504,6 +1504,63 @@ fn subsystem_rejects_assignment_with_unknown_candidate() {
 			))),
 		);
 
+		virtual_overseer
+	});
+}
+
+#[test]
+fn subsystem_rejects_oversized_bitfields() {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
+		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
+			test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
+		let block_hash = Hash::repeat_byte(0x01);
+		let candidate_index = 10;
+		let validator = ValidatorIndex(0);
+
+		ChainBuilder::new()
+			.add_block(
+				block_hash,
+				ChainBuilder::GENESIS_HASH,
+				1,
+				BlockConfig { slot: Slot::from(1), candidates: None, session_info: None },
+			)
+			.build(&mut virtual_overseer)
+			.await;
+
+		let rx = check_and_import_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+		)
+		.await;
+
+		assert_eq!(
+			rx.await,
+			Ok(AssignmentCheckResult::Bad(AssignmentCheckError::InvalidBitfield(
+				candidate_index as usize + 1
+			))),
+		);
+
+		let rx = check_and_import_assignment_v2(
+			&mut virtual_overseer,
+			block_hash,
+			vec![1, 2, 10, 50],
+			validator,
+		)
+		.await;
+
+		assert_eq!(
+			rx.await,
+			Ok(AssignmentCheckResult::Bad(AssignmentCheckError::InvalidBitfield(51))),
+		);
 		virtual_overseer
 	});
 }

@@ -1915,6 +1915,29 @@ where
 			)),
 	};
 
+	let n_cores = session_info.n_cores as usize;
+
+	// Early check the candidate bitfield and core bitfields lengths < `n_cores`.
+	// `approval-distribution` already checks for core and claimed candidate bitfields
+	// to be equal in size. A check for claimed candidate bitfields should be enough here.
+	if candidate_indices.len() >= n_cores {
+		gum::debug!(
+			target: LOG_TARGET,
+			validator = assignment.validator.0,
+			n_cores,
+			candidate_bitfield_len = ?candidate_indices.len(),
+			"Oversized bitfield",
+		);
+
+		println!("Oversized bitfield {:?}", n_cores);
+		return Ok((
+			AssignmentCheckResult::Bad(AssignmentCheckError::InvalidBitfield(
+				candidate_indices.len(),
+			)),
+			Vec::new(),
+		))
+	}
+
 	// The Compact VRF modulo assignment cert has multiple core assignments.
 	let mut backing_groups = Vec::new();
 	let mut claimed_core_indices = Vec::new();
