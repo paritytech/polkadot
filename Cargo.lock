@@ -5066,8 +5066,9 @@ checksum = "28988d872ab76095a6e6ac88d99b54fd267702734fd7ffe610ca27f533ddb95a"
 
 [[package]]
 name = "orchestra"
-version = "0.3.1"
-source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-fix-send-trait#873a790360cc46b7b4d4ba41cac192d2d4c75300"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46d78e1deb2a8d54fc1f063a544130db4da31dfe4d5d3b493186424910222a76"
 dependencies = [
  "async-trait",
  "dyn-clonable",
@@ -5082,8 +5083,9 @@ dependencies = [
 
 [[package]]
 name = "orchestra-proc-macro"
-version = "0.3.1"
-source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-fix-send-trait#873a790360cc46b7b4d4ba41cac192d2d4c75300"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d035b1f968d91a826f2e34a9d6d02cb2af5aa7ca39ebd27922d850ab4b2dd2c6"
 dependencies = [
  "anyhow",
  "expander 2.0.0",
@@ -8172,8 +8174,9 @@ dependencies = [
 
 [[package]]
 name = "prioritized-metered-channel"
-version = "0.5.0"
-source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-fix-send-trait#873a790360cc46b7b4d4ba41cac192d2d4c75300"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e99f0c89bd88f393aab44a4ab949351f7bc7e7e1179d11ecbfe50cbe4c47e342"
 dependencies = [
  "coarsetime",
  "crossbeam-queue",
