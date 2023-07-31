@@ -21,7 +21,7 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use futures_timer::Delay;
+use approvals_timers::SignApprovalsTimers;
 use itertools::Itertools;
 use jaeger::{hash_to_trace_identifier, PerLeafSpan};
 use polkadot_node_jaeger as jaeger;
@@ -69,7 +69,8 @@ use futures::{
 	channel::oneshot,
 	future::{BoxFuture, RemoteHandle},
 	prelude::*,
-	stream::{FuturesOrdered, FuturesUnordered},
+	stream::FuturesUnordered,
+	StreamExt,
 };
 
 use std::{
@@ -78,7 +79,7 @@ use std::{
 	},
 	num::NonZeroUsize,
 	sync::Arc,
-	time::Duration,
+	time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use approval_checking::RequiredTranches;
@@ -89,6 +90,7 @@ use time::{slot_number_to_tick, Clock, ClockExt, SystemClock, Tick};
 
 mod approval_checking;
 pub mod approval_db;
+pub mod approvals_timers;
 mod backend;
 mod criteria;
 mod import;
@@ -640,13 +642,6 @@ impl CurrentlyCheckingSet {
 	}
 }
 
-// A list of delayed futures that gets triggered when the waiting time has expired and it is
-// time to sign the candidate.
-#[derive(Default)]
-struct SignApprovalsTimers {
-	pub timers: FuturesOrdered<BoxFuture<'static, (Hash, ValidatorIndex, CandidateHash)>>,
-}
-
 async fn get_session_info<'a, Sender>(
 	runtime_info: &'a mut RuntimeInfo,
 	sender: &mut Sender,
@@ -869,27 +864,30 @@ where
 
 				actions
 			},
-			(block_hash, validator_index, candidate_hash) = sign_approvals_timers.timers.select_next_some() => {
+			(block_hash, validator_index) = sign_approvals_timers.select_next_some() => {
 				gum::debug!(
 					target: LOG_TARGET,
-					?candidate_hash,
-					"Sign approval for candidate",
+					"Sign approval for multiple candidates",
 				);
-				if let Err(err) = maybe_create_signature(
+				match maybe_create_signature(
 					&mut overlayed_db,
 					&mut session_info_provider,
 					&state, &mut ctx,
 					block_hash,
 					validator_index,
-					candidate_hash,
 					&subsystem.metrics,
 				).await {
-					gum::error!(
-						target: LOG_TARGET,
-						?err,
-						?candidate_hash,
-						"Failed to create signature",
-					);
+					Ok(Some(duration)) => {
+						sign_approvals_timers.maybe_start_timer_for_block(duration.as_millis() as u32, block_hash, validator_index);
+					},
+					Ok(None) => {}
+					Err(err) => {
+						gum::error!(
+							target: LOG_TARGET,
+							?err,
+							"Failed to create signature",
+						);
+					}
 				}
 				vec![]
 			}
@@ -2964,28 +2962,6 @@ async fn issue_approval<Context>(
 		},
 	};
 
-	let (s_tx, s_rx) = oneshot::channel();
-
-	ctx.send_message(RuntimeApiMessage::Request(
-		block_hash,
-		RuntimeApiRequest::ApprovalVotingParams(s_tx),
-	))
-	.await;
-
-	let approval_params = match s_rx.await {
-		Ok(Ok(s)) => s,
-		_ => {
-			gum::error!(
-				target: LOG_TARGET,
-				"Could not request approval voting params from runtime using defaults"
-			);
-			ApprovalVotingParams {
-				max_approval_coalesce_count: 1,
-				max_approval_coalesce_wait_millis: 0,
-			}
-		},
-	};
-
 	let candidate_index = match block_entry.candidates().iter().position(|e| e.1 == candidate_hash)
 	{
 		None => {
@@ -3033,25 +3009,16 @@ async fn issue_approval<Context>(
 		},
 	};
 
-	block_entry
-		.candidates_pending_signature
-		.insert(candidate_index as _, CandidateSigningContext { candidate_hash });
-
-	let should_create_signature = block_entry.candidates_pending_signature.len() >=
-		approval_params.max_approval_coalesce_count as usize;
-
-	gum::debug!(
-		target: LOG_TARGET,
-		"Approval coalese params{:?}", approval_params
+	block_entry.candidates_pending_signature.insert(
+		candidate_index as _,
+		CandidateSigningContext {
+			candidate_hash,
+			approved_time_since_unix_epoch: SystemTime::now()
+				.duration_since(UNIX_EPOCH)
+				.map(|duration| duration.as_millis())
+				.unwrap_or(0),
+		},
 	);
-
-	let delay =
-		Delay::new(Duration::from_millis(approval_params.max_approval_coalesce_wait_millis as _));
-
-	sign_approvals_timers.timers.push_back(Box::pin(async move {
-		delay.await;
-		(block_hash, validator_index, candidate_hash)
-	}));
 
 	gum::info!(
 		target: LOG_TARGET,
@@ -3074,18 +3041,22 @@ async fn issue_approval<Context>(
 	)
 	.await;
 
-	if should_create_signature {
-		maybe_create_signature(
-			db,
-			session_info_provider,
-			state,
-			ctx,
+	if let Some(timer_duration) = maybe_create_signature(
+		db,
+		session_info_provider,
+		state,
+		ctx,
+		block_hash,
+		validator_index,
+		metrics,
+	)
+	.await?
+	{
+		sign_approvals_timers.maybe_start_timer_for_block(
+			timer_duration.as_millis() as u32,
 			block_hash,
 			validator_index,
-			candidate_hash,
-			metrics,
-		)
-		.await?;
+		);
 	}
 	Ok(actions)
 }
@@ -3099,9 +3070,8 @@ async fn maybe_create_signature<Context>(
 	ctx: &mut Context,
 	block_hash: Hash,
 	validator_index: ValidatorIndex,
-	current_candidate_hash: CandidateHash,
 	metrics: &Metrics,
-) -> SubsystemResult<()> {
+) -> SubsystemResult<Option<Duration>> {
 	let mut block_entry = match db.load_block_entry(&block_hash)? {
 		Some(b) => b,
 		None => {
@@ -3111,24 +3081,62 @@ async fn maybe_create_signature<Context>(
 				target: LOG_TARGET,
 				"Could not find block that needs signature {:}", block_hash
 			);
-			return Ok(())
+			return Ok(None)
 		},
 	};
 
-	// If the candidate that woke us is not pending do nothing and let one of the wakeup of the
-	// pending candidates create the
-	// signature.
 	gum::debug!(
 		target: LOG_TARGET,
 		"Candidates pending signatures {:}", block_entry.candidates_pending_signature.len()
 	);
-	if !block_entry
+
+	let oldest_candidate_to_sign = match block_entry
 		.candidates_pending_signature
 		.values()
-		.map(|val| val.candidate_hash)
-		.contains(&current_candidate_hash)
+		.min_by(|a, b| a.approved_time_since_unix_epoch.cmp(&b.approved_time_since_unix_epoch))
 	{
-		return Ok(())
+		Some(candidate) => candidate,
+		None => return Ok(None),
+	};
+
+	let (s_tx, s_rx) = oneshot::channel();
+
+	ctx.send_message(RuntimeApiMessage::Request(
+		block_hash,
+		RuntimeApiRequest::ApprovalVotingParams(s_tx),
+	))
+	.await;
+
+	let approval_params = match s_rx.await {
+		Ok(Ok(s)) => s,
+		_ => {
+			gum::error!(
+				target: LOG_TARGET,
+				"Could not request approval voting params from runtime using defaults"
+			);
+			ApprovalVotingParams {
+				max_approval_coalesce_count: 1,
+				max_approval_coalesce_wait_millis: 100,
+			}
+		},
+	};
+
+	let passed_since_approved = SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.map(|duration| duration.as_millis())
+		.map(|now| now.checked_sub(oldest_candidate_to_sign.approved_time_since_unix_epoch));
+
+	match passed_since_approved {
+		Ok(Some(passed_since_approved))
+			if passed_since_approved <
+				approval_params.max_approval_coalesce_wait_millis as u128 &&
+				(block_entry.candidates_pending_signature.len() as u32) <
+					approval_params.max_approval_coalesce_count =>
+			return Ok(Some(Duration::from_millis(
+				(approval_params.max_approval_coalesce_wait_millis as u128 - passed_since_approved)
+					as u64,
+			))),
+		_ => {},
 	}
 
 	let session_info = match get_session_info(
@@ -3146,7 +3154,7 @@ async fn maybe_create_signature<Context>(
 				target: LOG_TARGET,
 				"Could not retrieve the session"
 			);
-			return Ok(())
+			return Ok(None)
 		},
 	};
 
@@ -3161,7 +3169,7 @@ async fn maybe_create_signature<Context>(
 			);
 
 			metrics.on_approval_error();
-			return Ok(())
+			return Ok(None)
 		},
 	};
 
@@ -3187,7 +3195,7 @@ async fn maybe_create_signature<Context>(
 			);
 
 			metrics.on_approval_error();
-			return Ok(())
+			return Ok(None)
 		},
 	};
 
@@ -3231,7 +3239,7 @@ async fn maybe_create_signature<Context>(
 	);
 	block_entry.candidates_pending_signature.clear();
 	db.write_block_entry(block_entry.into());
-	Ok(())
+	Ok(None)
 }
 
 // Sign an approval vote. Fails if the key isn't present in the store.

@@ -248,6 +248,7 @@ pub struct BlockEntry {
 /// Context needed for creating an approval signature  for a given candidate.
 pub struct CandidateSigningContext {
 	pub candidate_hash: CandidateHash,
+	pub approved_time_since_unix_epoch: u128,
 }
 
 impl From<crate::Tick> for Tick {

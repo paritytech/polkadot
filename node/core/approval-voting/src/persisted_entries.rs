@@ -366,6 +366,7 @@ pub struct BlockEntry {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CandidateSigningContext {
 	pub candidate_hash: CandidateHash,
+	pub approved_time_since_unix_epoch: u128,
 }
 
 impl BlockEntry {
@@ -486,13 +487,19 @@ impl From<BlockEntry> for crate::approval_db::v2::BlockEntry {
 
 impl From<crate::approval_db::v2::CandidateSigningContext> for CandidateSigningContext {
 	fn from(signing_context: crate::approval_db::v2::CandidateSigningContext) -> Self {
-		Self { candidate_hash: signing_context.candidate_hash }
+		Self {
+			candidate_hash: signing_context.candidate_hash,
+			approved_time_since_unix_epoch: signing_context.approved_time_since_unix_epoch,
+		}
 	}
 }
 
 impl From<CandidateSigningContext> for crate::approval_db::v2::CandidateSigningContext {
 	fn from(signing_context: CandidateSigningContext) -> Self {
-		Self { candidate_hash: signing_context.candidate_hash }
+		Self {
+			candidate_hash: signing_context.candidate_hash,
+			approved_time_since_unix_epoch: signing_context.approved_time_since_unix_epoch,
+		}
 	}
 }
 
