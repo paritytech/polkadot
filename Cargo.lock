@@ -1504,6 +1504,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "5.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "907076dfda823b0b36d2a1bb5f90c96660a5bbcd7729e10727f07858f22c4edc"
+dependencies = [
+ "cfg-if",
+ "hashbrown 0.12.3",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core 0.9.6",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3364,6 +3377,15 @@ dependencies = [
  "io-lifetimes 1.0.10",
  "rustix 0.37.18",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "is_executable"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa9acdc6d67b75e626ad644734e8bc6df893d9cd2a834129065d3dd6158ea9c8"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]
@@ -6414,8 +6436,11 @@ dependencies = [
  "polkadot-cli",
  "polkadot-core-primitives",
  "polkadot-node-core-pvf",
+ "polkadot-node-core-pvf-common",
+ "polkadot-node-core-pvf-execute-worker",
  "polkadot-node-core-pvf-prepare-worker",
  "polkadot-overseer",
+ "substrate-build-script-utils",
  "substrate-rpc-client",
  "tempfile",
  "tikv-jemallocator",
@@ -6541,8 +6566,6 @@ dependencies = [
  "frame-benchmarking-cli",
  "futures",
  "log",
- "polkadot-node-core-pvf-execute-worker",
- "polkadot-node-core-pvf-prepare-worker",
  "polkadot-node-metrics",
  "polkadot-performance-test",
  "polkadot-service",
@@ -6852,6 +6875,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
+ "polkadot-overseer",
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
@@ -7042,7 +7066,6 @@ dependencies = [
  "sp-externalities",
  "sp-io",
  "sp-tracing",
- "substrate-build-script-utils",
  "tempfile",
  "tokio",
  "tracing-gum",
@@ -7663,6 +7686,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "futures",
  "hex-literal 0.4.1",
+ "is_executable",
  "kusama-runtime",
  "kusama-runtime-constants",
  "kvdb",
@@ -7697,6 +7721,7 @@ dependencies = [
  "polkadot-node-core-dispute-coordinator",
  "polkadot-node-core-parachains-inherent",
  "polkadot-node-core-provisioner",
+ "polkadot-node-core-pvf",
  "polkadot-node-core-pvf-checker",
  "polkadot-node-core-runtime-api",
  "polkadot-node-network-protocol",
@@ -7742,6 +7767,7 @@ dependencies = [
  "sc-transaction-pool-api",
  "serde",
  "serde_json",
+ "serial_test",
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
@@ -7858,6 +7884,7 @@ dependencies = [
  "polkadot-node-core-backing",
  "polkadot-node-core-candidate-validation",
  "polkadot-node-core-dispute-coordinator",
+ "polkadot-node-core-pvf-common",
  "polkadot-node-core-pvf-execute-worker",
  "polkadot-node-core-pvf-prepare-worker",
  "polkadot-node-primitives",
@@ -7869,6 +7896,7 @@ dependencies = [
  "rand 0.8.5",
  "sp-core",
  "sp-keystore",
+ "substrate-build-script-utils",
  "tracing-gum",
 ]
 
@@ -10386,6 +10414,31 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "serial_test"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e56dd856803e253c8f298af3f4d7eb0ae5e23a737252cd90bb4f3b435033b2d"
+dependencies = [
+ "dashmap",
+ "futures",
+ "lazy_static",
+ "log",
+ "parking_lot 0.12.1",
+ "serial_test_derive",
+]
+
+[[package]]
+name = "serial_test_derive"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91d129178576168c589c9ec973feedf7d3126c01ac2bf08795109aa35b69fb8f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.20",
 ]
 
 [[package]]
