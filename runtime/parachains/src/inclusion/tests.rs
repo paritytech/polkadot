@@ -1259,7 +1259,13 @@ fn candidate_checks() {
 				let cfg = Configuration::config();
 				let expected_at = 10 + cfg.validation_upgrade_delay;
 				assert_eq!(expected_at, 12);
-				Paras::schedule_code_upgrade(chain_a, vec![1, 2, 3, 4].into(), expected_at, &cfg);
+				Paras::schedule_code_upgrade(
+					chain_a,
+					vec![1, 2, 3, 4].into(),
+					expected_at,
+					&cfg,
+					true,
+				);
 			}
 
 			assert_noop!(
@@ -2277,7 +2283,7 @@ fn para_upgrade_delay_scheduled_from_inclusion() {
 		let cause = &active_vote_state.causes()[0];
 		// Upgrade block is the block of inclusion, not candidate's parent.
 		assert_matches!(cause,
-			paras::PvfCheckCause::Upgrade { id, included_at }
+			paras::PvfCheckCause::Upgrade { id, included_at, set_go_ahead: true }
 				if id == &chain_a && included_at == &7
 		);
 	});
