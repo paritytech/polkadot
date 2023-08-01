@@ -898,7 +898,8 @@ mod enter {
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
-			assert!(max_block_weight_proof_size_adjusted().any_lt(inherent_data_weight(&expected_para_inherent_data)));
+			assert!(max_block_weight_proof_size_adjusted()
+				.any_lt(inherent_data_weight(&expected_para_inherent_data)));
 
 			// Check the para inherent data is as expected:
 			// * 1 bitfield per validator (5 validators per core, 30 backed candidates, 3 disputes => 5*33 = 165)
