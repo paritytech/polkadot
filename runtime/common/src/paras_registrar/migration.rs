@@ -17,7 +17,7 @@
 use super::*;
 use frame_support::{
 	dispatch::GetStorageVersion,
-	traits::{OnRuntimeUpgrade, StorageVersion, Contains},
+	traits::{Contains, OnRuntimeUpgrade, StorageVersion},
 };
 
 #[derive(Encode, Decode)]
@@ -28,7 +28,9 @@ pub struct ParaInfoV1<Account, Balance> {
 }
 
 pub struct MigrateToV1<T, UnlockParaIds>(sp_std::marker::PhantomData<(T, UnlockParaIds)>);
-impl<T: Config, UnlockParaIds: Contains<ParaId>> OnRuntimeUpgrade for MigrateToV1<T, UnlockParaIds> {
+impl<T: Config, UnlockParaIds: Contains<ParaId>> OnRuntimeUpgrade
+	for MigrateToV1<T, UnlockParaIds>
+{
 	fn on_runtime_upgrade() -> Weight {
 		let onchain_version = Pallet::<T>::on_chain_storage_version();
 
