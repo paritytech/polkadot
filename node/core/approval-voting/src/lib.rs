@@ -21,7 +21,6 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use approvals_timers::SignApprovalsTimers;
 use itertools::Itertools;
 use jaeger::{hash_to_trace_identifier, PerLeafSpan};
 use polkadot_node_jaeger as jaeger;
@@ -74,23 +73,23 @@ use futures::{
 };
 
 use std::{
+	cmp::min,
 	collections::{
 		btree_map::Entry as BTMEntry, hash_map::Entry as HMEntry, BTreeMap, HashMap, HashSet,
 	},
 	num::NonZeroUsize,
 	sync::Arc,
-	time::{Duration, SystemTime, UNIX_EPOCH},
+	time::Duration,
 };
 
 use approval_checking::RequiredTranches;
 use bitvec::{order::Lsb0, vec::BitVec};
 use criteria::{AssignmentCriteria, RealAssignmentCriteria};
 use persisted_entries::{ApprovalEntry, BlockEntry, CandidateEntry};
-use time::{slot_number_to_tick, Clock, ClockExt, SystemClock, Tick};
+use time::{slot_number_to_tick, Clock, ClockExt, DelayedApprovalTimer, SystemClock, Tick};
 
 mod approval_checking;
 pub mod approval_db;
-pub mod approvals_timers;
 mod backend;
 mod criteria;
 mod import;
@@ -785,7 +784,7 @@ where
 	let mut wakeups = Wakeups::default();
 	let mut currently_checking_set = CurrentlyCheckingSet::default();
 	let mut approvals_cache = lru::LruCache::new(APPROVAL_CACHE_SIZE);
-	let mut sign_approvals_timers = SignApprovalsTimers::default();
+	let mut delayed_approvals_timers = DelayedApprovalTimer::default();
 
 	let mut last_finalized_height: Option<BlockNumber> = {
 		let (tx, rx) = oneshot::channel();
@@ -864,21 +863,25 @@ where
 
 				actions
 			},
-			(block_hash, validator_index) = sign_approvals_timers.select_next_some() => {
+			(block_hash, validator_index) = delayed_approvals_timers.select_next_some() => {
 				gum::debug!(
 					target: LOG_TARGET,
 					"Sign approval for multiple candidates",
 				);
+
+				let approval_params = get_approval_voting_params_or_default(&mut ctx, block_hash).await;
+
 				match maybe_create_signature(
 					&mut overlayed_db,
 					&mut session_info_provider,
+					approval_params,
 					&state, &mut ctx,
 					block_hash,
 					validator_index,
 					&subsystem.metrics,
 				).await {
-					Ok(Some(duration)) => {
-						sign_approvals_timers.maybe_start_timer_for_block(duration.as_millis() as u32, block_hash, validator_index);
+					Ok(Some(next_wakeup)) => {
+						delayed_approvals_timers.maybe_arm_timer(next_wakeup, state.clock.as_ref(), block_hash, validator_index);
 					},
 					Ok(None) => {}
 					Err(err) => {
@@ -902,7 +905,7 @@ where
 			&mut wakeups,
 			&mut currently_checking_set,
 			&mut approvals_cache,
-			&mut sign_approvals_timers,
+			&mut delayed_approvals_timers,
 			&mut subsystem.mode,
 			actions,
 		)
@@ -950,7 +953,7 @@ async fn handle_actions<Context>(
 	wakeups: &mut Wakeups,
 	currently_checking_set: &mut CurrentlyCheckingSet,
 	approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
-	sign_approvals_timers: &mut SignApprovalsTimers,
+	delayed_approvals_timers: &mut DelayedApprovalTimer,
 	mode: &mut Mode,
 	actions: Vec<Action>,
 ) -> SubsystemResult<bool> {
@@ -980,7 +983,7 @@ async fn handle_actions<Context>(
 					session_info_provider,
 					metrics,
 					candidate_hash,
-					sign_approvals_timers,
+					delayed_approvals_timers,
 					approval_request,
 				)
 				.await?
@@ -1019,7 +1022,6 @@ async fn handle_actions<Context>(
 				let block_hash = indirect_cert.block_hash;
 				launch_approval_span.add_string_tag("block-hash", format!("{:?}", block_hash));
 				let validator_index = indirect_cert.validator;
-
 				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 					indirect_cert,
 					claimed_candidate_indices,
@@ -2939,7 +2941,7 @@ async fn issue_approval<Context>(
 	session_info_provider: &mut RuntimeInfo,
 	metrics: &Metrics,
 	candidate_hash: CandidateHash,
-	sign_approvals_timers: &mut SignApprovalsTimers,
+	delayed_approvals_timers: &mut DelayedApprovalTimer,
 	ApprovalVoteRequest { validator_index, block_hash }: ApprovalVoteRequest,
 ) -> SubsystemResult<Vec<Action>> {
 	let mut issue_approval_span = state
@@ -3009,14 +3011,30 @@ async fn issue_approval<Context>(
 		},
 	};
 
+	let session_info = match get_session_info(
+		session_info_provider,
+		ctx.sender(),
+		block_entry.parent_hash(),
+		block_entry.session(),
+	)
+	.await
+	{
+		Some(s) => s,
+		None => return Ok(Vec::new()),
+	};
+
+	let approval_params = get_approval_voting_params_or_default(ctx, block_hash).await;
+
 	block_entry.candidates_pending_signature.insert(
 		candidate_index as _,
 		CandidateSigningContext {
 			candidate_hash,
-			approved_time_since_unix_epoch: SystemTime::now()
-				.duration_since(UNIX_EPOCH)
-				.map(|duration| duration.as_millis())
-				.unwrap_or(0),
+			send_no_later_than_tick: compute_delayed_approval_sending_tick(
+				state,
+				&block_entry,
+				session_info,
+				&approval_params,
+			),
 		},
 	);
 
@@ -3041,9 +3059,10 @@ async fn issue_approval<Context>(
 	)
 	.await;
 
-	if let Some(timer_duration) = maybe_create_signature(
+	if let Some(next_wakeup) = maybe_create_signature(
 		db,
 		session_info_provider,
+		approval_params,
 		state,
 		ctx,
 		block_hash,
@@ -3052,8 +3071,9 @@ async fn issue_approval<Context>(
 	)
 	.await?
 	{
-		sign_approvals_timers.maybe_start_timer_for_block(
-			timer_duration.as_millis() as u32,
+		delayed_approvals_timers.maybe_arm_timer(
+			next_wakeup,
+			state.clock.as_ref(),
 			block_hash,
 			validator_index,
 		);
@@ -3066,12 +3086,13 @@ async fn issue_approval<Context>(
 async fn maybe_create_signature<Context>(
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut RuntimeInfo,
+	approval_params: ApprovalVotingParams,
 	state: &State,
 	ctx: &mut Context,
 	block_hash: Hash,
 	validator_index: ValidatorIndex,
 	metrics: &Metrics,
-) -> SubsystemResult<Option<Duration>> {
+) -> SubsystemResult<Option<Tick>> {
 	let mut block_entry = match db.load_block_entry(&block_hash)? {
 		Some(b) => b,
 		None => {
@@ -3093,50 +3114,21 @@ async fn maybe_create_signature<Context>(
 	let oldest_candidate_to_sign = match block_entry
 		.candidates_pending_signature
 		.values()
-		.min_by(|a, b| a.approved_time_since_unix_epoch.cmp(&b.approved_time_since_unix_epoch))
+		.min_by(|a, b| a.send_no_later_than_tick.cmp(&b.send_no_later_than_tick))
 	{
 		Some(candidate) => candidate,
+		// No cached candidates, nothing to do here, this just means the timer fired,
+		// but the signatures were already sent because we gathered more than max_approval_coalesce_count.
 		None => return Ok(None),
 	};
 
-	let (s_tx, s_rx) = oneshot::channel();
+	let tick_now = state.clock.tick_now();
 
-	ctx.send_message(RuntimeApiMessage::Request(
-		block_hash,
-		RuntimeApiRequest::ApprovalVotingParams(s_tx),
-	))
-	.await;
-
-	let approval_params = match s_rx.await {
-		Ok(Ok(s)) => s,
-		_ => {
-			gum::error!(
-				target: LOG_TARGET,
-				"Could not request approval voting params from runtime using defaults"
-			);
-			ApprovalVotingParams {
-				max_approval_coalesce_count: 1,
-				max_approval_coalesce_wait_millis: 100,
-			}
-		},
-	};
-
-	let passed_since_approved = SystemTime::now()
-		.duration_since(UNIX_EPOCH)
-		.map(|duration| duration.as_millis())
-		.map(|now| now.checked_sub(oldest_candidate_to_sign.approved_time_since_unix_epoch));
-
-	match passed_since_approved {
-		Ok(Some(passed_since_approved))
-			if passed_since_approved <
-				approval_params.max_approval_coalesce_wait_millis as u128 &&
-				(block_entry.candidates_pending_signature.len() as u32) <
-					approval_params.max_approval_coalesce_count =>
-			return Ok(Some(Duration::from_millis(
-				(approval_params.max_approval_coalesce_wait_millis as u128 - passed_since_approved)
-					as u64,
-			))),
-		_ => {},
+	if oldest_candidate_to_sign.send_no_later_than_tick > tick_now &&
+		(block_entry.candidates_pending_signature.len() as u32) <
+			approval_params.max_approval_coalesce_count
+	{
+		return Ok(Some(oldest_candidate_to_sign.send_no_later_than_tick))
 	}
 
 	let session_info = match get_session_info(
@@ -3280,4 +3272,56 @@ fn issue_local_invalid_statement<Sender>(
 		candidate.clone(),
 		false,
 	));
+}
+
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn get_approval_voting_params_or_default<Context>(
+	ctx: &mut Context,
+	block_hash: Hash,
+) -> ApprovalVotingParams {
+	let (s_tx, s_rx) = oneshot::channel();
+
+	ctx.send_message(RuntimeApiMessage::Request(
+		block_hash,
+		RuntimeApiRequest::ApprovalVotingParams(s_tx),
+	))
+	.await;
+
+	match s_rx.await {
+		Ok(Ok(s)) => s,
+		_ => {
+			gum::error!(
+				target: LOG_TARGET,
+				"Could not request approval voting params from runtime using defaults"
+			);
+			ApprovalVotingParams {
+				max_approval_coalesce_count: 1,
+				max_approval_coalesce_wait_ticks: 2,
+			}
+		},
+	}
+}
+
+fn compute_delayed_approval_sending_tick(
+	state: &State,
+	block_entry: &BlockEntry,
+	session_info: &SessionInfo,
+	approval_params: &ApprovalVotingParams,
+) -> Tick {
+	let current_block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
+
+	let no_show_duration_ticks = slot_number_to_tick(
+		state.slot_duration_millis,
+		Slot::from(u64::from(session_info.no_show_slots)),
+	);
+	let tick_now = state.clock.tick_now();
+
+	min(
+		tick_now + approval_params.max_approval_coalesce_wait_ticks as Tick,
+		// We don't want to accidentally cause, no-shows so if we are past
+		// the 2 thirds of the no show time, force the sending of the
+		// approval immediately.
+		// TODO: TBD the right value here, so that we don't accidentally create no-shows.
+		current_block_tick + (no_show_duration_ticks * 2) / 3,
+	)
 }

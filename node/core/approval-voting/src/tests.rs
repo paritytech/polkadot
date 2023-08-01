@@ -2597,7 +2597,27 @@ async fn handle_double_assignment_import(
 
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
+			let _ = sender.send(Ok(ApprovalVotingParams {
+				max_approval_coalesce_count: 1,
+				max_approval_coalesce_wait_ticks: 0,
+			}));
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
 		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(_))
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
+			let _ = sender.send(Ok(ApprovalVotingParams {
+				max_approval_coalesce_count: 1,
+				max_approval_coalesce_wait_ticks: 0,
+			}));
+		}
 	);
 
 	assert_matches!(
@@ -3330,6 +3350,463 @@ fn waits_until_approving_assignments_are_old_enough() {
 
 		let block_entry = store.load_block_entry(&block_hash).unwrap().unwrap();
 		assert!(block_entry.is_fully_approved());
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn test_approval_is_sent_on_max_approval_coalesce_count() {
+	let assignment_criteria = Box::new(MockAssignmentCriteria(
+		|| {
+			let mut assignments = HashMap::new();
+			let _ = assignments.insert(
+				CoreIndex(0),
+				approval_db::v2::OurAssignment {
+					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
+						.into(),
+					tranche: 0,
+					validator_index: ValidatorIndex(0),
+					triggered: false,
+				}
+				.into(),
+			);
+
+			let assignments_cert =
+				garbage_assignment_cert_v2(AssignmentCertKindV2::RelayVRFModuloCompact {
+					core_bitfield: vec![CoreIndex(0), CoreIndex(1), CoreIndex(2)]
+						.try_into()
+						.unwrap(),
+				});
+			let _ = assignments.insert(
+				CoreIndex(0),
+				approval_db::v2::OurAssignment {
+					cert: assignments_cert.clone(),
+					tranche: 0,
+					validator_index: ValidatorIndex(0),
+					triggered: false,
+				}
+				.into(),
+			);
+
+			let _ = assignments.insert(
+				CoreIndex(1),
+				approval_db::v2::OurAssignment {
+					cert: assignments_cert.clone(),
+					tranche: 0,
+					validator_index: ValidatorIndex(0),
+					triggered: false,
+				}
+				.into(),
+			);
+			assignments
+		},
+		|_| Ok(0),
+	));
+
+	let config = HarnessConfigBuilder::default().assignment_criteria(assignment_criteria).build();
+	let store = config.backend();
+
+	test_harness(config, |test_harness| async move {
+		let TestHarness { mut virtual_overseer, clock, sync_oracle_handle: _sync_oracle_handle } =
+			test_harness;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
+		let block_hash = Hash::repeat_byte(0x01);
+
+		let candidate_commitments = CandidateCommitments::default();
+
+		let candidate_receipt1 = {
+			let mut receipt = dummy_candidate_receipt(block_hash);
+			receipt.descriptor.para_id = ParaId::from(1_u32);
+			receipt.commitments_hash = candidate_commitments.hash();
+			receipt
+		};
+
+		let candidate_hash1 = candidate_receipt1.hash();
+
+		let candidate_receipt2 = {
+			let mut receipt = dummy_candidate_receipt(block_hash);
+			receipt.descriptor.para_id = ParaId::from(2_u32);
+			receipt.commitments_hash = candidate_commitments.hash();
+			receipt
+		};
+
+		let slot = Slot::from(1);
+		let candidate_index1 = 0;
+		let candidate_index2 = 1;
+
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+		];
+		let session_info = SessionInfo {
+			validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
+				vec![ValidatorIndex(0), ValidatorIndex(1)],
+				vec![ValidatorIndex(2)],
+				vec![ValidatorIndex(3), ValidatorIndex(4)],
+			]),
+			..session_info(&validators)
+		};
+
+		let candidates = Some(vec![
+			(candidate_receipt1.clone(), CoreIndex(0), GroupIndex(0)),
+			(candidate_receipt2.clone(), CoreIndex(1), GroupIndex(1)),
+		]);
+		ChainBuilder::new()
+			.add_block(
+				block_hash,
+				ChainBuilder::GENESIS_HASH,
+				1,
+				BlockConfig {
+					slot,
+					candidates: candidates.clone(),
+					session_info: Some(session_info.clone()),
+				},
+			)
+			.build(&mut virtual_overseer)
+			.await;
+
+		assert!(!clock.inner.lock().current_wakeup_is(1));
+		clock.inner.lock().wakeup_all(1);
+
+		assert!(clock.inner.lock().current_wakeup_is(slot_to_tick(slot)));
+		clock.inner.lock().wakeup_all(slot_to_tick(slot));
+
+		futures_timer::Delay::new(Duration::from_millis(200)).await;
+
+		clock.inner.lock().wakeup_all(slot_to_tick(slot + 2));
+
+		assert_eq!(clock.inner.lock().wakeups.len(), 0);
+
+		futures_timer::Delay::new(Duration::from_millis(200)).await;
+
+		let candidate_entry = store.load_candidate_entry(&candidate_hash1).unwrap().unwrap();
+		let our_assignment =
+			candidate_entry.approval_entry(&block_hash).unwrap().our_assignment().unwrap();
+		assert!(our_assignment.triggered());
+
+		handle_approval_on_max_coalesce_count(
+			&mut virtual_overseer,
+			vec![candidate_index1, candidate_index2],
+		)
+		.await;
+
+		virtual_overseer
+	});
+}
+
+async fn handle_approval_on_max_coalesce_count(
+	virtual_overseer: &mut VirtualOverseer,
+	candidate_indicies: Vec<CandidateIndex>,
+) {
+	for _ in &candidate_indicies {
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
+				_,
+				c_indices,
+			)) => {
+				assert_eq!(TryInto::<CandidateBitfield>::try_into(candidate_indicies.clone()).unwrap(), c_indices);
+			}
+		);
+
+		recover_available_data(virtual_overseer).await;
+		fetch_validation_code(virtual_overseer).await;
+	}
+
+	for _ in &candidate_indicies {
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::CandidateValidation(CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)) if timeout == PvfExecTimeoutKind::Approval => {
+				tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default())))
+					.unwrap();
+			}
+		);
+	}
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
+			let _ = sender.send(Ok(ApprovalVotingParams {
+				max_approval_coalesce_count: 2,
+				max_approval_coalesce_wait_ticks: 10000,
+			}));
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
+			let _ = sender.send(Ok(ApprovalVotingParams {
+				max_approval_coalesce_count: 2,
+				max_approval_coalesce_wait_ticks: 10000,
+			}));
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(vote)) => {
+			assert_eq!(TryInto::<CandidateBitfield>::try_into(candidate_indicies).unwrap(), vote.candidate_indices);
+		}
+	);
+
+	// Assert that there are no more messages being sent by the subsystem
+	assert!(overseer_recv(virtual_overseer).timeout(TIMEOUT / 2).await.is_none());
+}
+
+async fn handle_approval_on_max_wait_time(
+	virtual_overseer: &mut VirtualOverseer,
+	candidate_indicies: Vec<CandidateIndex>,
+	clock: Box<MockClock>,
+) {
+	const TICK_NOW_BEGIN: u64 = 1;
+	const MAX_COALESCE_COUNT: u32 = 3;
+	const MAX_APPROVAL_COALESCE_WAIT_TICKS: u32 = 4;
+
+	clock.inner.lock().set_tick(TICK_NOW_BEGIN);
+
+	for _ in &candidate_indicies {
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
+				_,
+				c_indices,
+			)) => {
+				assert_eq!(TryInto::<CandidateBitfield>::try_into(candidate_indicies.clone()).unwrap(), c_indices);
+			}
+		);
+
+		recover_available_data(virtual_overseer).await;
+		fetch_validation_code(virtual_overseer).await;
+	}
+
+	for _ in &candidate_indicies {
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::CandidateValidation(CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)) if timeout == PvfExecTimeoutKind::Approval => {
+				tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default())))
+					.unwrap();
+			}
+		);
+	}
+
+	// First time we fetch the configuration when we are ready to approve the first candidate
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
+			let _ = sender.send(Ok(ApprovalVotingParams {
+				max_approval_coalesce_count: MAX_COALESCE_COUNT,
+				max_approval_coalesce_wait_ticks: MAX_APPROVAL_COALESCE_WAIT_TICKS,
+			}));
+		}
+	);
+
+	// Second time we fetch the configuration when we are ready to approve the second candidate
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
+			let _ = sender.send(Ok(ApprovalVotingParams {
+				max_approval_coalesce_count: MAX_COALESCE_COUNT,
+				max_approval_coalesce_wait_ticks: MAX_APPROVAL_COALESCE_WAIT_TICKS,
+			}));
+		}
+	);
+
+	assert!(overseer_recv(virtual_overseer).timeout(TIMEOUT / 2).await.is_none());
+
+	// Move the clock just before we should send the approval
+	clock
+		.inner
+		.lock()
+		.set_tick(MAX_APPROVAL_COALESCE_WAIT_TICKS as Tick + TICK_NOW_BEGIN - 1);
+
+	assert!(overseer_recv(virtual_overseer).timeout(TIMEOUT / 2).await.is_none());
+
+	// Move the clock tick, so we can trigger a force sending of the approvals
+	clock
+		.inner
+		.lock()
+		.set_tick(MAX_APPROVAL_COALESCE_WAIT_TICKS as Tick + TICK_NOW_BEGIN);
+
+	// Third time we fetch the configuration when timer expires and we are ready to sent the approval
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
+			let _ = sender.send(Ok(ApprovalVotingParams {
+				max_approval_coalesce_count: 3,
+				max_approval_coalesce_wait_ticks: 4,
+			}));
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(vote)) => {
+			assert_eq!(TryInto::<CandidateBitfield>::try_into(candidate_indicies).unwrap(), vote.candidate_indices);
+		}
+	);
+
+	// Assert that there are no more messages being sent by the subsystem
+	assert!(overseer_recv(virtual_overseer).timeout(TIMEOUT / 2).await.is_none());
+}
+
+#[test]
+fn test_approval_is_sent_on_max_approval_coalesce_wait() {
+	let assignment_criteria = Box::new(MockAssignmentCriteria(
+		|| {
+			let mut assignments = HashMap::new();
+			let _ = assignments.insert(
+				CoreIndex(0),
+				approval_db::v2::OurAssignment {
+					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 })
+						.into(),
+					tranche: 0,
+					validator_index: ValidatorIndex(0),
+					triggered: false,
+				}
+				.into(),
+			);
+
+			let assignments_cert =
+				garbage_assignment_cert_v2(AssignmentCertKindV2::RelayVRFModuloCompact {
+					core_bitfield: vec![CoreIndex(0), CoreIndex(1), CoreIndex(2)]
+						.try_into()
+						.unwrap(),
+				});
+			let _ = assignments.insert(
+				CoreIndex(0),
+				approval_db::v2::OurAssignment {
+					cert: assignments_cert.clone(),
+					tranche: 0,
+					validator_index: ValidatorIndex(0),
+					triggered: false,
+				}
+				.into(),
+			);
+
+			let _ = assignments.insert(
+				CoreIndex(1),
+				approval_db::v2::OurAssignment {
+					cert: assignments_cert.clone(),
+					tranche: 0,
+					validator_index: ValidatorIndex(0),
+					triggered: false,
+				}
+				.into(),
+			);
+			assignments
+		},
+		|_| Ok(0),
+	));
+
+	let config = HarnessConfigBuilder::default().assignment_criteria(assignment_criteria).build();
+	let store = config.backend();
+
+	test_harness(config, |test_harness| async move {
+		let TestHarness { mut virtual_overseer, clock, sync_oracle_handle: _sync_oracle_handle } =
+			test_harness;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
+		let block_hash = Hash::repeat_byte(0x01);
+
+		let candidate_commitments = CandidateCommitments::default();
+
+		let candidate_receipt1 = {
+			let mut receipt = dummy_candidate_receipt(block_hash);
+			receipt.descriptor.para_id = ParaId::from(1_u32);
+			receipt.commitments_hash = candidate_commitments.hash();
+			receipt
+		};
+
+		let candidate_hash1 = candidate_receipt1.hash();
+
+		let candidate_receipt2 = {
+			let mut receipt = dummy_candidate_receipt(block_hash);
+			receipt.descriptor.para_id = ParaId::from(2_u32);
+			receipt.commitments_hash = candidate_commitments.hash();
+			receipt
+		};
+
+		let slot = Slot::from(1);
+		let candidate_index1 = 0;
+		let candidate_index2 = 1;
+
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+		];
+		let session_info = SessionInfo {
+			validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
+				vec![ValidatorIndex(0), ValidatorIndex(1)],
+				vec![ValidatorIndex(2)],
+				vec![ValidatorIndex(3), ValidatorIndex(4)],
+			]),
+			..session_info(&validators)
+		};
+
+		let candidates = Some(vec![
+			(candidate_receipt1.clone(), CoreIndex(0), GroupIndex(0)),
+			(candidate_receipt2.clone(), CoreIndex(1), GroupIndex(1)),
+		]);
+		ChainBuilder::new()
+			.add_block(
+				block_hash,
+				ChainBuilder::GENESIS_HASH,
+				1,
+				BlockConfig {
+					slot,
+					candidates: candidates.clone(),
+					session_info: Some(session_info.clone()),
+				},
+			)
+			.build(&mut virtual_overseer)
+			.await;
+
+		assert!(!clock.inner.lock().current_wakeup_is(1));
+		clock.inner.lock().wakeup_all(1);
+
+		assert!(clock.inner.lock().current_wakeup_is(slot_to_tick(slot)));
+		clock.inner.lock().wakeup_all(slot_to_tick(slot));
+
+		futures_timer::Delay::new(Duration::from_millis(200)).await;
+
+		clock.inner.lock().wakeup_all(slot_to_tick(slot + 2));
+
+		assert_eq!(clock.inner.lock().wakeups.len(), 0);
+
+		futures_timer::Delay::new(Duration::from_millis(200)).await;
+
+		let candidate_entry = store.load_candidate_entry(&candidate_hash1).unwrap().unwrap();
+		let our_assignment =
+			candidate_entry.approval_entry(&block_hash).unwrap().our_assignment().unwrap();
+		assert!(our_assignment.triggered());
+
+		handle_approval_on_max_wait_time(
+			&mut virtual_overseer,
+			vec![candidate_index1, candidate_index2],
+			clock,
+		)
+		.await;
 
 		virtual_overseer
 	});

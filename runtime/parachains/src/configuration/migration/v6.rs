@@ -153,7 +153,7 @@ async_backing_params                     : pre.async_backing_params,
 executor_params                          : pre.executor_params,
 approval_voting_params                   : ApprovalVotingParams {
 	                                         max_approval_coalesce_count: 1,
-	                                         max_approval_coalesce_wait_millis: 0,
+	                                         max_approval_coalesce_wait_ticks: 0,
                                           }
 		}
 	};

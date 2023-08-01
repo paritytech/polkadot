@@ -301,7 +301,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			executor_params: Default::default(),
 			approval_voting_params: ApprovalVotingParams {
 				max_approval_coalesce_count: 1,
-				max_approval_coalesce_wait_millis: 0,
+				max_approval_coalesce_wait_ticks: 0,
 			},
 		}
 	}
