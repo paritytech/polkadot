@@ -23,7 +23,6 @@
 use crate::{
 	configuration::{self, HostConfiguration},
 	disputes, dmp, hrmp, paras,
-	paras_inherent::DisputedBitfield,
 	scheduler::CoreAssignment,
 	shared,
 };
@@ -34,13 +33,14 @@ use frame_support::{
 	traits::{Defensive, EnqueueMessage},
 	BoundedSlice,
 };
+use frame_system::pallet_prelude::*;
 use pallet_message_queue::OnQueueChanged;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
 	supermajority_threshold, well_known_keys, AvailabilityBitfield, BackedCandidate,
 	CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
-	CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash, HeadData, Id as ParaId, SigningContext,
-	UncheckedSignedAvailabilityBitfields, UpwardMessage, ValidatorId, ValidatorIndex,
+	CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash, HeadData, Id as ParaId,
+	SignedAvailabilityBitfields, SigningContext, UpwardMessage, ValidatorId, ValidatorIndex,
 	ValidityAttestation,
 };
 use scale_info::TypeInfo;
@@ -90,19 +90,6 @@ pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 128 * 1024;
 pub struct AvailabilityBitfieldRecord<N> {
 	bitfield: AvailabilityBitfield, // one bit per core.
 	submitted_at: N,                // for accounting, as meaning of bits may change over time.
-}
-
-/// Determines if all checks should be applied or if a subset was already completed
-/// in a code path that will be executed afterwards or was already executed before.
-#[derive(Clone, Copy, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-pub(crate) enum FullCheck {
-	/// Yes, do a full check, skip nothing.
-	Yes,
-	/// Skip a subset of checks that are already completed before.
-	///
-	/// Attention: Should only be used when absolutely sure that the required
-	/// checks are completed before.
-	Skip,
 }
 
 /// A backed candidate pending availability.
@@ -284,7 +271,7 @@ pub mod pallet {
 		+ configuration::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
+		type DisputesHandler: disputes::DisputesHandler<BlockNumberFor<Self>>;
 		type RewardValidators: RewardValidators;
 
 		/// The system message queue.
@@ -379,12 +366,16 @@ pub mod pallet {
 	/// The latest bitfield for each validator, referred to by their index in the validator set.
 	#[pallet::storage]
 	pub(crate) type AvailabilityBitfields<T: Config> =
-		StorageMap<_, Twox64Concat, ValidatorIndex, AvailabilityBitfieldRecord<T::BlockNumber>>;
+		StorageMap<_, Twox64Concat, ValidatorIndex, AvailabilityBitfieldRecord<BlockNumberFor<T>>>;
 
 	/// Candidates pending availability by `ParaId`.
 	#[pallet::storage]
-	pub(crate) type PendingAvailability<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, CandidatePendingAvailability<T::Hash, T::BlockNumber>>;
+	pub(crate) type PendingAvailability<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		ParaId,
+		CandidatePendingAvailability<T::Hash, BlockNumberFor<T>>,
+	>;
 
 	/// The commitments of candidates pending availability, by `ParaId`.
 	#[pallet::storage]
@@ -464,7 +455,7 @@ impl fmt::Debug for UmpAcceptanceCheckErr {
 
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -473,7 +464,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
-		_notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>,
+		_notification: &crate::initializer::SessionChangeNotification<BlockNumberFor<T>>,
 		outgoing_paras: &[ParaId],
 	) {
 		// unlike most drain methods, drained elements are not cleared on `Drop` of the iterator
@@ -497,13 +488,17 @@ impl<T: Config> Pallet<T> {
 
 	/// Extract the freed cores based on cores that became available.
 	///
+	/// Bitfields are expected to have been sanitized already. E.g. via `sanitize_bitfields`!
+	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
+	///
+	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
+	/// and cores free.
 	pub(crate) fn update_pending_availability_and_get_freed_cores<F>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
-		signed_bitfields: UncheckedSignedAvailabilityBitfields,
+		signed_bitfields: SignedAvailabilityBitfields,
 		core_lookup: F,
-		enact_candidate: bool,
 	) -> Vec<(CoreIndex, CandidateHash)>
 	where
 		F: Fn(CoreIndex) -> Option<ParaId>,
@@ -518,9 +513,8 @@ impl<T: Config> Pallet<T> {
 		let now = <frame_system::Pallet<T>>::block_number();
 		for (checked_bitfield, validator_index) in
 			signed_bitfields.into_iter().map(|signed_bitfield| {
-				// extracting unchecked data, since it's checked in `fn sanitize_bitfields` already.
-				let validator_idx = signed_bitfield.unchecked_validator_index();
-				let checked_bitfield = signed_bitfield.unchecked_into_payload();
+				let validator_idx = signed_bitfield.validator_index();
+				let checked_bitfield = signed_bitfield.into_payload();
 				(checked_bitfield, validator_idx)
 			}) {
 			for (bit_idx, _) in checked_bitfield.0.iter().enumerate().filter(|(_, is_av)| **is_av) {
@@ -575,20 +569,18 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 
-				if enact_candidate {
-					let receipt = CommittedCandidateReceipt {
-						descriptor: pending_availability.descriptor,
-						commitments,
-					};
-					let _weight = Self::enact_candidate(
-						pending_availability.relay_parent_number,
-						receipt,
-						pending_availability.backers,
-						pending_availability.availability_votes,
-						pending_availability.core,
-						pending_availability.backing_group,
-					);
-				}
+				let receipt = CommittedCandidateReceipt {
+					descriptor: pending_availability.descriptor,
+					commitments,
+				};
+				let _weight = Self::enact_candidate(
+					pending_availability.relay_parent_number,
+					receipt,
+					pending_availability.backers,
+					pending_availability.availability_votes,
+					pending_availability.core,
+					pending_availability.backing_group,
+				);
 
 				freed_cores.push((pending_availability.core, pending_availability.hash));
 			} else {
@@ -597,42 +589,6 @@ impl<T: Config> Pallet<T> {
 		}
 
 		freed_cores
-	}
-
-	/// Process a set of incoming bitfields.
-	///
-	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
-	/// and cores free.
-	pub(crate) fn process_bitfields(
-		expected_bits: usize,
-		signed_bitfields: UncheckedSignedAvailabilityBitfields,
-		disputed_bitfield: DisputedBitfield,
-		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-		full_check: FullCheck,
-	) -> Result<Vec<(CoreIndex, CandidateHash)>, crate::inclusion::Error<T>> {
-		let validators = shared::Pallet::<T>::active_validator_keys();
-		let session_index = shared::Pallet::<T>::session_index();
-		let parent_hash = frame_system::Pallet::<T>::parent_hash();
-
-		let checked_bitfields = crate::paras_inherent::assure_sanity_bitfields::<T>(
-			signed_bitfields,
-			disputed_bitfield,
-			expected_bits,
-			parent_hash,
-			session_index,
-			&validators[..],
-			full_check,
-		)?;
-
-		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_>(
-			expected_bits,
-			&validators[..],
-			checked_bitfields,
-			core_lookup,
-			true,
-		);
-
-		Ok(freed_cores)
 	}
 
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
@@ -881,7 +837,7 @@ impl<T: Config> Pallet<T> {
 				&validation_outputs.new_validation_code,
 				validation_outputs.processed_downward_messages,
 				&validation_outputs.upward_messages,
-				T::BlockNumber::from(validation_outputs.hrmp_watermark),
+				BlockNumberFor::<T>::from(validation_outputs.hrmp_watermark),
 				&validation_outputs.horizontal_messages,
 			)
 			.is_err()
@@ -898,7 +854,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn enact_candidate(
-		relay_parent_number: T::BlockNumber,
+		relay_parent_number: BlockNumberFor<T>,
 		receipt: CommittedCandidateReceipt<T::Hash>,
 		backers: BitVec<u8, BitOrderLsb0>,
 		availability_votes: BitVec<u8, BitOrderLsb0>,
@@ -928,10 +884,13 @@ impl<T: Config> Pallet<T> {
 		// initial weight is config read.
 		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 		if let Some(new_code) = commitments.new_validation_code {
+			// Block number of candidate's inclusion.
+			let now = <frame_system::Pallet<T>>::block_number();
+
 			weight.saturating_add(<paras::Pallet<T>>::schedule_code_upgrade(
 				receipt.descriptor.para_id,
 				new_code,
-				relay_parent_number,
+				now,
 				&config,
 			));
 		}
@@ -947,7 +906,7 @@ impl<T: Config> Pallet<T> {
 		));
 		weight.saturating_accrue(<hrmp::Pallet<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
-			T::BlockNumber::from(commitments.hrmp_watermark),
+			BlockNumberFor::<T>::from(commitments.hrmp_watermark),
 		));
 		weight.saturating_accrue(<hrmp::Pallet<T>>::queue_outbound_hrmp(
 			receipt.descriptor.para_id,
@@ -970,7 +929,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria.
 	pub(crate) fn check_upward_messages(
-		config: &HostConfiguration<T::BlockNumber>,
+		config: &HostConfiguration<BlockNumberFor<T>>,
 		para: ParaId,
 		upward_messages: &[UpwardMessage],
 	) -> Result<(), UmpAcceptanceCheckErr> {
@@ -1069,7 +1028,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Returns a vector of cleaned-up core IDs.
 	pub(crate) fn collect_pending(
-		pred: impl Fn(CoreIndex, T::BlockNumber) -> bool,
+		pred: impl Fn(CoreIndex, BlockNumberFor<T>) -> bool,
 	) -> Vec<CoreIndex> {
 		let mut cleaned_up_ids = Vec::new();
 		let mut cleaned_up_cores = Vec::new();
@@ -1164,7 +1123,7 @@ impl<T: Config> Pallet<T> {
 	/// para provided, if any.
 	pub(crate) fn pending_availability(
 		para: ParaId,
-	) -> Option<CandidatePendingAvailability<T::Hash, T::BlockNumber>> {
+	) -> Option<CandidatePendingAvailability<T::Hash, BlockNumberFor<T>>> {
 		<PendingAvailability<T>>::get(&para)
 	}
 }
@@ -1211,9 +1170,9 @@ impl<T: Config> OnQueueChanged<AggregateMessageOrigin> for Pallet<T> {
 
 /// A collection of data required for checking a candidate.
 pub(crate) struct CandidateCheckContext<T: Config> {
-	config: configuration::HostConfiguration<T::BlockNumber>,
-	now: T::BlockNumber,
-	relay_parent_number: T::BlockNumber,
+	config: configuration::HostConfiguration<BlockNumberFor<T>>,
+	now: BlockNumberFor<T>,
+	relay_parent_number: BlockNumberFor<T>,
 }
 
 /// An error indicating that creating Persisted Validation Data failed
@@ -1221,7 +1180,7 @@ pub(crate) struct CandidateCheckContext<T: Config> {
 pub(crate) struct FailedToCreatePVD;
 
 impl<T: Config> CandidateCheckContext<T> {
-	pub(crate) fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
+	pub(crate) fn new(now: BlockNumberFor<T>, relay_parent_number: BlockNumberFor<T>) -> Self {
 		Self { config: <configuration::Pallet<T>>::config(), now, relay_parent_number }
 	}
 
@@ -1293,7 +1252,7 @@ impl<T: Config> CandidateCheckContext<T> {
 			&backed_candidate.candidate.commitments.new_validation_code,
 			backed_candidate.candidate.commitments.processed_downward_messages,
 			&backed_candidate.candidate.commitments.upward_messages,
-			T::BlockNumber::from(backed_candidate.candidate.commitments.hrmp_watermark),
+			BlockNumberFor::<T>::from(backed_candidate.candidate.commitments.hrmp_watermark),
 			&backed_candidate.candidate.commitments.horizontal_messages,
 		) {
 			log::debug!(
@@ -1316,9 +1275,9 @@ impl<T: Config> CandidateCheckContext<T> {
 		new_validation_code: &Option<primitives::ValidationCode>,
 		processed_downward_messages: u32,
 		upward_messages: &[primitives::UpwardMessage],
-		hrmp_watermark: T::BlockNumber,
+		hrmp_watermark: BlockNumberFor<T>,
 		horizontal_messages: &[primitives::OutboundHrmpMessage<ParaId>],
-	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
+	) -> Result<(), AcceptanceCheckErr<BlockNumberFor<T>>> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,
 			AcceptanceCheckErr::HeadDataTooLarge,
