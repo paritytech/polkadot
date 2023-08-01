@@ -2,14 +2,6 @@
 name = "polkadot"
 path = "src/main.rs"
 
-[[bin]]
-name = "polkadot-execute-worker"
-path = "src/bin/execute-worker.rs"
-
-[[bin]]
-name = "polkadot-prepare-worker"
-path = "src/bin/prepare-worker.rs"
-
 [package]
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
@@ -36,10 +28,6 @@ polkadot-cli = { path = "cli", features = [ "polkadot-native", "kusama-native", 
 polkadot-node-core-pvf = { path = "node/core/pvf" }
 polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
 polkadot-overseer = { path = "node/overseer" }
-
-# Needed for worker binaries.
-polkadot-node-core-pvf-common = { path = "node/core/pvf/common" }
-polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
@@ -99,7 +87,9 @@ members = [
 	"node/core/pvf",
 	"node/core/pvf/common",
 	"node/core/pvf/execute-worker",
+	"node/core/pvf/execute-worker/cli",
 	"node/core/pvf/prepare-worker",
+	"node/core/pvf/prepare-worker/cli",
 	"node/core/pvf-checker",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
@@ -139,6 +129,12 @@ members = [
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
 	"utils/generate-bags",
+]
+
+default-members = [
+	".", 
+	"node/core/pvf/execute-worker/cli",
+	"node/core/pvf/prepare-worker/cli",
 ]
 
 [badges]

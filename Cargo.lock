@@ -6436,8 +6436,6 @@ dependencies = [
  "polkadot-cli",
  "polkadot-core-primitives",
  "polkadot-node-core-pvf",
- "polkadot-node-core-pvf-common",
- "polkadot-node-core-pvf-execute-worker",
  "polkadot-node-core-pvf-prepare-worker",
  "polkadot-overseer",
  "substrate-build-script-utils",
@@ -7090,6 +7088,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-pvf-execute-worker-cli"
+version = "0.9.43"
+dependencies = [
+ "polkadot-node-core-pvf-common",
+ "polkadot-node-core-pvf-execute-worker",
+ "substrate-build-script-utils",
+]
+
+[[package]]
 name = "polkadot-node-core-pvf-prepare-worker"
 version = "0.9.43"
 dependencies = [
@@ -7106,9 +7113,19 @@ dependencies = [
  "sp-io",
  "sp-maybe-compressed-blob",
  "sp-tracing",
+ "substrate-build-script-utils",
  "tikv-jemalloc-ctl",
  "tokio",
  "tracing-gum",
+]
+
+[[package]]
+name = "polkadot-node-core-pvf-prepare-worker-cli"
+version = "0.9.43"
+dependencies = [
+ "polkadot-node-core-pvf-common",
+ "polkadot-node-core-pvf-prepare-worker",
+ "substrate-build-script-utils",
 ]
 
 [[package]]
@@ -7883,9 +7900,6 @@ dependencies = [
  "polkadot-node-core-backing",
  "polkadot-node-core-candidate-validation",
  "polkadot-node-core-dispute-coordinator",
- "polkadot-node-core-pvf-common",
- "polkadot-node-core-pvf-execute-worker",
- "polkadot-node-core-pvf-prepare-worker",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
