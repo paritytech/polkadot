@@ -52,6 +52,12 @@ pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_millis(200);
 /// The amount of times we will retry failed prepare jobs.
 pub const NUM_PREPARE_RETRIES: u32 = 5;
 
+/// The name of binary spawned to prepare a PVF artifact
+pub const PREPARE_BINARY_NAME: &str = "polkadot-prepare-worker";
+
+/// The name of binary spawned to execute a PVF
+pub const EXECUTE_BINARY_NAME: &str = "polkadot-execute-worker";
+
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
 
@@ -144,6 +150,8 @@ struct ExecutePvfInputs {
 pub struct Config {
 	/// The root directory where the prepared artifacts can be stored.
 	pub cache_path: PathBuf,
+	/// The version of the node. `None` can be passed to skip the version check (only for tests).
+	pub node_version: Option<String>,
 	/// The path to the program that can be used to spawn the prepare workers.
 	pub prepare_worker_program_path: PathBuf,
 	/// The time allotted for a prepare worker to spawn and report to the host.
@@ -163,18 +171,20 @@ pub struct Config {
 
 impl Config {
 	/// Create a new instance of the configuration.
-	pub fn new(cache_path: std::path::PathBuf, program_path: std::path::PathBuf) -> Self {
-		// Do not contaminate the other parts of the codebase with the types from `tokio`.
-		let cache_path = PathBuf::from(cache_path);
-		let program_path = PathBuf::from(program_path);
-
+	pub fn new(
+		cache_path: PathBuf,
+		node_version: Option<String>,
+		prepare_worker_program_path: PathBuf,
+		execute_worker_program_path: PathBuf,
+	) -> Self {
 		Self {
 			cache_path,
-			prepare_worker_program_path: program_path.clone(),
+			node_version,
+			prepare_worker_program_path,
 			prepare_worker_spawn_timeout: Duration::from_secs(3),
 			prepare_workers_soft_max_num: 1,
 			prepare_workers_hard_max_num: 1,
-			execute_worker_program_path: program_path,
+			execute_worker_program_path,
 			execute_worker_spawn_timeout: Duration::from_secs(3),
 			execute_workers_max_num: 2,
 		}
@@ -204,6 +214,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		config.prepare_worker_program_path.clone(),
 		config.cache_path.clone(),
 		config.prepare_worker_spawn_timeout,
+		config.node_version.clone(),
 	);
 
 	let (to_prepare_queue_tx, from_prepare_queue_rx, run_prepare_queue) = prepare::start_queue(
@@ -220,6 +231,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		config.execute_worker_program_path.to_owned(),
 		config.execute_workers_max_num,
 		config.execute_worker_spawn_timeout,
+		config.node_version,
 	);
 
 	let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(100);

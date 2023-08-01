@@ -5,4 +5,3 @@
 ## [GitHub](https://github.com/paritytech/polkadot)
 
 ## [Polkadot Wiki](https://wiki.polkadot.network/)
-
