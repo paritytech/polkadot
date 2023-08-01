@@ -1527,6 +1527,7 @@ pub mod migrations {
 		pallet_society::migrations::VersionCheckedMigrateToV2<Runtime, (), ()>,
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
+		paras_registrar::migration::MigrateToV1<Runtime, ()>,
 	);
 }
 
