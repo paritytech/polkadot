@@ -11,7 +11,7 @@ gum = { package = "tracing-gum", path = "../../../gum" }
 libc = "0.2.139"
 tokio = { version = "1.24.2", features = ["fs", "process", "io-util"] }
 
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 
 polkadot-parachain = { path = "../../../../parachain" }
 polkadot-primitives = { path = "../../../../primitives" }
@@ -25,6 +25,9 @@ sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-[build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.2.0"
 
+[dev-dependencies]
+assert_matches = "1.4.0"
+tempfile = "3.3.0"

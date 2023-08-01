@@ -26,7 +26,7 @@ use crate::{
 };
 use frame_support::{
 	assert_noop, assert_ok, parameter_types,
-	traits::{ConstU32, Currency, GenesisBuild, OnFinalize, OnInitialize},
+	traits::{ConstU32, Currency, OnFinalize, OnInitialize},
 	weights::Weight,
 	PalletId,
 };
@@ -34,7 +34,7 @@ use frame_support_test::TestRandomness;
 use frame_system::EnsureRoot;
 use parity_scale_codec::Encode;
 use primitives::{
-	BlockNumber, HeadData, Header, Id as ParaId, SessionIndex, ValidationCode, LOWEST_PUBLIC_ID,
+	BlockNumber, HeadData, Id as ParaId, SessionIndex, ValidationCode, LOWEST_PUBLIC_ID,
 };
 use runtime_parachains::{
 	configuration, origin, paras, shared, Origin as ParaOrigin, ParaLifecycle,
@@ -46,12 +46,12 @@ use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup, One},
 	transaction_validity::TransactionPriority,
-	AccountId32,
+	AccountId32, BuildStorage,
 };
 use sp_std::sync::Arc;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame_system::mocking::MockBlockU32<Test>;
 
 type AccountId = AccountId32;
 type Balance = u32;
@@ -70,19 +70,16 @@ fn signed(i: u32) -> RuntimeOrigin {
 }
 
 frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
+	pub enum Test
 	{
 		// System Stuff
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
+		Babe: pallet_babe::{Pallet, Call, Storage, Config<T>, ValidateUnsigned},
 
 		// Parachains Runtime
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-		Paras: paras::{Pallet, Call, Storage, Event, Config},
+		Paras: paras::{Pallet, Call, Storage, Event, Config<T>},
 		ParasShared: shared::{Pallet, Call, Storage},
 		ParachainsOrigin: origin::{Pallet, Origin},
 
@@ -119,13 +116,12 @@ impl frame_system::Config for Test {
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
-	type Index = u64;
-	type BlockNumber = BlockNumber;
+	type Nonce = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<AccountId>;
-	type Header = Header;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
@@ -153,6 +149,7 @@ impl pallet_babe::Config for Test {
 	type DisabledValidators = ();
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = ConstU32<0>;
 	type KeyOwnerProof = sp_core::Void;
 	type EquivocationReportSystem = ();
 }
@@ -277,17 +274,15 @@ impl crowdloan::Config for Test {
 
 /// Create a new set of test externalities.
 pub fn new_test_ext() -> TestExternalities {
-	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-	GenesisBuild::<Test>::assimilate_storage(
-		&configuration::GenesisConfig {
-			config: configuration::HostConfiguration {
-				max_code_size: 2 * 1024 * 1024,      // 2 MB
-				max_head_data_size: 1 * 1024 * 1024, // 1 MB
-				..Default::default()
-			},
+	let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
+	configuration::GenesisConfig::<Test> {
+		config: configuration::HostConfiguration {
+			max_code_size: 2 * 1024 * 1024,      // 2 MB
+			max_head_data_size: 1 * 1024 * 1024, // 1 MB
+			..Default::default()
 		},
-		&mut t,
-	)
+	}
+	.assimilate_storage(&mut t)
 	.unwrap();
 	let keystore = MemoryKeystore::new();
 	let mut ext: sp_io::TestExternalities = t.into();

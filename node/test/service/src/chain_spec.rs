@@ -34,7 +34,7 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// The `ChainSpec` parameterized for polkadot test runtime.
 pub type PolkadotChainSpec =
-	sc_service::GenericChainSpec<polkadot_test_runtime::GenesisConfig, Extensions>;
+	sc_service::GenericChainSpec<polkadot_test_runtime::RuntimeGenesisConfig, Extensions>;
 
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
@@ -53,7 +53,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 }
 
 /// Local testnet genesis config (multivalidator Alice + Bob)
-pub fn polkadot_local_testnet_genesis() -> polkadot_test_runtime::GenesisConfig {
+pub fn polkadot_local_testnet_genesis() -> polkadot_test_runtime::RuntimeGenesisConfig {
 	polkadot_testnet_genesis(
 		vec![get_authority_keys_from_seed("Alice"), get_authority_keys_from_seed("Bob")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -93,7 +93,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 	]
 }
 
-/// Helper function to create polkadot `GenesisConfig` for testing
+/// Helper function to create polkadot `RuntimeGenesisConfig` for testing
 fn polkadot_testnet_genesis(
 	initial_authorities: Vec<(
 		AccountId,
@@ -106,7 +106,7 @@ fn polkadot_testnet_genesis(
 	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> polkadot_test_runtime::GenesisConfig {
+) -> polkadot_test_runtime::RuntimeGenesisConfig {
 	use polkadot_test_runtime as runtime;
 
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
@@ -114,7 +114,7 @@ fn polkadot_testnet_genesis(
 	const ENDOWMENT: u128 = 1_000_000 * DOTS;
 	const STASH: u128 = 100 * DOTS;
 
-	runtime::GenesisConfig {
+	runtime::RuntimeGenesisConfig {
 		system: runtime::SystemConfig {
 			code: runtime::WASM_BINARY.expect("Wasm binary must be built for testing").to_vec(),
 			..Default::default()
@@ -156,9 +156,13 @@ fn polkadot_testnet_genesis(
 		babe: runtime::BabeConfig {
 			authorities: vec![],
 			epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
+			..Default::default()
 		},
 		grandpa: Default::default(),
-		authority_discovery: runtime::AuthorityDiscoveryConfig { keys: vec![] },
+		authority_discovery: runtime::AuthorityDiscoveryConfig {
+			keys: vec![],
+			..Default::default()
+		},
 		claims: runtime::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: runtime::VestingConfig { vesting: vec![] },
 		sudo: runtime::SudoConfig { key: Some(root_key) },
