@@ -140,6 +140,7 @@ During the transition period, the para object is still considered in its existin
 ### Storage Layout
 
 ```rust
+use frame_system::pallet_prelude::BlockNumberFor;
 /// All currently active PVF pre-checking votes.
 ///
 /// Invariant:
@@ -197,12 +198,12 @@ UpgradeRestrictionSignal: map hasher(twox_64_concat) ParaId => Option<UpgradeRes
 /// The list of parachains that are awaiting for their upgrade restriction to cooldown.
 ///
 /// Ordered ascending by block number.
-UpgradeCooldowns: Vec<(ParaId, T::BlockNumber)>;
+UpgradeCooldowns: Vec<(ParaId, BlockNumberFor<T>)>;
 /// The list of upcoming code upgrades. Each item is a pair of which para performs a code
 /// upgrade and at which relay-chain block it is expected at.
 ///
 /// Ordered ascending by block number.
-UpcomingUpgrades: Vec<(ParaId, T::BlockNumber)>;
+UpcomingUpgrades: Vec<(ParaId, BlockNumberFor<T>)>;
 /// The actions to perform during the start of a specific session index.
 ActionsQueue: map SessionIndex => Vec<ParaId>;
 /// Upcoming paras instantiation arguments.

@@ -98,6 +98,15 @@ impl DisputedBitfield {
 	}
 }
 
+/// The context in which the inherent data is checked or processed.
+#[derive(PartialEq)]
+pub enum ProcessInherentDataContext {
+	/// Enables filtering/limits weight of inherent up to maximum block weight.
+	/// Invariant: InherentWeight <= BlockWeight.
+	ProvideInherent,
+	/// Checks the InherentWeight invariant.
+	Enter,
+}
 pub use pallet::*;
 
 #[frame_support::pallet]
@@ -191,11 +200,11 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(_: T::BlockNumber) -> Weight {
+		fn on_initialize(_: BlockNumberFor<T>) -> Weight {
 			T::DbWeight::get().reads_writes(1, 1) // in `on_finalize`.
 		}
 
-		fn on_finalize(_: T::BlockNumber) {
+		fn on_finalize(_: BlockNumberFor<T>) {
 			if Included::<T>::take().is_none() {
 				panic!("Bitfields and heads must be included every block");
 			}
@@ -262,14 +271,15 @@ pub mod pallet {
 		))]
 		pub fn enter(
 			origin: OriginFor<T>,
-			data: ParachainsInherentData<T::Header>,
+			data: ParachainsInherentData<HeaderFor<T>>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 			Included::<T>::set(Some(()));
 
-			Self::process_inherent_data(data).map(|(_processed, post_info)| post_info)
+			Self::process_inherent_data(data, ProcessInherentDataContext::Enter)
+				.map(|(_processed, post_info)| post_info)
 		}
 	}
 }
@@ -277,7 +287,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in [`Self::create_inherent`].
 	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
-	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<T::Header>> {
+	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<HeaderFor<T>>> {
 		let parachains_inherent_data = match data.get_data(&Self::INHERENT_IDENTIFIER) {
 			Ok(Some(d)) => d,
 			Ok(None) => return None,
@@ -286,7 +296,10 @@ impl<T: Config> Pallet<T> {
 				return None
 			},
 		};
-		match Self::process_inherent_data(parachains_inherent_data) {
+		match Self::process_inherent_data(
+			parachains_inherent_data,
+			ProcessInherentDataContext::ProvideInherent,
+		) {
 			Ok((processed, _)) => Some(processed),
 			Err(err) => {
 				log::warn!(target: LOG_TARGET, "Processing inherent data failed: {:?}", err);
@@ -300,16 +313,19 @@ impl<T: Config> Pallet<T> {
 	/// The given inherent data is processed and state is altered accordingly. If any data could
 	/// not be applied (inconsitencies, weight limit, ...) it is removed.
 	///
-	/// This function can both be called on block creation in `create_inherent` and on block import
-	/// in `enter`. The mutation of `data` is only useful in the `create_inherent` case as it
-	/// avoids overweight blocks for example.
+	/// When called from `create_inherent` the `context` must be set to `ProcessInherentDataContext::ProvideInherent`
+	/// so it guarantees the invariant that inherent is not overweight.
+	///  
+	/// It is **mandatory** that calls from `enter` set `context` to `ProcessInherentDataContext::Enter` to ensure
+	/// the weight invariant is checked.
 	///
 	/// Returns: Result containing processed inherent data and weight, the processed inherent would
 	/// consume.
 	fn process_inherent_data(
-		data: ParachainsInherentData<T::Header>,
+		data: ParachainsInherentData<HeaderFor<T>>,
+		context: ProcessInherentDataContext,
 	) -> sp_std::result::Result<
-		(ParachainsInherentData<T::Header>, PostDispatchInfo),
+		(ParachainsInherentData<HeaderFor<T>>, PostDispatchInfo),
 		DispatchErrorWithPostInfo,
 	> {
 		#[cfg(feature = "runtime-metrics")]
@@ -404,32 +420,49 @@ impl<T: Config> Pallet<T> {
 				max_block_weight,
 			);
 
-		// Assure the maximum block weight is adhered, by limiting bitfields and backed
-		// candidates. Dispute statement sets were already limited before.
-		let non_disputes_weight = apply_weight_limit::<T>(
-			&mut backed_candidates,
-			&mut bitfields,
-			max_block_weight.saturating_sub(checked_disputes_sets_consumed_weight),
-			&mut rng,
-		);
+		let all_weight_after = if context == ProcessInherentDataContext::ProvideInherent {
+			// Assure the maximum block weight is adhered, by limiting bitfields and backed
+			// candidates. Dispute statement sets were already limited before.
+			let non_disputes_weight = apply_weight_limit::<T>(
+				&mut backed_candidates,
+				&mut bitfields,
+				max_block_weight.saturating_sub(checked_disputes_sets_consumed_weight),
+				&mut rng,
+			);
 
-		let all_weight_after =
-			non_disputes_weight.saturating_add(checked_disputes_sets_consumed_weight);
+			let all_weight_after =
+				non_disputes_weight.saturating_add(checked_disputes_sets_consumed_weight);
 
-		METRICS.on_after_filter(all_weight_after.ref_time());
-		log::debug!(
+			METRICS.on_after_filter(all_weight_after.ref_time());
+			log::debug!(
 			target: LOG_TARGET,
 			"[process_inherent_data] after filter: bitfields.len(): {}, backed_candidates.len(): {}, checked_disputes_sets.len() {}",
 			bitfields.len(),
 			backed_candidates.len(),
 			checked_disputes_sets.len()
-		);
-		log::debug!(target: LOG_TARGET, "Size after filter: {}, candidates + bitfields: {}, disputes: {}", all_weight_after.proof_size(), non_disputes_weight.proof_size(), checked_disputes_sets_consumed_weight.proof_size());
-		log::debug!(target: LOG_TARGET, "Time weight after filter: {}, candidates + bitfields: {}, disputes: {}", all_weight_after.ref_time(), non_disputes_weight.ref_time(), checked_disputes_sets_consumed_weight.ref_time());
+			);
+			log::debug!(target: LOG_TARGET, "Size after filter: {}, candidates + bitfields: {}, disputes: {}", all_weight_after.proof_size(), non_disputes_weight.proof_size(), checked_disputes_sets_consumed_weight.proof_size());
+			log::debug!(target: LOG_TARGET, "Time weight after filter: {}, candidates + bitfields: {}, disputes: {}", all_weight_after.ref_time(), non_disputes_weight.ref_time(), checked_disputes_sets_consumed_weight.ref_time());
 
-		if all_weight_after.any_gt(max_block_weight) {
-			log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large, time: {}, size: {}", all_weight_after.ref_time(), all_weight_after.proof_size());
-		}
+			if all_weight_after.any_gt(max_block_weight) {
+				log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large, time: {}, size: {}", all_weight_after.ref_time(), all_weight_after.proof_size());
+			}
+			all_weight_after
+		} else {
+			// This check is performed in the context of block execution. Ensures inherent weight invariants guaranteed
+			// by `create_inherent_data` for block authorship.
+			if all_weight_before.any_gt(max_block_weight) {
+				log::error!(
+					"Overweight para inherent data reached the runtime {:?}: {} > {}",
+					parent_hash,
+					all_weight_before,
+					max_block_weight
+				);
+			}
+
+			ensure!(all_weight_before.all_lte(max_block_weight), Error::<T>::InherentOverweight);
+			all_weight_before
+		};
 
 		// Note that `process_checked_multi_dispute_data` will iterate and import each
 		// dispute; so the input here must be reasonably bounded,
@@ -569,7 +602,7 @@ impl<T: Config> Pallet<T> {
 
 		// Process backed candidates according to scheduled cores.
 		let parent_storage_root = *parent_header.state_root();
-		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
+		let inclusion::ProcessedCandidates::<<HeaderFor<T> as HeaderT>::Hash> {
 			core_indices: occupied,
 			candidate_receipt_with_backing_validator_indices,
 		} = <inclusion::Pallet<T>>::process_candidates(

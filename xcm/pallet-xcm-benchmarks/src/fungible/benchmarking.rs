@@ -131,6 +131,38 @@ benchmarks_instance_pallet! {
 		// TODO: Check sender queue is not empty. #4426
 	}
 
+	reserve_asset_deposited {
+		let (trusted_reserve, transferable_reserve_asset) = T::TrustedReserve::get()
+			.ok_or(BenchmarkError::Override(
+				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
+			))?;
+
+		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
+
+		let mut executor = new_executor::<T>(trusted_reserve);
+		let instruction = Instruction::ReserveAssetDeposited(assets.clone());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert!(executor.holding().ensure_contains(&assets).is_ok());
+	}
+
+	initiate_reserve_withdraw {
+		let holding = T::worst_case_holding(1);
+		let assets_filter = MultiAssetFilter::Definite(holding.clone());
+		let reserve = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
+		let mut executor = new_executor::<T>(Default::default());
+		executor.set_holding(holding.into());
+		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		// The execute completing successfully is as good as we can check.
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
 	receive_teleported_asset {
 		// If there is no trusted teleporter, then we skip this benchmark.
 		let (trusted_teleporter, teleportable_asset) = T::TrustedTeleporter::get()
