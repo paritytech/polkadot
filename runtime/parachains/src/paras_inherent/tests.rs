@@ -875,6 +875,7 @@ mod enter {
 
 	// Ensure that overweight parachain inherents are always rejected by the runtime.
 	// Runtime should panic and return `InherentOverweight` error.
+	#[test]
 	fn inherent_create_weight_invariant() {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create an overweight inherent and oversized block
