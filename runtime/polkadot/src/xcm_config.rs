@@ -42,10 +42,9 @@ use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter,
-	FixedWeightBounds, IsConcrete, MintLocation, OriginToPluralityVoice,
-	ProvideWeighableInstructions, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, UniversalWeigherAdapter, UsingComponents,
-	WeightInfoBounds, WithComputedOrigin,
+	IsConcrete, MintLocation, OriginToPluralityVoice, ProvideWeighableInstructions,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
+	UniversalWeigherAdapter, UsingComponents, WeightInfoBounds, WithComputedOrigin,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -432,7 +431,7 @@ impl pallet_xcm::Config for Runtime {
 	>;
 	type DestinationWeigher = UniversalWeigherAdapter<
 		// use local weight for remote message and hope for the best.
-		WeightInfoBounds<crate::weights::xcm::PolkadotXcmWeight<RuntimeCall>, (), MaxInstructions>,
+		WeightInfoBounds<crate::weights::xcm::PolkadotXcmWeight<()>, (), MaxInstructions>,
 		DestinationWeigherAddons,
 	>;
 	type UniversalLocation = UniversalLocation;

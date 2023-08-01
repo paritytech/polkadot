@@ -422,7 +422,7 @@ impl pallet_xcm::Config for Runtime {
 	>;
 	type DestinationWeigher = UniversalWeigherAdapter<
 		// use local weight for remote message and hope for the best.
-		WeightInfoBounds<crate::weights::xcm::KusamaXcmWeight<RuntimeCall>, (), MaxInstructions>,
+		WeightInfoBounds<crate::weights::xcm::KusamaXcmWeight<()>, (), MaxInstructions>,
 		DestinationWeigherAddons,
 	>;
 	type UniversalLocation = UniversalLocation;
