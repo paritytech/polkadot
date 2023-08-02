@@ -437,7 +437,7 @@ fn sign_approval_multiple_candidates(
 	candidate_hashes: Vec<CandidateHash>,
 	session_index: SessionIndex,
 ) -> ValidatorSignature {
-	key.sign(&ApprovalVoteMultipleCandidates(candidate_hashes).signing_payload(session_index))
+	key.sign(&ApprovalVoteMultipleCandidates(&candidate_hashes).signing_payload(session_index))
 		.into()
 }
 
