@@ -1373,7 +1373,6 @@ impl pallet_asset_rate::Config for Runtime {
 	type CreateOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
 	type RemoveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
 	type UpdateOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
-	type Balance = Balance;
 	type Currency = Balances;
 	type AssetKind = <Runtime as pallet_treasury::Config>::AssetKind;
 	#[cfg(feature = "runtime-benchmarks")]
