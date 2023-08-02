@@ -255,7 +255,7 @@ where
 
 /// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`).
 ///
-/// Use only for executions from completely trusted origins, from which no unpermissioned messages
+/// Use only for executions from completely trusted origins, from which no permissionless messages
 /// can be sent.
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {

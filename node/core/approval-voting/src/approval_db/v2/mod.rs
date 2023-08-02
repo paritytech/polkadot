@@ -31,21 +31,15 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
-	backend::{Backend, BackendWriteOp},
+	backend::{Backend, BackendWriteOp, V1ReadBackend},
 	persisted_entries,
 };
 
 const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
-mod migration_helpers;
+pub mod migration_helpers;
 #[cfg(test)]
 pub mod tests;
-
-// DB migration support.
-pub use migration_helpers::{
-	migrate_approval_db_v1_to_v2, migrate_approval_db_v1_to_v2_fill_test_data,
-	migrate_approval_db_v1_to_v2_sanity_check,
-};
 
 /// `DbBackend` is a concrete implementation of the higher-level Backend trait
 pub struct DbBackend {
@@ -58,6 +52,16 @@ impl DbBackend {
 	/// config.
 	pub fn new(db: Arc<dyn Database>, config: Config) -> Self {
 		DbBackend { inner: db, config }
+	}
+}
+
+impl V1ReadBackend for DbBackend {
+	fn load_candidate_entry_v1(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<persisted_entries::CandidateEntry>> {
+		load_candidate_entry_v1(&*self.inner, &self.config, candidate_hash)
+			.map(|e| e.map(Into::into))
 	}
 }
 
@@ -74,14 +78,6 @@ impl Backend for DbBackend {
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<persisted_entries::CandidateEntry>> {
 		load_candidate_entry(&*self.inner, &self.config, candidate_hash).map(|e| e.map(Into::into))
-	}
-
-	fn load_candidate_entry_v1(
-		&self,
-		candidate_hash: &CandidateHash,
-	) -> SubsystemResult<Option<persisted_entries::CandidateEntry>> {
-		load_candidate_entry_v1(&*self.inner, &self.config, candidate_hash)
-			.map(|e| e.map(Into::into))
 	}
 
 	fn load_blocks_at_height(&self, block_height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {

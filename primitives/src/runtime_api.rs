@@ -92,8 +92,12 @@
 //! Let's introduce two types of `ParachainHost` API implementation:
 //! * stable - used on stable production networks like Polkadot and Kusama. There is only one
 //!   stable API at a single point in time.
-//! * staging - used on test networks like Westend or Rococo. Depending on the development needs
-//!   there can be zero, one or multiple staging APIs.
+//! * staging - methods that are ready for production, but will be released on Rococo first. We can
+//!   batch together multiple changes and then release all of them to production, by making staging
+//!   production (bump base version). We can not change or remove any method in staging after a
+//!   release, as this would break Rococo. It should be ok to keep adding methods to staging
+//!   across several releases. For experimental methods, you have to keep them on a separate branch
+//!   until ready.
 //!
 //! The stable version of `ParachainHost` is indicated by the base version of the API. Any staging
 //! method must use `api_version` attribute so that it is assigned to a specific version of a

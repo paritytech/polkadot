@@ -62,7 +62,7 @@ fn make_bitvec(len: usize) -> BitVec<u8, BitOrderLsb0> {
 /// Migrates `OurAssignment`, `CandidateEntry` and `ApprovalEntry` to version 2.
 /// Returns on any error.
 /// Must only be used in parachains DB migration code - `polkadot-service` crate.
-pub fn migrate_approval_db_v1_to_v2(db: Arc<dyn Database>, config: Config) -> Result<()> {
+pub fn v1_to_v2(db: Arc<dyn Database>, config: Config) -> Result<()> {
 	let mut backend = crate::DbBackend::new(db, config);
 	let all_blocks = backend
 		.load_all_blocks()
@@ -108,7 +108,7 @@ pub fn migrate_approval_db_v1_to_v2(db: Arc<dyn Database>, config: Config) -> Re
 
 // Checks if the migration doesn't leave the DB in an unsane state.
 // This function is to be used in tests.
-pub fn migrate_approval_db_v1_to_v2_sanity_check(
+pub fn v1_to_v2_sanity_check(
 	db: Arc<dyn Database>,
 	config: Config,
 	expected_candidates: HashSet<CandidateHash>,
@@ -146,7 +146,7 @@ pub fn migrate_approval_db_v1_to_v2_sanity_check(
 }
 
 // Fills the db with dummy data in v1 scheme.
-pub fn migrate_approval_db_v1_to_v2_fill_test_data(
+pub fn v1_to_v2_fill_test_data(
 	db: Arc<dyn Database>,
 	config: Config,
 ) -> Result<HashSet<CandidateHash>> {

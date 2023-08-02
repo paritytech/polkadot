@@ -23,14 +23,13 @@
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
 use futures::channel::oneshot;
-use sc_network::Multiaddr;
+use sc_network::{Multiaddr, ReputationChange};
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol, peer_set::PeerSet, request_response::Requests, PeerId,
-	UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
 	approval::{
@@ -307,13 +306,29 @@ pub enum NetworkBridgeRxMessage {
 		/// to the index in `canonical_shuffling`
 		shuffled_indices: Vec<usize>,
 	},
+	/// Inform the distribution subsystems about `AuthorityDiscoveryId` key rotations.
+	UpdatedAuthorityIds {
+		/// The `PeerId` of the peer that updated its `AuthorityDiscoveryId`s.
+		peer_id: PeerId,
+		/// The updated authority discovery keys of the peer.
+		authority_ids: HashSet<AuthorityDiscoveryId>,
+	},
+}
+
+/// Type of peer reporting
+#[derive(Debug)]
+pub enum ReportPeerMessage {
+	/// Single peer report about malicious actions which should be sent right away
+	Single(PeerId, ReputationChange),
+	/// Delayed report for other actions.
+	Batch(HashMap<PeerId, i32>),
 }
 
 /// Messages received from other subsystems by the network bridge subsystem.
 #[derive(Debug)]
 pub enum NetworkBridgeTxMessage {
 	/// Report a peer for their actions.
-	ReportPeer(PeerId, UnifiedReputationChange),
+	ReportPeer(ReportPeerMessage),
 
 	/// Disconnect a peer from the given peer-set without affecting their reputation.
 	DisconnectPeer(PeerId, PeerSet),
@@ -458,9 +473,10 @@ pub enum AvailabilityStoreMessage {
 		tx: oneshot::Sender<Result<(), ()>>,
 	},
 
-	/// Store a `AvailableData` and all of its chunks in the AV store.
+	/// Computes and checks the erasure root of `AvailableData` before storing all of its chunks in
+	/// the AV store.
 	///
-	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
+	/// Return `Ok(())` if the store operation succeeded, `Err(StoreAvailableData)` if it failed.
 	StoreAvailableData {
 		/// A hash of the candidate this `available_data` belongs to.
 		candidate_hash: CandidateHash,
@@ -468,9 +484,19 @@ pub enum AvailabilityStoreMessage {
 		n_validators: u32,
 		/// The `AvailableData` itself.
 		available_data: AvailableData,
+		/// Erasure root we expect to get after chunking.
+		expected_erasure_root: Hash,
 		/// Sending side of the channel to send result to.
-		tx: oneshot::Sender<Result<(), ()>>,
+		tx: oneshot::Sender<Result<(), StoreAvailableDataError>>,
 	},
+}
+
+/// The error result type of a [`AvailabilityStoreMessage::StoreAvailableData`] request.
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
+pub enum StoreAvailableDataError {
+	#[error("The computed erasure root did not match expected one")]
+	InvalidErasureRoot,
 }
 
 /// A response channel for the result of a chain API request.
@@ -742,6 +768,8 @@ pub enum AssignmentCheckError {
 	InvalidCert(ValidatorIndex, String),
 	#[error("Internal state mismatch: {0:?}, {1:?}")]
 	Internal(Hash, CandidateHash),
+	#[error("Oversized candidate or core bitfield >= {0}")]
+	InvalidBitfield(usize),
 }
 
 /// The result type of [`ApprovalVotingMessage::CheckAndImportApproval`] request.

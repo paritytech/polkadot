@@ -156,7 +156,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 fn extract_peer_ids(multiaddr: impl Iterator<Item = Multiaddr>) -> HashSet<PeerId> {
 	multiaddr
 		.filter_map(|mut addr| match addr.pop() {
-			Some(multiaddr::Protocol::P2p(key)) => PeerId::from_multihash(key).ok(),
+			Some(multiaddr::Protocol::P2p(peer_id)) => Some(peer_id),
 			_ => None,
 		})
 		.collect()
@@ -174,7 +174,7 @@ mod tests {
 		PeerId,
 	};
 	use polkadot_primitives::Hash;
-	use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName};
+	use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName, ReputationChange};
 	use sp_keyring::Sr25519Keyring;
 	use std::collections::{HashMap, HashSet};
 
@@ -207,7 +207,7 @@ mod tests {
 			let authorities = known_authorities();
 			let multiaddr = known_multiaddr().into_iter().zip(peer_ids.iter().cloned()).map(
 				|(mut addr, peer_id)| {
-					addr.push(multiaddr::Protocol::P2p(peer_id.into()));
+					addr.push(multiaddr::Protocol::P2p(peer_id));
 					HashSet::from([addr])
 				},
 			);
@@ -249,7 +249,7 @@ mod tests {
 		) {
 		}
 
-		fn report_peer(&self, _: PeerId, _: crate::Rep) {
+		fn report_peer(&self, _: PeerId, _: ReputationChange) {
 			panic!()
 		}
 

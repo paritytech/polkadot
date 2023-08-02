@@ -685,6 +685,8 @@ pub(crate) fn check_assignment_cert(
 
 	let vrf_output = &assignment.vrf.output;
 	let vrf_proof = &assignment.vrf.proof;
+	let first_claimed_core_index =
+		claimed_core_indices.first_one().expect("Checked above; qed") as u32;
 
 	match &assignment.kind {
 		AssignmentCertKindV2::RelayVRFModuloCompact { core_bitfield } => {
@@ -746,15 +748,13 @@ pub(crate) fn check_assignment_cert(
 					relay_vrf_modulo_transcript_v1(relay_vrf_story, *sample),
 					&vrf_output.0,
 					&vrf_proof.0,
-					assigned_core_transcript(CoreIndex(
-						claimed_core_indices.first_one().expect("Checked above; qed") as u32,
-					)),
+					assigned_core_transcript(CoreIndex(first_claimed_core_index)),
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
 
 			let core = relay_vrf_modulo_core(&vrf_in_out, config.n_cores);
 			// ensure that the `vrf_in_out` actually gives us the claimed core.
-			if core.0 as usize == claimed_core_indices.first_one().expect("Checked above; qed") {
+			if core.0 == first_claimed_core_index {
 				Ok(0)
 			} else {
 				gum::debug!(
@@ -777,9 +777,7 @@ pub(crate) fn check_assignment_cert(
 				return Err(InvalidAssignment(Reason::InvalidArguments))
 			}
 
-			if core_index.0 as usize !=
-				claimed_core_indices.first_one().expect("Checked above; qed")
-			{
+			if core_index.0 != first_claimed_core_index {
 				return Err(InvalidAssignment(Reason::VRFDelayCoreIndexMismatch))
 			}
 

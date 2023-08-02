@@ -590,6 +590,7 @@ where
 	};
 	metrics.observe_code_size(raw_validation_code.len());
 
+	metrics.observe_pov_size(pov.block_data.0.len(), true);
 	let raw_block_data =
 		match sp_maybe_compressed_blob::decompress(&pov.block_data.0, POV_BOMB_LIMIT) {
 			Ok(block_data) => BlockData(block_data.to_vec()),
@@ -600,7 +601,7 @@ where
 				return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
 			},
 		};
-	metrics.observe_pov_size(raw_block_data.0.len());
+	metrics.observe_pov_size(raw_block_data.0.len(), false);
 
 	let params = ValidationParams {
 		parent_head: persisted_validation_data.parent_head.clone(),

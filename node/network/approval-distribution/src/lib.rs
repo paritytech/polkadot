@@ -21,7 +21,7 @@
 #![warn(missing_docs)]
 
 use self::metrics::Metrics;
-use futures::{channel::oneshot, FutureExt as _};
+use futures::{channel::oneshot, select, FutureExt as _};
 use itertools::Itertools;
 use net_protocol::peer_set::{ProtocolVersion, ValidationVersion};
 use polkadot_node_jaeger as jaeger;
@@ -33,8 +33,13 @@ use polkadot_node_network_protocol::{
 	Versioned, View,
 };
 use polkadot_node_primitives::approval::{
-	v1::{BlockApprovalMeta, IndirectSignedApprovalVote},
-	v2::{AsBitIndex, CandidateBitfield, IndirectAssignmentCertV2, IndirectSignedApprovalVoteV2},
+	v1::{
+		AssignmentCertKind, BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote,
+	},
+	v2::{
+		AsBitIndex, AssignmentCertKindV2, CandidateBitfield, IndirectAssignmentCertV2,
+		IndirectSignedApprovalVoteV2,
+	},
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -43,11 +48,15 @@ use polkadot_node_subsystem::{
 	},
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
+use polkadot_node_subsystem_util::reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL};
 use polkadot_primitives::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 use rand::{CryptoRng, Rng, SeedableRng};
-use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
+use std::{
+	collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque},
+	time::Duration,
+};
 
 mod metrics;
 
@@ -62,10 +71,14 @@ const COST_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent identical 
 const COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE: Rep =
 	Rep::CostMinor("The vote was valid but too far in the future");
 const COST_INVALID_MESSAGE: Rep = Rep::CostMajor("The vote was bad");
+const COST_OVERSIZED_BITFIELD: Rep = Rep::CostMajor("Oversized certificate or candidate bitfield");
 
 const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Peer sent a valid message");
 const BENEFIT_VALID_MESSAGE_FIRST: Rep =
 	Rep::BenefitMinorFirst("Valid message with new information");
+
+// Maximum valid size for the `CandidateBitfield` in the assignment messages.
+const MAX_BITFIELD_SIZE: usize = 500;
 
 /// The Approval Distribution subsystem.
 pub struct ApprovalDistribution {
@@ -97,9 +110,9 @@ impl RecentlyOutdated {
 
 // Contains topology routing information for assignments and approvals.
 struct ApprovalRouting {
-	pub required_routing: RequiredRouting,
-	pub local: bool,
-	pub random_routing: RandomRouting,
+	required_routing: RequiredRouting,
+	local: bool,
+	random_routing: RandomRouting,
 }
 
 // This struct is responsible for tracking the full state of an assignment and grid routing information.
@@ -327,6 +340,9 @@ struct State {
 
 	/// Current approval checking finality lag.
 	approval_checking_lag: BlockNumber,
+
+	/// Aggregated reputation change
+	reputation: ReputationAggregator,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -614,6 +630,9 @@ impl State {
 			NetworkBridgeEvent::PeerMessage(peer_id, message) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, message, rng).await;
 			},
+			NetworkBridgeEvent::UpdatedAuthorityIds { .. } => {
+				// The approval-distribution subsystem doesn't deal with `AuthorityDiscoveryId`s.
+			},
 		}
 	}
 
@@ -887,7 +906,17 @@ impl State {
 					num = assignments.len(),
 					"Processing assignments from a peer",
 				);
-				self.process_incoming_assignments(ctx, metrics, peer_id, assignments, rng).await;
+				let sanitized_assignments =
+					self.sanitize_v2_assignments(peer_id, ctx.sender(), assignments).await;
+
+				self.process_incoming_assignments(
+					ctx,
+					metrics,
+					peer_id,
+					sanitized_assignments,
+					rng,
+				)
+				.await;
 			},
 			Versioned::V1(protocol_v1::ApprovalDistributionMessage::Assignments(assignments)) => {
 				gum::trace!(
@@ -897,14 +926,14 @@ impl State {
 					"Processing assignments from a peer",
 				);
 
+				let sanitized_assignments =
+					self.sanitize_v1_assignments(peer_id, ctx.sender(), assignments).await;
+
 				self.process_incoming_assignments(
 					ctx,
 					metrics,
 					peer_id,
-					assignments
-						.into_iter()
-						.map(|(cert, candidate)| (cert.into(), candidate.into()))
-						.collect::<Vec<_>>(),
+					sanitized_assignments,
 					rng,
 				)
 				.await;
@@ -1060,7 +1089,13 @@ impl State {
 						"Unexpected assignment",
 					);
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
-						modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
+						modify_reputation(
+							&mut self.reputation,
+							ctx.sender(),
+							peer_id,
+							COST_UNEXPECTED_MESSAGE,
+						)
+						.await;
 					}
 				}
 				return
@@ -1087,7 +1122,14 @@ impl State {
 								?message_subject,
 								"Duplicate assignment",
 							);
-							modify_reputation(ctx.sender(), peer_id, COST_DUPLICATE_MESSAGE).await;
+
+							modify_reputation(
+								&mut self.reputation,
+								ctx.sender(),
+								peer_id,
+								COST_DUPLICATE_MESSAGE,
+							)
+							.await;
 						} else {
 							gum::trace!(
 								target: LOG_TARGET,
@@ -1108,13 +1150,25 @@ impl State {
 						?message_subject,
 						"Assignment from a peer is out of view",
 					);
-					modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(
+						&mut self.reputation,
+						ctx.sender(),
+						peer_id,
+						COST_UNEXPECTED_MESSAGE,
+					)
+					.await;
 				},
 			}
 
 			// if the assignment is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
-				modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(
+					&mut self.reputation,
+					ctx.sender(),
+					peer_id,
+					BENEFIT_VALID_MESSAGE,
+				)
+				.await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known assignment");
 					peer_knowledge.received.insert(message_subject, message_kind);
@@ -1150,7 +1204,13 @@ impl State {
 			);
 			match result {
 				AssignmentCheckResult::Accepted => {
-					modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE_FIRST).await;
+					modify_reputation(
+						&mut self.reputation,
+						ctx.sender(),
+						peer_id,
+						BENEFIT_VALID_MESSAGE_FIRST,
+					)
+					.await;
 					entry.knowledge.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
@@ -1178,8 +1238,13 @@ impl State {
 						?peer_id,
 						"Got an assignment too far in the future",
 					);
-					modify_reputation(ctx.sender(), peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE)
-						.await;
+					modify_reputation(
+						&mut self.reputation,
+						ctx.sender(),
+						peer_id,
+						COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE,
+					)
+					.await;
 					return
 				},
 				AssignmentCheckResult::Bad(error) => {
@@ -1190,7 +1255,13 @@ impl State {
 						%error,
 						"Got a bad assignment from peer",
 					);
-					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(
+						&mut self.reputation,
+						ctx.sender(),
+						peer_id,
+						COST_INVALID_MESSAGE,
+					)
+					.await;
 					return
 				},
 			}
@@ -1333,7 +1404,13 @@ impl State {
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
-						modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
+						modify_reputation(
+							&mut self.reputation,
+							ctx.sender(),
+							peer_id,
+							COST_UNEXPECTED_MESSAGE,
+						)
+						.await;
 					}
 				}
 				return
@@ -1362,7 +1439,13 @@ impl State {
 						?message_subject,
 						"Unknown approval assignment",
 					);
-					modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(
+						&mut self.reputation,
+						ctx.sender(),
+						peer_id,
+						COST_UNEXPECTED_MESSAGE,
+					)
+					.await;
 					return
 				}
 
@@ -1382,8 +1465,13 @@ impl State {
 									"Duplicate approval",
 								);
 
-								modify_reputation(ctx.sender(), peer_id, COST_DUPLICATE_MESSAGE)
-									.await;
+								modify_reputation(
+									&mut self.reputation,
+									ctx.sender(),
+									peer_id,
+									COST_DUPLICATE_MESSAGE,
+								)
+								.await;
 							}
 							return
 						}
@@ -1393,20 +1481,32 @@ impl State {
 							target: LOG_TARGET,
 							?peer_id,
 							?message_subject,
-							"Approval from a peer is out of view",
+							"Unknown approval assignment",
 						);
-						modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
+						modify_reputation(
+							&mut self.reputation,
+							ctx.sender(),
+							peer_id,
+							COST_UNEXPECTED_MESSAGE,
+						)
+						.await;
+						// TODO: is returned needed here ?
 					},
 				}
 
 				// if the approval is known to be valid, reward the peer
 				if entry.knowledge.contains(&message_subject, message_kind) {
 					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
-					modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE).await;
+					modify_reputation(
+						&mut self.reputation,
+						ctx.sender(),
+						peer_id,
+						BENEFIT_VALID_MESSAGE,
+					)
+					.await;
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
 					}
-					return
 				}
 			}
 			let (tx, rx) = oneshot::channel();
@@ -1432,7 +1532,13 @@ impl State {
 			);
 			match result {
 				ApprovalCheckResult::Accepted => {
-					modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE_FIRST).await;
+					modify_reputation(
+						&mut self.reputation,
+						ctx.sender(),
+						peer_id,
+						BENEFIT_VALID_MESSAGE_FIRST,
+					)
+					.await;
 
 					for message_subject in &message_subjects {
 						entry.knowledge.insert(message_subject.clone(), message_kind);
@@ -1442,7 +1548,13 @@ impl State {
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
-					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(
+						&mut self.reputation,
+						ctx.sender(),
+						peer_id,
+						COST_INVALID_MESSAGE,
+					)
+					.await;
 					gum::info!(
 						target: LOG_TARGET,
 						?peer_id,
@@ -1513,7 +1625,6 @@ impl State {
 
 		// Dispatch a ApprovalDistributionV1Message::Approval(vote)
 		// to all peers required by the topology, with the exception of the source peer.
-
 		let topology = self.topologies.get_topology(entry.session);
 		let source_peer = source.peer_id();
 
@@ -1895,6 +2006,80 @@ impl State {
 		)
 		.await;
 	}
+
+	// Filter out invalid candidate index and certificate core bitfields.
+	// For each invalid assignment we also punish the peer.
+	async fn sanitize_v1_assignments(
+		&mut self,
+		peer_id: PeerId,
+		sender: &mut impl overseer::ApprovalDistributionSenderTrait,
+		assignments: Vec<(IndirectAssignmentCert, CandidateIndex)>,
+	) -> Vec<(IndirectAssignmentCertV2, CandidateBitfield)> {
+		let mut sanitized_assignments = Vec::new();
+		for (cert, candidate_index) in assignments.into_iter() {
+			let cert_bitfield_bits = match cert.cert.kind {
+				AssignmentCertKind::RelayVRFDelay { core_index } => core_index.0 as usize + 1,
+				// We don't want to run the VRF yet, but the output is always bounded by `n_cores`.
+				// We assume `candidate_bitfield` length for the core bitfield and we just check against
+				// `MAX_BITFIELD_SIZE` later.
+				AssignmentCertKind::RelayVRFModulo { .. } => candidate_index as usize + 1,
+			};
+
+			// Ensure bitfields length under hard limit.
+			if cert_bitfield_bits > MAX_BITFIELD_SIZE ||
+				cert_bitfield_bits != candidate_index as usize + 1
+			{
+				// Punish the peer for the invalid message.
+				modify_reputation(&mut self.reputation, sender, peer_id, COST_OVERSIZED_BITFIELD)
+					.await;
+			} else {
+				sanitized_assignments.push((cert.into(), candidate_index.into()))
+			}
+		}
+
+		sanitized_assignments
+	}
+
+	// Filter out oversized candidate and certificate core bitfields.
+	// For each invalid assignment we also punish the peer.
+	async fn sanitize_v2_assignments(
+		&mut self,
+		peer_id: PeerId,
+		sender: &mut impl overseer::ApprovalDistributionSenderTrait,
+		assignments: Vec<(IndirectAssignmentCertV2, CandidateBitfield)>,
+	) -> Vec<(IndirectAssignmentCertV2, CandidateBitfield)> {
+		let mut sanitized_assignments = Vec::new();
+		for (cert, candidate_bitfield) in assignments.into_iter() {
+			let cert_bitfield_bits = match &cert.cert.kind {
+				AssignmentCertKindV2::RelayVRFDelay { core_index } => core_index.0 as usize + 1,
+				// We don't want to run the VRF yet, but the output is always bounded by `n_cores`.
+				// We assume `candidate_bitfield` length for the core bitfield and we just check against
+				// `MAX_BITFIELD_SIZE` later.
+				AssignmentCertKindV2::RelayVRFModulo { .. } => candidate_bitfield.len(),
+				AssignmentCertKindV2::RelayVRFModuloCompact { core_bitfield } =>
+					core_bitfield.len(),
+			};
+
+			let candidate_bitfield_len = candidate_bitfield.len();
+			// Our bitfield has `Lsb0`.
+			let msb = candidate_bitfield_len - 1;
+
+			// Ensure bitfields length under hard limit.
+			if cert_bitfield_bits > MAX_BITFIELD_SIZE
+				|| cert_bitfield_bits != candidate_bitfield_len
+				// Ensure minimum bitfield size - MSB needs to be one.
+				|| !candidate_bitfield.bit_at(msb.as_bit_index())
+			{
+				// Punish the peer for the invalid message.
+				modify_reputation(&mut self.reputation, sender, peer_id, COST_OVERSIZED_BITFIELD)
+					.await;
+			} else {
+				sanitized_assignments.push((cert, candidate_bitfield))
+			}
+		}
+
+		sanitized_assignments
+	}
 }
 
 // This adjusts the required routing of messages in blocks that pass the block filter
@@ -2028,6 +2213,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
 	peer_id: PeerId,
 	rep: Rep,
@@ -2038,8 +2224,7 @@ async fn modify_reputation(
 		?peer_id,
 		"Reputation change for peer",
 	);
-
-	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer_id, rep)).await;
+	reputation.modify(sender, peer_id, rep).await;
 }
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
@@ -2055,7 +2240,7 @@ impl ApprovalDistribution {
 		// According to the docs of `rand`, this is a ChaCha12 RNG in practice
 		// and will always be chosen for strong performance and security properties.
 		let mut rng = rand::rngs::StdRng::from_entropy();
-		self.run_inner(ctx, &mut state, &mut rng).await
+		self.run_inner(ctx, &mut state, REPUTATION_CHANGE_INTERVAL, &mut rng).await
 	}
 
 	/// Used for testing.
@@ -2063,37 +2248,49 @@ impl ApprovalDistribution {
 		self,
 		mut ctx: Context,
 		state: &mut State,
+		reputation_interval: Duration,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
+		let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+		let mut reputation_delay = new_reputation_delay();
+
 		loop {
-			let message = match ctx.recv().await {
-				Ok(message) => message,
-				Err(e) => {
-					gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
-					return
+			select! {
+				_ = reputation_delay => {
+					state.reputation.send(ctx.sender()).await;
+					reputation_delay = new_reputation_delay();
 				},
-			};
-			match message {
-				FromOrchestra::Communication { msg } =>
-					Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
-				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
-					// the relay chain blocks relevant to the approval subsystems
-					// are those that are available, but not finalized yet
-					// actived and deactivated heads hence are irrelevant to this subsystem, other than
-					// for tracing purposes.
-					if let Some(activated) = update.activated {
-						let head = activated.hash;
-						let approval_distribution_span =
-							jaeger::PerLeafSpan::new(activated.span, "approval-distribution");
-						state.spans.insert(head, approval_distribution_span);
+				message = ctx.recv().fuse() => {
+					let message = match message {
+						Ok(message) => message,
+						Err(e) => {
+							gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
+							return
+						},
+					};
+					match message {
+						FromOrchestra::Communication { msg } =>
+							Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
+						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
+							gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
+							// the relay chain blocks relevant to the approval subsystems
+							// are those that are available, but not finalized yet
+							// actived and deactivated heads hence are irrelevant to this subsystem, other than
+							// for tracing purposes.
+							if let Some(activated) = update.activated {
+								let head = activated.hash;
+								let approval_distribution_span =
+									jaeger::PerLeafSpan::new(activated.span, "approval-distribution");
+								state.spans.insert(head, approval_distribution_span);
+							}
+						},
+						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
+							gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
+							state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
+						},
+						FromOrchestra::Signal(OverseerSignal::Conclude) => return,
 					}
 				},
-				FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-					gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
-					state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
-				},
-				FromOrchestra::Signal(OverseerSignal::Conclude) => return,
 			}
 		}
 	}
