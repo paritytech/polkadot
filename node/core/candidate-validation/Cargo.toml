@@ -19,6 +19,7 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-metrics = { path = "../../metrics" }
+polkadot-overseer = { path = "../../overseer" }
 
 [target.'cfg(not(any(target_os = "android", target_os = "unknown")))'.dependencies]
 polkadot-node-core-pvf = { path = "../pvf" }
