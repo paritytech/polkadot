@@ -31,8 +31,8 @@ use xcm::latest::prelude::*;
 pub mod traits;
 use traits::{
 	validate_export, AssetExchange, AssetLock, CallDispatcher, ClaimAssets, ConvertOrigin,
-	DropAssets, Enact, ExportXcm, FeeManager, FeeReason, OnResponse, ProcessTransaction, Properties, ShouldExecute,
-	TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	DropAssets, Enact, ExportXcm, FeeManager, FeeReason, OnResponse, ProcessTransaction,
+	Properties, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -745,8 +745,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					// should be executed.
 					if let Some(weight) = Option::<Weight>::from(weight_limit) {
 						// pay for `weight` using up to `fees` of the holding register.
-						let max_fee =
-							self.holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
+						let max_fee = self
+							.holding
+							.try_take(fees.into())
+							.map_err(|_| XcmError::NotHoldingFees)?;
 						let unspent = self.trader.buy_weight(weight, max_fee, &self.context)?;
 						self.subsume_assets(unspent)?;
 					}

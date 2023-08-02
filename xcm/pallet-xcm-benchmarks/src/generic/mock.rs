@@ -30,7 +30,7 @@ use xcm_builder::{
 		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
 		TestUniversalAliases,
 	},
-	AliasForeignAccountId32, AllowUnpaidExecutionFrom, FrameTransactionalProcessor
+	AliasForeignAccountId32, AllowUnpaidExecutionFrom, FrameTransactionalProcessor,
 };
 use xcm_executor::traits::ConvertOrigin;
 

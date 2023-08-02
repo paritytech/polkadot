@@ -31,6 +31,6 @@ impl ProcessTransaction for FrameTransactionalProcessor {
 				Ok(_) => TransactionOutcome::Commit(Ok(())),
 				Err(err) => TransactionOutcome::Rollback(Err(*err)),
 			}
-		})	
+		})
 	}
 }
