@@ -171,6 +171,8 @@ pub mod pallet {
 		QueueFull,
 		/// The current spot price is higher than the max amount specified in the `place_order` call, making it invalid.
 		SpotPriceHigherThanMaxAmount,
+		/// There are no on demand cores available. `place_order` will not add anything to the queue.
+		NoOnDemandCores,
 	}
 
 	#[pallet::hooks]
@@ -235,6 +237,7 @@ pub mod pallet {
 		/// - `InvalidParaId`
 		/// - `QueueFull`
 		/// - `SpotPriceHigherThanMaxAmount`
+		/// - `NoOnDemandCores`
 		///
 		/// Events:
 		/// - `SpotOrderPlaced`
@@ -249,10 +252,13 @@ pub mod pallet {
 			// Is the tx signed
 			let sender = ensure_signed(origin)?;
 
+			let config = <configuration::Pallet<T>>::config();
+
+			// Are there any schedulable cores in this session
+			ensure!(config.on_demand_cores > 0, Error::<T>::NoOnDemandCores);
+
 			// Traffic always falls back to 1.0
 			let traffic = SpotTraffic::<T>::get();
-
-			let config = <configuration::Pallet<T>>::config();
 
 			// Calculate spot price
 			let spot_price: BalanceOf<T> = traffic

@@ -277,36 +277,6 @@ fn add_parathread_claim_works() {
 	})
 }
 
-/// TODO: MOVE TO polkadot provider
-//#[test]
-//fn cannot_add_claim_when_no_parathread_cores() {
-//	let config = {
-//		let mut config = default_config();
-//		config.parathread_cores = 0;
-//		config
-//	};
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig { config, ..Default::default() },
-//		..Default::default()
-//	};
-//
-//	let thread_id = ParaId::from(10);
-//	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
-//
-//	new_test_ext(genesis_config).execute_with(|| {
-//		schedule_blank_para(thread_id, ParaKind::Parathread);
-//
-//		assert!(!Paras::is_parathread(thread_id));
-//
-//		run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
-//
-//		assert!(Paras::is_parathread(thread_id));
-//
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
-//		assert_eq!(ParathreadQueue::<Test>::get(), Default::default());
-//	});
-//}
-
 //#[test]
 //fn session_change_prunes_cores_beyond_retries_and_those_from_non_live_parathreads() {
 //	let genesis_config = MockGenesisConfig {
