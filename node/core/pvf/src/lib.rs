@@ -97,7 +97,7 @@ mod prepare;
 mod priority;
 mod worker_intf;
 
-#[doc(hidden)]
+#[cfg(feature = "test-utils")]
 pub mod testing;
 
 // Used by `decl_puppet_worker_main!`.
