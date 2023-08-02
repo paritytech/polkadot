@@ -7,8 +7,8 @@ edition.workspace = true
 [dependencies]
 clap = { version = "4.0.9", features = ["derive"] }
 
-generate-bags = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+generate-bags = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-io = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
 
 westend-runtime = { path = "../../runtime/westend" }
 kusama-runtime = { path = "../../runtime/kusama" }
