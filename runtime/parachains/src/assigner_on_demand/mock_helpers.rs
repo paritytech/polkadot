@@ -38,7 +38,7 @@ pub fn default_genesis_config() -> MockGenesisConfig {
 
 #[derive(Debug)]
 pub struct GenesisConfigBuilder {
-	pub parathread_cores: u32,
+	pub on_demand_cores: u32,
 	pub on_demand_base_fee: Balance,
 	pub on_demand_fee_variability: Perbill,
 	pub on_demand_max_queue_size: u32,
@@ -49,7 +49,7 @@ pub struct GenesisConfigBuilder {
 impl Default for GenesisConfigBuilder {
 	fn default() -> Self {
 		Self {
-			parathread_cores: 10,
+			on_demand_cores: 10,
 			on_demand_base_fee: 10_000,
 			on_demand_fee_variability: Perbill::from_percent(1),
 			on_demand_max_queue_size: 100,
@@ -63,7 +63,7 @@ impl GenesisConfigBuilder {
 	pub(super) fn build(self) -> MockGenesisConfig {
 		let mut genesis = default_genesis_config();
 		let config = &mut genesis.configuration.config;
-		config.on_demand_cores = self.parathread_cores;
+		config.on_demand_cores = self.on_demand_cores;
 		config.on_demand_base_fee = self.on_demand_base_fee;
 		config.on_demand_fee_variability = self.on_demand_fee_variability;
 		config.on_demand_queue_max_size = self.on_demand_max_queue_size;
