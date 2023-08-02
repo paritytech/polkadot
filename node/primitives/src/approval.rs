@@ -292,6 +292,11 @@ pub mod v2 {
 		pub fn inner_mut(&mut self) -> &mut BitVec<u8, bitvec::order::Lsb0> {
 			&mut self.0
 		}
+
+		/// Returns the inner bitfield and consumes `self`.
+		pub fn into_inner(self) -> BitVec<u8, bitvec::order::Lsb0> {
+			self.0
+		}
 	}
 
 	impl AsBitIndex for CandidateIndex {

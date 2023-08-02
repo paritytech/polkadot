@@ -22,7 +22,7 @@
 
 use polkadot_node_primitives::approval::{
 	v1::{DelayTranche, RelayVRFStory},
-	v2::AssignmentCertV2,
+	v2::{AssignmentCertV2, CandidateBitfield},
 };
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex, GroupIndex, Hash,
@@ -113,11 +113,6 @@ impl ApprovalEntry {
 	// Access our assignment for this approval entry.
 	pub fn our_assignment(&self) -> Option<&OurAssignment> {
 		self.our_assignment.as_ref()
-	}
-
-	// Needed for v1 to v2 migration.
-	pub fn our_assignment_mut(&mut self) -> Option<&mut OurAssignment> {
-		self.our_assignment.as_mut()
 	}
 
 	// Note that our assignment is triggered. No-op if already triggered.
@@ -361,6 +356,10 @@ pub struct BlockEntry {
 	// A list of candidates that has been approved, but we didn't not sign and
 	// advertise the vote yet.
 	pub candidates_pending_signature: BTreeMap<CandidateIndex, CandidateSigningContext>,
+	// A list of assignments for which wea already distributed the assignment.
+	// We use this to ensure we don't distribute multiple core assignments twice as we track
+	// individual wakeups for each core.
+	pub distributed_assignments: Bitfield,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -441,6 +440,22 @@ impl BlockEntry {
 	pub fn parent_hash(&self) -> Hash {
 		self.parent_hash
 	}
+
+	/// Mark distributed assignment for many candidate indices.
+	/// Returns `true` if an assignment was already distributed for the `candidates`.
+	pub fn mark_assignment_distributed(&mut self, candidates: CandidateBitfield) -> bool {
+		let bitfield = candidates.into_inner();
+		let total_one_bits = self.distributed_assignments.count_ones();
+
+		let new_len = std::cmp::max(self.distributed_assignments.len(), bitfield.len());
+		self.distributed_assignments.resize(new_len, false);
+		self.distributed_assignments |= bitfield;
+
+		// If the an operation did not change our current bitfied, we return true.
+		let distributed = total_one_bits == self.distributed_assignments.count_ones();
+
+		distributed
+	}
 }
 
 impl From<crate::approval_db::v2::BlockEntry> for BlockEntry {
@@ -460,6 +475,7 @@ impl From<crate::approval_db::v2::BlockEntry> for BlockEntry {
 				.into_iter()
 				.map(|(candidate_index, signing_context)| (candidate_index, signing_context.into()))
 				.collect(),
+			distributed_assignments: entry.distributed_assignments,
 		}
 	}
 }
@@ -481,6 +497,7 @@ impl From<BlockEntry> for crate::approval_db::v2::BlockEntry {
 				.into_iter()
 				.map(|(candidate_index, signing_context)| (candidate_index, signing_context.into()))
 				.collect(),
+			distributed_assignments: entry.distributed_assignments,
 		}
 	}
 }

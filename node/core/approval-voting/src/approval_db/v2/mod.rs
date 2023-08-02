@@ -237,6 +237,10 @@ pub struct BlockEntry {
 	// A list of candidates that has been approved, but we didn't not sign and
 	// advertise the vote yet.
 	pub candidates_pending_signature: BTreeMap<CandidateIndex, CandidateSigningContext>,
+	// Assignments we already distributed. A 1 bit means the candidate index for which
+	// we already have sent out an assignment. We need this to avoid distributing
+	// multiple core assignments more than once.
+	pub distributed_assignments: Bitfield,
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq)]

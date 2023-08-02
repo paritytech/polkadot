@@ -57,6 +57,7 @@ fn make_block_entry(
 		candidates,
 		children: Vec::new(),
 		candidates_pending_signature: Default::default(),
+		distributed_assignments: Default::default(),
 	}
 }
 

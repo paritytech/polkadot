@@ -512,6 +512,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			approved_bitfield,
 			children: Vec::new(),
 			candidates_pending_signature: Default::default(),
+			distributed_assignments: Default::default(),
 		};
 
 		gum::trace!(
@@ -1266,6 +1267,7 @@ pub(crate) mod tests {
 				approved_bitfield: Default::default(),
 				children: Vec::new(),
 				candidates_pending_signature: Default::default(),
+				distributed_assignments: Default::default(),
 			}
 			.into(),
 		);
