@@ -6,7 +6,7 @@ Due to the (lack of) guarantees provided by a particular blockchain-runtime fram
 
 We also expect, although it's beyond the scope of this guide, that these runtime modules will exist alongside various other modules. This has two facets to consider. First, even if the modules that we describe here don't invoke each others' entry points or routines during initialization, we still have to protect against those other modules doing that. Second, some of those modules are expected to provide governance capabilities for the chain. Configuration exposed by parachain-host modules is mostly for the benefit of these governance modules, to allow the operators or community of the chain to tweak parameters.
 
-The runtime's primary roles to manage scheduling and updating of parachains and parathreads, as well as handling misbehavior reports and slashing. This guide doesn't focus on how parachains or parathreads are registered, only that they are. Also, this runtime description assumes that validator sets are selected somehow, but doesn't assume any other details than a periodic _session change_ event. Session changes give information about the incoming validator set and the validator set of the following session.
+The runtime's primary role is to manage scheduling and updating of parachains, as well as handling misbehavior reports and slashing. This guide doesn't focus on how parachains are registered, only that they are. Also, this runtime description assumes that validator sets are selected somehow, but doesn't assume any other details than a periodic _session change_ event. Session changes give information about the incoming validator set and the validator set of the following session.
 
 The runtime also serves another role, which is to make data available to the Node-side logic via Runtime APIs. These Runtime APIs should be sufficient for the Node-side code to author blocks correctly.
 
@@ -17,9 +17,9 @@ We will split the logic of the runtime up into these modules:
 * Initializer: manages initialization order of the other modules.
 * Shared: manages shared storage and configurations for other modules.
 * Configuration: manages configuration and configuration updates in a non-racy manner.
-* Paras: manages chain-head and validation code for parachains and parathreads.
-* Scheduler: manages parachain and parathread scheduling as well as validator assignments.
-* Inclusion: handles the inclusion and availability of scheduled parachains and parathreads.
+* Paras: manages chain-head and validation code for parachains.
+* Scheduler: manages parachain scheduling as well as validator assignments.
+* Inclusion: handles the inclusion and availability of scheduled parachains.
 * SessionInfo: manages various session keys of validators and other params stored per session.
 * Disputes: handles dispute resolution for included, available parablocks.
 * Slashing: handles slashing logic for concluded disputes.

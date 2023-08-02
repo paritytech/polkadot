@@ -1,4 +1,4 @@
-# DMP Module
+# DMP Pallet
 
 A module responsible for Downward Message Processing (DMP). See [Messaging Overview](../messaging.md) for more details.
 
@@ -27,9 +27,9 @@ No initialization routine runs for this module.
 
 Candidate Acceptance Function:
 
-* `check_processed_downward_messages(P: ParaId, processed_downward_messages: u32)`:
+* `check_processed_downward_messages(P: ParaId, relay_parent_number: BlockNumber, processed_downward_messages: u32)`:
+    1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty at the given `relay_parent_number`.
     1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
-    1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
 
 Candidate Enactment:
 

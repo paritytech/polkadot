@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The scheduler module for parachains and parathreads.
+//! The scheduler module for parachains.
 //!
 //! This module is responsible for two main tasks:
-//!   - Partitioning validators into groups and assigning groups to parachains and parathreads
-//!   - Scheduling parachains and parathreads
+//!   - Partitioning validators into groups and assigning groups to parachains
+//!   - Scheduling parachains
 //!
 //! It aims to achieve these tasks with these goals in mind:
 //! - It should be possible to know at least a block ahead-of-time, ideally more,
@@ -27,11 +27,11 @@
 //!   should not be assigned.
 //! - Validator assignments should not be gameable. Malicious cartels should not be able to
 //!   manipulate the scheduler to assign themselves as desired.
-//! - High or close to optimal throughput of parachains and parathreads. Work among validator groups should be balanced.
+//! - High or close to optimal throughput of parachains. Work among validator groups should be balanced.
 //!
 //! The Scheduler manages resource allocation using the concept of "Availability Cores".
 //! There will be one availability core for each parachain, and a fixed number of cores
-//! used for multiplexing parathreads. Validators will be partitioned into groups, with the same
+//! used for multiplexing on-demand parachains. Validators will be partitioned into groups, with the same
 //! number of groups as availability cores. Validator groups will be assigned to different availability cores
 //! over time.
 
@@ -52,7 +52,11 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
-/// A queued parathread entry, pre-assigned to a core.
+pub mod migration;
+
+const LOG_TARGET: &str = "runtime::scheduler";
+
+/// A queued parathread (on-demand parachain) entry, pre-assigned to a core.
 #[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct QueuedParathread {
@@ -60,7 +64,7 @@ pub struct QueuedParathread {
 	core_offset: u32,
 }
 
-/// The queue of all parathread claims.
+/// The queue of all parathread (on-demand parachain) claims.
 #[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct ParathreadClaimQueue {
@@ -70,9 +74,10 @@ pub struct ParathreadClaimQueue {
 }
 
 impl ParathreadClaimQueue {
-	/// Queue a parathread entry to be processed.
+	/// Queue a parathread (on-demand parachain) entry to be processed.
 	///
-	/// Provide the entry and the number of parathread cores, which must be greater than 0.
+	/// Provide the entry and the number of parathread (on-demand parachain) cores,
+	/// which must be greater than 0.
 	fn enqueue_entry(&mut self, entry: ParathreadEntry, n_parathread_cores: u32) {
 		let core_offset = self.next_core_offset;
 		self.next_core_offset = (self.next_core_offset + 1) % n_parathread_cores;
@@ -114,7 +119,7 @@ pub enum FreedReason {
 pub enum AssignmentKind {
 	/// A parachain.
 	Parachain,
-	/// A parathread.
+	/// A parathread (on-demand parachain).
 	Parathread(CollatorId, u32),
 }
 
@@ -128,8 +133,6 @@ pub struct CoreAssignment {
 	pub para_id: ParaId,
 	/// The kind of the assignment.
 	pub kind: AssignmentKind,
-	/// The index of the validator group assigned to the core.
-	pub group_idx: GroupIndex,
 }
 
 impl CoreAssignment {
@@ -160,6 +163,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
+	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -169,8 +173,9 @@ pub mod pallet {
 	/// broader set of Polkadot validators, but instead just the subset used for parachains during
 	/// this session.
 	///
-	/// Bound: The number of cores is the sum of the numbers of parachains and parathread multiplexers.
-	/// Reasonably, 100-1000. The dominant factor is the number of validators: safe upper bound at 10k.
+	/// Bound: The number of cores is the sum of the numbers of lease holding parachains and on-demand
+	/// parachain multiplexers. Reasonably, 100-1000. The dominant factor is the number of validators:
+	/// safe upper bound at 10k.
 	#[pallet::storage]
 	#[pallet::getter(fn validator_groups)]
 	pub(crate) type ValidatorGroups<T> = StorageValue<_, Vec<Vec<ValidatorIndex>>, ValueQuery>;
@@ -178,26 +183,27 @@ pub mod pallet {
 	/// A queue of upcoming claims and which core they should be mapped onto.
 	///
 	/// The number of queued claims is bounded at the `scheduling_lookahead`
-	/// multiplied by the number of parathread multiplexer cores. Reasonably, 10 * 50 = 500.
+	/// multiplied by the number of parathread (on-demand parachain) multiplexer cores. Reasonably,
+	/// 10 * 50 = 500.
 	#[pallet::storage]
 	pub(crate) type ParathreadQueue<T> = StorageValue<_, ParathreadClaimQueue, ValueQuery>;
 
 	/// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
 	/// temporarily `Some` if scheduled but not occupied.
 	/// The i'th parachain belongs to the i'th core, with the remaining cores all being
-	/// parathread-multiplexers.
+	/// on-demand parachain-multiplexers.
 	///
 	/// Bounded by the maximum of either of these two values:
-	///   * The number of parachains and parathread multiplexers
+	///   * The number of lease holding parachains and on-demand parachain multiplexers
 	///   * The number of validators divided by `configuration.max_validators_per_core`.
 	#[pallet::storage]
 	#[pallet::getter(fn availability_cores)]
 	pub(crate) type AvailabilityCores<T> = StorageValue<_, Vec<Option<CoreOccupied>>, ValueQuery>;
 
-	/// An index used to ensure that only one claim on a parathread exists in the queue or is
-	/// currently being handled by an occupied core.
+	/// An index used to ensure that only one claim on a parathread (on-demand parachain) exists in the queue
+	/// or is currently being handled by an occupied core.
 	///
-	/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
+	/// Bounded by the number of parathread (on-demand parachain) cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
 	#[pallet::storage]
 	pub(crate) type ParathreadClaimIndex<T> = StorageValue<_, Vec<ParaId>, ValueQuery>;
 
@@ -213,7 +219,7 @@ pub mod pallet {
 
 	/// Currently scheduled cores - free but up to be occupied.
 	///
-	/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
+	/// Bounded by the number of cores: one for each lease holding parachain and on-demand parachain multiplexer.
 	///
 	/// The value contained here will not be valid after the end of a block. Runtime APIs should be used to determine scheduled cores/
 	/// for the upcoming block.
@@ -299,17 +305,17 @@ impl<T: Config> Pallet<T> {
 			ValidatorGroups::<T>::set(groups);
 		}
 
-		// prune out all parathread claims with too many retries.
+		// prune out all parathread (on-demand parachain) claims with too many retries.
 		// assign all non-pruned claims to new cores, if they've changed.
 		ParathreadClaimIndex::<T>::mutate(|claim_index| {
-			// wipe all parathread metadata if no parathread cores are configured.
+			// wipe all on-demand metadata if no parathread (on-demand parachain) cores are configured.
 			if config.parathread_cores == 0 {
 				thread_queue = ParathreadClaimQueue { queue: Vec::new(), next_core_offset: 0 };
 				claim_index.clear();
 				return
 			}
 
-			// prune out all entries beyond retry or that no longer correspond to live parathread.
+			// prune out all entries beyond retry or that no longer correspond to live parathread (on-demand parachain).
 			thread_queue.queue.retain(|queued| {
 				let will_keep = queued.claim.retries <= config.parathread_retries &&
 					<paras::Pallet<T>>::is_parathread(queued.claim.claim.0);
@@ -342,10 +348,11 @@ impl<T: Config> Pallet<T> {
 		<SessionStartBlock<T>>::set(now);
 	}
 
-	/// Add a parathread claim to the queue. If there is a competing claim in the queue or currently
-	/// assigned to a core, this call will fail. This call will also fail if the queue is full.
+	/// Add a parathread (on-demand parachain) claim to the queue. If there is a competing claim in the
+	/// queue or currently assigned to a core, this call will fail. This call will also fail if the queue
+	/// is full.
 	///
-	/// Fails if the claim does not correspond to any live parathread.
+	/// Fails if the claim does not correspond to any live on-demand parachain.
 	#[allow(unused)]
 	pub fn add_parathread_claim(claim: ParathreadClaim) {
 		if !<paras::Pallet<T>>::is_parathread(claim.0) {
@@ -394,7 +401,7 @@ impl<T: Config> Pallet<T> {
 						Some(CoreOccupied::Parathread(entry)) => {
 							match freed_reason {
 								FreedReason::Concluded => {
-									// After a parathread candidate has successfully been included,
+									// After a parathread (on-demand parachain) candidate has successfully been included,
 									// open it up for further claims!
 									ParathreadClaimIndex::<T>::mutate(|index| {
 										if let Ok(i) = index.binary_search(&entry.claim.0) {
@@ -403,7 +410,7 @@ impl<T: Config> Pallet<T> {
 									})
 								},
 								FreedReason::TimedOut => {
-									// If a parathread candidate times out, it's not the collator's fault,
+									// If a parathread (on-demand parachain) candidate times out, it's not the collator's fault,
 									// so we don't increment retries.
 									ParathreadQueue::<T>::mutate(|queue| {
 										queue.enqueue_entry(entry, config.parathread_cores);
@@ -420,10 +427,7 @@ impl<T: Config> Pallet<T> {
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
 	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
 	/// ascending order by core index.
-	pub(crate) fn schedule(
-		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
-		now: BlockNumberFor<T>,
-	) {
+	pub(crate) fn schedule(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
 		Self::free_cores(just_freed_cores);
 
 		let cores = AvailabilityCores::<T>::get();
@@ -484,23 +488,15 @@ impl<T: Config> Pallet<T> {
 						kind: AssignmentKind::Parachain,
 						para_id: parachains[core_index],
 						core,
-						group_idx: Self::group_assigned_to_core(core, now).expect(
-							"core is not out of bounds and we are guaranteed \
-									to be after the most recent session start; qed",
-						),
 					})
 				} else {
-					// parathread core offset, rel. to beginning.
+					// parathread (on-demand parachain) core offset, rel. to beginning.
 					let core_offset = (core_index - parachains.len()) as u32;
 
 					parathread_queue.take_next_on_core(core_offset).map(|entry| CoreAssignment {
 						kind: AssignmentKind::Parathread(entry.claim.1, entry.retries),
 						para_id: entry.claim.0,
 						core,
-						group_idx: Self::group_assigned_to_core(core, now).expect(
-							"core is not out of bounds and we are guaranteed \
-									to be after the most recent session start; qed",
-						),
 					})
 				};
 
@@ -623,7 +619,7 @@ impl<T: Config> Pallet<T> {
 	/// Returns an optional predicate that should be used for timing out occupied cores.
 	///
 	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
-	/// block number since which it has been occupied, and the respective parachain and parathread
+	/// block number since which it has been occupied, and the respective lease holding and on-demand parachain
 	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
 	/// of the last rotation would this return `Some`, unless there are no rotations.
 	///
@@ -685,8 +681,8 @@ impl<T: Config> Pallet<T> {
 	/// Return the next thing that will be scheduled on this core assuming it is currently
 	/// occupied and the candidate occupying it became available.
 	///
-	/// For parachains, this is always the ID of the parachain and no specified collator.
-	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
+	/// For lease holding parachains, this is always the ID of the parachain and no specified collator.
+	/// For on-demand parachains, this is based on the next item in the `ParathreadQueue` assigned to that
 	/// core, and is None if there isn't one.
 	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
 		let parachains = <paras::Pallet<T>>::parachains();
@@ -705,8 +701,8 @@ impl<T: Config> Pallet<T> {
 	/// Return the next thing that will be scheduled on this core assuming it is currently
 	/// occupied and the candidate occupying it became available.
 	///
-	/// For parachains, this is always the ID of the parachain and no specified collator.
-	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
+	/// For lease holding parachains, this is always the ID of the parachain and no specified collator.
+	/// For on-demand parachains, this is based on the next item in the `ParathreadQueue` assigned to that
 	/// core, or if there isn't one, the claim that is currently occupying the core, as long
 	/// as the claim's retries would not exceed the limit. Otherwise None.
 	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
@@ -741,7 +737,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
+	// Free all scheduled cores and return parathread (on-demand parachain) claims to queue, with retries incremented.
 	pub(crate) fn clear() {
 		let config = <configuration::Pallet<T>>::config();
 		ParathreadQueue::<T>::mutate(|queue| {
@@ -762,5 +758,10 @@ impl<T: Config> Pallet<T> {
 				}
 			}
 		});
+	}
+
+	#[cfg(test)]
+	pub(crate) fn set_validator_groups(validator_groups: Vec<Vec<ValidatorIndex>>) {
+		ValidatorGroups::<T>::set(validator_groups);
 	}
 }

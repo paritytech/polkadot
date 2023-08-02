@@ -55,6 +55,9 @@ pub(crate) fn send_message<M>(
 ) where
 	M: Encode + Clone,
 {
+	if peers.is_empty() {
+		return
+	}
 	let message = {
 		let encoded = message.encode();
 		metrics.on_notification_sent(peer_set, version, encoded.len(), peers.len());
@@ -65,8 +68,11 @@ pub(crate) fn send_message<M>(
 	// list. The message payload can be quite large. If the underlying
 	// network used `Bytes` this would not be necessary.
 	let last_peer = peers.pop();
-	// optimization: generate the protocol name once.
-	let protocol_name = protocol_names.get_name(peer_set, version);
+
+	// We always send messages on the "main" name even when a negotiated
+	// fallback is used. The libp2p implementation handles the fallback
+	// under the hood.
+	let protocol_name = protocol_names.get_main_name(peer_set);
 	peers.into_iter().for_each(|peer| {
 		net.write_notification(peer, protocol_name.clone(), message.clone());
 	});

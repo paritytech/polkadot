@@ -89,6 +89,7 @@ pub fn dummy_overseer_builder<Spawner, SupportsParachains>(
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
+		DummySubsystem,
 	>,
 	SubsystemError,
 >
@@ -109,6 +110,7 @@ pub fn one_for_all_overseer_builder<Spawner, SupportsParachains, Sub>(
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
 		SupportsParachains,
+		Sub,
 		Sub,
 		Sub,
 		Sub,
@@ -159,7 +161,8 @@ where
 		+ Subsystem<OverseerSubsystemContext<DisputeCoordinatorMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<PvfCheckerMessage>, SubsystemError>,
+		+ Subsystem<OverseerSubsystemContext<PvfCheckerMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ProspectiveParachainsMessage>, SubsystemError>,
 {
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
 
@@ -185,7 +188,8 @@ where
 		.gossip_support(subsystem.clone())
 		.dispute_coordinator(subsystem.clone())
 		.dispute_distribution(subsystem.clone())
-		.chain_selection(subsystem)
+		.chain_selection(subsystem.clone())
+		.prospective_parachains(subsystem.clone())
 		.activation_external_listeners(Default::default())
 		.span_per_active_leaf(Default::default())
 		.active_leaves(Default::default())

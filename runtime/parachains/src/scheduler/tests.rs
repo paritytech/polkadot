@@ -74,7 +74,7 @@ fn run_to_block(
 
 		// In the real runtime this is expected to be called by the `InclusionInherent` pallet.
 		Scheduler::clear();
-		Scheduler::schedule(Vec::new(), b + 1);
+		Scheduler::schedule(Vec::new());
 	}
 }
 
@@ -169,7 +169,7 @@ fn add_parathread_claim_works() {
 			);
 		}
 
-		// claims on non-live parathreads have no effect.
+		// claims on non-live parathreads (on-demand parachains) have no effect.
 		{
 			let thread_id2 = ParaId::from(11);
 			Scheduler::add_parathread_claim(ParathreadClaim(thread_id2, collator.clone()));
@@ -275,7 +275,7 @@ fn session_change_prunes_cores_beyond_retries_and_those_from_non_live_parathread
 				4,
 			);
 
-			// Will be pruned: not a live parathread.
+			// Will be pruned: not a live parathread (on-demand parachain).
 			queue.enqueue_entry(
 				ParathreadEntry { claim: ParathreadClaim(thread_d, collator.clone()), retries: 0 },
 				4,
@@ -449,11 +449,11 @@ fn schedule_schedules() {
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().parathread_cores, 3);
 
-		// register 2 parachains
+		// register 2 lease holding parachains
 		schedule_blank_para(chain_a, ParaKind::Parachain);
 		schedule_blank_para(chain_b, ParaKind::Parachain);
 
-		// and 3 parathreads
+		// and 3 parathreads (on-demand parachains)
 		schedule_blank_para(thread_a, ParaKind::Parathread);
 		schedule_blank_para(thread_b, ParaKind::Parathread);
 		schedule_blank_para(thread_c, ParaKind::Parathread);
@@ -484,7 +484,6 @@ fn schedule_schedules() {
 					core: CoreIndex(0),
 					para_id: chain_a,
 					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(0),
 				}
 			);
 
@@ -494,12 +493,11 @@ fn schedule_schedules() {
 					core: CoreIndex(1),
 					para_id: chain_b,
 					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(1),
 				}
 			);
 		}
 
-		// add a couple of parathread claims.
+		// add a couple of parathread (on-demand parachain) claims.
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
 
@@ -515,7 +513,6 @@ fn schedule_schedules() {
 					core: CoreIndex(0),
 					para_id: chain_a,
 					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(0),
 				}
 			);
 
@@ -525,7 +522,6 @@ fn schedule_schedules() {
 					core: CoreIndex(1),
 					para_id: chain_b,
 					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(1),
 				}
 			);
 
@@ -535,7 +531,6 @@ fn schedule_schedules() {
 					core: CoreIndex(2),
 					para_id: thread_a,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(2),
 				}
 			);
 
@@ -545,7 +540,6 @@ fn schedule_schedules() {
 					core: CoreIndex(3),
 					para_id: thread_c,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(3),
 				}
 			);
 		}
@@ -576,11 +570,11 @@ fn schedule_schedules_including_just_freed() {
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().parathread_cores, 3);
 
-		// register 2 parachains
+		// register 2 lease holding parachains
 		schedule_blank_para(chain_a, ParaKind::Parachain);
 		schedule_blank_para(chain_b, ParaKind::Parachain);
 
-		// and 5 parathreads
+		// and 5 parathreads (on-demand parachains)
 		schedule_blank_para(thread_a, ParaKind::Parathread);
 		schedule_blank_para(thread_b, ParaKind::Parathread);
 		schedule_blank_para(thread_c, ParaKind::Parathread);
@@ -603,7 +597,7 @@ fn schedule_schedules_including_just_freed() {
 			_ => None,
 		});
 
-		// add a couple of parathread claims now that the parathreads are live.
+		// add a couple of parathread (on-demand parachain) claims now that the on-demand parachains are live.
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
 
@@ -626,9 +620,9 @@ fn schedule_schedules_including_just_freed() {
 			assert!(Scheduler::scheduled().is_empty());
 		}
 
-		// add a couple more parathread claims - the claim on `b` will go to the 3rd parathread core (4)
-		// and the claim on `d` will go back to the 1st parathread core (2). The claim on `e` then
-		// will go for core `3`.
+		// add a couple more parathread (on-demand parachain) claims - the claim on `b` will go to
+		// the 3rd on-demand core (4) and the claim on `d` will go back to the 1st on-demand
+		// core (2). The claim on `e` then will go for core `3`.
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_d, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_e, collator.clone()));
@@ -638,8 +632,8 @@ fn schedule_schedules_including_just_freed() {
 		{
 			let scheduled = Scheduler::scheduled();
 
-			// cores 0 and 1 are occupied by parachains. cores 2 and 3 are occupied by parathread
-			// claims. core 4 was free.
+			// cores 0 and 1 are occupied by lease holding parachains. cores 2 and 3 are occupied by
+			// on-demand parachain claims. core 4 was free.
 			assert_eq!(scheduled.len(), 1);
 			assert_eq!(
 				scheduled[0],
@@ -647,20 +641,16 @@ fn schedule_schedules_including_just_freed() {
 					core: CoreIndex(4),
 					para_id: thread_b,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(4),
 				}
 			);
 		}
 
 		// now note that cores 0, 2, and 3 were freed.
-		Scheduler::schedule(
-			vec![
-				(CoreIndex(0), FreedReason::Concluded),
-				(CoreIndex(2), FreedReason::Concluded),
-				(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
-			],
-			3,
-		);
+		Scheduler::schedule(vec![
+			(CoreIndex(0), FreedReason::Concluded),
+			(CoreIndex(2), FreedReason::Concluded),
+			(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
+		]);
 
 		{
 			let scheduled = Scheduler::scheduled();
@@ -673,7 +663,6 @@ fn schedule_schedules_including_just_freed() {
 					core: CoreIndex(0),
 					para_id: chain_a,
 					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(0),
 				}
 			);
 			assert_eq!(
@@ -682,7 +671,6 @@ fn schedule_schedules_including_just_freed() {
 					core: CoreIndex(2),
 					para_id: thread_d,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(2),
 				}
 			);
 			assert_eq!(
@@ -691,7 +679,6 @@ fn schedule_schedules_including_just_freed() {
 					core: CoreIndex(3),
 					para_id: thread_e,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(3),
 				}
 			);
 			assert_eq!(
@@ -700,7 +687,6 @@ fn schedule_schedules_including_just_freed() {
 					core: CoreIndex(4),
 					para_id: thread_b,
 					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(4),
 				}
 			);
 
@@ -786,10 +772,10 @@ fn schedule_clears_availability_cores() {
 		run_to_block(3, |_| None);
 
 		// now note that cores 0 and 2 were freed.
-		Scheduler::schedule(
-			vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)],
-			3,
-		);
+		Scheduler::schedule(vec![
+			(CoreIndex(0), FreedReason::Concluded),
+			(CoreIndex(2), FreedReason::Concluded),
+		]);
 
 		{
 			let scheduled = Scheduler::scheduled();
@@ -801,7 +787,6 @@ fn schedule_clears_availability_cores() {
 					core: CoreIndex(0),
 					para_id: chain_a,
 					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(0),
 				}
 			);
 			assert_eq!(
@@ -810,7 +795,6 @@ fn schedule_clears_availability_cores() {
 					core: CoreIndex(2),
 					para_id: chain_c,
 					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(2),
 				}
 			);
 
@@ -827,7 +811,7 @@ fn schedule_rotates_groups() {
 	let config = {
 		let mut config = default_config();
 
-		// make sure parathread requests don't retry-out
+		// make sure parathread (on-demand parachain) requests don't retry-out
 		config.parathread_retries = config.group_rotation_frequency * 3;
 		config.parathread_cores = 2;
 		config
@@ -876,31 +860,37 @@ fn schedule_rotates_groups() {
 
 		run_to_block(2, |_| None);
 
-		let assert_groups_rotated = |rotations: u32| {
+		let assert_groups_rotated = |rotations: u32, block_number: u32| {
 			let scheduled = Scheduler::scheduled();
 			assert_eq!(scheduled.len(), 2);
-			assert_eq!(scheduled[0].group_idx, GroupIndex((0u32 + rotations) % parathread_cores));
-			assert_eq!(scheduled[1].group_idx, GroupIndex((1u32 + rotations) % parathread_cores));
+			assert_eq!(
+				Scheduler::group_assigned_to_core(scheduled[0].core, block_number).unwrap(),
+				GroupIndex((0u32 + rotations) % parathread_cores)
+			);
+			assert_eq!(
+				Scheduler::group_assigned_to_core(scheduled[1].core, block_number).unwrap(),
+				GroupIndex((1u32 + rotations) % parathread_cores)
+			);
 		};
 
-		assert_groups_rotated(0);
+		assert_groups_rotated(0, 2);
 
 		// one block before first rotation.
 		run_to_block(rotation_frequency, |_| None);
 
-		assert_groups_rotated(0);
+		assert_groups_rotated(0, rotation_frequency);
 
 		// first rotation.
 		run_to_block(rotation_frequency + 1, |_| None);
-		assert_groups_rotated(1);
+		assert_groups_rotated(1, rotation_frequency + 1);
 
 		// one block before second rotation.
 		run_to_block(rotation_frequency * 2, |_| None);
-		assert_groups_rotated(1);
+		assert_groups_rotated(1, rotation_frequency * 2);
 
 		// second rotation.
 		run_to_block(rotation_frequency * 2 + 1, |_| None);
-		assert_groups_rotated(2);
+		assert_groups_rotated(2, rotation_frequency * 2 + 1);
 	});
 }
 
@@ -1380,7 +1370,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		});
 
 		Scheduler::clear();
-		Scheduler::schedule(Vec::new(), 3);
+		Scheduler::schedule(Vec::new());
 
 		assert_eq!(
 			Scheduler::scheduled(),
@@ -1388,7 +1378,6 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 				core: CoreIndex(0),
 				para_id: chain_a,
 				kind: AssignmentKind::Parachain,
-				group_idx: GroupIndex(0),
 			}],
 		);
 	});

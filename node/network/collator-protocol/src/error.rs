@@ -17,10 +17,12 @@
 
 //! Error handling related code and Error/Result definitions.
 
+use futures::channel::oneshot;
+
 use polkadot_node_network_protocol::request_response::incoming;
 use polkadot_node_primitives::UncheckedSignedFullStatement;
-use polkadot_node_subsystem::errors::SubsystemError;
-use polkadot_node_subsystem_util::runtime;
+use polkadot_node_subsystem::{errors::SubsystemError, RuntimeApiError};
+use polkadot_node_subsystem_util::{backing_implicit_view, runtime};
 
 use crate::LOG_TARGET;
 
@@ -44,8 +46,76 @@ pub enum Error {
 	#[error("Error while accessing runtime information")]
 	Runtime(#[from] runtime::Error),
 
+	#[error("Error while accessing Runtime API")]
+	RuntimeApi(#[from] RuntimeApiError),
+
+	#[error(transparent)]
+	ImplicitViewFetchError(backing_implicit_view::FetchError),
+
+	#[error("Response receiver for active validators request cancelled")]
+	CancelledActiveValidators(oneshot::Canceled),
+
+	#[error("Response receiver for validator groups request cancelled")]
+	CancelledValidatorGroups(oneshot::Canceled),
+
+	#[error("Response receiver for availability cores request cancelled")]
+	CancelledAvailabilityCores(oneshot::Canceled),
+
 	#[error("CollationSeconded contained statement with invalid signature")]
 	InvalidStatementSignature(UncheckedSignedFullStatement),
+}
+
+/// An error happened on the validator side of the protocol when attempting
+/// to start seconding a candidate.
+#[derive(Debug, thiserror::Error)]
+pub enum SecondingError {
+	#[error("Error while accessing Runtime API")]
+	RuntimeApi(#[from] RuntimeApiError),
+
+	#[error("Response receiver for persisted validation data request cancelled")]
+	CancelledRuntimePersistedValidationData(oneshot::Canceled),
+
+	#[error("Response receiver for prospective validation data request cancelled")]
+	CancelledProspectiveValidationData(oneshot::Canceled),
+
+	#[error("Persisted validation data is not available")]
+	PersistedValidationDataNotFound,
+
+	#[error("Persisted validation data hash doesn't match one in the candidate receipt.")]
+	PersistedValidationDataMismatch,
+
+	#[error("Candidate hash doesn't match the advertisement")]
+	CandidateHashMismatch,
+
+	#[error("Received duplicate collation from the peer")]
+	Duplicate,
+}
+
+impl SecondingError {
+	/// Returns true if an error indicates that a peer is malicious.
+	pub fn is_malicious(&self) -> bool {
+		use SecondingError::*;
+		matches!(self, PersistedValidationDataMismatch | CandidateHashMismatch | Duplicate)
+	}
+}
+
+/// A validator failed to request a collation due to an error.
+#[derive(Debug, thiserror::Error)]
+pub enum FetchError {
+	#[error("Collation was not previously advertised")]
+	NotAdvertised,
+
+	#[error("Peer is unknown")]
+	UnknownPeer,
+
+	#[error("Collation was already requested")]
+	AlreadyRequested,
+
+	#[error("Relay parent went out of view")]
+	RelayParentOutOfView,
+
+	#[error("Peer's protocol doesn't match the advertisement")]
+	ProtocolMismatch,
 }
 
 /// Utility for eating top level errors and log them.

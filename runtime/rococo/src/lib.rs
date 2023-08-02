@@ -1525,6 +1525,8 @@ pub mod migrations {
 	pub type Unreleased = (
 		pallet_society::migrations::VersionCheckedMigrateToV2<Runtime, (), ()>,
 		pallet_im_online::migration::v1::Migration<Runtime>,
+		/* Asynchronous backing migration */
+		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 	);
 }
@@ -1686,7 +1688,6 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	#[api_version(5)]
 	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()

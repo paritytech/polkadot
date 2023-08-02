@@ -42,7 +42,7 @@ pub use pallet::*;
 
 const LOG_TARGET: &str = "runtime::configuration";
 
-/// All configuration of the runtime with respect to parachains and parathreads.
+/// All configuration of the runtime with respect to parachains.
 #[derive(
 	Clone,
 	Encode,
@@ -142,7 +142,8 @@ pub struct HostConfiguration<BlockNumber> {
 	pub max_downward_message_size: u32,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
 	pub hrmp_max_parachain_outbound_channels: u32,
-	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
+	/// The maximum number of outbound HRMP channels a parathread (on-demand parachain) is allowed
+	/// to open.
 	pub hrmp_max_parathread_outbound_channels: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
 	pub hrmp_sender_deposit: Balance,
@@ -154,7 +155,8 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_channel_max_total_size: u32,
 	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
 	pub hrmp_max_parachain_inbound_channels: u32,
-	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
+	/// The maximum number of inbound HRMP channels a parathread (on-demand parachain) is allowed
+	/// to accept.
 	pub hrmp_max_parathread_inbound_channels: u32,
 	/// The maximum size of a message that could ever be put into an HRMP channel.
 	///
@@ -170,9 +172,9 @@ pub struct HostConfiguration<BlockNumber> {
 	/// How long to keep code on-chain, in blocks. This should be sufficiently long that disputes
 	/// have concluded.
 	pub code_retention_period: BlockNumber,
-	/// The amount of execution cores to dedicate to parathread execution.
+	/// The amount of execution cores to dedicate to parathread (on-demand parachain) execution.
 	pub parathread_cores: u32,
-	/// The number of retries that a parathread author has to submit their block.
+	/// The number of retries that a parathread (on-demand parachain) author has to submit their block.
 	pub parathread_retries: u32,
 	/// How often parachain groups should be rotated across parachains.
 	///
@@ -184,12 +186,12 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// Must be at least 1.
 	pub chain_availability_period: BlockNumber,
-	/// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
-	/// but a differing timeout due to differing requirements.
+	/// The availability period, in blocks, for parathreads (on-demand parachains). Same as the
+	/// `chain_availability_period`, but a differing timeout due to differing requirements.
 	///
 	/// Must be at least 1.
 	pub thread_availability_period: BlockNumber,
-	/// The amount of blocks ahead to schedule parachains and parathreads.
+	/// The amount of blocks ahead to schedule parachains.
 	pub scheduling_lookahead: u32,
 	/// The maximum number of validators to have per core.
 	///
@@ -625,7 +627,7 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the number of parathread execution cores.
+		/// Set the number of parathread (on-demand parachain) execution cores.
 		#[pallet::call_index(6)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
@@ -638,7 +640,7 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the number of retries for a particular parathread.
+		/// Set the number of retries for a particular parathread (on-demand parachain).
 		#[pallet::call_index(7)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
@@ -683,7 +685,7 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the availability period for parathreads.
+		/// Set the availability period for parathreads (on-demand parachains).
 		#[pallet::call_index(10)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
@@ -987,7 +989,7 @@ pub mod pallet {
 			})
 		}
 
-		/// Sets the maximum number of inbound HRMP channels a parathread is allowed to accept.
+		/// Sets the maximum number of inbound HRMP channels a parathread (on-demand parachain) is allowed to accept.
 		#[pallet::call_index(35)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
@@ -1032,7 +1034,7 @@ pub mod pallet {
 			})
 		}
 
-		/// Sets the maximum number of outbound HRMP channels a parathread is allowed to open.
+		/// Sets the maximum number of outbound HRMP channels a parathread (on-demand parachain) is allowed to open.
 		#[pallet::call_index(38)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),

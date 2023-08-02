@@ -1,4 +1,4 @@
-# Initializer Module
+# Initializer Pallet
 
 This module is responsible for initializing the other modules in a deterministic order. It also has one other purpose as described in the overview of the runtime: accepting and forwarding session change notifications.
 
