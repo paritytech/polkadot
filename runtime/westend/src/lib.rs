@@ -358,6 +358,11 @@ parameter_types! {
 		EPOCH_DURATION_IN_SLOTS / 4,
 		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2)
 	);
+	// We expect a successful election to take at least one round of signed and unsigned blocks.
+	pub MinElectingBlocks: u32 = prod_or_fast!(
+		SignedPhase::get() + UnsignedPhase::get(),
+		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>())
+	);
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 128;
@@ -378,7 +383,6 @@ parameter_types! {
 	pub const MaxElectableTargets: u16 = u16::MAX;
 	// Maximum winners that can be chosen as active validators
 	pub const MaxActiveValidators: u32 = 1000;
-
 }
 
 frame_election_provider_support::generate_solution_type!(
@@ -468,6 +472,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
 	type MaxWinners = MaxActiveValidators;
+	type MinElectingBlocks = MinElectingBlocks;
 }
 
 parameter_types! {

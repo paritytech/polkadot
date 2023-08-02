@@ -409,6 +409,8 @@ parameter_types! {
 	/// Setup election pallet to support maximum winners upto 2000. This will mean Staking Pallet
 	/// cannot have active validators higher than this count.
 	pub const MaxActiveValidators: u32 = 2000;
+	// Emergency throttling disabled.
+	pub MinElectingBlocks: BlockNumber = 0;
 }
 
 generate_solution_type!(
@@ -498,6 +500,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
 	type MaxWinners = MaxActiveValidators;
+	type MinElectingBlocks = MinElectingBlocks;
 }
 
 parameter_types! {
