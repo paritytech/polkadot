@@ -19,7 +19,6 @@
 //! N.B. This is not guarded with some feature flag. Overexposing items here may affect the final
 //!      artifact even for production builds.
 
-#[doc(hidden)]
 pub use crate::worker_intf::{spawn_with_program_path, SpawnErr};
 
 use polkadot_primitives::ExecutorParams;
