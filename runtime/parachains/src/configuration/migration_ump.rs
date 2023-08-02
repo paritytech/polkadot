@@ -100,7 +100,7 @@ pub mod latest {
 				pending.last()
 			);
 			let Some(last) = pending.last() else {
-				return Err("There must be a new pending upgrade enqueued".into());
+				return Err("There must be a new pending upgrade enqueued".into())
 			};
 			ensure!(
 				pending.len() == old_pending as usize + 1,
