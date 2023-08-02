@@ -6672,7 +6672,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-execute-worker-cli"
+name = "polkadot-execute-worker"
 version = "0.9.43"
 dependencies = [
  "polkadot-node-core-pvf-common",
@@ -7379,7 +7379,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-prepare-worker-cli"
+name = "polkadot-prepare-worker"
 version = "0.9.43"
 dependencies = [
  "polkadot-node-core-pvf-common",
