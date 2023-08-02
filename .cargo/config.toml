@@ -5,6 +5,7 @@
 #
 # If you want standard clippy run:
 # RUSTFLAGS= cargo clippy
+paths = ["/Users/ankan/github/paritytech/substrate"]
 [target.'cfg(feature = "cargo-clippy")']
 rustflags = [
   "-Aclippy::all",
