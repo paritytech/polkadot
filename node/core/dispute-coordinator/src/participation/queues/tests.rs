@@ -38,9 +38,9 @@ fn make_dummy_comparator(
 	CandidateComparator::new_dummy(relay_parent, *req.candidate_hash())
 }
 
-/// Make a partial clone of the given ParticipationRequest, just missing
-/// the request_timer field. We prefer this helper to implementing Clone
-/// for ParticipationRequest, since we only clone requests in tests.
+/// Make a partial clone of the given `ParticipationRequest`, just missing
+/// the `request_timer` field. We prefer this helper to implementing Clone
+/// for `ParticipationRequest`, since we only clone requests in tests.
 fn clone_request(request: &ParticipationRequest) -> ParticipationRequest {
 	ParticipationRequest {
 		candidate_receipt: request.candidate_receipt.clone(),

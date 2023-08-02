@@ -39,7 +39,7 @@ use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, FrameTransactionalProcessor,
+	CurrencyAdapter as XcmCurrencyAdapter, FrameTransactionalProcessor,
 	IsChildSystemParachain, IsConcrete,
 	MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
@@ -266,19 +266,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_identity::Call::remove_sub { .. } |
 				pallet_identity::Call::quit_sub { .. },
 			) |
-			RuntimeCall::Society(
-				pallet_society::Call::bid { .. } |
-				pallet_society::Call::unbid { .. } |
-				pallet_society::Call::vouch { .. } |
-				pallet_society::Call::unvouch { .. } |
-				pallet_society::Call::vote { .. } |
-				pallet_society::Call::defender_vote { .. } |
-				pallet_society::Call::payout { .. } |
-				pallet_society::Call::unfound { .. } |
-				pallet_society::Call::judge_suspended_member { .. } |
-				pallet_society::Call::judge_suspended_candidate { .. } |
-				pallet_society::Call::set_max_members { .. },
-			) |
+			RuntimeCall::Society(..) |
 			RuntimeCall::Recovery(..) |
 			RuntimeCall::Vesting(..) |
 			RuntimeCall::Bounties(
@@ -414,7 +402,11 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone is able to use reserve transfers regardless of who they are and what they want to
 	// transfer.
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<
+		crate::weights::xcm::KusamaXcmWeight<RuntimeCall>,
+		RuntimeCall,
+		MaxInstructions,
+	>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
@@ -451,7 +443,7 @@ fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
 
 	// Test that the weigher gives us a sensible weight but don't exactly hard-code it, otherwise it
 	// will be out of date after each re-run.
-	assert!(weight.all_lte(Weight::from_parts(30_313_281_000, 65536)));
+	assert!(weight.all_lte(Weight::from_parts(30_313_281_000, 72_722)));
 
 	let Some(Transact { require_weight_at_most, call, .. }) =
 		xcm.inner_mut().into_iter().find(|inst| matches!(inst, Transact { .. })) else {

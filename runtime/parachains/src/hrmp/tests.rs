@@ -119,7 +119,6 @@ fn default_genesis_config() -> MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: crate::configuration::HostConfiguration {
 				max_downward_message_size: 1024,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
 		},
@@ -186,6 +185,50 @@ fn force_open_channel_works() {
 		register_parachain(para_b);
 
 		run_to_block(5, Some(vec![4, 5]));
+		Hrmp::force_open_hrmp_channel(RuntimeOrigin::root(), para_a, para_b, 2, 8).unwrap();
+		Hrmp::assert_storage_consistency_exhaustive();
+		assert!(System::events().iter().any(|record| record.event ==
+			MockEvent::Hrmp(Event::HrmpChannelForceOpened(para_a, para_b, 2, 8))));
+
+		// Advance to a block 6, but without session change. That means that the channel has
+		// not been created yet.
+		run_to_block(6, None);
+		assert!(!channel_exists(para_a, para_b));
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// Now let the session change happen and thus open the channel.
+		run_to_block(8, Some(vec![8]));
+		assert!(channel_exists(para_a, para_b));
+	});
+}
+
+#[test]
+fn force_open_channel_works_with_existing_request() {
+	let para_a = 1.into();
+	let para_a_origin: crate::Origin = 1.into();
+	let para_b = 3.into();
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		// We need both A & B to be registered and live parachains.
+		register_parachain(para_a);
+		register_parachain(para_b);
+
+		// Request a channel from `a` to `b`.
+		run_to_block(3, Some(vec![2, 3]));
+		Hrmp::hrmp_init_open_channel(para_a_origin.into(), para_b, 2, 8).unwrap();
+		Hrmp::assert_storage_consistency_exhaustive();
+		assert!(System::events().iter().any(|record| record.event ==
+			MockEvent::Hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8))));
+
+		run_to_block(5, Some(vec![4, 5]));
+		// the request exists, but no channel.
+		assert!(HrmpOpenChannelRequests::<Test>::get(&HrmpChannelId {
+			sender: para_a,
+			recipient: para_b
+		})
+		.is_some());
+		assert!(!channel_exists(para_a, para_b));
+		// now force open it.
 		Hrmp::force_open_hrmp_channel(RuntimeOrigin::root(), para_a, para_b, 2, 8).unwrap();
 		Hrmp::assert_storage_consistency_exhaustive();
 		assert!(System::events().iter().any(|record| record.event ==

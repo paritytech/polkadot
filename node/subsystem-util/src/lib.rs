@@ -77,6 +77,8 @@ pub mod database;
 /// tasks, sending messages back.
 pub mod nesting_sender;
 
+pub mod reputation;
+
 mod determine_new_blocks;
 
 #[cfg(test)]
