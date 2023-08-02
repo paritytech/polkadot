@@ -23,7 +23,7 @@ publish-polkadot-debug-image:
     GIT_STRATEGY: none
     DOCKER_USER: ${PARITYPR_USER}
     DOCKER_PASS: ${PARITYPR_PASS}
-    # scripts/ci/dockerfiles/polkadot_injected.Dockerfile
+    # TODO: The image below must be switched to ci/dockerfiles/binary_injected.Dockerfile
     DOCKERFILE: ci/dockerfiles/polkadot_injected.Dockerfile
     IMAGE_NAME: docker.io/paritypr/polkadot-debug
   needs:
@@ -52,7 +52,7 @@ publish-test-collators-image:
     GIT_STRATEGY: none
     DOCKER_USER: ${PARITYPR_USER}
     DOCKER_PASS: ${PARITYPR_PASS}
-    # scripts/ci/dockerfiles/collator_injected.Dockerfile
+    # TODO: Switch to scripts/ci/dockerfiles/binary_injected.Dockerfile
     DOCKERFILE: ci/dockerfiles/collator_injected.Dockerfile
     IMAGE_NAME: docker.io/paritypr/colander
   needs:
@@ -80,7 +80,7 @@ publish-malus-image:
     GIT_STRATEGY: none
     DOCKER_USER: ${PARITYPR_USER}
     DOCKER_PASS: ${PARITYPR_PASS}
-    # scripts/ci/dockerfiles/malus_injected.Dockerfile
+    # TODO: Switch to scripts/ci/dockerfiles/binary_injected.Dockerfile
     DOCKERFILE: ci/dockerfiles/malus_injected.Dockerfile
     IMAGE_NAME: docker.io/paritypr/malus
   needs:
@@ -104,7 +104,7 @@ publish-staking-miner-image:
     - .publish-refs
   variables:
     CI_IMAGE: ${BUILDAH_IMAGE}
-    # scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
+    # TODO: Switch to scripts/ci/dockerfiles/binary_injected.Dockerfile
     DOCKERFILE: ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
     IMAGE_NAME: docker.io/paritytech/staking-miner
     GIT_STRATEGY: none

@@ -1,9 +1,9 @@
-# It would be better using this image to inject generic binaries
-# instead of requiring a dockerfile per binary.
-# Unfortunately, ENTRYPOINT requires using an ENV
-# and the current setup shows limitation: the passed args are ignored.
-
 FROM docker.io/parity/base-bin
+
+# This file allows building a Generic container image
+# based on one or multiple pre-built Linux binaries.
+# Some defaults are set to polkadot but all can be overriden.
+
 
 # metadata
 ARG VCS_REF
@@ -13,20 +13,23 @@ ARG BINARY=polkadot
 ARG BIN_FOLDER=.
 ARG DOC_URL=https://github.com/paritytech/polkadot
 ARG DESCRIPTION="Polkadot: a platform for web3"
+ARG AUTHORS="devops-team@parity.io"
+ARG VENDOR="Parity Technologies"
 
-LABEL io.parity.image.authors="devops-team@parity.io" \
-	io.parity.image.vendor="Parity Technologies" \
-	io.parity.image.title="${IMAGE_NAME}" \
-	io.parity.image.description="${DESCRIPTION}" \
-	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/ci/dockerfiles/binary_injected.Dockerfile" \
+LABEL io.parity.image.authors=${AUTHORS} \
+	io.parity.image.vendor="${VENDOR}" \
 	io.parity.image.revision="${VCS_REF}" \
+	io.parity.image.title="${IMAGE_NAME}" \
 	io.parity.image.created="${BUILD_DATE}" \
-	io.parity.image.documentation="${DOC_URL}"
+	io.parity.image.documentation="${DOC_URL}" \
+	io.parity.image.description="${DESCRIPTION}" \
+	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/ci/dockerfiles/binary_injected.Dockerfile"
 
 USER root
 WORKDIR /app
 
 # add polkadot binary to docker image
+# sample for polkadot: COPY ./polkadot ./polkadot-*-worker /usr/local/bin/
 COPY entrypoint.sh .
 COPY ./$BIN_FOLDER/$BINARY /usr/local/bin/
 RUN chmod a+rwx /usr/local/bin/$BINARY
@@ -34,11 +37,19 @@ RUN chmod a+rwx /usr/local/bin/$BINARY
 USER parity
 ENV BINARY=${BINARY}
 
-# check if executable works in this container
+# check that all the executables works in this container
+# TODO: There may be several
 RUN /usr/local/bin/$BINARY --version
 
+# TODO: change that, we may have multiple BINARIES
+# TODO: we need a VAR for VOLUMES
 VOLUME ["/$BINARY"]
+
+# TODO: we need a VAR for PORTS
+# EXPOSE 30333 9933 9944 9615
 
 # ENTRYPOINT
 ENTRYPOINT ["/app/entrypoint.sh"]
+
+# We call the help by default
 CMD ["--help"]
