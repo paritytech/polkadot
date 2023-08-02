@@ -1,16 +1,16 @@
 [package]
-name = "polkadot-node-core-pvf-prepare-worker-cli"
+name = "polkadot-execute-worker-cli"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "polkadot-prepare-worker"
+name = "polkadot-execute-worker"
 path = "src/main.rs"
 
 [dependencies]
-polkadot-node-core-pvf-common = { path = "../../common" }
-polkadot-node-core-pvf-prepare-worker = { path = "../" }
+polkadot-node-core-pvf-common = { path = "../../node/core/pvf/common" }
+polkadot-node-core-pvf-execute-worker = { path = "../../node/core/pvf/execute-worker" }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }

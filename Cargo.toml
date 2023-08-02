@@ -43,6 +43,8 @@ substrate-build-script-utils = { git = "https://github.com/paritytech/substrate"
 [workspace]
 members = [
 	"cli",
+	"bin/execute-worker-cli",
+	"bin/prepare-worker-cli",
 	"core-primitives",
 	"erasure-coding",
 	"erasure-coding/fuzzer",
@@ -87,9 +89,7 @@ members = [
 	"node/core/pvf",
 	"node/core/pvf/common",
 	"node/core/pvf/execute-worker",
-	"node/core/pvf/execute-worker/cli",
 	"node/core/pvf/prepare-worker",
-	"node/core/pvf/prepare-worker/cli",
 	"node/core/pvf-checker",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
@@ -133,8 +133,8 @@ members = [
 
 default-members = [
 	".", 
-	"node/core/pvf/execute-worker/cli",
-	"node/core/pvf/prepare-worker/cli",
+	"bin/execute-worker-cli",
+	"bin/prepare-worker-cli",
 ]
 
 [badges]

@@ -6672,6 +6672,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-execute-worker-cli"
+version = "0.9.43"
+dependencies = [
+ "polkadot-node-core-pvf-common",
+ "polkadot-node-core-pvf-execute-worker",
+ "substrate-build-script-utils",
+]
+
+[[package]]
 name = "polkadot-gossip-support"
 version = "0.9.43"
 dependencies = [
@@ -7088,15 +7097,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-pvf-execute-worker-cli"
-version = "0.9.43"
-dependencies = [
- "polkadot-node-core-pvf-common",
- "polkadot-node-core-pvf-execute-worker",
- "substrate-build-script-utils",
-]
-
-[[package]]
 name = "polkadot-node-core-pvf-prepare-worker"
 version = "0.9.43"
 dependencies = [
@@ -7117,15 +7117,6 @@ dependencies = [
  "tikv-jemalloc-ctl",
  "tokio",
  "tracing-gum",
-]
-
-[[package]]
-name = "polkadot-node-core-pvf-prepare-worker-cli"
-version = "0.9.43"
-dependencies = [
- "polkadot-node-core-pvf-common",
- "polkadot-node-core-pvf-prepare-worker",
- "substrate-build-script-utils",
 ]
 
 [[package]]
@@ -7385,6 +7376,15 @@ dependencies = [
  "sc-executor-common",
  "sp-maybe-compressed-blob",
  "thiserror",
+]
+
+[[package]]
+name = "polkadot-prepare-worker-cli"
+version = "0.9.43"
+dependencies = [
+ "polkadot-node-core-pvf-common",
+ "polkadot-node-core-pvf-prepare-worker",
+ "substrate-build-script-utils",
 ]
 
 [[package]]
