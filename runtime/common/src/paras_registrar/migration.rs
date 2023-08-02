@@ -60,7 +60,7 @@ impl<T: Config, UnlockParaIds: Contains<ParaId>> OnRuntimeUpgrade
 	}
 
 	#[cfg(feature = "try-runtime")]
-	fn post_upgrade(total: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
+	fn post_upgrade(_: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
 		Ok(())
 	}
 }
