@@ -17,8 +17,8 @@
 use polkadot_cli::NODE_VERSION;
 use std::process::Command;
 
-const PREPARE_WORKER_EXE: &str = env!("CARGO_BIN_EXE_polkadot-prepare-worker");
-const EXECUTE_WORKER_EXE: &str = env!("CARGO_BIN_EXE_polkadot-execute-worker");
+const PREPARE_WORKER_EXE: &str = "polkadot-prepare-worker";
+const EXECUTE_WORKER_EXE: &str = "polkadot-execute-worker";
 
 #[test]
 fn worker_binaries_have_same_version_as_node() {
