@@ -4,12 +4,15 @@ FROM docker.io/parity/base-bin
 # based on one or multiple pre-built Linux binaries.
 # Some defaults are set to polkadot but all can be overriden.
 
-
 # metadata
 ARG VCS_REF
 ARG BUILD_DATE
 ARG IMAGE_NAME
+
+# That can be a single one or a comma separated list
 ARG BINARY=polkadot
+
+ARG TAGS
 ARG BIN_FOLDER=.
 ARG DOC_URL=https://github.com/paritytech/polkadot
 ARG DESCRIPTION="Polkadot: a platform for web3"
@@ -31,8 +34,8 @@ WORKDIR /app
 # add polkadot binary to docker image
 # sample for polkadot: COPY ./polkadot ./polkadot-*-worker /usr/local/bin/
 COPY entrypoint.sh .
-COPY ./$BIN_FOLDER/$BINARY /usr/local/bin/
-RUN chmod a+rwx /usr/local/bin/$BINARY
+COPY "bin/*" /usr/local/bin/
+RUN chmod a+rwx "/usr/local/bin/*"
 
 USER parity
 ENV BINARY=${BINARY}

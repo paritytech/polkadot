@@ -122,11 +122,11 @@ publish-polkadot-image-description:
     DOCKER_PASSWORD: ${Docker_Hub_Pass_Parity}
     DOCKERHUB_REPOSITORY: parity/polkadot
     SHORT_DESCRIPTION: "Polkadot Official Docker Image"
-    README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/polkadot_Dockerfile.README.md
+    README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/polkadot/polkadot_Dockerfile.README.md
   rules:
     - if: $CI_COMMIT_REF_NAME == "master"
       changes:
-        - scripts/ci/dockerfiles/polkadot_Dockerfile.README.md
+        - scripts/ci/dockerfiles/polkadot/polkadot_Dockerfile.README.md
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
   script:

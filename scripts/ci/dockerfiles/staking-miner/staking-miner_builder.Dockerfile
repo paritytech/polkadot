@@ -4,17 +4,17 @@ FROM paritytech/ci-linux:production as builder
 ARG VCS_REF
 ARG BUILD_DATE
 ARG IMAGE_NAME="staking-miner"
-ARG PROFILE=release
+ARG PROFILE=production
 
 LABEL description="This is the build stage. Here we create the binary."
 
 WORKDIR /app
 COPY . /app
-RUN cargo build --locked --$PROFILE --package staking-miner
+RUN cargo build --locked --profile $PROFILE --package staking-miner
 
 # ===== SECOND STAGE ======
 
-FROM docker.io/library/ubuntu:20.04
+FROM docker.io/parity/base-bin:latest
 LABEL description="This is the 2nd stage: a very small image where we copy the binary."
 LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
@@ -28,13 +28,10 @@ LABEL io.parity.image.authors="devops-team@parity.io" \
 ARG PROFILE=release
 COPY --from=builder /app/target/$PROFILE/staking-miner /usr/local/bin
 
-RUN useradd -u 1000 -U -s /bin/sh miner && \
-	rm -rf /usr/bin /usr/sbin
-
 # show backtraces
 ENV RUST_BACKTRACE 1
 
-USER miner
+USER parity
 
 ENV SEED=""
 ENV URI="wss://rpc.polkadot.io"
