@@ -31,9 +31,10 @@ use primitives::{
 	PARACHAIN_KEY_TYPE_ID,
 };
 use runtime_common::{
-	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, slots, BalanceToU256, BlockHashCount, BlockLength, CurrencyToVote,
-	SlowAdjustingFeeUpdate, U256ToBalance,
+	auctions, claims, crowdloan, impl_runtime_weights,
+	impls::{AssetKind, AssetKindToLocatableAsset, DealWithFees},
+	paras_registrar, prod_or_fast, slots, BalanceToU256, BlockHashCount, BlockLength,
+	CurrencyToVote, SlowAdjustingFeeUpdate, U256ToBalance,
 };
 use scale_info::TypeInfo;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
@@ -75,8 +76,7 @@ use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
 		AccountIdLookup, BlakeTwo256, Block as BlockT, CloneIdentity, ConvertInto,
-		Extrinsic as ExtrinsicT, Identity as IdentityConvert, IdentityLookup, OpaqueKeys,
-		SaturatedConversion, Verify,
+		Extrinsic as ExtrinsicT, IdentityLookup, OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
@@ -86,7 +86,7 @@ use sp_staking::SessionIndex;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use xcm::latest::{InteriorMultiLocation, Junction, Junction::PalletInstance, MultiLocation};
-use xcm_builder::{LocatableAssetId, PayOverXcm};
+use xcm_builder::PayOverXcm;
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -647,7 +647,7 @@ impl pallet_treasury::Config for Runtime {
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
 	type SpendOrigin = TreasurySpender;
-	type AssetKind = LocatableAssetId;
+	type AssetKind = AssetKind;
 	type Beneficiary = MultiLocation;
 	type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
 	type Paymaster = PayOverXcm<
@@ -657,7 +657,7 @@ impl pallet_treasury::Config for Runtime {
 		ConstU32<{ 6 * HOURS }>,
 		Self::Beneficiary,
 		Self::AssetKind,
-		IdentityConvert,
+		AssetKindToLocatableAsset,
 		CloneIdentity,
 	>;
 	type BalanceConverter = AssetRate;
@@ -1377,7 +1377,7 @@ impl pallet_asset_rate::Config for Runtime {
 	type Currency = Balances;
 	type AssetKind = <Runtime as pallet_treasury::Config>::AssetKind;
 	#[cfg(feature = "runtime-benchmarks")]
-	type BenchmarkHelper = runtime_common::impls::benchmarks::LocatableAssetFactory;
+	type BenchmarkHelper = runtime_common::impls::benchmarks::AssetRateArguments;
 }
 
 parameter_types! {
