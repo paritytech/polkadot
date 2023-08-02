@@ -250,6 +250,13 @@ sp_api::impl_runtime_apis! {
 			unimplemented!()
 		}
 
+		fn submit_report_invalid_fork_unsigned_extrinsic(
+			_: beefy_primitives::InvalidForkCommitmentProof<BlockNumber, BeefyId, BeefySignature>,
+			_: Vec<beefy_primitives::OpaqueKeyOwnershipProof>,
+		) -> Option<()> {
+			unimplemented!()
+		}
+
 		fn generate_key_ownership_proof(
 			_: beefy_primitives::ValidatorSetId,
 			_: BeefyId,

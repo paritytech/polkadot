@@ -1845,6 +1845,18 @@ sp_api::impl_runtime_apis! {
 			)
 		}
 
+		fn submit_report_invalid_fork_unsigned_extrinsic(
+			invalid_fork_proof: beefy_primitives::InvalidForkCommitmentProof<BlockNumber, BeefyId, BeefySignature>,
+			key_owner_proofs: Vec<beefy_primitives::OpaqueKeyOwnershipProof>,
+		) -> Option<()> {
+			let key_owner_proofs = key_owner_proofs.iter().cloned().map(|p| p.decode()).collect::<Option<Vec<_>>>()?;
+
+			Beefy::submit_unsigned_invalid_fork_report(
+				invalid_fork_proof,
+				key_owner_proofs,
+			)
+		}
+
 		fn generate_key_ownership_proof(
 			_set_id: beefy_primitives::ValidatorSetId,
 			authority_id: BeefyId,
