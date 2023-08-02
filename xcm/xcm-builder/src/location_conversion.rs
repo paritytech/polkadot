@@ -192,7 +192,7 @@ impl LegacyDescribeForeignChainAccount {
 	}
 }
 
-/// This is deprecated in favour of the more modular `HashedDescription` converter. If
+/// This is deprecated in favor of the more modular `HashedDescription` converter. If
 /// your chain has previously used this, then you can retain backwards compatibility using
 /// `HashedDescription` and a tuple with `LegacyDescribeForeignChainAccount` as the first
 /// element. For example:
@@ -235,12 +235,12 @@ impl LegacyDescribeForeignChainAccount {
 /// same plane. So, it is important which chain account A acts from.
 /// E.g.
 /// * From P1.2 A will act as
-///    * hash(ParaPrefix, A, 1, 1) on P1.2
-///    * hash(ParaPrefix, A, 1, 0) on P1
+///    * hash(`ParaPrefix`, A, 1, 1) on P1.2
+///    * hash(`ParaPrefix`, A, 1, 0) on P1
 /// * From P1 A will act as
-///    * hash(RelayPrefix, A, 1) on P1.2 & P1.1
-///    * hash(ParaPrefix, A, 1, 1) on P2
-///    * hash(ParaPrefix, A, 1, 0) on R
+///    * hash(`RelayPrefix`, A, 1) on P1.2 & P1.1
+///    * hash(`ParaPrefix`, A, 1, 1) on P2
+///    * hash(`ParaPrefix`, A, 1, 0) on R
 ///
 /// Note that the alias accounts have overlaps but never on the same
 /// chain when the sender comes from different chains.

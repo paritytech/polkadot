@@ -47,6 +47,7 @@ use crate::{
 	initializer, FeeTracker,
 };
 use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_runtime::{
@@ -121,7 +122,7 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		ParaId,
-		Vec<InboundDownwardMessage<T::BlockNumber>>,
+		Vec<InboundDownwardMessage<BlockNumberFor<T>>>,
 		ValueQuery,
 	>;
 
@@ -150,7 +151,7 @@ pub mod pallet {
 /// Routines and getters related to downward message passing.
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -159,7 +160,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		_notification: &initializer::SessionChangeNotification<BlockNumberFor<T>>,
 		outgoing_paras: &[ParaId],
 	) {
 		Self::perform_outgoing_para_cleanup(outgoing_paras);
@@ -183,7 +184,7 @@ impl<T: Config> Pallet<T> {
 	/// in an error. If this returns `Ok(())` the caller can be certain that a call to
 	/// `queue_downward_message` with the same parameters will be successful.
 	pub fn can_queue_downward_message(
-		config: &HostConfiguration<T::BlockNumber>,
+		config: &HostConfiguration<BlockNumberFor<T>>,
 		para: &ParaId,
 		msg: &DownwardMessage,
 	) -> Result<(), QueueDownwardMessageError> {
@@ -209,7 +210,7 @@ impl<T: Config> Pallet<T> {
 	/// to a dangling storage. If the caller cannot statically prove that the recipient exists
 	/// then the caller should perform a runtime check.
 	pub fn queue_downward_message(
-		config: &HostConfiguration<T::BlockNumber>,
+		config: &HostConfiguration<BlockNumberFor<T>>,
 		para: ParaId,
 		msg: DownwardMessage,
 	) -> Result<(), QueueDownwardMessageError> {
@@ -316,7 +317,9 @@ impl<T: Config> Pallet<T> {
 	/// Returns the downward message queue contents for the given para.
 	///
 	/// The most recent messages are the latest in the vector.
-	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+	pub(crate) fn dmq_contents(
+		recipient: ParaId,
+	) -> Vec<InboundDownwardMessage<BlockNumberFor<T>>> {
 		DownwardMessageQueues::<T>::get(&recipient)
 	}
 

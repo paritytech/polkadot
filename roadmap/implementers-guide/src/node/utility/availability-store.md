@@ -155,6 +155,7 @@ On `StoreChunk` message:
 
 On `StoreAvailableData` message:
 
+- Compute the erasure root of the available data and compare it with `expected_erasure_root`. Return `StoreAvailableDataError::InvalidErasureRoot` on mismatch.
 - If there is no `CandidateMeta` under the candidate hash, create it with `State::Unavailable(now)`. Load the `CandidateMeta` otherwise.
 - Store `data` under `("available", candidate_hash)` and set `data_available` to true.
 - Store each chunk under `("chunk", candidate_hash, index)` and set every bit in `chunks_stored` to `1`.
