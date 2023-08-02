@@ -25,6 +25,10 @@ pub mod worker;
 
 pub use cpu_time::ProcessTime;
 
+// Used by `decl_worker_main!`.
+#[doc(hidden)]
+pub use sp_tracing;
+
 const LOG_TARGET: &str = "parachain::pvf-common";
 
 use std::mem;

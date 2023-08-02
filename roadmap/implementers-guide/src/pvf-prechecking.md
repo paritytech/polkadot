@@ -1,7 +1,5 @@
 # PVF Pre-checking Overview
 
-> ⚠️ This discusses a mechanism that is currently under-development. Follow the progress under [#3211][3211].
-
 ## Motivation
 
 Parachains' and parathreads' validation function is described by a wasm module that we refer to as a PVF. Since a PVF is a wasm module the typical way of executing it is to compile it to machine code.
@@ -70,7 +68,6 @@ We define preparation as a process that: validates the consistency of the wasm b
 
 Besides pre-checking, preparation can also be triggered by execution, since a compiled artifact is needed for the execution. If an artifact already exists, execution will skip preparation. If it does do preparation, execution uses a more lenient timeout than preparation, to avoid the situation where honest validators fail on valid, pre-checked PVFs.
 
-[3211]: https://github.com/paritytech/polkadot/issues/3211
 [paras]: runtime/paras.md
 [pvf-runtime-api]: runtime-api/pvf-prechecking.md
 [pvf-prechecker-subsystem]: node/utility/pvf-prechecker.md

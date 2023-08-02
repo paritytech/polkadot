@@ -32,9 +32,6 @@ landlock = "0.2.0"
 assert_matches = "1.4.0"
 tempfile = "3.3.0"
 
-[build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
 [features]
 # This feature is used to export test code to other crates without putting it in the production build.
 # Also used for building the puppet worker.
