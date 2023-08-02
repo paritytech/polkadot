@@ -1322,9 +1322,7 @@ pub mod migrations {
 		}
 	}
 
-	pub type V10000 = (
-		pallet_im_online::migration::v1::Migration<Runtime>,
-	);
+	pub type V10000 = (pallet_im_online::migration::v1::Migration<Runtime>,);
 
 	/// Unreleased migrations. Add new ones here:
 	pub type Unreleased = ();
