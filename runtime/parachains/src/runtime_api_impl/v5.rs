@@ -11,7 +11,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! A module exporting runtime API implementation functions for all runtime APIs using v5
+//! A module exporting runtime API implementation functions for all runtime APIs using `v5`
 //! primitives.
 //!
 //! Runtimes implementing the v2 runtime API are recommended to forward directly to these

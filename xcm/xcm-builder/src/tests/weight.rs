@@ -24,25 +24,42 @@ fn fixed_rate_of_fungible_should_work() {
 	}
 
 	let mut trader = FixedRateOfFungible::<WeightPrice, ()>::new();
+	let ctx = XcmContext { origin: None, message_id: XcmHash::default(), topic: None };
+
 	// supplies 100 unit of asset, 80 still remains after purchasing weight
 	assert_eq!(
-		trader
-			.buy_weight(Weight::from_parts(10, 10), fungible_multi_asset(Here.into(), 100).into()),
+		trader.buy_weight(
+			Weight::from_parts(10, 10),
+			fungible_multi_asset(Here.into(), 100).into(),
+			&ctx,
+		),
 		Ok(fungible_multi_asset(Here.into(), 80).into()),
 	);
 	// should have nothing left, as 5 + 5 = 10, and we supplied 10 units of asset.
 	assert_eq!(
-		trader.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 10).into()),
+		trader.buy_weight(
+			Weight::from_parts(5, 5),
+			fungible_multi_asset(Here.into(), 10).into(),
+			&ctx,
+		),
 		Ok(vec![].into()),
 	);
 	// should have 5 left, as there are no proof size components
 	assert_eq!(
-		trader.buy_weight(Weight::from_parts(5, 0), fungible_multi_asset(Here.into(), 10).into()),
+		trader.buy_weight(
+			Weight::from_parts(5, 0),
+			fungible_multi_asset(Here.into(), 10).into(),
+			&ctx,
+		),
 		Ok(fungible_multi_asset(Here.into(), 5).into()),
 	);
 	// not enough to purchase the combined weights
 	assert_err!(
-		trader.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 5).into()),
+		trader.buy_weight(
+			Weight::from_parts(5, 5),
+			fungible_multi_asset(Here.into(), 5).into(),
+			&ctx,
+		),
 		XcmError::TooExpensive,
 	);
 }
@@ -149,35 +166,41 @@ fn weight_trader_tuple_should_work() {
 	);
 
 	let mut traders = Traders::new();
+	let ctx = XcmContext { origin: None, message_id: XcmHash::default(), topic: None };
+
 	// trader one buys weight
 	assert_eq!(
-		traders.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 10).into()),
+		traders.buy_weight(
+			Weight::from_parts(5, 5),
+			fungible_multi_asset(Here.into(), 10).into(),
+			&ctx
+		),
 		Ok(vec![].into()),
 	);
 	// trader one refunds
 	assert_eq!(
-		traders.refund_weight(Weight::from_parts(2, 2)),
+		traders.refund_weight(Weight::from_parts(2, 2), &ctx),
 		Some(fungible_multi_asset(Here.into(), 4))
 	);
 
 	let mut traders = Traders::new();
 	// trader one failed; trader two buys weight
 	assert_eq!(
-		traders.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(para_1, 10).into()),
+		traders.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(para_1, 10).into(), &ctx),
 		Ok(vec![].into()),
 	);
 	// trader two refunds
 	assert_eq!(
-		traders.refund_weight(Weight::from_parts(2, 2)),
+		traders.refund_weight(Weight::from_parts(2, 2), &ctx),
 		Some(fungible_multi_asset(para_1, 4))
 	);
 
 	let mut traders = Traders::new();
 	// all traders fails
 	assert_err!(
-		traders.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(para_2, 10).into()),
+		traders.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(para_2, 10).into(), &ctx),
 		XcmError::TooExpensive,
 	);
 	// and no refund
-	assert_eq!(traders.refund_weight(Weight::from_parts(2, 2)), None);
+	assert_eq!(traders.refund_weight(Weight::from_parts(2, 2), &ctx), None);
 }

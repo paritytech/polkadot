@@ -237,7 +237,7 @@ zombienet-tests-misc-upgrade-node:
      - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:latest"
      - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
      - BUILD_LINUX_JOB_ID="$(cat ./artifacts/BUILD_LINUX_JOB_ID)"
-     - export POLKADOT_PR_BIN_URL="https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/${BUILD_LINUX_JOB_ID}/artifacts/raw/artifacts/polkadot"
+     - export POLKADOT_PR_ARTIFACTS_URL="https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/${BUILD_LINUX_JOB_ID}/artifacts/raw/artifacts"
    script:
      - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
        --github-remote-dir="${GH_DIR}"
