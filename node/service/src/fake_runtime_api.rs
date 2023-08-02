@@ -22,12 +22,12 @@ use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignatu
 use grandpa_primitives::AuthorityId as GrandpaId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_primitives::{
-	runtime_api, slashing, AccountId, AuthorityDiscoveryId, Balance, Block, BlockNumber,
-	CandidateCommitments, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreState,
-	DisputeState, ExecutorParams, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, Nonce, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
-	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	runtime_api, slashing, vstaging::ApprovalVotingParams, AccountId, AuthorityDiscoveryId,
+	Balance, Block, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_core::OpaqueMetadata;
 use sp_runtime::{
@@ -115,6 +115,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[api_version(6)]
 	impl runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			unimplemented!()
@@ -226,6 +227,10 @@ sp_api::impl_runtime_apis! {
 			_: slashing::DisputeProof,
 			_: slashing::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
+			unimplemented!()
+		}
+
+		fn approval_voting_params() -> ApprovalVotingParams {
 			unimplemented!()
 		}
 	}

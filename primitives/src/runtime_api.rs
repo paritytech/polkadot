@@ -243,6 +243,7 @@ sp_api::decl_runtime_apis! {
 		) -> Option<()>;
 
 		/// Approval voting configuration parameters
+		#[api_version(6)]
 		fn approval_voting_params() -> ApprovalVotingParams;
 	}
 }

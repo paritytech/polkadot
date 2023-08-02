@@ -15,3 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Put implementations of functions from staging APIs here.
+
+use primitives::vstaging::ApprovalVotingParams;
+
+use crate::{configuration, initializer};
+
+pub fn approval_voting_params<T: initializer::Config>() -> ApprovalVotingParams {
+	let config = <configuration::Pallet<T>>::config();
+	config.approval_voting_params
+}

@@ -23,9 +23,9 @@ use crate::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::{
-	slashing, vstaging::ApprovalVotingParams, AuthorityDiscoveryId, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreIndex, CoreOccupied, CoreState, DisputeState, ExecutorParams,
-	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	slashing, AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
+	CoreIndex, CoreOccupied, CoreState, DisputeState, ExecutorParams, GroupIndex,
+	GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 	OccupiedCore, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
 	ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
@@ -47,11 +47,6 @@ pub fn validator_groups<T: initializer::Config>(
 	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
 
 	(groups, rotation_info)
-}
-
-pub fn approval_voting_params<T: initializer::Config>() -> ApprovalVotingParams {
-	let config = <configuration::Pallet<T>>::config();
-	config.approval_voting_params
 }
 
 /// Implementation for the `availability_cores` function of the runtime API.

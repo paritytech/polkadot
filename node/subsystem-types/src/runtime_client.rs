@@ -462,6 +462,6 @@ where
 
 	/// Approval voting configuration parameters
 	async fn approval_voting_params(&self, at: Hash) -> Result<ApprovalVotingParams, ApiError> {
-		self.runtime_api().approval_voting_params(at)
+		self.client.runtime_api().approval_voting_params(at)
 	}
 }

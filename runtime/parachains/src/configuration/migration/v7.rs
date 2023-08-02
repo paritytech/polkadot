@@ -23,7 +23,7 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use primitives::SessionIndex;
+use primitives::{vstaging::ApprovalVotingParams, SessionIndex};
 use sp_std::vec::Vec;
 
 use frame_support::traits::OnRuntimeUpgrade;
@@ -147,6 +147,10 @@ pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 async_backing_params                     : pre.async_backing_params,
 executor_params                          : pre.executor_params,
+approval_voting_params                   : ApprovalVotingParams {
+                                              max_approval_coalesce_count: 1,
+                                              max_approval_coalesce_wait_ticks: 0,
+                                           }
 		}
 	};
 
