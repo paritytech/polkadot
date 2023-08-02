@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 authors.workspace = true
+publish = false
 
 [[bin]]
 name = "undying-collator"
