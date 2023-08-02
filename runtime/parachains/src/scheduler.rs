@@ -277,7 +277,6 @@ impl<T: Config> Pallet<T> {
 		pos_mapping
 	}
 
-	// TODO: tests
 	/// Iterates through every element in all claim queues and tries to add new assignments from the
 	/// `AssignmentProvider`. A claim is considered expired if it's `ttl` field is lower than the
 	/// current block height.

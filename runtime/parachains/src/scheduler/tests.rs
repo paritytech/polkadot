@@ -22,10 +22,12 @@ use primitives::{v5::Assignment, BlockNumber, SessionIndex, ValidationCode, Vali
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 
 use crate::{
+	assigner_on_demand::QueuePushDirection,
 	configuration::HostConfiguration,
 	initializer::SessionChangeNotification,
 	mock::{
-		new_test_ext, MockGenesisConfig, Paras, ParasShared, RuntimeOrigin, Scheduler, System, Test,
+		new_test_ext, MockGenesisConfig, OnDemandAssigner, Paras, ParasShared, RuntimeOrigin,
+		Scheduler, System, Test,
 	},
 	paras::{ParaGenesisArgs, ParaKind},
 };
@@ -140,16 +142,16 @@ pub(crate) fn claimqueue_contains_para_ids<T: Config>(pids: Vec<ParaId>) -> bool
 
 #[test]
 fn claimqueue_ttl_drop_fn_works() {
+	let mut config = default_config();
+	config.scheduling_lookahead = 3;
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: default_config(),
-			..Default::default()
-		},
+		configuration: crate::configuration::GenesisConfig { config, ..Default::default() },
 		..Default::default()
 	};
 
 	let para_id = ParaId::from(100);
-	let now = 10;
+	let core_idx = CoreIndex::from(0);
+	let mut now = 10;
 
 	new_test_ext(genesis_config).execute_with(|| {
 		// Register and run to a blockheight where the para is in a valid state.
@@ -157,7 +159,6 @@ fn claimqueue_ttl_drop_fn_works() {
 		run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
 
 		// Add a claim on core 0 with a ttl in the past.
-		let core_idx = CoreIndex::from(0);
 		let paras_entry = ParasEntry::new(Assignment::new(para_id), now - 5);
 		Scheduler::add_to_claimqueue(core_idx, paras_entry.clone());
 
@@ -168,8 +169,7 @@ fn claimqueue_ttl_drop_fn_works() {
 		Scheduler::drop_expired_claims_from_claimqueue();
 		assert!(!claimqueue_contains_para_ids::<Test>(vec![para_id]));
 
-		// Add a claim on core 0 with a ttl in the future.
-		let core_idx = CoreIndex::from(0);
+		// Add a claim on core 0 with a ttl in the future (15).
 		let paras_entry = ParasEntry::new(Assignment::new(para_id), now + 5);
 		Scheduler::add_to_claimqueue(core_idx, paras_entry.clone());
 
@@ -177,14 +177,70 @@ fn claimqueue_ttl_drop_fn_works() {
 		Scheduler::drop_expired_claims_from_claimqueue();
 		assert!(claimqueue_contains_para_ids::<Test>(vec![para_id]));
 
-		// Add a claim on core 0 with a ttl == now
-		let core_idx = CoreIndex::from(0);
+		now = now + 6;
+		run_to_block(now, |_| None);
+
+		// Claim is dropped
+		Scheduler::drop_expired_claims_from_claimqueue();
+		assert!(!claimqueue_contains_para_ids::<Test>(vec![para_id]));
+
+		// Add a claim on core 0 with a ttl == now (16)
 		let paras_entry = ParasEntry::new(Assignment::new(para_id), now);
 		Scheduler::add_to_claimqueue(core_idx, paras_entry.clone());
 
 		// Claim is in queue post call.
 		Scheduler::drop_expired_claims_from_claimqueue();
 		assert!(claimqueue_contains_para_ids::<Test>(vec![para_id]));
+
+		now = now + 1;
+		run_to_block(now, |_| None);
+
+		// Drop expired claim.
+		Scheduler::drop_expired_claims_from_claimqueue();
+
+		// Add a claim on core 0 with a ttl == now (17)
+		let paras_entry_non_expired = ParasEntry::new(Assignment::new(para_id), now);
+		let paras_entry_expired = ParasEntry::new(Assignment::new(para_id), now - 2);
+		// ttls = [17, 15, 17]
+		Scheduler::add_to_claimqueue(core_idx, paras_entry_non_expired.clone());
+		Scheduler::add_to_claimqueue(core_idx, paras_entry_expired.clone());
+		Scheduler::add_to_claimqueue(core_idx, paras_entry_non_expired.clone());
+		let cq = Scheduler::claimqueue();
+		assert!(cq.get(&core_idx).unwrap().len() == 3);
+
+		// Add claims to on demand assignment provider.
+		let assignment = Assignment::new(para_id);
+
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment.clone(),
+			QueuePushDirection::Back
+		));
+
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment,
+			QueuePushDirection::Back
+		));
+
+		// Drop expired claim.
+		Scheduler::drop_expired_claims_from_claimqueue();
+
+		let cq = Scheduler::claimqueue();
+		let cqc = cq.get(&core_idx).unwrap();
+		// Same number of claims
+		assert!(cqc.len() == 3);
+
+		// The first 2 claims in the queue should have a ttl of 17,
+		// being the ones set up prior in this test as claims 1 and 3.
+		// The third claim is popped from the assignment provider and
+		// has a new ttl set by the scheduler of now + config.on_demand_ttl.
+		// ttls = [17, 17, 22]
+		assert!(cqc.iter().enumerate().all(|(index, entry)| {
+			match index {
+				0 | 1 => return entry.clone().unwrap().ttl == 17,
+				2 => return entry.clone().unwrap().ttl == 22,
+				_ => return false,
+			}
+		}))
 	});
 }
 
