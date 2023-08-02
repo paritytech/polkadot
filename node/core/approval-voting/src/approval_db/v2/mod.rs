@@ -234,6 +234,10 @@ pub struct BlockEntry {
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
 	pub approved_bitfield: Bitfield,
 	pub children: Vec<Hash>,
+	// Assignments we already distributed. A 1 bit means the candidate index for which
+	// we already have sent out an assignment. We need this to avoid distributing
+	// multiple core assignments more than once.
+	pub distributed_assignments: Bitfield,
 }
 
 impl From<crate::Tick> for Tick {

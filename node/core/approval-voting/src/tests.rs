@@ -165,7 +165,7 @@ impl Clock for MockClock {
 
 // This mock clock allows us to manipulate the time and
 // be notified when wakeups have been triggered.
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct MockClockInner {
 	tick: Tick,
 	wakeups: Vec<(Tick, oneshot::Sender<()>)>,
@@ -500,6 +500,12 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	config: HarnessConfig,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
+	let _ = env_logger::builder()
+		.is_test(true)
+		.filter(Some("polkadot_node_core_approval_voting"), log::LevelFilter::Trace)
+		.filter(Some(LOG_TARGET), log::LevelFilter::Trace)
+		.try_init();
+
 	let HarnessConfig { sync_oracle, sync_oracle_handle, clock, backend, assignment_criteria } =
 		config;
 
@@ -2518,6 +2524,137 @@ fn subsystem_validate_approvals_cache() {
 		// Handle the the next two assignment imports, where only one should trigger approvals work
 		handle_double_assignment_import(&mut virtual_overseer, candidate_index).await;
 
+		virtual_overseer
+	});
+}
+
+#[test]
+fn subsystem_doesnt_distribute_duplicate_compact_assignments() {
+	let assignment_criteria = Box::new(MockAssignmentCriteria(
+		|| {
+			let mut assignments = HashMap::new();
+			let cert = garbage_assignment_cert_v2(AssignmentCertKindV2::RelayVRFModuloCompact {
+				core_bitfield: vec![CoreIndex(0), CoreIndex(1)].try_into().unwrap(),
+			});
+
+			let _ = assignments.insert(
+				CoreIndex(0),
+				approval_db::v2::OurAssignment {
+					cert: cert.clone(),
+					tranche: 0,
+					validator_index: ValidatorIndex(0),
+					triggered: false,
+				}
+				.into(),
+			);
+
+			let _ = assignments.insert(
+				CoreIndex(1),
+				approval_db::v2::OurAssignment {
+					cert,
+					tranche: 0,
+					validator_index: ValidatorIndex(0),
+					triggered: false,
+				}
+				.into(),
+			);
+			assignments
+		},
+		|_| Ok(0),
+	));
+
+	let config = HarnessConfigBuilder::default().assignment_criteria(assignment_criteria).build();
+	let store = config.backend();
+
+	test_harness(config, |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
+			clock,
+			..
+		} = test_harness;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(rx)) => {
+				rx.send(Ok(0)).unwrap();
+			}
+		);
+
+		let block_hash = Hash::repeat_byte(0x01);
+
+		let candidate_receipt1 = {
+			let mut receipt = dummy_candidate_receipt(block_hash);
+			receipt.descriptor.para_id = ParaId::from(1_u32);
+			receipt
+		};
+		let candidate_receipt2 = {
+			let mut receipt = dummy_candidate_receipt(block_hash);
+			receipt.descriptor.para_id = ParaId::from(2_u32);
+			receipt
+		};
+		let candidate_index1 = 0;
+		let candidate_index2 = 1;
+
+		// Add block hash 00.
+		ChainBuilder::new()
+			.add_block(
+				block_hash,
+				ChainBuilder::GENESIS_HASH,
+				1,
+				BlockConfig {
+					slot: Slot::from(0),
+					candidates: Some(vec![
+						(candidate_receipt1.clone(), CoreIndex(0), GroupIndex(1)),
+						(candidate_receipt2.clone(), CoreIndex(1), GroupIndex(1)),
+					]),
+					session_info: None,
+				},
+			)
+			.build(&mut virtual_overseer)
+			.await;
+
+		// Activate the wakeup present above, and sleep to allow process_wakeups to execute..
+		assert_eq!(Some(2), clock.inner.lock().next_wakeup());
+		gum::trace!("clock \n{:?}\n", clock.inner.lock());
+
+		clock.inner.lock().wakeup_all(100);
+
+		assert_eq!(clock.inner.lock().wakeups.len(), 0);
+
+		futures_timer::Delay::new(Duration::from_millis(100)).await;
+
+		// Assignment is distributed only once from `approval-voting`
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
+				_,
+				c_indices,
+			)) => {
+				assert_eq!(c_indices, vec![candidate_index1, candidate_index2].try_into().unwrap());
+			}
+		);
+
+		// Candidate 1
+		recover_available_data(&mut virtual_overseer).await;
+		fetch_validation_code(&mut virtual_overseer).await;
+
+		// Candidate 2
+		recover_available_data(&mut virtual_overseer).await;
+		fetch_validation_code(&mut virtual_overseer).await;
+
+		// Check if assignment was triggered for candidate 1.
+		let candidate_entry =
+			store.load_candidate_entry(&candidate_receipt1.hash()).unwrap().unwrap();
+		let our_assignment =
+			candidate_entry.approval_entry(&block_hash).unwrap().our_assignment().unwrap();
+		assert!(our_assignment.triggered());
+
+		// Check if assignment was triggered for candidate 2.
+		let candidate_entry =
+			store.load_candidate_entry(&candidate_receipt2.hash()).unwrap().unwrap();
+		let our_assignment =
+			candidate_entry.approval_entry(&block_hash).unwrap().our_assignment().unwrap();
+		assert!(our_assignment.triggered());
 		virtual_overseer
 	});
 }

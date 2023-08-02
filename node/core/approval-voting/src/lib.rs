@@ -741,6 +741,7 @@ enum Action {
 		session: SessionIndex,
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
+		distribute_assignment: bool,
 	},
 	NoteApprovedInChainSelection(Hash),
 	IssueApproval(CandidateHash, ApprovalVoteRequest),
@@ -963,6 +964,7 @@ async fn handle_actions<Context>(
 				session,
 				candidate,
 				backing_group,
+				distribute_assignment,
 			} => {
 				// Don't launch approval work if the node is syncing.
 				if let Mode::Syncing(_) = *mode {
@@ -983,10 +985,12 @@ async fn handle_actions<Context>(
 				launch_approval_span.add_string_tag("block-hash", format!("{:?}", block_hash));
 				let validator_index = indirect_cert.validator;
 
-				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
-					indirect_cert,
-					claimed_candidate_indices,
-				));
+				if distribute_assignment {
+					ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
+						indirect_cert,
+						claimed_candidate_indices,
+					));
+				}
 
 				match approvals_cache.get(&candidate_hash) {
 					Some(ApprovalOutcome::Approved) => {
@@ -2104,6 +2108,7 @@ where
 				validator = assignment.validator.0,
 				candidate_hashes = ?assigned_candidate_hashes,
 				assigned_cores = ?claimed_core_indices,
+				?tranche,
 				"Imported assignments for multiple cores.",
 			);
 
@@ -2491,7 +2496,7 @@ async fn process_wakeup<Context>(
 	let candidate_entry = db.load_candidate_entry(&candidate_hash)?;
 
 	// If either is not present, we have nothing to wakeup. Might have lost a race with finality
-	let (block_entry, mut candidate_entry) = match (block_entry, candidate_entry) {
+	let (mut block_entry, mut candidate_entry) = match (block_entry, candidate_entry) {
 		(Some(b), Some(c)) => (b, c),
 		_ => return Ok(Vec::new()),
 	};
@@ -2586,6 +2591,14 @@ async fn process_wakeup<Context>(
 		{
 			match cores_to_candidate_indices(&claimed_core_indices, &block_entry) {
 				Ok(claimed_candidate_indices) => {
+					// Ensure we distribute multiple core assignments just once.
+					let distribute_assignment = if claimed_candidate_indices.count_ones() > 1 {
+						!block_entry.mark_assignment_distributed(claimed_candidate_indices.clone())
+					} else {
+						true
+					};
+					db.write_block_entry(block_entry.clone());
+
 					actions.push(Action::LaunchApproval {
 						claimed_candidate_indices,
 						candidate_hash,
@@ -2595,6 +2608,7 @@ async fn process_wakeup<Context>(
 						session: block_entry.session(),
 						candidate: candidate_receipt,
 						backing_group,
+						distribute_assignment,
 					});
 				},
 				Err(err) => {
