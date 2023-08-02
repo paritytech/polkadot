@@ -51,7 +51,7 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::{
-	crypto::{AuthorityId as BeefyId, Signature as BeefySignature},
+	ecdsa_crypto::{AuthorityId as BeefyId, Signature as BeefySignature},
 	mmr::{BeefyDataProvider, MmrLeafVersion},
 };
 
@@ -1820,8 +1820,8 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	#[api_version(2)]
-	impl beefy_primitives::BeefyApi<Block> for Runtime {
+	#[api_version(3)]
+	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
 		fn beefy_genesis() -> Option<BlockNumber> {
 			Beefy::genesis_block()
 		}
