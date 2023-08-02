@@ -23,7 +23,7 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights,
-	impls::{AssetKind, AssetKindToLocatableAsset, DealWithFees},
+	impls::{DealWithFees, LocatableAssetId, LocatableAssetIdConverter},
 	paras_registrar, prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote,
 	SlowAdjustingFeeUpdate,
 };
@@ -683,7 +683,7 @@ impl pallet_treasury::Config for Runtime {
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendOrigin = TreasurySpender;
-	type AssetKind = AssetKind;
+	type AssetKind = LocatableAssetId;
 	type Beneficiary = MultiLocation;
 	type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
 	type Paymaster = PayOverXcm<
@@ -693,7 +693,7 @@ impl pallet_treasury::Config for Runtime {
 		ConstU32<{ 6 * HOURS }>,
 		Self::Beneficiary,
 		Self::AssetKind,
-		AssetKindToLocatableAsset,
+		LocatableAssetIdConverter,
 		CloneIdentity,
 	>;
 	type BalanceConverter = AssetRate;

@@ -22,7 +22,6 @@ use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::Balance;
 use sp_runtime::{traits::Convert, Perquintill, RuntimeDebug};
 use xcm::latest::{AssetId, MultiLocation};
-use xcm_builder::LocatableAssetId;
 
 /// Logic for the author to get a portion of fees.
 pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
@@ -106,40 +105,40 @@ pub fn era_payout(
 #[derive(
 	Encode, Decode, Eq, PartialEq, Clone, RuntimeDebug, scale_info::TypeInfo, MaxEncodedLen,
 )]
-pub struct AssetKind {
+pub struct LocatableAssetId {
 	/// The (relative) location in which the asset ID is meaningful.
 	pub location: MultiLocation,
 	/// The asset's ID.
 	pub asset_id: AssetId,
 }
 
-impl AssetKind {
+impl LocatableAssetId {
 	pub fn new(location: MultiLocation, asset_id: AssetId) -> Self {
-		AssetKind { location, asset_id }
+		LocatableAssetId { location, asset_id }
 	}
 }
 
-/// Converts the [`AssetKind`] to the [`LocatableAssetId`].
-pub struct AssetKindToLocatableAsset;
-impl Convert<AssetKind, LocatableAssetId> for AssetKindToLocatableAsset {
-	fn convert(a: AssetKind) -> LocatableAssetId {
-		LocatableAssetId { asset_id: a.asset_id, location: a.location }
+/// Converts the [`LocatableAssetId`] to the [`xcm_builder::LocatableAssetId`].
+pub struct LocatableAssetIdConverter;
+impl Convert<LocatableAssetId, xcm_builder::LocatableAssetId> for LocatableAssetIdConverter {
+	fn convert(a: LocatableAssetId) -> xcm_builder::LocatableAssetId {
+		xcm_builder::LocatableAssetId { asset_id: a.asset_id, location: a.location }
 	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarks {
-	use super::AssetKind;
+	use super::LocatableAssetId;
 	use pallet_asset_rate::AssetKindFactory;
 	use pallet_treasury::ArgumentsFactory as TreasuryArgumentsFactory;
 	use xcm::prelude::*;
 
-	/// Provides a factory method for the [`AssetKind`].
+	/// Provides a factory method for the [`LocatableAssetId`].
 	/// The location of the asset is determined as a Parachain with an ID equal to the passed seed.
 	pub struct AssetRateArguments;
-	impl AssetKindFactory<AssetKind> for AssetRateArguments {
-		fn create_asset_kind(seed: u32) -> AssetKind {
-			AssetKind {
+	impl AssetKindFactory<LocatableAssetId> for AssetRateArguments {
+		fn create_asset_kind(seed: u32) -> LocatableAssetId {
+			LocatableAssetId {
 				location: MultiLocation::new(0, X1(Parachain(seed))),
 				asset_id: MultiLocation::new(
 					0,
@@ -150,11 +149,11 @@ pub mod benchmarks {
 		}
 	}
 
-	/// Provide factory methods for the [`AssetKind`] and the `Beneficiary` of the [`MultiLocation`].
+	/// Provide factory methods for the [`LocatableAssetId`] and the `Beneficiary` of the [`MultiLocation`].
 	/// The location of the asset is determined as a Parachain with an ID equal to the passed seed.
 	pub struct TreasuryArguments;
-	impl TreasuryArgumentsFactory<AssetKind, MultiLocation> for TreasuryArguments {
-		fn create_asset_kind(seed: u32) -> AssetKind {
+	impl TreasuryArgumentsFactory<LocatableAssetId, MultiLocation> for TreasuryArguments {
+		fn create_asset_kind(seed: u32) -> LocatableAssetId {
 			AssetRateArguments::create_asset_kind(seed)
 		}
 		fn create_beneficiary(seed: [u8; 32]) -> MultiLocation {

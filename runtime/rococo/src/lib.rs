@@ -31,7 +31,7 @@ use primitives::{
 };
 use runtime_common::{
 	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights,
-	impls::{AssetKind, AssetKindToLocatableAsset, ToAuthor},
+	impls::{LocatableAssetId, LocatableAssetIdConverter, ToAuthor},
 	paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BlockHashCount, BlockLength,
 	SlowAdjustingFeeUpdate,
 };
@@ -583,7 +583,7 @@ impl pallet_treasury::Config for Runtime {
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
 	type SpendOrigin = EnsureRootWithSuccess<AccountId, MaxBalance>;
-	type AssetKind = AssetKind;
+	type AssetKind = LocatableAssetId;
 	type Beneficiary = MultiLocation;
 	type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
 	type Paymaster = PayOverXcm<
@@ -593,7 +593,7 @@ impl pallet_treasury::Config for Runtime {
 		ConstU32<{ 6 * HOURS }>,
 		Self::Beneficiary,
 		Self::AssetKind,
-		AssetKindToLocatableAsset,
+		LocatableAssetIdConverter,
 		CloneIdentity,
 	>;
 	type BalanceConverter = AssetRate;
