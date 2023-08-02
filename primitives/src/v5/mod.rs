@@ -1069,9 +1069,9 @@ impl ApprovalVote {
 
 /// A vote of approvalf for multiple candidates.
 #[derive(Clone, RuntimeDebug)]
-pub struct ApprovalVoteMultipleCandidates(pub Vec<CandidateHash>);
+pub struct ApprovalVoteMultipleCandidates<'a>(pub &'a Vec<CandidateHash>);
 
-impl ApprovalVoteMultipleCandidates {
+impl<'a> ApprovalVoteMultipleCandidates<'a> {
 	/// Yields the signing payload for this approval vote.
 	pub fn signing_payload(&self, session_index: SessionIndex) -> Vec<u8> {
 		const MAGIC: [u8; 4] = *b"APPR";
@@ -1260,28 +1260,39 @@ pub enum DisputeStatement {
 
 impl DisputeStatement {
 	/// Get the payload data for this type of dispute statement.
-	pub fn payload_data(&self, candidate_hash: CandidateHash, session: SessionIndex) -> Vec<u8> {
+	pub fn payload_data(
+		&self,
+		candidate_hash: CandidateHash,
+		session: SessionIndex,
+	) -> Result<Vec<u8>, ()> {
 		match self {
 			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) =>
-				ExplicitDisputeStatement { valid: true, candidate_hash, session }.signing_payload(),
+				Ok(ExplicitDisputeStatement { valid: true, candidate_hash, session }
+					.signing_payload()),
 			DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(
 				inclusion_parent,
-			)) => CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
+			)) => Ok(CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
 				session_index: session,
 				parent_hash: *inclusion_parent,
-			}),
+			})),
 			DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent)) =>
-				CompactStatement::Valid(candidate_hash).signing_payload(&SigningContext {
+				Ok(CompactStatement::Valid(candidate_hash).signing_payload(&SigningContext {
 					session_index: session,
 					parent_hash: *inclusion_parent,
-				}),
+				})),
 			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) =>
-				ApprovalVote(candidate_hash).signing_payload(session),
-			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(
-				candidate_hashes,
-			)) => ApprovalVoteMultipleCandidates(candidate_hashes.clone()).signing_payload(session),
+				Ok(ApprovalVote(candidate_hash).signing_payload(session)),
+			DisputeStatement::Valid(
+				ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(candidate_hashes),
+			) =>
+				if candidate_hashes.contains(&candidate_hash) {
+					Ok(ApprovalVoteMultipleCandidates(candidate_hashes).signing_payload(session))
+				} else {
+					Err(())
+				},
 			DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit) =>
-				ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
+				Ok(ExplicitDisputeStatement { valid: false, candidate_hash, session }
+					.signing_payload()),
 		}
 	}
 
@@ -1293,7 +1304,7 @@ impl DisputeStatement {
 		session: SessionIndex,
 		validator_signature: &ValidatorSignature,
 	) -> Result<(), ()> {
-		let payload = self.payload_data(candidate_hash, session);
+		let payload = self.payload_data(candidate_hash, session)?;
 
 		if validator_signature.verify(&payload[..], &validator_public) {
 			Ok(())
@@ -1325,7 +1336,7 @@ impl DisputeStatement {
 			Self::Valid(ValidDisputeStatementKind::BackingValid(_)) => true,
 			Self::Valid(ValidDisputeStatementKind::Explicit) |
 			Self::Valid(ValidDisputeStatementKind::ApprovalChecking) |
-			Self::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(_)) |
+			Self::Valid(ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(_)) |
 			Self::Invalid(_) => false,
 		}
 	}
@@ -1350,7 +1361,7 @@ pub enum ValidDisputeStatementKind {
 	/// TODO: Fixme this probably means we can't create this version
 	/// untill all nodes have been updated to support it.
 	#[codec(index = 4)]
-	ApprovalCheckingV2(Vec<CandidateHash>),
+	ApprovalCheckingMultipleCandidates(Vec<CandidateHash>),
 }
 
 /// Different kinds of statements of invalidity on a candidate.

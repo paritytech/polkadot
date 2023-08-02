@@ -528,7 +528,7 @@ impl ImportResult {
 				{
 					let pub_key = &env.session_info().validators.get(index).expect("indices are validated by approval-voting subsystem; qed");
 					let session_index = env.session_index();
-					candidate_hashes.contains(&votes.candidate_receipt.hash()) && DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(candidate_hashes.clone()))
+					candidate_hashes.contains(&votes.candidate_receipt.hash()) && DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(candidate_hashes.clone()))
 						.check_signature(pub_key, *candidate_hashes.first().expect("Valid votes have at least one candidate; qed"), session_index, &sig)
 						.is_ok()
 				},

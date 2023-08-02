@@ -1975,9 +1975,9 @@ fn test_signing_a_single_candidate_is_backwards_compatible() {
 		session_index,
 	);
 
-	assert!(DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(vec![
-		candidate_hash
-	]))
+	assert!(DisputeStatement::Valid(
+		ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(vec![candidate_hash])
+	)
 	.check_signature(&Sr25519Keyring::Alice.public().into(), candidate_hash, session_index, &sig_c,)
 	.is_ok());
 
@@ -1990,9 +1990,9 @@ fn test_signing_a_single_candidate_is_backwards_compatible() {
 		)
 		.is_ok());
 
-	assert!(DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(vec![
-		candidate_hash
-	]))
+	assert!(DisputeStatement::Valid(
+		ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(vec![candidate_hash])
+	)
 	.check_signature(&Sr25519Keyring::Alice.public().into(), candidate_hash, session_index, &sig_a,)
 	.is_ok());
 
@@ -2002,9 +2002,9 @@ fn test_signing_a_single_candidate_is_backwards_compatible() {
 		session_index,
 	);
 
-	assert!(DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(
-		candidate_hashes.clone()
-	))
+	assert!(DisputeStatement::Valid(
+		ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(candidate_hashes.clone())
+	)
 	.check_signature(
 		&Sr25519Keyring::Alice.public().into(),
 		*candidate_hashes.first().expect("test"),

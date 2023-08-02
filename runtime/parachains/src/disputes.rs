@@ -1330,24 +1330,29 @@ fn check_signature(
 	statement: &DisputeStatement,
 	validator_signature: &ValidatorSignature,
 ) -> Result<(), ()> {
-	let payload = match *statement {
+	let payload = match statement {
 		DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) =>
 			ExplicitDisputeStatement { valid: true, candidate_hash, session }.signing_payload(),
 		DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(inclusion_parent)) =>
 			CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
 				session_index: session,
-				parent_hash: inclusion_parent,
+				parent_hash: *inclusion_parent,
 			}),
 		DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent)) =>
 			CompactStatement::Valid(candidate_hash).signing_payload(&SigningContext {
 				session_index: session,
-				parent_hash: inclusion_parent,
+				parent_hash: *inclusion_parent,
 			}),
 		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) =>
 			ApprovalVote(candidate_hash).signing_payload(session),
-		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(_)) =>
-		// TODO: Fixme
-			ApprovalVoteMultipleCandidates(vec![candidate_hash]).signing_payload(session),
+		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(
+			candidates,
+		)) =>
+			if candidates.contains(&candidate_hash) {
+				ApprovalVoteMultipleCandidates(candidates).signing_payload(session)
+			} else {
+				return Err(())
+			},
 		DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit) =>
 			ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
 	};

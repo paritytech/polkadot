@@ -2268,9 +2268,9 @@ where
 		let candidate_hashes: Vec<CandidateHash> =
 			approved_candidates_info.iter().map(|candidate| candidate.1).collect();
 		// Signature check:
-		match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingV2(
-			candidate_hashes.clone(),
-		))
+		match DisputeStatement::Valid(
+			ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(candidate_hashes.clone()),
+		)
 		.check_signature(
 			&pubkey,
 			*candidate_hashes.first().expect("Checked above this is not empty; qed"),
@@ -3243,7 +3243,7 @@ fn sign_approval(
 ) -> Option<ValidatorSignature> {
 	let key = keystore.key_pair::<ValidatorPair>(public).ok().flatten()?;
 
-	let payload = ApprovalVoteMultipleCandidates(candidate_hashes).signing_payload(session_index);
+	let payload = ApprovalVoteMultipleCandidates(&candidate_hashes).signing_payload(session_index);
 
 	Some(key.sign(&payload[..]))
 }
