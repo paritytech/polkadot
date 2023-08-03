@@ -1370,6 +1370,85 @@ impl State {
 		}
 	}
 
+	async fn check_approval_can_be_processed<Context>(
+		ctx: &mut Context,
+		message_subjects: &Vec<MessageSubject>,
+		message_kind: MessageKind,
+		entry: &mut BlockEntry,
+		reputation: &mut ReputationAggregator,
+		peer_id: PeerId,
+	) -> bool {
+		for message_subject in message_subjects {
+			if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
+				gum::debug!(
+					target: LOG_TARGET,
+					?peer_id,
+					?message_subject,
+					"Unknown approval assignment",
+				);
+				modify_reputation(reputation, ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
+				return false
+			}
+
+			// check if our knowledge of the peer already contains this approval
+			match entry.known_by.entry(peer_id) {
+				hash_map::Entry::Occupied(mut knowledge) => {
+					let peer_knowledge = knowledge.get_mut();
+					if peer_knowledge.contains(&message_subject, message_kind) {
+						if !peer_knowledge.received.insert(message_subject.clone(), message_kind) {
+							gum::debug!(
+								target: LOG_TARGET,
+								?peer_id,
+								?message_subject,
+								"Duplicate approval",
+							);
+
+							modify_reputation(
+								reputation,
+								ctx.sender(),
+								peer_id,
+								COST_DUPLICATE_MESSAGE,
+							)
+							.await;
+						}
+						return false
+					}
+				},
+				hash_map::Entry::Vacant(_) => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						?message_subject,
+						"Unknown approval assignment",
+					);
+					modify_reputation(reputation, ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE)
+						.await;
+					return true
+				},
+			}
+		}
+
+		let good_known_approval =
+			message_subjects.iter().fold(false, |accumulator, message_subject| {
+				// if the approval is known to be valid, reward the peer
+				if entry.knowledge.contains(&message_subject, message_kind) {
+					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+						peer_knowledge.received.insert(message_subject.clone(), message_kind);
+					}
+					// We already processed this approval no need
+					true
+				} else {
+					accumulator
+				}
+			});
+		if good_known_approval {
+			gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subjects, "Known approval");
+			modify_reputation(reputation, ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE).await;
+		}
+
+		!good_known_approval
+	}
+
 	async fn import_and_circulate_approval<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -1431,84 +1510,17 @@ impl State {
 		let message_kind = MessageKind::Approval;
 
 		if let Some(peer_id) = source.peer_id() {
-			for message_subject in &message_subjects {
-				if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
-					gum::debug!(
-						target: LOG_TARGET,
-						?peer_id,
-						?message_subject,
-						"Unknown approval assignment",
-					);
-					modify_reputation(
-						&mut self.reputation,
-						ctx.sender(),
-						peer_id,
-						COST_UNEXPECTED_MESSAGE,
-					)
-					.await;
-					return
-				}
-
-				// check if our knowledge of the peer already contains this approval
-				match entry.known_by.entry(peer_id) {
-					hash_map::Entry::Occupied(mut knowledge) => {
-						let peer_knowledge = knowledge.get_mut();
-						if peer_knowledge.contains(&message_subject, message_kind) {
-							if !peer_knowledge
-								.received
-								.insert(message_subject.clone(), message_kind)
-							{
-								gum::debug!(
-									target: LOG_TARGET,
-									?peer_id,
-									?message_subject,
-									"Duplicate approval",
-								);
-
-								modify_reputation(
-									&mut self.reputation,
-									ctx.sender(),
-									peer_id,
-									COST_DUPLICATE_MESSAGE,
-								)
-								.await;
-							}
-							return
-						}
-					},
-					hash_map::Entry::Vacant(_) => {
-						gum::debug!(
-							target: LOG_TARGET,
-							?peer_id,
-							?message_subject,
-							"Unknown approval assignment",
-						);
-						modify_reputation(
-							&mut self.reputation,
-							ctx.sender(),
-							peer_id,
-							COST_UNEXPECTED_MESSAGE,
-						)
-						.await;
-						return
-					},
-				}
-
-				// if the approval is known to be valid, reward the peer
-				if entry.knowledge.contains(&message_subject, message_kind) {
-					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
-					modify_reputation(
-						&mut self.reputation,
-						ctx.sender(),
-						peer_id,
-						BENEFIT_VALID_MESSAGE,
-					)
-					.await;
-					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(message_subject.clone(), message_kind);
-					}
-					return
-				}
+			if !Self::check_approval_can_be_processed(
+				ctx,
+				&message_subjects,
+				message_kind,
+				entry,
+				&mut self.reputation,
+				peer_id,
+			)
+			.await
+			{
+				return
 			}
 
 			let (tx, rx) = oneshot::channel();
@@ -1650,8 +1662,8 @@ impl State {
 			let in_topology = topology
 				.map_or(false, |t| t.local_grid_neighbors().route_to_peer(required_routing, peer));
 			in_topology ||
-				message_subjects_clone.iter().fold(false, |result, message_subject| {
-					result || knowledge.sent.contains(message_subject, MessageKind::Assignment)
+				message_subjects_clone.iter().fold(true, |result, message_subject| {
+					result && knowledge.sent.contains(message_subject, MessageKind::Assignment)
 				})
 		};
 
@@ -1851,20 +1863,43 @@ impl State {
 
 					// Filter approval votes.
 					for approval_message in approval_messages {
-						let mut queued_to_be_sent = false;
-						for approval_candidate_index in
-							approval_message.candidate_indices.iter_ones()
-						{
-							let (approval_knowledge, message_kind) = approval_entry
-								.create_approval_knowledge(block, approval_candidate_index as _);
+						let (should_forward_approval, covered_approvals) =
+							approval_message.candidate_indices.iter_ones().fold(
+								(true, Vec::new()),
+								|(should_forward_approval, mut new_covered_approvals),
+								 approval_candidate_index| {
+									let (approval_knowledge, message_kind) = approval_entry
+										.create_approval_knowledge(
+											block,
+											approval_candidate_index as _,
+										);
+									let (assignment_knowledge, assignment_kind) =
+										approval_entry.create_assignment_knowledge(block);
 
-							if !peer_knowledge.contains(&approval_knowledge, message_kind) {
-								peer_knowledge.sent.insert(approval_knowledge, message_kind);
-								if !queued_to_be_sent {
-									approvals_to_send.push(approval_message.clone());
-									queued_to_be_sent = true;
-								}
-							}
+									if !peer_knowledge.contains(&approval_knowledge, message_kind) {
+										new_covered_approvals
+											.push((approval_knowledge, message_kind))
+									}
+
+									(
+										// The assignments for all candidates signed in the approval should already have been sent to the peer,
+										// otherwise we can't send our approval and risk breaking our reputation.
+										should_forward_approval &&
+											peer_knowledge.contains(
+												&assignment_knowledge,
+												assignment_kind,
+											),
+										new_covered_approvals,
+									)
+								},
+							);
+						if should_forward_approval {
+							approvals_to_send.push(approval_message);
+							covered_approvals.into_iter().for_each(
+								|(approval_knowledge, message_kind)| {
+									peer_knowledge.sent.insert(approval_knowledge, message_kind);
+								},
+							);
 						}
 					}
 				}
