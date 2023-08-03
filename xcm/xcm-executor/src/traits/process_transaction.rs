@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,12 +16,12 @@
 
 use xcm::latest::prelude::*;
 
-/// Handles transactional processing of XCM instructions.
+/// Handles transactional processing of an XCM instruction.
 pub trait ProcessTransaction {
 	/// Whether the XCM executor is transactional.
 	const IS_TRANSACTIONAL: bool;
 	/// The `process_transaction` method takes a closure as an argument.
-	/// Responsible for processing an XCM instruction in a transaction.
+	/// Responsible for processing an XCM instruction transactionally.
 	fn process_transaction<F>(f: F) -> Result<(), XcmError>
 	where
 		F: FnOnce() -> Result<(), XcmError>;
