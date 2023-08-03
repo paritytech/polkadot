@@ -20,22 +20,22 @@ serde = "1.0.163"
 serde_json = "1.0"
 thiserror = "1.0.31"
 tokio = { version = "1.24.2", features = ["macros", "rt-multi-thread", "sync"] }
-remote-externalities = { git = "https://github.com/paritytech/substrate", package = "frame-remote-externalities" , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+remote-externalities = { git = "https://github.com/melekes/substrate", package = "frame-remote-externalities" , branch = "anton/kademlia-server-mode" }
 signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
-sp-core = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-version = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-io = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-core = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-version = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-io = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-runtime = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-npos-elections = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-transaction-pool-api = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
-frame-system = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-support = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+frame-system = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+frame-support = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+frame-election-provider-support = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-election-provider-multi-phase = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-staking = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-balances = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-transaction-payment = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
 core-primitives = { package = "polkadot-core-primitives", path = "../../core-primitives" }
 

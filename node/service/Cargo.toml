@@ -7,71 +7,71 @@ edition.workspace = true
 
 [dependencies]
 # Substrate Client
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-beefy = { package = "sc-consensus-beefy", git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-grandpa = { package = "sc-consensus-grandpa", git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-mmr-gadget = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-consensus-slots = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-executor = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-network = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-network-common = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-network-sync = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-offchain = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sc-authority-discovery = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+beefy = { package = "sc-consensus-beefy", git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+grandpa = { package = "sc-consensus-grandpa", git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+mmr-gadget = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-mmr-primitives = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-block-builder = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-chain-spec = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-client-api = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-client-db = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-consensus = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-consensus-slots = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-executor = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-network = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-network-common = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-network-sync = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-transaction-pool = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-transaction-pool-api = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-sync-state-rpc = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-keystore = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-basic-authorship = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-offchain = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-sysinfo = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+service = { package = "sc-service", git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+telemetry = { package = "sc-telemetry", git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
 # Substrate Primitives
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-beefy-primitives = { package = "sp-consensus-beefy", git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-grandpa_primitives = { package = "sp-consensus-grandpa", git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-api = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-core = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-io = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-session = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-storage = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-trie = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-weights = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-version = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-authority-discovery = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+beefy-primitives = { package = "sp-consensus-beefy", git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+grandpa_primitives = { package = "sp-consensus-grandpa", git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-inherents = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-keyring = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-api = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-block-builder = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-blockchain = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-core = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-io = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-keystore = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-runtime = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-session = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-storage = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-transaction-pool = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-transaction-payment = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-trie = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-timestamp = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-consensus-babe = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-state-machine = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-weights = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-version = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-system = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+pallet-babe = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-im-online = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-staking = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+frame-system = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
 # Substrate Other
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-support = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+frame-system-rpc-runtime-api = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+frame-support = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+frame-benchmarking-cli = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+frame-benchmarking = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
 # External Crates
 futures = "0.3.21"

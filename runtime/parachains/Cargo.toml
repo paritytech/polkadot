@@ -14,30 +14,30 @@ serde = { version = "1.0.163", default-features = false, features = ["derive", "
 derive_more = "0.99.17"
 bitflags = "1.3.2"
 
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, features=["serde"] , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false, features=["serde"] , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, features=["serde"] , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-api = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+inherents = { package = "sp-inherents", git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-std = { package = "sp-std", git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-io = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-runtime = { git = "https://github.com/melekes/substrate", default-features = false, features=["serde"] , branch = "anton/kademlia-server-mode" }
+sp-session = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-staking = { git = "https://github.com/melekes/substrate", default-features = false, features=["serde"] , branch = "anton/kademlia-server-mode" }
+sp-core = { git = "https://github.com/melekes/substrate", default-features = false, features=["serde"] , branch = "anton/kademlia-server-mode" }
+sp-keystore = { git = "https://github.com/melekes/substrate", optional = true , branch = "anton/kademlia-server-mode" }
+sp-application-crypto = { git = "https://github.com/melekes/substrate", default-features = false, optional = true , branch = "anton/kademlia-server-mode" }
+sp-tracing = { git = "https://github.com/melekes/substrate", default-features = false, optional = true , branch = "anton/kademlia-server-mode" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-message-queue = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+pallet-authority-discovery = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+pallet-authorship = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+pallet-balances = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+pallet-babe = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+pallet-message-queue = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+pallet-session = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+pallet-staking = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+pallet-timestamp = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+pallet-vesting = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+frame-benchmarking = { git = "https://github.com/melekes/substrate", default-features = false, optional = true , branch = "anton/kademlia-server-mode" }
+frame-support = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+frame-system = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -52,11 +52,11 @@ polkadot-runtime-metrics = { path = "../metrics", default-features = false}
 [dev-dependencies]
 futures = "0.3.21"
 hex-literal = "0.4.1"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-support-test = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+keyring = { package = "sp-keyring", git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+frame-support-test = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-keystore = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers"}
-sp-tracing = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-tracing = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 thousands = "0.2.0"
 assert_matches = "1"
 serde_json = "1.0.96"

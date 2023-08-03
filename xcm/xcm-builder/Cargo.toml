@@ -11,14 +11,14 @@ parity-scale-codec = { version = "3.6.1", default-features = false, features = [
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-std = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-arithmetic = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-io = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-runtime = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-weights = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+frame-support = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+frame-system = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+pallet-transaction-payment = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
 log = { version = "0.4.17", default-features = false }
 
 # Polkadot dependencies
@@ -26,7 +26,7 @@ polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
 primitive-types = "0.12.1"
-pallet-balances = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+pallet-balances = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 pallet-xcm = { path = "../pallet-xcm" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 assert_matches = "1.5.0"

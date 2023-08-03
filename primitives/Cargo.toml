@@ -11,18 +11,18 @@ parity-scale-codec = { version = "3.6.1", default-features = false, features = [
 scale-info = { version = "2.5.0", default-features = false, features = ["bit-vec", "derive", "serde"] }
 serde = { version = "1.0.163", default-features = false, features = ["derive", "alloc"] }
 
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, features = ["serde"] , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["serde"] , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["serde"] , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["serde"] , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["serde"] , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/melekes/substrate", default-features = false, features = ["serde"] , branch = "anton/kademlia-server-mode" }
+inherents = { package = "sp-inherents", git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+primitives = { package = "sp-core", git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-api = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-arithmetic = { git = "https://github.com/melekes/substrate", default-features = false, features = ["serde"] , branch = "anton/kademlia-server-mode" }
+sp-authority-discovery = { git = "https://github.com/melekes/substrate", default-features = false, features = ["serde"] , branch = "anton/kademlia-server-mode" }
+sp-consensus-slots = { git = "https://github.com/melekes/substrate", default-features = false, features = ["serde"] , branch = "anton/kademlia-server-mode" }
+sp-io = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-keystore = { git = "https://github.com/melekes/substrate", optional = true , branch = "anton/kademlia-server-mode" }
+sp-staking = { git = "https://github.com/melekes/substrate", default-features = false, features = ["serde"] , branch = "anton/kademlia-server-mode" }
+sp-std = { package = "sp-std", git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
 
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }

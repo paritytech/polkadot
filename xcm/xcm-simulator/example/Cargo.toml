@@ -10,16 +10,16 @@ codec = { package = "parity-scale-codec", version = "3.6.1" }
 scale-info = { version = "2.5.0", features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 
-frame-system = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-support = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-message-queue = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-pallet-uniques = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-std = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-core = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-io = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+frame-system = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+frame-support = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-balances = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-message-queue = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+pallet-uniques = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-std = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-core = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-runtime = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-io = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-tracing = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }

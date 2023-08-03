@@ -10,7 +10,7 @@ gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-keystore = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 wasm-timer = "0.2.5"
 thiserror = "1.0.31"
 

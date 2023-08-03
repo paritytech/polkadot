@@ -13,11 +13,11 @@ gum = { package = "tracing-gum", path = "../gum" }
 metered = { package = "prioritized-metered-channel", version = "0.2.0" }
 
 # Both `sc-service` and `sc-cli` are required by runtime metrics `logger_hook()`.
-sc-service = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-cli = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sc-service = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-cli = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+substrate-prometheus-endpoint = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-tracing = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 codec = { package = "parity-scale-codec", version = "3.6.1" }
 primitives = { package = "polkadot-primitives", path = "../../primitives/" }
 bs58 = { version = "0.4.0", features = ["alloc"] }
@@ -29,9 +29,9 @@ tempfile = "3.2.0"
 hyper = { version = "0.14.20", default-features = false, features = ["http1", "tcp"] }
 tokio = "1.24.2"
 polkadot-test-service = { path = "../test/service", features=["runtime-metrics"]}
-substrate-test-utils = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-service = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+substrate-test-utils = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-service = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-keyring = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 prometheus-parse = {version = "0.2.2"}
 
 [features]

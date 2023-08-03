@@ -12,19 +12,19 @@ scale-info = { version = "2.5.0", default-features = false, features = ["derive"
 serde = { version = "1.0.163", optional = true, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+frame-benchmarking = { git = "https://github.com/melekes/substrate", default-features = false, optional = true , branch = "anton/kademlia-server-mode" }
+frame-support = { git = "https://github.com/melekes/substrate", default-features = false, branch = "anton/kademlia-server-mode" }
+frame-system = { git = "https://github.com/melekes/substrate", default-features = false, branch = "anton/kademlia-server-mode" }
+sp-core = { git = "https://github.com/melekes/substrate", default-features = false, branch = "anton/kademlia-server-mode" }
+sp-io = { git = "https://github.com/melekes/substrate", default-features = false, branch = "anton/kademlia-server-mode" }
+sp-runtime = { git = "https://github.com/melekes/substrate", default-features = false, branch = "anton/kademlia-server-mode" }
+sp-std = { git = "https://github.com/melekes/substrate", default-features = false, branch = "anton/kademlia-server-mode" }
 
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+pallet-balances = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 polkadot-parachain = { path = "../../parachain" }
 xcm-builder = { path = "../xcm-builder" }

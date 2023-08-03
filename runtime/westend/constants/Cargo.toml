@@ -7,12 +7,12 @@ edition.workspace = true
 [dependencies]
 smallvec = "1.8.0"
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+frame-support = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
 primitives = { package = "polkadot-primitives", path = "../../../primitives", default-features = false }
 runtime-common = { package = "polkadot-runtime-common", path = "../../common", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-runtime = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-weights = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
+sp-core = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
 
 [features]
 default = ["std"]

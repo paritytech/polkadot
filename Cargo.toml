@@ -46,11 +46,11 @@ assert_cmd = "2.0.4"
 nix = { version = "0.26.1", features = ["signal"] }
 tempfile = "3.2.0"
 tokio = "1.24.2"
-substrate-rpc-client = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+substrate-rpc-client = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 polkadot-core-primitives = { path = "core-primitives" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+substrate-build-script-utils = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
 [workspace]
 members = [

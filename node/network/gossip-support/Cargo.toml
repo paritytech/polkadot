@@ -5,11 +5,11 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-core = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-network = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-network-common = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-application-crypto = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-keystore = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-core = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-network = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-network-common = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -23,10 +23,10 @@ rand_chacha = { version = "0.3.1", default-features = false }
 gum = { package = "tracing-gum", path = "../../gum" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-keyring = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-consensus-babe = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-tracing = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-authority-discovery = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 

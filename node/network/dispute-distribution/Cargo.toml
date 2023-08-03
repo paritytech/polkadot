@@ -16,9 +16,9 @@ polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-primitives = { path = "../../primitives" }
-sc-network = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sc-network = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-application-crypto = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-keystore = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 thiserror = "1.0.31"
 fatality = "0.0.6"
 lru = "0.9.0"
@@ -28,9 +28,9 @@ indexmap = "1.9.1"
 async-channel = "1.8.0"
 async-trait = "0.1.57"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-keyring = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sp-tracing = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-keystore = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 futures-timer = "3.0.2"
 assert_matches = "1.4.0"
 lazy_static = "1.4.0"

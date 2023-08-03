@@ -5,11 +5,11 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-std = { package = "sp-std", git = "https://github.com/melekes/substrate", default-features = false, branch = "anton/kademlia-server-mode" }
+sp-tracing = { git = "https://github.com/melekes/substrate", default-features = false , branch = "anton/kademlia-server-mode" }
 parity-scale-codec = { version = "3.6.1", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+frame-benchmarking = { git = "https://github.com/melekes/substrate", default-features = false, optional = true , branch = "anton/kademlia-server-mode" }
 
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 

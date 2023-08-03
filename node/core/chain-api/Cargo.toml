@@ -7,12 +7,12 @@ edition.workspace = true
 [dependencies]
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-blockchain = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-subsystem = {path = "../../subsystem" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sc-client-api = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
+sc-consensus-babe = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
 
 [dev-dependencies]
 futures = { version = "0.3.21", features = ["thread-pool"] }
@@ -20,4 +20,4 @@ maplit = "1.0.2"
 parity-scale-codec = "3.6.1"
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", rev = "839cf0c6cdf9febbb5836c7ef79b6f9befb27b5f" }
+sp-core = { git = "https://github.com/melekes/substrate", branch = "anton/kademlia-server-mode" }
