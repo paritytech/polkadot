@@ -33,8 +33,7 @@ use test_runtime_constants::currency::DOTS;
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// The `ChainSpec` parameterized for polkadot test runtime.
-pub type PolkadotChainSpec =
-	sc_service::GenericChainSpec<polkadot_test_runtime::RuntimeGenesisConfig, Extensions>;
+pub type PolkadotChainSpec = sc_service::GenericChainSpec<(), Extensions>;
 
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
