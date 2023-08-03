@@ -18,6 +18,7 @@ use frame_support::storage::{with_transaction_unchecked, TransactionOutcome};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::ProcessTransaction;
 
+/// Transactional processor implementation using frame transactional layers.
 pub struct FrameTransactionalProcessor;
 impl ProcessTransaction for FrameTransactionalProcessor {
 	const IS_TRANSACTIONAL: bool = true;
