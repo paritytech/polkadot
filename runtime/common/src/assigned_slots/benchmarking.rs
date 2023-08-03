@@ -29,7 +29,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn assign_perm_parachain_slot() {
-		let para_id = ParaId::from(2000_u32);
+		let para_id = ParaId::from(1_u32);
 		let caller = RawOrigin::Root;
 		let who: T::AccountId = whitelisted_caller();
 		let worst_validation_code = T::Registrar::worst_validation_code();
@@ -56,7 +56,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn assign_temp_parachain_slot() {
-		let para_id = ParaId::from(2001_u32);
+		let para_id = ParaId::from(2_u32);
 		let caller = RawOrigin::Root;
 		let who: T::AccountId = whitelisted_caller();
 		let worst_validation_code = T::Registrar::worst_validation_code();
@@ -85,7 +85,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn unassign_parachain_slot() {
-		let para_id = ParaId::from(2002_u32);
+		let para_id = ParaId::from(3_u32);
 		let caller = RawOrigin::Root;
 		let who: T::AccountId = whitelisted_caller();
 		let worst_validation_code = T::Registrar::worst_validation_code();

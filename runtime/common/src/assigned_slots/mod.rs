@@ -234,7 +234,7 @@ pub mod pallet {
 
 			let manager = T::Registrar::manager_of(id).ok_or(Error::<T>::ParaDoesntExist)?;
 
-			ensure!(T::Registrar::is_parathread(id), Error::<T>::NotParathread,);
+			ensure!(T::Registrar::is_parathread(id), Error::<T>::NotParathread);
 
 			ensure!(
 				!Self::has_permanent_slot(id) && !Self::has_temporary_slot(id),
