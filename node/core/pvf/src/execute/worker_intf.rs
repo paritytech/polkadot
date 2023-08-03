@@ -45,14 +45,14 @@ pub async fn spawn(
 	program_path: &Path,
 	executor_params: ExecutorParams,
 	spawn_timeout: Duration,
+	node_version: Option<&str>,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	let (mut idle_worker, worker_handle) = spawn_with_program_path(
-		"execute",
-		program_path,
-		&["execute-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
-		spawn_timeout,
-	)
-	.await?;
+	let mut extra_args = vec!["execute-worker"];
+	if let Some(node_version) = node_version {
+		extra_args.extend_from_slice(&["--node-impl-version", node_version]);
+	}
+	let (mut idle_worker, worker_handle) =
+		spawn_with_program_path("execute", program_path, &extra_args, spawn_timeout).await?;
 	send_handshake(&mut idle_worker.stream, Handshake { executor_params })
 		.await
 		.map_err(|error| {

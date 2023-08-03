@@ -38,8 +38,8 @@ RUN apt-get update && \
            --uid 10000 nonroot
 
 
-# add adder-collator binary to docker image
-COPY ./malus /usr/local/bin
+# add malus binary to docker image
+COPY ./malus ./polkadot-execute-worker ./polkadot-prepare-worker /usr/local/bin
 
 USER nonroot
 

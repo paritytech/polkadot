@@ -22,7 +22,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features=["serde"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features=["serde"] }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true, features=["serde"] }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
