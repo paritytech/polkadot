@@ -4,6 +4,7 @@ description = "The basic XCM datastructures."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 bounded-collections = { version = "0.1.8", default-features = false, features = ["serde"] }
