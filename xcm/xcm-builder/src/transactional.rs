@@ -20,6 +20,8 @@ use xcm_executor::traits::ProcessTransaction;
 
 pub struct FrameTransactionalProcessor;
 impl ProcessTransaction for FrameTransactionalProcessor {
+	const IS_TRANSACTIONAL: bool = true;
+
 	fn process_transaction<F>(f: F) -> Result<(), XcmError>
 	where
 		F: FnOnce() -> Result<(), XcmError>,

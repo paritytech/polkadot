@@ -373,7 +373,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					if let Ok(x) = Config::Weigher::instr_weight(&instr) {
 						error.weight.saturating_accrue(x)
 					}
-					*self = vm_clone;
+					if Config::TransactionalProcessor::IS_TRANSACTIONAL {
+						*self = vm_clone;
+					}
 				},
 			}
 		}
