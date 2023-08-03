@@ -16,6 +16,8 @@
 
 use substrate_wasm_builder::WasmBuilder;
 
+const NO_GENESIS_BUILDER_ENV: &str = "BUILD_NO_GENESIS_BUILDER_SUPPORT";
+
 fn main() {
 	WasmBuilder::new()
 		.with_current_project()
@@ -23,7 +25,7 @@ fn main() {
 		.export_heap_base()
 		.build();
 
-	if std::env::var("BUILD_NO_GENESIS_BUILDER_SUPPORT").is_ok() {
+	if std::env::var(NO_GENESIS_BUILDER_ENV).is_ok() {
 		WasmBuilder::new()
 			.with_current_project()
 			.import_memory()
@@ -32,4 +34,5 @@ fn main() {
 			.set_file_name("kusama_runtime_no_genesis_builder")
 			.build();
 	};
+	println!("cargo:rerun-if-env-changed={}", NO_GENESIS_BUILDER_ENV);
 }
