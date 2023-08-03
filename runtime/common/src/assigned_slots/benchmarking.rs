@@ -21,7 +21,7 @@ use super::{Pallet as AssignedSlots, *};
 
 use frame_benchmarking::v2::*;
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
-use primitives::{HeadData, Id as ParaId, ValidationCode};
+use primitives::Id as ParaId;
 
 #[benchmarks]
 mod benchmarks {
@@ -32,8 +32,9 @@ mod benchmarks {
 		let para_id = ParaId::from(2000_u32);
 		let caller = RawOrigin::Root;
 		let who: T::AccountId = whitelisted_caller();
-		let _ =
-			T::Registrar::register(who, para_id, HeadData(vec![]), ValidationCode(vec![1, 2, 3]));
+		let worst_validation_code = T::Registrar::worst_validation_code();
+		let worst_head_data = T::Registrar::worst_head_data();
+		let _ = T::Registrar::register(who, para_id, worst_head_data, worst_validation_code);
 
 		let counter = PermanentSlotCount::<T>::get();
 		let current_lease_period: BlockNumberFor<T> =
@@ -58,8 +59,9 @@ mod benchmarks {
 		let para_id = ParaId::from(2001_u32);
 		let caller = RawOrigin::Root;
 		let who: T::AccountId = whitelisted_caller();
-		let _ =
-			T::Registrar::register(who, para_id, HeadData(vec![]), ValidationCode(vec![1, 2, 3]));
+		let worst_validation_code = T::Registrar::worst_validation_code();
+		let worst_head_data = T::Registrar::worst_head_data();
+		let _ = T::Registrar::register(who, para_id, worst_head_data, worst_validation_code);
 
 		let current_lease_period: BlockNumberFor<T> =
 			T::Leaser::lease_period_index(frame_system::Pallet::<T>::block_number())
@@ -86,8 +88,9 @@ mod benchmarks {
 		let para_id = ParaId::from(2002_u32);
 		let caller = RawOrigin::Root;
 		let who: T::AccountId = whitelisted_caller();
-		let _ =
-			T::Registrar::register(who, para_id, HeadData(vec![]), ValidationCode(vec![1, 2, 3]));
+		let worst_validation_code = T::Registrar::worst_validation_code();
+		let worst_head_data = T::Registrar::worst_head_data();
+		let _ = T::Registrar::register(who, para_id, worst_head_data, worst_validation_code);
 		let _ = AssignedSlots::<T>::assign_temp_parachain_slot(
 			caller.clone().into(),
 			para_id,
