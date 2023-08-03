@@ -17,7 +17,7 @@
 //! RuntimeGenesisConfig-based (legacy) Polkadot chain configurations. Used for testing ChainSpecs against the JSON-based
 //! genesis configs. Entire file shall be removed once native runtime is removed.
 
-use beefy_primitives::crypto::AuthorityId as BeefyId;
+use beefy_primitives::ecdsa_crypto::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
 #[cfg(feature = "kusama-native")]
 use kusama_runtime as kusama;
