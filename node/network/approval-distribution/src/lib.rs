@@ -1490,7 +1490,7 @@ impl State {
 							COST_UNEXPECTED_MESSAGE,
 						)
 						.await;
-						// TODO: is returned needed here ?
+						return
 					},
 				}
 
@@ -1507,8 +1507,10 @@ impl State {
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
 					}
+					return
 				}
 			}
+
 			let (tx, rx) = oneshot::channel();
 
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
@@ -1583,6 +1585,7 @@ impl State {
 				);
 			}
 		}
+
 		let mut required_routing = RequiredRouting::None;
 
 		for candidate_index in candidate_indices.iter_ones() {
@@ -1620,6 +1623,7 @@ impl State {
 			}
 			required_routing = approval_entry.routing_info().required_routing;
 		}
+
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
 		metrics.on_approval_imported();
 

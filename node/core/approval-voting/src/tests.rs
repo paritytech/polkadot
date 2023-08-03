@@ -3708,17 +3708,17 @@ async fn handle_approval_on_max_coalesce_count(
 	virtual_overseer: &mut VirtualOverseer,
 	candidate_indicies: Vec<CandidateIndex>,
 ) {
-	for _ in &candidate_indicies {
-		assert_matches!(
-			overseer_recv(virtual_overseer).await,
-			AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
-				_,
-				c_indices,
-			)) => {
-				assert_eq!(TryInto::<CandidateBitfield>::try_into(candidate_indicies.clone()).unwrap(), c_indices);
-			}
-		);
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
+			_,
+			c_indices,
+		)) => {
+			assert_eq!(TryInto::<CandidateBitfield>::try_into(candidate_indicies.clone()).unwrap(), c_indices);
+		}
+	);
 
+	for _ in &candidate_indicies {
 		recover_available_data(virtual_overseer).await;
 		fetch_validation_code(virtual_overseer).await;
 	}
@@ -3775,17 +3775,17 @@ async fn handle_approval_on_max_wait_time(
 
 	clock.inner.lock().set_tick(TICK_NOW_BEGIN);
 
-	for _ in &candidate_indicies {
-		assert_matches!(
-			overseer_recv(virtual_overseer).await,
-			AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
-				_,
-				c_indices,
-			)) => {
-				assert_eq!(TryInto::<CandidateBitfield>::try_into(candidate_indicies.clone()).unwrap(), c_indices);
-			}
-		);
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
+			_,
+			c_indices,
+		)) => {
+			assert_eq!(TryInto::<CandidateBitfield>::try_into(candidate_indicies.clone()).unwrap(), c_indices);
+		}
+	);
 
+	for _ in &candidate_indicies {
 		recover_available_data(virtual_overseer).await;
 		fetch_validation_code(virtual_overseer).await;
 	}

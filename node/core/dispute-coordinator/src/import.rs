@@ -534,7 +534,21 @@ impl ImportResult {
 				},
 				"Signature check for imported approval votes failed! This is a serious bug. Session: {:?}, candidate hash: {:?}, validator index: {:?}", env.session_index(), votes.candidate_receipt.hash(), index
 			);
-			if votes.valid.insert_vote(index, ValidDisputeStatementKind::ApprovalChecking, sig) {
+			if votes.valid.insert_vote(
+				index,
+				// There is a hidden dependency here between approval-voting and this subsystem.
+				// We should be able to start emitting ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates only after:
+				// 1. Runtime have been upgraded to know about the new format.
+				// 2. All nodes have been upgraded to know about the new format.
+				// Once those two requirements have been met we should be able to increase max_approval_coalesce_count to values
+				// greater than 1.
+				if candidate_hashes.len() > 1 {
+					ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(candidate_hashes)
+				} else {
+					ValidDisputeStatementKind::ApprovalChecking
+				},
+				sig,
+			) {
 				imported_valid_votes += 1;
 				imported_approval_votes += 1;
 			}

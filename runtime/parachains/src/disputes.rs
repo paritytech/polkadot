@@ -1016,6 +1016,8 @@ impl<T: Config> Pallet<T> {
 					statement,
 					signature,
 				) {
+					log::warn!("Failed to check dispute signature");
+
 					importer.undo(undo);
 					filter.remove_index(i);
 					continue
