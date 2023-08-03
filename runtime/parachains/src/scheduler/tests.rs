@@ -277,56 +277,56 @@ fn add_parathread_claim_works() {
 	})
 }
 
-//#[test]
-//fn session_change_shuffles_validators() {
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig {
-//			config: default_config(),
-//			..Default::default()
-//		},
-//		..Default::default()
-//	};
-//
-//	assert_eq!(default_config().parathread_cores, 3);
-//	new_test_ext(genesis_config).execute_with(|| {
-//		let chain_a = ParaId::from(1_u32);
-//		let chain_b = ParaId::from(2_u32);
-//
-//		// ensure that we have 5 groups by registering 2 parachains.
-//		schedule_blank_para(chain_a, ParaKind::Parachain);
-//		schedule_blank_para(chain_b, ParaKind::Parachain);
-//
-//		run_to_block(1, |number| match number {
-//			1 => Some(SessionChangeNotification {
-//				new_config: default_config(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Bob.public()),
-//					ValidatorId::from(Sr25519Keyring::Charlie.public()),
-//					ValidatorId::from(Sr25519Keyring::Dave.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
-//					ValidatorId::from(Sr25519Keyring::One.public()),
-//				],
-//				random_seed: [99; 32],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		let groups = ValidatorGroups::<Test>::get();
-//		assert_eq!(groups.len(), 5);
-//
-//		// first two groups have the overflow.
-//		for i in 0..2 {
-//			assert_eq!(groups[i].len(), 2);
-//		}
-//
-//		for i in 2..5 {
-//			assert_eq!(groups[i].len(), 1);
-//		}
-//	});
-//}
+#[test]
+fn session_change_shuffles_validators() {
+	let genesis_config = MockGenesisConfig {
+		configuration: crate::configuration::GenesisConfig {
+			config: default_config(),
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	assert_eq!(default_config().on_demand_cores, 3);
+	new_test_ext(genesis_config).execute_with(|| {
+		let chain_a = ParaId::from(1_u32);
+		let chain_b = ParaId::from(2_u32);
+
+		// ensure that we have 5 groups by registering 2 parachains.
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(chain_b, ParaKind::Parachain);
+
+		run_to_block(1, |number| match number {
+			1 => Some(SessionChangeNotification {
+				new_config: default_config(),
+				validators: vec![
+					ValidatorId::from(Sr25519Keyring::Alice.public()),
+					ValidatorId::from(Sr25519Keyring::Bob.public()),
+					ValidatorId::from(Sr25519Keyring::Charlie.public()),
+					ValidatorId::from(Sr25519Keyring::Dave.public()),
+					ValidatorId::from(Sr25519Keyring::Eve.public()),
+					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
+					ValidatorId::from(Sr25519Keyring::One.public()),
+				],
+				random_seed: [99; 32],
+				..Default::default()
+			}),
+			_ => None,
+		});
+
+		let groups = ValidatorGroups::<Test>::get();
+		assert_eq!(groups.len(), 5);
+
+		// first two groups have the overflow.
+		for i in 0..2 {
+			assert_eq!(groups[i].len(), 2);
+		}
+
+		for i in 2..5 {
+			assert_eq!(groups[i].len(), 1);
+		}
+	});
+}
 
 #[test]
 fn session_change_takes_only_max_per_core() {
