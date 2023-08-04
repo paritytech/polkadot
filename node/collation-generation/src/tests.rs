@@ -84,7 +84,7 @@ mod handle_new_activations {
 	}
 
 	fn scheduled_core_for<Id: Into<ParaId>>(para_id: Id) -> ScheduledCore {
-		ScheduledCore { para_id: para_id.into() }
+		ScheduledCore { para_id: para_id.into(), collator: None }
 	}
 
 	#[test]

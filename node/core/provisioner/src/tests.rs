@@ -51,7 +51,7 @@ pub fn default_bitvec(n_cores: usize) -> CoreAvailability {
 }
 
 pub fn scheduled_core(id: u32) -> ScheduledCore {
-	ScheduledCore { para_id: id.into() }
+	ScheduledCore { para_id: id.into(), collator: None }
 }
 
 mod select_availability_bitfields {
@@ -126,7 +126,7 @@ mod select_availability_bitfields {
 
 		let cores = vec![
 			CoreState::Free,
-			CoreState::Scheduled(ScheduledCore { para_id: Default::default() }),
+			CoreState::Scheduled(ScheduledCore { para_id: Default::default(), collator: None }),
 			occupied_core(2),
 		];
 

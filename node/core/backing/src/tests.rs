@@ -98,9 +98,9 @@ impl Default for TestState {
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
 
 		let availability_cores = vec![
-			CoreState::Scheduled(ScheduledCore { para_id: chain_a }),
-			CoreState::Scheduled(ScheduledCore { para_id: chain_b }),
-			CoreState::Scheduled(ScheduledCore { para_id: thread_a }),
+			CoreState::Scheduled(ScheduledCore { para_id: chain_a, collator: None }),
+			CoreState::Scheduled(ScheduledCore { para_id: chain_b, collator: None }),
+			CoreState::Scheduled(ScheduledCore { para_id: thread_a, collator: None }),
 		];
 
 		let mut head_data = HashMap::new();
@@ -1190,7 +1190,7 @@ fn backing_works_after_failed_validation() {
 fn validation_work_ignores_wrong_collator() {
 	let mut test_state = TestState::default();
 	test_state.availability_cores[0] =
-		CoreState::Scheduled(ScheduledCore { para_id: ParaId::from(1) });
+		CoreState::Scheduled(ScheduledCore { para_id: ParaId::from(1), collator: None });
 
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		test_startup(&mut virtual_overseer, &test_state).await;
