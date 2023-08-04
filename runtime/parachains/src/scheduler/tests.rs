@@ -433,77 +433,124 @@ fn fill_claimqueue_fills() {
 
 		{
 			assert_eq!(Scheduler::claimqueue_len(), 2 * lookahead);
-			//let cq = Scheduler::claimqueue();
+			let scheduled = Scheduler::scheduled_claimqueue(1);
 
 			// Cannot assert on indices anymore as they depend on the assignment providers
 			assert!(claimqueue_contains_para_ids::<Test>(vec![chain_a, chain_b]));
 			// TODO: checks for group indices?
-			//assert_eq!(
-			//	scheduled[0],
-			//	CoreAssignment {
-			//		core: CoreIndex(0),
-			//		kind: Assignment::Parachain(chain_a),
-			//		group_idx: GroupIndex(0),
-			//	}
-			//);
+			assert_eq!(
+				scheduled[0],
+				CoreAssignment {
+					core: CoreIndex(0),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: chain_a },
+						retries: 0,
+						ttl: 6
+					},
+					group_idx: GroupIndex(0),
+				}
+			);
 
-			//assert_eq!(
-			//	scheduled[1],
-			//	CoreAssignment {
-			//		core: CoreIndex(1),
-			//		kind: Assignment::Parachain(chain_b),
-			//		group_idx: GroupIndex(1),
-			//	}
-			//);
+			assert_eq!(
+				scheduled[1],
+				CoreAssignment {
+					core: CoreIndex(1),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: chain_b },
+						retries: 0,
+						ttl: 6
+					},
+					group_idx: GroupIndex(1),
+				}
+			);
 		}
 
-		// add a couple of parathread claims.
-		//SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
-		//SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
+		// add a couple of parathread assignments.
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_a,
+			QueuePushDirection::Back
+		));
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_b,
+			QueuePushDirection::Back
+		));
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_c,
+			QueuePushDirection::Back
+		));
 
-		//run_to_block(2, |_| None);
+		run_to_block(2, |_| None);
+		// cores 0 and 1 should be occupied. mark them as such.
+		Scheduler::occupied(
+			vec![(CoreIndex(0), chain_a), (CoreIndex(1), chain_b)].into_iter().collect(),
+		);
 
-		//{
+		run_to_block(3, |_| None);
 
-		//	assert_eq!(Scheduler::claimqueue_len(), 4);
-		//	let cq = Scheduler::claimqueue();
+		{
+			assert_eq!(Scheduler::claimqueue_len(), 5);
+			let scheduled = Scheduler::scheduled_claimqueue(3);
 
-		//	assert_eq!(
-		//		scheduled[0],
-		//		CoreAssignment {
-		//			core: CoreIndex(0),
-		//			kind: Assignment::Parachain(chain_a),
-		//			group_idx: GroupIndex(0),
-		//		}
-		//	);
+			assert_eq!(
+				scheduled[0],
+				CoreAssignment {
+					core: CoreIndex(0),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: chain_a },
+						retries: 0,
+						ttl: 6
+					},
+					group_idx: GroupIndex(0),
+				}
+			);
+			assert_eq!(
+				scheduled[1],
+				CoreAssignment {
+					core: CoreIndex(1),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: chain_b },
+						retries: 0,
+						ttl: 6
+					},
+					group_idx: GroupIndex(1),
+				}
+			);
 
-		//	assert_eq!(
-		//		scheduled[1],
-		//		CoreAssignment {
-		//			core: CoreIndex(1),
-		//			kind: Assignment::Parachain(chain_b),
-		//			group_idx: GroupIndex(1),
-		//		}
-		//	);
-
-		//	assert_eq!(
-		//		scheduled[2],
-		//		CoreAssignment {
-		//			core: CoreIndex(2),
-		//			kind: Assignment::Parathread(ParathreadEntry {claim: ParathreadClaim(thread_a, Some(collator.clone())), retries: 0}),
-		//			group_idx: GroupIndex(2),
-		//		}
-		//	);
-
-		//	assert_eq!(
-		//		scheduled[3],
-		//		CoreAssignment {
-		//			core: CoreIndex(3),
-		//			kind: Assignment::Parathread(ParathreadEntry {claim: ParathreadClaim(thread_c, Some(collator.clone())), retries: 0}),
-		//			group_idx: GroupIndex(3),
-		//		}
-		//	);
-		//}
+			// Was added a block later, note the TTL.
+			assert_eq!(
+				scheduled[2],
+				CoreAssignment {
+					core: CoreIndex(2),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: thread_a },
+						retries: 0,
+						ttl: 7
+					},
+					group_idx: GroupIndex(2),
+				}
+			);
+			// Sits on the same core as `thread_a`
+			assert_eq!(
+				Scheduler::claimqueue().get(&CoreIndex(2)).unwrap()[1],
+				Some(ParasEntry {
+					assignment: Assignment { para_id: thread_b },
+					retries: 0,
+					ttl: 7
+				})
+			);
+			assert_eq!(
+				scheduled[3],
+				CoreAssignment {
+					core: CoreIndex(3),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: thread_c },
+						retries: 0,
+						ttl: 7
+					},
+					group_idx: GroupIndex(3),
+				}
+			);
+		}
 	});
 }
 
