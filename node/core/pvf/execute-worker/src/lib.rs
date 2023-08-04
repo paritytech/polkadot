@@ -125,7 +125,7 @@ pub fn worker_entrypoint(
 	socket_path: &str,
 	node_version: Option<&str>,
 	worker_version: Option<&str>,
-	artifact_dir: &Path,
+	cache_path: &Path,
 ) {
 	worker_event_loop(
 		"execute",
@@ -142,7 +142,7 @@ pub fn worker_entrypoint(
 					use polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread;
 
 					try_restrict_thread(landlock::path_beneath_rules(
-						&[artifact_dir],
+						&[cache_path],
 						landlock::AccessFs::from_read(abi),
 					))
 					.map(LandlockStatus::from_ruleset_status)
@@ -177,8 +177,8 @@ pub fn worker_entrypoint(
 					artifact_path.display(),
 				);
 
-				if !artifact_path.starts_with(artifact_dir) {
-					return Err(io::Error::new(io::ErrorKind::Other, format!("received an artifact path {artifact_path:?} that does not belong to expected artifact dir {artifact_dir:?}")))
+				if !artifact_path.starts_with(cache_path) {
+					return Err(io::Error::new(io::ErrorKind::Other, format!("received an artifact path {artifact_path:?} that does not belong to expected artifact dir {cache_path:?}")))
 				}
 
 				// Get the artifact bytes.

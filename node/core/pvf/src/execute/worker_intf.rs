@@ -46,11 +46,17 @@ pub async fn spawn(
 	executor_params: ExecutorParams,
 	spawn_timeout: Duration,
 	node_version: Option<&str>,
+	cache_path: &Path,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	let mut extra_args = vec!["execute-worker"];
+	let cache_path = match cache_path.to_str() {
+		Some(a) => a,
+		None => return Err(SpawnErr::InvalidCachePath(cache_path.to_owned())),
+	};
+	let mut extra_args = vec!["execute-worker", "--cache-path", cache_path];
 	if let Some(node_version) = node_version {
 		extra_args.extend_from_slice(&["--node-impl-version", node_version]);
 	}
+
 	let (mut idle_worker, worker_handle) =
 		spawn_with_program_path("execute", program_path, &extra_args, spawn_timeout).await?;
 	send_handshake(&mut idle_worker.stream, Handshake { executor_params })

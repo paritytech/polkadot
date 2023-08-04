@@ -36,11 +36,29 @@ async fn spawn_timeout() {
 }
 
 #[tokio::test]
-async fn should_connect() {
-	let _ = spawn_with_program_path(
+async fn should_fail_without_cache_path() {
+	// --socket-path is handled by `spawn_with_program_path` so we don't pass it here.
+	let result = spawn_with_program_path(
 		"integration-test",
 		PUPPET_EXE,
 		&["prepare-worker"],
+		Duration::from_secs(2),
+	)
+	.await;
+	assert!(matches!(result, Err(SpawnErr::AcceptTimeout)));
+}
+
+#[tokio::test]
+async fn should_connect() {
+	let socket_path = tempfile::NamedTempFile::new().unwrap();
+	let socket_path = socket_path.path().to_str().unwrap();
+	let cache_path = tempfile::tempdir().unwrap();
+	let cache_path = cache_path.path().to_str().unwrap();
+
+	let _ = spawn_with_program_path(
+		"integration-test",
+		PUPPET_EXE,
+		&["prepare-worker", "--socket-path", socket_path, "--cache-path", cache_path],
 		Duration::from_secs(2),
 	)
 	.await

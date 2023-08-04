@@ -141,6 +141,7 @@ struct Queue {
 	program_path: PathBuf,
 	spawn_timeout: Duration,
 	node_version: Option<String>,
+	cache_path: PathBuf,
 
 	/// The queue of jobs that are waiting for a worker to pick up.
 	queue: VecDeque<ExecuteJob>,
@@ -155,6 +156,7 @@ impl Queue {
 		worker_capacity: usize,
 		spawn_timeout: Duration,
 		node_version: Option<String>,
+		cache_path: PathBuf,
 		to_queue_rx: mpsc::Receiver<ToQueue>,
 	) -> Self {
 		Self {
@@ -162,6 +164,7 @@ impl Queue {
 			program_path,
 			spawn_timeout,
 			node_version,
+			cache_path,
 			to_queue_rx,
 			queue: VecDeque::new(),
 			mux: Mux::new(),
@@ -408,6 +411,7 @@ fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
 			job,
 			queue.spawn_timeout,
 			queue.node_version.clone(),
+			queue.cache_path.clone(),
 		)
 		.boxed(),
 	);
@@ -425,6 +429,7 @@ async fn spawn_worker_task(
 	job: ExecuteJob,
 	spawn_timeout: Duration,
 	node_version: Option<String>,
+	cache_path: PathBuf,
 ) -> QueueEvent {
 	use futures_timer::Delay;
 
@@ -434,6 +439,7 @@ async fn spawn_worker_task(
 			job.executor_params.clone(),
 			spawn_timeout,
 			node_version.as_deref(),
+			&cache_path,
 		)
 		.await
 		{
@@ -498,6 +504,7 @@ pub fn start(
 	worker_capacity: usize,
 	spawn_timeout: Duration,
 	node_version: Option<String>,
+	cache_path: PathBuf,
 ) -> (mpsc::Sender<ToQueue>, impl Future<Output = ()>) {
 	let (to_queue_tx, to_queue_rx) = mpsc::channel(20);
 	let run = Queue::new(
@@ -506,6 +513,7 @@ pub fn start(
 		worker_capacity,
 		spawn_timeout,
 		node_version,
+		cache_path,
 		to_queue_rx,
 	)
 	.run();

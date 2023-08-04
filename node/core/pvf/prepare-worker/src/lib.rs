@@ -120,7 +120,7 @@ pub fn worker_entrypoint(
 	socket_path: &str,
 	node_version: Option<&str>,
 	worker_version: Option<&str>,
-	temp_artifact_dir: &Path,
+	cache_path: &Path,
 ) {
 	worker_event_loop(
 		"prepare",
@@ -137,7 +137,7 @@ pub fn worker_entrypoint(
 					use polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread;
 
 					try_restrict_thread(landlock::path_beneath_rules(
-						&[temp_artifact_dir],
+						&[cache_path],
 						landlock::AccessFs::from_write(abi),
 					))
 					.map(LandlockStatus::from_ruleset_status)
@@ -166,8 +166,8 @@ pub fn worker_entrypoint(
 					"worker: preparing artifact",
 				);
 
-				if !temp_artifact_dest.starts_with(temp_artifact_dir) {
-					return Err(io::Error::new(io::ErrorKind::Other, format!("received an artifact path {temp_artifact_dest:?} that does not belong to expected artifact dir {temp_artifact_dir:?}")))
+				if !temp_artifact_dest.starts_with(cache_path) {
+					return Err(io::Error::new(io::ErrorKind::Other, format!("received an artifact path {temp_artifact_dest:?} that does not belong to expected cache path {cache_path:?}")))
 				}
 
 				let preparation_timeout = pvf.prep_timeout();

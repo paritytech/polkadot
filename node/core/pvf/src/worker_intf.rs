@@ -194,6 +194,8 @@ pub enum SpawnErr {
 	AcceptTimeout,
 	/// Failed to send handshake after successful spawning was signaled
 	Handshake,
+	/// Cache path is not a valid UTF-8 str.
+	InvalidCachePath(PathBuf),
 }
 
 /// This is a representation of a potentially running worker. Drop it and the process will be killed.

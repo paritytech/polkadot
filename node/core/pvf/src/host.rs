@@ -232,6 +232,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		config.execute_workers_max_num,
 		config.execute_worker_spawn_timeout,
 		config.node_version,
+		config.cache_path.clone(),
 	);
 
 	let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(100);
