@@ -277,158 +277,56 @@ fn add_parathread_claim_works() {
 	})
 }
 
-//#[test]
-//fn session_change_prunes_cores_beyond_retries_and_those_from_non_live_parathreads() {
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig {
-//			config: default_config(),
-//			..Default::default()
-//		},
-//		..Default::default()
-//	};
-//	let max_parathread_retries = default_config().parathread_retries;
-//
-//	let thread_a = ParaId::from(1_u32);
-//	let thread_b = ParaId::from(2_u32);
-//	let thread_c = ParaId::from(3_u32);
-//	let thread_d = ParaId::from(4_u32);
-//
-//	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
-//
-//	new_test_ext(genesis_config).execute_with(|| {
-//		assert_eq!(Configuration::config(), default_config());
-//
-//		// threads a, b, and c will be live in next session, but not d.
-//		{
-//			schedule_blank_para(thread_a, ParaKind::Parathread);
-//			schedule_blank_para(thread_b, ParaKind::Parathread);
-//			schedule_blank_para(thread_c, ParaKind::Parathread);
-//		}
-//
-//		// set up a queue as if `n_cores` was 4 and with some with many retries.
-//		ParathreadQueue::<Test>::put({
-//			let mut queue = ParathreadClaimQueue::default();
-//
-//			// Will be pruned: too many retries.
-//			queue.enqueue_entry(
-//				ParathreadEntry {
-//					claim: ParathreadClaim(thread_a, collator.clone()),
-//					retries: max_parathread_retries + 1,
-//				},
-//				4,
-//			);
-//
-//			// Will not be pruned.
-//			queue.enqueue_entry(
-//				ParathreadEntry {
-//					claim: ParathreadClaim(thread_b, collator.clone()),
-//					retries: max_parathread_retries,
-//				},
-//				4,
-//			);
-//
-//			// Will not be pruned.
-//			queue.enqueue_entry(
-//				ParathreadEntry { claim: ParathreadClaim(thread_c, collator.clone()), retries: 0 },
-//				4,
-//			);
-//
-//			// Will be pruned: not a live parathread.
-//			queue.enqueue_entry(
-//				ParathreadEntry { claim: ParathreadClaim(thread_d, collator.clone()), retries: 0 },
-//				4,
-//			);
-//
-//			queue
-//		});
-//
-//		ParathreadClaimIndex::<Test>::put(vec![thread_a, thread_b, thread_c, thread_d]);
-//
-//		run_to_block(10, |b| match b {
-//			10 => Some(SessionChangeNotification {
-//				new_config: Configuration::config(),
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//		assert_eq!(Configuration::config(), default_config());
-//
-//		let queue = ParathreadQueue::<Test>::get();
-//		assert_eq!(
-//			queue.queue,
-//			vec![
-//				QueuedParathread {
-//					claim: ParathreadEntry {
-//						claim: ParathreadClaim(thread_b, collator.clone()),
-//						retries: max_parathread_retries,
-//					},
-//					core_offset: 0,
-//				},
-//				QueuedParathread {
-//					claim: ParathreadEntry {
-//						claim: ParathreadClaim(thread_c, collator.clone()),
-//						retries: 0,
-//					},
-//					core_offset: 1,
-//				},
-//			]
-//		);
-//		assert_eq!(queue.next_core_offset, 2);
-//
-//		assert_eq!(ParathreadClaimIndex::<Test>::get(), vec![thread_b, thread_c]);
-//	})
-//}
-//
-//#[test]
-//fn session_change_shuffles_validators() {
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig {
-//			config: default_config(),
-//			..Default::default()
-//		},
-//		..Default::default()
-//	};
-//
-//	assert_eq!(default_config().parathread_cores, 3);
-//	new_test_ext(genesis_config).execute_with(|| {
-//		let chain_a = ParaId::from(1_u32);
-//		let chain_b = ParaId::from(2_u32);
-//
-//		// ensure that we have 5 groups by registering 2 parachains.
-//		schedule_blank_para(chain_a, ParaKind::Parachain);
-//		schedule_blank_para(chain_b, ParaKind::Parachain);
-//
-//		run_to_block(1, |number| match number {
-//			1 => Some(SessionChangeNotification {
-//				new_config: default_config(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Bob.public()),
-//					ValidatorId::from(Sr25519Keyring::Charlie.public()),
-//					ValidatorId::from(Sr25519Keyring::Dave.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
-//					ValidatorId::from(Sr25519Keyring::One.public()),
-//				],
-//				random_seed: [99; 32],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		let groups = ValidatorGroups::<Test>::get();
-//		assert_eq!(groups.len(), 5);
-//
-//		// first two groups have the overflow.
-//		for i in 0..2 {
-//			assert_eq!(groups[i].len(), 2);
-//		}
-//
-//		for i in 2..5 {
-//			assert_eq!(groups[i].len(), 1);
-//		}
-//	});
-//}
+#[test]
+fn session_change_shuffles_validators() {
+	let genesis_config = MockGenesisConfig {
+		configuration: crate::configuration::GenesisConfig {
+			config: default_config(),
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	assert_eq!(default_config().on_demand_cores, 3);
+	new_test_ext(genesis_config).execute_with(|| {
+		let chain_a = ParaId::from(1_u32);
+		let chain_b = ParaId::from(2_u32);
+
+		// ensure that we have 5 groups by registering 2 parachains.
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(chain_b, ParaKind::Parachain);
+
+		run_to_block(1, |number| match number {
+			1 => Some(SessionChangeNotification {
+				new_config: default_config(),
+				validators: vec![
+					ValidatorId::from(Sr25519Keyring::Alice.public()),
+					ValidatorId::from(Sr25519Keyring::Bob.public()),
+					ValidatorId::from(Sr25519Keyring::Charlie.public()),
+					ValidatorId::from(Sr25519Keyring::Dave.public()),
+					ValidatorId::from(Sr25519Keyring::Eve.public()),
+					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
+					ValidatorId::from(Sr25519Keyring::One.public()),
+				],
+				random_seed: [99; 32],
+				..Default::default()
+			}),
+			_ => None,
+		});
+
+		let groups = ValidatorGroups::<Test>::get();
+		assert_eq!(groups.len(), 5);
+
+		// first two groups have the overflow.
+		for i in 0..2 {
+			assert_eq!(groups[i].len(), 2);
+		}
+
+		for i in 2..5 {
+			assert_eq!(groups[i].len(), 1);
+		}
+	});
+}
 
 #[test]
 fn session_change_takes_only_max_per_core() {
@@ -1478,62 +1376,3 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		);
 	});
 }
-
-//#[test]
-//fn parathread_claims_are_pruned_after_deregistration() {
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig {
-//			config: default_config(),
-//			..Default::default()
-//		},
-//		..Default::default()
-//	};
-//
-//	let thread_a = ParaId::from(1_u32);
-//	let thread_b = ParaId::from(2_u32);
-//
-//	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
-//
-//	new_test_ext(genesis_config).execute_with(|| {
-//		assert_eq!(default_config().parathread_cores, 3);
-//
-//		schedule_blank_para(thread_a, ParaKind::Parathread);
-//		schedule_blank_para(thread_b, ParaKind::Parathread);
-//
-//		// start a new session to activate, 5 validators for 5 cores.
-//		run_to_block(1, |number| match number {
-//			1 => Some(SessionChangeNotification {
-//				new_config: default_config(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//				],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
-//
-//		run_to_block(2, |_| None);
-//		assert_eq!(Scheduler::scheduled().len(), 2);
-//
-//		assert_ok!(Paras::schedule_para_cleanup(thread_a));
-//
-//		// start a new session to activate, 5 validators for 5 cores.
-//		run_to_block(3, |number| match number {
-//			3 => Some(SessionChangeNotification {
-//				new_config: default_config(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//				],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		assert_eq!(Scheduler::scheduled().len(), 1);
-//	});
-//}

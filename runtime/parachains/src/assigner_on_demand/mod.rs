@@ -476,6 +476,10 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	}
 
 	/// Take the next queued entry that is available for a given core index.
+	/// Invalidates and removes orders with a `para_id` that is not `ParaLifecycle::Parathread`
+	/// but only in [0..P] range slice of the order queue, where P is the element that is
+	/// removed from the order queue.
+	///
 	/// Parameters:
 	/// - `core_idx`: The core index
 	/// - `previous_paraid`: Which paraid was previously processed on the requested core.
@@ -493,24 +497,41 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 
 		let mut queue: VecDeque<Assignment> = OnDemandQueue::<T>::get();
 
-		// Get the position of the next `ParaId`. Select either a `ParaId` that has an affinity
-		// to the same `CoreIndex` as the scheduler asks for or a `ParaId` with no affinity at all.
-		let pos = queue.iter().position(|assignment| {
-			match ParaIdAffinity::<T>::get(&assignment.para_id) {
-				Some(affinity) => return affinity.core_idx == core_idx,
-				None => return true,
+		let mut invalidated_para_id_indexes: Vec<usize> = vec![];
+
+		// Get the position of the next `ParaId`. Select either a valid `ParaId` that has an affinity
+		// to the same `CoreIndex` as the scheduler asks for or a valid `ParaId` with no affinity at all.
+		let pos = queue.iter().enumerate().position(|(index, assignment)| {
+			if <paras::Pallet<T>>::is_parathread(assignment.para_id) {
+				match ParaIdAffinity::<T>::get(&assignment.para_id) {
+					Some(affinity) => return affinity.core_idx == core_idx,
+					None => return true,
+				}
 			}
+			// Record no longer valid para_ids.
+			invalidated_para_id_indexes.push(index);
+			return false
 		});
 
-		pos.and_then(|p: usize| {
+		// Collect the popped value.
+		let popped = pos.and_then(|p: usize| {
 			if let Some(assignment) = queue.remove(p) {
 				Pallet::<T>::increase_affinity(assignment.para_id, core_idx);
-				// Write changes to storage.
-				OnDemandQueue::<T>::set(queue);
 				return Some(assignment)
 			};
-			return None
-		})
+			None
+		});
+
+		// Only remove the invalid indexes *after* using the index.
+		// Removed in reverse order so that the indexes don't shift.
+		invalidated_para_id_indexes.iter().rev().for_each(|idx| {
+			queue.remove(*idx);
+		});
+
+		// Write changes to storage.
+		OnDemandQueue::<T>::set(queue);
+
+		popped
 	}
 
 	/// Push an assignment back to the queue.

@@ -487,3 +487,42 @@ fn cannot_place_order_when_no_on_demand_cores() {
 		);
 	});
 }
+
+#[test]
+fn on_demand_orders_cannot_be_popped_if_lifecycle_changes() {
+	let para_id = ParaId::from(10);
+	let assignment = Assignment { para_id };
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		// Register the para_id as a parathread
+		schedule_blank_para(para_id, ParaKind::Parathread);
+
+		assert!(!Paras::is_parathread(para_id));
+		run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
+		assert!(Paras::is_parathread(para_id));
+
+		// Add two assignments for a para_id with a valid lifecycle.
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment.clone(),
+			QueuePushDirection::Back
+		));
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment.clone(),
+			QueuePushDirection::Back
+		));
+
+		// First pop is fine
+		assert!(OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), None) == Some(assignment));
+
+		// Deregister para
+		assert_ok!(Paras::schedule_para_cleanup(para_id));
+
+		// Run to new session and verify that para_id is no longer a valid parathread.
+		assert!(Paras::is_parathread(para_id));
+		run_to_block(20, |n| if n == 20 { Some(Default::default()) } else { None });
+		assert!(!Paras::is_parathread(para_id));
+
+		// Second pop should be None.
+		assert!(OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_id)) == None);
+	});
+}
