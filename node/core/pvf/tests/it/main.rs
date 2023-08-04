@@ -53,7 +53,8 @@ impl TestHost {
 	{
 		let cache_dir = tempfile::tempdir().unwrap();
 		let program_path = std::path::PathBuf::from(PUPPET_EXE);
-		let mut config = Config::new(cache_dir.path().to_owned(), program_path);
+		let mut config =
+			Config::new(cache_dir.path().to_owned(), None, program_path.clone(), program_path);
 		f(&mut config);
 		let (host, task) = start(config, Metrics::default());
 		let _ = tokio::task::spawn(task);
