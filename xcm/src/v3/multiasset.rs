@@ -406,7 +406,7 @@ pub struct MultiAsset {
 	/// The overall asset identity (aka *class*, in the case of a non-fungible).
 	pub id: AssetId,
 	/// The fungibility of the asset, which contains either the amount (in the case of a fungible
-	/// asset) or the *insance ID`, the secondary asset identifier.
+	/// asset) or the *instance ID*, the secondary asset identifier.
 	pub fun: Fungibility,
 }
 

@@ -112,7 +112,84 @@ pub use jaeger::hash_to_trace_identifier;
 #[doc(hidden)]
 pub use polkadot_primitives::{CandidateHash, Hash};
 
-pub use gum_proc_macro::{debug, error, info, trace, warn};
+pub use gum_proc_macro::{debug, error, info, trace, warn, warn_if_frequent};
 
 #[cfg(test)]
 mod tests;
+
+const FREQ_SMOOTHING_FACTOR: f32 = 0.5;
+
+/// Exponential moving average
+#[derive(Debug, Default)]
+struct EmaBucket {
+	current: f32,
+	count: u32,
+}
+
+impl EmaBucket {
+	fn update(&mut self, value: f32, alpha: f32) {
+		if self.count == 0 {
+			self.current = value;
+		} else {
+			self.current += alpha * (value - self.current);
+		}
+		self.count += 1;
+	}
+}
+
+/// Utility struct to compare the rate of its own calls.
+pub struct Freq {
+	ema: EmaBucket,
+	last: u64,
+}
+
+impl Freq {
+	/// Initiates a new instance
+	pub fn new() -> Self {
+		Self { ema: Default::default(), last: Default::default() }
+	}
+
+	/// Compares the rate of its own calls with the passed one.
+	pub fn is_frequent(&mut self, max_rate: Times) -> bool {
+		self.record();
+
+		// Two attempts is not enough to call something as frequent.
+		if self.ema.count < 3 {
+			return false
+		}
+
+		let rate = 1000.0 / self.ema.current; // Current EMA represents interval in ms
+		rate > max_rate.into()
+	}
+
+	fn record(&mut self) {
+		let now = coarsetime::Clock::now_since_epoch().as_millis() as u64;
+		if self.last > 0 {
+			self.ema.update((now - self.last) as f32, FREQ_SMOOTHING_FACTOR);
+		}
+		self.last = now;
+	}
+}
+
+/// Represents frequency per second, minute, hour and day
+pub enum Times {
+	/// Per second
+	PerSecond(u32),
+	/// Per minute
+	PerMinute(u32),
+	/// Per hour
+	PerHour(u32),
+	/// Per day
+	PerDay(u32),
+}
+
+impl From<Times> for f32 {
+	fn from(value: Times) -> Self {
+		match value {
+			Times::PerSecond(v) => v as f32,
+			Times::PerMinute(v) => v as f32 / 60.0,
+			Times::PerHour(v) => v as f32 / (60.0 * 60.0),
+			Times::PerDay(v) => v as f32 / (60.0 * 60.0 * 24.0),
+		}
+	}
+}
