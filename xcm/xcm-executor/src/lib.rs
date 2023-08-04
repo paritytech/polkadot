@@ -334,9 +334,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		);
 		let mut result = Ok(());
 		for (i, instr) in xcm.0.into_iter().enumerate() {
-			let vm_clone = self.clone();
+			
 			match &mut result {
 				r @ Ok(()) => {
+					let vm_clone = self.clone();
 					// Initialize the recursion count only the first time we hit this code in our
 					// potential recursive execution.
 					let inst_res = recursion_count::using_once(&mut 1, || {
@@ -367,14 +368,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 							xcm_error: e,
 							weight: Weight::zero(),
 						});
+						if Config::TransactionalProcessor::IS_TRANSACTIONAL {
+							*self = vm_clone;
+						}
 					}
 				},
 				Err(ref mut error) => {
 					if let Ok(x) = Config::Weigher::instr_weight(&instr) {
 						error.weight.saturating_accrue(x)
-					}
-					if Config::TransactionalProcessor::IS_TRANSACTIONAL {
-						*self = vm_clone;
 					}
 				},
 			}
