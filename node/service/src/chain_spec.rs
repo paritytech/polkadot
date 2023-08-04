@@ -1083,7 +1083,6 @@ fn rococo_staging_testnet_config_genesis(
 				})
 				.collect::<Vec<_>>(),
 		},
-		phragmen_election: Default::default(),
 		babe: rococo_runtime::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(rococo_runtime::BABE_GENESIS_EPOCH_CONFIG),
@@ -1091,13 +1090,6 @@ fn rococo_staging_testnet_config_genesis(
 		},
 		grandpa: Default::default(),
 		im_online: Default::default(),
-		democracy: rococo_runtime::DemocracyConfig::default(),
-		council: rococo::CouncilConfig { members: vec![], phantom: Default::default() },
-		technical_committee: rococo::TechnicalCommitteeConfig {
-			members: vec![],
-			phantom: Default::default(),
-		},
-		technical_membership: Default::default(),
 		treasury: Default::default(),
 		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
@@ -1661,14 +1653,6 @@ pub fn rococo_testnet_genesis(
 		},
 		grandpa: Default::default(),
 		im_online: Default::default(),
-		phragmen_election: Default::default(),
-		democracy: rococo::DemocracyConfig::default(),
-		council: rococo::CouncilConfig { members: vec![], phantom: Default::default() },
-		technical_committee: rococo::TechnicalCommitteeConfig {
-			members: vec![],
-			phantom: Default::default(),
-		},
-		technical_membership: Default::default(),
 		treasury: Default::default(),
 		claims: rococo::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: rococo::VestingConfig { vesting: vec![] },
