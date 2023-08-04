@@ -503,7 +503,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		);
 		match instr {
 			WithdrawAsset(assets) => {
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// Take `assets` from the origin account (on-chain) and place in holding.
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					for asset in assets.into_inner().into_iter() {
@@ -518,7 +518,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				})
 			},
 			ReserveAssetDeposited(assets) => {
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// check whether we trust origin to be our reserve location for this asset.
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					for asset in assets.into_inner().into_iter() {
@@ -533,7 +533,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				})
 			},
 			TransferAsset { assets, beneficiary } => {
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// Take `assets` from the origin account (on-chain) and place into dest account.
 					let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					for asset in assets.inner() {
@@ -548,7 +548,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				})
 			},
 			TransferReserveAsset { mut assets, dest, xcm } => {
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					// Take `assets` from the origin account (on-chain) and place into dest account.
 					for asset in assets.inner() {
@@ -570,7 +570,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				})
 			},
 			ReceiveTeleportedAsset(assets) => {
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					// check whether we trust origin to teleport this asset to us via config trait.
 					for asset in assets.inner() {
@@ -662,7 +662,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			DepositAsset { assets, beneficiary } =>
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let deposited = self.holding.saturating_take(assets);
 					for asset in deposited.into_assets_iter() {
 						Config::AssetTransactor::deposit_asset(
@@ -674,7 +674,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Ok(())
 				}),
 			DepositReserveAsset { assets, dest, xcm } => {
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let deposited = self.holding.saturating_take(assets);
 					for asset in deposited.assets_iter() {
 						Config::AssetTransactor::deposit_asset(&asset, &dest, &self.context)?;
@@ -689,7 +689,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				})
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// Note that here we are able to place any assets which could not be reanchored
 					// back into Holding.
 					let assets = Self::reanchored(
@@ -704,7 +704,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				})
 			},
 			InitiateTeleport { assets, dest, xcm } => {
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// We must do this first in order to resolve wildcards.
 					let assets = self.holding.saturating_take(assets);
 					for asset in assets.assets_iter() {
@@ -740,7 +740,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			BuyExecution { fees, weight_limit } => {
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// There is no need to buy any weight is `weight_limit` is `Unlimited` since it
 					// would indicate that `AllowTopLevelPaidExecutionFrom` was unused for execution
 					// and thus there is some other reason why it has been determined that this XCM
@@ -779,7 +779,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ClaimAsset { assets, ticket } =>
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					let ok =
 						Config::AssetClaims::claim_assets(origin, &ticket, &assets, &self.context);
@@ -888,7 +888,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ExportMessage { network, destination, xcm } => {
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// The actual message sent to the bridge for forwarding is prepended with `UniversalOrigin`
 					// and `DescendOrigin` in order to ensure that the message is executed with this Origin.
 					//
@@ -918,7 +918,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				})
 			},
 			LockAsset { asset, unlocker } =>
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					let (remote_asset, context) = Self::try_reanchor(asset.clone(), &unlocker)?;
 					let lock_ticket = Config::AssetLocker::prepare_lock(unlocker, asset, origin)?;
@@ -933,7 +933,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Ok(())
 				}),
 			UnlockAsset { asset, target } =>
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					Config::AssetLocker::prepare_unlock(origin, asset, target)?.enact()?;
 					Ok(())
@@ -944,7 +944,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			RequestUnlock { asset, locker } =>
-				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					let remote_asset = Self::try_reanchor(asset.clone(), &locker)?.0;
 					let remote_target = Self::try_reanchor_multilocation(origin, &locker)?.0;

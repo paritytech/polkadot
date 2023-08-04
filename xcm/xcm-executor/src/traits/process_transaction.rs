@@ -20,16 +20,16 @@ use xcm::latest::prelude::*;
 pub trait ProcessTransaction {
 	/// Whether the XCM executor is transactional.
 	const IS_TRANSACTIONAL: bool;
-	/// The `process_transaction` method takes a closure as an argument.
+	/// The `process` method takes a closure as an argument.
 	/// Responsible for processing an XCM instruction transactionally.
-	fn process_transaction<F>(f: F) -> Result<(), XcmError>
+	fn process<F>(f: F) -> Result<(), XcmError>
 	where
 		F: FnOnce() -> Result<(), XcmError>;
 }
 
 impl ProcessTransaction for () {
 	const IS_TRANSACTIONAL: bool = false;
-	fn process_transaction<F>(f: F) -> Result<(), XcmError>
+	fn process<F>(f: F) -> Result<(), XcmError>
 	where
 		F: FnOnce() -> Result<(), XcmError>,
 	{
