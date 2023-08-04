@@ -42,7 +42,7 @@ use frame_support::{
 	},
 };
 use frame_system::pallet_prelude::*;
-use primitives::{v5::Assignment, CoreIndex, Id as ParaId, ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE};
+use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
 use sp_runtime::{
 	traits::{One, SaturatedConversion},
 	FixedPointNumber, FixedPointOperand, FixedU128, Perbill, Saturating,
