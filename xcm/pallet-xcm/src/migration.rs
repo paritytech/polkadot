@@ -35,13 +35,15 @@ pub mod v1 {
 	pub struct VersionUncheckedMigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for VersionUncheckedMigrateToV1<T> {
 		fn on_runtime_upgrade() -> Weight {
-			CurrentMigration::<T>::put(VersionMigrationStage::default());
 			let mut weight = T::DbWeight::get().reads(1);
 
 			if StorageVersion::get::<Pallet<T>>() != 0 {
 				log::warn!("skipping v1, should be removed");
 				return weight
 			}
+
+			weight.saturating_accrue(T::DbWeight::get().writes(1));
+			CurrentMigration::<T>::put(VersionMigrationStage::default());
 
 			let translate = |pre: (u64, u64, u32)| -> Option<(u64, Weight, u32)> {
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -53,8 +55,8 @@ pub mod v1 {
 			VersionNotifyTargets::<T>::translate_values(translate);
 
 			log::info!("v1 applied successfully");
+			weight.saturating_accrue(T::DbWeight::get().writes(1));
 			StorageVersion::new(1).put::<Pallet<T>>();
-			weight.saturating_add(T::DbWeight::get().writes(1));
 			weight
 		}
 	}
