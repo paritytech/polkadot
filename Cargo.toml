@@ -13,17 +13,18 @@ path = "src/bin/prepare-worker.rs"
 [package]
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
-license = "GPL-3.0-only"
 rust-version = "1.64.0" # workspace properties
 readme = "README.md"
 default-run = "polkadot"
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 
 [workspace.package]
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+license = "GPL-3.0-only"
 repository = "https://github.com/paritytech/polkadot.git"
 version = "0.9.43"
 
