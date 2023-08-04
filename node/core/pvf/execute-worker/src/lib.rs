@@ -117,10 +117,16 @@ async fn send_response(stream: &mut UnixStream, response: Response) -> io::Resul
 ///
 /// # Parameters
 ///
-/// The `socket_path` specifies the path to the socket used to communicate with the host. The
-/// `node_version`, if `Some`, is checked against the worker version. A mismatch results in
-/// immediate worker termination. `None` is used for tests and in other situations when version
-/// check is not necessary.
+/// - `socket_path` specifies the path to the socket used to communicate with the host.
+///
+/// - `node_version`, if `Some`, is checked against the `worker_version`. A mismatch results in
+///   immediate worker termination. `None` is used for tests and in other situations when version
+///   check is not necessary.
+///
+/// - `worker_version`: see above
+///
+/// - `cache_path` contains the expected cache path for artifacts and is used to provide a sandbox
+///   exception for landlock.
 pub fn worker_entrypoint(
 	socket_path: &str,
 	node_version: Option<&str>,
@@ -139,11 +145,13 @@ pub fn worker_entrypoint(
 			{
 				#[cfg(target_os = "linux")]
 				let landlock_status = {
-					use polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread;
+					use polkadot_node_core_pvf_common::worker::security::landlock::{
+						path_beneath_rules, try_restrict_thread, Access, AccessFs, LANDLOCK_ABI,
+					};
 
-					try_restrict_thread(landlock::path_beneath_rules(
+					try_restrict_thread(path_beneath_rules(
 						&[cache_path],
-						landlock::AccessFs::from_read(abi),
+						AccessFs::from_read(LANDLOCK_ABI),
 					))
 					.map(LandlockStatus::from_ruleset_status)
 					.map_err(|e| e.to_string())

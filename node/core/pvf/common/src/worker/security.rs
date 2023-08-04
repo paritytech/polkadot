@@ -52,14 +52,19 @@ impl LandlockStatus {
 /// [landlock]: https://docs.rs/landlock/latest/landlock/index.html
 #[cfg(target_os = "linux")]
 pub mod landlock {
-	use landlock::{Access, AccessFs, Ruleset, RulesetAttr, RulesetError, RulesetStatus, ABI};
+	pub use landlock::{path_beneath_rules, Access, AccessFs};
+
+	use landlock::{
+		PathBeneath, PathFd, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetError, RulesetStatus,
+		ABI,
+	};
 
 	/// Landlock ABI version. We use ABI V1 because:
 	///
 	/// 1. It is supported by our reference kernel version.
 	/// 2. Later versions do not (yet) provide additional security.
 	///
-	/// # Versions (June 2023)
+	/// # Versions (as of June 2023)
 	///
 	/// - Polkadot reference kernel version: 5.16+
 	/// - ABI V1: 5.13 - introduces	landlock, including full restrictions on file reads
@@ -87,7 +92,7 @@ pub mod landlock {
 	/// Returns to what degree landlock is enabled with the given ABI on the current Linux
 	/// environment.
 	pub fn get_status() -> Result<RulesetStatus, Box<dyn std::error::Error>> {
-		match std::thread::spawn(|| try_restrict_thread()).join() {
+		match std::thread::spawn(|| try_restrict_thread(std::iter::empty())).join() {
 			Ok(Ok(status)) => Ok(status),
 			Ok(Err(ruleset_err)) => Err(ruleset_err.into()),
 			Err(_err) => Err("a panic occurred in try_restrict_thread".into()),
@@ -135,7 +140,7 @@ pub mod landlock {
 		use std::{fs, io::ErrorKind, thread};
 
 		#[test]
-		fn restricted_thread_cannot_access_fs() {
+		fn restricted_thread_cannot_read_file() {
 			// TODO: This would be nice: <https://github.com/rust-lang/rust/issues/68007>.
 			if !check_is_fully_enabled() {
 				return
@@ -143,21 +148,51 @@ pub mod landlock {
 
 			// Restricted thread cannot read from FS.
 			let handle = thread::spawn(|| {
-				// Write to a tmp file, this should succeed before landlock is applied.
-				let text = "foo";
-				let tmpfile = tempfile::NamedTempFile::new().unwrap();
-				let path = tmpfile.path();
-				fs::write(path, text).unwrap();
-				let s = fs::read_to_string(path).unwrap();
-				assert_eq!(s, text);
+				// Create, write, and read two tmp files. This should succeed before any landlock
+				// restrictions are applied.
+				const TEXT: &str = "foo";
+				let tmpfile1 = tempfile::NamedTempFile::new().unwrap();
+				let path1 = tmpfile1.path();
+				let tmpfile2 = tempfile::NamedTempFile::new().unwrap();
+				let path2 = tmpfile2.path();
 
-				let status = try_restrict_thread().unwrap();
+				fs::write(path1, TEXT).unwrap();
+				let s = fs::read_to_string(path1).unwrap();
+				assert_eq!(s, TEXT);
+				fs::write(path2, TEXT).unwrap();
+				let s = fs::read_to_string(path2).unwrap();
+				assert_eq!(s, TEXT);
+
+				// Apply Landlock with a read exception for only one of the files.
+				let status = try_restrict_thread(path_beneath_rules(
+					&[path1],
+					AccessFs::from_read(LANDLOCK_ABI),
+				))
+				.unwrap();
 				if !matches!(status, RulesetStatus::FullyEnforced) {
 					panic!("Ruleset should be enforced since we checked if landlock is enabled");
 				}
 
-				// Try to read from the tmp file after landlock.
-				let result = fs::read_to_string(path);
+				// Try to read from both files, only tmpfile1 should succeed.
+				let result = fs::read_to_string(path1);
+				assert!(matches!(
+					result,
+					Ok(s) if s == TEXT
+				));
+				let result = fs::read_to_string(path2);
+				assert!(matches!(
+					result,
+					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
+				));
+
+				// Apply Landlock for all files.
+				let status = try_restrict_thread(std::iter::empty()).unwrap();
+				if !matches!(status, RulesetStatus::FullyEnforced) {
+					panic!("Ruleset should be enforced since we checked if landlock is enabled");
+				}
+
+				// Try to read from tmpfile1 after landlock, it should fail.
+				let result = fs::read_to_string(path1);
 				assert!(matches!(
 					result,
 					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
@@ -165,20 +200,55 @@ pub mod landlock {
 			});
 
 			assert!(handle.join().is_ok());
+		}
+
+		#[test]
+		fn restricted_thread_cannot_write_file() {
+			// TODO: This would be nice: <https://github.com/rust-lang/rust/issues/68007>.
+			if !check_is_fully_enabled() {
+				return
+			}
 
 			// Restricted thread cannot write to FS.
 			let handle = thread::spawn(|| {
-				let text = "foo";
-				let tmpfile = tempfile::NamedTempFile::new().unwrap();
-				let path = tmpfile.path();
+				// Create and write two tmp files. This should succeed before any landlock
+				// restrictions are applied.
+				const TEXT: &str = "foo";
+				let tmpfile1 = tempfile::NamedTempFile::new().unwrap();
+				let path1 = tmpfile1.path();
+				let tmpfile2 = tempfile::NamedTempFile::new().unwrap();
+				let path2 = tmpfile2.path();
 
-				let status = try_restrict_thread().unwrap();
+				fs::write(path1, TEXT).unwrap();
+				fs::write(path2, TEXT).unwrap();
+
+				// Apply Landlock with a write exception for only one of the files.
+				let status = try_restrict_thread(path_beneath_rules(
+					&[path1],
+					AccessFs::from_write(LANDLOCK_ABI),
+				))
+				.unwrap();
 				if !matches!(status, RulesetStatus::FullyEnforced) {
 					panic!("Ruleset should be enforced since we checked if landlock is enabled");
 				}
 
-				// Try to write to the tmp file after landlock.
-				let result = fs::write(path, text);
+				// Try to write to both files, only tmpfile1 should succeed.
+				let result = fs::write(path1, TEXT);
+				assert!(matches!(result, Ok(_)));
+				let result = fs::write(path2, TEXT);
+				assert!(matches!(
+					result,
+					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
+				));
+
+				// Apply Landlock for all files.
+				let status = try_restrict_thread(std::iter::empty()).unwrap();
+				if !matches!(status, RulesetStatus::FullyEnforced) {
+					panic!("Ruleset should be enforced since we checked if landlock is enabled");
+				}
+
+				// Try to write to tmpfile1 after landlock, it should fail.
+				let result = fs::write(path1, TEXT);
 				assert!(matches!(
 					result,
 					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
