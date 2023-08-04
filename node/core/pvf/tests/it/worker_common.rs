@@ -50,15 +50,13 @@ async fn should_fail_without_cache_path() {
 
 #[tokio::test]
 async fn should_connect() {
-	let socket_path = tempfile::NamedTempFile::new().unwrap();
-	let socket_path = socket_path.path().to_str().unwrap();
 	let cache_path = tempfile::tempdir().unwrap();
 	let cache_path = cache_path.path().to_str().unwrap();
 
 	let _ = spawn_with_program_path(
 		"integration-test",
 		PUPPET_EXE,
-		&["prepare-worker", "--socket-path", socket_path, "--cache-path", cache_path],
+		&["prepare-worker", "--cache-path", cache_path],
 		Duration::from_secs(2),
 	)
 	.await
