@@ -20,6 +20,7 @@
 
 use super::{Pallet, *};
 use crate::{
+	configuration::{HostConfiguration, Pallet as ConfigurationPallet},
 	paras::{Pallet as ParasPallet, ParaGenesisArgs, ParaKind, ParachainsCache},
 	shared::Pallet as ParasShared,
 };
@@ -28,7 +29,9 @@ use frame_benchmarking::v2::*;
 use frame_system::RawOrigin;
 use sp_runtime::traits::Bounded;
 
-use primitives::{HeadData, Id as ParaId, SessionIndex, ValidationCode};
+use primitives::{
+	HeadData, Id as ParaId, SessionIndex, ValidationCode, ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE,
+};
 
 // Constants for the benchmarking
 const SESSION_INDEX: SessionIndex = 1;
@@ -36,9 +39,16 @@ const SESSION_INDEX: SessionIndex = 1;
 // Initialize a parathread for benchmarking.
 pub fn init_parathread<T>(para_id: ParaId)
 where
-	T: Config + crate::paras::Config + crate::shared::Config,
+	T: Config
+		+ crate::paras::Config
+		+ crate::shared::Config
+		+ crate::paras::Config
+		+ crate::shared::Config,
 {
 	ParasShared::<T>::set_session_index(SESSION_INDEX);
+	let mut config = HostConfiguration::default();
+	config.on_demand_cores = 1;
+	ConfigurationPallet::<T>::force_set_active_config(config);
 	let mut parachains = ParachainsCache::new();
 	ParasPallet::<T>::initialize_para_now(
 		&mut parachains,
@@ -55,15 +65,21 @@ where
 mod benchmarks {
 	use super::*;
 	#[benchmark]
-	fn place_order() {
+	fn place_order(s: Linear<1, ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE>) {
 		// Setup
 		let caller = whitelisted_caller();
 		let para_id = ParaId::from(111u32);
 		init_parathread::<T>(para_id);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		let assignment = Assignment::new(para_id);
+
+		for _ in 0..s - 1 {
+			Pallet::<T>::add_on_demand_assignment(assignment.clone(), QueuePushDirection::Back)
+				.unwrap();
+		}
 
 		#[extrinsic_call]
-		_(RawOrigin::Signed(caller.into()), BalanceOf::<T>::max_value(), para_id, false);
+		_(RawOrigin::Signed(caller.into()), BalanceOf::<T>::max_value(), para_id, false)
 	}
 
 	impl_benchmark_test_suite!(

@@ -384,6 +384,11 @@ pub const MAX_HEAD_DATA_SIZE: u32 = 1 * 1024 * 1024;
 // NOTE: This value is used in the runtime so be careful when changing it.
 pub const MAX_POV_SIZE: u32 = 5 * 1024 * 1024;
 
+/// Default queue size we use for the on-demand order book.
+///
+/// Can be adjusted in configuration.
+pub const ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE: u32 = 10_000;
+
 // The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
 mod assignment_app {

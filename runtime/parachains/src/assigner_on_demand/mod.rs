@@ -42,7 +42,7 @@ use frame_support::{
 	},
 };
 use frame_system::pallet_prelude::*;
-use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
+use primitives::{v5::Assignment, CoreIndex, Id as ParaId, ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE};
 use sp_runtime::{
 	traits::{One, SaturatedConversion},
 	FixedPointNumber, FixedPointOperand, FixedU128, Perbill, Saturating,
@@ -55,14 +55,14 @@ const LOG_TARGET: &str = "runtime::parachains::on-demand-assigner";
 pub use pallet::*;
 
 pub trait WeightInfo {
-	fn place_order() -> Weight;
+	fn place_order(s: u32) -> Weight;
 }
 
 /// A weight info that is only suitable for testing.
 pub struct TestWeightInfo;
 
 impl WeightInfo for TestWeightInfo {
-	fn place_order() -> Weight {
+	fn place_order(_: u32) -> Weight {
 		Weight::MAX
 	}
 }
@@ -242,7 +242,7 @@ pub mod pallet {
 		/// Events:
 		/// - `SpotOrderPlaced`
 		#[pallet::call_index(0)]
-		#[pallet::weight(<T as Config>::WeightInfo::place_order())]
+		#[pallet::weight(<T as Config>::WeightInfo::place_order(OnDemandQueue::<T>::get().len() as u32))]
 		pub fn place_order(
 			origin: OriginFor<T>,
 			max_amount: BalanceOf<T>,
