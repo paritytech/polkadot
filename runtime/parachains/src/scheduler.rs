@@ -409,7 +409,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn paras_entry_to_scheduled_core(pe: &ParasEntry<BlockNumberFor<T>>) -> ScheduledCore {
-		ScheduledCore { para_id: pe.para_id() }
+		ScheduledCore { para_id: pe.para_id(), collator: None }
 	}
 
 	/// Return the next thing that will be scheduled on this core assuming it is currently

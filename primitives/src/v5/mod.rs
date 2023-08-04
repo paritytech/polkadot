@@ -1008,6 +1008,10 @@ pub struct ScheduledCore {
 	// TODO: Is the same as Assignment
 	/// The ID of a para scheduled.
 	pub para_id: Id,
+	/// DEPRECATED: see: https://github.com/paritytech/polkadot/issues/7575
+	///
+	/// Will be removed in a future version.
+	pub collator: Option<CollatorId>,
 }
 
 /// The state of a particular availability core.

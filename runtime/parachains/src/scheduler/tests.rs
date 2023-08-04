@@ -1044,7 +1044,7 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 
 			assert_eq!(
 				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-				ScheduledCore { para_id: thread_b }
+				ScheduledCore { para_id: thread_b, collator: None }
 			);
 		}
 	});
@@ -1178,7 +1178,7 @@ fn next_up_on_available_is_parachain_always() {
 			// Now that there is an earlier next-up, we use that.
 			assert_eq!(
 				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-				ScheduledCore { para_id: chain_a }
+				ScheduledCore { para_id: chain_a, collator: None }
 			);
 		}
 	});
@@ -1232,7 +1232,7 @@ fn next_up_on_time_out_is_parachain_always() {
 			// Now that there is an earlier next-up, we use that.
 			assert_eq!(
 				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-				ScheduledCore { para_id: chain_a }
+				ScheduledCore { para_id: chain_a, collator: None }
 			);
 		}
 	});

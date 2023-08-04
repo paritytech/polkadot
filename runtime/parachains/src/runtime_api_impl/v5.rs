@@ -129,6 +129,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, Bl
 	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue(now) {
 		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(primitives::ScheduledCore {
 			para_id: scheduled.paras_entry.para_id(),
+			collator: None,
 		});
 	}
 
