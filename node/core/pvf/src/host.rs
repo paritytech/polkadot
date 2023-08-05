@@ -22,18 +22,20 @@
 
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
-	error::PrepareError,
-	execute,
+	execute::{self, PendingExecutionRequest},
 	metrics::Metrics,
-	prepare, PrepareResult, Priority, PvfPrepData, ValidationError, LOG_TARGET,
+	prepare, Priority, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use futures::{
 	channel::{mpsc, oneshot},
 	Future, FutureExt, SinkExt, StreamExt,
 };
+use polkadot_node_core_pvf_common::{
+	error::{PrepareError, PrepareResult},
+	pvf::PvfPrepData,
+};
 use polkadot_parachain::primitives::ValidationResult;
-use polkadot_primitives::ExecutorParams;
 use std::{
 	collections::HashMap,
 	path::{Path, PathBuf},
@@ -49,6 +51,12 @@ pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_millis(200);
 
 /// The amount of times we will retry failed prepare jobs.
 pub const NUM_PREPARE_RETRIES: u32 = 5;
+
+/// The name of binary spawned to prepare a PVF artifact
+pub const PREPARE_BINARY_NAME: &str = "polkadot-prepare-worker";
+
+/// The name of binary spawned to execute a PVF
+pub const EXECUTE_BINARY_NAME: &str = "polkadot-execute-worker";
 
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
@@ -138,9 +146,12 @@ struct ExecutePvfInputs {
 }
 
 /// Configuration for the validation host.
+#[derive(Debug)]
 pub struct Config {
 	/// The root directory where the prepared artifacts can be stored.
 	pub cache_path: PathBuf,
+	/// The version of the node. `None` can be passed to skip the version check (only for tests).
+	pub node_version: Option<String>,
 	/// The path to the program that can be used to spawn the prepare workers.
 	pub prepare_worker_program_path: PathBuf,
 	/// The time allotted for a prepare worker to spawn and report to the host.
@@ -160,18 +171,20 @@ pub struct Config {
 
 impl Config {
 	/// Create a new instance of the configuration.
-	pub fn new(cache_path: std::path::PathBuf, program_path: std::path::PathBuf) -> Self {
-		// Do not contaminate the other parts of the codebase with the types from `tokio`.
-		let cache_path = PathBuf::from(cache_path);
-		let program_path = PathBuf::from(program_path);
-
+	pub fn new(
+		cache_path: PathBuf,
+		node_version: Option<String>,
+		prepare_worker_program_path: PathBuf,
+		execute_worker_program_path: PathBuf,
+	) -> Self {
 		Self {
 			cache_path,
-			prepare_worker_program_path: program_path.clone(),
+			node_version,
+			prepare_worker_program_path,
 			prepare_worker_spawn_timeout: Duration::from_secs(3),
 			prepare_workers_soft_max_num: 1,
 			prepare_workers_hard_max_num: 1,
-			execute_worker_program_path: program_path,
+			execute_worker_program_path,
 			execute_worker_spawn_timeout: Duration::from_secs(3),
 			execute_workers_max_num: 2,
 		}
@@ -187,6 +200,11 @@ impl Config {
 /// In that case all pending requests will be canceled, dropping the result senders and new ones
 /// will be rejected.
 pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<Output = ()>) {
+	gum::debug!(target: LOG_TARGET, ?config, "starting PVF validation host");
+
+	// Run checks for supported security features once per host startup.
+	warn_if_no_landlock();
+
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
 	let validation_host = ValidationHost { to_host_tx };
@@ -196,6 +214,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		config.prepare_worker_program_path.clone(),
 		config.cache_path.clone(),
 		config.prepare_worker_spawn_timeout,
+		config.node_version.clone(),
 	);
 
 	let (to_prepare_queue_tx, from_prepare_queue_rx, run_prepare_queue) = prepare::start_queue(
@@ -212,6 +231,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		config.execute_worker_program_path.to_owned(),
 		config.execute_workers_max_num,
 		config.execute_worker_spawn_timeout,
+		config.node_version,
 	);
 
 	let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(100);
@@ -249,36 +269,14 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 	(validation_host, task)
 }
 
-/// An execution request that should execute the PVF (known in the context) and send the results
-/// to the given result sender.
-#[derive(Debug)]
-struct PendingExecutionRequest {
-	exec_timeout: Duration,
-	params: Vec<u8>,
-	executor_params: ExecutorParams,
-	result_tx: ResultSender,
-}
-
 /// A mapping from an artifact ID which is in preparation state to the list of pending execution
 /// requests that should be executed once the artifact's preparation is finished.
 #[derive(Default)]
 struct AwaitingPrepare(HashMap<ArtifactId, Vec<PendingExecutionRequest>>);
 
 impl AwaitingPrepare {
-	fn add(
-		&mut self,
-		artifact_id: ArtifactId,
-		exec_timeout: Duration,
-		params: Vec<u8>,
-		executor_params: ExecutorParams,
-		result_tx: ResultSender,
-	) {
-		self.0.entry(artifact_id).or_default().push(PendingExecutionRequest {
-			exec_timeout,
-			params,
-			executor_params,
-			result_tx,
-		});
+	fn add(&mut self, artifact_id: ArtifactId, pending_execution_request: PendingExecutionRequest) {
+		self.0.entry(artifact_id).or_default().push(pending_execution_request);
 	}
 
 	fn take(&mut self, artifact_id: &ArtifactId) -> Vec<PendingExecutionRequest> {
@@ -446,7 +444,7 @@ async fn handle_precheck_pvf(
 	pvf: PvfPrepData,
 	result_sender: PrepareResultSender,
 ) -> Result<(), Fatal> {
-	let artifact_id = pvf.as_artifact_id();
+	let artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
@@ -475,9 +473,11 @@ async fn handle_precheck_pvf(
 /// This will try to prepare the PVF, if a prepared artifact does not already exist. If there is already a
 /// preparation job, we coalesce the two preparation jobs.
 ///
+/// If the prepare job succeeded previously, we will enqueue an execute job right away.
+///
 /// If the prepare job failed previously, we may retry it under certain conditions.
 ///
-/// When preparing for execution, we use a more lenient timeout ([`EXECUTE_PREPARATION_TIMEOUT`])
+/// When preparing for execution, we use a more lenient timeout ([`LENIENT_PREPARATION_TIMEOUT`])
 /// than when prechecking.
 async fn handle_execute_pvf(
 	cache_path: &Path,
@@ -488,33 +488,64 @@ async fn handle_execute_pvf(
 	inputs: ExecutePvfInputs,
 ) -> Result<(), Fatal> {
 	let ExecutePvfInputs { pvf, exec_timeout, params, priority, result_tx } = inputs;
-	let artifact_id = pvf.as_artifact_id();
+	let artifact_id = ArtifactId::from_pvf_prep_data(&pvf);
+	let executor_params = (*pvf.executor_params()).clone();
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
 			ArtifactState::Prepared { last_time_needed, .. } => {
-				*last_time_needed = SystemTime::now();
+				let file_metadata = std::fs::metadata(artifact_id.path(cache_path));
 
-				// This artifact has already been prepared, send it to the execute queue.
-				send_execute(
-					execute_queue,
-					execute::ToQueue::Enqueue {
-						artifact: ArtifactPathId::new(artifact_id, cache_path),
-						exec_timeout,
-						params,
-						executor_params: (*pvf.executor_params()).clone(),
-						result_tx,
-					},
-				)
-				.await?;
+				if file_metadata.is_ok() {
+					*last_time_needed = SystemTime::now();
+
+					// This artifact has already been prepared, send it to the execute queue.
+					send_execute(
+						execute_queue,
+						execute::ToQueue::Enqueue {
+							artifact: ArtifactPathId::new(artifact_id, cache_path),
+							pending_execution_request: PendingExecutionRequest {
+								exec_timeout,
+								params,
+								executor_params,
+								result_tx,
+							},
+						},
+					)
+					.await?;
+				} else {
+					gum::warn!(
+						target: LOG_TARGET,
+						?pvf,
+						?artifact_id,
+						"handle_execute_pvf: Re-queuing PVF preparation for prepared artifact with missing file."
+					);
+
+					// The artifact has been prepared previously but the file is missing, prepare it again.
+					*state = ArtifactState::Preparing {
+						waiting_for_response: Vec::new(),
+						num_failures: 0,
+					};
+					enqueue_prepare_for_execute(
+						prepare_queue,
+						awaiting_prepare,
+						pvf,
+						priority,
+						artifact_id,
+						PendingExecutionRequest {
+							exec_timeout,
+							params,
+							executor_params,
+							result_tx,
+						},
+					)
+					.await?;
+				}
 			},
 			ArtifactState::Preparing { .. } => {
 				awaiting_prepare.add(
 					artifact_id,
-					exec_timeout,
-					params,
-					(*pvf.executor_params()).clone(),
-					result_tx,
+					PendingExecutionRequest { exec_timeout, params, executor_params, result_tx },
 				);
 			},
 			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
@@ -535,19 +566,20 @@ async fn handle_execute_pvf(
 						waiting_for_response: Vec::new(),
 						num_failures: *num_failures,
 					};
-					let executor_params = (*pvf.executor_params()).clone();
-					send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf })
-						.await?;
-
-					// Add an execution request that will wait to run after this prepare job has
-					// finished.
-					awaiting_prepare.add(
+					enqueue_prepare_for_execute(
+						prepare_queue,
+						awaiting_prepare,
+						pvf,
+						priority,
 						artifact_id,
-						exec_timeout,
-						params,
-						executor_params,
-						result_tx,
-					);
+						PendingExecutionRequest {
+							exec_timeout,
+							params,
+							executor_params,
+							result_tx,
+						},
+					)
+					.await?;
 				} else {
 					let _ = result_tx.send(Err(ValidationError::from(error.clone())));
 				}
@@ -556,12 +588,16 @@ async fn handle_execute_pvf(
 	} else {
 		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
 		// PVF.
-		let executor_params = (*pvf.executor_params()).clone();
 		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
-		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
-
-		// Add an execution request that will wait to run after this prepare job has finished.
-		awaiting_prepare.add(artifact_id, exec_timeout, params, executor_params, result_tx);
+		enqueue_prepare_for_execute(
+			prepare_queue,
+			awaiting_prepare,
+			pvf,
+			priority,
+			artifact_id,
+			PendingExecutionRequest { exec_timeout, params, executor_params, result_tx },
+		)
+		.await?;
 	}
 
 	Ok(())
@@ -575,7 +611,7 @@ async fn handle_heads_up(
 	let now = SystemTime::now();
 
 	for active_pvf in active_pvfs {
-		let artifact_id = active_pvf.as_artifact_id();
+		let artifact_id = ArtifactId::from_pvf_prep_data(&active_pvf);
 		if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 			match state {
 				ArtifactState::Prepared { last_time_needed, .. } => {
@@ -700,10 +736,12 @@ async fn handle_prepare_done(
 			execute_queue,
 			execute::ToQueue::Enqueue {
 				artifact: ArtifactPathId::new(artifact_id.clone(), cache_path),
-				exec_timeout,
-				params,
-				executor_params,
-				result_tx,
+				pending_execution_request: PendingExecutionRequest {
+					exec_timeout,
+					params,
+					executor_params,
+					result_tx,
+				},
 			},
 		)
 		.await?;
@@ -743,6 +781,24 @@ async fn send_execute(
 	to_queue: execute::ToQueue,
 ) -> Result<(), Fatal> {
 	execute_queue.send(to_queue).await.map_err(|_| Fatal)
+}
+
+/// Sends a job to the preparation queue, and adds an execution request that will wait to run after
+/// this prepare job has finished.
+async fn enqueue_prepare_for_execute(
+	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
+	awaiting_prepare: &mut AwaitingPrepare,
+	pvf: PvfPrepData,
+	priority: Priority,
+	artifact_id: ArtifactId,
+	pending_execution_request: PendingExecutionRequest,
+) -> Result<(), Fatal> {
+	send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
+
+	// Add an execution request that will wait to run after this prepare job has finished.
+	awaiting_prepare.add(artifact_id, pending_execution_request);
+
+	Ok(())
 }
 
 async fn handle_cleanup_pulse(
@@ -816,12 +872,37 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 	.map(|_| ())
 }
 
+/// Check if landlock is supported and emit a warning if not.
+fn warn_if_no_landlock() {
+	#[cfg(target_os = "linux")]
+	{
+		use polkadot_node_core_pvf_common::worker::security::landlock;
+		let status = landlock::get_status();
+		if !landlock::status_is_fully_enabled(&status) {
+			let abi = landlock::LANDLOCK_ABI as u8;
+			gum::warn!(
+				target: LOG_TARGET,
+				?status,
+				%abi,
+				"Cannot fully enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider upgrading the kernel version for maximum security."
+			);
+		}
+	}
+
+	#[cfg(not(target_os = "linux"))]
+	gum::warn!(
+		target: LOG_TARGET,
+		"Cannot enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider running on Linux with landlock support for maximum security."
+	);
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::*;
-	use crate::{prepare::PrepareStats, InvalidCandidate, PrepareError};
+	use crate::InvalidCandidate;
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
+	use polkadot_node_core_pvf_common::{error::PrepareError, prepare::PrepareStats};
 
 	const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 	pub(crate) const TEST_PREPARATION_TIMEOUT: Duration = Duration::from_secs(30);
@@ -842,7 +923,7 @@ pub(crate) mod tests {
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn artifact_id(descriminator: u32) -> ArtifactId {
-		PvfPrepData::from_discriminator(descriminator).as_artifact_id()
+		ArtifactId::from_pvf_prep_data(&PvfPrepData::from_discriminator(descriminator))
 	}
 
 	fn artifact_path(descriminator: u32) -> PathBuf {
@@ -1125,11 +1206,11 @@ pub(crate) mod tests {
 			.unwrap();
 		let result_tx_pvf_1_1 = assert_matches!(
 			test.poll_and_recv_to_execute_queue().await,
-			execute::ToQueue::Enqueue { result_tx, .. } => result_tx
+			execute::ToQueue::Enqueue { pending_execution_request: PendingExecutionRequest { result_tx, .. }, .. } => result_tx
 		);
 		let result_tx_pvf_1_2 = assert_matches!(
 			test.poll_and_recv_to_execute_queue().await,
-			execute::ToQueue::Enqueue { result_tx, .. } => result_tx
+			execute::ToQueue::Enqueue { pending_execution_request: PendingExecutionRequest { result_tx, .. }, .. } => result_tx
 		);
 
 		test.from_prepare_queue_tx
@@ -1141,7 +1222,7 @@ pub(crate) mod tests {
 			.unwrap();
 		let result_tx_pvf_2 = assert_matches!(
 			test.poll_and_recv_to_execute_queue().await,
-			execute::ToQueue::Enqueue { result_tx, .. } => result_tx
+			execute::ToQueue::Enqueue { pending_execution_request: PendingExecutionRequest { result_tx, .. }, .. } => result_tx
 		);
 
 		result_tx_pvf_1_1
@@ -1176,7 +1257,9 @@ pub(crate) mod tests {
 
 		// First, test a simple precheck request.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx)
+			.await
+			.unwrap();
 
 		// The queue received the prepare request.
 		assert_matches!(
@@ -1200,7 +1283,9 @@ pub(crate) mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(PvfPrepData::from_discriminator(2), result_tx).await.unwrap();
+			host.precheck_pvf(PvfPrepData::from_discriminator_precheck(2), result_tx)
+				.await
+				.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 		// Received prepare request.
@@ -1250,7 +1335,9 @@ pub(crate) mod tests {
 		);
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx)
+			.await
+			.unwrap();
 
 		// Suppose the preparation failed, the execution queue is empty and both
 		// "clients" receive their results.
@@ -1272,7 +1359,9 @@ pub(crate) mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(PvfPrepData::from_discriminator(2), result_tx).await.unwrap();
+			host.precheck_pvf(PvfPrepData::from_discriminator_precheck(2), result_tx)
+				.await
+				.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 
@@ -1318,7 +1407,9 @@ pub(crate) mod tests {
 
 		// Submit a precheck request that fails.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx)
+			.await
+			.unwrap();
 
 		// The queue received the prepare request.
 		assert_matches!(
@@ -1340,7 +1431,7 @@ pub(crate) mod tests {
 
 		// Submit another precheck request.
 		let (result_tx_2, result_rx_2) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx_2)
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx_2)
 			.await
 			.unwrap();
 
@@ -1356,7 +1447,7 @@ pub(crate) mod tests {
 
 		// Submit another precheck request.
 		let (result_tx_3, result_rx_3) = oneshot::channel();
-		host.precheck_pvf(PvfPrepData::from_discriminator(1), result_tx_3)
+		host.precheck_pvf(PvfPrepData::from_discriminator_precheck(1), result_tx_3)
 			.await
 			.unwrap();
 
@@ -1456,7 +1547,7 @@ pub(crate) mod tests {
 		// Preparation should have been retried and succeeded this time.
 		let result_tx_3 = assert_matches!(
 			test.poll_and_recv_to_execute_queue().await,
-			execute::ToQueue::Enqueue { result_tx, .. } => result_tx
+			execute::ToQueue::Enqueue { pending_execution_request: PendingExecutionRequest { result_tx, .. }, .. } => result_tx
 		);
 
 		// Send an error for the execution here, just so we can check the result receiver is still

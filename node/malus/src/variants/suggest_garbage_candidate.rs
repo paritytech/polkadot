@@ -33,6 +33,7 @@ use polkadot_cli::{
 };
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
+use polkadot_node_subsystem_types::DefaultSubsystemClient;
 use polkadot_primitives::{CandidateDescriptor, CandidateReceipt};
 
 use polkadot_node_subsystem_util::request_validators;
@@ -122,17 +123,22 @@ where
 							{
 								Ok(Some((validation_data, validation_code))) => {
 									sender
-										.send((validation_data, validation_code, n_validators))
+										.send(Some((
+											validation_data,
+											validation_code,
+											n_validators,
+										)))
 										.expect("channel is still open");
 								},
 								_ => {
-									panic!("Unable to fetch validation data");
+									sender.send(None).expect("channel is still open");
 								},
 							}
 						}),
 					);
 
-					let (validation_data, validation_code, n_validators) = receiver.recv().unwrap();
+					let (validation_data, validation_code, n_validators) =
+						receiver.recv().unwrap()?;
 
 					let validation_data_hash = validation_data.hash();
 					let validation_code_hash = validation_code.hash();
@@ -250,7 +256,10 @@ impl OverseerGen for SuggestGarbageCandidates {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		Error,
+	>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,

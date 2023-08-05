@@ -23,7 +23,7 @@ Upon receiving a validation request, the first thing the candidate validation su
   * The [`CandidateDescriptor`](../../types/candidate.md#candidatedescriptor).
   * The [`ValidationData`](../../types/candidate.md#validationdata).
   * The [`PoV`](../../types/availability.md#proofofvalidity).
-  
+
 The second category is for PVF pre-checking. This is primarly used by the [PVF pre-checker](pvf-prechecker.md) subsystem.
 
 ### Determining Parameters
@@ -44,51 +44,10 @@ Once we have all parameters, we can spin up a background task to perform the val
   * The collator signature is valid
   * The PoV provided matches the `pov_hash` field of the descriptor
 
+For more details please see [PVF Host and Workers](pvf-host-and-workers.md).
+
 ### Checking Validation Outputs
 
 If we can assume the presence of the relay-chain state (that is, during processing [`CandidateValidationMessage`][CVM]`::ValidateFromChainState`) we can run all the checks that the relay-chain would run at the inclusion time thus confirming that the candidate will be accepted.
-
-### PVF Host
-
-The PVF host is responsible for handling requests to prepare and execute PVF
-code blobs.
-
-One high-level goal is to make PVF operations as deterministic as possible, to
-reduce the rate of disputes. Disputes can happen due to e.g. a job timing out on
-one machine, but not another. While we do not yet have full determinism, there
-are some dispute reduction mechanisms in place right now.
-
-#### Retrying execution requests
-
-If the execution request fails during **preparation**, we will retry if it is
-possible that the preparation error was transient (e.g. if the error was a panic
-or time out). We will only retry preparation if another request comes in after
-15 minutes, to ensure any potential transient conditions had time to be
-resolved. We will retry up to 5 times.
-
-If the actual **execution** of the artifact fails, we will retry once if it was
-an ambiguous error after a brief delay, to allow any potential transient
-conditions to clear.
-
-#### Preparation timeouts
-
-We use timeouts for both preparation and execution jobs to limit the amount of
-time they can take. As the time for a job can vary depending on the machine and
-load on the machine, this can potentially lead to disputes where some validators
-successfuly execute a PVF and others don't.
-
-One dispute mitigation we have in place is a more lenient timeout for
-preparation during execution than during pre-checking. The rationale is that the
-PVF has already passed pre-checking, so we know it should be valid, and we allow
-it to take longer than expected, as this is likely due to an issue with the
-machine and not the PVF.
-
-#### CPU clock timeouts
-
-Another timeout-related mitigation we employ is to measure the time taken by
-jobs using CPU time, rather than wall clock time. This is because the CPU time
-of a process is less variable under different system conditions. When the
-overall system is under heavy load, the wall clock time of a job is affected
-more than the CPU time.
 
 [CVM]: ../../types/overseer-protocol.md#validationrequesttype

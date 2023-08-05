@@ -34,14 +34,12 @@ use scale_info::TypeInfo;
 
 mod junction;
 pub(crate) mod junctions;
-mod matcher;
 mod multiasset;
 mod multilocation;
 mod traits;
 
 pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use junctions::Junctions;
-pub use matcher::Matcher;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
@@ -51,7 +49,7 @@ pub use multilocation::{
 };
 pub use traits::{
 	send_xcm, validate_send, Error, ExecuteXcm, Outcome, PreparedMessage, Result, SendError,
-	SendResult, SendXcm, Unwrappable, Weight, XcmHash,
+	SendResult, SendXcm, Weight, XcmHash,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::OriginKind;
@@ -186,7 +184,7 @@ pub mod prelude {
 			NetworkId::{self, *},
 			OriginKind, Outcome, PalletInfo, Parent, ParentThen, PreparedMessage, QueryId,
 			QueryResponseInfo, Response, Result as XcmResult, SendError, SendResult, SendXcm,
-			Unwrappable,
+			Weight,
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
@@ -339,19 +337,27 @@ impl TryFrom<OldWeightLimit> for WeightLimit {
 /// Contextual data pertaining to a specific list of XCM instructions.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub struct XcmContext {
-	/// The `MultiLocation` origin of the corresponding XCM.
+	/// The current value of the Origin register of the `XCVM`.
 	pub origin: Option<MultiLocation>,
-	/// The hash of the XCM.
-	pub message_hash: XcmHash,
-	/// The topic of the XCM.
+	/// The identity of the XCM; this may be a hash of its versioned encoding but could also be
+	/// a high-level identity set by an appropriate barrier.
+	pub message_id: XcmHash,
+	/// The current value of the Topic register of the `XCVM`.
 	pub topic: Option<[u8; 32]>,
 }
 
 impl XcmContext {
-	/// Constructor which sets the message hash to the supplied parameter and leaves the origin and
+	/// Constructor which sets the message ID to the supplied parameter and leaves the origin and
 	/// topic unset.
-	pub fn with_message_hash(message_hash: XcmHash) -> XcmContext {
-		XcmContext { origin: None, message_hash, topic: None }
+	#[deprecated = "Use `with_message_id` instead."]
+	pub fn with_message_hash(message_id: XcmHash) -> XcmContext {
+		XcmContext { origin: None, message_id, topic: None }
+	}
+
+	/// Constructor which sets the message ID to the supplied parameter and leaves the origin and
+	/// topic unset.
+	pub fn with_message_id(message_id: XcmHash) -> XcmContext {
+		XcmContext { origin: None, message_id, topic: None }
 	}
 }
 
@@ -925,7 +931,7 @@ pub enum Instruction<Call> {
 	/// asset to be transferred.
 	///
 	/// - `asset`: The asset to be unlocked.
-	/// - `owner`: The owner of the asset on the local chain.
+	/// - `target`: The owner of the asset on the local chain.
 	///
 	/// Safety: No concerns.
 	///
@@ -935,7 +941,7 @@ pub enum Instruction<Call> {
 	UnlockAsset { asset: MultiAsset, target: MultiLocation },
 
 	/// Asset (`asset`) has been locked on the `origin` system and may not be transferred. It may
-	/// only be unlocked with the receipt of the `UnlockAsset`  instruction from this chain.
+	/// only be unlocked with the receipt of the `UnlockAsset` instruction from this chain.
 	///
 	/// - `asset`: The asset(s) which are now unlockable from this origin.
 	/// - `owner`: The owner of the asset on the chain in which it was locked. This may be a
@@ -1191,7 +1197,8 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	}
 }
 
-/// Default value for the proof size weight component. Set at 64 KB.
+/// Default value for the proof size weight component when converting from V2. Set at 64 KB.
+/// NOTE: Make sure this is removed after we properly account for PoV weights.
 const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 // Convert from a v2 instruction to a v3 instruction.

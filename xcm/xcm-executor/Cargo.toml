@@ -3,12 +3,13 @@ name = "xcm-executor"
 description = "An abstract and configurable XCM message executor."
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 
 [dependencies]
 impl-trait-for-tuples = "0.2.2"
 environmental = { version = "1.1.4", default-features = false }
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -36,4 +37,5 @@ std = [
 	"sp-weights/std",
 	"frame-support/std",
 	"log/std",
+	"frame-benchmarking/std",
 ]

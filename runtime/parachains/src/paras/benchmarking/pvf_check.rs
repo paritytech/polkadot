@@ -17,6 +17,7 @@
 //! This module focuses on the benchmarking of the `include_pvf_check_statement` dispatchable.
 
 use crate::{configuration, paras::*, shared::Pallet as ParasShared};
+use frame_support::assert_ok;
 use frame_system::RawOrigin;
 use primitives::{HeadData, Id as ParaId, ValidationCode, ValidatorId, ValidatorIndex};
 use sp_application_crypto::RuntimeAppPublic;
@@ -43,7 +44,7 @@ where
 {
 	initialize::<T>();
 	// we do not plan to trigger finalization, thus the cause is inconsequential.
-	initialize_pvf_active_vote::<T>(VoteCause::Onboarding);
+	initialize_pvf_active_vote::<T>(VoteCause::Onboarding, CAUSES_NUM);
 
 	// `unwrap` cannot panic here since the `initialize` function should initialize validators count
 	// to be more than 0.
@@ -68,7 +69,7 @@ where
 	T: Config + shared::Config,
 {
 	initialize::<T>();
-	initialize_pvf_active_vote::<T>(cause);
+	initialize_pvf_active_vote::<T>(cause, CAUSES_NUM);
 
 	let mut stmts = generate_statements::<T>(outcome).collect::<Vec<_>>();
 	// this should be ensured by the `initialize` function.
@@ -83,6 +84,29 @@ where
 	}
 
 	stmt_n_sig
+}
+
+/// Prepares storage for invoking `add_trusted_validation_code` with several paras initializing to
+/// the same code.
+pub fn prepare_bypassing_bench<T>(validation_code: ValidationCode)
+where
+	T: Config + shared::Config,
+{
+	// Suppose a sensible number of paras initialize to the same code.
+	const PARAS_NUM: usize = 10;
+
+	initialize::<T>();
+	for i in 0..PARAS_NUM {
+		let id = ParaId::from(i as u32);
+		assert_ok!(Pallet::<T>::schedule_para_initialize(
+			id,
+			ParaGenesisArgs {
+				para_kind: ParaKind::Parachain,
+				genesis_head: HeadData(vec![1, 2, 3, 4]),
+				validation_code: validation_code.clone(),
+			},
+		));
+	}
 }
 
 /// What caused the PVF pre-checking vote?
@@ -109,8 +133,7 @@ where
 		.collect::<Vec<_>>();
 
 	// 1. Make sure PVF pre-checking is enabled in the config.
-	let mut config = configuration::Pallet::<T>::config();
-	config.pvf_checking_enabled = true;
+	let config = configuration::Pallet::<T>::config();
 	configuration::Pallet::<T>::force_set_active_config(config.clone());
 
 	// 2. initialize a new session with deterministic validator set.
@@ -122,11 +145,11 @@ where
 ///
 /// The subject of the vote (i.e. validation code) and the cause (upgrade/onboarding) is specified
 /// by the test setup.
-fn initialize_pvf_active_vote<T>(vote_cause: VoteCause)
+fn initialize_pvf_active_vote<T>(vote_cause: VoteCause, causes_num: usize)
 where
 	T: Config + shared::Config,
 {
-	for i in 0..CAUSES_NUM {
+	for i in 0..causes_num {
 		let id = ParaId::from(i as u32);
 
 		if vote_cause == VoteCause::Upgrade {

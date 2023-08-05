@@ -22,7 +22,7 @@ use sp_runtime::traits::CheckedSub;
 use sp_std::{marker::PhantomData, result};
 use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result, XcmContext};
 use xcm_executor::{
-	traits::{Convert, MatchesFungible, TransactAsset},
+	traits::{ConvertLocation, MatchesFungible, TransactAsset},
 	Assets,
 };
 
@@ -64,7 +64,7 @@ impl From<Error> for XcmError {
 ///     pub CheckingAccount: AccountId = PalletId(*b"checking").into_account_truncating();
 /// }
 ///
-/// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept
+/// /// Some items that implement `ConvertLocation<AccountId>`. Can be more, but for now we just assume we accept
 /// /// messages from the parent (relay chain).
 /// pub type LocationConverter = (ParentIsPreset<AccountId>);
 ///
@@ -92,7 +92,7 @@ pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, Che
 impl<
 		Currency: frame_support::traits::Currency<AccountId>,
 		Matcher: MatchesFungible<Currency::Balance>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckedAccount: Get<Option<(AccountId, MintLocation)>>,
 	> CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, CheckedAccount>
@@ -133,7 +133,7 @@ impl<
 impl<
 		Currency: frame_support::traits::Currency<AccountId>,
 		Matcher: MatchesFungible<Currency::Balance>,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountIdConverter: ConvertLocation<AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckedAccount: Get<Option<(AccountId, MintLocation)>>,
 	> TransactAsset
@@ -196,7 +196,7 @@ impl<
 		// Check we handle this asset.
 		let amount = Matcher::matches_fungible(&what).ok_or(Error::AssetNotHandled)?;
 		let who =
-			AccountIdConverter::convert_ref(who).map_err(|()| Error::AccountIdConversionFailed)?;
+			AccountIdConverter::convert_location(who).ok_or(Error::AccountIdConversionFailed)?;
 		let _imbalance = Currency::deposit_creating(&who, amount);
 		Ok(())
 	}
@@ -210,7 +210,7 @@ impl<
 		// Check we handle this asset.
 		let amount = Matcher::matches_fungible(what).ok_or(Error::AssetNotHandled)?;
 		let who =
-			AccountIdConverter::convert_ref(who).map_err(|()| Error::AccountIdConversionFailed)?;
+			AccountIdConverter::convert_location(who).ok_or(Error::AccountIdConversionFailed)?;
 		Currency::withdraw(&who, amount, WithdrawReasons::TRANSFER, AllowDeath)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())
@@ -225,9 +225,9 @@ impl<
 		log::trace!(target: "xcm::currency_adapter", "internal_transfer_asset asset: {:?}, from: {:?}, to: {:?}", asset, from, to);
 		let amount = Matcher::matches_fungible(asset).ok_or(Error::AssetNotHandled)?;
 		let from =
-			AccountIdConverter::convert_ref(from).map_err(|()| Error::AccountIdConversionFailed)?;
+			AccountIdConverter::convert_location(from).ok_or(Error::AccountIdConversionFailed)?;
 		let to =
-			AccountIdConverter::convert_ref(to).map_err(|()| Error::AccountIdConversionFailed)?;
+			AccountIdConverter::convert_location(to).ok_or(Error::AccountIdConversionFailed)?;
 		Currency::transfer(&from, &to, amount, AllowDeath)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(asset.clone().into())

@@ -24,7 +24,7 @@ use frame_system::EnsureRoot;
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
-use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
+use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
 use xcm::prelude::*;
 use xcm_builder::{
@@ -40,7 +40,6 @@ use crate::{self as pallet_xcm, TestWeightInfo};
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 #[frame_support::pallet]
@@ -50,6 +49,7 @@ pub mod pallet_test_notifier {
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::DispatchResult;
 	use xcm::latest::prelude::*;
+	use xcm_executor::traits::QueryHandler;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -85,7 +85,7 @@ pub mod pallet_test_notifier {
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
-			let qid = crate::Pallet::<T>::new_query(
+			let qid = <crate::Pallet<T> as QueryHandler>::new_query(
 				Junction::AccountId32 { network: None, id },
 				100u32.into(),
 				querier,
@@ -131,15 +131,12 @@ pub mod pallet_test_notifier {
 }
 
 construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
+	pub enum Test
 	{
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
+		System: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config},
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config<T>},
 		TestNotifier: pallet_test_notifier::{Pallet, Call, Event<T>},
 	}
 );
@@ -203,13 +200,12 @@ parameter_types! {
 impl frame_system::Config for Test {
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
-	type Index = u64;
-	type BlockNumber = u64;
+	type Nonce = u64;
 	type Hash = H256;
 	type Hashing = ::sp_runtime::traits::BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type BlockWeights = ();
@@ -243,7 +239,7 @@ impl pallet_balances::Config for Test {
 	type WeightInfo = ();
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<0>;
 	type MaxFreezes = ConstU32<0>;
@@ -309,6 +305,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
+	type Aliasers = Nothing;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, AnyNetwork>;
@@ -342,6 +339,8 @@ impl pallet_xcm::Config for Test {
 	type Currency = Balances;
 	type CurrencyMatcher = IsConcrete<RelayLocation>;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type MaxRemoteLockConsumers = frame_support::traits::ConstU32<0>;
+	type RemoteLockConsumerIdentifier = ();
 	type WeightInfo = TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
@@ -380,17 +379,15 @@ pub(crate) fn buy_limited_execution<C>(
 pub(crate) fn new_test_ext_with_balances(
 	balances: Vec<(AccountId, Balance)>,
 ) -> sp_io::TestExternalities {
-	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 
 	pallet_balances::GenesisConfig::<Test> { balances }
 		.assimilate_storage(&mut t)
 		.unwrap();
 
-	<pallet_xcm::GenesisConfig as frame_support::traits::GenesisBuild<Test>>::assimilate_storage(
-		&pallet_xcm::GenesisConfig { safe_xcm_version: Some(2) },
-		&mut t,
-	)
-	.unwrap();
+	pallet_xcm::GenesisConfig::<Test> { safe_xcm_version: Some(2), ..Default::default() }
+		.assimilate_storage(&mut t)
+		.unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));

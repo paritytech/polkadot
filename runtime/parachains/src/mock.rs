@@ -17,43 +17,45 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
-	scheduler, session_info, shared,
-	ump::{self, MessageId, UmpSink},
-	ParaId,
+	configuration, disputes, dmp, hrmp,
+	inclusion::{self, AggregateMessageOrigin, UmpQueueId},
+	initializer, origin, paras,
+	paras::ParaKind,
+	paras_inherent, scheduler, session_info, shared, ParaId,
 };
 
 use frame_support::{
-	parameter_types,
-	traits::{ConstU32, GenesisBuild, ValidatorSet, ValidatorSetWithIdentification},
-	weights::Weight,
+	assert_ok, parameter_types,
+	traits::{
+		Currency, ProcessMessage, ProcessMessageError, ValidatorSet, ValidatorSetWithIdentification,
+	},
+	weights::{Weight, WeightMeter},
 };
 use frame_support_test::TestRandomness;
+use frame_system::limits;
 use parity_scale_codec::Decode;
 use primitives::{
-	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
-	UpwardMessage, ValidatorIndex,
+	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Moment, SessionIndex, UpwardMessage,
+	ValidationCode, ValidatorIndex,
 };
-use sp_core::H256;
+use sp_core::{ConstU32, H256};
 use sp_io::TestExternalities;
 use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup},
+	traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	Permill,
+	BuildStorage, Perbill, Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame_system::mocking::MockBlockU32<Test>;
 
 frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
+	pub enum Test
 	{
 		System: frame_system,
 		Balances: pallet_balances,
+		MessageQueue: pallet_message_queue,
 		Paras: paras,
 		Configuration: configuration,
 		ParasShared: shared,
@@ -62,7 +64,6 @@ frame_support::construct_runtime!(
 		Scheduler: scheduler,
 		Initializer: initializer,
 		Dmp: dmp,
-		Ump: ump,
 		Hrmp: hrmp,
 		ParachainsOrigin: origin,
 		SessionInfo: session_info,
@@ -81,10 +82,11 @@ where
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
-	pub BlockWeights: frame_system::limits::BlockWeights =
+	pub static BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
 			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
 		);
+	pub static BlockLength: limits::BlockLength = limits::BlockLength::max_with_normal_ratio(u32::MAX, Perbill::from_percent(75));
 }
 
 pub type AccountId = u64;
@@ -92,17 +94,16 @@ pub type AccountId = u64;
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = BlockWeights;
-	type BlockLength = ();
+	type BlockLength = BlockLength;
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
-	type Index = u64;
-	type BlockNumber = BlockNumber;
+	type Nonce = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
 	type Lookup = IdentityLookup<u64>;
-	type Header = Header;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
@@ -130,7 +131,7 @@ impl pallet_balances::Config for Test {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<0>;
 	type MaxFreezes = ConstU32<0>;
@@ -149,15 +150,11 @@ impl pallet_babe::Config for Test {
 
 	// session module is the trigger
 	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
-
 	type DisabledValidators = ();
-
 	type WeightInfo = ();
-
 	type MaxAuthorities = MaxAuthorities;
-
+	type MaxNominators = ConstU32<0>;
 	type KeyOwnerProof = sp_core::Void;
-
 	type EquivocationReportSystem = ();
 }
 
@@ -212,6 +209,7 @@ impl crate::paras::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = crate::paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
+	type QueueFootprinter = ParaInclusion;
 	type NextSessionRotation = TestNextSessionRotation;
 }
 
@@ -221,17 +219,10 @@ parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;
 }
 
-impl crate::ump::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-	type UmpSink = TestUmpSink;
-	type FirstMessageFactorPercent = FirstMessageFactorPercent;
-	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
-	type WeightInfo = crate::ump::TestWeightInfo;
-}
-
 impl crate::hrmp::Config for Test {
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeEvent = RuntimeEvent;
+	type ChannelManager = frame_system::EnsureRoot<u64>;
 	type Currency = pallet_balances::Pallet<Test>;
 	type WeightInfo = crate::hrmp::TestWeightInfo;
 }
@@ -292,10 +283,63 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 
 impl crate::scheduler::Config for Test {}
 
+pub struct TestMessageQueueWeight;
+impl pallet_message_queue::WeightInfo for TestMessageQueueWeight {
+	fn ready_ring_knit() -> Weight {
+		Weight::zero()
+	}
+	fn ready_ring_unknit() -> Weight {
+		Weight::zero()
+	}
+	fn service_queue_base() -> Weight {
+		Weight::zero()
+	}
+	fn service_page_base_completion() -> Weight {
+		Weight::zero()
+	}
+	fn service_page_base_no_completion() -> Weight {
+		Weight::zero()
+	}
+	fn service_page_item() -> Weight {
+		Weight::zero()
+	}
+	fn bump_service_head() -> Weight {
+		Weight::zero()
+	}
+	fn reap_page() -> Weight {
+		Weight::zero()
+	}
+	fn execute_overweight_page_removed() -> Weight {
+		Weight::zero()
+	}
+	fn execute_overweight_page_updated() -> Weight {
+		Weight::zero()
+	}
+}
+parameter_types! {
+	pub const MessageQueueServiceWeight: Weight = Weight::from_all(500);
+}
+
+pub type MessageQueueSize = u32;
+
+impl pallet_message_queue::Config for Test {
+	type Size = MessageQueueSize;
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = TestMessageQueueWeight;
+	type MessageProcessor = TestProcessMessage;
+	type QueueChangeHandler = ParaInclusion;
+	type QueuePausedQuery = ();
+	type HeapSize = ConstU32<65536>;
+	type MaxStale = ConstU32<8>;
+	type ServiceWeight = MessageQueueServiceWeight;
+}
+
 impl crate::inclusion::Config for Test {
+	type WeightInfo = ();
 	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = Disputes;
 	type RewardValidators = TestRewardValidators;
+	type MessageQueue = MessageQueue;
 }
 
 impl crate::paras_inherent::Config for Test {
@@ -372,39 +416,40 @@ pub fn availability_rewards() -> HashMap<ValidatorIndex, usize> {
 	AVAILABILITY_REWARDS.with(|r| r.borrow().clone())
 }
 
-std::thread_local! {
-	static PROCESSED: RefCell<Vec<(ParaId, UpwardMessage)>> = RefCell::new(vec![]);
-}
-
-/// Return which messages have been processed by `process_upward_message` and clear the buffer.
-pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
-	PROCESSED.with(|opt_hook| std::mem::take(&mut *opt_hook.borrow_mut()))
+parameter_types! {
+	pub static Processed: Vec<(ParaId, UpwardMessage)> = vec![];
 }
 
 /// An implementation of a UMP sink that just records which messages were processed.
 ///
 /// A message's weight is defined by the first 4 bytes of its data, which we decode into a
 /// `u32`.
-pub struct TestUmpSink;
-impl UmpSink for TestUmpSink {
-	fn process_upward_message(
-		actual_origin: ParaId,
-		actual_msg: &[u8],
-		max_weight: Weight,
-	) -> Result<Weight, (MessageId, Weight)> {
-		let weight = match u32::decode(&mut &actual_msg[..]) {
-			Ok(w) => Weight::from_parts(w as u64, w as u64),
-			Err(_) => return Ok(Weight::zero()), // same as the real `UmpSink`
+pub struct TestProcessMessage;
+impl ProcessMessage for TestProcessMessage {
+	type Origin = AggregateMessageOrigin;
+
+	fn process_message(
+		message: &[u8],
+		origin: AggregateMessageOrigin,
+		meter: &mut WeightMeter,
+		_id: &mut [u8; 32],
+	) -> Result<bool, ProcessMessageError> {
+		let para = match origin {
+			AggregateMessageOrigin::Ump(UmpQueueId::Para(p)) => p,
 		};
-		if weight.any_gt(max_weight) {
-			let id = sp_io::hashing::blake2_256(actual_msg);
-			return Err((id, weight))
+
+		let required = match u32::decode(&mut &message[..]) {
+			Ok(w) => Weight::from_parts(w as u64, w as u64),
+			Err(_) => return Err(ProcessMessageError::Corrupt), // same as the real `ProcessMessage`
+		};
+		if meter.try_consume(required).is_err() {
+			return Err(ProcessMessageError::Overweight(required))
 		}
 
-		PROCESSED.with(|opt_hook| {
-			opt_hook.borrow_mut().push((actual_origin, actual_msg.to_owned()));
-		});
-		Ok(weight)
+		let mut processed = Processed::get();
+		processed.push((para, message.to_vec()));
+		Processed::set(processed);
+		Ok(true)
 	}
 }
 
@@ -439,9 +484,9 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
 	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
 
-	let mut t = state.system.build_storage::<Test>().unwrap();
+	let mut t = state.system.build_storage().unwrap();
 	state.configuration.assimilate_storage(&mut t).unwrap();
-	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
+	state.paras.assimilate_storage(&mut t).unwrap();
 
 	let mut ext: TestExternalities = t.into();
 	ext.register_extension(KeystoreExt(Arc::new(MemoryKeystore::new()) as KeystorePtr));
@@ -451,9 +496,9 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 
 #[derive(Default)]
 pub struct MockGenesisConfig {
-	pub system: frame_system::GenesisConfig,
+	pub system: frame_system::GenesisConfig<Test>,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
-	pub paras: crate::paras::GenesisConfig,
+	pub paras: crate::paras::GenesisConfig<Test>,
 }
 
 pub fn assert_last_event(generic_event: RuntimeEvent) {
@@ -462,4 +507,51 @@ pub fn assert_last_event(generic_event: RuntimeEvent) {
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);
+}
+
+pub fn assert_last_events<E>(generic_events: E)
+where
+	E: DoubleEndedIterator<Item = RuntimeEvent> + ExactSizeIterator,
+{
+	for (i, (got, want)) in frame_system::Pallet::<Test>::events()
+		.into_iter()
+		.rev()
+		.map(|e| e.event)
+		.zip(generic_events.rev().map(<Test as frame_system::Config>::RuntimeEvent::from))
+		.rev()
+		.enumerate()
+	{
+		assert_eq!((i, got), (i, want));
+	}
+}
+
+pub(crate) fn register_parachain_with_balance(id: ParaId, balance: Balance) {
+	let validation_code: ValidationCode = vec![1].into();
+	assert_ok!(Paras::schedule_para_initialize(
+		id,
+		crate::paras::ParaGenesisArgs {
+			para_kind: ParaKind::Parachain,
+			genesis_head: vec![1].into(),
+			validation_code: validation_code.clone(),
+		},
+	));
+
+	assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), validation_code));
+	<Test as crate::hrmp::Config>::Currency::make_free_balance_be(
+		&id.into_account_truncating(),
+		balance,
+	);
+}
+
+pub(crate) fn register_parachain(id: ParaId) {
+	register_parachain_with_balance(id, 1000);
+}
+
+pub(crate) fn deregister_parachain(id: ParaId) {
+	assert_ok!(Paras::schedule_para_cleanup(id));
+}
+
+/// Calls `schedule_para_cleanup` in a new storage transactions, since it assumes rollback on error.
+pub(crate) fn try_deregister_parachain(id: ParaId) -> crate::DispatchResult {
+	frame_support::storage::transactional::with_storage_layer(|| Paras::schedule_para_cleanup(id))
 }

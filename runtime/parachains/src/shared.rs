@@ -20,6 +20,7 @@
 //! dependent on any of the other pallets.
 
 use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{SessionIndex, ValidatorId, ValidatorIndex};
 use sp_std::vec::Vec;
 
@@ -73,7 +74,7 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -86,7 +87,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		session_index: SessionIndex,
 		random_seed: [u8; 32],
-		new_config: &HostConfiguration<T::BlockNumber>,
+		new_config: &HostConfiguration<BlockNumberFor<T>>,
 		all_validators: Vec<ValidatorId>,
 	) -> Vec<ValidatorId> {
 		CurrentSessionIndex::<T>::set(session_index);
@@ -123,8 +124,8 @@ impl<T: Config> Pallet<T> {
 		CurrentSessionIndex::<T>::set(index);
 	}
 
-	#[cfg(any(feature = "runtime-benchmarks", test))]
-	pub(crate) fn set_active_validators_ascending(active: Vec<ValidatorId>) {
+	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
+	pub fn set_active_validators_ascending(active: Vec<ValidatorId>) {
 		ActiveValidatorIndices::<T>::set(
 			(0..active.len()).map(|i| ValidatorIndex(i as _)).collect(),
 		);

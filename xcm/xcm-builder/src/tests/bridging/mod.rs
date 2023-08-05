@@ -17,7 +17,7 @@
 //! Tests specific to the bridging primitives
 
 use super::mock::*;
-use crate::universal_exports::*;
+use crate::{universal_exports::*, WithTopicSource};
 use frame_support::{parameter_types, traits::Get};
 use std::{cell::RefCell, marker::PhantomData};
 use xcm_executor::{
@@ -37,10 +37,71 @@ parameter_types! {
 	pub Local: NetworkId = ByGenesis([0; 32]);
 	pub Remote: NetworkId = ByGenesis([1; 32]);
 	pub Price: MultiAssets = MultiAssets::from((Here, 100u128));
+	pub static UsingTopic: bool = false;
 }
 
 std::thread_local! {
 	static BRIDGE_TRAFFIC: RefCell<Vec<Vec<u8>>> = RefCell::new(Vec::new());
+}
+
+fn maybe_with_topic(f: impl Fn()) {
+	UsingTopic::set(false);
+	f();
+	UsingTopic::set(true);
+	f();
+}
+
+fn xcm_with_topic<T>(topic: XcmHash, mut xcm: Vec<Instruction<T>>) -> Xcm<T> {
+	if UsingTopic::get() {
+		xcm.push(SetTopic(topic));
+	}
+	Xcm(xcm)
+}
+
+fn fake_id() -> XcmHash {
+	[255; 32]
+}
+
+fn test_weight(mut count: u64) -> Weight {
+	if UsingTopic::get() {
+		count += 1;
+	}
+	Weight::from_parts(count * 10, count * 10)
+}
+
+fn maybe_forward_id_for(topic: &XcmHash) -> XcmHash {
+	match UsingTopic::get() {
+		true => forward_id_for(topic),
+		false => fake_id(),
+	}
+}
+
+enum TestTicket<T: SendXcm> {
+	Basic(T::Ticket),
+	Topic(<WithTopicSource<T, ()> as SendXcm>::Ticket),
+}
+
+struct TestTopic<R>(PhantomData<R>);
+impl<R: SendXcm> SendXcm for TestTopic<R> {
+	type Ticket = TestTicket<R>;
+	fn deliver(ticket: Self::Ticket) -> core::result::Result<XcmHash, SendError> {
+		match ticket {
+			TestTicket::Basic(t) => R::deliver(t),
+			TestTicket::Topic(t) => WithTopicSource::<R, ()>::deliver(t),
+		}
+	}
+	fn validate(
+		destination: &mut Option<MultiLocation>,
+		message: &mut Option<Xcm<()>>,
+	) -> SendResult<Self::Ticket> {
+		Ok(if UsingTopic::get() {
+			let (t, a) = WithTopicSource::<R, ()>::validate(destination, message)?;
+			(TestTicket::Topic(t), a)
+		} else {
+			let (t, a) = R::validate(destination, message)?;
+			(TestTicket::Basic(t), a)
+		})
+	}
 }
 
 struct TestBridge<D>(PhantomData<D>);
@@ -71,7 +132,7 @@ impl SendXcm for TestRemoteIncomingRouter {
 		Ok((pair, MultiAssets::new()))
 	}
 	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
-		let hash = fake_message_hash(&pair.1);
+		let hash = fake_id();
 		REMOTE_INCOMING_XCM.with(|q| q.borrow_mut().push(pair));
 		Ok(hash)
 	}
@@ -107,6 +168,20 @@ fn deliver<RemoteExporter: ExportXcm>(
 	export_xcm::<RemoteExporter>(n, c, s, d, m).map(|(hash, _)| hash)
 }
 
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub struct LogEntry {
+	local: Junctions,
+	remote: Junctions,
+	id: XcmHash,
+	message: Xcm<()>,
+	outcome: Outcome,
+	paid: bool,
+}
+
+parameter_types! {
+	pub static RoutingLog: Vec<LogEntry> = vec![];
+}
+
 impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> SendXcm
 	for UnpaidExecutingRouter<Local, Remote, RemoteExporter>
 {
@@ -133,15 +208,20 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		AllowUnpaidFrom::set(vec![origin.clone()]);
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
 		// The we execute it:
-		let hash = fake_message_hash(&message);
-		let outcome = XcmExecutor::<TestConfig>::execute_xcm(
+		let mut id = fake_id();
+		let outcome = XcmExecutor::<TestConfig>::prepare_and_execute(
 			origin,
-			message.into(),
-			hash,
+			message.clone().into(),
+			&mut id,
 			Weight::from_parts(2_000_000_000_000, 2_000_000_000_000),
+			Weight::zero(),
 		);
+		let local = Local::get();
+		let remote = Remote::get();
+		let entry = LogEntry { local, remote, id, message, outcome: outcome.clone(), paid: false };
+		RoutingLog::mutate(|l| l.push(entry));
 		match outcome {
-			Outcome::Complete(..) => Ok(hash),
+			Outcome::Complete(..) => Ok(id),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),
 			Outcome::Error(..) => Err(Transport("Unable to execute")),
 		}
@@ -178,15 +258,20 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		AllowPaidFrom::set(vec![origin.clone()]);
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
 		// Then we execute it:
-		let hash = fake_message_hash(&message);
-		let outcome = XcmExecutor::<TestConfig>::execute_xcm(
+		let mut id = fake_id();
+		let outcome = XcmExecutor::<TestConfig>::prepare_and_execute(
 			origin,
-			message.into(),
-			hash,
+			message.clone().into(),
+			&mut id,
 			Weight::from_parts(2_000_000_000_000, 2_000_000_000_000),
+			Weight::zero(),
 		);
+		let local = Local::get();
+		let remote = Remote::get();
+		let entry = LogEntry { local, remote, id, message, outcome: outcome.clone(), paid: true };
+		RoutingLog::mutate(|l| l.push(entry));
 		match outcome {
-			Outcome::Complete(..) => Ok(hash),
+			Outcome::Complete(..) => Ok(id),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),
 			Outcome::Error(..) => Err(Transport("Unable to execute")),
 		}

@@ -30,6 +30,7 @@ pub mod purchase;
 pub mod slot_range;
 pub mod slots;
 pub mod traits;
+
 #[cfg(feature = "try-runtime")]
 pub mod try_runtime;
 pub mod xcm_sender;
@@ -99,7 +100,7 @@ parameter_types! {
 }
 
 /// Parameterized slow adjusting fee updated based on
-/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#-2.-slow-adjusting-mechanism
+/// https://research.web3.foundation/Polkadot/overview/token-economics#2-slow-adjusting-mechanism
 pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
 	R,
 	TargetBlockFullness,
@@ -159,7 +160,7 @@ macro_rules! impl_runtime_weights {
 /// The type used for currency conversion.
 ///
 /// This must only be used as long as the balance type is `u128`.
-pub type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
+pub type CurrencyToVote = sp_staking::currency_to_vote::U128CurrencyToVote;
 static_assertions::assert_eq_size!(primitives::Balance, u128);
 
 /// A placeholder since there is currently no provided session key handler for parachain validator

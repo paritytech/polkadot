@@ -18,14 +18,14 @@ To run any test locally use the native provider (`zombienet test -p native ...`)
 
 * adder-collator -> polkadot/target/testnet/adder-collator
 * malus -> polkadot/target/testnet/malus
-* polkadot -> polkadot/target/testnet/polkadot
+* polkadot -> polkadot/target/testnet/polkadot, polkadot/target/testnet/polkadot-prepare-worker, polkadot/target/testnet/polkadot-execute-worker
 * polkadot-collator -> cumulus/target/release/polkadot-parachain
 * undying-collator -> polkadot/target/testnet/undying-collator
 
 To build them use:
 * adder-collator -> `cargo build --profile testnet -p test-parachain-adder-collator`
 * undying-collator -> `cargo build --profile testnet -p test-parachain-undying-collator`
-* malus -> cargo build --profile testnet -p polkadot-test-malus
+* malus -> `cargo build --profile testnet -p polkadot-test-malus`
 * polkadot (in polkadot repo) and polkadot-collator (in cumulus repo) -> `cargo build --profile testnet`
 
 One solution is to use the `.set_env` file (from this directory) and fill the `CUSTOM_PATHS` before *source* it to patch the PATH of your system to find the binaries you just built.

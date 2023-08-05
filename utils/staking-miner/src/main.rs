@@ -50,7 +50,7 @@ use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
 use futures_util::StreamExt;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
-use remote_externalities::{Builder, Mode, OnlineConfig};
+use remote_externalities::{Builder, Mode, OnlineConfig, Transport};
 use rpc::{RpcApiClient, SharedRpcClient};
 use runtime_versions::RuntimeVersions;
 use signal_hook::consts::signal::*;
@@ -83,7 +83,7 @@ macro_rules! construct_runtime_prelude {
 				pub(crate) fn [<create_uxt_ $runtime>](
 					raw_solution: EPM::RawSolution<EPM::SolutionOf<Runtime>>,
 					signer: crate::signer::Signer,
-					nonce: crate::prelude::Index,
+					nonce: crate::prelude::Nonce,
 					tip: crate::prelude::Balance,
 					era: sp_runtime::generic::Era,
 				) -> UncheckedExtrinsic {
@@ -121,7 +121,7 @@ macro_rules! construct_runtime_prelude {
 
 // NOTE: we might be able to use some code from the bridges repo here.
 fn signed_ext_builder_polkadot(
-	nonce: Index,
+	nonce: Nonce,
 	tip: Balance,
 	era: sp_runtime::generic::Era,
 ) -> polkadot_runtime_exports::SignedExtra {
@@ -140,7 +140,7 @@ fn signed_ext_builder_polkadot(
 }
 
 fn signed_ext_builder_kusama(
-	nonce: Index,
+	nonce: Nonce,
 	tip: Balance,
 	era: sp_runtime::generic::Era,
 ) -> kusama_runtime_exports::SignedExtra {
@@ -158,7 +158,7 @@ fn signed_ext_builder_kusama(
 }
 
 fn signed_ext_builder_westend(
-	nonce: Index,
+	nonce: Nonce,
 	tip: Balance,
 	era: sp_runtime::generic::Era,
 ) -> westend_runtime_exports::SignedExtra {
@@ -314,7 +314,7 @@ where
 	pallets.extend(additional);
 	Builder::<B>::new()
 		.mode(Mode::Online(OnlineConfig {
-			transport: client.into_inner().into(),
+			transport: Transport::Uri(client.uri().to_owned()),
 			at,
 			pallets,
 			hashed_prefixes: vec![<frame_system::BlockHash<T>>::prefix_hash()],

@@ -3,6 +3,8 @@ name = "erasure_coding_fuzzer"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
+publish = false
 
 [dependencies]
 polkadot-erasure-coding = { path = ".." }
@@ -17,5 +19,3 @@ path = "src/reconstruct.rs"
 [[bin]]
 name = "round_trip"
 path = "src/round_trip.rs"
-
-[workspace]

@@ -16,7 +16,8 @@
 
 use crate::{
 	mock::*, AssetTraps, CurrentMigration, Error, LatestVersionedMultiLocation, Queries,
-	QueryStatus, VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets,
+	QueryStatus, VersionDiscoveryQueue, VersionMigrationStage, VersionNotifiers,
+	VersionNotifyTargets,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -27,7 +28,10 @@ use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash};
 use xcm::{latest::QueryResponseInfo, prelude::*};
 use xcm_builder::AllowKnownQueryResponses;
-use xcm_executor::{traits::ShouldExecute, XcmExecutor};
+use xcm_executor::{
+	traits::{Properties, QueryHandler, QueryResponseStatus, ShouldExecute},
+	XcmExecutor,
+};
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -101,7 +105,11 @@ fn report_outcome_notify_works() {
 					0,
 					Response::ExecutionResult(None),
 				)),
-				RuntimeEvent::XcmPallet(crate::Event::Notified(0, 4, 2)),
+				RuntimeEvent::XcmPallet(crate::Event::Notified {
+					query_id: 0,
+					pallet_index: 4,
+					call_index: 2
+				}),
 			]
 		);
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![]);
@@ -157,13 +165,14 @@ fn report_outcome_works() {
 		assert_eq!(r, Outcome::Complete(Weight::from_parts(1_000, 1_000)));
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::ResponseReady(
-				0,
-				Response::ExecutionResult(None),
-			))
+			RuntimeEvent::XcmPallet(crate::Event::ResponseReady {
+				query_id: 0,
+				response: Response::ExecutionResult(None),
+			})
 		);
 
-		let response = Some((Response::ExecutionResult(None), 1));
+		let response =
+			QueryResponseStatus::Ready { response: Response::ExecutionResult(None), at: 1 };
 		assert_eq!(XcmPallet::take_response(0), response);
 	});
 }
@@ -206,12 +215,12 @@ fn custom_querier_works() {
 		assert_eq!(r, Outcome::Complete(Weight::from_parts(1_000, 1_000)));
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier(
-				AccountId32 { network: None, id: ALICE.into() }.into(),
-				0,
-				querier.clone(),
-				None,
-			)),
+			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier {
+				origin: AccountId32 { network: None, id: ALICE.into() }.into(),
+				query_id: 0,
+				expected_querier: querier.clone(),
+				maybe_actual_querier: None,
+			}),
 		);
 
 		// Supplying the wrong querier will also fail
@@ -232,12 +241,12 @@ fn custom_querier_works() {
 		assert_eq!(r, Outcome::Complete(Weight::from_parts(1_000, 1_000)));
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier(
-				AccountId32 { network: None, id: ALICE.into() }.into(),
-				0,
-				querier.clone(),
-				Some(MultiLocation::here()),
-			)),
+			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier {
+				origin: AccountId32 { network: None, id: ALICE.into() }.into(),
+				query_id: 0,
+				expected_querier: querier.clone(),
+				maybe_actual_querier: Some(MultiLocation::here()),
+			}),
 		);
 
 		// Multiple failures should not have changed the query state
@@ -257,13 +266,14 @@ fn custom_querier_works() {
 		assert_eq!(r, Outcome::Complete(Weight::from_parts(1_000, 1_000)));
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::ResponseReady(
-				0,
-				Response::ExecutionResult(None),
-			))
+			RuntimeEvent::XcmPallet(crate::Event::ResponseReady {
+				query_id: 0,
+				response: Response::ExecutionResult(None),
+			})
 		);
 
-		let response = Some((Response::ExecutionResult(None), 1));
+		let response =
+			QueryResponseStatus::Ready { response: Response::ExecutionResult(None), at: 1 };
 		assert_eq!(XcmPallet::take_response(0), response);
 	});
 }
@@ -285,6 +295,7 @@ fn send_works() {
 			buy_execution((Parent, SEND_AMOUNT)),
 			DepositAsset { assets: AllCounted(1).into(), beneficiary: sender.clone() },
 		]);
+
 		let versioned_dest = Box::new(RelayLocation::get().into());
 		let versioned_message = Box::new(VersionedXcm::from(message.clone()));
 		assert_ok!(XcmPallet::send(
@@ -292,19 +303,20 @@ fn send_works() {
 			versioned_dest,
 			versioned_message
 		));
-		assert_eq!(
-			sent_xcm(),
-			vec![(
-				Here.into(),
-				Xcm(Some(DescendOrigin(sender.clone().try_into().unwrap()))
-					.into_iter()
-					.chain(message.0.clone().into_iter())
-					.collect())
-			)],
-		);
+		let sent_message = Xcm(Some(DescendOrigin(sender.clone().try_into().unwrap()))
+			.into_iter()
+			.chain(message.0.clone().into_iter())
+			.collect());
+		let id = fake_message_hash(&sent_message);
+		assert_eq!(sent_xcm(), vec![(Here.into(), sent_message)]);
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Sent(sender, RelayLocation::get(), message))
+			RuntimeEvent::XcmPallet(crate::Event::Sent {
+				origin: sender,
+				destination: RelayLocation::get(),
+				message,
+				message_id: id,
+			})
 		);
 	});
 }
@@ -349,7 +361,7 @@ fn teleport_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get() * 2;
+		let weight = BaseXcmWeight::get() * 3;
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::teleport_assets(
@@ -376,7 +388,7 @@ fn teleport_assets_works() {
 		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -392,7 +404,7 @@ fn limited_teleport_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get() * 2;
+		let weight = BaseXcmWeight::get() * 3;
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::limited_teleport_assets(
@@ -420,7 +432,7 @@ fn limited_teleport_assets_works() {
 		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -436,7 +448,7 @@ fn unlimited_teleport_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get() * 2;
+		let weight = BaseXcmWeight::get() * 3;
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::limited_teleport_assets(
@@ -462,7 +474,7 @@ fn unlimited_teleport_assets_works() {
 		);
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -478,7 +490,7 @@ fn reserve_transfer_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get();
+		let weight = BaseXcmWeight::get() * 2;
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
@@ -509,7 +521,7 @@ fn reserve_transfer_assets_works() {
 		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -525,7 +537,7 @@ fn limited_reserve_transfer_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get();
+		let weight = BaseXcmWeight::get() * 2;
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
@@ -557,7 +569,7 @@ fn limited_reserve_transfer_assets_works() {
 		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -573,7 +585,7 @@ fn unlimited_reserve_transfer_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get();
+		let weight = BaseXcmWeight::get() * 2;
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
@@ -603,7 +615,7 @@ fn unlimited_reserve_transfer_assets_works() {
 		);
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -635,7 +647,7 @@ fn execute_withdraw_to_deposit_works() {
 		assert_eq!(Balances::total_balance(&BOB), SEND_AMOUNT);
 		assert_eq!(
 			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -670,10 +682,14 @@ fn trapped_assets_can_be_claimed() {
 		assert_eq!(
 			last_events(2),
 			vec![
-				RuntimeEvent::XcmPallet(crate::Event::AssetsTrapped(hash.clone(), source, vma)),
-				RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(
-					BaseXcmWeight::get() * 5
-				)))
+				RuntimeEvent::XcmPallet(crate::Event::AssetsTrapped {
+					hash: hash.clone(),
+					origin: source,
+					assets: vma
+				}),
+				RuntimeEvent::XcmPallet(crate::Event::Attempted {
+					outcome: Outcome::Complete(BaseXcmWeight::get() * 5)
+				}),
 			]
 		);
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -707,13 +723,8 @@ fn trapped_assets_can_be_claimed() {
 			]))),
 			weight
 		));
-		assert_eq!(
-			last_event(),
-			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Incomplete(
-				BaseXcmWeight::get(),
-				XcmError::UnknownClaim
-			)))
-		);
+		let outcome = Outcome::Incomplete(BaseXcmWeight::get(), XcmError::UnknownClaim);
+		assert_eq!(last_event(), RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome }));
 	});
 }
 
@@ -768,7 +779,7 @@ fn basic_subscription_works() {
 			&remote,
 			message.inner_mut(),
 			weight,
-			&mut Weight::zero(),
+			&mut Properties { weight_credit: Weight::zero(), message_id: None },
 		));
 	});
 }
@@ -887,7 +898,7 @@ fn subscription_side_works() {
 		assert_eq!(take_sent_xcm(), vec![(remote.clone(), Xcm(vec![instr]))]);
 
 		// A runtime upgrade which doesn't alter the version sends no notifications.
-		XcmPallet::on_runtime_upgrade();
+		CurrentMigration::<Test>::put(VersionMigrationStage::default());
 		XcmPallet::on_initialize(1);
 		assert_eq!(take_sent_xcm(), vec![]);
 
@@ -895,7 +906,7 @@ fn subscription_side_works() {
 		AdvertisedXcmVersion::set(2);
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		CurrentMigration::<Test>::put(VersionMigrationStage::default());
 		XcmPallet::on_initialize(2);
 		let instr = QueryResponse {
 			query_id: 0,
@@ -922,7 +933,7 @@ fn subscription_side_upgrades_work_with_notify() {
 		AdvertisedXcmVersion::set(3);
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		CurrentMigration::<Test>::put(VersionMigrationStage::default());
 		XcmPallet::on_initialize(1);
 
 		let instr1 = QueryResponse {
@@ -972,7 +983,7 @@ fn subscription_side_upgrades_work_without_notify() {
 		VersionNotifyTargets::<Test>::insert(3, v3_location, (72, Weight::zero(), 2));
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		CurrentMigration::<Test>::put(VersionMigrationStage::default());
 		XcmPallet::on_initialize(1);
 
 		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
@@ -1156,7 +1167,7 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		AdvertisedXcmVersion::set(3);
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		CurrentMigration::<Test>::put(VersionMigrationStage::default());
 		let mut maybe_migration = CurrentMigration::<Test>::take();
 		let mut counter = 0;
 		while let Some(migration) = maybe_migration.take() {

@@ -52,7 +52,10 @@ use polkadot_node_subsystem::{
 	},
 	overseer, FromOrchestra, OverseerSignal, PerLeafSpan, SubsystemSender,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL},
+};
 use polkadot_primitives::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
 
 use crate::error::Result;
@@ -612,6 +615,9 @@ struct State {
 
 	/// Keep track of all pending candidate collations
 	pending_candidates: HashMap<Hash, CollationEvent>,
+
+	/// Aggregated reputation change
+	reputation: ReputationAggregator,
 }
 
 // O(n) search for collator ID by iterating through the peers map. This should be fast enough
@@ -675,28 +681,31 @@ async fn fetch_collation(
 
 /// Report a collator for some malicious actions.
 async fn report_collator(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
 	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
 ) {
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
-		modify_reputation(sender, peer_id, COST_REPORT_BAD).await;
+		modify_reputation(reputation, sender, peer_id, COST_REPORT_BAD).await;
 	}
 }
 
 /// Some other subsystem has reported a collator as a good one, bump reputation.
 async fn note_good_collation(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
 	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
 ) {
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
-		modify_reputation(sender, peer_id, BENEFIT_NOTIFY_GOOD).await;
+		modify_reputation(reputation, sender, peer_id, BENEFIT_NOTIFY_GOOD).await;
 	}
 }
 
 /// Notify a collator that its collation got seconded.
 async fn notify_collation_seconded(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
 	peer_id: PeerId,
 	relay_parent: Hash,
@@ -711,7 +720,7 @@ async fn notify_collation_seconded(
 		))
 		.await;
 
-	modify_reputation(sender, peer_id, BENEFIT_NOTIFY_GOOD).await;
+	modify_reputation(reputation, sender, peer_id, BENEFIT_NOTIFY_GOOD).await;
 }
 
 /// A peer's view has changed. A number of things should be done:
@@ -813,7 +822,13 @@ async fn process_incoming_peer_message<Context>(
 	match msg {
 		Declare(collator_id, para_id, signature) => {
 			if collator_peer_id(&state.peer_data, &collator_id).is_some() {
-				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					origin,
+					COST_UNEXPECTED_MESSAGE,
+				)
+				.await;
 				return
 			}
 
@@ -826,7 +841,13 @@ async fn process_incoming_peer_message<Context>(
 						?para_id,
 						"Unknown peer",
 					);
-					modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(
+						&mut state.reputation,
+						ctx.sender(),
+						origin,
+						COST_UNEXPECTED_MESSAGE,
+					)
+					.await;
 					return
 				},
 			};
@@ -838,7 +859,13 @@ async fn process_incoming_peer_message<Context>(
 					?para_id,
 					"Peer is not in the collating state",
 				);
-				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					origin,
+					COST_UNEXPECTED_MESSAGE,
+				)
+				.await;
 				return
 			}
 
@@ -849,7 +876,13 @@ async fn process_incoming_peer_message<Context>(
 					?para_id,
 					"Signature verification failure",
 				);
-				modify_reputation(ctx.sender(), origin, COST_INVALID_SIGNATURE).await;
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					origin,
+					COST_INVALID_SIGNATURE,
+				)
+				.await;
 				return
 			}
 
@@ -872,7 +905,13 @@ async fn process_incoming_peer_message<Context>(
 					"Declared as collator for unneeded para",
 				);
 
-				modify_reputation(ctx.sender(), origin, COST_UNNEEDED_COLLATOR).await;
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					origin,
+					COST_UNNEEDED_COLLATOR,
+				)
+				.await;
 				gum::trace!(target: LOG_TARGET, "Disconnecting unneeded collator");
 				disconnect_peer(ctx.sender(), origin).await;
 			}
@@ -890,7 +929,13 @@ async fn process_incoming_peer_message<Context>(
 					"Advertise collation out of view",
 				);
 
-				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					origin,
+					COST_UNEXPECTED_MESSAGE,
+				)
+				.await;
 				return
 			}
 
@@ -902,7 +947,13 @@ async fn process_incoming_peer_message<Context>(
 						?relay_parent,
 						"Advertise collation message has been received from an unknown peer",
 					);
-					modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(
+						&mut state.reputation,
+						ctx.sender(),
+						origin,
+						COST_UNEXPECTED_MESSAGE,
+					)
+					.await;
 					return
 				},
 				Some(p) => p,
@@ -961,7 +1012,13 @@ async fn process_incoming_peer_message<Context>(
 						"Invalid advertisement",
 					);
 
-					modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(
+						&mut state.reputation,
+						ctx.sender(),
+						origin,
+						COST_UNEXPECTED_MESSAGE,
+					)
+					.await;
 				},
 			}
 		},
@@ -1074,6 +1131,9 @@ async fn handle_network_msg<Context>(
 		PeerMessage(remote, Versioned::V1(msg)) => {
 			process_incoming_peer_message(ctx, state, remote, msg).await;
 		},
+		UpdatedAuthorityIds { .. } => {
+			// The validator side doesn't deal with `AuthorityDiscoveryId`s.
+		},
 	}
 
 	Ok(())
@@ -1106,7 +1166,7 @@ async fn process_msg<Context>(
 			);
 		},
 		ReportCollator(id) => {
-			report_collator(ctx.sender(), &state.peer_data, id).await;
+			report_collator(&mut state.reputation, ctx.sender(), &state.peer_data, id).await;
 		},
 		NetworkBridgeUpdate(event) => {
 			if let Err(e) = handle_network_msg(ctx, state, keystore, event).await {
@@ -1121,8 +1181,21 @@ async fn process_msg<Context>(
 			if let Some(collation_event) = state.pending_candidates.remove(&parent) {
 				let (collator_id, pending_collation) = collation_event;
 				let PendingCollation { relay_parent, peer_id, .. } = pending_collation;
-				note_good_collation(ctx.sender(), &state.peer_data, collator_id).await;
-				notify_collation_seconded(ctx.sender(), peer_id, relay_parent, stmt).await;
+				note_good_collation(
+					&mut state.reputation,
+					ctx.sender(),
+					&state.peer_data,
+					collator_id,
+				)
+				.await;
+				notify_collation_seconded(
+					&mut state.reputation,
+					ctx.sender(),
+					peer_id,
+					relay_parent,
+					stmt,
+				)
+				.await;
 
 				if let Some(collations) = state.collations_per_relay_parent.get_mut(&parent) {
 					collations.status = CollationStatus::Seconded;
@@ -1153,7 +1226,8 @@ async fn process_msg<Context>(
 				Entry::Vacant(_) => return,
 			};
 
-			report_collator(ctx.sender(), &state.peer_data, id.clone()).await;
+			report_collator(&mut state.reputation, ctx.sender(), &state.peer_data, id.clone())
+				.await;
 
 			dequeue_next_collation_and_fetch(ctx, state, parent, id).await;
 		},
@@ -1163,12 +1237,35 @@ async fn process_msg<Context>(
 /// The main run loop.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 pub(crate) async fn run<Context>(
-	mut ctx: Context,
+	ctx: Context,
 	keystore: KeystorePtr,
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> std::result::Result<(), crate::error::FatalError> {
-	let mut state = State { metrics, ..Default::default() };
+	run_inner(
+		ctx,
+		keystore,
+		eviction_policy,
+		metrics,
+		ReputationAggregator::default(),
+		REPUTATION_CHANGE_INTERVAL,
+	)
+	.await
+}
+
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
+async fn run_inner<Context>(
+	mut ctx: Context,
+	keystore: KeystorePtr,
+	eviction_policy: crate::CollatorEvictionPolicy,
+	metrics: Metrics,
+	reputation: ReputationAggregator,
+	reputation_interval: Duration,
+) -> std::result::Result<(), crate::error::FatalError> {
+	let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+	let mut reputation_delay = new_reputation_delay();
+
+	let mut state = State { metrics, reputation, ..Default::default() };
 
 	let next_inactivity_stream = tick_stream(ACTIVITY_POLL);
 	futures::pin_mut!(next_inactivity_stream);
@@ -1176,8 +1273,15 @@ pub(crate) async fn run<Context>(
 	let check_collations_stream = tick_stream(CHECK_COLLATIONS_POLL);
 	futures::pin_mut!(check_collations_stream);
 
+	let mut network_error_freq = gum::Freq::new();
+	let mut canceled_freq = gum::Freq::new();
+
 	loop {
 		select! {
+			_ = reputation_delay => {
+				state.reputation.send(ctx.sender()).await;
+				reputation_delay = new_reputation_delay();
+			},
 			res = ctx.recv().fuse() => {
 				match res {
 					Ok(FromOrchestra::Communication { msg }) => {
@@ -1214,10 +1318,12 @@ pub(crate) async fn run<Context>(
 					&mut state.requested_collations,
 					&state.metrics,
 					&state.span_per_relay_parent,
+					&mut network_error_freq,
+					&mut canceled_freq,
 				).await;
 
 				for (peer_id, rep) in reputation_changes {
-					modify_reputation(ctx.sender(), peer_id, rep).await;
+					modify_reputation(&mut state.reputation,ctx.sender(), peer_id, rep).await;
 				}
 			},
 		}
@@ -1230,14 +1336,22 @@ async fn poll_requests(
 	requested_collations: &mut HashMap<PendingCollation, PerRequest>,
 	metrics: &Metrics,
 	span_per_relay_parent: &HashMap<Hash, PerLeafSpan>,
+	network_error_freq: &mut gum::Freq,
+	canceled_freq: &mut gum::Freq,
 ) -> Vec<(PeerId, Rep)> {
 	let mut retained_requested = HashSet::new();
 	let mut reputation_changes = Vec::new();
 	for (pending_collation, per_req) in requested_collations.iter_mut() {
 		// Despite the await, this won't block on the response itself.
-		let result =
-			poll_collation_response(metrics, span_per_relay_parent, pending_collation, per_req)
-				.await;
+		let result = poll_collation_response(
+			metrics,
+			span_per_relay_parent,
+			pending_collation,
+			per_req,
+			network_error_freq,
+			canceled_freq,
+		)
+		.await;
 
 		if !result.is_ready() {
 			retained_requested.insert(pending_collation.clone());
@@ -1381,6 +1495,8 @@ async fn poll_collation_response(
 	spans: &HashMap<Hash, PerLeafSpan>,
 	pending_collation: &PendingCollation,
 	per_req: &mut PerRequest,
+	network_error_freq: &mut gum::Freq,
+	canceled_freq: &mut gum::Freq,
 ) -> CollationFetchResult {
 	if never!(per_req.from_collator.is_terminated()) {
 		gum::error!(
@@ -1424,7 +1540,9 @@ async fn poll_collation_response(
 				CollationFetchResult::Error(None)
 			},
 			Err(RequestError::NetworkError(err)) => {
-				gum::debug!(
+				gum::warn_if_frequent!(
+					freq: network_error_freq,
+					max_rate: gum::Times::PerHour(100),
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
 					para_id = ?pending_collation.para_id,
@@ -1439,7 +1557,9 @@ async fn poll_collation_response(
 				CollationFetchResult::Error(Some(COST_NETWORK_ERROR))
 			},
 			Err(RequestError::Canceled(err)) => {
-				gum::debug!(
+				gum::warn_if_frequent!(
+					freq: canceled_freq,
+					max_rate: gum::Times::PerHour(100),
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
 					para_id = ?pending_collation.para_id,

@@ -2,14 +2,15 @@
 name = "pallet-xcm"
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 
 
 [dependencies]
-bounded-collections = { version = "0.1.5", default-features = false }
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
+bounded-collections = { version = "0.1.8", default-features = false }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-serde = { version = "1.0.137", optional = true, features = ["derive"] }
+serde = { version = "1.0.163", optional = true, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -31,6 +32,10 @@ xcm-builder = { path = "../xcm-builder" }
 
 [features]
 default = ["std"]
+# Enable `VersionedRuntimeUpgrade` for the migrations that is currently still experimental.
+experimental = [
+	"frame-support/experimental"
+]
 std = [
 	"bounded-collections/std",
 	"codec/std",
