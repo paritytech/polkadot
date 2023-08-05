@@ -90,9 +90,9 @@ pub use pallet_election_provider_multi_phase::Call as EPMCall;
 pub use pallet_staking::StakerStatus;
 use pallet_staking::UseValidatorsMap;
 pub use pallet_timestamp::Call as TimestampCall;
-use sp_runtime::traits::Get;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
+use sp_runtime::{traits::Get, Percent};
 
 /// Constant values used within the runtime.
 use westend_runtime_constants::{currency::*, fee::*, time::*};
@@ -379,6 +379,9 @@ parameter_types! {
 	// Maximum winners that can be chosen as active validators
 	pub const MaxActiveValidators: u32 = 1000;
 
+	// Minimum untrusted score auto updates at every 5 elections.
+	pub const MinimumUntrustedScoreUpdateInterval: Option<u32> = Some(5);
+	pub const MinimumUntrustedScoreMargin: Percent = Percent::from_percent(25);
 }
 
 frame_election_provider_support::generate_solution_type!(
@@ -468,6 +471,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
 	type MaxWinners = MaxActiveValidators;
+	type MinimumUntrustedScoreUpdateInterval = MinimumUntrustedScoreUpdateInterval;
+	type MinimumUntrustedScoreMargin = MinimumUntrustedScoreMargin;
 }
 
 parameter_types! {
