@@ -84,6 +84,8 @@ macro_rules! decl_worker_main {
 			let socket_path = socket_path.expect("the --socket-path argument is required");
 			let cache_path = cache_path.expect("the --cache-path argument is required");
 
+			let cache_path = &std::path::Path::new(cache_path);
+
 			$entrypoint(&socket_path, node_version, Some($worker_version), cache_path);
 		}
 	};
