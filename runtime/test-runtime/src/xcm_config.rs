@@ -80,7 +80,12 @@ impl WeightTrader for DummyWeightTrader {
 		DummyWeightTrader
 	}
 
-	fn buy_weight(&mut self, _weight: Weight, _payment: Assets) -> Result<Assets, XcmError> {
+	fn buy_weight(
+		&mut self,
+		_weight: Weight,
+		_payment: Assets,
+		_context: &XcmContext,
+	) -> Result<Assets, XcmError> {
 		Ok(Assets::default())
 	}
 }
@@ -115,6 +120,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = super::RuntimeCall;
 	type SafeCallFilter = Everything;
+	type Aliasers = Nothing;
 }
 
 #[cfg(feature = "runtime-benchmarks")]

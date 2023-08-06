@@ -3,13 +3,14 @@ name = "polkadot-dispute-distribution"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 futures = "0.3.21"
 futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../../gum" }
 derive_more = "0.99.17"
-parity-scale-codec = { version = "3.4.0", features = ["std"] }
+parity-scale-codec = { version = "3.6.1", features = ["std"] }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-node-subsystem = {path = "../../subsystem" }
@@ -21,7 +22,7 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.31"
 fatality = "0.0.6"
-lru = "0.9.0"
+lru = "0.11.0"
 indexmap = "1.9.1"
 
 [dev-dependencies]

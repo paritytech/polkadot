@@ -26,7 +26,7 @@ use sp_std::{fmt::Debug, marker::PhantomData};
 use sp_weights::{Weight, WeightMeter};
 use xcm::prelude::*;
 
-/// A message processor that delegates execution to an [XcmExecutor].
+/// A message processor that delegates execution to an [`XcmExecutor`].
 pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>(
 	PhantomData<(MessageOrigin, XcmExecutor, Call)>,
 );
@@ -51,7 +51,7 @@ impl<
 			.map_err(|_| ProcessMessageError::Unsupported)?;
 		let pre = XcmExecutor::prepare(message).map_err(|_| ProcessMessageError::Unsupported)?;
 		let required = pre.weight_of();
-		ensure!(meter.can_accrue(required), ProcessMessageError::Overweight(required));
+		ensure!(meter.can_consume(required), ProcessMessageError::Overweight(required));
 
 		let (consumed, result) = match XcmExecutor::execute(origin.into(), pre, id, Weight::zero())
 		{
@@ -60,7 +60,7 @@ impl<
 			// In the error-case we assume the worst case and consume all possible weight.
 			Outcome::Error(_) => (required, Err(ProcessMessageError::Unsupported)),
 		};
-		meter.defensive_saturating_accrue(consumed);
+		meter.consume(consumed);
 		result
 	}
 }
@@ -116,14 +116,14 @@ mod tests {
 					Processor::process_message(msg, ORIGIN, meter, &mut id),
 					Overweight(1000.into())
 				);
-				assert_eq!(meter.consumed, 0.into());
+				assert_eq!(meter.consumed(), 0.into());
 			}
 
 			// Works with a limit of 1000.
 			let meter = &mut WeightMeter::from_limit(1000.into());
 			let mut id = [0; 32];
 			assert_ok!(Processor::process_message(msg, ORIGIN, meter, &mut id));
-			assert_eq!(meter.consumed, 1000.into());
+			assert_eq!(meter.consumed(), 1000.into());
 		}
 	}
 

@@ -3,6 +3,7 @@ name = "polkadot-node-jaeger"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 description = "Polkadot Jaeger primitives, but equally useful for Grafana/Tempo"
 
 [dependencies]
@@ -16,4 +17,4 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.31"
 tokio = "1.24.2"
 log = "0.4.17"
-parity-scale-codec = { version = "3.4.0", default-features = false }
+parity-scale-codec = { version = "3.6.1", default-features = false }

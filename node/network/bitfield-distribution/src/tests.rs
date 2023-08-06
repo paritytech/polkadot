@@ -28,6 +28,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem::{
 	jaeger,
 	jaeger::{PerLeafSpan, Span},
+	messages::ReportPeerMessage,
 };
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_node_subsystem_util::TimeoutExt;
@@ -87,14 +88,16 @@ fn prewarmed_state(
 		peer_views: peers.iter().cloned().map(|peer| (peer, view!(relay_parent))).collect(),
 		topologies,
 		view: our_view!(relay_parent),
+		reputation: ReputationAggregator::new(|_| true),
 	}
 }
 
 fn state_with_view(
 	view: OurView,
 	relay_parent: Hash,
+	reputation: ReputationAggregator,
 ) -> (ProtocolState, SigningContext, KeystorePtr, ValidatorId) {
-	let mut state = ProtocolState::default();
+	let mut state = ProtocolState { reputation, ..Default::default() };
 
 	let signing_context = SigningContext { session_index: 1, parent_hash: relay_parent.clone() };
 
@@ -234,10 +237,10 @@ fn receive_invalid_signature() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_SIGNATURE_INVALID)
+				assert_eq!(rep.value, COST_SIGNATURE_INVALID.cost_or_benefit())
 			}
 		);
 	});
@@ -258,8 +261,11 @@ fn receive_invalid_validator_index() {
 	assert_ne!(peer_a, peer_b);
 
 	// validator 0 key pair
-	let (mut state, signing_context, keystore, validator) =
-		state_with_view(our_view![hash_a, hash_b], hash_a.clone());
+	let (mut state, signing_context, keystore, validator) = state_with_view(
+		our_view![hash_a, hash_b],
+		hash_a.clone(),
+		ReputationAggregator::new(|_| true),
+	);
 
 	state.peer_views.insert(peer_b.clone(), view![hash_a]);
 
@@ -295,10 +301,10 @@ fn receive_invalid_validator_index() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_VALIDATOR_INDEX_INVALID)
+				assert_eq!(rep.value, COST_VALIDATOR_INDEX_INVALID.cost_or_benefit())
 			}
 		);
 	});
@@ -319,8 +325,11 @@ fn receive_duplicate_messages() {
 	assert_ne!(peer_a, peer_b);
 
 	// validator 0 key pair
-	let (mut state, signing_context, keystore, validator) =
-		state_with_view(our_view![hash_a, hash_b], hash_a.clone());
+	let (mut state, signing_context, keystore, validator) = state_with_view(
+		our_view![hash_a, hash_b],
+		hash_a.clone(),
+		ReputationAggregator::new(|_| true),
+	);
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
@@ -371,10 +380,10 @@ fn receive_duplicate_messages() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
 			}
 		);
 
@@ -390,10 +399,10 @@ fn receive_duplicate_messages() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_a);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE)
+				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE.cost_or_benefit())
 			}
 		);
 
@@ -409,13 +418,126 @@ fn receive_duplicate_messages() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE)
+				assert_eq!(rep.value, COST_PEER_DUPLICATE_MESSAGE.cost_or_benefit())
 			}
 		);
 	});
+}
+
+#[test]
+fn delay_reputation_change() {
+	use polkadot_node_subsystem_util::reputation::add_reputation;
+
+	let _ = env_logger::builder()
+		.filter(None, log::LevelFilter::Trace)
+		.is_test(true)
+		.try_init();
+
+	let hash_a: Hash = [0; 32].into();
+	let hash_b: Hash = [1; 32].into();
+
+	let peer = PeerId::random();
+
+	// validator 0 key pair
+	let (mut state, signing_context, keystore, validator) = state_with_view(
+		our_view![hash_a, hash_b],
+		hash_a.clone(),
+		ReputationAggregator::new(|_| false),
+	);
+
+	// create a signed message by validator 0
+	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
+	let signed_bitfield = Signed::<AvailabilityBitfield>::sign(
+		&keystore,
+		payload,
+		&signing_context,
+		ValidatorIndex(0),
+		&validator,
+	)
+	.ok()
+	.flatten()
+	.expect("should be signed");
+
+	let msg = BitfieldGossipMessage {
+		relay_parent: hash_a.clone(),
+		signed_availability: signed_bitfield.clone(),
+	};
+
+	let pool = sp_core::testing::TaskExecutor::new();
+	let (ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+	let mut rng = dummy_rng();
+	let reputation_interval = Duration::from_millis(100);
+
+	let bg = async move {
+		let subsystem = BitfieldDistribution::new(Default::default());
+		subsystem.run_inner(ctx, &mut state, reputation_interval, &mut rng).await;
+	};
+
+	let test_fut = async move {
+		// send a first message
+		handle
+			.send(FromOrchestra::Communication {
+				msg: BitfieldDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer.clone(),
+						msg.clone().into_network_message(),
+					),
+				),
+			})
+			.await;
+
+		// none of our peers has any interest in any messages
+		// so we do not receive a network send type message here
+		// but only the one for the next subsystem
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
+				_,
+				ProvisionableData::Bitfield(hash, signed)
+			)) => {
+				assert_eq!(hash, hash_a);
+				assert_eq!(signed, signed_bitfield)
+			}
+		);
+
+		// let peer send the initial message again
+		handle
+			.send(FromOrchestra::Communication {
+				msg: BitfieldDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer.clone(),
+						msg.clone().into_network_message(),
+					),
+				),
+			})
+			.await;
+
+		// Wait enough to fire reputation delay
+		futures_timer::Delay::new(reputation_interval).await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(v))
+			) => {
+				let mut expected_change = HashMap::new();
+				for rep in vec![BENEFIT_VALID_MESSAGE_FIRST, COST_PEER_DUPLICATE_MESSAGE] {
+					add_reputation(&mut expected_change, peer, rep)
+				}
+				assert_eq!(v, expected_change)
+			}
+		);
+
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::pin_mut!(bg);
+	futures::pin_mut!(test_fut);
+
+	executor::block_on(futures::future::join(bg, test_fut));
 }
 
 #[test]
@@ -433,7 +555,7 @@ fn do_not_relay_message_twice() {
 
 	// validator 0 key pair
 	let (mut state, signing_context, keystore, validator) =
-		state_with_view(our_view![hash], hash.clone());
+		state_with_view(our_view![hash], hash.clone(), ReputationAggregator::new(|_| true));
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
@@ -543,8 +665,11 @@ fn changing_view() {
 	assert_ne!(peer_a, peer_b);
 
 	// validator 0 key pair
-	let (mut state, signing_context, keystore, validator) =
-		state_with_view(our_view![hash_a, hash_b], hash_a.clone());
+	let (mut state, signing_context, keystore, validator) = state_with_view(
+		our_view![hash_a, hash_b],
+		hash_a.clone(),
+		ReputationAggregator::new(|_| true),
+	);
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
@@ -618,10 +743,10 @@ fn changing_view() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
 			}
 		);
 
@@ -650,10 +775,10 @@ fn changing_view() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE)
+				assert_eq!(rep.value, COST_PEER_DUPLICATE_MESSAGE.cost_or_benefit())
 			}
 		);
 
@@ -682,10 +807,10 @@ fn changing_view() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_a);
-				assert_eq!(rep, COST_NOT_IN_VIEW)
+				assert_eq!(rep.value, COST_NOT_IN_VIEW.cost_or_benefit())
 			}
 		);
 	});
@@ -705,7 +830,8 @@ fn do_not_send_message_back_to_origin() {
 	assert_ne!(peer_a, peer_b);
 
 	// validator 0 key pair
-	let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash], hash);
+	let (mut state, signing_context, keystore, validator) =
+		state_with_view(our_view![hash], hash, ReputationAggregator::new(|_| true));
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
@@ -767,10 +893,10 @@ fn do_not_send_message_back_to_origin() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peer_b);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
 			}
 		);
 	});
@@ -786,7 +912,8 @@ fn topology_test() {
 	let hash: Hash = [0; 32].into();
 
 	// validator 0 key pair
-	let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash], hash);
+	let (mut state, signing_context, keystore, validator) =
+		state_with_view(our_view![hash], hash, ReputationAggregator::new(|_| true));
 
 	// Create a simple grid without any shuffling. We occupy position 1.
 	let topology_peer_info: Vec<_> = (0..49)
@@ -888,10 +1015,10 @@ fn topology_test() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
 			) => {
 				assert_eq!(peer, peers_x[0]);
-				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+				assert_eq!(rep.value, BENEFIT_VALID_MESSAGE_FIRST.cost_or_benefit())
 			}
 		);
 	});

@@ -4,9 +4,10 @@ description = "Examples of xcm-simulator usage."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0" }
+codec = { package = "parity-scale-codec", version = "3.6.1" }
 honggfuzz = "0.5.55"
 arbitrary = "1.2.0"
 scale-info = { version = "2.5.0", features = ["derive"] }

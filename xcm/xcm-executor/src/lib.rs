@@ -457,7 +457,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let current_surplus = self.total_surplus.saturating_sub(self.total_refunded);
 		if current_surplus.any_gt(Weight::zero()) {
 			self.total_refunded.saturating_accrue(current_surplus);
-			if let Some(w) = self.trader.refund_weight(current_surplus) {
+			if let Some(w) = self.trader.refund_weight(current_surplus, &self.context) {
 				self.subsume_asset(w)?;
 			}
 		}
@@ -689,7 +689,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					// pay for `weight` using up to `fees` of the holding register.
 					let max_fee =
 						self.holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
-					let unspent = self.trader.buy_weight(weight, max_fee)?;
+					let unspent = self.trader.buy_weight(weight, max_fee, &self.context)?;
 					self.subsume_assets(unspent)?;
 				}
 				Ok(())
@@ -914,7 +914,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.context.topic = None;
 				Ok(())
 			},
-			AliasOrigin(_) => Err(XcmError::NoPermission),
+			AliasOrigin(target) => {
+				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
+				if Config::Aliasers::contains(origin, &target) {
+					self.context.origin = Some(target);
+					Ok(())
+				} else {
+					Err(XcmError::NoPermission)
+				}
+			},
 			UnpaidExecution { check_origin, .. } => {
 				ensure!(
 					check_origin.is_none() || self.context.origin == check_origin,

@@ -3,10 +3,11 @@ name = "polkadot-runtime-parachains"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive", "max-encoded-len"] }
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
 log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
@@ -22,7 +23,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features=["serde"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features=["serde"] }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true, features=["serde"] }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 

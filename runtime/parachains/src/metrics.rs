@@ -20,22 +20,20 @@ use polkadot_runtime_metrics::{Counter, CounterVec, Histogram};
 use primitives::metric_definitions::{
 	PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS,
 	PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED, PARACHAIN_INHERENT_DATA_CANDIDATES_PROCESSED,
-	PARACHAIN_INHERENT_DATA_DISPUTE_SETS_INCLUDED, PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED,
-	PARACHAIN_INHERENT_DATA_WEIGHT, PARACHAIN_VERIFY_DISPUTE_SIGNATURE,
+	PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED, PARACHAIN_INHERENT_DATA_WEIGHT,
+	PARACHAIN_VERIFY_DISPUTE_SIGNATURE,
 };
 
 pub struct Metrics {
 	/// Samples inherent data weight.
 	inherent_data_weight: CounterVec,
-	/// Counts how many inherent bitfields processed in `enter_inner`.
+	/// Counts how many inherent bitfields processed in `process_inherent_data`.
 	bitfields_processed: Counter,
-	/// Counts how many parachain candidates processed in `enter_inner`.
+	/// Counts how many parachain candidates processed in `process_inherent_data`.
 	candidates_processed: CounterVec,
-	/// Counts dispute statements sets processed in `enter_inner`.
+	/// Counts dispute statements sets processed in `process_inherent_data`.
 	dispute_sets_processed: CounterVec,
-	/// Counts dispute statements sets included in `enter_inner`.
-	disputes_included: Counter,
-	/// Counts bitfield signature checks in `enter_inner`.
+	/// Counts bitfield signature checks in `process_inherent_data`.
 	bitfields_signature_checks: CounterVec,
 
 	/// Histogram with the time spent checking a validator signature of a dispute statement
@@ -68,20 +66,15 @@ impl Metrics {
 		self.candidates_processed.with_label_values(&["sanitized"]).inc_by(value);
 	}
 
-	/// Increment the total number of parachain candidates received in `enter_inner`.
+	/// Increment the total number of parachain candidates received in `process_inherent_data`.
 	pub fn on_candidates_processed_total(&self, value: u64) {
 		self.candidates_processed.with_label_values(&["total"]).inc_by(value);
 	}
 
 	/// Sample the relay chain freeze events causing runtime to not process candidates in
-	/// `enter_inner`.
+	/// `process_inherent_data`.
 	pub fn on_relay_chain_freeze(&self) {
 		self.dispute_sets_processed.with_label_values(&["frozen"]).inc();
-	}
-
-	/// Sample the number of dispute sets processed from the current session.
-	pub fn on_current_session_disputes_processed(&self, value: u64) {
-		self.dispute_sets_processed.with_label_values(&["current"]).inc_by(value);
 	}
 
 	/// Increment the number of disputes that have concluded as invalid.
@@ -94,10 +87,6 @@ impl Metrics {
 	/// Increment the number of disputes imported.
 	pub fn on_disputes_imported(&self, value: u64) {
 		self.dispute_sets_processed.with_label_values(&["imported"]).inc_by(value);
-	}
-
-	pub fn on_disputes_included(&self, value: u64) {
-		self.disputes_included.inc_by(value);
 	}
 
 	pub fn on_valid_bitfield_signature(&self) {
@@ -118,7 +107,6 @@ pub const METRICS: Metrics = Metrics {
 	bitfields_processed: Counter::new(PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED),
 	candidates_processed: CounterVec::new(PARACHAIN_INHERENT_DATA_CANDIDATES_PROCESSED),
 	dispute_sets_processed: CounterVec::new(PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED),
-	disputes_included: Counter::new(PARACHAIN_INHERENT_DATA_DISPUTE_SETS_INCLUDED),
 	bitfields_signature_checks: CounterVec::new(
 		PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS,
 	),

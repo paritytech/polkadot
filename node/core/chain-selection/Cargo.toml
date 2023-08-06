@@ -4,6 +4,7 @@ description = "Chain Selection Subsystem"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 futures = "0.3.21"
@@ -15,7 +16,7 @@ polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 kvdb = "0.13.0"
 thiserror = "1.0.31"
-parity-scale-codec = "3.4.0"
+parity-scale-codec = "3.6.1"
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

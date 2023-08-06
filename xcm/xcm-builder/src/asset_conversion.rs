@@ -17,9 +17,10 @@
 //! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
 
 use frame_support::traits::{Contains, Get};
-use sp_std::{borrow::Borrow, marker::PhantomData, prelude::*, result};
+use sp_runtime::traits::MaybeEquivalence;
+use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, MatchesNonFungibles};
+use xcm_executor::traits::{Error as MatchError, MatchesFungibles, MatchesNonFungibles};
 
 /// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
 /// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
@@ -27,12 +28,15 @@ use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, Match
 pub struct AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>(
 	PhantomData<(Prefix, AssetId, ConvertAssetId)>,
 );
-impl<Prefix: Get<MultiLocation>, AssetId: Clone, ConvertAssetId: Convert<u128, AssetId>>
-	Convert<MultiLocation, AssetId> for AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>
+impl<
+		Prefix: Get<MultiLocation>,
+		AssetId: Clone,
+		ConvertAssetId: MaybeEquivalence<u128, AssetId>,
+	> MaybeEquivalence<MultiLocation, AssetId>
+	for AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>
 {
-	fn convert_ref(id: impl Borrow<MultiLocation>) -> result::Result<AssetId, ()> {
+	fn convert(id: &MultiLocation) -> Option<AssetId> {
 		let prefix = Prefix::get();
-		let id = id.borrow();
 		if prefix.parent_count() != id.parent_count() ||
 			prefix
 				.interior()
@@ -40,18 +44,18 @@ impl<Prefix: Get<MultiLocation>, AssetId: Clone, ConvertAssetId: Convert<u128, A
 				.enumerate()
 				.any(|(index, junction)| id.interior().at(index) != Some(junction))
 		{
-			return Err(())
+			return None
 		}
 		match id.interior().at(prefix.interior().len()) {
-			Some(Junction::GeneralIndex(id)) => ConvertAssetId::convert_ref(id),
-			_ => Err(()),
+			Some(Junction::GeneralIndex(id)) => ConvertAssetId::convert(id),
+			_ => None,
 		}
 	}
-	fn reverse_ref(what: impl Borrow<AssetId>) -> result::Result<MultiLocation, ()> {
+	fn convert_back(what: &AssetId) -> Option<MultiLocation> {
 		let mut location = Prefix::get();
-		let id = ConvertAssetId::reverse_ref(what)?;
-		location.push_interior(Junction::GeneralIndex(id)).map_err(|_| ())?;
-		Ok(location)
+		let id = ConvertAssetId::convert_back(what)?;
+		location.push_interior(Junction::GeneralIndex(id)).ok()?;
+		Some(location)
 	}
 }
 
@@ -61,8 +65,8 @@ pub struct ConvertedConcreteId<AssetId, Balance, ConvertAssetId, ConvertOther>(
 impl<
 		AssetId: Clone,
 		Balance: Clone,
-		ConvertAssetId: Convert<MultiLocation, AssetId>,
-		ConvertBalance: Convert<u128, Balance>,
+		ConvertAssetId: MaybeEquivalence<MultiLocation, AssetId>,
+		ConvertBalance: MaybeEquivalence<u128, Balance>,
 	> MatchesFungibles<AssetId, Balance>
 	for ConvertedConcreteId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
@@ -71,18 +75,17 @@ impl<
 			(Fungible(ref amount), Concrete(ref id)) => (amount, id),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
-		let amount = ConvertBalance::convert_ref(amount)
-			.map_err(|_| MatchError::AmountToBalanceConversionFailed)?;
+		let what = ConvertAssetId::convert(id).ok_or(MatchError::AssetIdConversionFailed)?;
+		let amount =
+			ConvertBalance::convert(amount).ok_or(MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
 	}
 }
 impl<
 		ClassId: Clone,
 		InstanceId: Clone,
-		ConvertClassId: Convert<MultiLocation, ClassId>,
-		ConvertInstanceId: Convert<AssetInstance, InstanceId>,
+		ConvertClassId: MaybeEquivalence<MultiLocation, ClassId>,
+		ConvertInstanceId: MaybeEquivalence<AssetInstance, InstanceId>,
 	> MatchesNonFungibles<ClassId, InstanceId>
 	for ConvertedConcreteId<ClassId, InstanceId, ConvertClassId, ConvertInstanceId>
 {
@@ -91,10 +94,9 @@ impl<
 			(NonFungible(ref instance), Concrete(ref class)) => (instance, class),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertClassId::convert_ref(class).map_err(|_| MatchError::AssetIdConversionFailed)?;
-		let instance = ConvertInstanceId::convert_ref(instance)
-			.map_err(|_| MatchError::InstanceConversionFailed)?;
+		let what = ConvertClassId::convert(class).ok_or(MatchError::AssetIdConversionFailed)?;
+		let instance =
+			ConvertInstanceId::convert(instance).ok_or(MatchError::InstanceConversionFailed)?;
 		Ok((what, instance))
 	}
 }
@@ -105,8 +107,8 @@ pub struct ConvertedAbstractId<AssetId, Balance, ConvertAssetId, ConvertOther>(
 impl<
 		AssetId: Clone,
 		Balance: Clone,
-		ConvertAssetId: Convert<[u8; 32], AssetId>,
-		ConvertBalance: Convert<u128, Balance>,
+		ConvertAssetId: MaybeEquivalence<[u8; 32], AssetId>,
+		ConvertBalance: MaybeEquivalence<u128, Balance>,
 	> MatchesFungibles<AssetId, Balance>
 	for ConvertedAbstractId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
@@ -115,18 +117,17 @@ impl<
 			(Fungible(ref amount), Abstract(ref id)) => (amount, id),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
-		let amount = ConvertBalance::convert_ref(amount)
-			.map_err(|_| MatchError::AmountToBalanceConversionFailed)?;
+		let what = ConvertAssetId::convert(id).ok_or(MatchError::AssetIdConversionFailed)?;
+		let amount =
+			ConvertBalance::convert(amount).ok_or(MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
 	}
 }
 impl<
 		ClassId: Clone,
 		InstanceId: Clone,
-		ConvertClassId: Convert<[u8; 32], ClassId>,
-		ConvertInstanceId: Convert<AssetInstance, InstanceId>,
+		ConvertClassId: MaybeEquivalence<[u8; 32], ClassId>,
+		ConvertInstanceId: MaybeEquivalence<AssetInstance, InstanceId>,
 	> MatchesNonFungibles<ClassId, InstanceId>
 	for ConvertedAbstractId<ClassId, InstanceId, ConvertClassId, ConvertInstanceId>
 {
@@ -135,10 +136,9 @@ impl<
 			(NonFungible(ref instance), Abstract(ref class)) => (instance, class),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertClassId::convert_ref(class).map_err(|_| MatchError::AssetIdConversionFailed)?;
-		let instance = ConvertInstanceId::convert_ref(instance)
-			.map_err(|_| MatchError::InstanceConversionFailed)?;
+		let what = ConvertClassId::convert(class).ok_or(MatchError::AssetIdConversionFailed)?;
+		let instance =
+			ConvertInstanceId::convert(instance).ok_or(MatchError::InstanceConversionFailed)?;
 		Ok((what, instance))
 	}
 }
@@ -155,8 +155,8 @@ impl<
 		AssetId: Clone,
 		Balance: Clone,
 		MatchAssetId: Contains<MultiLocation>,
-		ConvertAssetId: Convert<MultiLocation, AssetId>,
-		ConvertBalance: Convert<u128, Balance>,
+		ConvertAssetId: MaybeEquivalence<MultiLocation, AssetId>,
+		ConvertBalance: MaybeEquivalence<u128, Balance>,
 	> MatchesFungibles<AssetId, Balance>
 	for MatchedConvertedConcreteId<AssetId, Balance, MatchAssetId, ConvertAssetId, ConvertBalance>
 {
@@ -165,10 +165,9 @@ impl<
 			(Fungible(ref amount), Concrete(ref id)) if MatchAssetId::contains(id) => (amount, id),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
-		let amount = ConvertBalance::convert_ref(amount)
-			.map_err(|_| MatchError::AmountToBalanceConversionFailed)?;
+		let what = ConvertAssetId::convert(id).ok_or(MatchError::AssetIdConversionFailed)?;
+		let amount =
+			ConvertBalance::convert(amount).ok_or(MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
 	}
 }
@@ -176,8 +175,8 @@ impl<
 		ClassId: Clone,
 		InstanceId: Clone,
 		MatchClassId: Contains<MultiLocation>,
-		ConvertClassId: Convert<MultiLocation, ClassId>,
-		ConvertInstanceId: Convert<AssetInstance, InstanceId>,
+		ConvertClassId: MaybeEquivalence<MultiLocation, ClassId>,
+		ConvertInstanceId: MaybeEquivalence<AssetInstance, InstanceId>,
 	> MatchesNonFungibles<ClassId, InstanceId>
 	for MatchedConvertedConcreteId<ClassId, InstanceId, MatchClassId, ConvertClassId, ConvertInstanceId>
 {
@@ -187,10 +186,9 @@ impl<
 				(instance, class),
 			_ => return Err(MatchError::AssetNotHandled),
 		};
-		let what =
-			ConvertClassId::convert_ref(class).map_err(|_| MatchError::AssetIdConversionFailed)?;
-		let instance = ConvertInstanceId::convert_ref(instance)
-			.map_err(|_| MatchError::InstanceConversionFailed)?;
+		let what = ConvertClassId::convert(class).ok_or(MatchError::AssetIdConversionFailed)?;
+		let instance =
+			ConvertInstanceId::convert(instance).ok_or(MatchError::InstanceConversionFailed)?;
 		Ok((what, instance))
 	}
 }
@@ -286,13 +284,13 @@ mod tests {
 
 		// ConvertedConcreteId cfg
 		struct ClassInstanceIdConverter;
-		impl Convert<AssetInstance, ClassInstanceId> for ClassInstanceIdConverter {
-			fn convert_ref(value: impl Borrow<AssetInstance>) -> Result<ClassInstanceId, ()> {
-				value.borrow().clone().try_into().map_err(|_| ())
+		impl MaybeEquivalence<AssetInstance, ClassInstanceId> for ClassInstanceIdConverter {
+			fn convert(value: &AssetInstance) -> Option<ClassInstanceId> {
+				value.clone().try_into().ok()
 			}
 
-			fn reverse_ref(value: impl Borrow<ClassInstanceId>) -> Result<AssetInstance, ()> {
-				Ok(AssetInstance::from(value.borrow().clone()))
+			fn convert_back(value: &ClassInstanceId) -> Option<AssetInstance> {
+				Some(AssetInstance::from(value.clone()))
 			}
 		}
 

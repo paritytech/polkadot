@@ -2,6 +2,7 @@
 name = "test-parachain-undying-collator"
 description = "Collator for the undying test parachain"
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 authors.workspace = true
 
@@ -14,7 +15,7 @@ name = "undying_collator_puppet_worker"
 path = "bin/puppet_worker.rs"
 
 [dependencies]
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 clap = { version = "4.0.9", features = ["derive"] }
 futures = "0.3.19"
 futures-timer = "3.0.2"
