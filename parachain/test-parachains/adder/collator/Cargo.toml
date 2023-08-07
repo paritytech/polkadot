@@ -4,6 +4,7 @@ description = "Collator for the adder test parachain"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "adder-collator"
