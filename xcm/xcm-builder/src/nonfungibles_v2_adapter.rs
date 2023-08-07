@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Adapters to work with `frame_support::traits::tokens::nonfungibles_v2` through XCM.
-
 use crate::{AssetChecking, MintLocation};
 use frame_support::{
 	ensure,
@@ -30,6 +29,9 @@ use xcm_executor::traits::{
 };
 
 const LOG_TARGET: &str = "xcm::nonfungibles_v2_adapter";
+/// Adapter for transferring non-fungible tokens (NFTs) using the `nonfungibles_v2` trait.
+///
+/// This adapter facilitates the transfer of NFTs between different locations.
 pub struct NonFungiblesV2TransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,
 );
@@ -64,6 +66,9 @@ impl<
 	}
 }
 
+/// Adapter for mutating non-fungible tokens (NFTs) using the `nonfungibles_v2` trait.
+///
+/// This adapter provides functions to withdraw, deposit, check in and check out non fungibles.
 pub struct NonFungiblesV2MutateAdapter<
 	Assets,
 	Matcher,
@@ -271,6 +276,11 @@ impl<
 	}
 }
 
+/// Adapter for handling non-fungible tokens (NFTs) using the `nonfungibles_v2` trait.
+///
+/// This adapter combines the functionalities of both the `NonFungiblesV2TransferAdapter` and `NonFungiblesV2MutateAdapter` adapters,
+/// allowing handling NFTs in various scenarios.
+/// For detailed information on the functions, refer to the TransactAsset trait.
 pub struct NonFungiblesV2Adapter<
 	Assets,
 	Matcher,
@@ -402,6 +412,10 @@ impl<
 #[derive(
 	Copy, Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen,
 )]
+/// Represents a collection ID based on a MultiLocation.
+///
+/// This structure provides a way to map a MultiLocation to a collection ID,
+/// which is useful for describing collections that do not follow an incremental pattern.
 pub struct MultiLocationCollectionId(MultiLocation);
 impl MultiLocationCollectionId {
 	/// Consume `self` and return the inner MultiLocation.
@@ -431,8 +445,8 @@ impl From<MultiLocation> for MultiLocationCollectionId {
 	}
 }
 
-impl Into<MultiLocation> for MultiLocationCollectionId {
-	fn into(self) -> MultiLocation {
-		self.into_inner()
+impl From<MultiLocationCollectionId> for MultiLocation {
+	fn from(value: MultiLocationCollectionId) -> MultiLocation {
+		value.into_inner()
 	}
 }
