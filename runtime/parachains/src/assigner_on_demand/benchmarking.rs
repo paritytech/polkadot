@@ -63,9 +63,12 @@ where
 
 #[benchmarks]
 mod benchmarks {
+	/// We want to fill the queue to the maximum, so exactly one more item fits.
+	const MAX_FILL_BENCH: u32 = ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE.saturating_sub(1);
+
 	use super::*;
 	#[benchmark]
-	fn place_order(s: Linear<1, ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE>) {
+	fn place_order(s: Linear<1, MAX_FILL_BENCH>) {
 		// Setup
 		let caller = whitelisted_caller();
 		let para_id = ParaId::from(111u32);
@@ -73,7 +76,7 @@ mod benchmarks {
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		let assignment = Assignment::new(para_id);
 
-		for _ in 0..s - 1 {
+		for _ in 0..s {
 			Pallet::<T>::add_on_demand_assignment(assignment.clone(), QueuePushDirection::Back)
 				.unwrap();
 		}
