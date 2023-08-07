@@ -20,10 +20,10 @@
 use super::*;
 
 use frame_benchmarking::v2::*;
-use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use frame_support::assert_ok;
-use sp_runtime::traits::Bounded;
+use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use primitives::Id as ParaId;
+use sp_runtime::traits::Bounded;
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency;
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency as Currency<
@@ -45,7 +45,12 @@ mod benchmarks {
 
 		CurrencyOf::<T>::make_free_balance_be(&who, BalanceOf::<T>::max_value());
 
-		assert_ok!(T::Registrar::register(who, para_id, worst_head_data, worst_validation_code.clone()));
+		assert_ok!(T::Registrar::register(
+			who,
+			para_id,
+			worst_head_data,
+			worst_validation_code.clone()
+		));
 		assert_ok!(paras::Pallet::<T>::add_trusted_validation_code(
 			frame_system::Origin::<T>::Root.into(),
 			worst_validation_code,
@@ -58,7 +63,8 @@ mod benchmarks {
 		let para_id = ParaId::from(1_u32);
 		let caller = RawOrigin::Root;
 
-		let _ = AssignedSlots::<T>::set_max_permanent_slots(frame_system::Origin::<T>::Root.into(), 10);
+		let _ =
+			AssignedSlots::<T>::set_max_permanent_slots(frame_system::Origin::<T>::Root.into(), 10);
 		register_parachain::<T>(para_id);
 
 		let counter = PermanentSlotCount::<T>::get();
@@ -84,7 +90,8 @@ mod benchmarks {
 		let para_id = ParaId::from(2_u32);
 		let caller = RawOrigin::Root;
 
-		let _ = AssignedSlots::<T>::set_max_temporary_slots(frame_system::Origin::<T>::Root.into(), 10);
+		let _ =
+			AssignedSlots::<T>::set_max_temporary_slots(frame_system::Origin::<T>::Root.into(), 10);
 		register_parachain::<T>(para_id);
 
 		let current_lease_period: BlockNumberFor<T> =
@@ -111,8 +118,9 @@ mod benchmarks {
 	fn unassign_parachain_slot() {
 		let para_id = ParaId::from(3_u32);
 		let caller = RawOrigin::Root;
-		
-		let _ = AssignedSlots::<T>::set_max_temporary_slots(frame_system::Origin::<T>::Root.into(), 10);
+
+		let _ =
+			AssignedSlots::<T>::set_max_temporary_slots(frame_system::Origin::<T>::Root.into(), 10);
 		register_parachain::<T>(para_id);
 
 		let _ = AssignedSlots::<T>::assign_temp_parachain_slot(
