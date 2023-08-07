@@ -1018,6 +1018,7 @@ impl assigned_slots::Config for Runtime {
 	type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
 	type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
 	type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
+	type WeightInfo = weights::runtime_common_assigned_slots::WeightInfo<Runtime>;
 }
 
 impl parachains_disputes::Config for Runtime {

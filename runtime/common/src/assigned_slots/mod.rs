@@ -27,9 +27,8 @@ pub mod benchmarking;
 pub mod migration;
 
 use crate::{
-	slots::{self, Pallet as Slots, WeightInfo},
+	slots::{self, Pallet as Slots, WeightInfo as SlotsWeightInfo},
 	traits::{LeaseError, Leaser, Registrar},
-	MAXIMUM_BLOCK_WEIGHT,
 };
 use frame_support::{pallet_prelude::*, traits::Currency};
 use frame_system::pallet_prelude::*;
@@ -70,6 +69,33 @@ pub struct ParachainTemporarySlot<AccountId, LeasePeriod> {
 	pub last_lease: Option<LeasePeriod>,
 	/// Number of leases this temporary slot had (incl. current).
 	pub lease_count: u32,
+}
+
+pub trait WeightInfo {
+	fn assign_perm_parachain_slot() -> Weight;
+	fn assign_temp_parachain_slot() -> Weight;
+	fn unassign_parachain_slot() -> Weight;
+	fn set_max_permanent_slots() -> Weight;
+	fn set_max_temporary_slots() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn assign_perm_parachain_slot() -> Weight {
+		Weight::zero()
+	}
+	fn assign_temp_parachain_slot() -> Weight {
+		Weight::zero()
+	}
+	fn unassign_parachain_slot() -> Weight {
+		Weight::zero()
+	}
+	fn set_max_permanent_slots() -> Weight {
+		Weight::zero()
+	}
+	fn set_max_temporary_slots() -> Weight {
+		Weight::zero()
+	}
 }
 
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency as Currency<
@@ -115,6 +141,9 @@ pub mod pallet {
 		/// The max number of temporary slots to be scheduled per lease periods.
 		#[pallet::constant]
 		type MaxTemporarySlotPerLeasePeriod: Get<u32>;
+
+		/// Weight Information for the Extrinsics in the Pallet
+		type WeightInfo: WeightInfo;
 	}
 
 	/// Assigned permanent slots, with their start lease period, and duration.
@@ -225,10 +254,9 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		// TODO: Benchmark this
 		/// Assign a permanent parachain slot and immediately create a lease for it.
 		#[pallet::call_index(0)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight((<T as Config>::WeightInfo::assign_perm_parachain_slot(), DispatchClass::Operational))]
 		pub fn assign_perm_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			T::AssignSlotOrigin::ensure_origin(origin)?;
 
@@ -282,12 +310,11 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// TODO: Benchmark this
 		/// Assign a temporary parachain slot. The function tries to create a lease for it
 		/// immediately if `SlotLeasePeriodStart::Current` is specified, and if the number
 		/// of currently active temporary slots is below `MaxTemporarySlotPerLeasePeriod`.
 		#[pallet::call_index(1)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight((<T as Config>::WeightInfo::assign_temp_parachain_slot(), DispatchClass::Operational))]
 		pub fn assign_temp_parachain_slot(
 			origin: OriginFor<T>,
 			id: ParaId,
@@ -371,10 +398,9 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// TODO: Benchmark this
 		/// Unassign a permanent or temporary parachain slot
 		#[pallet::call_index(2)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight((<T as Config>::WeightInfo::unassign_parachain_slot(), DispatchClass::Operational))]
 		pub fn unassign_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			T::AssignSlotOrigin::ensure_origin(origin.clone())?;
 
@@ -421,10 +447,9 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// TODO: Benchmark this
 		/// Assign a max permanent slot number.
 		#[pallet::call_index(3)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight((<T as Config>::WeightInfo::set_max_permanent_slots(), DispatchClass::Operational))]
 		pub fn set_max_permanent_slots(origin: OriginFor<T>, slots: u32) -> DispatchResult {
 			ensure_root(origin)?;
 
@@ -436,10 +461,9 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// TODO: Benchmark this
 		/// Assign a max temporary slot number.
 		#[pallet::call_index(4)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight((<T as Config>::WeightInfo::set_max_temporary_slots(), DispatchClass::Operational))]
 		pub fn set_max_temporary_slots(origin: OriginFor<T>, slots: u32) -> DispatchResult {
 			ensure_root(origin)?;
 
@@ -747,6 +771,7 @@ mod tests {
 		type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
 		type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
 		type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
+		type WeightInfo = crate::assigned_slots::TestWeightInfo;
 	}
 
 	// This function basically just builds a genesis storage key/value store according to
