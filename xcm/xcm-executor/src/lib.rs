@@ -334,7 +334,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		);
 		let mut result = Ok(());
 		for (i, instr) in xcm.0.into_iter().enumerate() {
-			
 			match &mut result {
 				r @ Ok(()) => {
 					let vm_clone = self.clone();
@@ -373,11 +372,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						}
 					}
 				},
-				Err(ref mut error) => {
+				Err(ref mut error) =>
 					if let Ok(x) = Config::Weigher::instr_weight(&instr) {
 						error.weight.saturating_accrue(x)
-					}
-				},
+					},
 			}
 		}
 		result

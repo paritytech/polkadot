@@ -15,13 +15,30 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use xcm::latest::prelude::*;
-
-/// Handles transactional processing of an XCM instruction.
+/// Provides mechanisms for transactional processing of XCM instructions.
+///
+/// This trait defines the behavior required to process XCM instructions in a transactional
+/// manner. Implementers of this trait can ensure that XCM instructions are executed
+/// atomically, meaning they either fully succeed or fully fail without any partial effects.
+///
+/// Implementers of this trait can also choose to not process XCM instructions transactionally.
+/// This is useful for cases where the implementer is not able to provide transactional guarantees.
+/// In this case the `IS_TRANSACTIONAL` constant should be set to `false`.
+/// The `()` type implements this trait in a non-transactional manner.
 pub trait ProcessTransaction {
-	/// Whether the XCM executor is transactional.
+	/// Whether the processor (i.e. the type implementing this trait) is transactional.
 	const IS_TRANSACTIONAL: bool;
-	/// The `process` method takes a closure as an argument.
-	/// Responsible for processing an XCM instruction transactionally.
+	/// Processes an XCM instruction encapsulated within the provided closure. Responsible for
+	/// processing an XCM instruction transactionally. If the closure returns an error, any
+	/// changes made during its execution should be rolled back. In the case where the
+	/// implementer is not able to provide transactional guarantees, the closure should be
+	/// executed as is.
+	/// # Parameters
+	/// - `f`: A closure that encapsulates the XCM instruction to be processed. It should
+	///   return a `Result` indicating the success or failure of the instruction.
+	///
+	/// # Returns
+	/// - A `Result` indicating the overall success or failure of the transactional process.
 	fn process<F>(f: F) -> Result<(), XcmError>
 	where
 		F: FnOnce() -> Result<(), XcmError>;
