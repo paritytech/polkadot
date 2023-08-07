@@ -533,21 +533,20 @@ fn reserve_transfer_assets_works() {
 /// and deposited to a correct target account (`XcmFeesTargetAccount`).
 #[test]
 fn reserve_transfer_assets_with_paid_router_works() {
-	// set up router fees for destination
-	let xcm_router_fee_amount = 1;
-	set_router_fee_for_destination(
-		Parachain(PARA_ID).into(),
-		Some(MultiAssets::from((Here, xcm_router_fee_amount))),
-	);
-
 	let user_account = AccountId::from(XCM_FEES_NOT_WAIVED_USER_ACCOUNT);
-
 	let balances = vec![
 		(user_account.clone(), INITIAL_BALANCE),
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 		(XcmFeesTargetAccount::get(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
+		// set up router fees for destination
+		let xcm_router_fee_amount = 1;
+		set_router_fee_for_destination(
+			Parachain(PARA_ID).into(),
+			Some(MultiAssets::from((Here, xcm_router_fee_amount))),
+		);
+
 		let weight = BaseXcmWeight::get() * 2;
 		let dest: MultiLocation =
 			Junction::AccountId32 { network: None, id: user_account.clone().into() }.into();
