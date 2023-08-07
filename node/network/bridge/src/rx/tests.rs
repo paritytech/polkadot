@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use futures::{channel::oneshot, executor, stream::BoxStream};
+use futures::{channel::oneshot, executor};
 use polkadot_node_network_protocol::{self as net_protocol, OurView};
 use polkadot_node_subsystem::{messages::NetworkBridgeEvent, ActivatedLeaf};
 
@@ -29,8 +29,8 @@ use std::{
 
 use sc_network::{
 	service::traits::{MessageSink, NotificationService},
-	Event as NetworkEvent, IfDisconnected, Multiaddr, ObservedRole as SubstrateObservedRole,
-	ProtocolName, ReputationChange, Roles,
+	IfDisconnected, Multiaddr, ObservedRole as SubstrateObservedRole, ProtocolName,
+	ReputationChange, Roles,
 };
 
 use polkadot_node_network_protocol::{
@@ -66,7 +66,7 @@ pub enum NetworkAction {
 	WriteNotification(PeerId, PeerSet, Vec<u8>),
 }
 
-// The subsystem's view of the network - only supports a single call to `event_stream`.
+// The subsystem's view of the network.
 #[derive(Clone)]
 struct TestNetwork {
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
@@ -116,10 +116,6 @@ fn new_test_network(
 
 #[async_trait]
 impl Network for TestNetwork {
-	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
-		unimplemented!();
-	}
-
 	async fn set_reserved_peers(
 		&mut self,
 		_protocol: ProtocolName,
@@ -159,16 +155,6 @@ impl Network for TestNetwork {
 		self.action_tx
 			.lock()
 			.unbounded_send(NetworkAction::DisconnectPeer(who, peer_set))
-			.unwrap();
-	}
-
-	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>) {
-		let (peer_set, version) = self.protocol_names.try_get_protocol(&protocol).unwrap();
-		assert_eq!(version, peer_set.get_main_version());
-
-		self.action_tx
-			.lock()
-			.unbounded_send(NetworkAction::WriteNotification(who, peer_set, message))
 			.unwrap();
 	}
 

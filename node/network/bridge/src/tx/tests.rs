@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use futures::{executor, stream::BoxStream};
+use futures::executor;
 use polkadot_node_subsystem_util::TimeoutExt;
 
 use async_trait::async_trait;
@@ -23,8 +23,7 @@ use parking_lot::Mutex;
 use std::collections::HashSet;
 
 use sc_network::{
-	Event as NetworkEvent, IfDisconnected, ObservedRole as SubstrateObservedRole, ProtocolName,
-	ReputationChange, Roles,
+	IfDisconnected, ObservedRole as SubstrateObservedRole, ProtocolName, ReputationChange, Roles,
 };
 
 use parity_scale_codec::DecodeAll;
@@ -55,10 +54,9 @@ pub enum NetworkAction {
 	WriteNotification(PeerId, PeerSet, Vec<u8>),
 }
 
-// The subsystem's view of the network - only supports a single call to `event_stream`.
+// The subsystem's view of the network.
 #[derive(Clone)]
 struct TestNetwork {
-	net_events: Arc<Mutex<Option<metered::MeteredReceiver<NetworkEvent>>>>,
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
 	peerset_protocol_names: Arc<PeerSetProtocolNames>,
 }
@@ -70,7 +68,6 @@ struct TestAuthorityDiscovery;
 // of `NetworkAction`s.
 struct TestNetworkHandle {
 	action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
-	net_tx: metered::MeteredSender<NetworkEvent>,
 	peerset_protocol_names: PeerSetProtocolNames,
 	notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
@@ -121,20 +118,17 @@ fn new_test_network(
 	TestAuthorityDiscovery,
 	Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) {
-	let (net_tx, net_rx) = metered::channel(10);
 	let (action_tx, action_rx) = metered::unbounded();
 	let notification_sinks = Arc::new(Mutex::new(HashMap::new()));
 	let action_tx = Arc::new(Mutex::new(action_tx));
 
 	(
 		TestNetwork {
-			net_events: Arc::new(Mutex::new(Some(net_rx))),
 			action_tx: action_tx.clone(),
 			peerset_protocol_names: Arc::new(peerset_protocol_names.clone()),
 		},
 		TestNetworkHandle {
 			action_rx,
-			net_tx,
 			peerset_protocol_names,
 			action_tx,
 			notification_sinks: notification_sinks.clone(),
@@ -146,14 +140,6 @@ fn new_test_network(
 
 #[async_trait]
 impl Network for TestNetwork {
-	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
-		self.net_events
-			.lock()
-			.take()
-			.expect("Subsystem made more than one call to `event_stream`")
-			.boxed()
-	}
-
 	async fn set_reserved_peers(
 		&mut self,
 		_protocol: ProtocolName,
@@ -196,16 +182,6 @@ impl Network for TestNetwork {
 			.unwrap();
 	}
 
-	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>) {
-		let (peer_set, version) = self.peerset_protocol_names.try_get_protocol(&protocol).unwrap();
-		assert_eq!(version, peer_set.get_main_version());
-
-		self.action_tx
-			.lock()
-			.unbounded_send(NetworkAction::WriteNotification(who, peer_set, message))
-			.unwrap();
-	}
-
 	fn peer_role(&self, _peer_id: PeerId, handshake: Vec<u8>) -> Option<SubstrateObservedRole> {
 		Roles::decode_all(&mut &handshake[..])
 			.ok()
@@ -241,19 +217,6 @@ impl TestNetworkHandle {
 			(peer_set, peer),
 			Box::new(TestMessageSink::new(peer, peer_set, self.action_tx.clone())),
 		);
-
-		self.send_network_event(NetworkEvent::NotificationStreamOpened {
-			remote: peer,
-			protocol: self.peerset_protocol_names.get_main_name(peer_set),
-			negotiated_fallback: None,
-			role: role.into(),
-			received_handshake: vec![],
-		})
-		.await;
-	}
-
-	async fn send_network_event(&mut self, event: NetworkEvent) {
-		self.net_tx.send(event).await.expect("subsystem concluded early");
 	}
 }
 

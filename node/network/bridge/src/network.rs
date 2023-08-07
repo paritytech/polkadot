@@ -20,16 +20,14 @@ use std::{
 };
 
 use async_trait::async_trait;
-use futures::{prelude::*, stream::BoxStream};
 use parking_lot::Mutex;
 
 use parity_scale_codec::Encode;
 
 use sc_network::{
 	config::parse_addr, multiaddr::Multiaddr, service::traits::MessageSink, types::ProtocolName,
-	Event as NetworkEvent, IfDisconnected, NetworkEventStream, NetworkNotification, NetworkPeers,
-	NetworkRequest, NetworkService, ObservedRole, OutboundFailure, ReputationChange,
-	RequestFailure,
+	IfDisconnected, NetworkPeers, NetworkRequest, NetworkService, ObservedRole, OutboundFailure,
+	ReputationChange, RequestFailure,
 };
 
 use polkadot_node_network_protocol::{
@@ -90,12 +88,6 @@ pub(crate) fn send_message<M>(
 /// An abstraction over networking for the purposes of this subsystem.
 #[async_trait]
 pub trait Network: Clone + Send + 'static {
-	/// Get a stream of all events occurring on the network. This may include events unrelated
-	/// to the Polkadot protocol - the user of this function should filter only for events related
-	/// to the [`VALIDATION_PROTOCOL_NAME`](VALIDATION_PROTOCOL_NAME)
-	/// or [`COLLATION_PROTOCOL_NAME`](COLLATION_PROTOCOL_NAME)
-	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent>;
-
 	/// Ask the network to keep a substream open with these nodes and not disconnect from them
 	/// until removed from the protocol's peer set.
 	/// Note that `out_peers` setting has no effect on this.
@@ -127,19 +119,12 @@ pub trait Network: Clone + Send + 'static {
 	/// Disconnect a given peer from the protocol specified without harming reputation.
 	fn disconnect_peer(&self, who: PeerId, protocol: ProtocolName);
 
-	/// Write a notification to a peer on the given protocol.
-	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>);
-
 	/// Get peer role.
 	fn peer_role(&self, who: PeerId, handshake: Vec<u8>) -> Option<ObservedRole>;
 }
 
 #[async_trait]
 impl Network for Arc<NetworkService<Block, Hash>> {
-	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
-		NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
-	}
-
 	async fn set_reserved_peers(
 		&mut self,
 		protocol: ProtocolName,
@@ -162,10 +147,6 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 
 	fn disconnect_peer(&self, who: PeerId, protocol: ProtocolName) {
 		NetworkService::disconnect_peer(&**self, who, protocol);
-	}
-
-	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>) {
-		NetworkService::write_notification(&**self, who, protocol, message);
 	}
 
 	async fn start_request<AD: AuthorityDiscovery>(
