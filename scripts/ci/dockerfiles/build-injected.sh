@@ -65,3 +65,6 @@ $ENGINE images | grep ${IMAGE}
 
 # Check the final image
 $ENGINE run --rm -it "${IMAGE}:latest" --version
+
+# Check binary-ies
+$ENGINE run --rm -it --entrypoint /bin/bash "${IMAGE}:latest" -c 'echo BINARY: $BINARY'

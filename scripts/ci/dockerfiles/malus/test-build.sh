@@ -11,7 +11,7 @@ $ENGINE run --user root --rm -it \
   paritypr/malus:7217 -c \
   'cp "$(which malus)" /export'
 
-echo "Checking TMP:"
+echo "Checking binaries we got:"
 ls -al $TMP
 
 ./build-injected.sh $TMP

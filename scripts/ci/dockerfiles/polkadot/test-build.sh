@@ -9,8 +9,8 @@ ENGINE=${ENGINE:-podman}
 $ENGINE run --user root --rm -it \
   -v "$TMP:/export" \
   --entrypoint /bin/bash \
-  parity/staking-miner -c \
-  'cp "$(which staking-miner)" /export'
+  parity/polkadot -c \
+  'cp "$(which polkadot)" /export'
 
 echo "Checking binaries we got:"
 tree $TMP
