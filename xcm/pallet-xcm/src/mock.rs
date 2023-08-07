@@ -16,8 +16,8 @@
 
 use codec::Encode;
 use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{ConstU32, Everything, Nothing},
+	construct_runtime, match_types, parameter_types,
+	traits::{ConstU32, Everything, EverythingBut, Nothing},
 	weights::Weight,
 };
 use frame_system::EnsureRoot;
@@ -25,14 +25,16 @@ use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
 use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
-pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
+pub use sp_std::{
+	cell::RefCell, collections::btree_map::BTreeMap, fmt::Debug, marker::PhantomData,
+};
 use xcm::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, Case, ChildParachainAsNative, ChildParachainConvertsVia,
 	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible,
 	FixedWeightBounds, IsConcrete, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit,
+	SovereignSignedViaLocation, TakeWeightCredit, XcmFeesToAccount,
 };
 use xcm_executor::XcmExecutor;
 
@@ -143,6 +145,7 @@ construct_runtime!(
 
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
+	pub static XCM_ROUTER_FEES: RefCell<BTreeMap<MultiLocation, MultiAssets>> = RefCell::new(BTreeMap::new());
 }
 pub(crate) fn sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
@@ -154,7 +157,24 @@ pub(crate) fn take_sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
 		r
 	})
 }
-/// Sender that never returns error, always sends
+pub(crate) fn set_router_fee_for_destination(dest: MultiLocation, fees: Option<MultiAssets>) {
+	XCM_ROUTER_FEES.with(|q| {
+		if let Some(fees) = fees {
+			q.borrow_mut()
+				.entry(dest)
+				.and_modify(|old_value| *old_value = fees.clone())
+				.or_insert(fees);
+		} else {
+			let _ = q.borrow_mut().remove_entry(&dest);
+		}
+	})
+}
+pub(crate) fn get_router_fee_for_destination(dest: &MultiLocation) -> Option<MultiAssets> {
+	XCM_ROUTER_FEES.with(|q| q.borrow().get(dest).map(Clone::clone))
+}
+
+/// Sender that never returns error, always sends.
+/// By default does not return **fees**, **fees** can be managed per destination with `set_router_fee_for_destination`.
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	type Ticket = (MultiLocation, Xcm<()>);
@@ -163,7 +183,17 @@ impl SendXcm for TestSendXcm {
 		msg: &mut Option<Xcm<()>>,
 	) -> SendResult<(MultiLocation, Xcm<()>)> {
 		let pair = (dest.take().unwrap(), msg.take().unwrap());
-		Ok((pair, MultiAssets::new()))
+
+		// Check if fees are configured for dest
+		let maybe_payment = match get_router_fee_for_destination(&pair.0) {
+			Some(fees) => fees,
+			None => {
+				// can be change to None, but this was here before.
+				MultiAssets::new()
+			},
+		};
+
+		Ok((pair, maybe_payment))
 	}
 	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
 		let hash = fake_message_hash(&pair.1);
@@ -271,6 +301,14 @@ parameter_types! {
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
+	pub XcmFeesTargetAccount: AccountId = AccountId::new([167u8; 32]);
+}
+
+pub const XCM_FEES_NOT_WAIVED_USER_ACCOUNT: [u8; 32] = [37u8; 32];
+match_types! {
+	pub type XcmFeesNotWaivedLocations: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Junction::AccountId32 {network: None, id: XCM_FEES_NOT_WAIVED_USER_ACCOUNT})}
+	};
 }
 
 pub type Barrier = (
@@ -300,7 +338,12 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
-	type FeeManager = ();
+	type FeeManager = XcmFeesToAccount<
+		Self,
+		EverythingBut<XcmFeesNotWaivedLocations>,
+		AccountId,
+		XcmFeesTargetAccount,
+	>;
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
