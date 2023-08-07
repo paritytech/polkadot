@@ -17,24 +17,49 @@
 //! Benchmarking for assigned_slots pallet
 
 #![cfg(feature = "runtime-benchmarks")]
-use super::{Pallet as AssignedSlots, *};
+use super::*;
 
 use frame_benchmarking::v2::*;
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
+use frame_support::assert_ok;
+use sp_runtime::traits::Bounded;
 use primitives::Id as ParaId;
 
-#[benchmarks]
+type CurrencyOf<T> = <<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency;
+type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::Balance;
+#[benchmarks(where
+	//T: Config + ParasRegistrarConfig,
+	T: Config
+)]
 mod benchmarks {
 	use super::*;
+
+	use crate::assigned_slots::Pallet as AssignedSlots;
+
+	fn register_parachain<T: Config>(para_id: ParaId) {
+		let who: T::AccountId = whitelisted_caller();
+		let worst_validation_code = T::Registrar::worst_validation_code();
+		let worst_head_data = T::Registrar::worst_head_data();
+
+		CurrencyOf::<T>::make_free_balance_be(&who, BalanceOf::<T>::max_value());
+
+		assert_ok!(T::Registrar::register(who, para_id, worst_head_data, worst_validation_code.clone()));
+		assert_ok!(paras::Pallet::<T>::add_trusted_validation_code(
+			frame_system::Origin::<T>::Root.into(),
+			worst_validation_code,
+		));
+		T::Registrar::execute_pending_transitions();
+	}
 
 	#[benchmark]
 	fn assign_perm_parachain_slot() {
 		let para_id = ParaId::from(1_u32);
 		let caller = RawOrigin::Root;
-		let who: T::AccountId = whitelisted_caller();
-		let worst_validation_code = T::Registrar::worst_validation_code();
-		let worst_head_data = T::Registrar::worst_head_data();
-		let _ = T::Registrar::register(who, para_id, worst_head_data, worst_validation_code);
+
+		let _ = AssignedSlots::<T>::set_max_permanent_slots(frame_system::Origin::<T>::Root.into(), 10);
+		register_parachain::<T>(para_id);
 
 		let counter = PermanentSlotCount::<T>::get();
 		let current_lease_period: BlockNumberFor<T> =
@@ -58,10 +83,9 @@ mod benchmarks {
 	fn assign_temp_parachain_slot() {
 		let para_id = ParaId::from(2_u32);
 		let caller = RawOrigin::Root;
-		let who: T::AccountId = whitelisted_caller();
-		let worst_validation_code = T::Registrar::worst_validation_code();
-		let worst_head_data = T::Registrar::worst_head_data();
-		let _ = T::Registrar::register(who, para_id, worst_head_data, worst_validation_code);
+
+		let _ = AssignedSlots::<T>::set_max_temporary_slots(frame_system::Origin::<T>::Root.into(), 10);
+		register_parachain::<T>(para_id);
 
 		let current_lease_period: BlockNumberFor<T> =
 			T::Leaser::lease_period_index(frame_system::Pallet::<T>::block_number())
@@ -87,10 +111,10 @@ mod benchmarks {
 	fn unassign_parachain_slot() {
 		let para_id = ParaId::from(3_u32);
 		let caller = RawOrigin::Root;
-		let who: T::AccountId = whitelisted_caller();
-		let worst_validation_code = T::Registrar::worst_validation_code();
-		let worst_head_data = T::Registrar::worst_head_data();
-		let _ = T::Registrar::register(who, para_id, worst_head_data, worst_validation_code);
+		
+		let _ = AssignedSlots::<T>::set_max_temporary_slots(frame_system::Origin::<T>::Root.into(), 10);
+		register_parachain::<T>(para_id);
+
 		let _ = AssignedSlots::<T>::assign_temp_parachain_slot(
 			caller.clone().into(),
 			para_id,
@@ -126,6 +150,6 @@ mod benchmarks {
 	impl_benchmark_test_suite!(
 		AssignedSlots,
 		crate::assigned_slots::tests::new_test_ext(),
-		crate::assigned_slots::tests::Test
+		crate::assigned_slots::tests::Test,
 	);
 }
