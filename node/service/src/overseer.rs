@@ -20,6 +20,8 @@ use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_core::traits::SpawnNamed;
 
 use lru::LruCache;
+use parking_lot::Mutex;
+
 use polkadot_availability_distribution::IncomingRequestReceivers;
 use polkadot_node_core_approval_voting::Config as ApprovalVotingConfig;
 use polkadot_node_core_av_store::Config as AvailabilityConfig;
@@ -211,6 +213,7 @@ where
 	let spawner = SpawnGlue(spawner);
 
 	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
+	let network_notification_sinks = Arc::new(Mutex::new(HashMap::new()));
 
 	let runtime_api_client = Arc::new(DefaultSubsystemClient::new(
 		runtime_client.clone(),
@@ -224,6 +227,7 @@ where
 			network_bridge_metrics.clone(),
 			req_protocol_names,
 			peerset_protocol_names.clone(),
+			network_notification_sinks.clone(),
 		))
 		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
 			network_service.clone(),
@@ -232,6 +236,7 @@ where
 			network_bridge_metrics,
 			peerset_protocol_names,
 			notification_services,
+			network_notification_sinks.clone(),
 		))
 		.availability_distribution(AvailabilityDistributionSubsystem::new(
 			keystore.clone(),

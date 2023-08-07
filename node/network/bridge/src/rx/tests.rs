@@ -69,7 +69,6 @@ pub enum NetworkAction {
 // The subsystem's view of the network - only supports a single call to `event_stream`.
 #[derive(Clone)]
 struct TestNetwork {
-	net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
 	protocol_names: Arc<PeerSetProtocolNames>,
 }
@@ -81,8 +80,6 @@ struct TestAuthorityDiscovery;
 // of `NetworkAction`s.
 struct TestNetworkHandle {
 	action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
-	net_tx: SingleItemSink<NetworkEvent>,
-	protocol_names: PeerSetProtocolNames,
 	validation_tx: SingleItemSink<NotificationEvent>,
 	collation_tx: SingleItemSink<NotificationEvent>,
 }
@@ -96,32 +93,31 @@ fn new_test_network(
 	Box<dyn NotificationService>,
 	Box<dyn NotificationService>,
 ) {
-	let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
 	let (action_tx, action_rx) = metered::unbounded();
 	let (validation_tx, validation_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
 	let (collation_tx, collation_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
+	let action_tx = Arc::new(Mutex::new(action_tx));
 
 	(
 		TestNetwork {
-			net_events: Arc::new(Mutex::new(Some(net_rx))),
-			action_tx: Arc::new(Mutex::new(action_tx)),
+			action_tx: action_tx.clone(),
 			protocol_names: Arc::new(protocol_names.clone()),
 		},
-		TestNetworkHandle { action_rx, net_tx, protocol_names, validation_tx, collation_tx },
+		TestNetworkHandle { action_rx, validation_tx, collation_tx },
 		TestAuthorityDiscovery,
-		Box::new(TestNotificationService::new(validation_rx)),
-		Box::new(TestNotificationService::new(collation_rx)),
+		Box::new(TestNotificationService::new(
+			PeerSet::Validation,
+			action_tx.clone(),
+			validation_rx,
+		)),
+		Box::new(TestNotificationService::new(PeerSet::Collation, action_tx, collation_rx)),
 	)
 }
 
 #[async_trait]
 impl Network for TestNetwork {
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
-		self.net_events
-			.lock()
-			.take()
-			.expect("Subsystem made more than one call to `event_stream`")
-			.boxed()
+		unimplemented!();
 	}
 
 	async fn set_reserved_peers(
@@ -289,6 +285,8 @@ fn assert_network_actions_contains(actions: &[NetworkAction], action: &NetworkAc
 }
 
 struct TestNotificationService {
+	peer_set: PeerSet,
+	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
 	rx: SingleItemStream<NotificationEvent>,
 }
 
@@ -299,8 +297,49 @@ impl std::fmt::Debug for TestNotificationService {
 }
 
 impl TestNotificationService {
-	pub fn new(rx: SingleItemStream<NotificationEvent>) -> Self {
-		Self { rx }
+	pub fn new(
+		peer_set: PeerSet,
+		action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+		rx: SingleItemStream<NotificationEvent>,
+	) -> Self {
+		Self { peer_set, action_tx, rx }
+	}
+}
+
+struct TestMessageSink {
+	peer: PeerId,
+	peer_set: PeerSet,
+	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+}
+
+impl TestMessageSink {
+	fn new(
+		peer: PeerId,
+		peer_set: PeerSet,
+		action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+	) -> TestMessageSink {
+		Self { peer, peer_set, action_tx }
+	}
+}
+
+#[async_trait::async_trait]
+impl MessageSink for TestMessageSink {
+	fn send_sync_notification(&self, notification: Vec<u8>) {
+		self.action_tx
+			.lock()
+			.unbounded_send(NetworkAction::WriteNotification(
+				self.peer,
+				self.peer_set,
+				notification,
+			))
+			.unwrap();
+	}
+
+	async fn send_async_notification(
+		&self,
+		_notification: Vec<u8>,
+	) -> Result<(), sc_network::error::Error> {
+		unimplemented!();
 	}
 }
 
@@ -352,8 +391,9 @@ impl NotificationService for TestNotificationService {
 	}
 
 	/// Get notification sink of the peer.
-	fn message_sink(&self, _peer: &PeerId) -> Option<Box<dyn MessageSink>> {
-		unimplemented!();
+	fn message_sink(&self, peer: &PeerId) -> Option<Box<dyn MessageSink>> {
+		// TODO: verify that peer exists?
+		Some(Box::new(TestMessageSink::new(*peer, self.peer_set, self.action_tx.clone())))
 	}
 }
 
@@ -452,11 +492,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let peerset_protocol_names = PeerSetProtocolNames::new(genesis_hash, fork_id);
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut network, network_handle, discovery, validation_service, collation_service) =
+	let (network, network_handle, discovery, validation_service, collation_service) =
 		new_test_network(peerset_protocol_names.clone());
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
-	let network_stream = network.event_stream();
+	let network_notification_sinks = Arc::new(Mutex::new(HashMap::new()));
 	let shared = Shared::default();
 
 	let bridge = NetworkBridgeRx {
@@ -468,6 +508,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		peerset_protocol_names,
 		validation_service,
 		collation_service,
+		network_notification_sinks,
 	};
 
 	let network_bridge = run_network_in(bridge, context)

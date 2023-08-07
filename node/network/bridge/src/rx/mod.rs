@@ -22,7 +22,9 @@ use always_assert::never as _;
 use bytes::Bytes;
 use parity_scale_codec::{Decode, DecodeAll};
 
-use sc_network::service::traits::{NotificationEvent, NotificationService, ValidationResult};
+use sc_network::service::traits::{
+	MessageSink, NotificationEvent, NotificationService, ValidationResult,
+};
 use sp_consensus::SyncOracle;
 
 use polkadot_node_network_protocol::{
@@ -82,6 +84,7 @@ pub struct NetworkBridgeRx<N, AD> {
 	peerset_protocol_names: PeerSetProtocolNames,
 	validation_service: Box<dyn NotificationService>,
 	collation_service: Box<dyn NotificationService>,
+	network_notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 }
 
 impl<N, AD> NetworkBridgeRx<N, AD> {
@@ -96,6 +99,7 @@ impl<N, AD> NetworkBridgeRx<N, AD> {
 		metrics: Metrics,
 		peerset_protocol_names: PeerSetProtocolNames,
 		mut notification_services: HashMap<PeerSet, Box<dyn NotificationService>>,
+		network_notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 	) -> Self {
 		let shared = Shared::default();
 
@@ -115,6 +119,7 @@ impl<N, AD> NetworkBridgeRx<N, AD> {
 			peerset_protocol_names,
 			validation_service,
 			collation_service,
+			network_notification_sinks,
 		}
 	}
 }
@@ -144,6 +149,8 @@ async fn handle_validation_message<AD>(
 	metrics: &Metrics,
 	shared: &Shared,
 	peerset_protocol_names: &PeerSetProtocolNames,
+	notification_service: &mut Box<dyn NotificationService>,
+	network_notification_sinks: &mut Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) -> Result<(), ()>
 where
 	AD: validator_discovery::AuthorityDiscovery + Send,
@@ -207,6 +214,25 @@ where
 				}
 			};
 
+			// store the notification sink to `network_notification_sinks` so both `NetworkBridgeRx`
+			// and `NetworkBridgeTx` can send messages to the peer.
+			match notification_service.message_sink(&peer) {
+				Some(sink) => {
+					network_notification_sinks.lock().insert((peer_set, peer), sink);
+				},
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						peer_set = ?peer_set,
+						version = %version,
+						peer = ?peer,
+						role = ?role,
+						"Message sink not available for peer",
+					);
+					return Ok(())
+				},
+			}
+
 			gum::debug!(
 				target: LOG_TARGET,
 				action = "PeerConnected",
@@ -247,13 +273,12 @@ where
 			.await;
 
 			send_message(
-				network_service,
 				vec![peer],
 				PeerSet::Validation,
 				version,
-				peerset_protocol_names,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(local_view),
 				metrics,
+				&network_notification_sinks,
 			);
 		},
 		NotificationEvent::NotificationStreamClosed { peer } => {
@@ -282,6 +307,8 @@ where
 
 				w
 			};
+
+			network_notification_sinks.lock().remove(&(peer_set, peer));
 
 			if was_connected && version == peer_set.get_main_version() {
 				dispatch_validation_event_to_all(NetworkBridgeEvent::PeerDisconnected(peer), sender)
@@ -326,6 +353,8 @@ async fn handle_collation_message<AD>(
 	metrics: &Metrics,
 	shared: &Shared,
 	peerset_protocol_names: &PeerSetProtocolNames,
+	notification_service: &mut Box<dyn NotificationService>,
+	network_notification_sinks: &mut Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) -> Result<(), ()>
 where
 	AD: validator_discovery::AuthorityDiscovery + Send,
@@ -389,6 +418,25 @@ where
 				}
 			};
 
+			// store the notification sink to `network_notification_sinks` so both `NetworkBridgeRx`
+			// and `NetworkBridgeTx` can send messages to the peer.
+			match notification_service.message_sink(&peer) {
+				Some(sink) => {
+					network_notification_sinks.lock().insert((peer_set, peer), sink);
+				},
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						peer_set = ?peer_set,
+						version = %version,
+						peer = ?peer,
+						role = ?role,
+						"Message sink not available for peer",
+					);
+					return Ok(())
+				},
+			}
+
 			gum::debug!(
 				target: LOG_TARGET,
 				action = "PeerConnected",
@@ -428,13 +476,12 @@ where
 			.await;
 
 			send_message(
-				network_service,
 				vec![peer],
 				PeerSet::Collation,
 				version,
-				peerset_protocol_names,
 				WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(local_view),
 				metrics,
+				&network_notification_sinks,
 			);
 		},
 		NotificationEvent::NotificationStreamClosed { peer } => {
@@ -463,6 +510,8 @@ where
 
 				w
 			};
+
+			network_notification_sinks.lock().remove(&(peer_set, peer));
 
 			if was_connected && version == peer_set.get_main_version() {
 				dispatch_collation_event_to_all(NetworkBridgeEvent::PeerDisconnected(peer), sender)
@@ -507,6 +556,7 @@ async fn handle_network_messages<AD>(
 	metrics: Metrics,
 	shared: Shared,
 	peerset_protocol_names: PeerSetProtocolNames,
+	mut network_notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) -> Result<(), Error>
 where
 	AD: validator_discovery::AuthorityDiscovery + Send,
@@ -522,6 +572,8 @@ where
 					&metrics,
 					&shared,
 					&peerset_protocol_names,
+					&mut validation_service,
+					&mut network_notification_sinks,
 				).await {
 					// TODO: log error
 				}
@@ -536,6 +588,8 @@ where
 					&metrics,
 					&shared,
 					&peerset_protocol_names,
+					&mut collation_service,
+					&mut network_notification_sinks,
 				).await {
 					// TODO: log error
 				}
@@ -566,17 +620,15 @@ where
 }
 
 #[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
-async fn run_incoming_orchestra_signals<Context, N, AD>(
+async fn run_incoming_orchestra_signals<Context, AD>(
 	mut ctx: Context,
-	mut network_service: N,
 	mut authority_discovery_service: AD,
 	shared: Shared,
 	sync_oracle: Box<dyn SyncOracle + Send>,
 	metrics: Metrics,
-	peerset_protocol_names: PeerSetProtocolNames,
+	network_notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) -> Result<(), Error>
 where
-	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
 	// This is kept sorted, descending, by block number.
@@ -668,13 +720,12 @@ where
 						mode = Mode::Active;
 
 						update_our_view(
-							&mut network_service,
 							&mut ctx,
 							&live_heads,
 							&shared,
 							finalized_number,
 							&metrics,
-							&peerset_protocol_names,
+							&network_notification_sinks,
 						);
 					}
 				}
@@ -717,6 +768,7 @@ where
 		peerset_protocol_names,
 		validation_service,
 		collation_service,
+		network_notification_sinks,
 	} = bridge;
 
 	let (task, network_event_handler) = handle_network_messages(
@@ -728,6 +780,7 @@ where
 		metrics.clone(),
 		shared.clone(),
 		peerset_protocol_names.clone(),
+		network_notification_sinks.clone(),
 	)
 	.remote_handle();
 
@@ -736,12 +789,11 @@ where
 
 	let orchestra_signal_handler = run_incoming_orchestra_signals(
 		ctx,
-		network_service,
 		authority_discovery_service,
 		shared,
 		sync_oracle,
 		metrics,
-		peerset_protocol_names,
+		network_notification_sinks,
 	);
 
 	futures::pin_mut!(orchestra_signal_handler);
@@ -761,17 +813,14 @@ fn construct_view(
 }
 
 #[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
-fn update_our_view<Net, Context>(
-	net: &mut Net,
+fn update_our_view<Context>(
 	ctx: &mut Context,
 	live_heads: &[ActivatedLeaf],
 	shared: &Shared,
 	finalized_number: BlockNumber,
 	metrics: &Metrics,
-	peerset_protocol_names: &PeerSetProtocolNames,
-) where
-	Net: Network,
-{
+	network_notification_sinks: &Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
+) {
 	let new_view = construct_view(live_heads.iter().map(|v| v.hash), finalized_number);
 
 	let (validation_peers, collation_peers) = {
@@ -800,19 +849,17 @@ fn update_our_view<Net, Context>(
 	};
 
 	send_validation_message_v1(
-		net,
 		validation_peers,
-		peerset_protocol_names,
 		WireMessage::ViewUpdate(new_view.clone()),
 		metrics,
+		network_notification_sinks,
 	);
 
 	send_collation_message_v1(
-		net,
 		collation_peers,
-		peerset_protocol_names,
 		WireMessage::ViewUpdate(new_view),
 		metrics,
+		network_notification_sinks,
 	);
 
 	let our_view = OurView::new(
@@ -885,38 +932,34 @@ fn handle_v1_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
 }
 
 fn send_validation_message_v1(
-	net: &mut impl Network,
 	peers: Vec<PeerId>,
-	peerset_protocol_names: &PeerSetProtocolNames,
 	message: WireMessage<protocol_v1::ValidationProtocol>,
 	metrics: &Metrics,
+	network_notification_sinks: &Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) {
 	send_message(
-		net,
 		peers,
 		PeerSet::Validation,
 		ValidationVersion::V1.into(),
-		peerset_protocol_names,
 		message,
 		metrics,
+		network_notification_sinks,
 	);
 }
 
 fn send_collation_message_v1(
-	net: &mut impl Network,
 	peers: Vec<PeerId>,
-	peerset_protocol_names: &PeerSetProtocolNames,
 	message: WireMessage<protocol_v1::CollationProtocol>,
 	metrics: &Metrics,
+	network_notification_sinks: &Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) {
 	send_message(
-		net,
 		peers,
 		PeerSet::Collation,
 		CollationVersion::V1.into(),
-		peerset_protocol_names,
 		message,
 		metrics,
+		&network_notification_sinks,
 	);
 }
 

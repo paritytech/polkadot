@@ -72,22 +72,75 @@ struct TestNetworkHandle {
 	action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
 	net_tx: metered::MeteredSender<NetworkEvent>,
 	peerset_protocol_names: PeerSetProtocolNames,
+	notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
+	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+}
+
+struct TestMessageSink {
+	peer: PeerId,
+	peer_set: PeerSet,
+	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+}
+
+impl TestMessageSink {
+	fn new(
+		peer: PeerId,
+		peer_set: PeerSet,
+		action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+	) -> TestMessageSink {
+		Self { peer, peer_set, action_tx }
+	}
+}
+
+#[async_trait::async_trait]
+impl MessageSink for TestMessageSink {
+	fn send_sync_notification(&self, notification: Vec<u8>) {
+		self.action_tx
+			.lock()
+			.unbounded_send(NetworkAction::WriteNotification(
+				self.peer,
+				self.peer_set,
+				notification,
+			))
+			.unwrap();
+	}
+
+	async fn send_async_notification(
+		&self,
+		_notification: Vec<u8>,
+	) -> Result<(), sc_network::error::Error> {
+		unimplemented!();
+	}
 }
 
 fn new_test_network(
 	peerset_protocol_names: PeerSetProtocolNames,
-) -> (TestNetwork, TestNetworkHandle, TestAuthorityDiscovery) {
+) -> (
+	TestNetwork,
+	TestNetworkHandle,
+	TestAuthorityDiscovery,
+	Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
+) {
 	let (net_tx, net_rx) = metered::channel(10);
 	let (action_tx, action_rx) = metered::unbounded();
+	let notification_sinks = Arc::new(Mutex::new(HashMap::new()));
+	let action_tx = Arc::new(Mutex::new(action_tx));
 
 	(
 		TestNetwork {
 			net_events: Arc::new(Mutex::new(Some(net_rx))),
-			action_tx: Arc::new(Mutex::new(action_tx)),
+			action_tx: action_tx.clone(),
 			peerset_protocol_names: Arc::new(peerset_protocol_names.clone()),
 		},
-		TestNetworkHandle { action_rx, net_tx, peerset_protocol_names },
+		TestNetworkHandle {
+			action_rx,
+			net_tx,
+			peerset_protocol_names,
+			action_tx,
+			notification_sinks: notification_sinks.clone(),
+		},
 		TestAuthorityDiscovery,
+		notification_sinks,
 	)
 }
 
@@ -184,6 +237,11 @@ impl TestNetworkHandle {
 	}
 
 	async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, role: ObservedRole) {
+		self.notification_sinks.lock().insert(
+			(peer_set, peer),
+			Box::new(TestMessageSink::new(peer, peer_set, self.action_tx.clone())),
+		);
+
 		self.send_network_event(NetworkEvent::NotificationStreamOpened {
 			remote: peer,
 			protocol: self.peerset_protocol_names.get_main_name(peer_set),
@@ -213,7 +271,8 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 	let peerset_protocol_names = PeerSetProtocolNames::new(genesis_hash, fork_id);
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (network, network_handle, discovery) = new_test_network(peerset_protocol_names.clone());
+	let (network, network_handle, discovery, network_notification_sinks) =
+		new_test_network(peerset_protocol_names.clone());
 
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
@@ -224,6 +283,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 		Metrics(None),
 		req_protocol_names,
 		peerset_protocol_names,
+		network_notification_sinks,
 	);
 
 	let network_bridge_out_fut = run_network_out(bridge_out, context)

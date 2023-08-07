@@ -14,21 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+	collections::{HashMap, HashSet},
+	sync::Arc,
+};
 
 use async_trait::async_trait;
 use futures::{prelude::*, stream::BoxStream};
+use parking_lot::Mutex;
 
 use parity_scale_codec::Encode;
 
 use sc_network::{
-	config::parse_addr, multiaddr::Multiaddr, types::ProtocolName, Event as NetworkEvent,
-	IfDisconnected, NetworkEventStream, NetworkNotification, NetworkPeers, NetworkRequest,
-	NetworkService, ObservedRole, OutboundFailure, ReputationChange, RequestFailure,
+	config::parse_addr, multiaddr::Multiaddr, service::traits::MessageSink, types::ProtocolName,
+	Event as NetworkEvent, IfDisconnected, NetworkEventStream, NetworkNotification, NetworkPeers,
+	NetworkRequest, NetworkService, ObservedRole, OutboundFailure, ReputationChange,
+	RequestFailure,
 };
 
 use polkadot_node_network_protocol::{
-	peer_set::{PeerSet, PeerSetProtocolNames, ProtocolVersion},
+	peer_set::{PeerSet, ProtocolVersion},
 	request_response::{OutgoingRequest, Recipient, ReqProtocolNames, Requests},
 	PeerId,
 };
@@ -45,13 +50,12 @@ const LOG_TARGET: &'static str = "parachain::network-bridge-net";
 /// messages that are compatible with the passed peer set, as that is currently not enforced by
 /// this function. These are messages of type `WireMessage` parameterized on the matching type.
 pub(crate) fn send_message<M>(
-	net: &mut impl Network,
 	mut peers: Vec<PeerId>,
 	peer_set: PeerSet,
 	version: ProtocolVersion,
-	protocol_names: &PeerSetProtocolNames,
 	message: M,
 	metrics: &super::Metrics,
+	network_notification_sinks: &Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) where
 	M: Encode + Clone,
 {
@@ -61,17 +65,25 @@ pub(crate) fn send_message<M>(
 		encoded
 	};
 
+	let notification_sinks = network_notification_sinks.lock();
+
 	// optimization: avoid cloning the message for the last peer in the
 	// list. The message payload can be quite large. If the underlying
 	// network used `Bytes` this would not be necessary.
+	//
+	// peer may have gotten disconnect by the time `send_message()` is called
+	// at which point the the sink is not available.
 	let last_peer = peers.pop();
-	// optimization: generate the protocol name once.
-	let protocol_name = protocol_names.get_name(peer_set, version);
 	peers.into_iter().for_each(|peer| {
-		net.write_notification(peer, protocol_name.clone(), message.clone());
+		if let Some(sink) = notification_sinks.get(&(peer_set, peer)) {
+			sink.send_sync_notification(message.clone());
+		}
 	});
+
 	if let Some(peer) = last_peer {
-		net.write_notification(peer, protocol_name, message);
+		if let Some(sink) = notification_sinks.get(&(peer_set, peer)) {
+			sink.send_sync_notification(message.clone());
+		}
 	}
 }
 
