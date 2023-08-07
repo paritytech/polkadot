@@ -4,6 +4,8 @@ FROM docker.io/parity/base-bin
 # based on one or multiple pre-built Linux binaries.
 # Some defaults are set to polkadot but all can be overriden.
 
+SHELL ["/bin/bash", "-c"]
+
 # metadata
 ARG VCS_REF
 ARG BUILD_DATE
@@ -18,6 +20,8 @@ ARG DOC_URL=https://github.com/paritytech/polkadot
 ARG DESCRIPTION="Polkadot: a platform for web3"
 ARG AUTHORS="devops-team@parity.io"
 ARG VENDOR="Parity Technologies"
+ARG VOLUMES
+ARG PORTS
 
 LABEL io.parity.image.authors=${AUTHORS} \
 	io.parity.image.vendor="${VENDOR}" \
@@ -34,22 +38,31 @@ WORKDIR /app
 # add polkadot binary to docker image
 # sample for polkadot: COPY ./polkadot ./polkadot-*-worker /usr/local/bin/
 COPY entrypoint.sh .
-COPY "bin/*" /usr/local/bin/
-RUN chmod a+rwx "/usr/local/bin/*"
+COPY "bin/*" "/usr/local/bin/"
+RUN chmod -R a+rx "/usr/local/bin"
 
 USER parity
 ENV BINARY=${BINARY}
 
 # check that all the executables works in this container
 # TODO: There may be several
-RUN /usr/local/bin/$BINARY --version
+# RUN bash -c IFS=',' read -r -a BINARIES <<< "$BINARY" \
+# 	for bin in "${BINARIES[@]}"; do \
+# 		/usr/local/bin/$bin --version \
+# 	done
+
+ENV VOLUMES=$VOLUMES
+ENV TAGS=$TAGS
+ENV PORTS=$PORTS
 
 # TODO: change that, we may have multiple BINARIES
 # TODO: we need a VAR for VOLUMES
-VOLUME ["/$BINARY"]
+# If defined, VOLUME cannot be empty
+#VOLUME $VOLUMES
 
 # TODO: we need a VAR for PORTS
-# EXPOSE 30333 9933 9944 9615
+# If defined, EXPOSE cannot be empty
+# EXPOSE $PORTS
 
 # ENTRYPOINT
 ENTRYPOINT ["/app/entrypoint.sh"]

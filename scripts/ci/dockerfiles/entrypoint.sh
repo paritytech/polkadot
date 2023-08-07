@@ -7,5 +7,12 @@ then
     exit 1
 fi
 
-echo "Starting binary $BINARY"
-$BINARY $@
+# If the user built the image with multiple binaries,
+# we consider the first one to be the canonical one
+# To start with another binary, the user can either:
+#  - use the --entrypoint option
+#  - pass the ENV BIANRY with a single binary
+IFS=',' read -r -a BINARIES <<< "$BINARY"
+BIN0=${BINARIES[0]}
+echo "Starting binary $BIN0"
+$BIN0 $@

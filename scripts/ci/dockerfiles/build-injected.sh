@@ -22,7 +22,7 @@ IFS=',' read -r -a BINARIES <<< "$BINARY"
 VERSION=${VERSION:-$VERSION_TOML}
 BIN_FOLDER=${BIN_FOLDER:-.}
 
-IMAGE=${IMAGE:${OWNER}/${BINARIES[0]}}
+IMAGE=${IMAGE:-${OWNER}/${BINARIES[0]}}
 DESCRIPTION_DEFAULT="Injected Container image built for ${BINARY[*]}"
 DESCRIPTION=${DESCRIPTION:-$DESCRIPTION_DEFAULT}
 
@@ -39,13 +39,16 @@ mkdir -p $CONTEXT/bin
 for bin in "${BINARIES[@]}"
 do
   echo "Copying $BIN_FOLDER/$bin to context: $CONTEXT/bin"
-  cp "$BIN_FOLDER/$BINARY" "$CONTEXT/bin"
+  cp "$BIN_FOLDER/$bin" "$CONTEXT/bin"
 done
 
 cp "$PROJECT_ROOT/scripts/ci/dockerfiles/entrypoint.sh" "$CONTEXT"
 
+echo "Building image: $IMAGE"
+
 # time \
 $ENGINE build \
+    --format docker \
     --build-arg BUILD_DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ') \
     --build-arg IMAGE_NAME="${IMAGE}" \
     --build-arg BINARY="${BINARY}" \
