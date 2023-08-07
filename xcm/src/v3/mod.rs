@@ -981,6 +981,10 @@ pub enum Instruction<Call> {
 
 	/// Set the Topic Register.
 	///
+	/// The 32-byte array identifier in the parameter is not guaranteed to be
+	/// unique; if such a property is desired, it is up to the code author to
+	/// enforce uniqueness.
+	///
 	/// Safety: No concerns.
 	///
 	/// Kind: *Instruction*
