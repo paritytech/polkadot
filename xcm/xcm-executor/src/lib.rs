@@ -404,9 +404,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		reason: FeeReason,
 	) -> Result<XcmHash, XcmError> {
 		let (ticket, fee) = validate_send::<Config::XcmSender>(dest, msg)?;
-		if !Config::FeeManager::is_waived(self.origin_ref(), reason) {
-			self.take_fee(fee, reason)?;
-		}
+		self.take_fee(fee, reason)?;
 		Config::XcmSender::deliver(ticket).map_err(Into::into)
 	}
 
