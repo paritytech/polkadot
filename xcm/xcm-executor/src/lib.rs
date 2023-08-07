@@ -982,12 +982,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let QueryResponseInfo { destination, query_id, max_weight } = info;
 		let instruction = QueryResponse { query_id, response, max_weight, querier };
 		let message = Xcm(vec![instruction]);
-		let (ticket, fee) = validate_send::<Config::XcmSender>(destination, message)?;
-		if !Config::FeeManager::is_waived(self.origin_ref(), fee_reason) {
-			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
-			Config::FeeManager::handle_fee(paid.into(), Some(&self.context));
-		}
-		Config::XcmSender::deliver(ticket).map_err(Into::into)
+		self.send(destination, message, fee_reason)
 	}
 
 	fn try_reanchor(
