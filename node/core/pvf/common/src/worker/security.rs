@@ -147,57 +147,57 @@ pub mod landlock {
 			}
 
 			// Restricted thread cannot read from FS.
-			let handle = thread::spawn(|| {
-				// Create, write, and read two tmp files. This should succeed before any landlock
-				// restrictions are applied.
-				const TEXT: &str = "foo";
-				let tmpfile1 = tempfile::NamedTempFile::new().unwrap();
-				let path1 = tmpfile1.path();
-				let tmpfile2 = tempfile::NamedTempFile::new().unwrap();
-				let path2 = tmpfile2.path();
+			let handle =
+				thread::spawn(|| {
+					// Create, write, and read two tmp files. This should succeed before any landlock
+					// restrictions are applied.
+					const TEXT: &str = "foo";
+					let tmpfile1 = tempfile::NamedTempFile::new().unwrap();
+					let path1 = tmpfile1.path();
+					let tmpfile2 = tempfile::NamedTempFile::new().unwrap();
+					let path2 = tmpfile2.path();
 
-				fs::write(path1, TEXT).unwrap();
-				let s = fs::read_to_string(path1).unwrap();
-				assert_eq!(s, TEXT);
-				fs::write(path2, TEXT).unwrap();
-				let s = fs::read_to_string(path2).unwrap();
-				assert_eq!(s, TEXT);
+					fs::write(path1, TEXT).unwrap();
+					let s = fs::read_to_string(path1).unwrap();
+					assert_eq!(s, TEXT);
+					fs::write(path2, TEXT).unwrap();
+					let s = fs::read_to_string(path2).unwrap();
+					assert_eq!(s, TEXT);
 
-				// Apply Landlock with a read exception for only one of the files.
-				let status = try_restrict_thread(path_beneath_rules(
-					&[path1],
-					AccessFs::from_read(LANDLOCK_ABI),
-				))
-				.unwrap();
-				if !matches!(status, RulesetStatus::FullyEnforced) {
-					panic!("Ruleset should be enforced since we checked if landlock is enabled");
-				}
+					// Apply Landlock with a read exception for only one of the files.
+					let status = try_restrict_thread(path_beneath_rules(
+						&[path1],
+						AccessFs::from_read(LANDLOCK_ABI),
+					));
+					if !matches!(status, Ok(RulesetStatus::FullyEnforced)) {
+						panic!("Ruleset should be enforced since we checked if landlock is enabled: {:?}", status);
+					}
 
-				// Try to read from both files, only tmpfile1 should succeed.
-				let result = fs::read_to_string(path1);
-				assert!(matches!(
-					result,
-					Ok(s) if s == TEXT
-				));
-				let result = fs::read_to_string(path2);
-				assert!(matches!(
-					result,
-					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
-				));
+					// Try to read from both files, only tmpfile1 should succeed.
+					let result = fs::read_to_string(path1);
+					assert!(matches!(
+						result,
+						Ok(s) if s == TEXT
+					));
+					let result = fs::read_to_string(path2);
+					assert!(matches!(
+						result,
+						Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
+					));
 
-				// Apply Landlock for all files.
-				let status = try_restrict_thread(std::iter::empty()).unwrap();
-				if !matches!(status, RulesetStatus::FullyEnforced) {
-					panic!("Ruleset should be enforced since we checked if landlock is enabled");
-				}
+					// Apply Landlock for all files.
+					let status = try_restrict_thread(std::iter::empty());
+					if !matches!(status, Ok(RulesetStatus::FullyEnforced)) {
+						panic!("Ruleset should be enforced since we checked if landlock is enabled: {:?}", status);
+					}
 
-				// Try to read from tmpfile1 after landlock, it should fail.
-				let result = fs::read_to_string(path1);
-				assert!(matches!(
-					result,
-					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
-				));
-			});
+					// Try to read from tmpfile1 after landlock, it should fail.
+					let result = fs::read_to_string(path1);
+					assert!(matches!(
+						result,
+						Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
+					));
+				});
 
 			assert!(handle.join().is_ok());
 		}
@@ -210,50 +210,50 @@ pub mod landlock {
 			}
 
 			// Restricted thread cannot write to FS.
-			let handle = thread::spawn(|| {
-				// Create and write two tmp files. This should succeed before any landlock
-				// restrictions are applied.
-				const TEXT: &str = "foo";
-				let tmpfile1 = tempfile::NamedTempFile::new().unwrap();
-				let path1 = tmpfile1.path();
-				let tmpfile2 = tempfile::NamedTempFile::new().unwrap();
-				let path2 = tmpfile2.path();
+			let handle =
+				thread::spawn(|| {
+					// Create and write two tmp files. This should succeed before any landlock
+					// restrictions are applied.
+					const TEXT: &str = "foo";
+					let tmpfile1 = tempfile::NamedTempFile::new().unwrap();
+					let path1 = tmpfile1.path();
+					let tmpfile2 = tempfile::NamedTempFile::new().unwrap();
+					let path2 = tmpfile2.path();
 
-				fs::write(path1, TEXT).unwrap();
-				fs::write(path2, TEXT).unwrap();
+					fs::write(path1, TEXT).unwrap();
+					fs::write(path2, TEXT).unwrap();
 
-				// Apply Landlock with a write exception for only one of the files.
-				let status = try_restrict_thread(path_beneath_rules(
-					&[path1],
-					AccessFs::from_write(LANDLOCK_ABI),
-				))
-				.unwrap();
-				if !matches!(status, RulesetStatus::FullyEnforced) {
-					panic!("Ruleset should be enforced since we checked if landlock is enabled");
-				}
+					// Apply Landlock with a write exception for only one of the files.
+					let status = try_restrict_thread(path_beneath_rules(
+						&[path1],
+						AccessFs::from_write(LANDLOCK_ABI),
+					));
+					if !matches!(status, Ok(RulesetStatus::FullyEnforced)) {
+						panic!("Ruleset should be enforced since we checked if landlock is enabled: {:?}", status);
+					}
 
-				// Try to write to both files, only tmpfile1 should succeed.
-				let result = fs::write(path1, TEXT);
-				assert!(matches!(result, Ok(_)));
-				let result = fs::write(path2, TEXT);
-				assert!(matches!(
-					result,
-					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
-				));
+					// Try to write to both files, only tmpfile1 should succeed.
+					let result = fs::write(path1, TEXT);
+					assert!(matches!(result, Ok(_)));
+					let result = fs::write(path2, TEXT);
+					assert!(matches!(
+						result,
+						Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
+					));
 
-				// Apply Landlock for all files.
-				let status = try_restrict_thread(std::iter::empty()).unwrap();
-				if !matches!(status, RulesetStatus::FullyEnforced) {
-					panic!("Ruleset should be enforced since we checked if landlock is enabled");
-				}
+					// Apply Landlock for all files.
+					let status = try_restrict_thread(std::iter::empty());
+					if !matches!(status, Ok(RulesetStatus::FullyEnforced)) {
+						panic!("Ruleset should be enforced since we checked if landlock is enabled: {:?}", status);
+					}
 
-				// Try to write to tmpfile1 after landlock, it should fail.
-				let result = fs::write(path1, TEXT);
-				assert!(matches!(
-					result,
-					Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
-				));
-			});
+					// Try to write to tmpfile1 after landlock, it should fail.
+					let result = fs::write(path1, TEXT);
+					assert!(matches!(
+						result,
+						Err(err) if matches!(err.kind(), ErrorKind::PermissionDenied)
+					));
+				});
 
 			assert!(handle.join().is_ok());
 		}
