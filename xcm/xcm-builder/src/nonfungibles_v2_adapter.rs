@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Adapters to work with `frame_support::traits::tokens::nonfungibles_v2` through XCM.
+//! Adapters to work with [`frame_support::traits::tokens::nonfungibles_v2`] through XCM.
 use crate::{AssetChecking, MintLocation};
 use frame_support::{
 	ensure,
@@ -29,7 +29,7 @@ use xcm_executor::traits::{
 };
 
 const LOG_TARGET: &str = "xcm::nonfungibles_v2_adapter";
-/// Adapter for transferring non-fungible tokens (NFTs) using the `nonfungibles_v2` trait.
+/// Adapter for transferring non-fungible tokens (NFTs) using [`nonfungibles_v2`].
 ///
 /// This adapter facilitates the transfer of NFTs between different locations.
 pub struct NonFungiblesV2TransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
@@ -66,7 +66,7 @@ impl<
 	}
 }
 
-/// Adapter for mutating non-fungible tokens (NFTs) using the `nonfungibles_v2` trait.
+/// Adapter for mutating non-fungible tokens (NFTs) using [`nonfungibles_v2`].
 ///
 /// This adapter provides functions to withdraw, deposit, check in and check out non fungibles.
 pub struct NonFungiblesV2MutateAdapter<
@@ -276,11 +276,11 @@ impl<
 	}
 }
 
-/// Adapter for handling non-fungible tokens (NFTs) using the `nonfungibles_v2` trait.
+/// Adapter for handling non-fungible tokens (NFTs) using [`nonfungibles_v2`].
 ///
-/// This adapter combines the functionalities of both the `NonFungiblesV2TransferAdapter` and `NonFungiblesV2MutateAdapter` adapters,
+/// This adapter combines the functionalities of both the [`NonFungiblesV2TransferAdapter`] and [`NonFungiblesV2MutateAdapter`] adapters,
 /// allowing handling NFTs in various scenarios.
-/// For detailed information on the functions, refer to the TransactAsset trait.
+/// For detailed information on the functions, refer to [`TransactAsset`].
 pub struct NonFungiblesV2Adapter<
 	Assets,
 	Matcher,
