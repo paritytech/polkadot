@@ -13,6 +13,7 @@ else
 fi
 
 CONTEXT=$(mktemp -d)
+REGISTRY=${REGISTRY:-docker.io}
 
 # The following line ensure we know the project root
 PROJECT_ROOT=`git rev-parse --show-toplevel`
@@ -29,7 +30,7 @@ IFS=',' read -r -a BINARIES <<< "$BINARY"
 VERSION=${VERSION:-$VERSION_TOML}
 BIN_FOLDER=${BIN_FOLDER:-.}
 
-IMAGE=${IMAGE:-${OWNER}/${BINARIES[0]}}
+IMAGE=${IMAGE:-${REGISTRY}/${OWNER}/${BINARIES[0]}}
 DESCRIPTION_DEFAULT="Injected Container image built for ${BINARY[*]}"
 DESCRIPTION=${DESCRIPTION:-$DESCRIPTION_DEFAULT}
 

@@ -15,14 +15,19 @@ on:
         required: true
         type: string
         default: docker.io/parity
+      owner:
+        description: Owner of the container image
+        required: true
+        type: string
+        default: parity
 
 env:
   RELEASE_ID: ${{ inputs.release_id }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # paritytech
-  OWNER: ${{ github.repository_owner }}
-  # polkadot
-  REPO: ${{ github.event.repository.name }}
+  OWNER: ${{ inputs.owner }}
+  # REPO: ${{ github.event.repository.name }}
+  REGISTRY: ${{ inputs.registry }}
+  ENGINE: docker
 
 jobs:
   fetch-artifacts:
@@ -78,17 +83,36 @@ jobs:
       #     # TODO import relevant GPG keys
       #     check_gpg ${{ matrix.binary }}
 
+      - name: Fetch commit and tag
+        id: fetch_refs
+        run: |
+          release=release-${{ inputs.release_id }}
+          commit=$(git rev-parse --short HEAD)
+          tag=$(git name-rev --tags --name-only $(git rev-parse HEAD))
+
+          echo "release=${release}" >> $GITHUB_OUTPUT
+          echo "commit=${commit}" >> $GITHUB_OUTPUT
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
+
       - name: Build Injected Container image for ${{ matrix.binary }}
         env:
-            ENGINE: docker
-            BINARY: ${{ matrix.binary }}
             BIN_FOLDER: artifacts
+            BINARY: ${{ matrix.binary }}
+            TAGS: ${{join(steps.fetch_refs.outputs.*, ',')}}
         run: |
           echo "Building container for ${{ matrix.binary }}"
           ./scripts/ci/dockerfiles/build-injected.sh
 
-      - name: Push Container image
+      - name: Login to Dockerhub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ inputs.owner }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push Container image for ${{ matrix.binary }}
+        id:   docker_push
         env:
-          IMAGE: ${{ inputs.registry }}/${{ matrix.binary }}
+          BINARY: ${{ matrix.binary }}
         run: |
-          echo "TODO Pushing image to $IMAGE"
+          $ENGINE push --all-tags ${REGISTRY}/${OWNER}/${BINARY}
