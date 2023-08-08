@@ -84,7 +84,7 @@ echo "Your Container image for ${IMAGE} is ready"
 $ENGINE images | grep ${IMAGE}
 
 # Check the final image
-$ENGINE run --rm -it "${IMAGE}:latest" --version
+$ENGINE run --rm -i "${IMAGE}:latest" --version
 
 # Check binary-ies
-$ENGINE run --rm -it --entrypoint /bin/bash "${IMAGE}:latest" -c 'echo BINARY: $BINARY'
+$ENGINE run --rm -i --entrypoint /bin/bash "${IMAGE}:latest" -c 'echo BINARY: $BINARY'

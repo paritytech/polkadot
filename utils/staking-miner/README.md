@@ -53,7 +53,7 @@ While it won't prevent a malicious actor to read your `SEED` if they gain access
 # The following line starts with an extra space on purpose:
  SEED=0x1234...
 
-docker run --rm -it \
+docker run --rm -i \
     --name staking-miner \
     --read-only \
     -e RUST_LOG=info \
