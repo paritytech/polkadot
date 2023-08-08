@@ -35,8 +35,7 @@ fn worker_binaries_have_same_version_as_node() {
 
 	path.pop();
 	path.push(&EXECUTE_WORKER_EXE);
-	let exec_worker_version =
-		Command::new(path).args(["--version"]).output().unwrap().stdout;
+	let exec_worker_version = Command::new(path).args(["--version"]).output().unwrap().stdout;
 	let exec_worker_version = std::str::from_utf8(&exec_worker_version)
 		.expect("version is printed as a string; qed")
 		.trim();

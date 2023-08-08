@@ -6679,14 +6679,7 @@ version = "0.9.43"
 dependencies = [
  "polkadot-node-core-pvf-common",
  "polkadot-node-core-pvf-execute-worker",
- "polkadot-primitives",
- "polkadot-test-service",
- "sc-cli",
- "sc-service",
- "sp-keyring",
  "substrate-build-script-utils",
- "substrate-test-utils",
- "tokio",
 ]
 
 [[package]]
