@@ -197,18 +197,16 @@ check_bootnode(){
 # Assumes the ENV are set:
 # - RELEASE_ID
 # - GITHUB_TOKEN
-# - OWNER
-# - REPO
+# - REPO in the form paritytech/polkadot
 fetch_release_artifacts() {
   echo "Release ID : $RELEASE_ID"
-  echo "Owner      : $OWNER"
   echo "Repo       : $REPO"
 
   curl -L -s \
     -H "Accept: application/vnd.github+json" \
     -H "Authorization: Bearer ${GITHUB_TOKEN}" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
-    https://api.github.com/repos/$OWNER/$REPO/releases/$RELEASE_ID > release.json
+    https://api.github.com/repos/${REPO}/releases/$RELEASE_ID > release.json
 
   # Get Asset ids
   ids=($(cat release.json | jq -r '.assets[].id'))
@@ -224,7 +222,7 @@ fetch_release_artifacts() {
       echo " - $iter/$count: downloading asset id: $id..."
       curl -s -OJ -L -H "Accept: application/octet-stream" \
           -H "Authorization: Token ${GITHUB_TOKEN}" \
-          "https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/$id"
+          "https://api.github.com/repos/${REPO}/releases/assets/$id"
       iter=$((iter + 1))
   done
 
