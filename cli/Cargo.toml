@@ -4,6 +4,7 @@ description = "Polkadot Relay-chain Client Node"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [package.metadata.wasm-pack.profile.release]
 # `wasm-opt` has some problems on Linux, see
