@@ -37,16 +37,8 @@ impl<
 	> FeeManager for XcmFeesToAccount<XcmConfig, WaivedLocations, AccountId, ReceiverAccount>
 {
 	fn is_waived(origin: Option<&MultiLocation>, _: FeeReason) -> bool {
-		#[cfg(feature = "runtime-benchmarks")]
-		{
-			let _ = origin;
-			true
-		}
-		#[cfg(not(feature = "runtime-benchmarks"))]
-		{
-			let Some(loc) = origin else { return false };
-			WaivedLocations::contains(loc)
-		}
+		let Some(loc) = origin else { return false };
+		WaivedLocations::contains(loc)
 	}
 
 	fn handle_fee(fees: MultiAssets, context: Option<&XcmContext>) {
