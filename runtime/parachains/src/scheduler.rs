@@ -372,6 +372,16 @@ impl<T: Config> Pallet<T> {
 	/// and the respective parachain and parathread timeouts, i.e. only within
 	/// `max(config.chain_availability_period, config.thread_availability_period)`
 	/// of the last rotation would this return `Some`, unless there are no rotations.
+	///
+	/// The timeout used to depend, but does not depend any more on group rotations. First of all
+	/// it only matters if a para got another chance (a retry). If there is a retry and it happens
+	/// still within the same group rotation a censoring backing group would need to censor again
+	/// and lose out again on backing rewards. This is bad for the censoring backing group, it does
+	/// not matter for the parachain as long as it is retried often enough (so it eventually gets a
+	/// try on another backing group) - the effect is similar to having a prolonged timeout. It
+	/// should also be noted that for both malicious and offline backing groups it is actually more
+	/// realistic that the candidate will not be backed to begin with, instead of getting backed
+	/// and then not made available.
 	pub(crate) fn availability_timeout_predicate() -> impl Fn(CoreIndex, BlockNumberFor<T>) -> bool
 	{
 		|core_index: CoreIndex, pending_since| {
