@@ -39,6 +39,18 @@ use tokio::{
 pub const JOB_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
 
 /// This is publicly exposed only for integration tests.
+///
+/// # Parameters
+///
+/// - `debug_id`: An identifier for the process (e.g. "execute" or "prepare").
+///
+/// - `program_path`: The path to the program.
+///
+/// - `extra_args`: Optional extra CLI arguments to the program. NOTE: Should only contain data
+///   required before the handshake, like node/worker versions for the version check. Other data
+///   should go through the handshake.
+///
+/// - `spawn_timeout`: The amount of time to wait for the child process to spawn.
 #[doc(hidden)]
 pub async fn spawn_with_program_path(
 	debug_id: &'static str,
