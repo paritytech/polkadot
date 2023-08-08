@@ -536,6 +536,24 @@ impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
 	}
 }
 
+impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
+	fn from(block: crate::approval_db::v1::BlockEntry) -> Self {
+		Self {
+			block_hash: block.block_hash,
+			parent_hash: block.parent_hash,
+			block_number: block.block_number,
+			session: block.session,
+			slot: block.slot,
+			relay_vrf_story: RelayVRFStory(block.relay_vrf_story),
+			candidates: block.candidates,
+			approved_bitfield: block.approved_bitfield,
+			children: block.children,
+			candidates_pending_signature: Default::default(),
+			distributed_assignments: Default::default(),
+		}
+	}
+}
+
 impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
 	fn from(value: crate::approval_db::v1::ApprovalEntry) -> Self {
 		ApprovalEntry {

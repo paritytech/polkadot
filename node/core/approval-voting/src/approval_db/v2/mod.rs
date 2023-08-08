@@ -63,6 +63,13 @@ impl V1ReadBackend for DbBackend {
 		load_candidate_entry_v1(&*self.inner, &self.config, candidate_hash)
 			.map(|e| e.map(Into::into))
 	}
+
+	fn load_block_entry_v1(
+		&self,
+		block_hash: &Hash,
+	) -> SubsystemResult<Option<persisted_entries::BlockEntry>> {
+		load_block_entry_v1(&*self.inner, &self.config, block_hash).map(|e| e.map(Into::into))
+	}
 }
 
 impl Backend for DbBackend {
@@ -383,5 +390,16 @@ pub fn load_candidate_entry_v1(
 ) -> SubsystemResult<Option<super::v1::CandidateEntry>> {
 	load_decode(store, config.col_approval_data, &candidate_entry_key(candidate_hash))
 		.map(|u: Option<super::v1::CandidateEntry>| u.map(|v| v.into()))
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+}
+
+/// Load a block entry from the aux store in v1 format.
+pub fn load_block_entry_v1(
+	store: &dyn Database,
+	config: &Config,
+	block_hash: &Hash,
+) -> SubsystemResult<Option<super::v1::BlockEntry>> {
+	load_decode(store, config.col_approval_data, &block_entry_key(block_hash))
+		.map(|u: Option<super::v1::BlockEntry>| u.map(|v| v.into()))
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 }

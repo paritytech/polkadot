@@ -70,7 +70,10 @@ pub fn v1_to_v2(db: Arc<dyn Database>, config: Config) -> Result<()> {
 		.map_err(|e| Error::InternalError(e))?
 		.iter()
 		.filter_map(|block_hash| {
-			backend.load_block_entry(block_hash).map_err(|e| Error::InternalError(e)).ok()?
+			backend
+				.load_block_entry_v1(block_hash)
+				.map_err(|e| Error::InternalError(e))
+				.ok()?
 		})
 		.collect::<Vec<_>>();
 
@@ -96,6 +99,7 @@ pub fn v1_to_v2(db: Arc<dyn Database>, config: Config) -> Result<()> {
 				counter += 1;
 			}
 		}
+		overlay.write_block_entry(block);
 	}
 
 	gum::info!(target: crate::LOG_TARGET, "Migrated {} entries", counter);
