@@ -6,6 +6,10 @@ default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "rococo-local"
 chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
 
+[relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
+  needed_approvals = 8
+  relay_vrf_modulo_samples = 6
+
 [relaychain.genesis.runtime.runtime_genesis_config.configuration.config.approval_voting_params]
   max_approval_coalesce_count = {{MAX_APPROVAL_COALESCE_COUNT}}
   max_approval_coalesce_wait_ticks = {{MAX_APPROVAL_COALESCE_WAIT_TICKS}}
@@ -45,6 +49,58 @@ requests = { memory = "2G", cpu = "1" }
   [[relaychain.nodes]]
   name = "two"
   args = [ "--two", "-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "nine"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "eleven"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "twelve"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "thirteen"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "fourteen"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "fifteen"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "sixteen"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "seventeen"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "eithteen"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "nineteen"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "twenty"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "twentyone"
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.nodes]]
+  name = "twentytwo"
+  args = ["-lparachain=debug,runtime=debug"]
 
 [[parachains]]
 id = 2000
