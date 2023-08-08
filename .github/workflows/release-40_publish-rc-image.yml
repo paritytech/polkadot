@@ -16,17 +16,18 @@ on:
         type: string
         default: docker.io
       owner:
-        description: Owner of the container image
+        description: Owner of the container image repo
         required: false
         type: string
         default: parity
 
 env:
   RELEASE_ID: ${{ inputs.release_id }}
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  OWNER: ${{ inputs.owner || github.event.repository.name }}
-  REGISTRY: ${{ inputs.registry }}
   ENGINE: docker
+  REGISTRY: ${{ inputs.registry }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  DOCKER_OWNER: ${{ inputs.owner || github.repository_owner }}
+  REPO: ${{ github.repository }}
 
 jobs:
   fetch-artifacts:
@@ -114,4 +115,4 @@ jobs:
         env:
           BINARY: ${{ matrix.binary }}
         run: |
-          $ENGINE push --all-tags ${REGISTRY}/${OWNER}/${BINARY}
+          $ENGINE push --all-tags ${REGISTRY}/${DOCKER_OWNER}/${BINARY}
