@@ -3,6 +3,7 @@ name = "polkadot-gossip-support"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }

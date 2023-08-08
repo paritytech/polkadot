@@ -3,6 +3,7 @@ name = "slot-range-helper"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 paste = "1.0"
