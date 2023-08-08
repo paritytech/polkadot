@@ -356,7 +356,7 @@ pub struct BlockEntry {
 	// A list of assignments for which wea already distributed the assignment.
 	// We use this to ensure we don't distribute multiple core assignments twice as we track
 	// individual wakeups for each core.
-	pub distributed_assignments: Bitfield,
+	distributed_assignments: Bitfield,
 }
 
 impl BlockEntry {
@@ -462,6 +462,23 @@ impl From<crate::approval_db::v2::BlockEntry> for BlockEntry {
 			approved_bitfield: entry.approved_bitfield,
 			children: entry.children,
 			distributed_assignments: entry.distributed_assignments,
+		}
+	}
+}
+
+impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
+	fn from(entry: crate::approval_db::v1::BlockEntry) -> Self {
+		BlockEntry {
+			block_hash: entry.block_hash,
+			parent_hash: entry.parent_hash,
+			block_number: entry.block_number,
+			session: entry.session,
+			slot: entry.slot,
+			relay_vrf_story: RelayVRFStory(entry.relay_vrf_story),
+			candidates: entry.candidates,
+			approved_bitfield: entry.approved_bitfield,
+			children: entry.children,
+			distributed_assignments: Default::default(),
 		}
 	}
 }

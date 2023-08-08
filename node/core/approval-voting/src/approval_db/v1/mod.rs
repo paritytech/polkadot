@@ -25,9 +25,10 @@
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::v1::{AssignmentCert, DelayTranche};
 use polkadot_primitives::{
-	CandidateReceipt, GroupIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
+	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
+	ValidatorIndex, ValidatorSignature,
 };
-
+use sp_consensus_slots::Slot;
 use std::collections::BTreeMap;
 
 use super::v2::Bitfield;
@@ -65,4 +66,26 @@ pub struct CandidateEntry {
 	// based on the block we are looking at.
 	pub block_assignments: BTreeMap<Hash, ApprovalEntry>,
 	pub approvals: Bitfield,
+}
+
+/// Metadata regarding approval of a particular block, by way of approval of the
+/// candidates contained within it.
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+pub struct BlockEntry {
+	pub block_hash: Hash,
+	pub block_number: BlockNumber,
+	pub parent_hash: Hash,
+	pub session: SessionIndex,
+	pub slot: Slot,
+	/// Random bytes derived from the VRF submitted within the block by the block
+	/// author as a credential and used as input to approval assignment criteria.
+	pub relay_vrf_story: [u8; 32],
+	// The candidates included as-of this block and the index of the core they are
+	// leaving. Sorted ascending by core index.
+	pub candidates: Vec<(CoreIndex, CandidateHash)>,
+	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
+	// The i'th bit is `true` iff the candidate has been approved in the context of this
+	// block. The block can be considered approved if the bitfield has all bits set to `true`.
+	pub approved_bitfield: Bitfield,
+	pub children: Vec<Hash>,
 }

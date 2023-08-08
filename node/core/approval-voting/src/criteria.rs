@@ -712,21 +712,21 @@ pub(crate) fn check_assignment_cert(
 
 			// Currently validators can opt out of checking specific cores.
 			// This is the same issue to how validator can opt out and not send their assignments in the first place.
-
 			// Ensure that the `vrf_in_out` actually includes all of the claimed cores.
-			if claimed_core_indices.iter_ones().fold(true, |cores_match, core| {
-				cores_match & resulting_cores.contains(&CoreIndex(core as u32))
-			}) {
-				Ok(0)
-			} else {
-				gum::debug!(
-					target: LOG_TARGET,
-					?resulting_cores,
-					?claimed_core_indices,
-					"Assignment claimed cores mismatch",
-				);
-				Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
+			for claimed_core_index in claimed_core_indices.iter_ones() {
+				if !resulting_cores.contains(&CoreIndex(claimed_core_index as u32)) {
+					gum::debug!(
+						target: LOG_TARGET,
+						?resulting_cores,
+						?claimed_core_indices,
+						vrf_modulo_cores = ?resulting_cores,
+						"Assignment claimed cores mismatch",
+					);
+					return Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
+				}
 			}
+
+			Ok(0)
 		},
 		AssignmentCertKindV2::RelayVRFModulo { sample } => {
 			if *sample >= config.relay_vrf_modulo_samples {

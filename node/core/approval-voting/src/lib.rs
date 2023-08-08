@@ -1922,9 +1922,8 @@ where
 	let n_cores = session_info.n_cores as usize;
 
 	// Early check the candidate bitfield and core bitfields lengths < `n_cores`.
-	// `approval-distribution` already checks for core and claimed candidate bitfields
-	// to be equal in size. A check for claimed candidate bitfields should be enough here.
-	if candidate_indices.len() >= n_cores {
+	// Core bitfield length is checked later in `check_assignment_cert`.
+	if candidate_indices.len() > n_cores {
 		gum::debug!(
 			target: LOG_TARGET,
 			validator = assignment.validator.0,
