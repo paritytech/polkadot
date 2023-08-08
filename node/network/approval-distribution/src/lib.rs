@@ -1096,6 +1096,7 @@ impl State {
 							COST_UNEXPECTED_MESSAGE,
 						)
 						.await;
+						gum::error!(target: LOG_TARGET, "Received assignment for invalid block");
 					}
 				}
 				return
@@ -1490,6 +1491,7 @@ impl State {
 							COST_UNEXPECTED_MESSAGE,
 						)
 						.await;
+						gum::error!(target: LOG_TARGET, "Received approval for invalid block");
 					}
 				}
 				return
@@ -2065,9 +2067,7 @@ impl State {
 			};
 
 			// Ensure bitfields length under hard limit.
-			if cert_bitfield_bits > MAX_BITFIELD_SIZE ||
-				cert_bitfield_bits != candidate_index as usize + 1
-			{
+			if cert_bitfield_bits > MAX_BITFIELD_SIZE {
 				// Punish the peer for the invalid message.
 				modify_reputation(&mut self.reputation, sender, peer_id, COST_OVERSIZED_BITFIELD)
 					.await;
@@ -2105,7 +2105,6 @@ impl State {
 
 			// Ensure bitfields length under hard limit.
 			if cert_bitfield_bits > MAX_BITFIELD_SIZE
-				|| cert_bitfield_bits != candidate_bitfield_len
 				// Ensure minimum bitfield size - MSB needs to be one.
 				|| !candidate_bitfield.bit_at(msb.as_bit_index())
 			{
