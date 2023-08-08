@@ -18,8 +18,8 @@ sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "mast
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
-xcm = { path = "../..", default-features = false }
-xcm-executor = { path = ".." }
+xcm = { package = "staging-xcm", path = "../..", default-features = false }
+xcm-executor = { package = "staging-xcm-executor", path = ".." }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]

@@ -16,10 +16,10 @@ frame-system = { default-features = false, branch = "master", git = "https://git
 sp-runtime = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-std = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-io = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-xcm-executor = { path = "../xcm-executor", default-features = false }
+xcm-executor = { package = "staging-xcm-executor", path = "../xcm-executor", default-features = false }
 frame-benchmarking = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-xcm = { path = "..", default-features = false }
-xcm-builder = { path = "../xcm-builder", default-features = false }
+xcm = { package = "staging-xcm", path = "..", default-features = false }
+xcm-builder = { package = "staging-xcm-builder", path = "../xcm-builder", default-features = false }
 log = "0.4.17"
 
 [dev-dependencies]
@@ -27,7 +27,7 @@ pallet-balances = { branch = "master", git = "https://github.com/paritytech/subs
 pallet-assets = { branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-core = { branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-tracing = { branch = "master", git = "https://github.com/paritytech/substrate" }
-xcm = { path = ".." }
+xcm = { package = "staging-xcm", path = ".." }
 # temp
 pallet-xcm = { path = "../pallet-xcm" }
 polkadot-runtime-common = { path = "../../runtime/common" }

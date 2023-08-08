@@ -1,5 +1,5 @@
 [package]
-name = "xcm"
+name = "staging-xcm"
 description = "The basic XCM datastructures."
 version.workspace = true
 authors.workspace = true

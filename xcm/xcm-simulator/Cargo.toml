@@ -14,9 +14,9 @@ frame-support = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-xcm = { path = "../" }
-xcm-executor = { path = "../xcm-executor" }
-xcm-builder = { path = "../xcm-builder" }
+xcm = { package = "staging-xcm", path = "../" }
+xcm-executor = { package = "staging-xcm-executor", path = "../xcm-executor" }
+xcm-builder = { package = "staging-xcm-builder", path = "../xcm-builder" }
 polkadot-core-primitives = { path = "../../core-primitives"}
 polkadot-parachain = { path = "../../parachain" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }

@@ -1,5 +1,5 @@
 [[bin]]
-name = "staking-miner"
+name = "staging-staking-miner"
 path = "src/main.rs"
 
 [package]
@@ -42,7 +42,7 @@ core-primitives = { package = "polkadot-core-primitives", path = "../../core-pri
 
 runtime-common = { package = "polkadot-runtime-common", path = "../../runtime/common" }
 polkadot-runtime = { path = "../../runtime/polkadot" }
-kusama-runtime = { path = "../../runtime/kusama" }
+kusama-runtime = { package = "staging-kusama-runtime", path = "../../runtime/kusama" }
 westend-runtime = { path = "../../runtime/westend" }
 exitcode = "1.1"
 

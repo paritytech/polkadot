@@ -21,14 +21,14 @@ sp-io = { git = "https://github.com/paritytech/substrate", default-features = fa
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 
-xcm = { path = "..", default-features = false }
-xcm-executor = { path = "../xcm-executor", default-features = false }
+xcm = { package = "staging-xcm", path = "..", default-features = false }
+xcm-executor = { package = "staging-xcm-executor", path = "../xcm-executor", default-features = false }
 
 [dev-dependencies]
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 polkadot-parachain = { path = "../../parachain" }
-xcm-builder = { path = "../xcm-builder" }
+xcm-builder = { package = "staging-xcm-builder", path = "../xcm-builder" }
 
 [features]
 default = ["std"]

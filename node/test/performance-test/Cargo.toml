@@ -19,7 +19,7 @@ polkadot-primitives = { path = "../../../primitives" }
 sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-kusama-runtime = { path = "../../../runtime/kusama" }
+kusama-runtime = { package = "staging-kusama-runtime", path = "../../../runtime/kusama" }
 
 [[bin]]
 name = "gen-ref-constants"
