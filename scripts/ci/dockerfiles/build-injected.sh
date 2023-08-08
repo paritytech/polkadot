@@ -5,6 +5,13 @@ set -e
 # binary that is injected into a base-image.
 
 ENGINE=${ENGINE:-podman}
+
+if ["$ENGINE" == "podman"]; then
+  PODMAN_FLAGS="--format docker"
+else
+  PODMAN_FLAGS=""
+fi
+
 CONTEXT=$(mktemp -d)
 
 # The following line ensure we know the project root
@@ -61,7 +68,7 @@ echo "$TAG_ARGS"
 
 # time \
 $ENGINE build \
-    --format docker \
+    ${PODMAN_FLAGS} \
     --build-arg VCS_REF="${VCS_REF}" \
     --build-arg BUILD_DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ') \
     --build-arg IMAGE_NAME="${IMAGE}" \
