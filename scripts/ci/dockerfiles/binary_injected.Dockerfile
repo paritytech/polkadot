@@ -14,14 +14,11 @@ ARG IMAGE_NAME
 # That can be a single one or a comma separated list
 ARG BINARY=polkadot
 
-ARG TAGS
 ARG BIN_FOLDER=.
 ARG DOC_URL=https://github.com/paritytech/polkadot
 ARG DESCRIPTION="Polkadot: a platform for web3"
 ARG AUTHORS="devops-team@parity.io"
 ARG VENDOR="Parity Technologies"
-ARG VOLUMES
-ARG PORTS
 
 LABEL io.parity.image.authors=${AUTHORS} \
 	io.parity.image.vendor="${VENDOR}" \
@@ -43,26 +40,6 @@ RUN chmod -R a+rx "/usr/local/bin"
 
 USER parity
 ENV BINARY=${BINARY}
-
-# check that all the executables works in this container
-# TODO: There may be several
-# RUN bash -c IFS=',' read -r -a BINARIES <<< "$BINARY" \
-# 	for bin in "${BINARIES[@]}"; do \
-# 		/usr/local/bin/$bin --version \
-# 	done
-
-ENV VOLUMES=$VOLUMES
-ENV TAGS=$TAGS
-ENV PORTS=$PORTS
-
-# TODO: change that, we may have multiple BINARIES
-# TODO: we need a VAR for VOLUMES
-# If defined, VOLUME cannot be empty
-#VOLUME $VOLUMES
-
-# TODO: we need a VAR for PORTS
-# If defined, EXPOSE cannot be empty
-# EXPOSE $PORTS
 
 # ENTRYPOINT
 ENTRYPOINT ["/app/entrypoint.sh"]

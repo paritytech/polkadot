@@ -9,5 +9,6 @@ PROJECT_ROOT=`git rev-parse --show-toplevel`
 
 export BINARY=malus
 export BIN_FOLDER=$1
+# export TAGS=...
 
 $PROJECT_ROOT/scripts/ci/dockerfiles/build-injected.sh

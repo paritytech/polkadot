@@ -3,6 +3,8 @@
 TMP=$(mktemp -d)
 ENGINE=${ENGINE:-podman}
 
+export TAGS=latest,beta,7777,1.0.2-rc23
+
 # Fetch some binaries
 $ENGINE run --user root --rm -it \
   --pull always \

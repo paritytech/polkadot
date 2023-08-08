@@ -26,6 +26,8 @@ IMAGE=${IMAGE:-${OWNER}/${BINARIES[0]}}
 DESCRIPTION_DEFAULT="Injected Container image built for ${BINARY[*]}"
 DESCRIPTION=${DESCRIPTION:-$DESCRIPTION_DEFAULT}
 
+VCS_REF=${VCS_REF:-01234567}
+
 # Build the image
 echo "Using engine: $ENGINE"
 echo "Using Dockerfile: $DOCKERFILE"
@@ -44,20 +46,31 @@ done
 
 cp "$PROJECT_ROOT/scripts/ci/dockerfiles/entrypoint.sh" "$CONTEXT"
 
-echo "Building image: $IMAGE"
+echo "Building image: ${IMAGE}"
+
+TAGS=${TAGS[@]:-latest}
+IFS=',' read -r -a TAG_ARRAY <<< "$TAGS"
+TAG_ARGS=" "
+
+echo "The image ${IMAGE} will be tagged with ${TAG_ARRAY[*]}"
+for tag in "${TAG_ARRAY[@]}"; do
+  TAG_ARGS+="--tag ${IMAGE}:${tag} "
+done
+
+echo "$TAG_ARGS"
 
 # time \
 $ENGINE build \
     --format docker \
+    --build-arg VCS_REF="${VCS_REF}" \
     --build-arg BUILD_DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ') \
     --build-arg IMAGE_NAME="${IMAGE}" \
     --build-arg BINARY="${BINARY}" \
     --build-arg BIN_FOLDER="${BIN_FOLDER}" \
     --build-arg DESCRIPTION="${DESCRIPTION}" \
-    -f $DOCKERFILE \
-    -t ${IMAGE}:latest \
-    -t ${IMAGE}:v${VERSION} \
-    $CONTEXT
+    ${TAG_ARGS} \
+    -f "${DOCKERFILE}" \
+    ${CONTEXT}
 
 # Show the list of available images for this repo
 echo "Your Container image for ${IMAGE} is ready"
