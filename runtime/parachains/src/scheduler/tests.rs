@@ -115,6 +115,16 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 	}
 }
 
+fn genesis_config(config: &HostConfiguration<BlockNumber>) -> MockGenesisConfig {
+	MockGenesisConfig {
+		configuration: crate::configuration::GenesisConfig {
+			config: config.clone(),
+			..Default::default()
+		},
+		..Default::default()
+	}
+}
+
 #[cfg(test)]
 pub(crate) fn claimqueue_contains_only_none() -> bool {
 	let mut cq = Scheduler::claimqueue();
@@ -1112,92 +1122,89 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 	});
 }
 
-//#[test]
-//fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
-//	let mut config = default_config();
-//	config.parathread_cores = 1;
-//
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig {
-//			config: config.clone(),
-//			..Default::default()
-//		},
-//		..Default::default()
-//	};
-//
-//	let thread_a = ParaId::from(1_u32);
-//	let thread_b = ParaId::from(2_u32);
-//
-//	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
-//
-//	new_test_ext(genesis_config).execute_with(|| {
-//		schedule_blank_para(thread_a, ParaKind::Parathread);
-//		schedule_blank_para(thread_b, ParaKind::Parathread);
-//
-//		// start a new session to activate, 5 validators for 5 cores.
-//		run_to_block(1, |number| match number {
-//			1 => Some(SessionChangeNotification {
-//				new_config: config.clone(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//				],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		let thread_claim_a = ParathreadClaim(thread_a, collator.clone());
-//		let thread_claim_b = ParathreadClaim(thread_b, collator.clone());
-//
-//		SchedulerParathreads::add_parathread_claim(thread_claim_a.clone());
-//
-//		run_to_block(2, |_| None);
-//
-//		{
-//			assert_eq!(Scheduler::scheduled().len(), 1);
-//			assert_eq!(Scheduler::availability_cores().len(), 1);
-//
-//			Scheduler::occupied(&[CoreIndex(0)]);
-//
-//			let cores = Scheduler::availability_cores();
-//			match cores[0].as_ref().unwrap() {
-//				CoreOccupied::Parathread(entry) => assert_eq!(entry.claim, thread_claim_a),
-//				_ => panic!("with no chains, only core should be a thread core"),
-//			}
-//
-//			let queue = ParathreadQueue::<Test>::get();
-//			assert!(queue.get_next_on_core(0).is_none());
-//			assert_eq!(
-//				Scheduler::next_up_on_time_out(CoreIndex(0)).unwrap(),
-//				ScheduledCore { para_id: thread_a, collator: Some(collator.clone()) }
-//			);
-//
-//			SchedulerParathreads::add_parathread_claim(thread_claim_b);
-//
-//			let queue = ParathreadQueue::<Test>::get();
-//			assert_eq!(
-//				queue.get_next_on_core(0).unwrap().claim,
-//				ParathreadClaim(thread_b, collator.clone()),
-//			);
-//
-//			// Now that there is an earlier next-up, we use that.
-//			assert_eq!(
-//				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-//				ScheduledCore { para_id: thread_b, collator: Some(collator.clone()) }
-//			);
-//		}
-//	});
-//}
+#[test]
+fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
+	let mut config = default_config();
+	config.on_demand_cores = 1;
 
-fn genesis_config(config: &HostConfiguration<BlockNumber>) -> MockGenesisConfig {
-	MockGenesisConfig {
+	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: config.clone(),
 			..Default::default()
 		},
 		..Default::default()
-	}
+	};
+
+	let thread_a = ParaId::from(1_u32);
+	let thread_b = ParaId::from(2_u32);
+
+	let assignment_a = Assignment { para_id: thread_a };
+	let assignment_b = Assignment { para_id: thread_b };
+
+	new_test_ext(genesis_config).execute_with(|| {
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
+
+		// start a new session to activate, 5 validators for 5 cores.
+		run_to_block(1, |number| match number {
+			1 => Some(SessionChangeNotification {
+				new_config: config.clone(),
+				validators: vec![
+					ValidatorId::from(Sr25519Keyring::Alice.public()),
+					ValidatorId::from(Sr25519Keyring::Eve.public()),
+				],
+				..Default::default()
+			}),
+			_ => None,
+		});
+
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_a.clone(),
+			QueuePushDirection::Back
+		));
+
+		run_to_block(2, |_| None);
+
+		{
+			assert_eq!(Scheduler::claimqueue().len(), 1);
+			assert_eq!(Scheduler::availability_cores().len(), 1);
+
+			let mut map = BTreeMap::new();
+			map.insert(CoreIndex(0), thread_a);
+			Scheduler::occupied(map);
+
+			// TODO
+			let cores = Scheduler::availability_cores();
+			match cores.get(0).unwrap() {
+				CoreOccupied::Paras(entry) => assert_eq!(entry.assignment, assignment_a.clone()),
+				_ => panic!("with no chains, only core should be a thread core"),
+			}
+
+			// There's nothing more to pop for core 0 from the assignment provider.
+			assert!(
+				OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(thread_a)).is_none()
+			);
+
+			assert_eq!(
+				Scheduler::next_up_on_time_out(CoreIndex(0)).unwrap(),
+				ScheduledCore { para_id: thread_a }
+			);
+
+			assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+				assignment_b.clone(),
+				QueuePushDirection::Back
+			));
+
+			// Pop assignment_b into the claimqueue
+			Scheduler::update_claimqueue(BTreeMap::new(), 2);
+
+			//// Now that there is an earlier next-up, we use that.
+			assert_eq!(
+				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
+				ScheduledCore { para_id: thread_b }
+			);
+		}
+	});
 }
 
 #[test]
