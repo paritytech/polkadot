@@ -282,6 +282,10 @@ impl V1ReadBackend for TestStoreInner {
 	) -> SubsystemResult<Option<CandidateEntry>> {
 		self.load_candidate_entry(candidate_hash)
 	}
+
+	fn load_block_entry_v1(&self, block_hash: &Hash) -> SubsystemResult<Option<BlockEntry>> {
+		self.load_block_entry(block_hash)
+	}
 }
 
 impl Backend for TestStoreInner {
@@ -361,6 +365,10 @@ impl V1ReadBackend for TestStore {
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateEntry>> {
 		self.load_candidate_entry(candidate_hash)
+	}
+
+	fn load_block_entry_v1(&self, block_hash: &Hash) -> SubsystemResult<Option<BlockEntry>> {
+		self.load_block_entry(block_hash)
 	}
 }
 
