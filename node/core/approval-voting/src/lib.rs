@@ -1556,8 +1556,8 @@ async fn handle_approved_ancestor<Context>(
 			{
 				gum::trace!(
 					target: LOG_TARGET,
-					"Unapproved blocks for block {} on depth {}: {:?}",
-					block_hash,
+					?block_hash,
+					"Unapproved candidates at depth {}: {:?}",
 					bits.len(),
 					unapproved
 				)
