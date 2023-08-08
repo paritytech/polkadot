@@ -401,7 +401,9 @@ fn fill_claimqueue_fills() {
 	let thread_b = ParaId::from(4_u32);
 	let thread_c = ParaId::from(5_u32);
 
-	//let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+	let assignment_a = Assignment { para_id: thread_a };
+	let assignment_b = Assignment { para_id: thread_b };
+	let assignment_c = Assignment { para_id: thread_c };
 
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().on_demand_cores, 3);
