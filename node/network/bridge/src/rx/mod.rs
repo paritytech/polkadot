@@ -17,8 +17,6 @@
 //! The Network Bridge Subsystem - handles _incoming_ messages from the network, forwarded to the relevant subsystems.
 use super::*;
 
-// TODO: why is this no longer used?
-use always_assert::never as _;
 use bytes::Bytes;
 use parity_scale_codec::{Decode, DecodeAll};
 
@@ -159,7 +157,12 @@ where
 		NotificationEvent::ValidateInboundSubstream { result_tx, .. } => {
 			let _ = result_tx.send(ValidationResult::Accept);
 		},
-		NotificationEvent::NotificationStreamOpened { peer, handshake, negotiated_fallback } => {
+		NotificationEvent::NotificationStreamOpened {
+			peer,
+			handshake,
+			negotiated_fallback,
+			..
+		} => {
 			let role = match network_service.peer_role(peer, handshake) {
 				Some(role) => ObservedRole::from(role),
 				None => {
@@ -363,7 +366,12 @@ where
 		NotificationEvent::ValidateInboundSubstream { result_tx, .. } => {
 			let _ = result_tx.send(ValidationResult::Accept);
 		},
-		NotificationEvent::NotificationStreamOpened { peer, handshake, negotiated_fallback } => {
+		NotificationEvent::NotificationStreamOpened {
+			peer,
+			handshake,
+			negotiated_fallback,
+			..
+		} => {
 			let role = match network_service.peer_role(peer, handshake) {
 				Some(role) => ObservedRole::from(role),
 				None => {

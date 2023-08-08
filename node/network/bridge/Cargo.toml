@@ -5,7 +5,6 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-always-assert = "0.1"
 async-trait = "0.1.57"
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }

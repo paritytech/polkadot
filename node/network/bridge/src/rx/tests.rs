@@ -28,7 +28,7 @@ use std::{
 };
 
 use sc_network::{
-	service::traits::{MessageSink, NotificationService},
+	service::traits::{Direction, MessageSink, NotificationService},
 	IfDisconnected, Multiaddr, ObservedRole as SubstrateObservedRole, ProtocolName,
 	ReputationChange, Roles,
 };
@@ -213,6 +213,7 @@ impl TestNetworkHandle {
 				self.validation_tx
 					.send(NotificationEvent::NotificationStreamOpened {
 						peer,
+						direction: Direction::Inbound,
 						handshake: observed_role_to_handshake(&role),
 						negotiated_fallback: None,
 					})
@@ -223,6 +224,7 @@ impl TestNetworkHandle {
 				self.collation_tx
 					.send(NotificationEvent::NotificationStreamOpened {
 						peer,
+						direction: Direction::Inbound,
 						handshake: observed_role_to_handshake(&role),
 						negotiated_fallback: None,
 					})
@@ -357,7 +359,7 @@ impl NotificationService for TestNotificationService {
 	}
 
 	/// Set handshake for the notification protocol replacing the old handshake.
-	async fn set_hanshake(&mut self, _handshake: Vec<u8>) -> Result<(), ()> {
+	async fn set_handshake(&mut self, _handshake: Vec<u8>) -> Result<(), ()> {
 		unimplemented!();
 	}
 
