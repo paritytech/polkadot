@@ -4,6 +4,7 @@ build = "build.rs"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }

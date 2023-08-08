@@ -3,6 +3,7 @@ name = "remote-ext-tests-bags-list"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 polkadot-runtime = { path = "../../../runtime/polkadot" }
