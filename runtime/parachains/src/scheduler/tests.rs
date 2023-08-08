@@ -824,87 +824,100 @@ fn schedule_clears_availability_cores() {
 	});
 }
 
-//#[test]
-//fn schedule_rotates_groups() {
-//	let config = {
-//		let mut config = default_config();
-//
-//		// make sure parathread requests don't retry-out
-//		config.parathread_retries = config.group_rotation_frequency * 3;
-//		config.parathread_cores = 2;
-//		config
-//	};
-//
-//	let rotation_frequency = config.group_rotation_frequency;
-//	let parathread_cores = config.parathread_cores;
-//
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig {
-//			config: config.clone(),
-//			..Default::default()
-//		},
-//		..Default::default()
-//	};
-//
-//	let thread_a = ParaId::from(1_u32);
-//	let thread_b = ParaId::from(2_u32);
-//
-//	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
-//
-//	new_test_ext(genesis_config).execute_with(|| {
-//		assert_eq!(default_config().parathread_cores, 3);
-//
-//		schedule_blank_para(thread_a, ParaKind::Parathread);
-//		schedule_blank_para(thread_b, ParaKind::Parathread);
-//
-//		// start a new session to activate, 5 validators for 5 cores.
-//		run_to_block(1, |number| match number {
-//			1 => Some(SessionChangeNotification {
-//				new_config: config.clone(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//				],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		let session_start_block = <Scheduler as Store>::SessionStartBlock::get();
-//		assert_eq!(session_start_block, 1);
-//
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
-//
-//		run_to_block(2, |_| None);
-//
-//		let assert_groups_rotated = |rotations: u32| {
-//			let scheduled = Scheduler::scheduled();
-//			assert_eq!(scheduled.len(), 2);
-//			assert_eq!(scheduled[0].group_idx, GroupIndex((0u32 + rotations) % parathread_cores));
-//			assert_eq!(scheduled[1].group_idx, GroupIndex((1u32 + rotations) % parathread_cores));
-//		};
-//
-//		assert_groups_rotated(0);
-//
-//		// one block before first rotation.
-//		run_to_block(rotation_frequency, |_| None);
-//
-//		assert_groups_rotated(0);
-//
-//		// first rotation.
-//		run_to_block(rotation_frequency + 1, |_| None);
-//		assert_groups_rotated(1);
-//
-//		// one block before second rotation.
-//		run_to_block(rotation_frequency * 2, |_| None);
-//		assert_groups_rotated(1);
-//
-//		// second rotation.
-//		run_to_block(rotation_frequency * 2 + 1, |_| None);
-//		assert_groups_rotated(2);
-//	});
-//}
+#[test]
+fn schedule_rotates_groups() {
+	let config = {
+		let mut config = default_config();
+
+		// make sure on demand requests don't retry-out
+		config.on_demand_retries = config.group_rotation_frequency * 3;
+		config.on_demand_cores = 2;
+		config.scheduling_lookahead = 1;
+		config
+	};
+
+	let rotation_frequency = config.group_rotation_frequency;
+	let on_demand_cores = config.on_demand_cores;
+
+	let genesis_config = MockGenesisConfig {
+		configuration: crate::configuration::GenesisConfig {
+			config: config.clone(),
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	let thread_a = ParaId::from(1_u32);
+	let thread_b = ParaId::from(2_u32);
+
+	let assignment_a = Assignment { para_id: thread_a };
+	let assignment_b = Assignment { para_id: thread_b };
+
+	new_test_ext(genesis_config).execute_with(|| {
+		assert_eq!(default_config().on_demand_cores, 3);
+
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
+
+		// start a new session to activate, 5 validators for 5 cores.
+		run_to_block(1, |number| match number {
+			1 => Some(SessionChangeNotification {
+				new_config: config.clone(),
+				validators: vec![
+					ValidatorId::from(Sr25519Keyring::Alice.public()),
+					ValidatorId::from(Sr25519Keyring::Eve.public()),
+				],
+				..Default::default()
+			}),
+			_ => None,
+		});
+
+		let session_start_block = Scheduler::session_start_block();
+		assert_eq!(session_start_block, 1);
+
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_a,
+			QueuePushDirection::Back
+		));
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_b,
+			QueuePushDirection::Back
+		));
+
+		let mut now = 2;
+		run_to_block(now, |_| None);
+
+		let assert_groups_rotated = |rotations: u32, now: &BlockNumberFor<Test>| {
+			let scheduled = Scheduler::scheduled_claimqueue(now.clone());
+			assert_eq!(scheduled.len(), 2);
+			assert_eq!(scheduled[0].group_idx, GroupIndex((0u32 + rotations) % on_demand_cores));
+			assert_eq!(scheduled[1].group_idx, GroupIndex((1u32 + rotations) % on_demand_cores));
+		};
+
+		assert_groups_rotated(0, &now);
+
+		// one block before first rotation.
+		now = rotation_frequency;
+		run_to_block(rotation_frequency, |_| None);
+
+		assert_groups_rotated(0, &now);
+
+		// first rotation.
+		now = now + 1;
+		run_to_block(now, |_| None);
+		assert_groups_rotated(1, &now);
+
+		// one block before second rotation.
+		now = rotation_frequency * 2;
+		run_to_block(now, |_| None);
+		assert_groups_rotated(1, &now);
+
+		// second rotation.
+		now = now + 1;
+		run_to_block(now, |_| None);
+		assert_groups_rotated(2, &now);
+	});
+}
 
 //#[test]
 //fn parathread_claims_are_pruned_after_retries() {
