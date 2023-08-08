@@ -1187,7 +1187,7 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 
 			assert_eq!(
 				Scheduler::next_up_on_time_out(CoreIndex(0)).unwrap(),
-				ScheduledCore { para_id: thread_a }
+				ScheduledCore { para_id: thread_a, collator: None }
 			);
 
 			assert_ok!(OnDemandAssigner::add_on_demand_assignment(
@@ -1201,7 +1201,7 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 			//// Now that there is an earlier next-up, we use that.
 			assert_eq!(
 				Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-				ScheduledCore { para_id: thread_b }
+				ScheduledCore { para_id: thread_b, collator: None }
 			);
 		}
 	});
