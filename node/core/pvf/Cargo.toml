@@ -1,5 +1,6 @@
 [package]
 name = "polkadot-node-core-pvf"
+description = "Polkadot crate that implements the PVF validation host. Responsible for coordinating preparation and execution of PVFs."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
