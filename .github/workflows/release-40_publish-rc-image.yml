@@ -79,8 +79,13 @@ jobs:
       #     check_gpg ${{ matrix.binary }}
 
       - name: Build Injected Container image for ${{ matrix.binary }}
+        env:
+            ENGINE: docker
+            BINARY: ${{ matrix.binary }}
+            BIN_FOLDER: artifacts
         run: |
           echo "Building container for ${{ matrix.binary }}"
+          ./scripts/ci/dockerfiles/build-injected.sh
 
       - name: Push Container image
         env:
