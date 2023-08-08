@@ -14,20 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Execute worker.
-
-#[cfg(test)]
-use polkadot_execute_worker::BINARY_NAME;
-
-polkadot_node_core_pvf_common::decl_worker_main!(
-	"execute-worker",
-	polkadot_node_core_pvf_execute_worker::worker_entrypoint,
-	env!("SUBSTRATE_CLI_IMPL_VERSION")
-);
+//! Dummy integration test needed for the binary to get build when other intergation
+//! tests are run
 
 #[test]
-fn name_test() {
-	// If binary name ever needs to change, it must be changed in the package manifest
-	// as well as in the constant value
-	assert_eq!(env!("CARGO_BIN_NAME"), BINARY_NAME);
+fn dummy_test() {
+	assert!(true);
 }

@@ -16,8 +16,18 @@
 
 //! Prepare worker.
 
+#[cfg(test)]
+use polkadot_prepare_worker::BINARY_NAME;
+
 polkadot_node_core_pvf_common::decl_worker_main!(
 	"prepare-worker",
 	polkadot_node_core_pvf_prepare_worker::worker_entrypoint,
 	env!("SUBSTRATE_CLI_IMPL_VERSION")
 );
+
+#[test]
+fn name_test() {
+	// If binary name ever needs to change, it must be changed in the package manifest
+	// as well as in the constant value
+	assert_eq!(env!("CARGO_BIN_NAME"), BINARY_NAME);
+}

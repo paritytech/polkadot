@@ -36,6 +36,8 @@ tempfile = "3.2.0"
 tokio = "1.24.2"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
+polkadot-execute-worker = { path = "bin/execute-worker" }
+polkadot-prepare-worker = { path = "bin/prepare-worker" }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }

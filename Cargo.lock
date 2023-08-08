@@ -6435,9 +6435,11 @@ dependencies = [
  "nix 0.26.2",
  "polkadot-cli",
  "polkadot-core-primitives",
+ "polkadot-execute-worker",
  "polkadot-node-core-pvf",
  "polkadot-node-core-pvf-prepare-worker",
  "polkadot-overseer",
+ "polkadot-prepare-worker",
  "substrate-build-script-utils",
  "substrate-rpc-client",
  "tempfile",
@@ -6677,7 +6679,14 @@ version = "0.9.43"
 dependencies = [
  "polkadot-node-core-pvf-common",
  "polkadot-node-core-pvf-execute-worker",
+ "polkadot-primitives",
+ "polkadot-test-service",
+ "sc-cli",
+ "sc-service",
+ "sp-keyring",
  "substrate-build-script-utils",
+ "substrate-test-utils",
+ "tokio",
 ]
 
 [[package]]
