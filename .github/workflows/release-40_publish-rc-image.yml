@@ -14,18 +14,17 @@ on:
         description: "Container registry"
         required: true
         type: string
-        default: docker.io/parity
+        default: docker.io
       owner:
         description: Owner of the container image
-        required: true
+        required: false
         type: string
         default: parity
 
 env:
   RELEASE_ID: ${{ inputs.release_id }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  OWNER: ${{ inputs.owner }}
-  # REPO: ${{ github.event.repository.name }}
+  OWNER: ${{ inputs.owner || github.event.repository.name }}
   REGISTRY: ${{ inputs.registry }}
   ENGINE: docker
 
