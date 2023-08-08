@@ -534,26 +534,21 @@ fn reserve_transfer_assets_works() {
 #[test]
 fn reserve_transfer_assets_with_paid_router_works() {
 	let user_account = AccountId::from(XCM_FEES_NOT_WAIVED_USER_ACCOUNT);
+	let paid_para_id = Para3000::get();
 	let balances = vec![
 		(user_account.clone(), INITIAL_BALANCE),
-		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
+		(ParaId::from(paid_para_id).into_account_truncating(), INITIAL_BALANCE),
 		(XcmFeesTargetAccount::get(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		// set up router fees for destination
-		let xcm_router_fee_amount = 1;
-		set_router_fee_for_destination(
-			Parachain(PARA_ID).into(),
-			Some(MultiAssets::from((Here, xcm_router_fee_amount))),
-		);
-
+		let xcm_router_fee_amount = Para3000PaymentAmount::get();
 		let weight = BaseXcmWeight::get() * 2;
 		let dest: MultiLocation =
 			Junction::AccountId32 { network: None, id: user_account.clone().into() }.into();
 		assert_eq!(Balances::total_balance(&user_account), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			RuntimeOrigin::signed(user_account.clone()),
-			Box::new(Parachain(PARA_ID).into()),
+			Box::new(Parachain(paid_para_id).into()),
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
 			0,
@@ -570,7 +565,7 @@ fn reserve_transfer_assets_with_paid_router_works() {
 			INITIAL_BALANCE - SEND_AMOUNT - xcm_router_fee_amount
 		);
 		// Destination account (parachain account) has amount
-		let para_acc: AccountId = ParaId::from(PARA_ID).into_account_truncating();
+		let para_acc: AccountId = ParaId::from(paid_para_id).into_account_truncating();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + SEND_AMOUNT);
 		// XcmFeesTargetAccount where should lend xcm_router_fee_amount
 		assert_eq!(
@@ -580,7 +575,7 @@ fn reserve_transfer_assets_with_paid_router_works() {
 		assert_eq!(
 			sent_xcm(),
 			vec![(
-				Parachain(PARA_ID).into(),
+				Parachain(paid_para_id).into(),
 				Xcm(vec![
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
