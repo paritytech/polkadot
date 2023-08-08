@@ -23,7 +23,7 @@ sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 landlock = "0.2.0"
@@ -35,4 +35,4 @@ tempfile = "3.3.0"
 [features]
 # This feature is used to export test code to other crates without putting it in the production build.
 # Also used for building the puppet worker.
-test-utils = []
+test-utils = ["sp-tracing"]

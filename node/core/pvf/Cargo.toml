@@ -33,7 +33,7 @@ polkadot-primitives = { path = "../../../primitives" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 polkadot-node-core-pvf-prepare-worker = { path = "prepare-worker", optional = true }
 polkadot-node-core-pvf-execute-worker = { path = "execute-worker", optional = true }
 
@@ -53,4 +53,4 @@ halt = { package = "test-parachain-halt", path = "../../../parachain/test-parach
 ci-only-tests = []
 # This feature is used to export test code to other crates without putting it in the production build.
 # This is also used by the `puppet_worker` binary.
-test-utils = ["polkadot-node-core-pvf-prepare-worker", "polkadot-node-core-pvf-execute-worker"]
+test-utils = ["polkadot-node-core-pvf-prepare-worker", "polkadot-node-core-pvf-execute-worker", "sp-tracing"]
