@@ -393,16 +393,17 @@ async fn send_inherent_data(
 		"Selecting disputes"
 	);
 
-	let disputes = match has_required_runtime(
-		from_job,
-		leaf.hash,
-		PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
-	)
-	.await
-	{
-		true => disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await,
-		false => disputes::random_selection::select_disputes(from_job, metrics).await,
-	};
+	debug_assert!(
+		has_required_runtime(
+			from_job,
+			leaf.hash,
+			PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
+		)
+		.await,
+		"randomized selection no longer supported, please upgrade your runtime!"
+	);
+
+	let disputes = disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await;
 
 	gum::trace!(
 		target: LOG_TARGET,
