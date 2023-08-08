@@ -524,6 +524,9 @@ impl<T: Config> Pallet<T> {
 					if entry.retries < T::AssignmentProvider::get_max_retries(core_idx) {
 						entry.retries += 1;
 						Self::add_to_claimqueue(core_idx, entry);
+						// The claim has been added back into the claimqueue.
+						// Do not pop another assignment for the core.
+						continue
 					} else {
 						// Consider max retried parathreads as concluded for the assignment provider
 						let ret = concluded_paras.insert(core_idx, entry.para_id());
