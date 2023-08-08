@@ -1488,6 +1488,7 @@ async fn handle_approved_ancestor<Context>(
 	} else {
 		Vec::new()
 	};
+	let ancestry_len = ancestry.len();
 
 	let mut block_descriptions = Vec::new();
 
@@ -1551,12 +1552,12 @@ async fn handle_approved_ancestor<Context>(
 				unapproved.len(),
 				entry.candidates().len(),
 			);
-			if ancestry.len() >= LOGGING_DEPTH_THRESHOLD &&
-				i > ancestry.len() - LOGGING_DEPTH_THRESHOLD
+			if ancestry_len >= LOGGING_DEPTH_THRESHOLD && i > ancestry_len - LOGGING_DEPTH_THRESHOLD
 			{
 				gum::trace!(
 					target: LOG_TARGET,
-					"Unapproved blocks on depth {}: {:?}",
+					"Unapproved blocks for block {} on depth {}: {:?}",
+					block_hash,
 					bits.len(),
 					unapproved
 				)
