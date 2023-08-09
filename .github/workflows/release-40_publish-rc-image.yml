@@ -118,3 +118,11 @@ jobs:
         run: |
           $ENGINE images | grep ${BINARY}
           $ENGINE push --all-tags ${REGISTRY}/${DOCKER_OWNER}/${BINARY}
+
+      - name: Check version for the published image for ${{ matrix.binary }}
+        env:
+          BINARY: ${{ matrix.binary }}
+          RELEASE_TAG: ${{ steps.fetch_refs.outputs.release }}
+        run: |
+          echo "Checking tag ${RELEASE_TAG} for image ${REGISTRY}/${DOCKER_OWNER}/${BINARY}"
+          $ENGINE run -i ${REGISTRY}/${DOCKER_OWNER}/${BINARY}:${RELEASE_TAG} --version
