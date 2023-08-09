@@ -80,12 +80,11 @@ $ENGINE build \
     -f "${DOCKERFILE}" \
     ${CONTEXT}
 
-# Show the list of available images for this repo
 echo "Your Container image for ${IMAGE} is ready"
-$ENGINE images | grep ${IMAGE}
+$ENGINE images | grep "${IMAGE}"
 
-# Check the final image
-$ENGINE run --rm -i "${IMAGE}:latest" --version
+echo "Check the image ${IMAGE}:${TAG_ARRAY[0]}"
+$ENGINE run --rm -i "${IMAGE}:${TAG_ARRAY[0]}" --version
 
-# Check binary-ies
-$ENGINE run --rm -i --entrypoint /bin/bash "${IMAGE}:latest" -c 'echo BINARY: $BINARY'
+echo "Query binaries"
+$ENGINE run --rm -i --entrypoint /bin/bash "${IMAGE}:${TAG_ARRAY[0]}" -c 'echo BINARY: $BINARY'
