@@ -35,7 +35,7 @@ mod tracks;
 pub use tracks::TracksInfo;
 
 parameter_types! {
-	pub const VoteLockingPeriod: BlockNumber = 7 * DAYS;
+	pub const VoteLockingPeriod: BlockNumber = prod_or_fast!(28 * DAYS, 1);
 }
 
 impl pallet_conviction_voting::Config for Runtime {
