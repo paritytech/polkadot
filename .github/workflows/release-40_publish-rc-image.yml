@@ -8,8 +8,6 @@ on:
         description: 'Release ID'
         required: true
         type: string
-        # TODO: to be removed, this eases testing
-        default: "62185729"
       registry:
         description: "Container registry"
         required: true
@@ -76,12 +74,12 @@ jobs:
           echo "Checking binary ${{ matrix.binary }}"
           check_sha256 ${{ matrix.binary }} && echo "OK" || echo "ERR"
 
-      # - name: Check GPG ${{ matrix.binary }}
-      #   working-directory: ./artifacts
-      #   run: |
-      #     . ../scripts/ci/common/lib.sh
-      #     # TODO import relevant GPG keys
-      #     check_gpg ${{ matrix.binary }}
+      - name: Check GPG ${{ matrix.binary }}
+        working-directory: ./artifacts
+        run: |
+          . ../scripts/ci/common/lib.sh
+          import_gpg_keys
+          check_gpg ${{ matrix.binary }}
 
       - name: Fetch commit and tag
         id: fetch_refs
