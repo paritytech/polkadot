@@ -41,6 +41,7 @@ polkadot-execute-worker = { path = "bin/execute-worker" }
 polkadot-prepare-worker = { path = "bin/prepare-worker" }
 
 [build-dependencies]
+ansi_term = "0.12.1"
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [workspace]

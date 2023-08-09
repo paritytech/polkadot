@@ -14,29 +14,33 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Build script to ensure that PVF worker binaries are always built whenever polkadot is built.
-//!
-//! This is needed because `default-members` does the same thing, but only for `cargo build` -- it
-//! does not work for `cargo run`.
+//! Build script to ensure that node/worker versions stay in sync and PVF worker binaries are always
+//! built whenever polkadot is built.
 
 use std::{env::var, path::Path, process::Command};
 
-use polkadot_node_core_pvf::{EXECUTE_BINARY_NAME, PREPARE_BINARY_NAME};
+// TODO: fix
+// use polkadot_node_core_pvf::{PREPARE_BINARY_NAME, EXECUTE_BINARY_NAME};
+const PREPARE_BINARY_NAME: &str = "polkadot-prepare-worker";
+const EXECUTE_BINARY_NAME: &str = "polkadot-execute-worker";
 
-// TODO: unskip
-#[rustfmt::skip]
 fn main() {
-	// Build additional artifacts if a single package build is explicitly requested.
+	// Always build PVF worker binaries whenever polkadot is built.
+	//
+	// This is needed because `default-members` does the same thing, but only for `cargo build` --
+	// it does not work for `cargo run`.
+	//
+	// TODO: Test with `cargo +<specific-toolchain> ...`
 	{
-		let cargo   = dbg!(var("CARGO").expect("`CARGO` env variable is always set by cargo"));
-		let target  = dbg!(var("TARGET").expect("`TARGET` env variable is always set by cargo"));
-		let profile = dbg!(var("PROFILE").expect("`PROFILE` env variable is always set by cargo"));
-		let out_dir = dbg!(var("OUT_DIR").expect("`OUT_DIR` env variable is always set by cargo"));
+		let cargo = var("CARGO").expect("`CARGO` env variable is always set by cargo");
+		let target = var("TARGET").expect("`TARGET` env variable is always set by cargo");
+		let profile = var("PROFILE").expect("`PROFILE` env variable is always set by cargo");
+		let out_dir = var("OUT_DIR").expect("`OUT_DIR` env variable is always set by cargo");
 		let target_dir = format!("{}/workers", out_dir);
 
-		// assert!(false);
-
-		// TODO: opt-level, debug, features, etc.
+		// Settings like overflow-checks, opt-level, lto, etc. are correctly passed to cargo
+		// subcommand through env vars, e.g. `CARGO_CFG_OVERFLOW_CHECKS`, which the subcommand
+		// inherits. We don't pass along features because the workers don't use any right now.
 		let mut args = vec![
 			"build",
 			"-p",
@@ -52,18 +56,32 @@ fn main() {
 			args.push("--profile");
 			args.push(&profile);
 		}
+		let mut build_cmd = Command::new(cargo);
+		build_cmd.args(&args);
 
-		Command::new(cargo).args(&args).status().unwrap();
+		println!(
+			"{}",
+			colorize_info_message("Information that should be included in a bug report.")
+		);
+		println!("{} {:?}", colorize_info_message("Executing build command:"), build_cmd);
+		// println!("{} {}", colorize_info_message("Using rustc version:"), build_cmd.rustc_version());
+
+		match build_cmd.status().map(|s| s.success()) {
+			Ok(true) => (),
+			// Use `process.exit(1)` to have a clean error output.
+			_ => std::process::exit(1),
+		}
+
 		std::fs::rename(
 			Path::new(&format!("{target_dir}/{target}/{profile}/{EXECUTE_BINARY_NAME}")),
 			Path::new(&format!("{target_dir}/../../../../{EXECUTE_BINARY_NAME}")),
 		)
-			.unwrap();
+		.unwrap();
 		std::fs::rename(
 			Path::new(&format!("{target_dir}/{target}/{profile}/{PREPARE_BINARY_NAME}")),
 			Path::new(&format!("{target_dir}/../../../../{PREPARE_BINARY_NAME}")),
 		)
-			.unwrap();
+		.unwrap();
 	}
 
 	// TODO: is this needed here?
@@ -71,4 +89,11 @@ fn main() {
 	// For the node/worker version check, make sure we always rebuild the node and binary workers
 	// when the version changes.
 	substrate_build_script_utils::rerun_if_git_head_changed();
+}
+
+/// Colorize an info message.
+///
+/// Returns the colorized message.
+fn colorize_info_message(message: &str) -> String {
+	ansi_term::Color::Yellow.bold().paint(message).to_string()
 }

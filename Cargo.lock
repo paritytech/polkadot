@@ -6432,6 +6432,7 @@ checksum = "e3d7ddaed09e0eb771a79ab0fd64609ba0afb0a8366421957936ad14cbd13630"
 name = "polkadot"
 version = "0.9.43"
 dependencies = [
+ "ansi_term",
  "assert_cmd",
  "color-eyre",
  "nix 0.26.2",
