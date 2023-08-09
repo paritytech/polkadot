@@ -513,7 +513,7 @@ fn delay_reputation_change() {
 				msg: BitfieldDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer.clone(),
-						msg.clone().into_network_message(),
+						msg.clone().into_network_message(ValidationVersion::V1.into()),
 					),
 				),
 			})
@@ -539,7 +539,7 @@ fn delay_reputation_change() {
 				msg: BitfieldDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer.clone(),
-						msg.clone().into_network_message(),
+						msg.clone().into_network_message(ValidationVersion::V1.into()),
 					),
 				),
 			})
