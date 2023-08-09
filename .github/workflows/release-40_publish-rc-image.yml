@@ -86,14 +86,14 @@ jobs:
       - name: Fetch commit and tag
         id: fetch_refs
         run: |
-          release=release-${{ inputs.release_id }}
-          commit=$(git rev-parse --short HEAD)
-          tag=$(git name-rev --tags --name-only $(git rev-parse HEAD))
-
+          release=release-${{ inputs.release_id }} && \
           echo "release=${release}" >> $GITHUB_OUTPUT
+
+          tag=$(git name-rev --tags --name-only $(git rev-parse HEAD)) && \
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
+
+          commit=$(git rev-parse --short HEAD) && \
           echo "commit=${commit}" >> $GITHUB_OUTPUT
-          echo "tag=${tag}" >> $GITHUB_OUTPUT
-          echo "tag=${tag}" >> $GITHUB_OUTPUT
 
       - name: Build Injected Container image for ${{ matrix.binary }}
         env:
@@ -115,4 +115,5 @@ jobs:
         env:
           BINARY: ${{ matrix.binary }}
         run: |
+          $ENGINE images | grep ${BINARY}
           $ENGINE push --all-tags ${REGISTRY}/${DOCKER_OWNER}/${BINARY}
