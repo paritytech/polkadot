@@ -50,9 +50,9 @@ erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
 rand = "0.8.5"
 
 # Required for worker binaries to build.
-polkadot-node-core-pvf-common = { path = "../core/pvf/common", features = ["test-utils"], optional = true }
-polkadot-node-core-pvf-execute-worker = { path = "../core/pvf/execute-worker", optional = true }
-polkadot-node-core-pvf-prepare-worker = { path = "../core/pvf/prepare-worker", optional = true }
+polkadot-node-core-pvf-common = { path = "../core/pvf/common", features = ["test-utils"] }
+polkadot-node-core-pvf-execute-worker = { path = "../core/pvf/execute-worker" }
+polkadot-node-core-pvf-prepare-worker = { path = "../core/pvf/prepare-worker" }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
@@ -65,5 +65,3 @@ substrate-build-script-utils = { git = "https://github.com/paritytech/substrate"
 [features]
 default = []
 fast-runtime = ["polkadot-cli/fast-runtime"]
-# Needed for worker binaries.
-test-utils = ["polkadot-node-core-pvf-common/test-utils", "polkadot-node-core-pvf-execute-worker", "polkadot-node-core-pvf-prepare-worker"]

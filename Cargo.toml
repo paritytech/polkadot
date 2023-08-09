@@ -229,7 +229,7 @@ runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
 jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
 # Needed for worker binaries.
-test-util = ["polkadot-node-core-pvf-common/test-utils", "polkadot-node-core-pvf-execute-worker"]
+test-utils = ["polkadot-node-core-pvf-common/test-utils", "polkadot-node-core-pvf-execute-worker"]
 # Enables timeout-based tests supposed to be run only in CI environment as they may be flaky
 # when run locally depending on system load
 ci-only-tests = ["polkadot-node-core-pvf/ci-only-tests"]
