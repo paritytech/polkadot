@@ -68,7 +68,7 @@ struct TestAuthorityDiscovery;
 // of `NetworkAction`s.
 struct TestNetworkHandle {
 	action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
-	peerset_protocol_names: PeerSetProtocolNames,
+	_peerset_protocol_names: PeerSetProtocolNames,
 	notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
 }
@@ -129,7 +129,7 @@ fn new_test_network(
 		},
 		TestNetworkHandle {
 			action_rx,
-			peerset_protocol_names,
+			_peerset_protocol_names: peerset_protocol_names,
 			action_tx,
 			notification_sinks: notification_sinks.clone(),
 		},
@@ -212,7 +212,7 @@ impl TestNetworkHandle {
 		self.action_rx.next().await.expect("subsystem concluded early")
 	}
 
-	async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, role: ObservedRole) {
+	async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, _role: ObservedRole) {
 		self.notification_sinks.lock().insert(
 			(peer_set, peer),
 			Box::new(TestMessageSink::new(peer, peer_set, self.action_tx.clone())),
