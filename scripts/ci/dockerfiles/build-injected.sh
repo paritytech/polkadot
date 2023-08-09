@@ -6,7 +6,7 @@ set -e
 
 ENGINE=${ENGINE:-podman}
 
-if ["$ENGINE" == "podman"]; then
+if [ "$ENGINE" == "podman" ]; then
   PODMAN_FLAGS="--format docker"
 else
   PODMAN_FLAGS=""
