@@ -93,7 +93,8 @@ jobs:
           echo "commit=${commit}" >> $GITHUB_OUTPUT
 
           tag=$(git name-rev --tags --name-only $(git rev-parse HEAD)) && \
-          [ "${tag}" != "undefined" ] && echo "tag=${tag}" >> $GITHUB_OUTPUT
+          [ "${tag}" != "undefined" ] && echo "tag=${tag}" >> $GITHUB_OUTPUT || \
+          echo "No tag, doing without"
 
       - name: Build Injected Container image for ${{ matrix.binary }}
         env:
