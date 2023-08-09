@@ -21,7 +21,7 @@ DOCKERFILE=${DOCKERFILE:-$PROJECT_ROOT/scripts/ci/dockerfiles/binary_injected.Do
 VERSION_TOML=$(grep "^version " $PROJECT_ROOT/Cargo.toml | grep -oE "([0-9\.]+-?[0-9]+)")
 
 #n The following VAR have default that can be overriden
-OWNER=${OWNER:-parity}
+DOCKER_OWNER=${DOCKER_OWNER:-parity}
 
 # We may get 1..n binaries, comma separated
 BINARY=${BINARY:-polkadot}
@@ -30,7 +30,7 @@ IFS=',' read -r -a BINARIES <<< "$BINARY"
 VERSION=${VERSION:-$VERSION_TOML}
 BIN_FOLDER=${BIN_FOLDER:-.}
 
-IMAGE=${IMAGE:-${REGISTRY}/${OWNER}/${BINARIES[0]}}
+IMAGE=${IMAGE:-${REGISTRY}/${DOCKER_OWNER}/${BINARIES[0]}}
 DESCRIPTION_DEFAULT="Injected Container image built for ${BINARY[*]}"
 DESCRIPTION=${DESCRIPTION:-$DESCRIPTION_DEFAULT}
 

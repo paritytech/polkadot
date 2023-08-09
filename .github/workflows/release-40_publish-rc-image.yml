@@ -17,7 +17,7 @@ on:
         default: docker.io
       owner:
         description: Owner of the container image repo
-        required: false
+        required: true
         type: string
         default: parity
 
@@ -111,7 +111,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Push Container image for ${{ matrix.binary }}
-        id:   docker_push
+        id: docker_push
         env:
           BINARY: ${{ matrix.binary }}
         run: |
