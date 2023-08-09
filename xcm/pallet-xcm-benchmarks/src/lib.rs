@@ -22,7 +22,10 @@ use codec::Encode;
 use frame_benchmarking::{account, BenchmarkError};
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
-use xcm_executor::{traits::ConvertLocation, Config as XcmConfig};
+use xcm_executor::{
+	traits::{ConvertLocation, FeeReason},
+	Config as XcmConfig, FeesMode,
+};
 
 pub mod fungible;
 pub mod generic;
@@ -47,6 +50,14 @@ pub trait Config: frame_system::Config {
 
 	/// Worst case scenario for a holding account in this runtime.
 	fn worst_case_holding(depositable_count: u32) -> MultiAssets;
+
+	/// Prepare all requirements for successful `XcmSender: SendXcm` passing (accounts, balances ...).
+	/// Returns possible `FeesMode` which is expected to be set to executor.
+	fn ensure_for_send(
+		origin_ref: &MultiLocation,
+		dest: &MultiLocation,
+		fee_reason: FeeReason,
+	) -> Option<FeesMode>;
 }
 
 const SEED: u32 = 0;

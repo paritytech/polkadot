@@ -146,6 +146,9 @@ match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
 	};
+	pub type HereLocation: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: Here }
+	};
 }
 
 /// The barriers one of which must be passed for an XCM message to be executed.
@@ -346,7 +349,8 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
-	type FeeManager = XcmFeesToAccount<Self, SystemParachains, AccountId, TreasuryAccount>;
+	type FeeManager =
+		XcmFeesToAccount<Self, (SystemParachains, HereLocation), AccountId, TreasuryAccount>;
 	// No bridges yet...
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;

@@ -152,6 +152,15 @@ impl crate::Config for Test {
 			<XcmConfig as xcm_executor::Config>::MaxAssetsIntoHolding::get(),
 		)
 	}
+
+	fn ensure_for_send(
+		_origin_ref: &MultiLocation,
+		_dest: &MultiLocation,
+		_fee_reason: FeeReason,
+	) -> Option<FeesMode> {
+		// doing nothing
+		None
+	}
 }
 
 impl generic::Config for Test {

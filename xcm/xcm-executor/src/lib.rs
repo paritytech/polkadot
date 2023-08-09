@@ -941,6 +941,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		if Config::FeeManager::is_waived(self.origin_ref(), reason) {
 			return Ok(())
 		}
+		log::trace!(
+			target: "xcm::fees",
+			"taking fee: {:?} from origin_ref: {:?} in fees_mode: {:?} for a reason: {:?}",
+			fee,
+			self.origin_ref(),
+			self.fees_mode,
+			reason,
+		);
 		let paid = if self.fees_mode.jit_withdraw {
 			let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 			for asset in fee.inner() {

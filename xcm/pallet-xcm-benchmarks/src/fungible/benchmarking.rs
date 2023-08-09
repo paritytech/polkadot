@@ -24,7 +24,7 @@ use frame_support::{
 use sp_runtime::traits::{Bounded, Zero};
 use sp_std::{prelude::*, vec};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{ConvertLocation, TransactAsset};
+use xcm_executor::traits::{ConvertLocation, FeeReason, TransactAsset};
 
 benchmarks_instance_pallet! {
 	where_clause { where
@@ -87,12 +87,19 @@ benchmarks_instance_pallet! {
 		let dest_location = T::valid_destination()?;
 		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 
+		let expected_fees_mode = T::ensure_for_send(&sender_location, &dest_location, FeeReason::TransferReserveAsset);
+		let sender_account_balance_before = T::TransactAsset::balance(&sender_account);
+
 		let asset = T::get_multi_asset();
 		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location, None).unwrap();
+		assert!(T::TransactAsset::balance(&sender_account) > sender_account_balance_before);
 		let assets: MultiAssets = vec![ asset ].into();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(sender_location);
+		if let Some(expected_fees_mode) = expected_fees_mode {
+			executor.set_fees_mode(expected_fees_mode);
+		}
 		let instruction = Instruction::TransferReserveAsset {
 			assets,
 			dest: dest_location,
@@ -102,7 +109,7 @@ benchmarks_instance_pallet! {
 	}: {
 		executor.bench_process(xcm)?;
 	} verify {
-		assert!(T::TransactAsset::balance(&sender_account).is_zero());
+		assert!(T::TransactAsset::balance(&sender_account) <= sender_account_balance_before);
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
 		// TODO: Check sender queue is not empty. #4426
 	}
