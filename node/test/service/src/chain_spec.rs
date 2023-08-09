@@ -33,27 +33,26 @@ use test_runtime_constants::currency::DOTS;
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// The `ChainSpec` parameterized for polkadot test runtime.
-pub type PolkadotChainSpec =
-	sc_service::GenericChainSpec<polkadot_test_runtime::RuntimeGenesisConfig, Extensions>;
+pub type PolkadotChainSpec = sc_service::GenericChainSpec<(), Extensions>;
 
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
-	PolkadotChainSpec::from_genesis(
-		"Local Testnet",
-		"local_testnet",
-		ChainType::Local,
-		|| polkadot_local_testnet_genesis(),
-		vec![],
-		None,
-		Some(DEFAULT_PROTOCOL_ID),
-		None,
-		Some(polkadot_chain_spec_properties()),
-		Default::default(),
-	)
+	PolkadotChainSpec::builder()
+		.with_name("Local Testnet")
+		.with_id("local_testnet")
+		.with_chain_type(ChainType::Local)
+		.with_genesis_config_patch(polkadot_local_testnet_genesis())
+		.with_protocol_id(DEFAULT_PROTOCOL_ID)
+		.with_extensions(Default::default())
+		.with_properties(polkadot_chain_spec_properties())
+		.with_code(
+			polkadot_test_runtime::WASM_BINARY.expect("Wasm binary must be built for testing"),
+		)
+		.build()
 }
 
 /// Local testnet genesis config (multivalidator Alice + Bob)
-pub fn polkadot_local_testnet_genesis() -> polkadot_test_runtime::RuntimeGenesisConfig {
+pub fn polkadot_local_testnet_genesis() -> serde_json::Value {
 	polkadot_testnet_genesis(
 		vec![get_authority_keys_from_seed("Alice"), get_authority_keys_from_seed("Bob")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -106,7 +105,7 @@ fn polkadot_testnet_genesis(
 	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> polkadot_test_runtime::RuntimeGenesisConfig {
+) -> serde_json::Value {
 	use polkadot_test_runtime as runtime;
 
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
@@ -114,17 +113,12 @@ fn polkadot_testnet_genesis(
 	const ENDOWMENT: u128 = 1_000_000 * DOTS;
 	const STASH: u128 = 100 * DOTS;
 
-	runtime::RuntimeGenesisConfig {
-		system: runtime::SystemConfig {
-			code: runtime::WASM_BINARY.expect("Wasm binary must be built for testing").to_vec(),
-			..Default::default()
+	serde_json::json!({
+		"balances": {
+			"balances": endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect::<Vec<_>>(),
 		},
-		indices: runtime::IndicesConfig { indices: vec![] },
-		balances: runtime::BalancesConfig {
-			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
-		},
-		session: runtime::SessionConfig {
-			keys: initial_authorities
+		"session": {
+			"keys": initial_authorities
 				.iter()
 				.map(|x| {
 					(
@@ -141,48 +135,37 @@ fn polkadot_testnet_genesis(
 				})
 				.collect::<Vec<_>>(),
 		},
-		staking: runtime::StakingConfig {
-			minimum_validator_count: 1,
-			validator_count: 2,
-			stakers: initial_authorities
+		"staking": {
+			"minimumValidatorCount": 1,
+			"validatorCount": 2,
+			"stakers": initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.0.clone(), STASH, runtime::StakerStatus::Validator))
-				.collect(),
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-			force_era: Forcing::NotForcing,
-			slash_reward_fraction: Perbill::from_percent(10),
-			..Default::default()
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, runtime::StakerStatus::<AccountId>::Validator))
+				.collect::<Vec<_>>(),
+			"invulnerables": initial_authorities.iter().map(|x| x.0.clone()).collect::<Vec<_>>(),
+			"forceEra": Forcing::NotForcing,
+			"slashRewardFraction": Perbill::from_percent(10),
 		},
-		babe: runtime::BabeConfig {
-			authorities: vec![],
-			epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
-			..Default::default()
+		"babe": {
+			"epochConfig": Some(BABE_GENESIS_EPOCH_CONFIG),
 		},
-		grandpa: Default::default(),
-		authority_discovery: runtime::AuthorityDiscoveryConfig {
-			keys: vec![],
-			..Default::default()
-		},
-		claims: runtime::ClaimsConfig { claims: vec![], vesting: vec![] },
-		vesting: runtime::VestingConfig { vesting: vec![] },
-		sudo: runtime::SudoConfig { key: Some(root_key) },
-		configuration: runtime::ConfigurationConfig {
-			config: polkadot_runtime_parachains::configuration::HostConfiguration {
-				validation_upgrade_cooldown: 10u32,
-				validation_upgrade_delay: 5,
-				code_retention_period: 1200,
-				max_code_size: MAX_CODE_SIZE,
-				max_pov_size: MAX_POV_SIZE,
-				max_head_data_size: 32 * 1024,
-				group_rotation_frequency: 20,
-				chain_availability_period: 4,
-				thread_availability_period: 4,
-				no_show_slots: 10,
-				minimum_validation_upgrade_delay: 5,
-				..Default::default()
+		"sudo": { "key": Some(root_key) },
+		"configuration": {
+			"config": {
+				"validationUpgradeCooldown": 10u32,
+				"validationUpgradeDelay": 5,
+				"codeRetentionPeriod": 1200,
+				"maxCodeSize": MAX_CODE_SIZE,
+				"maxPovSize": MAX_POV_SIZE,
+				"maxHeadDataSize": 32 * 1024,
+				"groupRotationFrequency": 20,
+				"chainAvailabilityPeriod": 4,
+				"threadAvailabilityPeriod": 4,
+				"noShowSlots": 10,
+				"minimumValidationUpgradeDelay": 5,
 			},
-		},
-	}
+		}
+	})
 }
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Test` network.
