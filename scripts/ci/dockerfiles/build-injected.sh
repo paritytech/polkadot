@@ -81,7 +81,7 @@ $ENGINE build \
     ${CONTEXT}
 
 echo "Your Container image for ${IMAGE} is ready"
-$ENGINE images | grep "${IMAGE}"
+$ENGINE images
 
 echo "Check the image ${IMAGE}:${TAG_ARRAY[0]}"
 $ENGINE run --rm -i "${IMAGE}:${TAG_ARRAY[0]}" --version
