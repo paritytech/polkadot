@@ -3,6 +3,7 @@ name = "xcm-builder"
 description = "Tools & types for building with XCM and its executor."
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 
 [dependencies]

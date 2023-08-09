@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Contains the logic for executing PVFs. Used by the polkadot-execute-worker binary.
+
 pub use polkadot_node_core_pvf_common::executor_intf::Executor;
 
 // NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
