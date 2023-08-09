@@ -5,7 +5,12 @@ on:
   workflow_dispatch:
     inputs:
       release_id:
-        description: 'Release ID'
+        description: |
+          Release ID.
+          You can find it using the command:
+            curl -s \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" https://api.github.com/repos/$OWNER/$REPO/releases | \
+              jq '.[] | { name: .name, id: .id }'
         required: true
         type: string
       registry:

@@ -251,7 +251,7 @@ function import_gpg_keys() {
     (
       echo "Importing GPG key $key"
       gpg --no-tty --quiet --keyserver $GPG_KEYSERVER --recv-keys $key
-      echo -e "5\ny\n" | gpg --command-fd 0 --expert --edit-key $key trust;
+      echo -e "5\ny\n" | gpg --no-tty --command-fd 0 --expert --edit-key $key trust;
     ) &
   done
   wait
@@ -260,5 +260,5 @@ function import_gpg_keys() {
 # Check the GPG signature for a given binary
 function check_gpg() {
     echo "Checking GPG Signature for $1"
-    gpg --verify -q $1.asc $1
+    gpg --no-tty --verify -q $1.asc $1
 }
