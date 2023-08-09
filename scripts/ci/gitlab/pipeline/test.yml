@@ -90,7 +90,7 @@ test-node-metrics:
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
     # Build the required workers.
-    - cargo build --bin polkadot-execute-worker --bin polkadot-prepare-worker --profile testnet --verbose --locked --features=test-utils
+    - cargo build --bin polkadot-execute-worker --bin polkadot-prepare-worker --profile testnet --verbose --locked
     # Run tests.
     - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
 

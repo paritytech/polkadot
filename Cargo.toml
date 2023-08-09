@@ -5,12 +5,10 @@ path = "src/main.rs"
 [[bin]]
 name = "polkadot-execute-worker"
 path = "src/bin/execute-worker.rs"
-required-features = ["test-utils"]
 
 [[bin]]
 name = "polkadot-prepare-worker"
 path = "src/bin/prepare-worker.rs"
-required-features = ["test-utils"]
 
 [package]
 name = "polkadot"
@@ -40,8 +38,8 @@ polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" 
 polkadot-overseer = { path = "node/overseer" }
 
 # Needed for worker binaries.
-polkadot-node-core-pvf-common = { path = "node/core/pvf/common", features = ["test-utils"], optional = true }
-polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker", optional = true }
+polkadot-node-core-pvf-common = { path = "node/core/pvf/common", features = ["test-utils"] }
+polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
@@ -228,8 +226,6 @@ fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
 jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
-# Needed for worker binaries.
-test-utils = ["polkadot-node-core-pvf-common/test-utils", "polkadot-node-core-pvf-execute-worker"]
 # Enables timeout-based tests supposed to be run only in CI environment as they may be flaky
 # when run locally depending on system load
 ci-only-tests = ["polkadot-node-core-pvf/ci-only-tests"]

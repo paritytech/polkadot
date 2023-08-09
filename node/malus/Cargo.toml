@@ -17,13 +17,11 @@ path = "src/malus.rs"
 [[bin]]
 name = "polkadot-execute-worker"
 path = "../../src/bin/execute-worker.rs"
-required-features = ["test-utils"]
 # Prevent rustdoc error. Already documented from top-level Cargo.toml.
 doc = false
 [[bin]]
 name = "polkadot-prepare-worker"
 path = "../../src/bin/prepare-worker.rs"
-required-features = ["test-utils"]
 # Prevent rustdoc error. Already documented from top-level Cargo.toml.
 doc = false
 
