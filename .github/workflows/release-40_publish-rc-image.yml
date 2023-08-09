@@ -89,11 +89,11 @@ jobs:
           release=release-${{ inputs.release_id }} && \
           echo "release=${release}" >> $GITHUB_OUTPUT
 
-          tag=$(git name-rev --tags --name-only $(git rev-parse HEAD)) && \
-          echo "tag=${tag}" >> $GITHUB_OUTPUT
-
           commit=$(git rev-parse --short HEAD) && \
           echo "commit=${commit}" >> $GITHUB_OUTPUT
+
+          tag=$(git name-rev --tags --name-only $(git rev-parse HEAD)) && \
+          [ "${tag}" != "undefined" ] && echo "tag=${tag}" >> $GITHUB_OUTPUT
 
       - name: Build Injected Container image for ${{ matrix.binary }}
         env:
