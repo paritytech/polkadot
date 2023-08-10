@@ -982,55 +982,147 @@ fn schedule_rotates_groups() {
 	});
 }
 
-//#[test]
-//fn parathread_claims_are_pruned_after_retries() {
-//	let max_retries = default_config().parathread_retries;
-//
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig {
-//			config: default_config(),
-//			..Default::default()
-//		},
-//		..Default::default()
-//	};
-//
-//	let thread_a = ParaId::from(1_u32);
-//	let thread_b = ParaId::from(2_u32);
-//
-//	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
-//
-//	new_test_ext(genesis_config).execute_with(|| {
-//		assert_eq!(default_config().parathread_cores, 3);
-//
-//		schedule_blank_para(thread_a, ParaKind::Parathread);
-//		schedule_blank_para(thread_b, ParaKind::Parathread);
-//
-//		// start a new session to activate, 5 validators for 5 cores.
-//		run_to_block(1, |number| match number {
-//			1 => Some(SessionChangeNotification {
-//				new_config: default_config(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//				],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
-//
-//		run_to_block(2, |_| None);
-//		assert_eq!(Scheduler::scheduled().len(), 2);
-//
-//		run_to_block(2 + max_retries, |_| None);
-//		assert_eq!(Scheduler::scheduled().len(), 2);
-//
-//		run_to_block(2 + max_retries + 1, |_| None);
-//		assert_eq!(Scheduler::scheduled().len(), 0);
-//	});
-//}
+#[test]
+fn on_demand_claims_are_pruned_after_timing_out() {
+	let max_retries = 20;
+	let mut config = default_config();
+	config.scheduling_lookahead = 1;
+	config.on_demand_cores = 2;
+	config.on_demand_retries = max_retries;
+	let genesis_config = genesis_config(&config);
+
+	let thread_a = ParaId::from(1_u32);
+
+	let assignment_a = Assignment { para_id: thread_a };
+
+	new_test_ext(genesis_config).execute_with(|| {
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+
+		// #1
+		let mut now = 1;
+		run_to_block(now, |number| match number {
+			1 => Some(SessionChangeNotification {
+				new_config: default_config(),
+				validators: vec![
+					ValidatorId::from(Sr25519Keyring::Alice.public()),
+					ValidatorId::from(Sr25519Keyring::Eve.public()),
+				],
+				..Default::default()
+			}),
+			_ => None,
+		});
+
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_a.clone(),
+			QueuePushDirection::Back
+		));
+
+		// #2
+		now += 1;
+		run_to_block(now, |_| None);
+		assert_eq!(Scheduler::claimqueue().len(), 1);
+		// ParaId a is in the claimqueue.
+		assert!(claimqueue_contains_para_ids::<Test>(vec![thread_a]));
+
+		Scheduler::occupied(vec![(CoreIndex(0), thread_a)].into_iter().collect());
+		// ParaId a is no longer in the claimqueue.
+		assert!(!claimqueue_contains_para_ids::<Test>(vec![thread_a]));
+		// It is in availability cores.
+		assert!(availability_cores_contains_para_ids::<Test>(vec![thread_a]));
+
+		// #3
+		now += 1;
+		// Run to block #n over the max_retries value.
+		// In this case, both validator groups with time out on availability and
+		// the assignment will be dropped.
+		for n in now..=(now + max_retries + 1) {
+			// #n
+			run_to_block(n, |_| None);
+			// Time out on core 0.
+			let just_updated: BTreeMap<CoreIndex, FreedReason> = vec![
+				(CoreIndex(0), FreedReason::TimedOut), // should go back on queue.
+			]
+			.into_iter()
+			.collect();
+			let core_assignments = Scheduler::update_claimqueue(just_updated, now);
+
+			// ParaId a exists in the claim queue until max_retries is reached.
+			if n < max_retries + now {
+				assert!(claimqueue_contains_para_ids::<Test>(vec![thread_a]));
+			} else {
+				assert!(!claimqueue_contains_para_ids::<Test>(vec![thread_a]));
+			}
+
+			// Occupy the cores based on the output of update_claimqueue.
+			Scheduler::occupied(
+				core_assignments
+					.iter()
+					.map(|core_assignment| (core_assignment.core, core_assignment.para_id()))
+					.collect(),
+			);
+		}
+
+		// ParaId a does not exist in the claimqueue/availability_cores after
+		// threshold has been reached.
+		assert!(!claimqueue_contains_para_ids::<Test>(vec![thread_a]));
+		assert!(!availability_cores_contains_para_ids::<Test>(vec![thread_a]));
+
+		// #25
+		now += max_retries + 2;
+
+		// Add assignment back to the mix.
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_a.clone(),
+			QueuePushDirection::Back
+		));
+		run_to_block(now, |_| None);
+
+		assert!(claimqueue_contains_para_ids::<Test>(vec![thread_a]));
+
+		// #26
+		now += 1;
+		// Run to block #n but this time have group 1 conclude the availabilty.
+		for n in now..=(now + max_retries + 1) {
+			// #n
+			run_to_block(n, |_| None);
+			// Time out core 0 if group 0 is assigned to it, if group 1 is assigned, conclude.
+			let mut just_updated: BTreeMap<CoreIndex, FreedReason> = BTreeMap::new();
+			if let Some(group) = Scheduler::group_assigned_to_core(CoreIndex(0), n) {
+				match group {
+					GroupIndex(0) => {
+						just_updated.insert(CoreIndex(0), FreedReason::TimedOut); // should go back on queue.
+					},
+					GroupIndex(1) => {
+						just_updated.insert(CoreIndex(0), FreedReason::Concluded);
+					},
+					_ => panic!("Should only have 2 groups here"),
+				}
+			}
+
+			let core_assignments = Scheduler::update_claimqueue(just_updated, now);
+
+			// ParaId a exists in the claim queue until groups are rotated.
+			if n < 31 {
+				assert!(claimqueue_contains_para_ids::<Test>(vec![thread_a]));
+			} else {
+				assert!(!claimqueue_contains_para_ids::<Test>(vec![thread_a]));
+			}
+
+			// Occupy the cores based on the output of update_claimqueue.
+			Scheduler::occupied(
+				core_assignments
+					.iter()
+					.map(|core_assignment| (core_assignment.core, core_assignment.para_id()))
+					.collect(),
+			);
+		}
+
+		// ParaId a does not exist in the claimqueue/availability_cores after
+		// being concluded
+		assert!(!claimqueue_contains_para_ids::<Test>(vec![thread_a]));
+		assert!(!availability_cores_contains_para_ids::<Test>(vec![thread_a]));
+	});
+}
 
 #[test]
 fn availability_predicate_works() {
