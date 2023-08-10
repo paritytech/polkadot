@@ -21,13 +21,16 @@ use super::*;
 // weights for limiting data will fail, so we don't run them when using the benchmark feature.
 #[cfg(not(feature = "runtime-benchmarks"))]
 mod enter {
+
 	use super::*;
 	use crate::{
 		builder::{Bench, BenchBuilder},
-		mock::{new_test_ext, MockGenesisConfig, Test},
+		mock::{new_test_ext, BlockLength, BlockWeights, MockGenesisConfig, Test},
 	};
 	use assert_matches::assert_matches;
 	use frame_support::assert_ok;
+	use frame_system::limits;
+	use sp_runtime::Perbill;
 	use sp_std::collections::btree_map::BTreeMap;
 
 	struct TestConfig {
@@ -300,6 +303,7 @@ mod enter {
 	// Ensure that when dispute data establishes an over weight block that we adequately
 	// filter out disputes according to our prioritization rule
 	fn limit_dispute_data() {
+		sp_tracing::try_init_simple();
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create the inherent data for this block
 			let dispute_statements = BTreeMap::new();
@@ -486,7 +490,8 @@ mod enter {
 			assert_ne!(limit_inherent_data, expected_para_inherent_data);
 			assert!(inherent_data_weight(&limit_inherent_data)
 				.all_lte(inherent_data_weight(&expected_para_inherent_data)));
-			assert!(inherent_data_weight(&limit_inherent_data).all_lte(max_block_weight()));
+			assert!(inherent_data_weight(&limit_inherent_data)
+				.all_lte(max_block_weight_proof_size_adjusted()));
 
 			// Three disputes is over weight (see previous test), so we expect to only see 2 disputes
 			assert_eq!(limit_inherent_data.disputes.len(), 2);
@@ -565,17 +570,18 @@ mod enter {
 		});
 	}
 
-	fn max_block_weight() -> Weight {
-		<Test as frame_system::Config>::BlockWeights::get().max_block
+	fn max_block_weight_proof_size_adjusted() -> Weight {
+		let raw_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+		let block_length = <Test as frame_system::Config>::BlockLength::get();
+		raw_weight.set_proof_size(*block_length.max.get(DispatchClass::Mandatory) as u64)
 	}
 
 	fn inherent_data_weight(inherent_data: &ParachainsInherentData) -> Weight {
 		use thousands::Separable;
 
 		let multi_dispute_statement_sets_weight =
-			multi_dispute_statement_sets_weight::<Test, _, _>(&inherent_data.disputes);
-		let signed_bitfields_weight =
-			signed_bitfields_weight::<Test>(inherent_data.bitfields.len());
+			multi_dispute_statement_sets_weight::<Test>(&inherent_data.disputes);
+		let signed_bitfields_weight = signed_bitfields_weight::<Test>(&inherent_data.bitfields);
 		let backed_candidates_weight =
 			backed_candidates_weight::<Test>(&inherent_data.backed_candidates);
 
@@ -622,7 +628,8 @@ mod enter {
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
-			assert!(max_block_weight().any_lt(inherent_data_weight(&expected_para_inherent_data)));
+			assert!(max_block_weight_proof_size_adjusted()
+				.any_lt(inherent_data_weight(&expected_para_inherent_data)));
 
 			// Check the para inherent data is as expected:
 			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes => 5*5 = 25)
@@ -641,9 +648,10 @@ mod enter {
 			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
 			assert!(limit_inherent_data != expected_para_inherent_data);
 			assert!(
-				max_block_weight().all_gte(inherent_data_weight(&limit_inherent_data)),
+				max_block_weight_proof_size_adjusted()
+					.all_gte(inherent_data_weight(&limit_inherent_data)),
 				"Post limiting exceeded block weight: max={} vs. inherent={}",
-				max_block_weight(),
+				max_block_weight_proof_size_adjusted(),
 				inherent_data_weight(&limit_inherent_data)
 			);
 
@@ -675,8 +683,199 @@ mod enter {
 	}
 
 	#[test]
+	fn disputes_are_size_limited() {
+		BlockLength::set(limits::BlockLength::max_with_normal_ratio(
+			600,
+			Perbill::from_percent(75),
+		));
+		// Virtually no time based limit:
+		BlockWeights::set(frame_system::limits::BlockWeights::simple_max(Weight::from_parts(
+			u64::MAX,
+			u64::MAX,
+		)));
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			// Create the inherent data for this block
+			let mut dispute_statements = BTreeMap::new();
+			dispute_statements.insert(2, 7);
+			dispute_statements.insert(3, 7);
+			dispute_statements.insert(4, 7);
+
+			let backed_and_concluding = BTreeMap::new();
+
+			let scenario = make_inherent_data(TestConfig {
+				dispute_statements,
+				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
+				backed_and_concluding,
+				num_validators_per_core: 5,
+				code_upgrade: None,
+			});
+
+			let expected_para_inherent_data = scenario.data.clone();
+			assert!(max_block_weight_proof_size_adjusted()
+				.any_lt(inherent_data_weight(&expected_para_inherent_data)));
+
+			// Check the para inherent data is as expected:
+			// * 1 bitfield per validator (5 validators per core, 3 disputes => 3*5 = 15)
+			assert_eq!(expected_para_inherent_data.bitfields.len(), 15);
+			// * 2 backed candidates
+			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 0);
+			// * 3 disputes.
+			assert_eq!(expected_para_inherent_data.disputes.len(), 3);
+			let mut inherent_data = InherentData::new();
+			inherent_data
+				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+				.unwrap();
+			let limit_inherent_data =
+				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
+			assert!(limit_inherent_data != expected_para_inherent_data);
+			assert!(
+				max_block_weight_proof_size_adjusted()
+					.all_gte(inherent_data_weight(&limit_inherent_data)),
+				"Post limiting exceeded block weight: max={} vs. inherent={}",
+				max_block_weight_proof_size_adjusted(),
+				inherent_data_weight(&limit_inherent_data)
+			);
+
+			// * 1 bitfields - gone
+			assert_eq!(limit_inherent_data.bitfields.len(), 0);
+			// * 2 backed candidates - still none.
+			assert_eq!(limit_inherent_data.backed_candidates.len(), 0);
+			// * 3 disputes - filtered.
+			assert_eq!(limit_inherent_data.disputes.len(), 1);
+		});
+	}
+
+	#[test]
+	fn bitfields_are_size_limited() {
+		BlockLength::set(limits::BlockLength::max_with_normal_ratio(
+			600,
+			Perbill::from_percent(75),
+		));
+		// Virtually no time based limit:
+		BlockWeights::set(frame_system::limits::BlockWeights::simple_max(Weight::from_parts(
+			u64::MAX,
+			u64::MAX,
+		)));
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			// Create the inherent data for this block
+			let dispute_statements = BTreeMap::new();
+
+			let mut backed_and_concluding = BTreeMap::new();
+			// 2 backed candidates shall be scheduled
+			backed_and_concluding.insert(0, 2);
+			backed_and_concluding.insert(1, 2);
+
+			let scenario = make_inherent_data(TestConfig {
+				dispute_statements,
+				dispute_sessions: Vec::new(),
+				backed_and_concluding,
+				num_validators_per_core: 5,
+				code_upgrade: None,
+			});
+
+			let expected_para_inherent_data = scenario.data.clone();
+			assert!(max_block_weight_proof_size_adjusted()
+				.any_lt(inherent_data_weight(&expected_para_inherent_data)));
+
+			// Check the para inherent data is as expected:
+			// * 1 bitfield per validator (5 validators per core, 2 backed candidates => 2*5 = 10)
+			assert_eq!(expected_para_inherent_data.bitfields.len(), 10);
+			// * 2 backed candidates
+			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
+			// * 3 disputes.
+			assert_eq!(expected_para_inherent_data.disputes.len(), 0);
+			let mut inherent_data = InherentData::new();
+			inherent_data
+				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+				.unwrap();
+
+			let limit_inherent_data =
+				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
+			assert!(limit_inherent_data != expected_para_inherent_data);
+			assert!(
+				max_block_weight_proof_size_adjusted()
+					.all_gte(inherent_data_weight(&limit_inherent_data)),
+				"Post limiting exceeded block weight: max={} vs. inherent={}",
+				max_block_weight_proof_size_adjusted(),
+				inherent_data_weight(&limit_inherent_data)
+			);
+
+			// * 1 bitfields have been filtered
+			assert_eq!(limit_inherent_data.bitfields.len(), 8);
+			// * 2 backed candidates have been filtered as well (not even space for bitfields)
+			assert_eq!(limit_inherent_data.backed_candidates.len(), 0);
+			// * 3 disputes. Still none.
+			assert_eq!(limit_inherent_data.disputes.len(), 0);
+		});
+	}
+
+	#[test]
+	fn candidates_are_size_limited() {
+		BlockLength::set(limits::BlockLength::max_with_normal_ratio(
+			1_300,
+			Perbill::from_percent(75),
+		));
+		// Virtually no time based limit:
+		BlockWeights::set(frame_system::limits::BlockWeights::simple_max(Weight::from_parts(
+			u64::MAX,
+			u64::MAX,
+		)));
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			let mut backed_and_concluding = BTreeMap::new();
+			// 2 backed candidates shall be scheduled
+			backed_and_concluding.insert(0, 2);
+			backed_and_concluding.insert(1, 2);
+
+			let scenario = make_inherent_data(TestConfig {
+				dispute_statements: BTreeMap::new(),
+				dispute_sessions: Vec::new(),
+				backed_and_concluding,
+				num_validators_per_core: 5,
+				code_upgrade: None,
+			});
+
+			let expected_para_inherent_data = scenario.data.clone();
+			assert!(max_block_weight_proof_size_adjusted()
+				.any_lt(inherent_data_weight(&expected_para_inherent_data)));
+
+			// Check the para inherent data is as expected:
+			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 0 disputes => 2*5 = 10)
+			assert_eq!(expected_para_inherent_data.bitfields.len(), 10);
+			// * 2 backed candidates
+			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
+			// * 0 disputes.
+			assert_eq!(expected_para_inherent_data.disputes.len(), 0);
+			let mut inherent_data = InherentData::new();
+			inherent_data
+				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+				.unwrap();
+
+			let limit_inherent_data =
+				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
+			assert!(limit_inherent_data != expected_para_inherent_data);
+			assert!(
+				max_block_weight_proof_size_adjusted()
+					.all_gte(inherent_data_weight(&limit_inherent_data)),
+				"Post limiting exceeded block weight: max={} vs. inherent={}",
+				max_block_weight_proof_size_adjusted(),
+				inherent_data_weight(&limit_inherent_data)
+			);
+
+			// * 1 bitfields - no filtering here
+			assert_eq!(limit_inherent_data.bitfields.len(), 10);
+			// * 2 backed candidates
+			assert_eq!(limit_inherent_data.backed_candidates.len(), 1);
+			// * 0 disputes.
+			assert_eq!(limit_inherent_data.disputes.len(), 0);
+		});
+	}
+
 	// Ensure that overweight parachain inherents are always rejected by the runtime.
 	// Runtime should panic and return `InherentOverweight` error.
+	#[test]
 	fn inherent_create_weight_invariant() {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			// Create an overweight inherent and oversized block
@@ -700,7 +899,8 @@ mod enter {
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
-			assert!(max_block_weight().any_lt(inherent_data_weight(&expected_para_inherent_data)));
+			assert!(max_block_weight_proof_size_adjusted()
+				.any_lt(inherent_data_weight(&expected_para_inherent_data)));
 
 			// Check the para inherent data is as expected:
 			// * 1 bitfield per validator (5 validators per core, 30 backed candidates, 3 disputes => 5*33 = 165)
@@ -713,7 +913,6 @@ mod enter {
 			inherent_data
 				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
 				.unwrap();
-
 			let dispatch_error = Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
 				expected_para_inherent_data,
@@ -724,8 +923,6 @@ mod enter {
 			assert_eq!(dispatch_error, Error::<Test>::InherentOverweight.into());
 		});
 	}
-
-	// TODO: Test process inherent invariant
 }
 
 fn default_header() -> primitives::Header {

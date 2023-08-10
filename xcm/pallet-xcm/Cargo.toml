@@ -2,6 +2,7 @@
 name = "pallet-xcm"
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 
 

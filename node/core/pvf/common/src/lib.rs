@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Functionality that is shared by the host and the workers.
+//! Contains functionality related to PVFs that is shared by the PVF host and the PVF workers.
 
 pub mod error;
 pub mod execute;
@@ -24,6 +24,10 @@ pub mod pvf;
 pub mod worker;
 
 pub use cpu_time::ProcessTime;
+
+// Used by `decl_worker_main!`.
+#[doc(hidden)]
+pub use sp_tracing;
 
 const LOG_TARGET: &str = "parachain::pvf-common";
 
