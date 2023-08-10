@@ -160,6 +160,7 @@ struct MetricsInner {
 	time_db_transaction: prometheus::Histogram,
 	time_recover_and_approve: prometheus::Histogram,
 	candidate_signatures_requests_total: prometheus::Counter<prometheus::U64>,
+	unapproved_candidates_in_unfinalized_chain: prometheus::Gauge<prometheus::U64>,
 }
 
 /// Approval Voting metrics.
@@ -245,6 +246,12 @@ impl Metrics {
 
 	fn time_recover_and_approve(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.time_recover_and_approve.start_timer())
+	}
+
+	fn on_unapproved_candidates_in_unfinalized_chain(&self, count: usize) {
+		if let Some(metrics) = &self.0 {
+			metrics.unapproved_candidates_in_unfinalized_chain.set(count as u64);
+		}
 	}
 }
 
@@ -333,6 +340,13 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"polkadot_parachain_approval_candidate_signatures_requests_total",
 					"Number of times signatures got requested by other subsystems",
+				)?,
+				registry,
+			)?,
+			unapproved_candidates_in_unfinalized_chain: prometheus::register(
+				prometheus::Gauge::new(
+					"polkadot_parachain_approval_unapproved_candidates_in_unfinalized_chain",
+					"Number of unapproved candidates in unfinalized chain",
 				)?,
 				registry,
 			)?,
@@ -1298,6 +1312,7 @@ async fn handle_from_overseer<Context>(
 					lower_bound,
 					wakeups,
 					&mut approved_ancestor_span,
+					&metrics,
 				)
 				.await
 				{
@@ -1423,9 +1438,11 @@ async fn handle_approved_ancestor<Context>(
 	lower_bound: BlockNumber,
 	wakeups: &Wakeups,
 	span: &mut jaeger::Span,
+	metrics: &Metrics,
 ) -> SubsystemResult<Option<HighestApprovedAncestorBlock>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
+	const LOGGING_DEPTH_THRESHOLD: usize = 10;
 	let mut span = span
 		.child("handle-approved-ancestor")
 		.with_stage(jaeger::Stage::ApprovalChecking);
@@ -1471,6 +1488,7 @@ async fn handle_approved_ancestor<Context>(
 	} else {
 		Vec::new()
 	};
+	let ancestry_len = ancestry.len();
 
 	let mut block_descriptions = Vec::new();
 
@@ -1534,6 +1552,17 @@ async fn handle_approved_ancestor<Context>(
 				unapproved.len(),
 				entry.candidates().len(),
 			);
+			if ancestry_len >= LOGGING_DEPTH_THRESHOLD && i > ancestry_len - LOGGING_DEPTH_THRESHOLD
+			{
+				gum::trace!(
+					target: LOG_TARGET,
+					?block_hash,
+					"Unapproved candidates at depth {}: {:?}",
+					bits.len(),
+					unapproved
+				)
+			}
+			metrics.on_unapproved_candidates_in_unfinalized_chain(unapproved.len());
 			entry_span.add_uint_tag("unapproved-candidates", unapproved.len() as u64);
 			for candidate_hash in unapproved {
 				match db.load_candidate_entry(&candidate_hash)? {
