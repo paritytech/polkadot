@@ -51,7 +51,6 @@ pub mod v1 {
 				T::DbWeight::get().reads_writes(1, 3)
 			} else {
 				log::info!(target: LOG_TARGET, "MigrateToV1 should be removed");
-
 				T::DbWeight::get().reads(1)
 			}
 		}
@@ -63,4 +62,15 @@ pub mod v1 {
 			Ok(())
 		}
 	}
+
+	/// [`VersionUncheckedMigrateToV1`] wrapped in a
+	/// [`frame_support::migrations::VersionedRuntimeUpgrade`], ensuring the migration is only performed
+	/// when on-chain version is 0.
+	pub type VersionCheckedMigrateToV1<T> = frame_support::migrations::VersionedRuntimeUpgrade<
+		0,
+		1,
+		MigrateToV1<T>,
+		Pallet<T>,
+		<T as frame_system::Config>::DbWeight,
+	>;
 }

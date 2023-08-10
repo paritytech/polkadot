@@ -1283,7 +1283,7 @@ pub mod migrations {
 	pub type Unreleased = (
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
-		assigned_slots::migration::v1::MigrateToV1<Runtime>,
+		assigned_slots::migration::v1::VersionCheckedMigrateToV1<Runtime>,
 	);
 }
 
