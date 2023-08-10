@@ -31,6 +31,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   DOCKER_OWNER: ${{ inputs.owner || github.repository_owner }}
   REPO: ${{ github.repository }}
+  ARTIFACT_FOLDER: release-artifacts
 
 jobs:
   fetch-artifacts:
@@ -50,7 +51,7 @@ jobs:
         with:
           key: artifacts-${{ github.sha }}
           path: |
-            artifacts/**/*
+            ${ARTIFACT_FOLDER}/**/*
 
   build-container:
     runs-on: ubuntu-latest
@@ -69,10 +70,10 @@ jobs:
         with:
           key: artifacts-${{ github.sha }}
           path: |
-            artifacts/**/*
+            ${ARTIFACT_FOLDER}/**/*
 
       - name: Check sha256 ${{ matrix.binary }}
-        working-directory: ./artifacts
+        working-directory: ${ARTIFACT_FOLDER}
         run: |
           . ../scripts/ci/common/lib.sh
 
@@ -80,7 +81,7 @@ jobs:
           check_sha256 ${{ matrix.binary }} && echo "OK" || echo "ERR"
 
       - name: Check GPG ${{ matrix.binary }}
-        working-directory: ./artifacts
+        working-directory: ${ARTIFACT_FOLDER}
         run: |
           . ../scripts/ci/common/lib.sh
           import_gpg_keys
@@ -101,7 +102,7 @@ jobs:
 
       - name: Build Injected Container image for ${{ matrix.binary }}
         env:
-            BIN_FOLDER: artifacts
+            BIN_FOLDER: ${ARTIFACT_FOLDER}
             BINARY: ${{ matrix.binary }}
             TAGS: ${{join(steps.fetch_refs.outputs.*, ',')}}
         run: |
