@@ -11,7 +11,7 @@ fi
 # we consider the first one to be the canonical one
 # To start with another binary, the user can either:
 #  - use the --entrypoint option
-#  - pass the ENV BIANRY with a single binary
+#  - pass the ENV BINARY with a single binary
 IFS=',' read -r -a BINARIES <<< "$BINARY"
 BIN0=${BINARIES[0]}
 echo "Starting binary $BIN0"
