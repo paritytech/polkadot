@@ -178,11 +178,11 @@ pub mod pallet {
 	#[pallet::getter(fn active_temporary_slot_count)]
 	pub type ActiveTemporarySlotCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
-	/// Assigned max temporary slots storage.
+	///  The max number of temporary slots that can be assigned.
 	#[pallet::storage]
 	pub type MaxTemporarySlots<T: Config> = StorageValue<_, u32, ValueQuery>;
 
-	/// Assigned max permanent slots storage.
+	/// The max number of permanent slots that can be assigned.
 	#[pallet::storage]
 	pub type MaxPermanentSlots<T: Config> = StorageValue<_, u32, ValueQuery>;
 
@@ -209,10 +209,10 @@ pub mod pallet {
 		PermanentSlotAssigned(ParaId),
 		/// A para was assigned a temporary parachain slot
 		TemporarySlotAssigned(ParaId),
-		/// A maximum number of permanent slots has been assigned
-		MaxPermanentSlotsAssigned { slots: u32 },
-		/// A maximum number of temporary slots has been assigned
-		MaxTemporarySlotsAssigned { slots: u32 },
+		/// A maximum number of permanent slots has been changed
+		MaxPermanentSlotsChanged { slots: u32 },
+		/// A maximum number of temporary slots has been changed
+		MaxTemporarySlotsChanged { slots: u32 },
 	}
 
 	#[pallet::error]
@@ -447,7 +447,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Assign a Max Permanent Slot.
+		/// Sets the storage value [`MaxPermanentSlots`].
 		#[pallet::call_index(3)]
 		#[pallet::weight((<T as Config>::WeightInfo::set_max_permanent_slots(), DispatchClass::Operational))]
 		pub fn set_max_permanent_slots(origin: OriginFor<T>, slots: u32) -> DispatchResult {
@@ -455,13 +455,11 @@ pub mod pallet {
 
 			<MaxPermanentSlots<T>>::put(slots);
 
-			// Emit an event.
-			Self::deposit_event(Event::<T>::MaxPermanentSlotsAssigned { slots });
-			// Return a successful DispatchResult
+			Self::deposit_event(Event::<T>::MaxPermanentSlotsChanged { slots });
 			Ok(())
 		}
 
-		/// Assign a max temporary slot number.
+		/// Sets the storage value [`MaxTemporarySlots`].
 		#[pallet::call_index(4)]
 		#[pallet::weight((<T as Config>::WeightInfo::set_max_temporary_slots(), DispatchClass::Operational))]
 		pub fn set_max_temporary_slots(origin: OriginFor<T>, slots: u32) -> DispatchResult {
@@ -469,9 +467,7 @@ pub mod pallet {
 
 			<MaxTemporarySlots<T>>::put(slots);
 
-			// Emit an event.
-			Self::deposit_event(Event::<T>::MaxTemporarySlotsAssigned { slots });
-			// Return a successful DispatchResult
+			Self::deposit_event(Event::<T>::MaxTemporarySlotsChanged { slots });
 			Ok(())
 		}
 	}

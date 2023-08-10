@@ -29,10 +29,7 @@ type CurrencyOf<T> = <<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Curre
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
-#[benchmarks(where
-	//T: Config + ParasRegistrarConfig,
-	T: Config
-)]
+#[benchmarks(where T: Config)]
 mod benchmarks {
 	use super::*;
 
