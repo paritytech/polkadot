@@ -168,6 +168,7 @@ default:
     DOCKER_PASS: "${PARITYPR_PASS}"
     IMAGE: "${REGISTRY}/${DOCKER_OWNER}/${IMAGE_NAME}"
 
+    PROJECT_ROOT: "."
     BIN_FOLDER: "./artifacts"
     VCS_REF: "${CI_COMMIT_SHA}"
 
