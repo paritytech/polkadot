@@ -82,7 +82,7 @@ services:
     ]
 ```
 
-With following `docker-compose.yml`` you can set up a node and use polkadot-js-apps as the front end on port 80. After starting the node use a browser and enter your Docker host IP in the URL field: _<http://[YOUR_DOCKER_HOST_IP>_
+With following `docker-compose.yml` you can set up a node and use polkadot-js-apps as the front end on port 80. After starting the node use a browser and enter your Docker host IP in the URL field: _<http://[YOUR_DOCKER_HOST_IP]>_
 
 ```bash
 version: '2'
