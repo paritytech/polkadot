@@ -163,6 +163,8 @@ where
 				.requests_cache
 				.cache_key_ownership_proof((relay_parent, validator_id), key_ownership_proof),
 			SubmitReportDisputeLost(_, _, _, _) => {},
+			DisabledValidators(relay_parent, disabled_validators) =>
+				self.requests_cache.cache_disabled_validators(relay_parent, disabled_validators),
 
 			StagingParaBackingState(relay_parent, para_id, constraints) => self
 				.requests_cache
@@ -294,6 +296,8 @@ where
 						Request::SubmitReportDisputeLost(dispute_proof, key_ownership_proof, sender)
 					},
 				),
+			Request::DisabledValidators(sender) => query!(disabled_validators(), sender)
+				.map(|sender| Request::DisabledValidators(sender)),
 
 			Request::StagingParaBackingState(para, sender) =>
 				query!(staging_para_backing_state(para), sender)
@@ -549,6 +553,12 @@ where
 			SubmitReportDisputeLost,
 			submit_report_dispute_lost(dispute_proof, key_ownership_proof),
 			ver = Request::SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT,
+			sender
+		),
+		Request::DisabledValidators(sender) => query!(
+			DisabledValidators,
+			disabled_validators(),
+			ver = Request::DISABLED_VALIDATORS_RUNTIME_REQUIREMENT,
 			sender
 		),
 

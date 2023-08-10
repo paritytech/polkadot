@@ -232,6 +232,9 @@ pub trait RuntimeApiSubsystemClient {
 		session_index: SessionIndex,
 	) -> Result<Option<ExecutorParams>, ApiError>;
 
+	/// Gets the disabled validators at a specific block height
+	async fn disabled_validators(&self, at: Hash) -> Result<Vec<ValidatorIndex>, ApiError>;
+
 	// === Asynchronous backing API ===
 
 	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
@@ -471,6 +474,10 @@ where
 		);
 
 		runtime_api.submit_report_dispute_lost(at, dispute_proof, key_ownership_proof)
+	}
+
+	async fn disabled_validators(&self, at: Hash) -> Result<Vec<ValidatorIndex>, ApiError> {
+		self.client.runtime_api().disabled_validators(at)
 	}
 
 	async fn staging_para_backing_state(
