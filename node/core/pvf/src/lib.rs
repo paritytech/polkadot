@@ -16,7 +16,7 @@
 
 #![warn(missing_docs)]
 
-//! A crate that implements the PVF validation host.
+//! The PVF validation host. Responsible for coordinating preparation and execution of PVFs.
 //!
 //! For more background, refer to the Implementer's Guide: [PVF
 //! Pre-checking](https://paritytech.github.io/polkadot/book/pvf-prechecking.html) and [Candidate

@@ -16,7 +16,7 @@
 
 //! Polkadot chain configurations.
 
-use beefy_primitives::crypto::AuthorityId as BeefyId;
+use beefy_primitives::ecdsa_crypto::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
 #[cfg(feature = "kusama-native")]
 use kusama_runtime as kusama;

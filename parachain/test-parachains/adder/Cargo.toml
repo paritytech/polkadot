@@ -3,6 +3,7 @@ name = "test-parachain-adder"
 description = "Test parachain which adds to a number as its state transition"
 build = "build.rs"
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 authors.workspace = true
 

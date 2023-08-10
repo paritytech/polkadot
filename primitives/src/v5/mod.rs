@@ -1372,7 +1372,7 @@ impl AsRef<DisputeStatementSet> for DisputeStatementSet {
 pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
 
 /// A _checked_ set of dispute statements.
-#[derive(Clone, PartialEq, RuntimeDebug)]
+#[derive(Clone, PartialEq, RuntimeDebug, Encode)]
 pub struct CheckedDisputeStatementSet(DisputeStatementSet);
 
 impl AsRef<DisputeStatementSet> for CheckedDisputeStatementSet {

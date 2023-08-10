@@ -32,6 +32,7 @@ use frame_support::{
 	weights::{Weight, WeightMeter},
 };
 use frame_support_test::TestRandomness;
+use frame_system::limits;
 use parity_scale_codec::Decode;
 use primitives::{
 	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Moment, SessionIndex, UpwardMessage,
@@ -42,7 +43,7 @@ use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	BuildStorage, Permill,
+	BuildStorage, Perbill, Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -81,10 +82,11 @@ where
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
-	pub BlockWeights: frame_system::limits::BlockWeights =
+	pub static BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
 			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
 		);
+	pub static BlockLength: limits::BlockLength = limits::BlockLength::max_with_normal_ratio(u32::MAX, Perbill::from_percent(75));
 }
 
 pub type AccountId = u64;
@@ -92,7 +94,7 @@ pub type AccountId = u64;
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = BlockWeights;
-	type BlockLength = ();
+	type BlockLength = BlockLength;
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;

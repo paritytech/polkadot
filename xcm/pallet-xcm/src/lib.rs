@@ -689,12 +689,6 @@ pub mod pallet {
 			}
 			weight_used
 		}
-		fn on_runtime_upgrade() -> Weight {
-			// Start a migration (this happens before on_initialize so it'll happen later in this
-			// block, which should be good enough)...
-			CurrentMigration::<T>::put(VersionMigrationStage::default());
-			T::DbWeight::get().writes(1)
-		}
 	}
 
 	pub mod migrations {
