@@ -35,13 +35,14 @@ fn dummy_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 
 	AssignmentCert { kind, vrf: VrfSignature { output: VrfOutput(out), proof: VrfProof(proof) } }
 }
-fn make_block_entry(
+
+fn make_block_entry_v1(
 	block_hash: Hash,
 	parent_hash: Hash,
 	block_number: BlockNumber,
 	candidates: Vec<(CoreIndex, CandidateHash)>,
-) -> BlockEntry {
-	BlockEntry {
+) -> crate::approval_db::v1::BlockEntry {
+	crate::approval_db::v1::BlockEntry {
 		block_hash,
 		parent_hash,
 		block_number,
@@ -51,8 +52,6 @@ fn make_block_entry(
 		approved_bitfield: make_bitvec(candidates.len()),
 		candidates,
 		children: Vec::new(),
-		candidates_pending_signature: Default::default(),
-		distributed_assignments: Default::default(),
 	}
 }
 
@@ -122,11 +121,9 @@ pub fn v1_to_v2_sanity_check(
 
 	let all_blocks = backend
 		.load_all_blocks()
-		.map_err(|e| Error::InternalError(e))?
+		.unwrap()
 		.iter()
-		.filter_map(|block_hash| {
-			backend.load_block_entry(block_hash).map_err(|e| Error::InternalError(e)).ok()?
-		})
+		.map(|block_hash| backend.load_block_entry(block_hash).unwrap().unwrap())
 		.collect::<Vec<_>>();
 
 	let mut candidates = HashSet::new();
@@ -136,10 +133,7 @@ pub fn v1_to_v2_sanity_check(
 		for (_core_index, candidate_hash) in block.candidates() {
 			// Loading the candidate will also perform the conversion to the updated format and return
 			// that represantation.
-			if let Some(candidate_entry) = backend
-				.load_candidate_entry(&candidate_hash)
-				.map_err(|e| Error::InternalError(e))?
-			{
+			if let Some(candidate_entry) = backend.load_candidate_entry(&candidate_hash).unwrap() {
 				candidates.insert(candidate_entry.candidate.hash());
 			}
 		}
@@ -172,7 +166,7 @@ pub fn v1_to_v2_fill_test_data(
 
 		let at_height = vec![relay_hash];
 
-		let block_entry = make_block_entry(
+		let block_entry = make_block_entry_v1(
 			relay_hash,
 			Default::default(),
 			relay_number,
@@ -206,10 +200,10 @@ pub fn v1_to_v2_fill_test_data(
 		};
 
 		overlay_db.write_blocks_at_height(relay_number, at_height.clone());
-		overlay_db.write_block_entry(block_entry.clone().into());
-
 		expected_candidates.insert(candidate_entry.candidate.hash());
+
 		db.write(write_candidate_entry_v1(candidate_entry, config)).unwrap();
+		db.write(write_block_entry_v1(block_entry, config)).unwrap();
 	}
 
 	let write_ops = overlay_db.into_write_ops();
@@ -228,6 +222,20 @@ fn write_candidate_entry_v1(
 		config.col_approval_data,
 		&candidate_entry_key(&candidate_entry.candidate.hash()),
 		candidate_entry.encode(),
+	);
+	tx
+}
+
+// Low level DB helper to write a block entry in v1 scheme.
+fn write_block_entry_v1(
+	block_entry: crate::approval_db::v1::BlockEntry,
+	config: Config,
+) -> DBTransaction {
+	let mut tx = DBTransaction::new();
+	tx.put_vec(
+		config.col_approval_data,
+		&block_entry_key(&block_entry.block_hash),
+		block_entry.encode(),
 	);
 	tx
 }

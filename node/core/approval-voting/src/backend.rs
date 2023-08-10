@@ -74,7 +74,7 @@ pub trait V1ReadBackend: Backend {
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateEntry>>;
 
-	/// Loads a block entry from the DB with scheme version 1.
+	/// Load a block entry from the DB with scheme version 1.
 	fn load_block_entry_v1(&self, block_hash: &Hash) -> SubsystemResult<Option<BlockEntry>>;
 }
 

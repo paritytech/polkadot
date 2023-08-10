@@ -2,6 +2,7 @@
 name = "test-parachain-undying-collator"
 description = "Collator for the undying test parachain"
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 authors.workspace = true
 

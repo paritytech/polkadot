@@ -29,7 +29,6 @@ use polkadot_primitives::{
 	ValidatorIndex, ValidatorSignature,
 };
 use sp_consensus_slots::Slot;
-
 use std::collections::BTreeMap;
 
 use super::v2::Bitfield;

@@ -458,8 +458,6 @@ fn receive_duplicate_messages() {
 }
 
 #[test]
-// FIXME <https://github.com/paritytech/polkadot/issues/7407>
-#[cfg(feature = "enable-flaky")]
 fn delay_reputation_change() {
 	use polkadot_node_subsystem_util::reputation::add_reputation;
 
@@ -501,7 +499,7 @@ fn delay_reputation_change() {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 	let mut rng = dummy_rng();
-	let reputation_interval = Duration::from_millis(1);
+	let reputation_interval = Duration::from_millis(100);
 
 	let bg = async move {
 		let subsystem = BitfieldDistribution::new(Default::default());
@@ -515,7 +513,7 @@ fn delay_reputation_change() {
 				msg: BitfieldDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer.clone(),
-						msg.clone().into_network_message(),
+						msg.clone().into_network_message(ValidationVersion::V1.into()),
 					),
 				),
 			})
@@ -541,7 +539,7 @@ fn delay_reputation_change() {
 				msg: BitfieldDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer.clone(),
-						msg.clone().into_network_message(),
+						msg.clone().into_network_message(ValidationVersion::V1.into()),
 					),
 				),
 			})

@@ -359,7 +359,7 @@ pub struct BlockEntry {
 	// A list of assignments for which wea already distributed the assignment.
 	// We use this to ensure we don't distribute multiple core assignments twice as we track
 	// individual wakeups for each core.
-	pub distributed_assignments: Bitfield,
+	distributed_assignments: Bitfield,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -480,6 +480,24 @@ impl From<crate::approval_db::v2::BlockEntry> for BlockEntry {
 	}
 }
 
+impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
+	fn from(entry: crate::approval_db::v1::BlockEntry) -> Self {
+		BlockEntry {
+			block_hash: entry.block_hash,
+			parent_hash: entry.parent_hash,
+			block_number: entry.block_number,
+			session: entry.session,
+			slot: entry.slot,
+			relay_vrf_story: RelayVRFStory(entry.relay_vrf_story),
+			candidates: entry.candidates,
+			approved_bitfield: entry.approved_bitfield,
+			children: entry.children,
+			distributed_assignments: Default::default(),
+			candidates_pending_signature: Default::default(),
+		}
+	}
+}
+
 impl From<BlockEntry> for crate::approval_db::v2::BlockEntry {
 	fn from(entry: BlockEntry) -> Self {
 		Self {
@@ -532,24 +550,6 @@ impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
 				.collect(),
 			candidate: value.candidate,
 			session: value.session,
-		}
-	}
-}
-
-impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
-	fn from(block: crate::approval_db::v1::BlockEntry) -> Self {
-		Self {
-			block_hash: block.block_hash,
-			parent_hash: block.parent_hash,
-			block_number: block.block_number,
-			session: block.session,
-			slot: block.slot,
-			relay_vrf_story: RelayVRFStory(block.relay_vrf_story),
-			candidates: block.candidates,
-			approved_bitfield: block.approved_bitfield,
-			children: block.children,
-			candidates_pending_signature: Default::default(),
-			distributed_assignments: Default::default(),
 		}
 	}
 }
