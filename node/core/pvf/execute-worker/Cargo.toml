@@ -1,8 +1,10 @@
 [package]
 name = "polkadot-node-core-pvf-execute-worker"
+description = "Polkadot crate that contains the logic for executing PVFs. Used by the polkadot-execute-worker binary."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 cpu-time = "1.0.0"

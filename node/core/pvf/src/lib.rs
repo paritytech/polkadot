@@ -16,7 +16,7 @@
 
 #![warn(missing_docs)]
 
-//! A crate that implements the PVF validation host.
+//! The PVF validation host. Responsible for coordinating preparation and execution of PVFs.
 //!
 //! For more background, refer to the Implementer's Guide: [PVF
 //! Pre-checking](https://paritytech.github.io/polkadot/book/pvf-prechecking.html) and [Candidate
@@ -105,7 +105,7 @@ pub mod testing;
 pub use sp_tracing;
 
 pub use error::{InvalidCandidate, ValidationError};
-pub use host::{start, Config, ValidationHost};
+pub use host::{start, Config, ValidationHost, EXECUTE_BINARY_NAME, PREPARE_BINARY_NAME};
 pub use metrics::Metrics;
 pub use priority::Priority;
 pub use worker_intf::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};

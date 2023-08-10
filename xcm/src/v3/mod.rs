@@ -337,12 +337,12 @@ impl TryFrom<OldWeightLimit> for WeightLimit {
 /// Contextual data pertaining to a specific list of XCM instructions.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub struct XcmContext {
-	/// The current value of the Origin register of the XCVM.
+	/// The current value of the Origin register of the `XCVM`.
 	pub origin: Option<MultiLocation>,
 	/// The identity of the XCM; this may be a hash of its versioned encoding but could also be
 	/// a high-level identity set by an appropriate barrier.
 	pub message_id: XcmHash,
-	/// The current value of the Topic register of the XCVM.
+	/// The current value of the Topic register of the `XCVM`.
 	pub topic: Option<[u8; 32]>,
 }
 
@@ -980,6 +980,10 @@ pub enum Instruction<Call> {
 	SetFeesMode { jit_withdraw: bool },
 
 	/// Set the Topic Register.
+	///
+	/// The 32-byte array identifier in the parameter is not guaranteed to be
+	/// unique; if such a property is desired, it is up to the code author to
+	/// enforce uniqueness.
 	///
 	/// Safety: No concerns.
 	///
