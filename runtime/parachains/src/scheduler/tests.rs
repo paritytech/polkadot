@@ -150,6 +150,19 @@ pub(crate) fn claimqueue_contains_para_ids<T: Config>(pids: Vec<ParaId>) -> bool
 	pids.into_iter().all(|pid| set.contains(&pid))
 }
 
+#[cfg(test)]
+pub(crate) fn availability_cores_contains_para_ids<T: Config>(pids: Vec<ParaId>) -> bool {
+	let set: BTreeSet<ParaId> = AvailabilityCores::<T>::get()
+		.into_iter()
+		.filter_map(|core| match core {
+			CoreOccupied::Free => None,
+			CoreOccupied::Paras(entry) => Some(entry.para_id()),
+		})
+		.collect();
+
+	pids.into_iter().all(|pid| set.contains(&pid))
+}
+
 #[test]
 fn claimqueue_ttl_drop_fn_works() {
 	let mut config = default_config();
@@ -566,183 +579,221 @@ fn fill_claimqueue_fills() {
 	});
 }
 
-//#[test]
-//fn schedule_schedules_including_just_freed() {
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig {
-//			config: default_config(),
-//			..Default::default()
-//		},
-//		..Default::default()
-//	};
-//
-//	let chain_a = ParaId::from(1_u32);
-//	let chain_b = ParaId::from(2_u32);
-//
-//	let thread_a = ParaId::from(3_u32);
-//	let thread_b = ParaId::from(4_u32);
-//	let thread_c = ParaId::from(5_u32);
-//	let thread_d = ParaId::from(6_u32);
-//	let thread_e = ParaId::from(7_u32);
-//
-//	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
-//
-//	new_test_ext(genesis_config).execute_with(|| {
-//		assert_eq!(default_config().parathread_cores, 3);
-//
-//		// register 2 parachains
-//		schedule_blank_para(chain_a, ParaKind::Parachain);
-//		schedule_blank_para(chain_b, ParaKind::Parachain);
-//
-//		// and 5 parathreads
-//		schedule_blank_para(thread_a, ParaKind::Parathread);
-//		schedule_blank_para(thread_b, ParaKind::Parathread);
-//		schedule_blank_para(thread_c, ParaKind::Parathread);
-//		schedule_blank_para(thread_d, ParaKind::Parathread);
-//		schedule_blank_para(thread_e, ParaKind::Parathread);
-//
-//		// start a new session to activate, 5 validators for 5 cores.
-//		run_to_block(1, |number| match number {
-//			1 => Some(SessionChangeNotification {
-//				new_config: default_config(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Bob.public()),
-//					ValidatorId::from(Sr25519Keyring::Charlie.public()),
-//					ValidatorId::from(Sr25519Keyring::Dave.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//				],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		// add a couple of parathread claims now that the parathreads are live.
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
-//
-//		run_to_block(2, |_| None);
-//
-//		assert_eq!(Scheduler::scheduled().len(), 4);
-//
-//		// cores 0, 1, 2, and 3 should be occupied. mark them as such.
-//		Scheduler::occupied(&[CoreIndex(0), CoreIndex(1), CoreIndex(2), CoreIndex(3)]);
-//
-//		{
-//			let cores = AvailabilityCores::<Test>::get();
-//
-//			assert!(cores[0].is_some());
-//			assert!(cores[1].is_some());
-//			assert!(cores[2].is_some());
-//			assert!(cores[3].is_some());
-//			assert!(cores[4].is_none());
-//
-//			assert!(Scheduler::scheduled().is_empty());
-//		}
-//
-//		// add a couple more parathread claims - the claim on `b` will go to the 3rd parathread core (4)
-//		// and the claim on `d` will go back to the 1st parathread core (2). The claim on `e` then
-//		// will go for core `3`.
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_d, collator.clone()));
-//		SchedulerParathreads::add_parathread_claim(ParathreadClaim(thread_e, collator.clone()));
-//
-//		run_to_block(3, |_| None);
-//
-//		{
-//			let scheduled = Scheduler::scheduled();
-//
-//			// cores 0 and 1 are occupied by parachains. cores 2 and 3 are occupied by parathread
-//			// claims. core 4 was free.
-//			assert_eq!(scheduled.len(), 1);
-//			assert_eq!(
-//				scheduled[0],
-//				CoreAssignment {
-//					core: CoreIndex(4),
-//					para_id: thread_b,
-//					kind: Assignment::Parathread(collator.clone(), 0),
-//					group_idx: GroupIndex(4),
-//				}
-//			);
-//		}
-//
-//		// now note that cores 0, 2, and 3 were freed.
-//		Scheduler::schedule(
-//			vec![
-//				(CoreIndex(0), FreedReason::Concluded),
-//				(CoreIndex(2), FreedReason::Concluded),
-//				(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
-//			]
-//			.into_iter()
-//			.collect(),
-//			3,
-//		);
-//
-//		{
-//			let scheduled = Scheduler::scheduled();
-//
-//			// 1 thing scheduled before, + 3 cores freed.
-//			assert_eq!(scheduled.len(), 4);
-//			assert_eq!(
-//				scheduled[0],
-//				CoreAssignment {
-//					core: CoreIndex(0),
-//					para_id: chain_a,
-//					kind: Assignment::Parachain,
-//					group_idx: GroupIndex(0),
-//				}
-//			);
-//			assert_eq!(
-//				scheduled[1],
-//				CoreAssignment {
-//					core: CoreIndex(2),
-//					para_id: thread_d,
-//					kind: Assignment::Parathread(collator.clone(), 0),
-//					group_idx: GroupIndex(2),
-//				}
-//			);
-//			assert_eq!(
-//				scheduled[2],
-//				CoreAssignment {
-//					core: CoreIndex(3),
-//					para_id: thread_e,
-//					kind: Assignment::Parathread(collator.clone(), 0),
-//					group_idx: GroupIndex(3),
-//				}
-//			);
-//			assert_eq!(
-//				scheduled[3],
-//				CoreAssignment {
-//					core: CoreIndex(4),
-//					para_id: thread_b,
-//					kind: Assignment::Parathread(collator.clone(), 0),
-//					group_idx: GroupIndex(4),
-//				}
-//			);
-//
-//			// the prior claim on thread A concluded, but the claim on thread C was marked as
-//			// timed out.
-//			let index = ParathreadClaimIndex::<Test>::get();
-//			let parathread_queue = ParathreadQueue::<Test>::get();
-//
-//			// thread A claim should have been wiped, but thread C claim should remain.
-//			assert_eq!(index, vec![thread_b, thread_c, thread_d, thread_e]);
-//
-//			// Although C was descheduled, the core `4`  was occupied so C goes back on the queue.
-//			assert_eq!(parathread_queue.queue.len(), 1);
-//			assert_eq!(
-//				parathread_queue.queue[0],
-//				QueuedParathread {
-//					claim: ParathreadEntry {
-//						claim: ParathreadClaim(thread_c, collator.clone()),
-//						retries: 0, // retries not incremented by timeout - validators' fault.
-//					},
-//					core_offset: 2, // reassigned to next core. thread_e claim was on offset 1.
-//				}
-//			);
-//		}
-//	});
-//}
+#[test]
+fn schedule_schedules_including_just_freed() {
+	let mut config = default_config();
+	// NOTE: This test expects on demand cores to each get slotted on to a different core
+	// and not fill up the claimqueue of each core first.
+	config.scheduling_lookahead = 1;
+	let genesis_config = genesis_config(&config);
+
+	let chain_a = ParaId::from(1_u32);
+	let chain_b = ParaId::from(2_u32);
+
+	let thread_a = ParaId::from(3_u32);
+	let thread_b = ParaId::from(4_u32);
+	let thread_c = ParaId::from(5_u32);
+	let thread_d = ParaId::from(6_u32);
+	let thread_e = ParaId::from(7_u32);
+
+	let assignment_a = Assignment { para_id: thread_a };
+	let assignment_b = Assignment { para_id: thread_b };
+	let assignment_c = Assignment { para_id: thread_c };
+	let assignment_d = Assignment { para_id: thread_d };
+	let assignment_e = Assignment { para_id: thread_e };
+
+	new_test_ext(genesis_config).execute_with(|| {
+		assert_eq!(default_config().on_demand_cores, 3);
+
+		// register 2 parachains
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(chain_b, ParaKind::Parachain);
+
+		// and 5 parathreads
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
+		schedule_blank_para(thread_c, ParaKind::Parathread);
+		schedule_blank_para(thread_d, ParaKind::Parathread);
+		schedule_blank_para(thread_e, ParaKind::Parathread);
+
+		// start a new session to activate, 5 validators for 5 cores.
+		run_to_block(1, |number| match number {
+			1 => Some(SessionChangeNotification {
+				new_config: default_config(),
+				validators: vec![
+					ValidatorId::from(Sr25519Keyring::Alice.public()),
+					ValidatorId::from(Sr25519Keyring::Bob.public()),
+					ValidatorId::from(Sr25519Keyring::Charlie.public()),
+					ValidatorId::from(Sr25519Keyring::Dave.public()),
+					ValidatorId::from(Sr25519Keyring::Eve.public()),
+				],
+				..Default::default()
+			}),
+			_ => None,
+		});
+
+		// add a couple of parathread claims now that the parathreads are live.
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_a,
+			QueuePushDirection::Back
+		));
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_c,
+			QueuePushDirection::Back
+		));
+
+		let mut now = 2;
+		run_to_block(now, |_| None);
+
+		assert_eq!(Scheduler::scheduled_claimqueue(now).len(), 4);
+
+		// cores 0, 1, 2, and 3 should be occupied. mark them as such.
+		let mut occupied_map: BTreeMap<CoreIndex, ParaId> = BTreeMap::new();
+		occupied_map.insert(CoreIndex(0), chain_a);
+		occupied_map.insert(CoreIndex(1), chain_b);
+		occupied_map.insert(CoreIndex(2), thread_a);
+		occupied_map.insert(CoreIndex(3), thread_c);
+		Scheduler::occupied(occupied_map);
+
+		{
+			let cores = AvailabilityCores::<Test>::get();
+
+			// cores 0, 1, 2, and 3 are all `CoreOccupied::Paras(ParasEntry...)`
+			assert!(cores[0] != CoreOccupied::Free);
+			assert!(cores[1] != CoreOccupied::Free);
+			assert!(cores[2] != CoreOccupied::Free);
+			assert!(cores[3] != CoreOccupied::Free);
+
+			// core 4 is free
+			assert!(cores[4] == CoreOccupied::Free);
+
+			assert!(Scheduler::scheduled_claimqueue(now).is_empty());
+
+			// All core index entries in the claimqueue should have `None` in them.
+			Scheduler::claimqueue().iter().for_each(|(_core_idx, core_queue)| {
+				assert!(core_queue.iter().all(|claim| claim.is_none()))
+			})
+		}
+
+		// add a couple more parathread claims - the claim on `b` will go to the 3rd parathread core (4)
+		// and the claim on `d` will go back to the 1st parathread core (2). The claim on `e` then
+		// will go for core `3`.
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_b,
+			QueuePushDirection::Back
+		));
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_d,
+			QueuePushDirection::Back
+		));
+		assert_ok!(OnDemandAssigner::add_on_demand_assignment(
+			assignment_e.clone(),
+			QueuePushDirection::Back
+		));
+		now = 3;
+		run_to_block(now, |_| None);
+
+		{
+			let scheduled = Scheduler::scheduled_claimqueue(now);
+
+			// cores 0 and 1 are occupied by parachains. cores 2 and 3 are occupied by parathread
+			// claims. core 4 was free.
+			assert_eq!(scheduled.len(), 1);
+			assert_eq!(
+				scheduled[0],
+				CoreAssignment {
+					core: CoreIndex(4),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: thread_b },
+						availability_timeouts: 0,
+						ttl: 8
+					},
+					group_idx: GroupIndex(4),
+				}
+			);
+		}
+
+		// now note that cores 0, 2, and 3 were freed.
+		let just_updated: BTreeMap<CoreIndex, FreedReason> = vec![
+			(CoreIndex(0), FreedReason::Concluded),
+			(CoreIndex(2), FreedReason::Concluded),
+			(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
+		]
+		.into_iter()
+		.collect();
+		Scheduler::update_claimqueue(just_updated, now);
+
+		{
+			let scheduled = Scheduler::scheduled_claimqueue(now);
+
+			// 1 thing scheduled before, + 3 cores freed.
+			assert_eq!(scheduled.len(), 4);
+			assert_eq!(
+				scheduled[0],
+				CoreAssignment {
+					core: CoreIndex(0),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: chain_a },
+						availability_timeouts: 0,
+						ttl: 8
+					},
+					group_idx: GroupIndex(0),
+				}
+			);
+			assert_eq!(
+				scheduled[1],
+				CoreAssignment {
+					core: CoreIndex(2),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: thread_d },
+						availability_timeouts: 0,
+						ttl: 8
+					},
+					group_idx: GroupIndex(2),
+				}
+			);
+			// Although C was descheduled, the core `4` was occupied so C goes back to the queue.
+			assert_eq!(
+				scheduled[2],
+				CoreAssignment {
+					core: CoreIndex(3),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: thread_c },
+						availability_timeouts: 1,
+						ttl: 8
+					},
+					group_idx: GroupIndex(3),
+				}
+			);
+			assert_eq!(
+				scheduled[3],
+				CoreAssignment {
+					core: CoreIndex(4),
+					paras_entry: ParasEntry {
+						assignment: Assignment { para_id: thread_b },
+						availability_timeouts: 0,
+						ttl: 8
+					},
+					group_idx: GroupIndex(4),
+				}
+			);
+
+			// The only assignment yet to be popped on to the claim queue is `thread_e`.
+			// This is due to `thread_c` timing out.
+			let order_queue = OnDemandAssigner::get_queue();
+			assert!(order_queue.len() == 1);
+			assert!(order_queue[0] == assignment_e);
+
+			// Chain B's core was not marked concluded or timed out, it should be on an
+			// availability core
+			assert!(availability_cores_contains_para_ids::<Test>(vec![chain_b]));
+			// Thread A claim should have been wiped, but thread C claim should remain.
+			assert!(!claimqueue_contains_para_ids::<Test>(vec![thread_a]));
+			assert!(claimqueue_contains_para_ids::<Test>(vec![thread_c]));
+			assert!(!availability_cores_contains_para_ids::<Test>(vec![thread_a, thread_c]));
+		}
+	});
+}
 
 #[test]
 fn schedule_clears_availability_cores() {
