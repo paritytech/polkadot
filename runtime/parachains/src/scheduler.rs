@@ -469,7 +469,8 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// Push assignments back to the provider on session change unless the paras has already been tried to run before.
+	/// Push assignments back to the provider on session change unless the paras
+	/// timed out on availability before.
 	fn maybe_push_assignment(core_idx: CoreIndex, pe: ParasEntry<BlockNumberFor<T>>) {
 		if pe.availability_timeouts == 0 {
 			T::AssignmentProvider::push_assignment_for_core(core_idx, pe.assignment);

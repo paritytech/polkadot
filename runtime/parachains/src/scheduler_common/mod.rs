@@ -79,9 +79,8 @@ pub trait AssignmentProvider<BlockNumber> {
 	/// for more information.
 	fn get_availability_period(core_idx: CoreIndex) -> BlockNumber;
 
-	/// How many retries a collator gets to provide a collation in this implementation.
-	/// Zero retries means that the collator has 1 chance as per the bulk (slot auction)
-	/// parachain model.
+	/// How many times a collation can time out on availability.
+	/// Zero retries still means that a collation can be provided as per the slot auction assignment provider.
 	fn get_max_retries(core_idx: CoreIndex) -> u32;
 }
 
