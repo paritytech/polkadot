@@ -28,7 +28,7 @@ publish-polkadot-debug-image:
     - !reference [.build-push-image, after_script]
     # pass artifacts to the zombienet-tests job
     # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
-    - echo "PARACHAINS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/parachains.env
+    - echo "PARACHAINS_IMAGE_NAME=${IMAGE}" > ./artifacts/parachains.env
     - echo "PARACHAINS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/parachains.env
   artifacts:
     reports:
@@ -52,7 +52,7 @@ publish-test-collators-image:
   after_script:
     - !reference [.build-push-image, after_script]
     # pass artifacts to the zombienet-tests job
-    - echo "COLLATOR_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/collator.env
+    - echo "COLLATOR_IMAGE_NAME=${IMAGE}" > ./artifacts/collator.env
     - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
   artifacts:
     reports:
@@ -75,7 +75,7 @@ publish-malus-image:
   after_script:
     - !reference [.build-push-image, after_script]
     # pass artifacts to the zombienet-tests job
-    - echo "MALUS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/malus.env
+    - echo "MALUS_IMAGE_NAME=${IMAGE}" > ./artifacts/malus.env
     - echo "MALUS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/malus.env
   artifacts:
     reports:
