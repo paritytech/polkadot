@@ -821,7 +821,7 @@ pub struct ParathreadEntry {
 	pub retries: u32,
 }
 
-/// An Assignemnt for a paras going to produce a paras block.
+/// An assignment for a parachain scheduled to be backed and included in a relay chain block.
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
 pub struct Assignment {
 	/// Assignment's ParaId
@@ -840,8 +840,8 @@ impl Assignment {
 pub struct ParasEntry<N = BlockNumber> {
 	/// The `Assignment`
 	pub assignment: Assignment,
-	/// Number of times this has been retried.
-	pub retries: u32,
+	/// The number of times the entry has timed out in availability.
+	pub availability_timeouts: u32,
 	/// The block height where this entry becomes invalid.
 	pub ttl: N,
 }
@@ -854,7 +854,7 @@ impl<N> ParasEntry<N> {
 
 	/// Create a new `ParasEntry`.
 	pub fn new(assignment: Assignment, now: N) -> Self {
-		ParasEntry { assignment, retries: 0, ttl: now }
+		ParasEntry { assignment, availability_timeouts: 0, ttl: now }
 	}
 }
 

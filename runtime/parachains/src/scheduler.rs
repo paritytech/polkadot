@@ -432,7 +432,7 @@ impl<T: Config> Pallet<T> {
 			cores.get(core.0 as usize).and_then(|c| match c {
 				CoreOccupied::Free => None,
 				CoreOccupied::Paras(pe) => {
-					if pe.retries < T::AssignmentProvider::get_max_retries(core) {
+					if pe.availability_timeouts < T::AssignmentProvider::get_max_retries(core) {
 						Some(Self::paras_entry_to_scheduled_core(pe))
 					} else {
 						None
@@ -471,7 +471,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Push assignments back to the provider on session change unless the paras has already been tried to run before.
 	fn maybe_push_assignment(core_idx: CoreIndex, pe: ParasEntry<BlockNumberFor<T>>) {
-		if pe.retries == 0 {
+		if pe.availability_timeouts == 0 {
 			T::AssignmentProvider::push_assignment_for_core(core_idx, pe.assignment);
 		}
 	}
@@ -510,7 +510,6 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Frees cores and fills the free claimqueue spots by popping from the `AssignmentProvider`.
-	/// Drops claims
 	fn free_cores_and_fill_claimqueue(
 		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
 		now: BlockNumberFor<T>,
@@ -525,20 +524,26 @@ impl<T: Config> Pallet<T> {
 			let n_lookahead = Self::claimqueue_lookahead();
 			let n_session_cores = T::AssignmentProvider::session_core_count();
 			let cq = ClaimQueue::<T>::get();
+			let ttl = <configuration::Pallet<T>>::config().on_demand_ttl;
 
 			for core_idx in 0..n_session_cores {
 				let core_idx = CoreIndex::from(core_idx);
 
 				// add previously timedout paras back into the queue
 				if let Some(mut entry) = timedout_paras.remove(&core_idx) {
-					if entry.retries < T::AssignmentProvider::get_max_retries(core_idx) {
-						entry.retries += 1;
+					if entry.availability_timeouts <
+						T::AssignmentProvider::get_max_retries(core_idx)
+					{
+						// Increment the timeout counter.
+						entry.availability_timeouts += 1;
+						// Reset the ttl so that a timed out assignment.
+						entry.ttl = now + ttl;
 						Self::add_to_claimqueue(core_idx, entry);
 						// The claim has been added back into the claimqueue.
 						// Do not pop another assignment for the core.
 						continue
 					} else {
-						// Consider max retried parathreads as concluded for the assignment provider
+						// Consider timed out assignments for on demand parachains as concluded for the assignment provider
 						let ret = concluded_paras.insert(core_idx, entry.para_id());
 						debug_assert!(ret.is_none());
 					}
@@ -552,7 +557,6 @@ impl<T: Config> Pallet<T> {
 					if let Some(assignment) =
 						T::AssignmentProvider::pop_assignment_for_core(core_idx, concluded_para)
 					{
-						let ttl = <configuration::Pallet<T>>::config().on_demand_ttl;
 						Self::add_to_claimqueue(core_idx, ParasEntry::new(assignment, now + ttl));
 					}
 				}

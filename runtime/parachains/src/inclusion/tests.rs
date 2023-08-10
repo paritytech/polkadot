@@ -1964,7 +1964,7 @@ fn para_upgrade_delay_scheduled_from_inclusion() {
 			core: CoreIndex::from(0),
 			paras_entry: ParasEntry {
 				assignment: Assignment { para_id: chain_a },
-				retries: 0,
+				availability_timeouts: 0,
 				ttl: 5,
 			},
 			group_idx: GroupIndex::from(0),

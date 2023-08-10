@@ -456,7 +456,7 @@ fn fill_claimqueue_fills() {
 					core: CoreIndex(0),
 					paras_entry: ParasEntry {
 						assignment: Assignment { para_id: chain_a },
-						retries: 0,
+						availability_timeouts: 0,
 						ttl: 6
 					},
 					group_idx: GroupIndex(0),
@@ -469,7 +469,7 @@ fn fill_claimqueue_fills() {
 					core: CoreIndex(1),
 					paras_entry: ParasEntry {
 						assignment: Assignment { para_id: chain_b },
-						retries: 0,
+						availability_timeouts: 0,
 						ttl: 6
 					},
 					group_idx: GroupIndex(1),
@@ -509,7 +509,7 @@ fn fill_claimqueue_fills() {
 					core: CoreIndex(0),
 					paras_entry: ParasEntry {
 						assignment: Assignment { para_id: chain_a },
-						retries: 0,
+						availability_timeouts: 0,
 						ttl: 6
 					},
 					group_idx: GroupIndex(0),
@@ -521,7 +521,7 @@ fn fill_claimqueue_fills() {
 					core: CoreIndex(1),
 					paras_entry: ParasEntry {
 						assignment: Assignment { para_id: chain_b },
-						retries: 0,
+						availability_timeouts: 0,
 						ttl: 6
 					},
 					group_idx: GroupIndex(1),
@@ -535,7 +535,7 @@ fn fill_claimqueue_fills() {
 					core: CoreIndex(2),
 					paras_entry: ParasEntry {
 						assignment: Assignment { para_id: thread_a },
-						retries: 0,
+						availability_timeouts: 0,
 						ttl: 7
 					},
 					group_idx: GroupIndex(2),
@@ -546,7 +546,7 @@ fn fill_claimqueue_fills() {
 				Scheduler::claimqueue().get(&CoreIndex(2)).unwrap()[1],
 				Some(ParasEntry {
 					assignment: Assignment { para_id: thread_b },
-					retries: 0,
+					availability_timeouts: 0,
 					ttl: 7
 				})
 			);
@@ -556,7 +556,7 @@ fn fill_claimqueue_fills() {
 					core: CoreIndex(3),
 					paras_entry: ParasEntry {
 						assignment: Assignment { para_id: thread_c },
-						retries: 0,
+						availability_timeouts: 0,
 						ttl: 7
 					},
 					group_idx: GroupIndex(3),
@@ -1087,10 +1087,16 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 			_ => None,
 		});
 
-		let thread_entry_a =
-			ParasEntry { assignment: Assignment { para_id: thread_a }, retries: 0, ttl: 5 };
-		let thread_entry_b =
-			ParasEntry { assignment: Assignment { para_id: thread_b }, retries: 0, ttl: 5 };
+		let thread_entry_a = ParasEntry {
+			assignment: Assignment { para_id: thread_a },
+			availability_timeouts: 0,
+			ttl: 5,
+		};
+		let thread_entry_b = ParasEntry {
+			assignment: Assignment { para_id: thread_b },
+			availability_timeouts: 0,
+			ttl: 5,
+		};
 
 		Scheduler::add_to_claimqueue(CoreIndex(0), thread_entry_a.clone());
 
