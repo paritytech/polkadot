@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Contains the logic for preparing PVFs. Used by the polkadot-prepare-worker binary.
+
 mod executor_intf;
 mod memory_stats;
 
