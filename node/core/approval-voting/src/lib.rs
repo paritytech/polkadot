@@ -166,6 +166,7 @@ struct MetricsInner {
 	approvals_produced_total: prometheus::CounterVec<prometheus::U64>,
 	no_shows_total: prometheus::Counter<prometheus::U64>,
 	wakeups_triggered_total: prometheus::Counter<prometheus::U64>,
+	coalesced_approvals_buckets: prometheus::Histogram,
 	candidate_approval_time_ticks: prometheus::Histogram,
 	block_approval_time_ticks: prometheus::Histogram,
 	time_db_transaction: prometheus::Histogram,
@@ -187,6 +188,15 @@ impl Metrics {
 	fn on_assignment_produced(&self, tranche: DelayTranche) {
 		if let Some(metrics) = &self.0 {
 			metrics.assignments_produced.observe(tranche as f64);
+		}
+	}
+
+	fn on_approval_coalesce(&self, num_coalesced: u32) {
+		if let Some(metrics) = &self.0 {
+			// So we count how many candidates we covered with this approvals.
+			for _ in 0..num_coalesced {
+				metrics.coalesced_approvals_buckets.observe(num_coalesced as f64)
+			}
 		}
 	}
 
@@ -310,6 +320,15 @@ impl metrics::Metrics for Metrics {
 						"polkadot_parachain_approvals_candidate_approval_time_ticks",
 						"Number of ticks (500ms) to approve candidates.",
 					).buckets(vec![6.0, 12.0, 18.0, 24.0, 30.0, 36.0, 72.0, 100.0, 144.0]),
+				)?,
+				registry,
+			)?,
+			coalesced_approvals_buckets: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_approvals_coalesced_approvals_buckets",
+						"Number of coalesced approvals.",
+					).buckets(vec![1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5]),
 				)?,
 				registry,
 			)?,
@@ -3163,7 +3182,7 @@ async fn maybe_create_signature<Context>(
 		None => {
 			// not a cause for alarm - just lost a race with pruning, most likely.
 			metrics.on_approval_stale();
-			gum::trace!(
+			gum::info!(
 				target: LOG_TARGET,
 				"Could not find block that needs signature {:}", block_hash
 			);
@@ -3280,6 +3299,8 @@ async fn maybe_create_signature<Context>(
 		});
 		db.write_candidate_entry(candidate_entry);
 	}
+
+	metrics.on_approval_coalesce(candidate_indexes.len() as u32);
 
 	metrics.on_approval_produced();
 
