@@ -107,10 +107,10 @@ pub use sp_tracing;
 pub use error::{InvalidCandidate, ValidationError};
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
+pub use polkadot_execute_worker::BINARY_NAME as EXECUTE_BINARY_NAME;
+pub use polkadot_prepare_worker::BINARY_NAME as PREPARE_BINARY_NAME;
 pub use priority::Priority;
 pub use worker_intf::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
-pub use polkadot_prepare_worker::BINARY_NAME as PREPARE_BINARY_NAME;
-pub use polkadot_execute_worker::BINARY_NAME as EXECUTE_BINARY_NAME;
 
 // Re-export some common types.
 pub use polkadot_node_core_pvf_common::{
