@@ -83,7 +83,7 @@ frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = 
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 hex-literal = { version = "0.4.1" }
 
-runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
+runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false, features=["experimental"] }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }

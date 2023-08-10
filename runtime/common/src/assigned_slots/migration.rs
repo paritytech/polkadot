@@ -45,8 +45,6 @@ pub mod v1 {
 
 				<MaxPermanentSlots<T>>::put(MAX_PERMANENT_SLOTS);
 				<MaxTemporarySlots<T>>::put(MAX_TEMPORARY_SLOTS);
-				// Update storage version.
-				StorageVersion::new(1).put::<Pallet<T>>();
 				// Return the weight consumed by the migration.
 				T::DbWeight::get().reads_writes(1, 3)
 			} else {
@@ -59,6 +57,8 @@ pub mod v1 {
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
 			let onchain_version = Pallet::<T>::on_chain_storage_version();
 			ensure!(onchain_version == 1, "assigned_slots::MigrateToV1 needs to be run");
+			assert_eq!(<MaxPermanentSlots<T>>::get(), 100);
+			assert_eq!(<MaxTemporarySlots<T>>::get(), 100);
 			Ok(())
 		}
 	}
@@ -66,6 +66,7 @@ pub mod v1 {
 	/// [`VersionUncheckedMigrateToV1`] wrapped in a
 	/// [`frame_support::migrations::VersionedRuntimeUpgrade`], ensuring the migration is only performed
 	/// when on-chain version is 0.
+	#[cfg(feature = "experimental")]
 	pub type VersionCheckedMigrateToV1<T> = frame_support::migrations::VersionedRuntimeUpgrade<
 		0,
 		1,
