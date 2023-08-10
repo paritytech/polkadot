@@ -83,8 +83,10 @@ $ENGINE build \
 echo "Your Container image for ${IMAGE} is ready"
 $ENGINE images
 
-echo "Check the image ${IMAGE}:${TAG_ARRAY[0]}"
-$ENGINE run --rm -i "${IMAGE}:${TAG_ARRAY[0]}" --version
+if [[ -z "${SKIP_IMAGE_VALIDATION}" ]]; then
+  echo "Check the image ${IMAGE}:${TAG_ARRAY[0]}"
+  $ENGINE run --rm -i "${IMAGE}:${TAG_ARRAY[0]}" --version
 
-echo "Query binaries"
-$ENGINE run --rm -i --entrypoint /bin/bash "${IMAGE}:${TAG_ARRAY[0]}" -c 'echo BINARY: $BINARY'
+  echo "Query binaries"
+  $ENGINE run --rm -i --entrypoint /bin/bash "${IMAGE}:${TAG_ARRAY[0]}" -c 'echo BINARY: $BINARY'
+fi

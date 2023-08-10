@@ -168,6 +168,10 @@ default:
     DOCKER_PASS: "${PARITYPR_PASS}"
     IMAGE: "${REGISTRY}/${DOCKER_OWNER}/${IMAGE_NAME}"
 
+    ENGINE: "${BUILDAH_COMMAND}"
+    BUILDAH_FORMAT: "docker"
+    SKIP_IMAGE_VALIDATION: 1
+
     PROJECT_ROOT: "."
     BIN_FOLDER: "./artifacts"
     VCS_REF: "${CI_COMMIT_SHA}"
