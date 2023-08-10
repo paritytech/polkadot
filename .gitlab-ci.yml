@@ -161,7 +161,6 @@ default:
 .build-push-image:
   variables:
     CI_IMAGE: "${BUILDAH_IMAGE}"
-    GIT_STRATEGY: "none"
 
     REGISTRY: "docker.io"
     DOCKER_OWNER: "paritypr"
@@ -176,13 +175,13 @@ default:
     - !reference [.common-before-script, before_script]
     - test -s ./artifacts/VERSION || exit 1
     - test -s ./artifacts/EXTRATAG || exit 1
-    - VERSION="$(cat ./artifacts/VERSION)"
+    - export VERSION="$(cat ./artifacts/VERSION)"
     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
     - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
   script:
     - test "$DOCKER_USER" -a "$DOCKER_PASS" ||
       ( echo "no docker credentials provided"; exit 1 )
-    - TAGS="${VERSION},${EXTRATAG}" artifacts/ci/dockerfiles/build-injected.sh
+    - TAGS="${VERSION},${EXTRATAG}" scripts/ci/dockerfiles/build-injected.sh
     - echo "$DOCKER_PASS" |
       buildah login --username "$DOCKER_USER" --password-stdin "${REGISTRY}"
     - $BUILDAH_COMMAND info
