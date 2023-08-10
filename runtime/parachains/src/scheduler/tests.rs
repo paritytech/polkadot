@@ -167,16 +167,14 @@ pub(crate) fn availability_cores_contains_para_ids<T: Config>(pids: Vec<ParaId>)
 fn claimqueue_ttl_drop_fn_works() {
 	let mut config = default_config();
 	config.scheduling_lookahead = 3;
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig { config, ..Default::default() },
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&config);
 
 	let para_id = ParaId::from(100);
 	let core_idx = CoreIndex::from(0);
 	let mut now = 10;
 
 	new_test_ext(genesis_config).execute_with(|| {
+		assert!(default_config().on_demand_ttl == 5);
 		// Register and run to a blockheight where the para is in a valid state.
 		schedule_blank_para(para_id, ParaKind::Parathread);
 		run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
@@ -270,13 +268,7 @@ fn claimqueue_ttl_drop_fn_works() {
 // Pretty useless here. Should be on parathread assigner... if at all
 #[test]
 fn add_parathread_claim_works() {
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: default_config(),
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&default_config());
 
 	let thread_id = ParaId::from(10);
 	let core_index = CoreIndex::from(0);
@@ -302,13 +294,7 @@ fn add_parathread_claim_works() {
 
 #[test]
 fn session_change_shuffles_validators() {
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: default_config(),
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&default_config());
 
 	assert_eq!(default_config().on_demand_cores, 3);
 	new_test_ext(genesis_config).execute_with(|| {
@@ -360,13 +346,7 @@ fn session_change_takes_only_max_per_core() {
 		config
 	};
 
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&config);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		let chain_a = ParaId::from(1_u32);
@@ -408,13 +388,7 @@ fn session_change_takes_only_max_per_core() {
 
 #[test]
 fn fill_claimqueue_fills() {
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: default_config(),
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&default_config());
 
 	let lookahead = genesis_config.configuration.config.scheduling_lookahead as usize;
 	let chain_a = ParaId::from(1_u32);
@@ -799,10 +773,7 @@ fn schedule_schedules_including_just_freed() {
 fn schedule_clears_availability_cores() {
 	let mut config = default_config();
 	config.scheduling_lookahead = 1;
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig { config, ..Default::default() },
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&config);
 
 	let chain_a = ParaId::from(1_u32);
 	let chain_b = ParaId::from(2_u32);
@@ -902,13 +873,7 @@ fn schedule_rotates_groups() {
 	let rotation_frequency = config.group_rotation_frequency;
 	let on_demand_cores = config.on_demand_cores;
 
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&config);
 
 	let thread_a = ParaId::from(1_u32);
 	let thread_b = ParaId::from(2_u32);
@@ -1126,13 +1091,7 @@ fn on_demand_claims_are_pruned_after_timing_out() {
 
 #[test]
 fn availability_predicate_works() {
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: default_config(),
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&default_config());
 
 	let HostConfiguration { group_rotation_frequency, paras_availability_period, .. } =
 		default_config();
@@ -1202,13 +1161,7 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 	let mut config = default_config();
 	config.on_demand_cores = 1;
 
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&config);
 
 	let thread_a = ParaId::from(1_u32);
 	let thread_b = ParaId::from(2_u32);
@@ -1276,13 +1229,7 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 	let mut config = default_config();
 	config.on_demand_cores = 1;
 
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&config);
 
 	let thread_a = ParaId::from(1_u32);
 	let thread_b = ParaId::from(2_u32);
@@ -1407,13 +1354,7 @@ fn next_up_on_time_out_is_parachain_always() {
 	let mut config = default_config();
 	config.on_demand_cores = 0;
 
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&config);
 
 	let chain_a = ParaId::from(1_u32);
 
@@ -1460,13 +1401,7 @@ fn next_up_on_time_out_is_parachain_always() {
 fn session_change_requires_reschedule_dropping_removed_paras() {
 	let mut config = default_config();
 	config.scheduling_lookahead = 1;
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = genesis_config(&config);
 
 	assert_eq!(default_config().on_demand_cores, 3);
 	new_test_ext(genesis_config).execute_with(|| {
