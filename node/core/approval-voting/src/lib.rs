@@ -101,7 +101,7 @@ use crate::{
 	approval_db::v2::{Config as DatabaseConfig, DbBackend},
 	backend::{Backend, OverlayedBackend},
 	criteria::InvalidAssignmentReason,
-	persisted_entries::CandidateSigningContext,
+	persisted_entries::{CandidateSigningContext, OurApproval},
 };
 
 #[cfg(test)]
@@ -1084,7 +1084,11 @@ async fn handle_actions<Context>(
 			Action::BecomeActive => {
 				*mode = Mode::Active;
 
-				let messages = distribution_messages_for_activation(overlayed_db, state)?;
+				let messages = distribution_messages_for_activation(
+					overlayed_db,
+					state,
+					delayed_approvals_timers,
+				)?;
 
 				ctx.send_messages(messages.into_iter()).await;
 			},
@@ -1143,6 +1147,7 @@ fn get_assignment_core_indices(
 fn distribution_messages_for_activation(
 	db: &OverlayedBackend<'_, impl Backend>,
 	state: &State,
+	delayed_approvals_timers: &mut DelayedApprovalTimer,
 ) -> SubsystemResult<Vec<ApprovalDistributionMessage>> {
 	let all_blocks: Vec<Hash> = db.load_all_blocks()?;
 
@@ -1181,7 +1186,7 @@ fn distribution_messages_for_activation(
 			slot: block_entry.slot(),
 			session: block_entry.session(),
 		});
-
+		let mut signatures_queued = HashSet::new();
 		for (i, (_, candidate_hash)) in block_entry.candidates().iter().enumerate() {
 			let _candidate_span =
 				distribution_message_span.child("candidate").with_candidate(*candidate_hash);
@@ -1209,6 +1214,15 @@ fn distribution_messages_for_activation(
 								&candidate_hash,
 								&block_entry,
 							) {
+								if !block_entry.candidates_pending_signature.is_empty() {
+									delayed_approvals_timers.maybe_arm_timer(
+										state.clock.tick_now(),
+										state.clock.as_ref(),
+										block_entry.block_hash(),
+										assignment.validator_index(),
+									)
+								}
+
 								match cores_to_candidate_indices(
 									&claimed_core_indices,
 									&block_entry,
@@ -1275,15 +1289,19 @@ fn distribution_messages_for_activation(
 										continue
 									},
 								}
-
-								messages.push(ApprovalDistributionMessage::DistributeApproval(
-									IndirectSignedApprovalVoteV2 {
-										block_hash,
-										candidate_indices: (i as CandidateIndex).into(),
-										validator: assignment.validator_index(),
-										signature: approval_sig,
-									},
-								));
+								let candidate_indices = approval_sig
+									.signed_candidates_indices
+									.unwrap_or((i as CandidateIndex).into());
+								if signatures_queued.insert(candidate_indices.clone()) {
+									messages.push(ApprovalDistributionMessage::DistributeApproval(
+										IndirectSignedApprovalVoteV2 {
+											block_hash,
+											candidate_indices,
+											validator: assignment.validator_index(),
+											signature: approval_sig.signature,
+										},
+									))
+								};
 							} else {
 								gum::warn!(
 									target: LOG_TARGET,
@@ -3221,7 +3239,7 @@ async fn maybe_create_signature<Context>(
 	let signature = match sign_approval(
 		&state.keystore,
 		&validator_pubkey,
-		candidate_hashes,
+		candidate_hashes.clone(),
 		block_entry.session(),
 	) {
 		Some(sig) => sig,
@@ -3243,19 +3261,25 @@ async fn maybe_create_signature<Context>(
 		.values()
 		.map(|unsigned_approval| db.load_candidate_entry(&unsigned_approval.candidate_hash))
 		.collect::<SubsystemResult<Vec<Option<CandidateEntry>>>>()?;
-
+	let candidate_indexes: Vec<CandidateIndex> =
+		block_entry.candidates_pending_signature.keys().map(|val| *val).collect();
 	for candidate_entry in candidate_entries {
 		let mut candidate_entry = candidate_entry
 			.expect("Candidate was scheduled to be signed entry in db should exist; qed");
 		let approval_entry = candidate_entry
 			.approval_entry_mut(&block_entry.block_hash())
 			.expect("Candidate was scheduled to be signed entry in db should exist; qed");
-		approval_entry.import_approval_sig(signature.clone());
+		approval_entry.import_approval_sig(OurApproval {
+			signature: signature.clone(),
+			signed_candidates_indices: Some(
+				candidate_indexes
+					.clone()
+					.try_into()
+					.expect("Fails only of array empty, it can't be, qed"),
+			),
+		});
 		db.write_candidate_entry(candidate_entry);
 	}
-
-	let candidate_indexes: Vec<CandidateIndex> =
-		block_entry.candidates_pending_signature.keys().map(|val| *val).collect();
 
 	metrics.on_approval_produced();
 

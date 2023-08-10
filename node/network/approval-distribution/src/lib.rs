@@ -1478,7 +1478,11 @@ impl State {
 		let entry = match self.blocks.get_mut(&block_hash) {
 			Some(entry)
 				if vote.candidate_indices.iter_ones().fold(true, |result, candidate_index| {
-					entry.contains_approval_entry(candidate_index as _, validator_index) && result
+					let approval_entry_exists = entry.contains_approval_entry(candidate_index as _, validator_index);
+					if !approval_entry_exists {
+						gum::error!(target: LOG_TARGET, ?block_hash, ?candidate_index, peer_id = ?source.peer_id(), "Received approval before assignment");
+					}
+					approval_entry_exists && result
 				}) =>
 				entry,
 			_ => {

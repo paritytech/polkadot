@@ -17,7 +17,10 @@
 //! Version 2 of the DB schema.
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_node_primitives::approval::{v1::DelayTranche, v2::AssignmentCertV2};
+use polkadot_node_primitives::approval::{
+	v1::DelayTranche,
+	v2::{AssignmentCertV2, CandidateBitfield},
+};
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::{
@@ -197,6 +200,15 @@ pub struct TrancheEntry {
 	pub assignments: Vec<(ValidatorIndex, Tick)>,
 }
 
+/// Metadata about our approval signature
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+pub struct OurApproval {
+	/// The
+	pub signature: ValidatorSignature,
+	// The hashes of the candidates signed in this approval
+	pub signed_candidates_indices: Option<CandidateBitfield>,
+}
+
 /// Metadata regarding approval of a particular candidate within the context of some
 /// particular block.
 #[derive(Encode, Decode, Debug, Clone, PartialEq)]
@@ -204,7 +216,7 @@ pub struct ApprovalEntry {
 	pub tranches: Vec<TrancheEntry>,
 	pub backing_group: GroupIndex,
 	pub our_assignment: Option<OurAssignment>,
-	pub our_approval_sig: Option<ValidatorSignature>,
+	pub our_approval_sig: Option<OurApproval>,
 	// `n_validators` bits.
 	pub assigned_validators: Bitfield,
 	pub approved: bool,
