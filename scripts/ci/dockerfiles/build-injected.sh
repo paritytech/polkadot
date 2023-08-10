@@ -31,7 +31,7 @@ VERSION=${VERSION:-$VERSION_TOML}
 BIN_FOLDER=${BIN_FOLDER:-.}
 
 IMAGE=${IMAGE:-${REGISTRY}/${DOCKER_OWNER}/${BINARIES[0]}}
-DESCRIPTION_DEFAULT="Injected Container image built for ${BINARY[*]}"
+DESCRIPTION_DEFAULT="Injected Container image built for ${BINARY}"
 DESCRIPTION=${DESCRIPTION:-$DESCRIPTION_DEFAULT}
 
 VCS_REF=${VCS_REF:-01234567}
@@ -40,7 +40,7 @@ VCS_REF=${VCS_REF:-01234567}
 echo "Using engine: $ENGINE"
 echo "Using Dockerfile: $DOCKERFILE"
 echo "Using context: $CONTEXT"
-echo "Building ${IMAGE}:latest container image for ${BINARY[*]} v${VERSION} from ${BIN_FOLDER} hang on!"
+echo "Building ${IMAGE}:latest container image for ${BINARY} v${VERSION} from ${BIN_FOLDER} hang on!"
 echo "BIN_FOLDER=$BIN_FOLDER"
 echo "CONTEXT=$CONTEXT"
 
