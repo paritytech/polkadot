@@ -1005,7 +1005,6 @@ impl<H, N> OccupiedCore<H, N> {
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct ScheduledCore {
-	// TODO: Is the same as Assignment
 	/// The ID of a para scheduled.
 	pub para_id: Id,
 	/// DEPRECATED: see: https://github.com/paritytech/polkadot/issues/7575
