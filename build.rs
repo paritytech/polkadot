@@ -20,15 +20,24 @@
 //! NOTE: The crates for the workers should still be specified in `default-members` in order for
 //! `cargo install` to work.
 //!
+//! # Testing
+//!
 //! The following scenarios have been tested. Run these tests after changes to this script.
 //!
-//! - [x] `cargo run`
-//! - [ ] `cargo run`, commit, `cargo run` again (workers should be rebuilt)
-//! - [x] `cargo build`
-//! - [x] `cargo +<specific-toolchain> run`
-//! - [ ] TODO: `cargo clean` then `cargo install`
-//! - [ ] TODO: `cargo run` then `cargo install` with binaries already having been built
-//! - [x] `cargo run` with a profile, like `--profile testnet`.
+//! - [x] `cargo clean` then `cargo run` (workers should be built)
+//!
+//! - [x] `cargo run`, commit, `cargo run` again (workers should be rebuilt the second time)
+//!
+//! - [x] `cargo clean` then `cargo build` (workers should be built)
+//!
+//! - [x] `cargo +<specific-toolchain> run` (same as `cargo run`)
+//!
+//! - [ ] TODO: `cargo clean` then `cargo install` (latest workers should be installed)
+//!
+//! - [ ] TODO: `cargo clean`, `cargo run`, then `cargo install` with binaries already having been
+//!       built.
+//!
+//! - [x] `cargo run` with a profile, like `--profile testnet` (same as `cargo run`)
 
 use std::{env::var, path::Path, process::Command};
 
@@ -39,7 +48,7 @@ fn main() {
 	// Always build PVF worker binaries whenever polkadot is built.
 	//
 	// This is needed because `default-members` does the same thing, but only for `cargo build` --
-	// it does not work for `cargo run`.
+	// by itself, `default-members` does not work for `cargo run`.
 	{
 		let cargo = var("CARGO").expect("`CARGO` env variable is always set by cargo");
 		let target = var("TARGET").expect("`TARGET` env variable is always set by cargo");
@@ -51,12 +60,14 @@ fn main() {
 		// profile (testnet) is with this hacky parsing code. 🙈 We need to get the actual profile
 		// to pass along settings like LTO (which is not even available to this build script).
 		let re = regex::Regex::new(r".*/target/(?<profile>\w+)/build/.*").unwrap();
-		let caps = re.captures(&out_dir).expect("regex broke, please contact your local regex repair facility.");
+		let caps = re
+			.captures(&out_dir)
+			.expect("regex broke, please contact your local regex repair facility.");
 		let profile = &caps["profile"];
 
 		// Construct the `cargo build ...` command.
 		//
-		// We don't pass along features because the workers don't use any right now.
+		// NOTE: We don't pass along features because the workers don't use any right now.
 		let mut args = vec![
 			"build",
 			"-p",
@@ -81,7 +92,11 @@ fn main() {
 			colorize_info_message("Information that should be included in a bug report.")
 		);
 		eprintln!("{} {:?}", colorize_info_message("Executing build command:"), build_cmd);
-		eprintln!("{} {:?}", colorize_info_message("Using rustc version:"), rustc_version::version());
+		eprintln!(
+			"{} {:?}",
+			colorize_info_message("Using rustc version:"),
+			rustc_version::version()
+		);
 
 		match build_cmd.status().map(|s| s.success()) {
 			Ok(true) => (),
