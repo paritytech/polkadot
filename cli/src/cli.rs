@@ -56,7 +56,7 @@ pub enum Subcommand {
 	HostPerfCheck,
 
 	/// Try-runtime has migrated to a standalone CLI
-	/// (https://github.com/paritytech/try-runtime-cli). The subcommand exists as a stub and
+	/// (<https://github.com/paritytech/try-runtime-cli>). The subcommand exists as a stub and
 	/// deprecation notice. It will be removed entirely some time after Janurary 2024.
 	TryRuntime,
 
