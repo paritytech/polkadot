@@ -501,8 +501,9 @@ parameter_types! {
 	// 1 era in which slashes can be cancelled (6 hours).
 	pub const SlashDeferDuration: sp_staking::EraIndex = 1;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	pub const MaxExposurePageSize: u16 = 64;
-	pub const MaxExposurePageCount: u16 = 10;
+	pub const MaxExposurePageSize: u32 = 64;
+	pub const MaxExposurePageCount: u32 = 10;
+	pub const MaxNominatorRewardedPerValidator: u32 = MaxExposurePageSize::get() * MaxExposurePageCount::get();
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	pub const MaxNominations: u32 = <NposCompactSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
 }

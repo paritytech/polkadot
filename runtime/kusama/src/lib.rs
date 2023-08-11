@@ -557,8 +557,10 @@ parameter_types! {
 		27,
 		"DOT_SLASH_DEFER_DURATION"
 	);
-	pub const MaxExposurePageSize: u16 = 512;
-	pub const MaxExposurePageCount: u16 = 1;
+	pub const MaxExposurePageSize: u32 = 512;
+	pub const MaxExposurePageCount: u32 = 1;
+	pub const MaxNominatorRewardedPerValidator: u32 = MaxExposurePageSize::get() * MaxExposurePageCount::get();
+
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 24
 	pub const MaxNominations: u32 = <NposCompactSolution24 as NposSolution>::LIMIT as u32;
