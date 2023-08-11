@@ -42,7 +42,13 @@ polkadot-prepare-worker = { path = "bin/prepare-worker" }
 
 [build-dependencies]
 ansi_term = "0.12.1"
+regex = "1.9.3"
+rustc_version = "0.4.0"
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+# To get the binary names.
+polkadot-execute-worker = { path = "bin/execute-worker" }
+polkadot-prepare-worker = { path = "bin/prepare-worker" }
 
 [workspace]
 members = [
@@ -133,6 +139,12 @@ members = [
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
 	"utils/generate-bags",
+]
+
+default-members = [
+	".",
+	"bin/execute-worker",
+	"bin/prepare-worker",
 ]
 
 [badges]

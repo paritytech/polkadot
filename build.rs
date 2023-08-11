@@ -16,31 +16,47 @@
 
 //! Build script to ensure that node/worker versions stay in sync and PVF worker binaries are always
 //! built whenever polkadot is built.
+//!
+//! NOTE: The crates for the workers should still be specified in `default-members` in order for
+//! `cargo install` to work.
+//!
+//! The following scenarios have been tested. Run these tests after changes to this script.
+//!
+//! - [x] `cargo run`
+//! - [ ] `cargo run`, commit, `cargo run` again (workers should be rebuilt)
+//! - [x] `cargo build`
+//! - [x] `cargo +<specific-toolchain> run`
+//! - [ ] TODO: `cargo clean` then `cargo install`
+//! - [ ] TODO: `cargo run` then `cargo install` with binaries already having been built
+//! - [x] `cargo run` with a profile, like `--profile testnet`.
 
 use std::{env::var, path::Path, process::Command};
 
-// TODO: fix
-// use polkadot_node_core_pvf::{PREPARE_BINARY_NAME, EXECUTE_BINARY_NAME};
-const PREPARE_BINARY_NAME: &str = "polkadot-prepare-worker";
-const EXECUTE_BINARY_NAME: &str = "polkadot-execute-worker";
+use polkadot_execute_worker::BINARY_NAME as EXECUTE_BINARY_NAME;
+use polkadot_prepare_worker::BINARY_NAME as PREPARE_BINARY_NAME;
 
 fn main() {
 	// Always build PVF worker binaries whenever polkadot is built.
 	//
 	// This is needed because `default-members` does the same thing, but only for `cargo build` --
 	// it does not work for `cargo run`.
-	//
-	// TODO: Test with `cargo +<specific-toolchain> ...`
 	{
 		let cargo = var("CARGO").expect("`CARGO` env variable is always set by cargo");
 		let target = var("TARGET").expect("`TARGET` env variable is always set by cargo");
-		let profile = var("PROFILE").expect("`PROFILE` env variable is always set by cargo");
 		let out_dir = var("OUT_DIR").expect("`OUT_DIR` env variable is always set by cargo");
 		let target_dir = format!("{}/workers", out_dir);
 
-		// Settings like overflow-checks, opt-level, lto, etc. are correctly passed to cargo
-		// subcommand through env vars, e.g. `CARGO_CFG_OVERFLOW_CHECKS`, which the subcommand
-		// inherits. We don't pass along features because the workers don't use any right now.
+		// Get the profile from OUT_DIR instead of the PROFILE env var. If we are using e.g. testnet
+		// which inherits from release, then PROFILE will be release. The only way to get the actual
+		// profile (testnet) is with this hacky parsing code. 🙈 We need to get the actual profile
+		// to pass along settings like LTO (which is not even available to this build script).
+		let re = regex::Regex::new(r".*/target/(?<profile>\w+)/build/.*").unwrap();
+		let caps = re.captures(&out_dir).expect("regex broke, please contact your local regex repair facility.");
+		let profile = &caps["profile"];
+
+		// Construct the `cargo build ...` command.
+		//
+		// We don't pass along features because the workers don't use any right now.
 		let mut args = vec![
 			"build",
 			"-p",
@@ -52,6 +68,7 @@ fn main() {
 			"--target-dir",
 			&target_dir,
 		];
+		// Needed to prevent an error.
 		if profile != "debug" {
 			args.push("--profile");
 			args.push(&profile);
@@ -59,12 +76,12 @@ fn main() {
 		let mut build_cmd = Command::new(cargo);
 		build_cmd.args(&args);
 
-		println!(
+		eprintln!(
 			"{}",
 			colorize_info_message("Information that should be included in a bug report.")
 		);
-		println!("{} {:?}", colorize_info_message("Executing build command:"), build_cmd);
-		// println!("{} {}", colorize_info_message("Using rustc version:"), build_cmd.rustc_version());
+		eprintln!("{} {:?}", colorize_info_message("Executing build command:"), build_cmd);
+		eprintln!("{} {:?}", colorize_info_message("Using rustc version:"), rustc_version::version());
 
 		match build_cmd.status().map(|s| s.success()) {
 			Ok(true) => (),
@@ -72,6 +89,7 @@ fn main() {
 			_ => std::process::exit(1),
 		}
 
+		// Move the built worker binaries into the same location as the `polkadot` binary.
 		std::fs::rename(
 			Path::new(&format!("{target_dir}/{target}/{profile}/{EXECUTE_BINARY_NAME}")),
 			Path::new(&format!("{target_dir}/../../../../{EXECUTE_BINARY_NAME}")),
@@ -84,8 +102,6 @@ fn main() {
 		.unwrap();
 	}
 
-	// TODO: is this needed here?
-	substrate_build_script_utils::generate_cargo_keys();
 	// For the node/worker version check, make sure we always rebuild the node and binary workers
 	// when the version changes.
 	substrate_build_script_utils::rerun_if_git_head_changed();
