@@ -16,8 +16,8 @@
 
 use crate::traits::{
 	AssetExchange, AssetLock, CallDispatcher, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm,
-	FeeManager, OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds,
-	WeightTrader,
+	FeeManager, OnResponse, ProcessTransaction, ShouldExecute, TransactAsset,
+	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, GetDispatchInfo, Parameter, PostDispatchInfo},
@@ -59,7 +59,7 @@ pub trait Config {
 	type Weigher: WeightBounds<Self::RuntimeCall>;
 
 	/// The means of purchasing weight credit for XCM execution.
-	type Trader: WeightTrader;
+	type Trader: WeightTrader + Clone;
 
 	/// What to do when a response of a query is found.
 	type ResponseHandler: OnResponse;
@@ -110,4 +110,7 @@ pub trait Config {
 	/// Use this type to explicitly whitelist calls that cannot undergo recursion. This is a
 	/// temporary measure until we properly account for proof size weights for XCM instructions.
 	type SafeCallFilter: Contains<Self::RuntimeCall>;
+
+	/// Transactional processor for XCM instructions.
+	type TransactionalProcessor: ProcessTransaction;
 }

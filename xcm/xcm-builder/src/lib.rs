@@ -107,3 +107,6 @@ pub use origin_aliases::AliasForeignAccountId32;
 
 mod pay;
 pub use pay::{FixedLocation, LocatableAssetId, PayAccountId32OnChainOverXcm, PayOverXcm};
+
+mod transactional;
+pub use transactional::FrameTransactionalProcessor;

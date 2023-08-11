@@ -30,7 +30,7 @@ use xcm_builder::{
 		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
 		TestUniversalAliases,
 	},
-	AliasForeignAccountId32, AllowUnpaidExecutionFrom,
+	AliasForeignAccountId32, AllowUnpaidExecutionFrom, FrameTransactionalProcessor,
 };
 use xcm_executor::traits::ConvertOrigin;
 
@@ -131,6 +131,7 @@ impl xcm_executor::Config for XcmConfig {
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
 	type Aliasers = Aliasers;
+	type TransactionalProcessor = FrameTransactionalProcessor;
 }
 
 impl crate::Config for Test {

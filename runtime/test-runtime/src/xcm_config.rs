@@ -22,8 +22,8 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds, SignedAccountId32AsNative,
-	SignedToAccountId32,
+	AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds, FrameTransactionalProcessor,
+	SignedAccountId32AsNative, SignedToAccountId32,
 };
 use xcm_executor::{
 	traits::{TransactAsset, WeightTrader},
@@ -74,6 +74,7 @@ impl TransactAsset for DummyAssetTransactor {
 	}
 }
 
+#[derive(Clone)]
 pub struct DummyWeightTrader;
 impl WeightTrader for DummyWeightTrader {
 	fn new() -> Self {
@@ -121,6 +122,7 @@ impl xcm_executor::Config for XcmConfig {
 	type CallDispatcher = super::RuntimeCall;
 	type SafeCallFilter = Everything;
 	type Aliasers = Nothing;
+	type TransactionalProcessor = FrameTransactionalProcessor;
 }
 
 #[cfg(feature = "runtime-benchmarks")]

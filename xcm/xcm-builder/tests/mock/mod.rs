@@ -34,8 +34,9 @@ use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds,
-	IsChildSystemParachain, IsConcrete, MintLocation, RespectSuspension, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
+	FrameTransactionalProcessor, IsChildSystemParachain, IsConcrete, MintLocation,
+	RespectSuspension, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	TakeWeightCredit,
 };
 
 pub type AccountId = AccountId32;
@@ -203,6 +204,7 @@ impl xcm_executor::Config for XcmConfig {
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
 	type Aliasers = Nothing;
+	type TransactionalProcessor = FrameTransactionalProcessor;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, KusamaNetwork>;

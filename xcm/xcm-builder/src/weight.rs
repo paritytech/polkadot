@@ -190,6 +190,16 @@ impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> Drop for FixedRateOfFungible
 	}
 }
 
+impl<T, R> Clone for FixedRateOfFungible<T, R>
+where
+	T: Get<(AssetId, u128, u128)>,
+	R: TakeRevenue,
+{
+	fn clone(&self) -> FixedRateOfFungible<T, R> {
+		Self(self.0, self.1, PhantomData)
+	}
+}
+
 /// Weight trader which uses the configured `WeightToFee` to set the right price for weight and then
 /// places any weight bought into the right account.
 pub struct UsingComponents<
@@ -255,5 +265,18 @@ impl<
 {
 	fn drop(&mut self) {
 		OnUnbalanced::on_unbalanced(Currency::issue(self.1));
+	}
+}
+
+impl<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> Clone
+	for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced>
+where
+	WeightToFee: WeightToFeeT<Balance = Currency::Balance>,
+	AssetId: Get<MultiLocation>,
+	Currency: CurrencyT<AccountId>,
+	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
+{
+	fn clone(&self) -> UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> {
+		Self(self.0, self.1, PhantomData)
 	}
 }

@@ -21,7 +21,7 @@ use crate::{
 pub use crate::{
 	AliasForeignAccountId32, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, FixedRateOfFungible,
-	FixedWeightBounds, TakeWeightCredit,
+	FixedWeightBounds, FrameTransactionalProcessor, TakeWeightCredit,
 };
 use frame_support::traits::{ContainsPair, Everything};
 pub use frame_support::{
@@ -685,6 +685,7 @@ impl Config for TestConfig {
 	type CallDispatcher = TestCall;
 	type SafeCallFilter = Everything;
 	type Aliasers = AliasForeignAccountId32<SiblingPrefix>;
+	type TransactionalProcessor = ();
 }
 
 pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
