@@ -1878,29 +1878,21 @@ impl State {
 								(true, Vec::new()),
 								|(should_forward_approval, mut new_covered_approvals),
 								 approval_candidate_index| {
-									let (approval_knowledge, message_kind) = approval_entry
+									let (message_subject, message_kind) = approval_entry
 										.create_approval_knowledge(
 											block,
 											approval_candidate_index as _,
 										);
-									let (assignment_knowledge, assignment_kind) =
-										approval_entry.create_assignment_knowledge(block);
-
-									if !peer_knowledge.contains(&approval_knowledge, message_kind) {
-										new_covered_approvals
-											.push((approval_knowledge, message_kind))
+									// The assignments for all candidates signed in the approval should already have been sent to the peer,
+									// otherwise we can't send our approval and risk breaking our reputation.
+									let should_forward_approval = should_forward_approval &&
+										peer_knowledge
+											.contains(&message_subject, MessageKind::Assignment);
+									if !peer_knowledge.contains(&message_subject, message_kind) {
+										new_covered_approvals.push((message_subject, message_kind))
 									}
 
-									(
-										// The assignments for all candidates signed in the approval should already have been sent to the peer,
-										// otherwise we can't send our approval and risk breaking our reputation.
-										should_forward_approval &&
-											peer_knowledge.contains(
-												&assignment_knowledge,
-												assignment_kind,
-											),
-										new_covered_approvals,
-									)
+									(should_forward_approval, new_covered_approvals)
 								},
 							);
 						if should_forward_approval {
