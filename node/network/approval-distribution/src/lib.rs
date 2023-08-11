@@ -1478,9 +1478,13 @@ impl State {
 		let entry = match self.blocks.get_mut(&block_hash) {
 			Some(entry)
 				if vote.candidate_indices.iter_ones().fold(true, |result, candidate_index| {
-					let approval_entry_exists = entry.contains_approval_entry(candidate_index as _, validator_index);
+					let approval_entry_exists =
+						entry.contains_approval_entry(candidate_index as _, validator_index);
 					if !approval_entry_exists {
-						gum::error!(target: LOG_TARGET, ?block_hash, ?candidate_index, peer_id = ?source.peer_id(), "Received approval before assignment");
+						gum::error!(
+							target: LOG_TARGET, ?block_hash, ?candidate_index, validator_index = ?vote.validator,
+							peer_id = ?source.peer_id(), "Received approval before assignment"
+						);
 					}
 					approval_entry_exists && result
 				}) =>
@@ -2078,6 +2082,7 @@ impl State {
 				// Punish the peer for the invalid message.
 				modify_reputation(&mut self.reputation, sender, peer_id, COST_OVERSIZED_BITFIELD)
 					.await;
+				gum::error!(target: LOG_TARGET, block_hash = ?cert.block_hash, ?candidate_index, validator_index = ?cert.validator, kind = ?cert.cert.kind, "Bad assignment v1");
 			} else {
 				sanitized_assignments.push((cert.into(), candidate_index.into()))
 			}
@@ -2120,6 +2125,9 @@ impl State {
 				// Punish the peer for the invalid message.
 				modify_reputation(&mut self.reputation, sender, peer_id, COST_OVERSIZED_BITFIELD)
 					.await;
+				for candidate_index in candidate_bitfield.iter_ones() {
+					gum::error!(target: LOG_TARGET, block_hash = ?cert.block_hash, ?candidate_index, validator_index = ?cert.validator, "Bad assignment v2");
+				}
 			} else {
 				sanitized_assignments.push((cert, candidate_bitfield))
 			}
