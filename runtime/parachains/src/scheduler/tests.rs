@@ -436,7 +436,7 @@ fn fill_claimqueue_fills() {
 
 			// Cannot assert on indices anymore as they depend on the assignment providers
 			assert!(claimqueue_contains_para_ids::<Test>(vec![chain_a, chain_b]));
-			// TODO: checks for group indices?
+
 			assert_eq!(
 				scheduled[0],
 				CoreAssignment {
@@ -1280,7 +1280,6 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 			map.insert(CoreIndex(0), thread_a);
 			Scheduler::occupied(map);
 
-			// TODO
 			let cores = Scheduler::availability_cores();
 			match cores.get(0).unwrap() {
 				CoreOccupied::Paras(entry) => assert_eq!(entry.assignment, assignment_a.clone()),
