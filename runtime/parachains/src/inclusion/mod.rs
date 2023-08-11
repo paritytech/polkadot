@@ -322,8 +322,6 @@ pub mod pallet {
 		UnscheduledCandidate,
 		/// Candidate scheduled despite pending candidate already existing for the para.
 		CandidateScheduledBeforeParaFree,
-		/// Candidate included with the wrong collator.
-		WrongCollator,
 		/// Scheduled cores out of order.
 		ScheduledOutOfOrder,
 		/// Head data exceeds the configured maximum.
@@ -599,7 +597,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn process_candidates<GV>(
 		parent_storage_root: T::Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
-		scheduled: Vec<CoreAssignment>,
+		scheduled: Vec<CoreAssignment<BlockNumberFor<T>>>,
 		group_validators: GV,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
@@ -630,15 +628,16 @@ impl<T: Config> Pallet<T> {
 			let mut core_indices_and_backers = Vec::with_capacity(candidates.len());
 			let mut last_core = None;
 
-			let mut check_assignment_in_order = |assignment: &CoreAssignment| -> DispatchResult {
-				ensure!(
-					last_core.map_or(true, |core| assignment.core > core),
-					Error::<T>::ScheduledOutOfOrder,
-				);
+			let mut check_assignment_in_order =
+				|assignment: &CoreAssignment<BlockNumberFor<T>>| -> DispatchResult {
+					ensure!(
+						last_core.map_or(true, |core| assignment.core > core),
+						Error::<T>::ScheduledOutOfOrder,
+					);
 
-				last_core = Some(assignment.core);
-				Ok(())
-			};
+					last_core = Some(assignment.core);
+					Ok(())
+				};
 
 			let signing_context =
 				SigningContext { parent_hash, session_index: shared::Pallet::<T>::session_index() };
@@ -680,17 +679,10 @@ impl<T: Config> Pallet<T> {
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
-				for (i, assignment) in scheduled[skip..].iter().enumerate() {
-					check_assignment_in_order(assignment)?;
+				for (i, core_assignment) in scheduled[skip..].iter().enumerate() {
+					check_assignment_in_order(core_assignment)?;
 
-					if para_id == assignment.kind.para_id() {
-						if let Some(required_collator) = assignment.required_collator() {
-							ensure!(
-								required_collator == &backed_candidate.descriptor().collator,
-								Error::<T>::WrongCollator,
-							);
-						}
-
+					if para_id == core_assignment.paras_entry.para_id() {
 						ensure!(
 							<PendingAvailability<T>>::get(&para_id).is_none() &&
 								<PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),
@@ -700,7 +692,7 @@ impl<T: Config> Pallet<T> {
 						// account for already skipped, and then skip this one.
 						skip = i + skip + 1;
 
-						let group_vals = group_validators(assignment.group_idx)
+						let group_vals = group_validators(core_assignment.group_idx)
 							.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
 
 						// check the signatures in the backing and that it is a majority.
@@ -752,9 +744,9 @@ impl<T: Config> Pallet<T> {
 						}
 
 						core_indices_and_backers.push((
-							(assignment.core, assignment.kind.para_id()),
+							(core_assignment.core, core_assignment.paras_entry.para_id()),
 							backers,
-							assignment.group_idx,
+							core_assignment.group_idx,
 						));
 						continue 'next_backed_candidate
 					}

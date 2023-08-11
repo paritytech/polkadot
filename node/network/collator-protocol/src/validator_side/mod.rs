@@ -921,6 +921,7 @@ async fn process_incoming_peer_message<Context>(
 				.span_per_relay_parent
 				.get(&relay_parent)
 				.map(|s| s.child("advertise-collation"));
+
 			if !state.view.contains(&relay_parent) {
 				gum::debug!(
 					target: LOG_TARGET,

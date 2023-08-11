@@ -17,11 +17,11 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, disputes, dmp, hrmp,
+	assigner, assigner_on_demand, assigner_parachains, configuration, disputes, dmp, hrmp,
 	inclusion::{self, AggregateMessageOrigin, UmpQueueId},
 	initializer, origin, paras,
 	paras::ParaKind,
-	paras_inherent, scheduler, scheduler_polkadot, session_info, shared, ParaId,
+	paras_inherent, scheduler, session_info, shared, ParaId,
 };
 
 use frame_support::{
@@ -43,7 +43,7 @@ use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	BuildStorage, Perbill, Permill,
+	BuildStorage, FixedU128, Perbill, Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -62,7 +62,9 @@ frame_support::construct_runtime!(
 		ParaInclusion: inclusion,
 		ParaInherent: paras_inherent,
 		Scheduler: scheduler,
-		SchedulerPolkadot: scheduler_polkadot,
+		Assigner: assigner,
+		OnDemandAssigner: assigner_on_demand,
+		ParachainsAssigner: assigner_parachains,
 		Initializer: initializer,
 		Dmp: dmp,
 		Hrmp: hrmp,
@@ -282,10 +284,8 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
-impl crate::scheduler_parachains::Config for Test {}
-impl crate::scheduler_polkadot::Config for Test {}
 impl crate::scheduler::Config for Test {
-	type AssignmentProvider = crate::scheduler_polkadot::Pallet<Test>;
+	type AssignmentProvider = Assigner;
 }
 
 pub struct TestMessageQueueWeight;
@@ -337,6 +337,24 @@ impl pallet_message_queue::Config for Test {
 	type HeapSize = ConstU32<65536>;
 	type MaxStale = ConstU32<8>;
 	type ServiceWeight = MessageQueueServiceWeight;
+}
+
+impl assigner::Config for Test {
+	type ParachainsAssignmentProvider = ParachainsAssigner;
+	type OnDemandAssignmentProvider = OnDemandAssigner;
+}
+
+impl assigner_parachains::Config for Test {}
+
+parameter_types! {
+	pub const OnDemandTrafficDefaultValue: FixedU128 = FixedU128::from_u32(1);
+}
+
+impl assigner_on_demand::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type TrafficDefaultValue = OnDemandTrafficDefaultValue;
+	type WeightInfo = crate::assigner_on_demand::TestWeightInfo;
 }
 
 impl crate::inclusion::Config for Test {

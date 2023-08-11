@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::scheduler_common;
 
 // In order to facilitate benchmarks as tests we have a benchmark feature gated `WeightInfo` impl
 // that uses 0 for all the weights. Because all the weights are 0, the tests that rely on
@@ -73,7 +72,10 @@ mod enter {
 	// becoming fully available, the backed candidates will not be filtered out in `create_inherent` and
 	// will not cause `enter` to early.
 	fn include_backed_candidates() {
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let config = MockGenesisConfig::default();
+		assert!(config.configuration.config.scheduling_lookahead > 0);
+
+		new_test_ext(config).execute_with(|| {
 			let dispute_statements = BTreeMap::new();
 
 			let mut backed_and_concluding = BTreeMap::new();
@@ -606,7 +608,10 @@ mod enter {
 	#[test]
 	// Ensure that when a block is over weight due to disputes and bitfields, we filter.
 	fn limit_candidates_over_weight_1() {
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let config = MockGenesisConfig::default();
+		assert!(config.configuration.config.scheduling_lookahead > 0);
+
+		new_test_ext(config).execute_with(|| {
 			// Create the inherent data for this block
 			let mut dispute_statements = BTreeMap::new();
 			// Control the number of statements per dispute to ensure we have enough space
@@ -951,7 +956,10 @@ mod sanitizers {
 
 	use crate::mock::Test;
 	use keyring::Sr25519Keyring;
-	use primitives::PARACHAIN_KEY_TYPE_ID;
+	use primitives::{
+		v5::{Assignment, ParasEntry},
+		PARACHAIN_KEY_TYPE_ID,
+	};
 	use sc_keystore::LocalKeystore;
 	use sp_keystore::{Keystore, KeystorePtr};
 	use std::sync::Arc;
@@ -1223,12 +1231,16 @@ mod sanitizers {
 		let has_concluded_invalid =
 			|_idx: usize, _backed_candidate: &BackedCandidate| -> bool { false };
 
+		let entry_ttl = 10_000;
 		let scheduled = (0_usize..2)
 			.into_iter()
 			.map(|idx| {
 				let core_idx = CoreIndex::from(idx as u32);
 				let ca = CoreAssignment {
-					kind: scheduler_common::Assignment::Parachain(ParaId::from(1_u32 + idx as u32)),
+					paras_entry: ParasEntry::new(
+						Assignment::new(ParaId::from(1_u32 + idx as u32)),
+						entry_ttl,
+					),
 					group_idx: GroupIndex::from(idx as u32),
 					core: core_idx,
 				};

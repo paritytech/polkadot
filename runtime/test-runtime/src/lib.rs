@@ -25,12 +25,13 @@ use parity_scale_codec::Encode;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use polkadot_runtime_parachains::{
+	assigner_parachains as parachains_assigner_parachains,
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
 	inclusion as parachains_inclusion, initializer as parachains_initializer,
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, runtime_api_impl::v5 as runtime_impl,
-	scheduler as parachains_scheduler, scheduler_polkadot, session_info as parachains_session_info,
+	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared,
 };
 
@@ -555,10 +556,10 @@ impl parachains_hrmp::Config for Runtime {
 	type WeightInfo = parachains_hrmp::TestWeightInfo;
 }
 
-impl polkadot_runtime_parachains::scheduler_parachains::Config for Runtime {}
-impl crate::scheduler_polkadot::Config for Runtime {}
+impl parachains_assigner_parachains::Config for Runtime {}
+
 impl parachains_scheduler::Config for Runtime {
-	type AssignmentProvider = crate::scheduler_polkadot::Pallet<Runtime>;
+	type AssignmentProvider = ParaAssignmentProvider;
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}
@@ -693,7 +694,6 @@ construct_runtime! {
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, ValidateUnsigned},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
 		Scheduler: parachains_scheduler::{Pallet, Storage},
-		SchedulerPolkadot: scheduler_polkadot::{Pallet, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 		ParasOrigin: parachains_origin::{Pallet, Origin},
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
@@ -702,6 +702,7 @@ construct_runtime! {
 		Xcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned},
+		ParaAssignmentProvider: parachains_assigner_parachains::{Pallet},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 

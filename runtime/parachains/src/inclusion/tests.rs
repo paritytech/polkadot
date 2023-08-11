@@ -24,7 +24,6 @@ use crate::{
 	},
 	paras::{ParaGenesisArgs, ParaKind},
 	paras_inherent::DisputedBitfield,
-	scheduler_common::Assignment,
 };
 use primitives::{SignedAvailabilityBitfields, UncheckedSignedAvailabilityBitfields};
 
@@ -33,10 +32,10 @@ use frame_support::assert_noop;
 use keyring::Sr25519Keyring;
 use parity_scale_codec::DecodeAll;
 use primitives::{
+	v5::{Assignment, ParasEntry},
 	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
-	CompactStatement as Statement, Hash, ParathreadClaim, ParathreadEntry,
-	SignedAvailabilityBitfield, SignedStatement, ValidationCode, ValidatorId, ValidityAttestation,
-	PARACHAIN_KEY_TYPE_ID,
+	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
+	ValidationCode, ValidatorId, ValidityAttestation, PARACHAIN_KEY_TYPE_ID,
 };
 use sc_keystore::LocalKeystore;
 use sp_keystore::{Keystore, KeystorePtr};
@@ -45,7 +44,7 @@ use test_helpers::{dummy_collator, dummy_collator_signature, dummy_validation_co
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
-	config.parathread_cores = 1;
+	config.on_demand_cores = 1;
 	config.max_code_size = 0b100000;
 	config.max_head_data_size = 0b100000;
 	config
@@ -205,7 +204,7 @@ pub(crate) fn run_to_block(
 }
 
 pub(crate) fn expected_bits() -> usize {
-	Paras::parachains().len() + Configuration::config().parathread_cores as usize
+	Paras::parachains().len() + Configuration::config().on_demand_cores as usize
 }
 
 fn default_bitfield() -> AvailabilityBitfield {
@@ -881,26 +880,23 @@ fn candidate_checks() {
 			.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		let entry_ttl = 10_000;
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
-
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			kind: Assignment::Parachain(chain_a),
+			paras_entry: ParasEntry::new(Assignment::new(chain_a), entry_ttl),
 			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
-			kind: Assignment::Parachain(chain_b),
+			paras_entry: ParasEntry::new(Assignment::new(chain_b), entry_ttl),
 			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
-			kind: Assignment::ParathreadA(ParathreadEntry {
-				claim: ParathreadClaim(thread_a, Some(thread_collator.clone())),
-				retries: 0,
-			}),
+			paras_entry: ParasEntry::new(Assignment::new(thread_a), entry_ttl),
 			group_idx: GroupIndex::from(2),
 		};
 
@@ -1060,44 +1056,46 @@ fn candidate_checks() {
 			);
 		}
 
+		// TODO: Will be tested at a higher level
+		//
 		// candidate has wrong collator.
-		{
-			let mut candidate = TestCandidateBuilder {
-				para_id: thread_a,
-				relay_parent: System::parent_hash(),
-				pov_hash: Hash::repeat_byte(1),
-				persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
-				hrmp_watermark: RELAY_PARENT_NUM,
-				..Default::default()
-			}
-			.build();
+		//{
+		//	let mut candidate = TestCandidateBuilder {
+		//		para_id: thread_a,
+		//		relay_parent: System::parent_hash(),
+		//		pov_hash: Hash::repeat_byte(1),
+		//		persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
+		//		hrmp_watermark: RELAY_PARENT_NUM,
+		//		..Default::default()
+		//	}
+		//	.build();
 
-			assert!(CollatorId::from(Sr25519Keyring::One.public()) != thread_collator);
-			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
+		//	assert!(CollatorId::from(Sr25519Keyring::One.public()) != thread_collator);
+		//	collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = back_candidate(
-				candidate,
-				&validators,
-				group_validators(GroupIndex::from(2)).unwrap().as_ref(),
-				&keystore,
-				&signing_context,
-				BackingKind::Threshold,
-			);
+		//	let backed = back_candidate(
+		//		candidate,
+		//		&validators,
+		//		group_validators(GroupIndex::from(2)).unwrap().as_ref(),
+		//		&keystore,
+		//		&signing_context,
+		//		BackingKind::Threshold,
+		//	);
 
-			assert_noop!(
-				ParaInclusion::process_candidates(
-					Default::default(),
-					vec![backed],
-					vec![
-						chain_a_assignment.clone(),
-						chain_b_assignment.clone(),
-						thread_a_assignment.clone(),
-					],
-					&group_validators,
-				),
-				Error::<Test>::WrongCollator,
-			);
-		}
+		//	assert_noop!(
+		//		ParaInclusion::process_candidates(
+		//			Default::default(),
+		//			vec![backed],
+		//			vec![
+		//				chain_a_assignment.clone(),
+		//				chain_b_assignment.clone(),
+		//				thread_a_assignment.clone(),
+		//			],
+		//			&group_validators,
+		//		),
+		//		Error::<Test>::WrongPeerId,
+		//	);
+		//}
 
 		// candidate not well-signed by collator.
 		{
@@ -1428,26 +1426,23 @@ fn backing_works() {
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
-		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
+		let entry_ttl = 10_000;
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			kind: Assignment::Parachain(chain_a),
+			paras_entry: ParasEntry::new(Assignment::new(chain_a), entry_ttl),
 			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
-			kind: Assignment::Parachain(chain_b),
+			paras_entry: ParasEntry::new(Assignment::new(chain_b), entry_ttl),
 			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
-			kind: Assignment::ParathreadA(ParathreadEntry {
-				claim: ParathreadClaim(thread_a, Some(thread_collator.clone())),
-				retries: 0,
-			}),
+			paras_entry: ParasEntry::new(Assignment::new(thread_a), entry_ttl),
 			group_idx: GroupIndex::from(2),
 		};
 
@@ -1511,7 +1506,7 @@ fn backing_works() {
 			BackingKind::Threshold,
 		);
 
-		let backed_candidates = vec![backed_a, backed_b, backed_c];
+		let backed_candidates = vec![backed_a.clone(), backed_b.clone(), backed_c];
 		let get_backing_group_idx = {
 			// the order defines the group implicitly for this test case
 			let backed_candidates_with_groups = backed_candidates
@@ -1710,9 +1705,11 @@ fn can_include_candidate_with_ok_code_upgrade() {
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 		};
 
+		let entry_ttl = 10_000;
+
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			kind: Assignment::Parachain(chain_a),
+			paras_entry: ParasEntry::new(Assignment::new(chain_a), entry_ttl),
 			group_idx: GroupIndex::from(0),
 		};
 
@@ -1965,8 +1962,11 @@ fn para_upgrade_delay_scheduled_from_inclusion() {
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			para_id: chain_a,
-			kind: AssignmentKind::Parachain,
+			paras_entry: ParasEntry {
+				assignment: Assignment { para_id: chain_a },
+				availability_timeouts: 0,
+				ttl: 5,
+			},
 			group_idx: GroupIndex::from(0),
 		};
 
@@ -2000,7 +2000,7 @@ fn para_upgrade_delay_scheduled_from_inclusion() {
 			)
 			.expect("candidates scheduled, in order, and backed");
 
-		assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
+		assert_eq!(occupied_cores, vec![(CoreIndex::from(0), chain_a)]);
 
 		// Run a couple of blocks before the inclusion.
 		run_to_block(7, |_| None);

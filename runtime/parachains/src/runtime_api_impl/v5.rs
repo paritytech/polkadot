@@ -27,8 +27,8 @@ use primitives::{
 	CoreIndex, CoreOccupied, CoreState, DisputeState, ExecutorParams, GroupIndex,
 	GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 	OccupiedCore, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
-	ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -97,9 +97,10 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, Bl
 		.into_iter()
 		.enumerate()
 		.map(|(i, core)| match core {
-			CoreOccupied::Parachain(para_id) => {
-				let pending_availability = <inclusion::Pallet<T>>::pending_availability(para_id)
-					.expect("Occupied core always has pending availability; qed");
+			CoreOccupied::Paras(entry) => {
+				let pending_availability =
+					<inclusion::Pallet<T>>::pending_availability(entry.para_id())
+						.expect("Occupied core always has pending availability; qed");
 
 				let backed_in_number = *pending_availability.backed_in_number();
 				CoreState::Occupied(OccupiedCore {
@@ -107,31 +108,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, Bl
 						i as u32,
 					)),
 					occupied_since: backed_in_number,
-					time_out_at: time_out_at(backed_in_number, config.chain_availability_period),
-					next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(CoreIndex(
-						i as u32,
-					)),
-					availability: pending_availability.availability_votes().clone(),
-					group_responsible: group_responsible_for(
-						backed_in_number,
-						pending_availability.core_occupied(),
-					),
-					candidate_hash: pending_availability.candidate_hash(),
-					candidate_descriptor: pending_availability.candidate_descriptor().clone(),
-				})
-			},
-			CoreOccupied::Parathread(p) => {
-				let para_id = p.claim.0;
-				let pending_availability = <inclusion::Pallet<T>>::pending_availability(para_id)
-					.expect("Occupied core always has pending availability; qed");
-
-				let backed_in_number = *pending_availability.backed_in_number();
-				CoreState::Occupied(OccupiedCore {
-					next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(CoreIndex(
-						i as u32,
-					)),
-					occupied_since: backed_in_number,
-					time_out_at: time_out_at(backed_in_number, config.thread_availability_period),
+					time_out_at: time_out_at(backed_in_number, config.paras_availability_period),
 					next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(CoreIndex(
 						i as u32,
 					)),
@@ -149,10 +126,10 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, Bl
 		.collect();
 
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
-	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue() {
-		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(ScheduledCore {
-			para_id: scheduled.kind.para_id(),
-			collator: scheduled.required_collator().map(|c| c.clone()),
+	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue(now) {
+		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(primitives::ScheduledCore {
+			para_id: scheduled.paras_entry.para_id(),
+			collator: None,
 		});
 	}
 

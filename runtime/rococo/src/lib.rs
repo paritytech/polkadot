@@ -38,6 +38,8 @@ use scale_info::TypeInfo;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
+	assigner as parachains_assigner, assigner_on_demand as parachains_assigner_on_demand,
+	assigner_parachains as parachains_assigner_parachains,
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	disputes::slashing as parachains_slashing,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
@@ -45,8 +47,8 @@ use runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
 	runtime_api_impl::v5 as parachains_runtime_api_impl,
-	scheduler as parachains_scheduler, scheduler_parachains,
-	session_info as parachains_session_info, shared as parachains_shared,
+	scheduler as parachains_scheduler, session_info as parachains_session_info,
+	shared as parachains_shared,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -77,7 +79,7 @@ use sp_runtime::{
 		Extrinsic as ExtrinsicT, Keccak256, OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
 };
 use sp_staking::SessionIndex;
 #[cfg(any(feature = "std", test))]
@@ -879,6 +881,7 @@ pub enum ProxyType {
 	CancelProxy,
 	Auction,
 	Society,
+	OnDemandOrdering,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -965,6 +968,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					RuntimeCall::Slots { .. }
 			),
 			ProxyType::Society => matches!(c, RuntimeCall::Society(..)),
+			ProxyType::OnDemandOrdering => matches!(c, RuntimeCall::OnDemandAssignmentProvider(..)),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -1095,9 +1099,26 @@ impl parachains_paras_inherent::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_paras_inherent::WeightInfo<Runtime>;
 }
 
-impl runtime_parachains::scheduler_parachains::Config for Runtime {}
 impl parachains_scheduler::Config for Runtime {
-	type AssignmentProvider = scheduler_parachains::Pallet<Runtime>;
+	type AssignmentProvider = ParaAssignmentProvider;
+}
+
+parameter_types! {
+	pub const OnDemandTrafficDefaultValue: FixedU128 = FixedU128::from_u32(1);
+}
+
+impl parachains_assigner_on_demand::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type TrafficDefaultValue = OnDemandTrafficDefaultValue;
+	type WeightInfo = weights::runtime_parachains_assigner_on_demand::WeightInfo<Runtime>;
+}
+
+impl parachains_assigner_parachains::Config for Runtime {}
+
+impl parachains_assigner::Config for Runtime {
+	type OnDemandAssignmentProvider = OnDemandAssignmentProvider;
+	type ParachainsAssignmentProvider = ParachainsAssignmentProvider;
 }
 
 impl parachains_initializer::Config for Runtime {
@@ -1457,6 +1478,9 @@ construct_runtime! {
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned} = 63,
 		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 64,
+		ParaAssignmentProvider: parachains_assigner::{Pallet, Storage} = 65,
+		OnDemandAssignmentProvider: parachains_assigner_on_demand::{Pallet, Call, Storage, Event<T>} = 66,
+		ParachainsAssignmentProvider: parachains_assigner_parachains::{Pallet} = 67,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config<T>} = 70,
@@ -1530,6 +1554,7 @@ pub mod migrations {
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
+		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 	);
 }
 
@@ -1588,6 +1613,7 @@ mod benches {
 		[runtime_parachains::initializer, Initializer]
 		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::paras, Paras]
+		[runtime_parachains::assigner_on_demand, OnDemandAssignmentProvider]
 		// Substrate
 		[pallet_balances, Balances]
 		[pallet_balances, NisCounterpartBalances]

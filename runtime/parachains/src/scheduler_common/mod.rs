@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -36,12 +36,16 @@
 //! over time.
 
 use frame_support::pallet_prelude::*;
-use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{
-	CollatorId, CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ParathreadEntry, ScheduledCore,
+	v5::{Assignment, ParasEntry},
+	CoreIndex, GroupIndex, Id as ParaId,
 };
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
+
+// Only used to link to configuration documentation.
+#[allow(unused)]
+use crate::configuration::HostConfiguration;
 
 /// Reasons a core might be freed
 #[derive(Clone, Copy)]
@@ -52,103 +56,54 @@ pub enum FreedReason {
 	TimedOut,
 }
 
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub enum Assignment {
-	Parachain(ParaId),
-	ParathreadA(ParathreadEntry),
-}
-
-impl Assignment {
-	pub fn para_id(&self) -> ParaId {
-		match self {
-			Assignment::Parachain(para_id) => *para_id,
-			Assignment::ParathreadA(entry) => entry.claim.0,
-		}
-	}
-
-	pub fn get_collator(&self) -> Option<CollatorId> {
-		match self {
-			Assignment::Parachain(_) => None,
-			Assignment::ParathreadA(entry) => entry.claim.1.clone(),
-		}
-	}
-
-	// Note: this happens on session change. We don't rescheduled pay-as-you-go parachains if they have been tried to run at least once
-	pub fn from_core_occupied(co: CoreOccupied) -> Option<Assignment> {
-		match co {
-			CoreOccupied::Parachain(para_id) => Some(Assignment::Parachain(para_id)),
-			CoreOccupied::Parathread(entry) =>
-				if entry.retries > 0 {
-					None
-				} else {
-					Some(Assignment::ParathreadA(entry))
-				},
-			CoreOccupied::Free => None,
-		}
-	}
-
-	pub fn to_core_assignment(self, core_idx: CoreIndex, group_idx: GroupIndex) -> CoreAssignment {
-		CoreAssignment { core: core_idx, group_idx, kind: self }
-	}
-
-	pub fn from_core_assignment(ca: CoreAssignment) -> Assignment {
-		ca.kind
-	}
-}
-
-pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
+pub trait AssignmentProvider<BlockNumber> {
+	/// How many cores are allocated to this provider.
 	fn session_core_count() -> u32;
 
-	fn new_session();
-
+	/// Pops an [`Assignment`] from the provider for a specified [`CoreIndex`].
+	/// The `concluded_para` field makes the caller report back to the provider
+	/// which [`ParaId`] it processed last on the supplied [`CoreIndex`].
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		concluded_para: Option<ParaId>,
 	) -> Option<Assignment>;
 
-	// on session change
+	/// Push back an already popped assignment. Intended for provider implementations
+	/// that need to be able to keep track of assignments over session boundaries,
+	/// such as the on demand assignment provider.
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
-	fn get_availability_period(core_idx: CoreIndex) -> BlockNumberFor<T>;
+	/// Returns the availability period specified by the implementation.
+	/// See
+	/// [`HostConfiguration::paras_availability_period`]
+	/// for more information.
+	fn get_availability_period(core_idx: CoreIndex) -> BlockNumber;
 
+	/// How many times a collation can time out on availability.
+	/// Zero retries still means that a collation can be provided as per the slot auction assignment provider.
 	fn get_max_retries(core_idx: CoreIndex) -> u32;
 }
 
-/// How a free core is scheduled to be assigned.
+/// How a core is mapped to a backing group and a `ParaId`
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub struct CoreAssignment {
+pub struct CoreAssignment<BlockNumber> {
 	/// The core that is assigned.
 	pub core: CoreIndex,
-	/// The kind of the assignment.
-	pub kind: Assignment,
+	/// The para id and accompanying information needed to collate and back a parablock.
+	pub paras_entry: ParasEntry<BlockNumber>,
 	/// The index of the validator group assigned to the core.
 	pub group_idx: GroupIndex,
 }
 
-impl CoreAssignment {
-	pub fn new(core: CoreIndex, kind: Assignment, group_idx: GroupIndex) -> Self {
-		CoreAssignment { core, kind, group_idx }
+impl<BlockNumber> CoreAssignment<BlockNumber> {
+	/// Returns the [`ParaId`] of the assignment.
+	pub fn para_id(&self) -> ParaId {
+		self.paras_entry.para_id()
 	}
 
-	/// Get the ID of a collator who is required to collate this block.
-	pub fn required_collator(&self) -> Option<&CollatorId> {
-		match &self.kind {
-			Assignment::Parachain(_) => None,
-			Assignment::ParathreadA(entry) => entry.claim.1.as_ref(),
-		}
-	}
-
-	/// Get the `CoreOccupied` from this.
-	pub fn to_core_occupied(self) -> CoreOccupied {
-		match self.kind {
-			Assignment::Parachain(para_id) => CoreOccupied::Parachain(para_id),
-			Assignment::ParathreadA(entry) => CoreOccupied::Parathread(entry),
-		}
-	}
-
-	pub fn to_scheduled_core(self) -> ScheduledCore {
-		ScheduledCore { para_id: self.kind.para_id(), collator: self.kind.get_collator() }
+	/// Returns the inner [`ParasEntry`] of the assignment.
+	pub fn to_paras_entry(self) -> ParasEntry<BlockNumber> {
+		self.paras_entry
 	}
 }

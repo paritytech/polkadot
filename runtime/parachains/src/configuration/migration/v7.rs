@@ -24,6 +24,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::SessionIndex;
+use sp_runtime::Perbill;
 use sp_std::vec::Vec;
 
 use frame_support::traits::OnRuntimeUpgrade;
@@ -118,21 +119,18 @@ validation_upgrade_cooldown              : pre.validation_upgrade_cooldown,
 validation_upgrade_delay                 : pre.validation_upgrade_delay,
 max_pov_size                             : pre.max_pov_size,
 max_downward_message_size                : pre.max_downward_message_size,
-hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
-hrmp_max_parathread_outbound_channels    : pre.hrmp_max_parathread_outbound_channels,
 hrmp_sender_deposit                      : pre.hrmp_sender_deposit,
 hrmp_recipient_deposit                   : pre.hrmp_recipient_deposit,
 hrmp_channel_max_capacity                : pre.hrmp_channel_max_capacity,
 hrmp_channel_max_total_size              : pre.hrmp_channel_max_total_size,
 hrmp_max_parachain_inbound_channels      : pre.hrmp_max_parachain_inbound_channels,
-hrmp_max_parathread_inbound_channels     : pre.hrmp_max_parathread_inbound_channels,
+hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
 hrmp_channel_max_message_size            : pre.hrmp_channel_max_message_size,
 code_retention_period                    : pre.code_retention_period,
-parathread_cores                         : pre.parathread_cores,
-parathread_retries                       : pre.parathread_retries,
+on_demand_cores                          : pre.parathread_cores,
+on_demand_retries                        : pre.parathread_retries,
 group_rotation_frequency                 : pre.group_rotation_frequency,
-chain_availability_period                : pre.chain_availability_period,
-thread_availability_period               : pre.thread_availability_period,
+paras_availability_period                : pre.chain_availability_period,
 scheduling_lookahead                     : pre.scheduling_lookahead,
 max_validators_per_core                  : pre.max_validators_per_core,
 max_validators                           : pre.max_validators,
@@ -147,6 +145,11 @@ pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 async_backing_params                     : pre.async_backing_params,
 executor_params                          : pre.executor_params,
+on_demand_queue_max_size                 : 10_000u32,
+on_demand_base_fee                       : 10_000_000u128,
+on_demand_fee_variability                : Perbill::from_percent(3),
+on_demand_target_queue_utilization       : Perbill::from_percent(25),
+on_demand_ttl                            : 5u32.into(),
 		}
 	};
 
@@ -258,20 +261,17 @@ mod tests {
 					assert_eq!(v6.max_pov_size                             , v7.max_pov_size);
 					assert_eq!(v6.max_downward_message_size                , v7.max_downward_message_size);
 					assert_eq!(v6.hrmp_max_parachain_outbound_channels     , v7.hrmp_max_parachain_outbound_channels);
-					assert_eq!(v6.hrmp_max_parathread_outbound_channels    , v7.hrmp_max_parathread_outbound_channels);
 					assert_eq!(v6.hrmp_sender_deposit                      , v7.hrmp_sender_deposit);
 					assert_eq!(v6.hrmp_recipient_deposit                   , v7.hrmp_recipient_deposit);
 					assert_eq!(v6.hrmp_channel_max_capacity                , v7.hrmp_channel_max_capacity);
 					assert_eq!(v6.hrmp_channel_max_total_size              , v7.hrmp_channel_max_total_size);
 					assert_eq!(v6.hrmp_max_parachain_inbound_channels      , v7.hrmp_max_parachain_inbound_channels);
-					assert_eq!(v6.hrmp_max_parathread_inbound_channels     , v7.hrmp_max_parathread_inbound_channels);
 					assert_eq!(v6.hrmp_channel_max_message_size            , v7.hrmp_channel_max_message_size);
 					assert_eq!(v6.code_retention_period                    , v7.code_retention_period);
-					assert_eq!(v6.parathread_cores                         , v7.parathread_cores);
-					assert_eq!(v6.parathread_retries                       , v7.parathread_retries);
+					assert_eq!(v6.on_demand_cores                          , v7.on_demand_cores);
+					assert_eq!(v6.on_demand_retries                        , v7.on_demand_retries);
 					assert_eq!(v6.group_rotation_frequency                 , v7.group_rotation_frequency);
-					assert_eq!(v6.chain_availability_period                , v7.chain_availability_period);
-					assert_eq!(v6.thread_availability_period               , v7.thread_availability_period);
+					assert_eq!(v6.paras_availability_period                , v7.paras_availability_period);
 					assert_eq!(v6.scheduling_lookahead                     , v7.scheduling_lookahead);
 					assert_eq!(v6.max_validators_per_core                  , v7.max_validators_per_core);
 					assert_eq!(v6.max_validators                           , v7.max_validators);

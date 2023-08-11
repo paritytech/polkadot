@@ -150,4 +150,6 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
+
+	fn set_config_with_perbill() -> Weight { todo!() }
 }

@@ -24,13 +24,14 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use primitives::{
-	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
-	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
-	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
-	HeadData, Id as ParaId, IndexedVec, InherentData as ParachainsInherentData,
-	InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext,
-	UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex,
-	ValidityAttestation,
+	collator_signature_payload,
+	v5::{Assignment, ParasEntry},
+	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
+	CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt, CompactStatement,
+	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
+	Id as ParaId, IndexedVec, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
+	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
+	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -687,12 +688,19 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		);
 		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), used_cores as usize,);
 
+		let config = <configuration::Pallet<T>>::config();
+		let now = <frame_system::Pallet<T>>::block_number() + One::one();
 		// Mark all the used cores as occupied. We expect that their are `backed_and_concluding_cores`
 		// that are pending availability and that there are `used_cores - backed_and_concluding_cores `
 		// which are about to be disputed.
 		let cores = (0..used_cores)
 			.into_iter()
-			.map(|i| CoreOccupied::Parachain(ParaId::from(i as u32)))
+			.map(|i| {
+				CoreOccupied::Paras(ParasEntry::new(
+					Assignment::new(ParaId::from(i as u32)),
+					now + config.on_demand_ttl,
+				))
+			})
 			.collect();
 		scheduler::AvailabilityCores::<T>::set(cores);
 

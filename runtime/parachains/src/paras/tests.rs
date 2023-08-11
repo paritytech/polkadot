@@ -752,8 +752,7 @@ fn full_parachain_cleanup_storage() {
 				minimum_validation_upgrade_delay: 2,
 				// Those are not relevant to this test. However, HostConfiguration is still a
 				// subject for the consistency check.
-				chain_availability_period: 1,
-				thread_availability_period: 1,
+				paras_availability_period: 1,
 				..Default::default()
 			},
 			..Default::default()

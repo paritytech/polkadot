@@ -22,7 +22,7 @@ zombienet-tests-parachains-smoke-test:
     - export DEBUG=zombie,zombie::network-node
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
-    - export COL_IMAGE="docker.io/paritypr/colander:4519" # The collator image is fixed
+    - export COL_IMAGE="docker.io/paritypr/colander:7292" # The collator image is fixed
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
       --github-remote-dir="${GH_DIR}"
