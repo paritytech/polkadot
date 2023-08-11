@@ -1099,9 +1099,11 @@ fn availability_predicate_works() {
 	assert!(paras_availability_period < group_rotation_frequency);
 
 	let chain_a = ParaId::from(1_u32);
+	let thread_a = ParaId::from(2_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(thread_a, ParaKind::Parathread);
 
 		// start a new session with our chain registered.
 		run_to_block(1, |number| match number {
@@ -1119,21 +1121,27 @@ fn availability_predicate_works() {
 			_ => None,
 		});
 
-		// assign an availability core.
+		// assign some availability cores.
 		{
 			let entry_ttl = 10_000;
 			AvailabilityCores::<Test>::mutate(|cores| {
 				cores[0] =
 					CoreOccupied::Paras(ParasEntry::new(Assignment::new(chain_a), entry_ttl));
+				cores[1] =
+					CoreOccupied::Paras(ParasEntry::new(Assignment::new(thread_a), entry_ttl));
 			});
 		}
 
 		run_to_block(1 + paras_availability_period, |_| None);
 
+		assert!(Scheduler::availability_timeout_predicate().is_none());
+
 		run_to_block(1 + group_rotation_frequency, |_| None);
 
 		{
-			let pred = Scheduler::availability_timeout_predicate();
+			let pred = Scheduler::availability_timeout_predicate()
+				.expect("predicate exists recently after rotation");
+
 			let now = System::block_number();
 			let would_be_timed_out = now - paras_availability_period;
 			for i in 0..AvailabilityCores::<Test>::get().len() {
@@ -1143,13 +1151,16 @@ fn availability_predicate_works() {
 			}
 
 			assert!(!pred(CoreIndex(0), now));
-			assert!(pred(CoreIndex(1), now));
+			assert!(!pred(CoreIndex(1), now));
+			assert!(pred(CoreIndex(2), now));
 
 			// check the tight bound.
 			assert!(pred(CoreIndex(0), now - paras_availability_period));
+			assert!(pred(CoreIndex(1), now - paras_availability_period));
 
 			// check the threshold is exact.
 			assert!(!pred(CoreIndex(0), now - paras_availability_period + 1));
+			assert!(!pred(CoreIndex(1), now - paras_availability_period + 1));
 		}
 
 		run_to_block(1 + group_rotation_frequency + paras_availability_period, |_| None);

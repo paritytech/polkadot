@@ -366,12 +366,12 @@ impl<T: Config> Pallet<T> {
 		Some(GroupIndex(group_idx as u32))
 	}
 
-	/// Returns a predicate that should be used for timing out occupied cores.
+	/// Returns an optional predicate that should be used for timing out occupied cores.
 	///
-	/// The predicate accepts the index of the core, and the block number since which it has been occupied,
-	/// and the respective parachain and parathread timeouts, i.e. only within
-	/// `max(config.chain_availability_period, config.thread_availability_period)`
-	/// of the last rotation would this return `Some`, unless there are no rotations.
+	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
+	/// block number since which it has been occupied, and the respective parachain timeout, i.e. only within
+	/// `config.paras_availability_period` of the last rotation would this return `Some`,
+	/// unless there are no rotations.
 	///
 	/// The timeout used to depend, but does not depend any more on group rotations. First of all
 	/// it only matters if a para got another chance (a retry). If there is a retry and it happens
@@ -382,18 +382,31 @@ impl<T: Config> Pallet<T> {
 	/// should also be noted that for both malicious and offline backing groups it is actually more
 	/// realistic that the candidate will not be backed to begin with, instead of getting backed
 	/// and then not made available.
-	pub(crate) fn availability_timeout_predicate() -> impl Fn(CoreIndex, BlockNumberFor<T>) -> bool
-	{
-		|core_index: CoreIndex, pending_since| {
-			let availability_cores = AvailabilityCores::<T>::get();
-			let availability_period = T::AssignmentProvider::get_availability_period(core_index);
-			let now = <frame_system::Pallet<T>>::block_number();
-			match availability_cores.get(core_index.0 as usize) {
-				None => true, // out-of-bounds, doesn't really matter what is returned.
-				Some(CoreOccupied::Free) => true, // core free, still doesn't matter.
-				Some(CoreOccupied::Paras(_)) =>
-					now.saturating_sub(pending_since) >= availability_period,
-			}
+	pub(crate) fn availability_timeout_predicate(
+	) -> Option<impl Fn(CoreIndex, BlockNumberFor<T>) -> bool> {
+		let now = <frame_system::Pallet<T>>::block_number();
+		let config = <configuration::Pallet<T>>::config();
+		let session_start = <SessionStartBlock<T>>::get();
+
+		let blocks_since_session_start = now.saturating_sub(session_start);
+		let blocks_since_last_rotation =
+			blocks_since_session_start % config.group_rotation_frequency.max(1u8.into());
+
+		if blocks_since_last_rotation >= config.paras_availability_period {
+			None
+		} else {
+			Some(|core_index: CoreIndex, pending_since| {
+				let availability_cores = AvailabilityCores::<T>::get();
+				let availability_period =
+					T::AssignmentProvider::get_availability_period(core_index);
+				let now = <frame_system::Pallet<T>>::block_number();
+				match availability_cores.get(core_index.0 as usize) {
+					None => true, // out-of-bounds, doesn't really matter what is returned.
+					Some(CoreOccupied::Free) => true, // core free, still doesn't matter.
+					Some(CoreOccupied::Paras(_)) =>
+						now.saturating_sub(pending_since) >= availability_period,
+				}
+			})
 		}
 	}
 
