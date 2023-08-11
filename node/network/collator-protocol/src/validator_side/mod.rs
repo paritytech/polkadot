@@ -922,6 +922,24 @@ async fn process_incoming_peer_message<Context>(
 				.get(&relay_parent)
 				.map(|s| s.child("advertise-collation"));
 
+			if !state.view.contains(&relay_parent) {
+				gum::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?relay_parent,
+					"Advertise collation out of view",
+				);
+
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					origin,
+					COST_UNEXPECTED_MESSAGE,
+				)
+				.await;
+				return
+			}
+
 			let peer_data = match state.peer_data.get_mut(&origin) {
 				None => {
 					gum::debug!(
@@ -941,24 +959,6 @@ async fn process_incoming_peer_message<Context>(
 				},
 				Some(p) => p,
 			};
-
-			if !state.view.contains(&relay_parent) {
-				gum::debug!(
-					target: LOG_TARGET,
-					peer_id = ?origin,
-					?relay_parent,
-					"Advertise collation out of view",
-				);
-
-				modify_reputation(
-					&mut state.reputation,
-					ctx.sender(),
-					origin,
-					COST_UNEXPECTED_MESSAGE,
-				)
-				.await;
-				return
-			}
 
 			match peer_data.insert_advertisement(relay_parent, &state.view) {
 				Ok((id, para_id)) => {
