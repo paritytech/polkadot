@@ -19,20 +19,16 @@ publish-polkadot-debug-image:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/ # PRs
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/ # i.e. v1.0, v2.1rc1
   variables:
-    CI_IMAGE: ${BUILDAH_IMAGE}
-    GIT_STRATEGY: none
-    DOCKER_USER: ${PARITYPR_USER}
-    DOCKER_PASS: ${PARITYPR_PASS}
-    # scripts/ci/dockerfiles/polkadot_injected_debug.Dockerfile
-    DOCKERFILE: ci/dockerfiles/polkadot_injected_debug.Dockerfile
-    IMAGE_NAME: docker.io/paritypr/polkadot-debug
+    IMAGE_NAME: "polkadot-debug"
+    BINARY: "polkadot,polkadot-execute-worker,polkadot-prepare-worker"
   needs:
     - job: build-linux-stable
       artifacts: true
   after_script:
+    - !reference [.build-push-image, after_script]
     # pass artifacts to the zombienet-tests job
     # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
-    - echo "PARACHAINS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/parachains.env
+    - echo "PARACHAINS_IMAGE_NAME=${IMAGE}" > ./artifacts/parachains.env
     - echo "PARACHAINS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/parachains.env
   artifacts:
     reports:
@@ -48,20 +44,15 @@ publish-test-collators-image:
     - .build-push-image
     - .zombienet-refs
   variables:
-    CI_IMAGE: ${BUILDAH_IMAGE}
-    GIT_STRATEGY: none
-    DOCKER_USER: ${PARITYPR_USER}
-    DOCKER_PASS: ${PARITYPR_PASS}
-    # scripts/ci/dockerfiles/collator_injected.Dockerfile
-    DOCKERFILE: ci/dockerfiles/collator_injected.Dockerfile
-    IMAGE_NAME: docker.io/paritypr/colander
+    IMAGE_NAME: "colander"
+    BINARY: "adder-collator,undying-collator"
   needs:
     - job: build-test-collators
       artifacts: true
   after_script:
-    - buildah logout --all
+    - !reference [.build-push-image, after_script]
     # pass artifacts to the zombienet-tests job
-    - echo "COLLATOR_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/collator.env
+    - echo "COLLATOR_IMAGE_NAME=${IMAGE}" > ./artifacts/collator.env
     - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
   artifacts:
     reports:
@@ -76,20 +67,15 @@ publish-malus-image:
     - .build-push-image
     - .zombienet-refs
   variables:
-    CI_IMAGE: ${BUILDAH_IMAGE}
-    GIT_STRATEGY: none
-    DOCKER_USER: ${PARITYPR_USER}
-    DOCKER_PASS: ${PARITYPR_PASS}
-    # scripts/ci/dockerfiles/malus_injected.Dockerfile
-    DOCKERFILE: ci/dockerfiles/malus_injected.Dockerfile
-    IMAGE_NAME: docker.io/paritypr/malus
+    IMAGE_NAME: "malus"
+    BINARY: "malus,polkadot-execute-worker,polkadot-prepare-worker"
   needs:
     - job: build-malus
       artifacts: true
   after_script:
-    - buildah logout "$IMAGE_NAME"
+    - !reference [.build-push-image, after_script]
     # pass artifacts to the zombienet-tests job
-    - echo "MALUS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/malus.env
+    - echo "MALUS_IMAGE_NAME=${IMAGE}" > ./artifacts/malus.env
     - echo "MALUS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/malus.env
   artifacts:
     reports:
@@ -103,13 +89,11 @@ publish-staking-miner-image:
     - .build-push-image
     - .publish-refs
   variables:
-    CI_IMAGE: ${BUILDAH_IMAGE}
-    # scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
-    DOCKERFILE: ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
-    IMAGE_NAME: docker.io/paritytech/staking-miner
-    GIT_STRATEGY: none
-    DOCKER_USER: ${Docker_Hub_User_Parity}
-    DOCKER_PASS: ${Docker_Hub_Pass_Parity}
+    IMAGE_NAME: "staking-miner"
+    BINARY: "staking-miner"
+    DOCKER_OWNER: "paritytech"
+    DOCKER_USER: "${Docker_Hub_User_Parity}"
+    DOCKER_PASS: "${Docker_Hub_Pass_Parity}"
   needs:
     - job: build-staking-miner
       artifacts: true
@@ -122,11 +106,11 @@ publish-polkadot-image-description:
     DOCKER_PASSWORD: ${Docker_Hub_Pass_Parity}
     DOCKERHUB_REPOSITORY: parity/polkadot
     SHORT_DESCRIPTION: "Polkadot Official Docker Image"
-    README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/polkadot_Dockerfile.README.md
+    README_FILEPATH: $CI_PROJECT_DIR/scripts/ci/dockerfiles/polkadot/polkadot_Dockerfile.README.md
   rules:
     - if: $CI_COMMIT_REF_NAME == "master"
       changes:
-        - scripts/ci/dockerfiles/polkadot_Dockerfile.README.md
+        - scripts/ci/dockerfiles/polkadot/polkadot_Dockerfile.README.md
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
   script:
