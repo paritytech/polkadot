@@ -1495,6 +1495,7 @@ pub mod migrations {
 	pub type Unreleased = (
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
+		pallet_staking::migrations::v14::MigrateToV14<Runtime>,
 	);
 }
 
