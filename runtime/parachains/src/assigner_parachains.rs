@@ -17,7 +17,10 @@
 //! The bulk (parachain slot auction) blockspace assignment provider.
 //! This provider is tightly coupled with the configuration and paras modules.
 
-use crate::{configuration, paras, scheduler_common::AssignmentProvider};
+use crate::{
+	configuration, paras,
+	scheduler_common::{AssignmentProvider, AssignmentProviderConfig},
+};
 use frame_system::pallet_prelude::BlockNumberFor;
 pub use pallet::*;
 use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
@@ -53,13 +56,15 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	/// this is a no-op in the case of a bulk assignment slot.
 	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
 
-	fn get_availability_period(_: CoreIndex) -> BlockNumberFor<T> {
-		<configuration::Pallet<T>>::config().paras_availability_period
-	}
-
-	/// There are retries set up in bulk assignment as the next slot already goes to
-	/// same [`ParaId`].
-	fn get_max_retries(_: CoreIndex) -> u32 {
-		0
+	fn get_provider_config(_core_idx: CoreIndex) -> AssignmentProviderConfig<BlockNumberFor<T>> {
+		let config = <configuration::Pallet<T>>::config();
+		AssignmentProviderConfig {
+			availability_period: config.paras_availability_period,
+			// The next assignment already goes to the same [`ParaId`], no timeout tracking needed.
+			max_availability_timeouts: 0,
+			// The next assignment already goes to the same [`ParaId`], this can be any number
+			// that's high enough to clear the time it takes to clear backing/availability.
+			ttl: BlockNumberFor::<T>::from(10u32),
+		}
 	}
 }

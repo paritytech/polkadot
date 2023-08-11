@@ -32,7 +32,10 @@ mod mock_helpers;
 #[cfg(test)]
 mod tests;
 
-use crate::{configuration, paras, scheduler_common::AssignmentProvider};
+use crate::{
+	configuration, paras,
+	scheduler_common::{AssignmentProvider, AssignmentProviderConfig},
+};
 
 use frame_support::{
 	pallet_prelude::*,
@@ -585,13 +588,12 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 		}
 	}
 
-	fn get_availability_period(_core_index: CoreIndex) -> BlockNumberFor<T> {
+	fn get_provider_config(_core_idx: CoreIndex) -> AssignmentProviderConfig<BlockNumberFor<T>> {
 		let config = <configuration::Pallet<T>>::config();
-		config.paras_availability_period
-	}
-
-	fn get_max_retries(_core_idx: CoreIndex) -> u32 {
-		let config = <configuration::Pallet<T>>::config();
-		config.on_demand_retries
+		AssignmentProviderConfig {
+			availability_period: config.paras_availability_period,
+			max_availability_timeouts: config.on_demand_retries,
+			ttl: config.on_demand_ttl,
+		}
 	}
 }

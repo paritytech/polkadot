@@ -19,7 +19,10 @@
 use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
 
-use crate::{configuration, paras, scheduler_common::AssignmentProvider};
+use crate::{
+	configuration, paras,
+	scheduler_common::{AssignmentProvider, AssignmentProviderConfig},
+};
 
 pub use pallet::*;
 
@@ -93,25 +96,13 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 		}
 	}
 
-	fn get_availability_period(core_idx: CoreIndex) -> BlockNumberFor<T> {
+	fn get_provider_config(core_idx: CoreIndex) -> AssignmentProviderConfig<BlockNumberFor<T>> {
 		if Pallet::<T>::is_bulk_core(&core_idx) {
-			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_availability_period(
+			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_provider_config(
 				core_idx,
 			)
 		} else {
-			<OnDemandAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_availability_period(
-				core_idx,
-			)
-		}
-	}
-
-	fn get_max_retries(core_idx: CoreIndex) -> u32 {
-		if Pallet::<T>::is_bulk_core(&core_idx) {
-			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_max_retries(
-				core_idx,
-			)
-		} else {
-			<OnDemandAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_max_retries(
+			<OnDemandAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_provider_config(
 				core_idx,
 			)
 		}

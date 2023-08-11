@@ -56,6 +56,20 @@ pub enum FreedReason {
 	TimedOut,
 }
 
+/// A set of variables required by the scheduler in order to operate.
+pub struct AssignmentProviderConfig<BlockNumber> {
+	/// The availability period specified by the implementation.
+	/// See [`HostConfiguration::paras_availability_period`] for more information.
+	pub availability_period: BlockNumber,
+
+	/// How many times a collation can time out on availability.
+	/// Zero timeouts still means that a collation can be provided as per the slot auction assignment provider.
+	pub max_availability_timeouts: u32,
+
+	/// How long the collator has to provide a collation to the backing group before being dropped.
+	pub ttl: BlockNumber,
+}
+
 pub trait AssignmentProvider<BlockNumber> {
 	/// How many cores are allocated to this provider.
 	fn session_core_count() -> u32;
@@ -73,15 +87,8 @@ pub trait AssignmentProvider<BlockNumber> {
 	/// such as the on demand assignment provider.
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
-	/// Returns the availability period specified by the implementation.
-	/// See
-	/// [`HostConfiguration::paras_availability_period`]
-	/// for more information.
-	fn get_availability_period(core_idx: CoreIndex) -> BlockNumber;
-
-	/// How many times a collation can time out on availability.
-	/// Zero retries still means that a collation can be provided as per the slot auction assignment provider.
-	fn get_max_retries(core_idx: CoreIndex) -> u32;
+	/// Returns a set of variables needed by the scheduler
+	fn get_provider_config(core_idx: CoreIndex) -> AssignmentProviderConfig<BlockNumber>;
 }
 
 /// How a core is mapped to a backing group and a `ParaId`
