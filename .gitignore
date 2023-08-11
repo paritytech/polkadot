@@ -12,4 +12,5 @@ polkadot.*
 .env
 
 artifacts
+release-artifacts
 release.json
