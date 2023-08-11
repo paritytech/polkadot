@@ -243,7 +243,11 @@ pub mod pallet {
 	{
 		// Handle timeouts for any availability core work.
 		let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
-		let freed_timeout = <inclusion::Pallet<T>>::collect_pending(availability_pred);
+		let freed_timeout = if let Some(pred) = availability_pred {
+			<inclusion::Pallet<T>>::collect_pending(pred)
+		} else {
+			Vec::new()
+		};
 
 		// Schedule paras again, given freed cores, and reasons for freeing.
 		let freed = freed_concluded

@@ -98,8 +98,8 @@ impl GenesisConfigBuilder {
 		let config = &mut genesis.configuration.config;
 		config.hrmp_channel_max_capacity = self.hrmp_channel_max_capacity;
 		config.hrmp_channel_max_message_size = self.hrmp_channel_max_message_size;
-		config.hrmp_max_paras_outbound_channels = self.hrmp_max_paras_outbound_channels;
-		config.hrmp_max_paras_inbound_channels = self.hrmp_max_paras_inbound_channels;
+		config.hrmp_max_parachain_outbound_channels = self.hrmp_max_paras_outbound_channels;
+		config.hrmp_max_parachain_inbound_channels = self.hrmp_max_paras_inbound_channels;
 		config.hrmp_max_message_num_per_candidate = self.hrmp_max_message_num_per_candidate;
 		config.hrmp_channel_max_total_size = self.hrmp_channel_max_total_size;
 		config.hrmp_sender_deposit = self.hrmp_sender_deposit;

@@ -305,9 +305,9 @@ fn setting_pending_config_members() {
 			hrmp_recipient_deposit: 4905,
 			hrmp_channel_max_capacity: 3921,
 			hrmp_channel_max_total_size: 7687,
-			hrmp_max_paras_inbound_channels: 37,
+			hrmp_max_parachain_inbound_channels: 37,
 			hrmp_channel_max_message_size: 8192,
-			hrmp_max_paras_outbound_channels: 10,
+			hrmp_max_parachain_outbound_channels: 10,
 			hrmp_max_message_num_per_candidate: 20,
 			pvf_voting_ttl: 3,
 			minimum_validation_upgrade_delay: 20,
@@ -445,9 +445,9 @@ fn setting_pending_config_members() {
 			new_config.hrmp_channel_max_total_size,
 		)
 		.unwrap();
-		Configuration::set_hrmp_max_paras_inbound_channels(
+		Configuration::set_hrmp_max_parachain_inbound_channels(
 			RuntimeOrigin::root(),
-			new_config.hrmp_max_paras_inbound_channels,
+			new_config.hrmp_max_parachain_inbound_channels,
 		)
 		.unwrap();
 		Configuration::set_hrmp_channel_max_message_size(
@@ -455,9 +455,9 @@ fn setting_pending_config_members() {
 			new_config.hrmp_channel_max_message_size,
 		)
 		.unwrap();
-		Configuration::set_hrmp_max_paras_outbound_channels(
+		Configuration::set_hrmp_max_parachain_outbound_channels(
 			RuntimeOrigin::root(),
-			new_config.hrmp_max_paras_outbound_channels,
+			new_config.hrmp_max_parachain_outbound_channels,
 		)
 		.unwrap();
 		Configuration::set_hrmp_max_message_num_per_candidate(

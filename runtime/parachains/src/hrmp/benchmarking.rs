@@ -189,10 +189,10 @@ frame_benchmarking::benchmarks! {
 
 		// first, update the configs to support this many open channels...
 		assert_ok!(
-			Configuration::<T>::set_hrmp_max_paras_outbound_channels(frame_system::RawOrigin::Root.into(), e + 1)
+			Configuration::<T>::set_hrmp_max_parachain_outbound_channels(frame_system::RawOrigin::Root.into(), e + 1)
 		);
 		assert_ok!(
-			Configuration::<T>::set_hrmp_max_paras_inbound_channels(frame_system::RawOrigin::Root.into(), i + 1)
+			Configuration::<T>::set_hrmp_max_parachain_inbound_channels(frame_system::RawOrigin::Root.into(), i + 1)
 		);
 		// .. and enact it.
 		Configuration::<T>::initializer_on_new_session(&Shared::<T>::scheduled_session());

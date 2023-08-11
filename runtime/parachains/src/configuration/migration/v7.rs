@@ -123,8 +123,8 @@ hrmp_sender_deposit                      : pre.hrmp_sender_deposit,
 hrmp_recipient_deposit                   : pre.hrmp_recipient_deposit,
 hrmp_channel_max_capacity                : pre.hrmp_channel_max_capacity,
 hrmp_channel_max_total_size              : pre.hrmp_channel_max_total_size,
-hrmp_max_paras_inbound_channels          : pre.hrmp_max_parachain_inbound_channels,
-hrmp_max_paras_outbound_channels         : pre.hrmp_max_parachain_outbound_channels,
+hrmp_max_parachain_inbound_channels      : pre.hrmp_max_parachain_inbound_channels,
+hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
 hrmp_channel_max_message_size            : pre.hrmp_channel_max_message_size,
 code_retention_period                    : pre.code_retention_period,
 on_demand_cores                          : pre.parathread_cores,
@@ -260,12 +260,12 @@ mod tests {
 					assert_eq!(v6.validation_upgrade_delay                 , v7.validation_upgrade_delay);
 					assert_eq!(v6.max_pov_size                             , v7.max_pov_size);
 					assert_eq!(v6.max_downward_message_size                , v7.max_downward_message_size);
-					assert_eq!(v6.hrmp_max_paras_outbound_channels         , v7.hrmp_max_paras_outbound_channels);
+					assert_eq!(v6.hrmp_max_parachain_outbound_channels     , v7.hrmp_max_parachain_outbound_channels);
 					assert_eq!(v6.hrmp_sender_deposit                      , v7.hrmp_sender_deposit);
 					assert_eq!(v6.hrmp_recipient_deposit                   , v7.hrmp_recipient_deposit);
 					assert_eq!(v6.hrmp_channel_max_capacity                , v7.hrmp_channel_max_capacity);
 					assert_eq!(v6.hrmp_channel_max_total_size              , v7.hrmp_channel_max_total_size);
-					assert_eq!(v6.hrmp_max_paras_inbound_channels          , v7.hrmp_max_paras_inbound_channels);
+					assert_eq!(v6.hrmp_max_parachain_inbound_channels      , v7.hrmp_max_parachain_inbound_channels);
 					assert_eq!(v6.hrmp_channel_max_message_size            , v7.hrmp_channel_max_message_size);
 					assert_eq!(v6.code_retention_period                    , v7.code_retention_period);
 					assert_eq!(v6.on_demand_cores                          , v7.on_demand_cores);

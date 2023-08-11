@@ -140,8 +140,8 @@ pub struct HostConfiguration<BlockNumber> {
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
 	pub max_downward_message_size: u32,
-	/// The maximum number of outbound HRMP channels a paras is allowed to open.
-	pub hrmp_max_paras_outbound_channels: u32,
+	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
+	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
 	pub hrmp_sender_deposit: Balance,
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
@@ -150,8 +150,8 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_channel_max_capacity: u32,
 	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
 	pub hrmp_channel_max_total_size: u32,
-	/// The maximum number of inbound HRMP channels a paras is allowed to accept.
-	pub hrmp_max_paras_inbound_channels: u32,
+	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
+	pub hrmp_max_parachain_inbound_channels: u32,
 	/// The maximum size of a message that could ever be put into an HRMP channel.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
@@ -279,9 +279,9 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_recipient_deposit: Default::default(),
 			hrmp_channel_max_capacity: Default::default(),
 			hrmp_channel_max_total_size: Default::default(),
-			hrmp_max_paras_inbound_channels: Default::default(),
+			hrmp_max_parachain_inbound_channels: Default::default(),
 			hrmp_channel_max_message_size: Default::default(),
-			hrmp_max_paras_outbound_channels: Default::default(),
+			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
@@ -398,11 +398,12 @@ where
 			})
 		}
 
-		if self.hrmp_max_paras_outbound_channels > crate::hrmp::HRMP_MAX_OUTBOUND_CHANNELS_BOUND {
+		if self.hrmp_max_parachain_outbound_channels > crate::hrmp::HRMP_MAX_OUTBOUND_CHANNELS_BOUND
+		{
 			return Err(MaxHrmpOutboundChannelsExceeded)
 		}
 
-		if self.hrmp_max_paras_inbound_channels > crate::hrmp::HRMP_MAX_INBOUND_CHANNELS_BOUND {
+		if self.hrmp_max_parachain_inbound_channels > crate::hrmp::HRMP_MAX_INBOUND_CHANNELS_BOUND {
 			return Err(MaxHrmpInboundChannelsExceeded)
 		}
 
@@ -946,19 +947,19 @@ pub mod pallet {
 			})
 		}
 
-		/// Sets the maximum number of inbound HRMP channels a paras is allowed to accept.
+		/// Sets the maximum number of inbound HRMP channels a parachain is allowed to accept.
 		#[pallet::call_index(34)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_hrmp_max_paras_inbound_channels(
+		pub fn set_hrmp_max_parachain_inbound_channels(
 			origin: OriginFor<T>,
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.hrmp_max_paras_inbound_channels = new;
+				config.hrmp_max_parachain_inbound_channels = new;
 			})
 		}
 
@@ -981,13 +982,13 @@ pub mod pallet {
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_hrmp_max_paras_outbound_channels(
+		pub fn set_hrmp_max_parachain_outbound_channels(
 			origin: OriginFor<T>,
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.hrmp_max_paras_outbound_channels = new;
+				config.hrmp_max_parachain_outbound_channels = new;
 			})
 		}
 
