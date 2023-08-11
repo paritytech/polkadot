@@ -23,9 +23,6 @@ use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 
 pub use pallet::*;
 
-//#[cfg(test)]
-//mod tests;
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -49,7 +46,7 @@ impl<T: Config> Pallet<T> {
 	// Helper fn for the AssignmentProvider implementation.
 	// Assumes that the first allocation of cores is to bulk parachains.
 	// This function will return false if there are no cores assigned to the bulk parachain assigner.
-	fn is_parachain_core(core_idx: &CoreIndex) -> bool {
+	fn is_bulk_core(core_idx: &CoreIndex) -> bool {
 		let parachain_cores =
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::session_core_count();
 		(0..parachain_cores).contains(&core_idx.0)
@@ -71,7 +68,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 		core_idx: CoreIndex,
 		concluded_para: Option<ParaId>,
 	) -> Option<Assignment> {
-		if Pallet::<T>::is_parachain_core(&core_idx) {
+		if Pallet::<T>::is_bulk_core(&core_idx) {
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::pop_assignment_for_core(
 				core_idx,
 				concluded_para,
@@ -85,7 +82,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	}
 
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
-		if Pallet::<T>::is_parachain_core(&core_idx) {
+		if Pallet::<T>::is_bulk_core(&core_idx) {
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::push_assignment_for_core(
 				core_idx, assignment,
 			)
@@ -97,7 +94,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	}
 
 	fn get_availability_period(core_idx: CoreIndex) -> BlockNumberFor<T> {
-		if Pallet::<T>::is_parachain_core(&core_idx) {
+		if Pallet::<T>::is_bulk_core(&core_idx) {
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_availability_period(
 				core_idx,
 			)
@@ -109,7 +106,7 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	}
 
 	fn get_max_retries(core_idx: CoreIndex) -> u32 {
-		if Pallet::<T>::is_parachain_core(&core_idx) {
+		if Pallet::<T>::is_bulk_core(&core_idx) {
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::get_max_retries(
 				core_idx,
 			)
