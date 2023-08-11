@@ -36,7 +36,11 @@ use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 
 use frame_support::{
 	pallet_prelude::*,
-	traits::{Currency, ExistenceRequirement, WithdrawReasons},
+	traits::{
+		Currency,
+		ExistenceRequirement::{self, AllowDeath, KeepAlive},
+		WithdrawReasons,
+	},
 };
 use frame_system::pallet_prelude::*;
 use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
@@ -160,8 +164,6 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Insufficient funds to place an on demand order based on the current spot price, making the call invalid.
-		InsufficientFunds,
 		/// The `ParaId` supplied to the `place_order` call is not a valid `ParaThread`, making the call is invalid.
 		InvalidParaId,
 		/// The order queue is full, `place_order` will not continue.
@@ -221,16 +223,15 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Create a single on demand core order.
-		/// Will use the spot price for the current block and can be set to reap the account if needed.
+		/// Will use the spot price for the current block and will reap the account if needed.
 		///
 		/// Parameters:
 		/// - `origin`: The sender of the call, funds will be withdrawn from this account.
 		/// - `max_amount`: The maximum balance to withdraw from the origin to place an order.
 		/// - `para_id`: A `ParaId` the origin wants to provide blockspace for.
-		/// - `keep_alive`: Should the transfer from the origin use the existential deposit keep alive checks.
 		///
 		/// Errors:
-		/// - `InsufficientFunds`
+		/// - `InsufficientBalance`: from the Currency implementation
 		/// - `InvalidParaId`
 		/// - `QueueFull`
 		/// - `SpotPriceHigherThanMaxAmount`
@@ -240,57 +241,41 @@ pub mod pallet {
 		/// - `SpotOrderPlaced`
 		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::place_order(OnDemandQueue::<T>::get().len() as u32))]
-		pub fn place_order(
+		pub fn place_order_allow_death(
 			origin: OriginFor<T>,
 			max_amount: BalanceOf<T>,
 			para_id: ParaId,
-			keep_alive: bool,
 		) -> DispatchResult {
-			// Is the tx signed
 			let sender = ensure_signed(origin)?;
+			Pallet::<T>::do_place_order(sender, max_amount, para_id, AllowDeath)
+		}
 
-			let config = <configuration::Pallet<T>>::config();
-
-			// Are there any schedulable cores in this session
-			ensure!(config.on_demand_cores > 0, Error::<T>::NoOnDemandCores);
-
-			// Traffic always falls back to 1.0
-			let traffic = SpotTraffic::<T>::get();
-
-			// Calculate spot price
-			let spot_price: BalanceOf<T> = traffic
-				.saturating_mul_int(config.on_demand_base_fee.saturated_into::<BalanceOf<T>>());
-
-			// Is the current price higher than `max_amount`
-			ensure!(spot_price.le(&max_amount), Error::<T>::SpotPriceHigherThanMaxAmount);
-
-			let existence_requirement = match keep_alive {
-				true => ExistenceRequirement::KeepAlive,
-				false => ExistenceRequirement::AllowDeath,
-			};
-
-			// Charge the sending account the spot price
-			T::Currency::withdraw(
-				&sender,
-				spot_price,
-				WithdrawReasons::FEE,
-				existence_requirement,
-			)?;
-
-			let assignment = Assignment::new(para_id);
-
-			let res = Pallet::<T>::add_on_demand_assignment(assignment, QueuePushDirection::Back);
-
-			match res {
-				Ok(_) => {
-					Pallet::<T>::deposit_event(Event::<T>::OnDemandOrderPlaced {
-						para_id,
-						spot_price,
-					});
-					return Ok(())
-				},
-				Err(err) => return Err(err),
-			}
+		/// Same as the [`place_order_allow_death`] call , but with a check that placing the order
+		/// will not reap the account.
+		///
+		/// Parameters:
+		/// - `origin`: The sender of the call, funds will be withdrawn from this account.
+		/// - `max_amount`: The maximum balance to withdraw from the origin to place an order.
+		/// - `para_id`: A `ParaId` the origin wants to provide blockspace for.
+		///
+		/// Errors:
+		/// - `InsufficientBalance`: from the Currency implementation
+		/// - `InvalidParaId`
+		/// - `QueueFull`
+		/// - `SpotPriceHigherThanMaxAmount`
+		/// - `NoOnDemandCores`
+		///
+		/// Events:
+		/// - `SpotOrderPlaced`
+		#[pallet::call_index(1)]
+		#[pallet::weight(<T as Config>::WeightInfo::place_order(OnDemandQueue::<T>::get().len() as u32))]
+		pub fn place_order_keep_alive(
+			origin: OriginFor<T>,
+			max_amount: BalanceOf<T>,
+			para_id: ParaId,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			Pallet::<T>::do_place_order(sender, max_amount, para_id, KeepAlive)
 		}
 	}
 }
@@ -299,6 +284,61 @@ impl<T: Config> Pallet<T>
 where
 	BalanceOf<T>: FixedPointOperand,
 {
+	/// Helper function for `place_order_*` calls. Used to differentiate between placing orders
+	/// with a keep alive check or to allow the account to be reaped.
+	///
+	/// Parameters:
+	/// - `sender`: The sender of the call, funds will be withdrawn from this account.
+	/// - `max_amount`: The maximum balance to withdraw from the origin to place an order.
+	/// - `para_id`: A `ParaId` the origin wants to provide blockspace for.
+	/// - `existence_requirement`: Whether or not to ensure that the account will not be reaped.
+	///
+	/// Errors:
+	/// - `InsufficientBalance`: from the Currency implementation
+	/// - `InvalidParaId`
+	/// - `QueueFull`
+	/// - `SpotPriceHigherThanMaxAmount`
+	/// - `NoOnDemandCores`
+	///
+	/// Events:
+	/// - `SpotOrderPlaced`
+	fn do_place_order(
+		sender: <T as frame_system::Config>::AccountId,
+		max_amount: BalanceOf<T>,
+		para_id: ParaId,
+		existence_requirement: ExistenceRequirement,
+	) -> DispatchResult {
+		let config = <configuration::Pallet<T>>::config();
+
+		// Are there any schedulable cores in this session
+		ensure!(config.on_demand_cores > 0, Error::<T>::NoOnDemandCores);
+
+		// Traffic always falls back to 1.0
+		let traffic = SpotTraffic::<T>::get();
+
+		// Calculate spot price
+		let spot_price: BalanceOf<T> =
+			traffic.saturating_mul_int(config.on_demand_base_fee.saturated_into::<BalanceOf<T>>());
+
+		// Is the current price higher than `max_amount`
+		ensure!(spot_price.le(&max_amount), Error::<T>::SpotPriceHigherThanMaxAmount);
+
+		// Charge the sending account the spot price
+		T::Currency::withdraw(&sender, spot_price, WithdrawReasons::FEE, existence_requirement)?;
+
+		let assignment = Assignment::new(para_id);
+
+		let res = Pallet::<T>::add_on_demand_assignment(assignment, QueuePushDirection::Back);
+
+		match res {
+			Ok(_) => {
+				Pallet::<T>::deposit_event(Event::<T>::OnDemandOrderPlaced { para_id, spot_price });
+				return Ok(())
+			},
+			Err(err) => return Err(err),
+		}
+	}
+
 	/// The spot price multiplier. This is based on the transaction fee calculations defined in:
 	/// https://research.web3.foundation/Polkadot/overview/token-economics#setting-transaction-fees
 	///

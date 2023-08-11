@@ -68,7 +68,7 @@ mod benchmarks {
 
 	use super::*;
 	#[benchmark]
-	fn place_order(s: Linear<1, MAX_FILL_BENCH>) {
+	fn place_order_keep_alive(s: Linear<1, MAX_FILL_BENCH>) {
 		// Setup
 		let caller = whitelisted_caller();
 		let para_id = ParaId::from(111u32);
@@ -82,7 +82,25 @@ mod benchmarks {
 		}
 
 		#[extrinsic_call]
-		_(RawOrigin::Signed(caller.into()), BalanceOf::<T>::max_value(), para_id, false)
+		_(RawOrigin::Signed(caller.into()), BalanceOf::<T>::max_value(), para_id)
+	}
+
+	#[benchmark]
+	fn place_order_allow_death(s: Linear<1, MAX_FILL_BENCH>) {
+		// Setup
+		let caller = whitelisted_caller();
+		let para_id = ParaId::from(111u32);
+		init_parathread::<T>(para_id);
+		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		let assignment = Assignment::new(para_id);
+
+		for _ in 0..s {
+			Pallet::<T>::add_on_demand_assignment(assignment.clone(), QueuePushDirection::Back)
+				.unwrap();
+		}
+
+		#[extrinsic_call]
+		_(RawOrigin::Signed(caller.into()), BalanceOf::<T>::max_value(), para_id)
 	}
 
 	impl_benchmark_test_suite!(

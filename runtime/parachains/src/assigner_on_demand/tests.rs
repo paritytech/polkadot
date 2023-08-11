@@ -207,47 +207,76 @@ fn spot_traffic_decreases_over_time() {
 fn place_order_works() {
 	let alice = 1u64;
 	let amt = 10_000_000u128;
-	let para_a = ParaId::from(111);
-	let reap_account = true;
+	let para_id = ParaId::from(111);
 
 	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		// Initialize the parathread and wait for it to be ready.
-		schedule_blank_para(para_a, ParaKind::Parathread);
+		schedule_blank_para(para_id, ParaKind::Parathread);
 
-		assert!(!Paras::is_parathread(para_a));
+		assert!(!Paras::is_parathread(para_id));
 
 		run_to_block(100, |n| if n == 100 { Some(Default::default()) } else { None });
 
-		assert!(Paras::is_parathread(para_a));
+		assert!(Paras::is_parathread(para_id));
 
 		// Does not work unsigned
 		assert_noop!(
-			OnDemandAssigner::place_order(RuntimeOrigin::none(), amt, para_a, reap_account),
+			OnDemandAssigner::place_order_allow_death(RuntimeOrigin::none(), amt, para_id),
 			BadOrigin
 		);
 
 		// Does not work with max_amount lower than fee
 		let low_max_amt = 1u128;
 		assert_noop!(
-			OnDemandAssigner::place_order(
+			OnDemandAssigner::place_order_allow_death(
 				RuntimeOrigin::signed(alice),
 				low_max_amt,
-				para_a,
-				reap_account
+				para_id,
 			),
 			Error::<Test>::SpotPriceHigherThanMaxAmount,
 		);
 
 		// Does not work with insufficient balance
 		assert_noop!(
-			OnDemandAssigner::place_order(RuntimeOrigin::signed(alice), amt, para_a, false),
+			OnDemandAssigner::place_order_allow_death(RuntimeOrigin::signed(alice), amt, para_id),
 			BalancesError::<Test, _>::InsufficientBalance
 		);
 
 		// Works
 		Balances::make_free_balance_be(&alice, amt);
 		run_to_block(101, |n| if n == 101 { Some(Default::default()) } else { None });
-		assert_ok!(OnDemandAssigner::place_order(RuntimeOrigin::signed(alice), amt, para_a, false));
+		assert_ok!(OnDemandAssigner::place_order_allow_death(
+			RuntimeOrigin::signed(alice),
+			amt,
+			para_id
+		));
+	});
+}
+
+#[test]
+fn place_order_keep_alive_keeps_alive() {
+	let alice = 1u64;
+	let amt = 1u128; // The same as crate::mock's EXISTENTIAL_DEPOSIT
+	let max_amt = 10_000_000u128;
+	let para_id = ParaId::from(111);
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		// Initialize the parathread and wait for it to be ready.
+		schedule_blank_para(para_id, ParaKind::Parathread);
+		Balances::make_free_balance_be(&alice, amt);
+
+		assert!(!Paras::is_parathread(para_id));
+		run_to_block(100, |n| if n == 100 { Some(Default::default()) } else { None });
+		assert!(Paras::is_parathread(para_id));
+
+		assert_noop!(
+			OnDemandAssigner::place_order_keep_alive(
+				RuntimeOrigin::signed(alice),
+				max_amt,
+				para_id
+			),
+			BalancesError::<Test, _>::InsufficientBalance
+		);
 	});
 }
 
@@ -482,7 +511,7 @@ fn cannot_place_order_when_no_on_demand_cores() {
 		assert!(Paras::is_parathread(para_id));
 
 		assert_noop!(
-			OnDemandAssigner::place_order(RuntimeOrigin::signed(alice), amt, para_id, true),
+			OnDemandAssigner::place_order_allow_death(RuntimeOrigin::signed(alice), amt, para_id),
 			Error::<Test>::NoOnDemandCores
 		);
 	});
