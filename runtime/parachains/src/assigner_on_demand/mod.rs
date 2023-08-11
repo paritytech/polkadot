@@ -36,10 +36,7 @@ use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 
 use frame_support::{
 	pallet_prelude::*,
-	traits::{
-		tokens::{ExistenceRequirement, WithdrawReasons},
-		Currency,
-	},
+	traits::{Currency, ExistenceRequirement, WithdrawReasons},
 };
 use frame_system::pallet_prelude::*;
 use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
