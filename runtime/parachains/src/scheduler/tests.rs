@@ -128,7 +128,6 @@ fn genesis_config(config: &HostConfiguration<BlockNumber>) -> MockGenesisConfig 
 #[cfg(test)]
 pub(crate) fn claimqueue_contains_only_none() -> bool {
 	let mut cq = Scheduler::claimqueue();
-	//let mut cq = ClaimQueue::<T>::get();
 	for (_, v) in cq.iter_mut() {
 		v.retain(|e| e.is_some());
 	}
