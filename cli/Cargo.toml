@@ -20,7 +20,7 @@ log = "0.4.17"
 thiserror = "1.0.31"
 futures = "0.3.21"
 pyro = { package = "pyroscope", version = "0.5.3", optional = true }
-pyroscope_pprofrs = { version = "0.2", optional = true }
+pyroscope_pprofrs = { version = "0.2", optional = true, features = ["frame-pointer"] }
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
