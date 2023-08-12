@@ -125,7 +125,6 @@ fn genesis_config(config: &HostConfiguration<BlockNumber>) -> MockGenesisConfig 
 	}
 }
 
-#[cfg(test)]
 pub(crate) fn claimqueue_contains_only_none() -> bool {
 	let mut cq = Scheduler::claimqueue();
 	for (_, v) in cq.iter_mut() {
@@ -135,7 +134,6 @@ pub(crate) fn claimqueue_contains_only_none() -> bool {
 	cq.iter().map(|(_, v)| v.len()).sum::<usize>() == 0
 }
 
-#[cfg(test)]
 pub(crate) fn claimqueue_contains_para_ids<T: Config>(pids: Vec<ParaId>) -> bool {
 	let set: BTreeSet<ParaId> = ClaimQueue::<T>::get()
 		.into_iter()
@@ -149,7 +147,6 @@ pub(crate) fn claimqueue_contains_para_ids<T: Config>(pids: Vec<ParaId>) -> bool
 	pids.into_iter().all(|pid| set.contains(&pid))
 }
 
-#[cfg(test)]
 pub(crate) fn availability_cores_contains_para_ids<T: Config>(pids: Vec<ParaId>) -> bool {
 	let set: BTreeSet<ParaId> = AvailabilityCores::<T>::get()
 		.into_iter()
