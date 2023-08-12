@@ -24,8 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InternalValidationError, InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats,
-	PvfPrepData, ValidationError, ValidationHost,
+	InternalValidationError, InvalidCandidate as WasmInvalidCandidate, PrepareError,
+	PrepareJobKind, PrepareStats, PvfPrepData, ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -93,9 +93,12 @@ const DEFAULT_APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 pub struct Config {
 	/// The path where candidate validation can store compiled artifacts for PVFs.
 	pub artifacts_cache_path: PathBuf,
-	/// The path to the executable which can be used for spawning PVF compilation & validation
-	/// workers.
-	pub program_path: PathBuf,
+	/// The version of the node. `None` can be passed to skip the version check (only for tests).
+	pub node_version: Option<String>,
+	/// Path to the preparation worker binary
+	pub prep_worker_path: PathBuf,
+	/// Path to the execution worker binary
+	pub exec_worker_path: PathBuf,
 }
 
 /// The candidate validation subsystem.
@@ -104,7 +107,7 @@ pub struct CandidateValidationSubsystem {
 	pub metrics: Metrics,
 	#[allow(missing_docs)]
 	pub pvf_metrics: polkadot_node_core_pvf::Metrics,
-	config: Config,
+	config: Option<Config>,
 }
 
 impl CandidateValidationSubsystem {
@@ -113,7 +116,7 @@ impl CandidateValidationSubsystem {
 	///
 	/// Check out [`IsolationStrategy`] to get more details.
 	pub fn with_config(
-		config: Config,
+		config: Option<Config>,
 		metrics: Metrics,
 		pvf_metrics: polkadot_node_core_pvf::Metrics,
 	) -> Self {
@@ -124,16 +127,14 @@ impl CandidateValidationSubsystem {
 #[overseer::subsystem(CandidateValidation, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CandidateValidationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(
-			ctx,
-			self.metrics,
-			self.pvf_metrics,
-			self.config.artifacts_cache_path,
-			self.config.program_path,
-		)
-		.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-		.boxed();
-		SpawnedSubsystem { name: "candidate-validation-subsystem", future }
+		if let Some(config) = self.config {
+			let future = run(ctx, self.metrics, self.pvf_metrics, config)
+				.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
+				.boxed();
+			SpawnedSubsystem { name: "candidate-validation-subsystem", future }
+		} else {
+			polkadot_overseer::DummySubsystem.start(ctx)
+		}
 	}
 }
 
@@ -142,11 +143,15 @@ async fn run<Context>(
 	mut ctx: Context,
 	metrics: Metrics,
 	pvf_metrics: polkadot_node_core_pvf::Metrics,
-	cache_path: PathBuf,
-	program_path: PathBuf,
+	Config { artifacts_cache_path, node_version, prep_worker_path, exec_worker_path }: Config,
 ) -> SubsystemResult<()> {
 	let (validation_host, task) = polkadot_node_core_pvf::start(
-		polkadot_node_core_pvf::Config::new(cache_path, program_path),
+		polkadot_node_core_pvf::Config::new(
+			artifacts_cache_path,
+			node_version,
+			prep_worker_path,
+			exec_worker_path,
+		),
 		pvf_metrics,
 	);
 	ctx.spawn_blocking("pvf-validation-host", task.boxed())?;
@@ -356,7 +361,12 @@ where
 		&validation_code.0,
 		VALIDATION_CODE_BOMB_LIMIT,
 	) {
-		Ok(code) => PvfPrepData::from_code(code.into_owned(), executor_params, timeout),
+		Ok(code) => PvfPrepData::from_code(
+			code.into_owned(),
+			executor_params,
+			timeout,
+			PrepareJobKind::Prechecking,
+		),
 		Err(e) => {
 			gum::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 			return PreCheckOutcome::Invalid
@@ -585,6 +595,7 @@ where
 	};
 	metrics.observe_code_size(raw_validation_code.len());
 
+	metrics.observe_pov_size(pov.block_data.0.len(), true);
 	let raw_block_data =
 		match sp_maybe_compressed_blob::decompress(&pov.block_data.0, POV_BOMB_LIMIT) {
 			Ok(block_data) => BlockData(block_data.to_vec()),
@@ -595,7 +606,7 @@ where
 				return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
 			},
 		};
-	metrics.observe_pov_size(raw_block_data.0.len());
+	metrics.observe_pov_size(raw_block_data.0.len(), false);
 
 	let params = ValidationParams {
 		parent_head: persisted_validation_data.parent_head.clone(),
@@ -727,7 +738,12 @@ trait ValidationBackend {
 	) -> Result<WasmValidationResult, ValidationError> {
 		let prep_timeout = pvf_prep_timeout(&executor_params, PvfPrepTimeoutKind::Lenient);
 		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
-		let pvf = PvfPrepData::from_code(raw_validation_code, executor_params, prep_timeout);
+		let pvf = PvfPrepData::from_code(
+			raw_validation_code,
+			executor_params,
+			prep_timeout,
+			PrepareJobKind::Compilation,
+		);
 		// We keep track of the total time that has passed and stop retrying if we are taking too long.
 		let total_time_start = Instant::now();
 

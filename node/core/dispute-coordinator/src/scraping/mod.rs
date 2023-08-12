@@ -25,11 +25,14 @@ use lru::LruCache;
 use polkadot_node_primitives::{DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION, MAX_FINALITY_LAG};
 use polkadot_node_subsystem::{
 	messages::ChainApiMessage, overseer, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError,
-	SubsystemSender,
+	RuntimeApiError, SubsystemSender,
 };
-use polkadot_node_subsystem_util::runtime::{get_candidate_events, get_on_chain_votes};
+use polkadot_node_subsystem_util::runtime::{
+	self, get_candidate_events, get_on_chain_votes, get_unapplied_slashes,
+};
 use polkadot_primitives::{
-	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, ScrapedOnChainVotes,
+	slashing::PendingSlashes, BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash,
+	ScrapedOnChainVotes, SessionIndex,
 };
 
 use crate::{
@@ -54,21 +57,26 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 	None => panic!("Observed blocks cache size must be non-zero"),
 };
 
-/// ScrapedUpdates
+/// `ScrapedUpdates`
 ///
-/// Updates to on_chain_votes and included receipts for new active leaf and its unprocessed
+/// Updates to `on_chain_votes` and included receipts for new active leaf and its unprocessed
 /// ancestors.
 ///
-/// on_chain_votes: New votes as seen on chain
-/// included_receipts: Newly included parachain block candidate receipts as seen on chain
+/// `on_chain_votes`: New votes as seen on chain
+/// `included_receipts`: Newly included parachain block candidate receipts as seen on chain
 pub struct ScrapedUpdates {
 	pub on_chain_votes: Vec<ScrapedOnChainVotes>,
 	pub included_receipts: Vec<CandidateReceipt>,
+	pub unapplied_slashes: Vec<(SessionIndex, CandidateHash, PendingSlashes)>,
 }
 
 impl ScrapedUpdates {
 	pub fn new() -> Self {
-		Self { on_chain_votes: Vec::new(), included_receipts: Vec::new() }
+		Self {
+			on_chain_votes: Vec::new(),
+			included_receipts: Vec::new(),
+			unapplied_slashes: Vec::new(),
+		}
 	}
 }
 
@@ -120,7 +128,7 @@ impl Inclusions {
 			.retain(|_, blocks_including| blocks_including.keys().len() > 0);
 	}
 
-	pub fn get(&mut self, candidate: &CandidateHash) -> Vec<(BlockNumber, Hash)> {
+	pub fn get(&self, candidate: &CandidateHash) -> Vec<(BlockNumber, Hash)> {
 		let mut inclusions_as_vec: Vec<(BlockNumber, Hash)> = Vec::new();
 		if let Some(blocks_including) = self.inclusions_inner.get(candidate) {
 			for (height, blocks_at_height) in blocks_including.iter() {
@@ -254,6 +262,29 @@ impl ChainScraper {
 			if let Some(votes) = get_on_chain_votes(sender, block_hash).await? {
 				scraped_updates.on_chain_votes.push(votes);
 			}
+		}
+
+		// for unapplied slashes, we only look at the latest activated hash,
+		// it should accumulate them all
+		match get_unapplied_slashes(sender, activated.hash).await {
+			Ok(unapplied_slashes) => {
+				scraped_updates.unapplied_slashes = unapplied_slashes;
+			},
+			Err(runtime::Error::RuntimeRequest(RuntimeApiError::NotSupported { .. })) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					block_hash = ?activated.hash,
+					"Fetching unapplied slashes not yet supported.",
+				);
+			},
+			Err(error) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					block_hash = ?activated.hash,
+					?error,
+					"Error fetching unapplied slashes.",
+				);
+			},
 		}
 
 		self.last_observed_blocks.put(activated.hash, ());
@@ -403,7 +434,7 @@ impl ChainScraper {
 	}
 
 	pub fn get_blocks_including_candidate(
-		&mut self,
+		&self,
 		candidate: &CandidateHash,
 	) -> Vec<(BlockNumber, Hash)> {
 		self.inclusions.get(candidate)

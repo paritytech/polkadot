@@ -26,6 +26,7 @@ use xcm_executor::{traits::prelude::*, Config, XcmExecutor};
 mod mock;
 use mock::*;
 
+mod aliases;
 mod assets;
 mod barriers;
 mod basic;

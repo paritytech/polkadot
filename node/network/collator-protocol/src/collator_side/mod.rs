@@ -44,6 +44,7 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
 use polkadot_node_subsystem_util::{
+	reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL},
 	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
 	TimeoutExt,
 };
@@ -53,7 +54,10 @@ use polkadot_primitives::{
 };
 
 use super::LOG_TARGET;
-use crate::error::{log_error, Error, FatalError, Result};
+use crate::{
+	error::{log_error, Error, FatalError, Result},
+	modify_reputation,
+};
 use fatality::Split;
 
 mod metrics;
@@ -245,12 +249,20 @@ struct State {
 	///
 	/// Each future returns the relay parent of the finished collation fetch.
 	active_collation_fetches: ActiveCollationFetches,
+
+	/// Aggregated reputation change
+	reputation: ReputationAggregator,
 }
 
 impl State {
 	/// Creates a new `State` instance with the given parameters and setting all remaining
 	/// state fields to their default values (i.e. empty).
-	fn new(local_peer_id: PeerId, collator_pair: CollatorPair, metrics: Metrics) -> State {
+	fn new(
+		local_peer_id: PeerId,
+		collator_pair: CollatorPair,
+		metrics: Metrics,
+		reputation: ReputationAggregator,
+	) -> State {
 		State {
 			local_peer_id,
 			collator_pair,
@@ -267,6 +279,7 @@ impl State {
 			last_connected_at: None,
 			waiting_collation_fetches: Default::default(),
 			active_collation_fetches: Default::default(),
+			reputation,
 		}
 	}
 
@@ -707,7 +720,7 @@ async fn handle_incoming_peer_message<Context>(
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 
-			ctx.send_message(NetworkBridgeTxMessage::ReportPeer(origin, COST_UNEXPECTED_MESSAGE))
+			modify_reputation(&mut state.reputation, ctx.sender(), origin, COST_UNEXPECTED_MESSAGE)
 				.await;
 
 			// If we are advertised to, this is another collator, and we should disconnect.
@@ -794,8 +807,13 @@ async fn handle_incoming_request<Context>(
 					target: LOG_TARGET,
 					"Dropping incoming request as peer has a request in flight already."
 				);
-				ctx.send_message(NetworkBridgeTxMessage::ReportPeer(req.peer, COST_APPARENT_FLOOD))
-					.await;
+				modify_reputation(
+					&mut state.reputation,
+					ctx.sender(),
+					req.peer,
+					COST_APPARENT_FLOOD.into(),
+				)
+				.await;
 				return Ok(())
 			}
 
@@ -889,6 +907,10 @@ async fn handle_network_msg<Context>(
 		PeerMessage(remote, Versioned::V1(msg)) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
 		},
+		UpdatedAuthorityIds(peer_id, authority_ids) => {
+			gum::trace!(target: LOG_TARGET, ?peer_id, ?authority_ids, "Updated authority ids");
+			state.peer_ids.insert(peer_id, authority_ids);
+		},
 		NewGossipTopology { .. } => {
 			// impossible!
 		},
@@ -940,15 +962,40 @@ async fn handle_our_view_change(state: &mut State, view: OurView) -> Result<()> 
 /// The collator protocol collator side main loop.
 #[overseer::contextbounds(CollatorProtocol, prefix = crate::overseer)]
 pub(crate) async fn run<Context>(
+	ctx: Context,
+	local_peer_id: PeerId,
+	collator_pair: CollatorPair,
+	req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	metrics: Metrics,
+) -> std::result::Result<(), FatalError> {
+	run_inner(
+		ctx,
+		local_peer_id,
+		collator_pair,
+		req_receiver,
+		metrics,
+		ReputationAggregator::default(),
+		REPUTATION_CHANGE_INTERVAL,
+	)
+	.await
+}
+
+#[overseer::contextbounds(CollatorProtocol, prefix = crate::overseer)]
+async fn run_inner<Context>(
 	mut ctx: Context,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
 	mut req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
 	metrics: Metrics,
+	reputation: ReputationAggregator,
+	reputation_interval: Duration,
 ) -> std::result::Result<(), FatalError> {
 	use OverseerSignal::*;
 
-	let mut state = State::new(local_peer_id, collator_pair, metrics);
+	let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+	let mut reputation_delay = new_reputation_delay();
+
+	let mut state = State::new(local_peer_id, collator_pair, metrics, reputation);
 	let mut runtime = RuntimeInfo::new(None);
 
 	let reconnect_stream = super::tick_stream(RECONNECT_POLL);
@@ -958,6 +1005,10 @@ pub(crate) async fn run<Context>(
 		let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
 		pin_mut!(recv_req);
 		select! {
+			_ = reputation_delay => {
+				state.reputation.send(ctx.sender()).await;
+				reputation_delay = new_reputation_delay();
+			},
 			msg = ctx.recv().fuse() => match msg.map_err(FatalError::SubsystemReceive)? {
 				FromOrchestra::Communication { msg } => {
 					log_error(

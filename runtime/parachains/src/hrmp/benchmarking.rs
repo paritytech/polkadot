@@ -301,6 +301,7 @@ frame_benchmarking::benchmarks! {
 
 	force_open_hrmp_channel {
 		let sender_id: ParaId = 1u32.into();
+		let sender_origin: crate::Origin = 1u32.into();
 		let recipient_id: ParaId = 2u32.into();
 
 		// make sure para is registered, and has enough balance.
@@ -315,9 +316,34 @@ frame_benchmarking::benchmarks! {
 		let capacity = Configuration::<T>::config().hrmp_channel_max_capacity;
 		let message_size = Configuration::<T>::config().hrmp_channel_max_message_size;
 
-		// make sure this channel doesn't exist
+		// Weight parameter only accepts `u32`, `0` and `1` used to represent `false` and `true`,
+		// respectively.
+		let c = [0, 1];
 		let channel_id = HrmpChannelId { sender: sender_id, recipient: recipient_id };
-		assert!(HrmpOpenChannelRequests::<T>::get(&channel_id).is_none());
+		for channels_to_close in c {
+			if channels_to_close == 1 {
+				// this will consume more weight if a channel _request_ already exists, because it
+				// will need to clear the request.
+				assert_ok!(Hrmp::<T>::hrmp_init_open_channel(
+					sender_origin.clone().into(),
+					recipient_id,
+					capacity,
+					message_size
+				));
+				assert!(HrmpOpenChannelRequests::<T>::get(&channel_id).is_some());
+			} else {
+				if HrmpOpenChannelRequests::<T>::get(&channel_id).is_some() {
+					assert_ok!(Hrmp::<T>::hrmp_cancel_open_request(
+						sender_origin.clone().into(),
+						channel_id.clone(),
+						MAX_UNIQUE_CHANNELS,
+					));
+				}
+				assert!(HrmpOpenChannelRequests::<T>::get(&channel_id).is_none());
+			}
+		}
+
+		// but the _channel_ should not exist
 		assert!(HrmpChannels::<T>::get(&channel_id).is_none());
 	}: _(frame_system::Origin::<T>::Root, sender_id, recipient_id, capacity, message_size)
 	verify {

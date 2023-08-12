@@ -1,0 +1,37 @@
+Description: Past-session dispute slashing
+Network: ./0004-parachains-disputes-past-session.toml
+Creds: config
+
+alice: reports node_roles is 4
+
+# pause alice so that disputes don't conclude
+alice: pause
+
+# Ensure parachain is registered.
+honest-validator-0: parachain 1000 is registered within 100 seconds
+
+# Ensure parachain made progress.
+honest-validator-0: parachain 1000 block height is at least 1 within 300 seconds
+
+# There should be disputes initiated
+honest-validator-0: reports parachain_candidate_disputes_total is at least 2 within 200 seconds
+
+# Stop issuing disputes
+malus-validator-0: pause
+
+# wait for the next session
+sleep 120 seconds
+
+# But should not resolve
+honest-validator-0: reports block height minus finalised block is at least 10 within 100 seconds
+
+# Now resume alice
+alice: resume
+
+# Disputes should start concluding now
+honest-validator-0: reports parachain_candidate_dispute_concluded{validity="invalid"} is at least 1 within 200 seconds
+# Disputes should always end as "invalid"
+honest-validator-0: reports parachain_candidate_dispute_concluded{validity="valid"} is 0
+
+# Check an unsigned extrinsic is submitted
+honest-validator: log line contains "Successfully reported pending slash" within 180 seconds

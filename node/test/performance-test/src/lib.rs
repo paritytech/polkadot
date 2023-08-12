@@ -65,9 +65,9 @@ pub fn measure_pvf_prepare(wasm_code: &[u8]) -> Result<Duration, PerfCheckError>
 		.or(Err(PerfCheckError::CodeDecompressionFailed))?;
 
 	// Recreate the pipeline from the pvf prepare worker.
-	let blob =
-		polkadot_node_core_pvf_worker::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
-	polkadot_node_core_pvf_worker::prepare(blob, &ExecutorParams::default())
+	let blob = polkadot_node_core_pvf_prepare_worker::prevalidate(code.as_ref())
+		.map_err(PerfCheckError::from)?;
+	polkadot_node_core_pvf_prepare_worker::prepare(blob, &ExecutorParams::default())
 		.map_err(PerfCheckError::from)?;
 
 	Ok(start.elapsed())

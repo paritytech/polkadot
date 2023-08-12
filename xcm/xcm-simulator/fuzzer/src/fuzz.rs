@@ -20,7 +20,7 @@ mod relay_chain;
 use codec::DecodeLimit;
 use polkadot_core_primitives::AccountId;
 use polkadot_parachain::primitives::Id as ParaId;
-use sp_runtime::traits::AccountIdConversion;
+use sp_runtime::{traits::AccountIdConversion, BuildStorage};
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain, TestExt};
 
 use frame_support::assert_ok;
@@ -111,7 +111,7 @@ pub fn para_account_id(id: u32) -> relay_chain::AccountId {
 pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 	use parachain::{MsgQueue, Runtime, System};
 
-	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+	let mut t = frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
 
 	pallet_balances::GenesisConfig::<Runtime> {
 		balances: (0..6).map(|i| ([i; 32].into(), INITIAL_BALANCE)).collect(),
@@ -130,7 +130,7 @@ pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 pub fn relay_ext() -> sp_io::TestExternalities {
 	use relay_chain::{Runtime, System};
 
-	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+	let mut t = frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
 
 	let mut balances: Vec<(AccountId, u128)> = vec![];
 	balances.append(&mut (1..=3).map(|i| (para_account_id(i), INITIAL_BALANCE)).collect());

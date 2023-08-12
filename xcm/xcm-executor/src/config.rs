@@ -45,6 +45,10 @@ pub trait Config {
 	/// Combinations of (Asset, Location) pairs which we trust as teleporters.
 	type IsTeleporter: ContainsPair<MultiAsset, MultiLocation>;
 
+	/// A list of (Origin, Target) pairs allowing a given Origin to be substituted with its
+	/// corresponding Target pair.
+	type Aliasers: ContainsPair<MultiLocation, MultiLocation>;
+
 	/// This chain's Universal Location.
 	type UniversalLocation: Get<InteriorMultiLocation>;
 

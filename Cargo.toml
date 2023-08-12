@@ -2,30 +2,45 @@
 name = "polkadot"
 path = "src/main.rs"
 
+[[bin]]
+name = "polkadot-execute-worker"
+path = "src/bin/execute-worker.rs"
+
+[[bin]]
+name = "polkadot-prepare-worker"
+path = "src/bin/prepare-worker.rs"
+
 [package]
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
-license = "GPL-3.0-only"
 rust-version = "1.64.0" # workspace properties
 readme = "README.md"
+default-run = "polkadot"
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 
 [workspace.package]
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+license = "GPL-3.0-only"
 repository = "https://github.com/paritytech/polkadot.git"
-version = "0.9.41"
+version = "0.9.43"
 
 [dependencies]
 color-eyre = { version = "0.6.1", default-features = false }
 tikv-jemallocator = "0.5.0"
 
 # Crates in our workspace, defined as dependencies so we can pass them feature flags.
-polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
-polkadot-node-core-pvf-worker = { path = "node/core/pvf/worker" }
+polkadot-cli = { path = "cli", features = [ "polkadot-native", "kusama-native", "westend-native", "rococo-native" ]  }
+polkadot-node-core-pvf = { path = "node/core/pvf" }
+polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
 polkadot-overseer = { path = "node/overseer" }
+
+# Needed for worker binaries.
+polkadot-node-core-pvf-common = { path = "node/core/pvf/common" }
+polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
@@ -34,6 +49,9 @@ tempfile = "3.2.0"
 tokio = "1.24.2"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
+
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [workspace]
 members = [
@@ -68,7 +86,6 @@ members = [
 	"xcm/pallet-xcm",
 	"xcm/pallet-xcm-benchmarks",
 	"xcm/procedural",
-	"node/client",
 	"node/collation-generation",
 	"node/core/approval-voting",
 	"node/core/av-store",
@@ -81,7 +98,9 @@ members = [
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
-	"node/core/pvf/worker",
+	"node/core/pvf/common",
+	"node/core/pvf/execute-worker",
+	"node/core/pvf/prepare-worker",
 	"node/core/pvf-checker",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
@@ -176,7 +195,6 @@ snow = { opt-level = 3 }
 substrate-bip39 = {opt-level = 3}
 twox-hash = { opt-level = 3 }
 uint = { opt-level = 3 }
-wasmi = { opt-level = 3 }
 x25519-dalek = { opt-level = 3 }
 yamux = { opt-level = 3 }
 zeroize = { opt-level = 3 }
@@ -208,9 +226,11 @@ try-runtime = [ "polkadot-cli/try-runtime" ]
 fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
-jemalloc-allocator = ["polkadot-node-core-pvf-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
+jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
 
-
+# Enables timeout-based tests supposed to be run only in CI environment as they may be flaky
+# when run locally depending on system load
+ci-only-tests = ["polkadot-node-core-pvf/ci-only-tests"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
@@ -223,6 +243,8 @@ license-file = ["LICENSE", "0"]
 maintainer-scripts = "scripts/packaging/deb-maintainer-scripts"
 assets = [
 	["target/release/polkadot", "/usr/bin/", "755"],
+	["target/release/polkadot-prepare-worker", "/usr/lib/polkadot/", "755"],
+	["target/release/polkadot-execute-worker", "/usr/lib/polkadot/", "755"],
 	["scripts/packaging/polkadot.service", "/lib/systemd/system/", "644"]
 ]
 conf-files = [

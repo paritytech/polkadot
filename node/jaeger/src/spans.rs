@@ -277,7 +277,7 @@ impl Span {
 	}
 
 	/// Derive a child span from `self`.
-	pub fn child(&self, name: &'static str) -> Self {
+	pub fn child(&self, name: &str) -> Self {
 		match self {
 			Self::Enabled(inner) => Self::Enabled(inner.child(name)),
 			Self::Disabled => Self::Disabled,
@@ -297,9 +297,20 @@ impl Span {
 		self
 	}
 
+	/// Attach a peer-id tag to the span.
 	#[inline(always)]
 	pub fn with_peer_id(self, peer: &PeerId) -> Self {
 		self.with_string_tag("peer-id", &peer.to_base58())
+	}
+
+	/// Attach a `peer-id` tag to the span when peer is present.
+	#[inline(always)]
+	pub fn with_optional_peer_id(self, peer: Option<&PeerId>) -> Self {
+		if let Some(peer) = peer {
+			self.with_peer_id(peer)
+		} else {
+			self
+		}
 	}
 
 	/// Attach a candidate hash to the span.

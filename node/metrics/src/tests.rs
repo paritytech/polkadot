@@ -19,7 +19,6 @@
 use hyper::{Client, Uri};
 use polkadot_test_service::{node_config, run_validator_node, test_prometheus_config};
 use primitives::metric_definitions::PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED;
-use sc_client_api::{execution_extensions::ExecutionStrategies, ExecutionStrategy};
 use sp_keyring::AccountKeyring::*;
 use std::collections::HashMap;
 
@@ -40,15 +39,6 @@ async fn runtime_can_publish_metrics() {
 
 	// Setup the runtime metrics provider.
 	crate::logger_hook()(&mut builder, &alice_config);
-
-	// Override default native strategy, runtime metrics are available only in the wasm runtime.
-	alice_config.execution_strategies = ExecutionStrategies {
-		syncing: ExecutionStrategy::AlwaysWasm,
-		importing: ExecutionStrategy::AlwaysWasm,
-		block_construction: ExecutionStrategy::AlwaysWasm,
-		offchain_worker: ExecutionStrategy::AlwaysWasm,
-		other: ExecutionStrategy::AlwaysWasm,
-	};
 
 	builder.init().expect("Failed to set up the logger");
 

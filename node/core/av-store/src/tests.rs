@@ -416,6 +416,45 @@ fn query_chunk_checks_meta() {
 }
 
 #[test]
+fn store_available_data_erasure_mismatch() {
+	let store = test_store();
+	let test_state = TestState::default();
+	test_harness(test_state.clone(), store.clone(), |mut virtual_overseer| async move {
+		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
+		let validator_index = ValidatorIndex(5);
+		let n_validators = 10;
+
+		let pov = PoV { block_data: BlockData(vec![4, 5, 6]) };
+
+		let available_data = AvailableData {
+			pov: Arc::new(pov),
+			validation_data: test_state.persisted_validation_data.clone(),
+		};
+		let (tx, rx) = oneshot::channel();
+
+		let block_msg = AvailabilityStoreMessage::StoreAvailableData {
+			candidate_hash,
+			n_validators,
+			available_data: available_data.clone(),
+			tx,
+			// A dummy erasure root should lead to failure.
+			expected_erasure_root: Hash::default(),
+		};
+
+		virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
+		assert_eq!(rx.await.unwrap(), Err(StoreAvailableDataError::InvalidErasureRoot));
+
+		assert!(query_available_data(&mut virtual_overseer, candidate_hash).await.is_none());
+
+		assert!(query_chunk(&mut virtual_overseer, candidate_hash, validator_index)
+			.await
+			.is_none());
+
+		virtual_overseer
+	});
+}
+
+#[test]
 fn store_block_works() {
 	let store = test_store();
 	let test_state = TestState::default();
@@ -430,13 +469,17 @@ fn store_block_works() {
 			pov: Arc::new(pov),
 			validation_data: test_state.persisted_validation_data.clone(),
 		};
-
 		let (tx, rx) = oneshot::channel();
+
+		let chunks = erasure::obtain_chunks_v1(10, &available_data).unwrap();
+		let mut branches = erasure::branches(chunks.as_ref());
+
 		let block_msg = AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
 			n_validators,
 			available_data: available_data.clone(),
 			tx,
+			expected_erasure_root: branches.root(),
 		};
 
 		virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
@@ -448,10 +491,6 @@ fn store_block_works() {
 		let chunk = query_chunk(&mut virtual_overseer, candidate_hash, validator_index)
 			.await
 			.unwrap();
-
-		let chunks = erasure::obtain_chunks_v1(10, &available_data).unwrap();
-
-		let mut branches = erasure::branches(chunks.as_ref());
 
 		let branch = branches.nth(5).unwrap();
 		let expected_chunk = ErasureChunk {
@@ -483,6 +522,7 @@ fn store_pov_and_query_chunk_works() {
 
 		let chunks_expected =
 			erasure::obtain_chunks_v1(n_validators as _, &available_data).unwrap();
+		let branches = erasure::branches(chunks_expected.as_ref());
 
 		let (tx, rx) = oneshot::channel();
 		let block_msg = AvailabilityStoreMessage::StoreAvailableData {
@@ -490,6 +530,7 @@ fn store_pov_and_query_chunk_works() {
 			n_validators,
 			available_data,
 			tx,
+			expected_erasure_root: branches.root(),
 		};
 
 		virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
@@ -530,12 +571,16 @@ fn query_all_chunks_works() {
 		};
 
 		{
+			let chunks_expected =
+				erasure::obtain_chunks_v1(n_validators as _, &available_data).unwrap();
+			let branches = erasure::branches(chunks_expected.as_ref());
 			let (tx, rx) = oneshot::channel();
 			let block_msg = AvailabilityStoreMessage::StoreAvailableData {
 				candidate_hash: candidate_hash_1,
 				n_validators,
 				available_data,
 				tx,
+				expected_erasure_root: branches.root(),
 			};
 
 			virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
@@ -619,11 +664,15 @@ fn stored_but_not_included_data_is_pruned() {
 		};
 
 		let (tx, rx) = oneshot::channel();
+		let chunks = erasure::obtain_chunks_v1(n_validators as _, &available_data).unwrap();
+		let branches = erasure::branches(chunks.as_ref());
+
 		let block_msg = AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
 			n_validators,
 			available_data: available_data.clone(),
 			tx,
+			expected_erasure_root: branches.root(),
 		};
 
 		virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
@@ -670,12 +719,16 @@ fn stored_data_kept_until_finalized() {
 		let parent = Hash::repeat_byte(2);
 		let block_number = 10;
 
+		let chunks = erasure::obtain_chunks_v1(n_validators as _, &available_data).unwrap();
+		let branches = erasure::branches(chunks.as_ref());
+
 		let (tx, rx) = oneshot::channel();
 		let block_msg = AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
 			n_validators,
 			available_data: available_data.clone(),
 			tx,
+			expected_erasure_root: branches.root(),
 		};
 
 		virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
@@ -946,17 +999,24 @@ fn forkfullness_works() {
 			validation_data: test_state.persisted_validation_data.clone(),
 		};
 
+		let chunks = erasure::obtain_chunks_v1(n_validators as _, &available_data_1).unwrap();
+		let branches = erasure::branches(chunks.as_ref());
+
 		let (tx, rx) = oneshot::channel();
 		let msg = AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash: candidate_1_hash,
 			n_validators,
 			available_data: available_data_1.clone(),
 			tx,
+			expected_erasure_root: branches.root(),
 		};
 
 		virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 
 		rx.await.unwrap().unwrap();
+
+		let chunks = erasure::obtain_chunks_v1(n_validators as _, &available_data_2).unwrap();
+		let branches = erasure::branches(chunks.as_ref());
 
 		let (tx, rx) = oneshot::channel();
 		let msg = AvailabilityStoreMessage::StoreAvailableData {
@@ -964,6 +1024,7 @@ fn forkfullness_works() {
 			n_validators,
 			available_data: available_data_2.clone(),
 			tx,
+			expected_erasure_root: branches.root(),
 		};
 
 		virtual_overseer.send(FromOrchestra::Communication { msg }).await;

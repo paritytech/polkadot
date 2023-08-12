@@ -133,8 +133,7 @@ where
 		.collect::<Vec<_>>();
 
 	// 1. Make sure PVF pre-checking is enabled in the config.
-	let mut config = configuration::Pallet::<T>::config();
-	config.pvf_checking_enabled = true;
+	let config = configuration::Pallet::<T>::config();
 	configuration::Pallet::<T>::force_set_active_config(config.clone());
 
 	// 2. initialize a new session with deterministic validator set.

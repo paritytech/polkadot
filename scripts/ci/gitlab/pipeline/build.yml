@@ -21,11 +21,13 @@ build-linux-stable:
     # Ensure we run the UI tests.
     RUN_UI_TESTS: 1
   script:
-    - time cargo build --locked --profile testnet --features pyroscope --verbose --bin polkadot
+    - time cargo build --locked --profile testnet --features pyroscope,fast-runtime --verbose --bins
     # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - mv ./target/testnet/polkadot ./artifacts/.
+    - mv ./target/testnet/polkadot-prepare-worker ./artifacts/.
+    - mv ./target/testnet/polkadot-execute-worker ./artifacts/.
     - pushd artifacts
     - sha256sum polkadot | tee polkadot.sha256
     - shasum -c polkadot.sha256
@@ -37,7 +39,6 @@ build-linux-stable:
     - echo -n ${CI_JOB_ID} > ./artifacts/BUILD_LINUX_JOB_ID
     - RELEASE_VERSION=$(./artifacts/polkadot -V | awk '{print $2}'| awk -F "-" '{print $1}')
     - echo -n "v${RELEASE_VERSION}" > ./artifacts/BUILD_RELEASE_VERSION
-    - cp -r scripts/* ./artifacts
 
 build-test-collators:
   stage: build
@@ -62,7 +63,6 @@ build-test-collators:
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - echo "undying-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r ./scripts/* ./artifacts
 
 build-malus:
   stage: build
@@ -81,10 +81,11 @@ build-malus:
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/malus ./artifacts/.
+    - mv ./target/testnet/polkadot-execute-worker ./artifacts/.
+    - mv ./target/testnet/polkadot-prepare-worker ./artifacts/.
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r ./scripts/* ./artifacts
 
 build-staking-miner:
   stage: build
@@ -106,7 +107,6 @@ build-staking-miner:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "staking-miner = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r ./scripts/* ./artifacts
 
 build-rustdoc:
   stage: build

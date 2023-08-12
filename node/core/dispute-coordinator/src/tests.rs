@@ -33,6 +33,7 @@ use polkadot_node_subsystem_util::database::Database;
 
 use polkadot_node_primitives::{
 	DisputeMessage, DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement,
+	DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -214,9 +215,9 @@ impl Default for TestState {
 			make_keystore(vec![Sr25519Keyring::Alice.to_seed()].into_iter()).into();
 
 		let db = kvdb_memorydb::create(1);
-		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[0]);
 		let db = Arc::new(db);
-		let config = Config { col_dispute_data: 0, col_session_data: 1 };
+		let config = Config { col_dispute_data: 0 };
 
 		let genesis_header = Header {
 			parent_hash: Hash::zero(),
@@ -330,9 +331,11 @@ impl TestState {
 					assert_eq!(h, block_hash);
 					let _ = tx.send(Ok(session));
 
+					let first_expected_session = session.saturating_sub(DISPUTE_WINDOW.get() - 1);
+
 					// Queries for session caching - see `handle_startup`
 					if self.known_session.is_none() {
-						for i in 0..=session {
+						for i in first_expected_session..=session {
 							assert_matches!(
 								overseer_recv(virtual_overseer).await,
 								AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -381,6 +384,12 @@ impl TestState {
 						disputes: MultiDisputeStatementSet::default(),
 					})))
 					.unwrap();
+				},
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_new_leaf,
+					RuntimeApiRequest::UnappliedSlashes(tx),
+				)) => {
+					tx.send(Ok(Vec::new())).unwrap();
 				},
 				AllMessages::ChainApi(ChainApiMessage::Ancestors { hash, k, response_channel }) => {
 					let target_header = self
@@ -3389,6 +3398,177 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				None => {}
 			);
 
+			test_state
+		})
+	});
+}
+
+// On startup `SessionInfo` cache should be populated
+#[test]
+fn session_info_caching_on_startup_works() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			test_state
+		})
+	});
+}
+
+// Underflow means that no more than `DISPUTE_WINDOW` sessions should be fetched on startup
+#[test]
+fn session_info_caching_doesnt_underflow() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = DISPUTE_WINDOW.get() + 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			test_state
+		})
+	});
+}
+
+// Cached `SessionInfo` shouldn't be re-requested from the runtime
+#[test]
+fn session_info_is_requested_only_once() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			// This leaf activation shouldn't fetch `SessionInfo` because the session is already cached
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					3,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			// This leaf activation should fetch `SessionInfo` because the session is new
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session + 1,
+					4,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_,
+					RuntimeApiRequest::SessionInfo(session_index, tx),
+				)) => {
+					assert_eq!(session_index, 2);
+					let _ = tx.send(Ok(Some(test_state.session_info())));
+				}
+			);
+			test_state
+		})
+	});
+}
+
+// Big jump means the new session we see with a leaf update is at least a `DISPUTE_WINDOW` bigger than
+// the already known one. In this case The whole `DISPUTE_WINDOW` should be fetched.
+#[test]
+fn session_info_big_jump_works() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session_on_startup = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session_on_startup).await;
+
+			// This leaf activation shouldn't fetch `SessionInfo` because the session is already cached
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session_on_startup,
+					3,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			let session_after_jump = session_on_startup + DISPUTE_WINDOW.get() + 10;
+			// This leaf activation should cache all missing `SessionInfo`s
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session_after_jump,
+					4,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			let first_expected_session =
+				session_after_jump.saturating_sub(DISPUTE_WINDOW.get() - 1);
+			for expected_idx in first_expected_session..=session_after_jump {
+				assert_matches!(
+					virtual_overseer.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						_,
+						RuntimeApiRequest::SessionInfo(session_index, tx),
+					)) => {
+						assert_eq!(session_index, expected_idx);
+						let _ = tx.send(Ok(Some(test_state.session_info())));
+					}
+				);
+			}
+			test_state
+		})
+	});
+}
+
+// Small jump means the new session we see with a leaf update is at less than last known one + `DISPUTE_WINDOW`. In this
+// case fetching should start from last known one + 1.
+#[test]
+fn session_info_small_jump_works() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session_on_startup = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session_on_startup).await;
+
+			// This leaf activation shouldn't fetch `SessionInfo` because the session is already cached
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session_on_startup,
+					3,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			let session_after_jump = session_on_startup + DISPUTE_WINDOW.get() - 1;
+			// This leaf activation should cache all missing `SessionInfo`s
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session_after_jump,
+					4,
+					vec![make_candidate_included_event(make_valid_candidate_receipt())],
+				)
+				.await;
+
+			let first_expected_session = session_on_startup + 1;
+			for expected_idx in first_expected_session..=session_after_jump {
+				assert_matches!(
+					virtual_overseer.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						_,
+						RuntimeApiRequest::SessionInfo(session_index, tx),
+					)) => {
+						assert_eq!(session_index, expected_idx);
+						let _ = tx.send(Ok(Some(test_state.session_info())));
+					}
+				);
+			}
 			test_state
 		})
 	});

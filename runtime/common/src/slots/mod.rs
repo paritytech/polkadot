@@ -37,7 +37,7 @@ use sp_std::prelude::*;
 
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
+type LeasePeriodOf<T> = BlockNumberFor<T>;
 
 pub trait WeightInfo {
 	fn force_lease() -> Weight;
@@ -83,11 +83,11 @@ pub mod pallet {
 
 		/// The number of blocks over which a single period lasts.
 		#[pallet::constant]
-		type LeasePeriod: Get<Self::BlockNumber>;
+		type LeasePeriod: Get<BlockNumberFor<Self>>;
 
 		/// The number of blocks to offset each lease period by.
 		#[pallet::constant]
-		type LeaseOffset: Get<Self::BlockNumber>;
+		type LeaseOffset: Get<BlockNumberFor<Self>>;
 
 		/// The origin which may forcibly create or clear leases. Root can always do this.
 		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
@@ -145,7 +145,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(n: T::BlockNumber) -> Weight {
+		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
 			if let Some((lease_period, first_block)) = Self::lease_period_index(n) {
 				// If we're beginning a new lease period then handle that.
 				if first_block {
@@ -333,9 +333,9 @@ impl<T: Config> crate::traits::OnSwap for Pallet<T> {
 	}
 }
 
-impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
+impl<T: Config> Leaser<BlockNumberFor<T>> for Pallet<T> {
 	type AccountId = T::AccountId;
-	type LeasePeriod = T::BlockNumber;
+	type LeasePeriod = BlockNumberFor<T>;
 	type Currency = T::Currency;
 
 	fn lease_out(
@@ -442,11 +442,11 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 	}
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
-	fn lease_period_length() -> (T::BlockNumber, T::BlockNumber) {
+	fn lease_period_length() -> (BlockNumberFor<T>, BlockNumberFor<T>) {
 		(T::LeasePeriod::get(), T::LeaseOffset::get())
 	}
 
-	fn lease_period_index(b: T::BlockNumber) -> Option<(Self::LeasePeriod, bool)> {
+	fn lease_period_index(b: BlockNumberFor<T>) -> Option<(Self::LeasePeriod, bool)> {
 		// Note that blocks before `LeaseOffset` do not count as any lease period.
 		let offset_block_now = b.checked_sub(&T::LeaseOffset::get())?;
 		let lease_period = offset_block_now / T::LeasePeriod::get();
@@ -505,20 +505,19 @@ mod tests {
 	use frame_support::{assert_noop, assert_ok, parameter_types};
 	use frame_system::EnsureRoot;
 	use pallet_balances;
-	use primitives::{BlockNumber, Header};
+	use primitives::BlockNumber;
 	use sp_core::H256;
-	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
+	use sp_runtime::{
+		traits::{BlakeTwo256, IdentityLookup},
+		BuildStorage,
+	};
 
-	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-	type Block = frame_system::mocking::MockBlock<Test>;
+	type Block = frame_system::mocking::MockBlockU32<Test>;
 
 	frame_support::construct_runtime!(
-		pub enum Test where
-			Block = Block,
-			NodeBlock = Block,
-			UncheckedExtrinsic = UncheckedExtrinsic,
+		pub enum Test
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Slots: slots::{Pallet, Call, Storage, Event<T>},
 		}
@@ -533,13 +532,12 @@ mod tests {
 		type BlockLength = ();
 		type RuntimeOrigin = RuntimeOrigin;
 		type RuntimeCall = RuntimeCall;
-		type Index = u64;
-		type BlockNumber = BlockNumber;
+		type Nonce = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
-		type Header = Header;
+		type Block = Block;
 		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
@@ -593,7 +591,7 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		pallet_balances::GenesisConfig::<Test> {
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
 		}

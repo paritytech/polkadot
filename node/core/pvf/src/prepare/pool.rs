@@ -16,15 +16,17 @@
 
 use super::worker_intf::{self, Outcome};
 use crate::{
-	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
-	pvf::PvfPrepData,
-	worker_common::{IdleWorker, WorkerHandle},
+	worker_intf::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
 };
 use always_assert::never;
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
+};
+use polkadot_node_core_pvf_common::{
+	error::{PrepareError, PrepareResult},
+	pvf::PvfPrepData,
 };
 use slotmap::HopSlotMap;
 use std::{
@@ -111,10 +113,13 @@ struct Pool {
 	program_path: PathBuf,
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
+
 	to_pool: mpsc::Receiver<ToPool>,
 	from_pool: mpsc::UnboundedSender<FromPool>,
 	spawned: HopSlotMap<Worker, WorkerData>,
 	mux: Mux,
+
 	metrics: Metrics,
 }
 
@@ -126,6 +131,7 @@ async fn run(
 		program_path,
 		cache_path,
 		spawn_timeout,
+		node_version,
 		to_pool,
 		mut from_pool,
 		mut spawned,
@@ -153,6 +159,7 @@ async fn run(
 					&program_path,
 					&cache_path,
 					spawn_timeout,
+					node_version.clone(),
 					&mut spawned,
 					&mut mux,
 					to_pool,
@@ -199,6 +206,7 @@ fn handle_to_pool(
 	program_path: &Path,
 	cache_path: &Path,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
 	spawned: &mut HopSlotMap<Worker, WorkerData>,
 	mux: &mut Mux,
 	to_pool: ToPool,
@@ -207,7 +215,9 @@ fn handle_to_pool(
 		ToPool::Spawn => {
 			gum::debug!(target: LOG_TARGET, "spawning a new prepare worker");
 			metrics.prepare_worker().on_begin_spawn();
-			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
+			mux.push(
+				spawn_worker_task(program_path.to_owned(), spawn_timeout, node_version).boxed(),
+			);
 		},
 		ToPool::StartWork { worker, pvf, artifact_path } => {
 			if let Some(data) = spawned.get_mut(worker) {
@@ -246,11 +256,15 @@ fn handle_to_pool(
 	}
 }
 
-async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> PoolEvent {
+async fn spawn_worker_task(
+	program_path: PathBuf,
+	spawn_timeout: Duration,
+	node_version: Option<String>,
+) -> PoolEvent {
 	use futures_timer::Delay;
 
 	loop {
-		match worker_intf::spawn(&program_path, spawn_timeout).await {
+		match worker_intf::spawn(&program_path, spawn_timeout, node_version.as_deref()).await {
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err);
@@ -417,6 +431,7 @@ pub fn start(
 	program_path: PathBuf,
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
 ) -> (mpsc::Sender<ToPool>, mpsc::UnboundedReceiver<FromPool>, impl Future<Output = ()>) {
 	let (to_pool_tx, to_pool_rx) = mpsc::channel(10);
 	let (from_pool_tx, from_pool_rx) = mpsc::unbounded();
@@ -426,6 +441,7 @@ pub fn start(
 		program_path,
 		cache_path,
 		spawn_timeout,
+		node_version,
 		to_pool: to_pool_rx,
 		from_pool: from_pool_tx,
 		spawned: HopSlotMap::with_capacity_and_key(20),

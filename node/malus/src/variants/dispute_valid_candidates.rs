@@ -32,6 +32,7 @@ use polkadot_cli::{
 	Cli,
 };
 use polkadot_node_subsystem::SpawnGlue;
+use polkadot_node_subsystem_types::DefaultSubsystemClient;
 use sp_core::traits::SpawnNamed;
 
 // Filter wrapping related types.
@@ -78,7 +79,10 @@ impl OverseerGen for DisputeValidCandidates {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		Error,
+	>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,

@@ -17,7 +17,10 @@
 use fatality::Nested;
 use futures::channel::{mpsc, oneshot};
 
-use polkadot_node_subsystem::{messages::ValidationFailed, SubsystemError};
+use polkadot_node_subsystem::{
+	messages::{StoreAvailableDataError, ValidationFailed},
+	SubsystemError,
+};
 use polkadot_node_subsystem_util::Error as UtilError;
 use polkadot_primitives::BackedCandidate;
 
@@ -50,7 +53,7 @@ pub enum Error {
 	ValidateFromChainState(#[source] oneshot::Canceled),
 
 	#[error("StoreAvailableData channel closed before receipt")]
-	StoreAvailableData(#[source] oneshot::Canceled),
+	StoreAvailableDataChannel(#[source] oneshot::Canceled),
 
 	#[error("a channel was closed before receipt in try_join!")]
 	JoinMultiple(#[source] oneshot::Canceled),
@@ -74,6 +77,9 @@ pub enum Error {
 	#[fatal]
 	#[error(transparent)]
 	OverseerExited(SubsystemError),
+
+	#[error("Availability store error")]
+	StoreAvailableData(#[source] StoreAvailableDataError),
 }
 
 /// Utility for eating top level errors and log them.

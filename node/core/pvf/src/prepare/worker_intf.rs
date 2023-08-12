@@ -17,17 +17,20 @@
 //! Host interface to the prepare worker.
 
 use crate::{
-	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
-	prepare::PrepareStats,
-	pvf::PvfPrepData,
-	worker_common::{
-		framed_recv, framed_send, path_to_bytes, spawn_with_program_path, tmpfile_in, IdleWorker,
-		SpawnErr, WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
+	worker_intf::{
+		path_to_bytes, spawn_with_program_path, tmpfile_in, IdleWorker, SpawnErr, WorkerHandle,
+		JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 	},
 	LOG_TARGET,
 };
 use parity_scale_codec::{Decode, Encode};
+use polkadot_node_core_pvf_common::{
+	error::{PrepareError, PrepareResult},
+	framed_recv, framed_send,
+	prepare::PrepareStats,
+	pvf::PvfPrepData,
+};
 
 use sp_core::hexdisplay::HexDisplay;
 use std::{
@@ -42,14 +45,13 @@ use tokio::{io, net::UnixStream};
 pub async fn spawn(
 	program_path: &Path,
 	spawn_timeout: Duration,
+	node_version: Option<&str>,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	spawn_with_program_path(
-		"prepare",
-		program_path,
-		&["prepare-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
-		spawn_timeout,
-	)
-	.await
+	let mut extra_args = vec!["prepare-worker"];
+	if let Some(node_version) = node_version {
+		extra_args.extend_from_slice(&["--node-impl-version", node_version]);
+	}
+	spawn_with_program_path("prepare", program_path, &extra_args, spawn_timeout).await
 }
 
 pub enum Outcome {

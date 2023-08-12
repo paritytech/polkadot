@@ -30,7 +30,7 @@ use frame_support::{
 	traits::{EnqueueMessage, ExecuteOverweightError, ServiceQueues},
 	weights::Weight,
 };
-use primitives::v4::{well_known_keys, Id as ParaId, UpwardMessage};
+use primitives::{well_known_keys, Id as ParaId, UpwardMessage};
 use sp_core::twox_64;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Bounded;
@@ -573,12 +573,20 @@ fn overweight_queue_works() {
 			.into(),
 		);
 
-		// ... and if we try to service a message with index that doesn't exist it will error
-		// out.
+		// But servicing again will not work.
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::from_parts(501, 501),
 				(Ump(UmpQueueId::Para(para_a)), 0, 2)
+			),
+			ExecuteOverweightError::AlreadyProcessed,
+		);
+
+		// Using an invalid index does not work.
+		assert_noop!(
+			<MessageQueue as ServiceQueues>::execute_overweight(
+				Weight::from_parts(501, 501),
+				(Ump(UmpQueueId::Para(para_a)), 0, 3)
 			),
 			ExecuteOverweightError::NotFound,
 		);

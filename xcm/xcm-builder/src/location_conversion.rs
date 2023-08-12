@@ -16,12 +16,155 @@
 
 use crate::universal_exports::ensure_is_remote;
 use frame_support::traits::Get;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Compact, Decode, Encode};
 use sp_io::hashing::blake2_256;
-use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
-use sp_std::{borrow::Borrow, marker::PhantomData};
+use sp_runtime::traits::{AccountIdConversion, Convert, TrailingZeroInput};
+use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::Convert;
+use xcm_executor::traits::ConvertLocation;
+
+/// Means of converting a location into a stable and unique descriptive identifier.
+pub trait DescribeLocation {
+	/// Create a description of the given `location` if possible. No two locations should have the
+	/// same descriptor.
+	fn describe_location(location: &MultiLocation) -> Option<Vec<u8>>;
+}
+
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl DescribeLocation for Tuple {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		for_tuples!( #(
+			match Tuple::describe_location(l) {
+				Some(result) => return Some(result),
+				None => {},
+			}
+		)* );
+		None
+	}
+}
+
+pub struct DescribeTerminus;
+impl DescribeLocation for DescribeTerminus {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, &l.interior) {
+			(0, Here) => Some(Vec::new()),
+			_ => return None,
+		}
+	}
+}
+
+pub struct DescribePalletTerminal;
+impl DescribeLocation for DescribePalletTerminal {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, &l.interior) {
+			(0, X1(PalletInstance(i))) =>
+				Some((b"Pallet", Compact::<u32>::from(*i as u32)).encode()),
+			_ => return None,
+		}
+	}
+}
+
+pub struct DescribeAccountId32Terminal;
+impl DescribeLocation for DescribeAccountId32Terminal {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, &l.interior) {
+			(0, X1(AccountId32 { id, .. })) => Some((b"AccountId32", id).encode()),
+			_ => return None,
+		}
+	}
+}
+
+pub struct DescribeAccountKey20Terminal;
+impl DescribeLocation for DescribeAccountKey20Terminal {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, &l.interior) {
+			(0, X1(AccountKey20 { key, .. })) => Some((b"AccountKey20", key).encode()),
+			_ => return None,
+		}
+	}
+}
+
+pub type DescribeAccountIdTerminal = (DescribeAccountId32Terminal, DescribeAccountKey20Terminal);
+
+pub type DescribeAllTerminal = (
+	DescribeTerminus,
+	DescribePalletTerminal,
+	DescribeAccountId32Terminal,
+	DescribeAccountKey20Terminal,
+);
+
+pub struct DescribeFamily<DescribeInterior>(PhantomData<DescribeInterior>);
+impl<Suffix: DescribeLocation> DescribeLocation for DescribeFamily<Suffix> {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, l.interior.first()) {
+			(0, Some(Parachain(index))) => {
+				let tail = l.interior.split_first().0;
+				let interior = Suffix::describe_location(&tail.into())?;
+				Some((b"ChildChain", Compact::<u32>::from(*index), interior).encode())
+			},
+			(1, Some(Parachain(index))) => {
+				let tail = l.interior.split_first().0;
+				let interior = Suffix::describe_location(&tail.into())?;
+				Some((b"SiblingChain", Compact::<u32>::from(*index), interior).encode())
+			},
+			(1, _) => {
+				let tail = l.interior.into();
+				let interior = Suffix::describe_location(&tail)?;
+				Some((b"ParentChain", interior).encode())
+			},
+			_ => return None,
+		}
+	}
+}
+
+pub struct HashedDescription<AccountId, Describe>(PhantomData<(AccountId, Describe)>);
+impl<AccountId: From<[u8; 32]> + Clone, Describe: DescribeLocation> ConvertLocation<AccountId>
+	for HashedDescription<AccountId, Describe>
+{
+	fn convert_location(value: &MultiLocation) -> Option<AccountId> {
+		Some(blake2_256(&Describe::describe_location(value)?).into())
+	}
+}
+
+/// This is a describer for legacy support of the `ForeignChainAliasAccount` preimage. New chains
+/// are recommended to use the more extensible `HashedDescription` type.
+pub struct LegacyDescribeForeignChainAccount;
+impl DescribeLocation for LegacyDescribeForeignChainAccount {
+	fn describe_location(location: &MultiLocation) -> Option<Vec<u8>> {
+		Some(match location {
+			// Used on the relay chain for sending paras that use 32 byte accounts
+			MultiLocation {
+				parents: 0,
+				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
+			} => LegacyDescribeForeignChainAccount::from_para_32(para_id, id, 0),
+
+			// Used on the relay chain for sending paras that use 20 byte accounts
+			MultiLocation {
+				parents: 0,
+				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
+			} => LegacyDescribeForeignChainAccount::from_para_20(para_id, key, 0),
+
+			// Used on para-chain for sending paras that use 32 byte accounts
+			MultiLocation {
+				parents: 1,
+				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
+			} => LegacyDescribeForeignChainAccount::from_para_32(para_id, id, 1),
+
+			// Used on para-chain for sending paras that use 20 byte accounts
+			MultiLocation {
+				parents: 1,
+				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
+			} => LegacyDescribeForeignChainAccount::from_para_20(para_id, key, 1),
+
+			// Used on para-chain for sending from the relay chain
+			MultiLocation { parents: 1, interior: X1(AccountId32 { id, .. }) } =>
+				LegacyDescribeForeignChainAccount::from_relay_32(id, 1),
+
+			// No other conversions provided
+			_ => return None,
+		})
+	}
+}
 
 /// Prefix for generating alias account for accounts coming
 /// from chains that use 32 byte long representations.
@@ -35,6 +178,39 @@ pub const FOREIGN_CHAIN_PREFIX_PARA_20: [u8; 37] = *b"ForeignChainAliasAccountPr
 /// from the relay chain using 32 byte long representations.
 pub const FOREIGN_CHAIN_PREFIX_RELAY: [u8; 36] = *b"ForeignChainAliasAccountPrefix_Relay";
 
+impl LegacyDescribeForeignChainAccount {
+	fn from_para_32(para_id: &u32, id: &[u8; 32], parents: u8) -> Vec<u8> {
+		(FOREIGN_CHAIN_PREFIX_PARA_32, para_id, id, parents).encode()
+	}
+
+	fn from_para_20(para_id: &u32, id: &[u8; 20], parents: u8) -> Vec<u8> {
+		(FOREIGN_CHAIN_PREFIX_PARA_20, para_id, id, parents).encode()
+	}
+
+	fn from_relay_32(id: &[u8; 32], parents: u8) -> Vec<u8> {
+		(FOREIGN_CHAIN_PREFIX_RELAY, id, parents).encode()
+	}
+}
+
+/// This is deprecated in favor of the more modular `HashedDescription` converter. If
+/// your chain has previously used this, then you can retain backwards compatibility using
+/// `HashedDescription` and a tuple with `LegacyDescribeForeignChainAccount` as the first
+/// element. For example:
+///
+/// ```nocompile
+/// pub type LocationToAccount = HashedDescription<
+///   // Legacy conversion - MUST BE FIRST!
+///   LegacyDescribeForeignChainAccount,
+///   // Other conversions
+///   DescribeTerminus,
+///   DescribePalletTerminal,
+/// >;
+/// ```
+///
+/// This type is equivalent to the above but without any other conversions.
+///
+/// ### Old documentation
+///
 /// This converter will for a given `AccountId32`/`AccountKey20`
 /// always generate the same "remote" account for a specific
 /// sending chain.
@@ -59,154 +235,67 @@ pub const FOREIGN_CHAIN_PREFIX_RELAY: [u8; 36] = *b"ForeignChainAliasAccountPref
 /// same plane. So, it is important which chain account A acts from.
 /// E.g.
 /// * From P1.2 A will act as
-///    * hash(ParaPrefix, A, 1, 1) on P1.2
-///    * hash(ParaPrefix, A, 1, 0) on P1
+///    * hash(`ParaPrefix`, A, 1, 1) on P1.2
+///    * hash(`ParaPrefix`, A, 1, 0) on P1
 /// * From P1 A will act as
-///    * hash(RelayPrefix, A, 1) on P1.2 & P1.1
-///    * hash(ParaPrefix, A, 1, 1) on P2
-///    * hash(ParaPrefix, A, 1, 0) on R
+///    * hash(`RelayPrefix`, A, 1) on P1.2 & P1.1
+///    * hash(`ParaPrefix`, A, 1, 1) on P2
+///    * hash(`ParaPrefix`, A, 1, 0) on R
 ///
 /// Note that the alias accounts have overlaps but never on the same
 /// chain when the sender comes from different chains.
-pub struct ForeignChainAliasAccount<AccountId>(PhantomData<AccountId>);
-impl<AccountId: From<[u8; 32]> + Clone> Convert<MultiLocation, AccountId>
-	for ForeignChainAliasAccount<AccountId>
-{
-	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		let entropy = match location.borrow() {
-			// Used on the relay chain for sending paras that use 32 byte accounts
-			MultiLocation {
-				parents: 0,
-				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_32(para_id, id, 0),
-
-			// Used on the relay chain for sending paras that use 20 byte accounts
-			MultiLocation {
-				parents: 0,
-				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_20(para_id, key, 0),
-
-			// Used on para-chain for sending paras that use 32 byte accounts
-			MultiLocation {
-				parents: 1,
-				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_32(para_id, id, 1),
-
-			// Used on para-chain for sending paras that use 20 byte accounts
-			MultiLocation {
-				parents: 1,
-				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
-			} => ForeignChainAliasAccount::<AccountId>::from_para_20(para_id, key, 1),
-
-			// Used on para-chain for sending from the relay chain
-			MultiLocation { parents: 1, interior: X1(AccountId32 { id, .. }) } =>
-				ForeignChainAliasAccount::<AccountId>::from_relay_32(id, 1),
-
-			// No other conversions provided
-			_ => return Err(()),
-		};
-
-		Ok(entropy.into())
-	}
-
-	fn reverse_ref(_: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
-		Err(())
-	}
-}
-
-impl<AccountId> ForeignChainAliasAccount<AccountId> {
-	fn from_para_32(para_id: &u32, id: &[u8; 32], parents: u8) -> [u8; 32] {
-		(FOREIGN_CHAIN_PREFIX_PARA_32, para_id, id, parents).using_encoded(blake2_256)
-	}
-
-	fn from_para_20(para_id: &u32, id: &[u8; 20], parents: u8) -> [u8; 32] {
-		(FOREIGN_CHAIN_PREFIX_PARA_20, para_id, id, parents).using_encoded(blake2_256)
-	}
-
-	fn from_relay_32(id: &[u8; 32], parents: u8) -> [u8; 32] {
-		(FOREIGN_CHAIN_PREFIX_RELAY, id, parents).using_encoded(blake2_256)
-	}
-}
+#[deprecated = "Use `HashedDescription<AccountId, LegacyDescribeForeignChainAccount>` instead"]
+pub type ForeignChainAliasAccount<AccountId> =
+	HashedDescription<AccountId, LegacyDescribeForeignChainAccount>;
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
-	Convert<MultiLocation, AccountId> for Account32Hash<Network, AccountId>
+	ConvertLocation<AccountId> for Account32Hash<Network, AccountId>
 {
-	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		Ok(("multiloc", location.borrow()).using_encoded(blake2_256).into())
-	}
-
-	fn reverse_ref(_: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
-		Err(())
+	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
+		Some(("multiloc", location).using_encoded(blake2_256).into())
 	}
 }
 
 /// A [`MultiLocation`] consisting of a single `Parent` [`Junction`] will be converted to the
 /// parent `AccountId`.
 pub struct ParentIsPreset<AccountId>(PhantomData<AccountId>);
-impl<AccountId: Decode + Eq + Clone> Convert<MultiLocation, AccountId>
-	for ParentIsPreset<AccountId>
-{
-	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		if location.borrow().contains_parents_only(1) {
-			Ok(b"Parent"
-				.using_encoded(|b| AccountId::decode(&mut TrailingZeroInput::new(b)))
-				.expect("infinite length input; no invalid inputs for type; qed"))
+impl<AccountId: Decode + Eq + Clone> ConvertLocation<AccountId> for ParentIsPreset<AccountId> {
+	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
+		if location.contains_parents_only(1) {
+			Some(
+				b"Parent"
+					.using_encoded(|b| AccountId::decode(&mut TrailingZeroInput::new(b)))
+					.expect("infinite length input; no invalid inputs for type; qed"),
+			)
 		} else {
-			Err(())
-		}
-	}
-
-	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
-		let parent_account = b"Parent"
-			.using_encoded(|b| AccountId::decode(&mut TrailingZeroInput::new(b)))
-			.expect("infinite length input; no invalid inputs for type; qed");
-		if who.borrow() == &parent_account {
-			Ok(Parent.into())
-		} else {
-			Err(())
+			None
 		}
 	}
 }
 
 pub struct ChildParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
 impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: Clone>
-	Convert<MultiLocation, AccountId> for ChildParachainConvertsVia<ParaId, AccountId>
+	ConvertLocation<AccountId> for ChildParachainConvertsVia<ParaId, AccountId>
 {
-	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		match location.borrow() {
+	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
+		match location {
 			MultiLocation { parents: 0, interior: X1(Parachain(id)) } =>
-				Ok(ParaId::from(*id).into_account_truncating()),
-			_ => Err(()),
-		}
-	}
-
-	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
-		if let Some(id) = ParaId::try_from_account(who.borrow()) {
-			Ok(Parachain(id.into()).into())
-		} else {
-			Err(())
+				Some(ParaId::from(*id).into_account_truncating()),
+			_ => None,
 		}
 	}
 }
 
 pub struct SiblingParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
 impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: Clone>
-	Convert<MultiLocation, AccountId> for SiblingParachainConvertsVia<ParaId, AccountId>
+	ConvertLocation<AccountId> for SiblingParachainConvertsVia<ParaId, AccountId>
 {
-	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		match location.borrow() {
+	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
+		match location {
 			MultiLocation { parents: 1, interior: X1(Parachain(id)) } =>
-				Ok(ParaId::from(*id).into_account_truncating()),
-			_ => Err(()),
-		}
-	}
-
-	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
-		if let Some(id) = ParaId::try_from_account(who.borrow()) {
-			Ok(MultiLocation::new(1, X1(Parachain(id.into()))))
-		} else {
-			Err(())
+				Some(ParaId::from(*id).into_account_truncating()),
+			_ => None,
 		}
 	}
 }
@@ -214,42 +303,81 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 /// Extracts the `AccountId32` from the passed `location` if the network matches.
 pub struct AccountId32Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
-	Convert<MultiLocation, AccountId> for AccountId32Aliases<Network, AccountId>
+	ConvertLocation<AccountId> for AccountId32Aliases<Network, AccountId>
 {
-	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		let id = match location {
+	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
+		let id = match *location {
 			MultiLocation { parents: 0, interior: X1(AccountId32 { id, network: None }) } => id,
 			MultiLocation { parents: 0, interior: X1(AccountId32 { id, network }) }
 				if network == Network::get() =>
 				id,
-			_ => return Err(location),
+			_ => return None,
 		};
-		Ok(id.into())
+		Some(id.into())
 	}
+}
 
-	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
-		Ok(AccountId32 { id: who.into(), network: Network::get() }.into())
+/// Conversion implementation which converts from a `[u8; 32]`-based `AccountId` into a
+/// `MultiLocation` consisting solely of a `AccountId32` junction with a fixed value for its
+/// network (provided by `Network`) and the `AccountId`'s `[u8; 32]` datum for the `id`.
+pub struct AliasesIntoAccountId32<Network, AccountId>(PhantomData<(Network, AccountId)>);
+impl<'a, Network: Get<Option<NetworkId>>, AccountId: Clone + Into<[u8; 32]> + Clone>
+	Convert<&'a AccountId, MultiLocation> for AliasesIntoAccountId32<Network, AccountId>
+{
+	fn convert(who: &AccountId) -> MultiLocation {
+		AccountId32 { network: Network::get(), id: who.clone().into() }.into()
 	}
 }
 
 pub struct AccountKey20Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone>
-	Convert<MultiLocation, AccountId> for AccountKey20Aliases<Network, AccountId>
+	ConvertLocation<AccountId> for AccountKey20Aliases<Network, AccountId>
 {
-	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		let key = match location {
+	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
+		let key = match *location {
 			MultiLocation { parents: 0, interior: X1(AccountKey20 { key, network: None }) } => key,
 			MultiLocation { parents: 0, interior: X1(AccountKey20 { key, network }) }
 				if network == Network::get() =>
 				key,
-			_ => return Err(location),
+			_ => return None,
 		};
-		Ok(key.into())
+		Some(key.into())
 	}
+}
 
-	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
-		let j = AccountKey20 { key: who.into(), network: Network::get() };
-		Ok(j.into())
+/// Converts a location which is a top-level relay chain (which provides its own consensus) into a 32-byte `AccountId`.
+///
+/// This will always result in the *same account ID* being returned for the same Relay-chain, regardless of the relative security of
+/// this Relay-chain compared to the local chain.
+///
+/// Note: No distinction is made between the cases when the given `UniversalLocation` lies within
+/// the same consensus system (i.e. is itself or a parent) and when it is a foreign consensus
+/// system.
+pub struct GlobalConsensusConvertsFor<UniversalLocation, AccountId>(
+	PhantomData<(UniversalLocation, AccountId)>,
+);
+impl<UniversalLocation: Get<InteriorMultiLocation>, AccountId: From<[u8; 32]> + Clone>
+	ConvertLocation<AccountId> for GlobalConsensusConvertsFor<UniversalLocation, AccountId>
+{
+	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
+		let universal_source = UniversalLocation::get();
+		log::trace!(
+			target: "xcm::location_conversion",
+			"GlobalConsensusConvertsFor universal_source: {:?}, location: {:?}",
+			universal_source, location,
+		);
+		let (remote_network, remote_location) =
+			ensure_is_remote(universal_source, *location).ok()?;
+
+		match remote_location {
+			Here => Some(AccountId::from(Self::from_params(&remote_network))),
+			_ => None,
+		}
+	}
+}
+impl<UniversalLocation, AccountId> GlobalConsensusConvertsFor<UniversalLocation, AccountId> {
+	fn from_params(network: &NetworkId) -> [u8; 32] {
+		(b"glblcnsnss_", network).using_encoded(blake2_256)
 	}
 }
 
@@ -272,29 +400,23 @@ pub struct GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>(
 	PhantomData<(UniversalLocation, AccountId)>,
 );
 impl<UniversalLocation: Get<InteriorMultiLocation>, AccountId: From<[u8; 32]> + Clone>
-	Convert<MultiLocation, AccountId>
-	for GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>
+	ConvertLocation<AccountId> for GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>
 {
-	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
+	fn convert_location(location: &MultiLocation) -> Option<AccountId> {
 		let universal_source = UniversalLocation::get();
 		log::trace!(
 			target: "xcm::location_conversion",
 			"GlobalConsensusParachainConvertsFor universal_source: {:?}, location: {:?}",
-			universal_source, location.borrow(),
+			universal_source, location,
 		);
-		let devolved = ensure_is_remote(universal_source, *location.borrow()).map_err(|_| ())?;
+		let devolved = ensure_is_remote(universal_source, *location).ok()?;
 		let (remote_network, remote_location) = devolved;
 
 		match remote_location {
 			X1(Parachain(remote_network_para_id)) =>
-				Ok(AccountId::from(Self::from_params(&remote_network, &remote_network_para_id))),
-			_ => Err(()),
+				Some(AccountId::from(Self::from_params(&remote_network, &remote_network_para_id))),
+			_ => None,
 		}
-	}
-
-	fn reverse_ref(_: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
-		// if this will be needed, we could implement some kind of guessing, if we have configuration for supported networkId+paraId
-		Err(())
 	}
 }
 impl<UniversalLocation, AccountId>
@@ -308,6 +430,9 @@ impl<UniversalLocation, AccountId>
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	pub type ForeignChainAliasAccount<AccountId> =
+		HashedDescription<AccountId, LegacyDescribeForeignChainAccount>;
 
 	use frame_support::parameter_types;
 	use xcm::latest::Junction;
@@ -385,6 +510,105 @@ mod tests {
 	}
 
 	#[test]
+	fn global_consensus_converts_for_works() {
+		parameter_types! {
+			pub UniversalLocationInNetwork1: InteriorMultiLocation = X2(GlobalConsensus(ByGenesis([1; 32])), Parachain(1234));
+			pub UniversalLocationInNetwork2: InteriorMultiLocation = X2(GlobalConsensus(ByGenesis([2; 32])), Parachain(1234));
+		}
+		let network_1 = UniversalLocationInNetwork1::get().global_consensus().expect("NetworkId");
+		let network_2 = UniversalLocationInNetwork2::get().global_consensus().expect("NetworkId");
+		let network_3 = ByGenesis([3; 32]);
+		let network_4 = ByGenesis([4; 32]);
+		let network_5 = ByGenesis([5; 32]);
+
+		let test_data = vec![
+			(MultiLocation::parent(), false),
+			(MultiLocation::new(0, Here), false),
+			(MultiLocation::new(0, X1(GlobalConsensus(network_1))), false),
+			(MultiLocation::new(1, X1(GlobalConsensus(network_1))), false),
+			(MultiLocation::new(2, X1(GlobalConsensus(network_1))), false),
+			(MultiLocation::new(0, X1(GlobalConsensus(network_2))), false),
+			(MultiLocation::new(1, X1(GlobalConsensus(network_2))), false),
+			(MultiLocation::new(2, X1(GlobalConsensus(network_2))), true),
+			(MultiLocation::new(0, X2(GlobalConsensus(network_2), Parachain(1000))), false),
+			(MultiLocation::new(1, X2(GlobalConsensus(network_2), Parachain(1000))), false),
+			(MultiLocation::new(2, X2(GlobalConsensus(network_2), Parachain(1000))), false),
+		];
+
+		for (location, expected_result) in test_data {
+			let result =
+				GlobalConsensusConvertsFor::<UniversalLocationInNetwork1, [u8; 32]>::convert_location(
+					&location,
+				);
+			match result {
+				Some(account) => {
+					assert_eq!(
+						true, expected_result,
+						"expected_result: {}, but conversion passed: {:?}, location: {:?}",
+						expected_result, account, location
+					);
+					match &location {
+						MultiLocation { interior: X1(GlobalConsensus(network)), .. } =>
+							assert_eq!(
+								account,
+								GlobalConsensusConvertsFor::<UniversalLocationInNetwork1, [u8; 32]>::from_params(network),
+								"expected_result: {}, but conversion passed: {:?}, location: {:?}", expected_result, account, location
+							),
+						_ => panic!("expected_result: {}, conversion passed: {:?}, but MultiLocation does not match expected pattern, location: {:?}", expected_result, account, location)
+					}
+				},
+				None => {
+					assert_eq!(
+						false, expected_result,
+						"expected_result: {} - but conversion failed, location: {:?}",
+						expected_result, location
+					);
+				},
+			}
+		}
+
+		// all success
+		let res_1_gc_network_3 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork1, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_3))),
+			)
+			.expect("conversion is ok");
+		let res_2_gc_network_3 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork2, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_3))),
+			)
+			.expect("conversion is ok");
+		let res_1_gc_network_4 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork1, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_4))),
+			)
+			.expect("conversion is ok");
+		let res_2_gc_network_4 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork2, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_4))),
+			)
+			.expect("conversion is ok");
+		let res_1_gc_network_5 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork1, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_5))),
+			)
+			.expect("conversion is ok");
+		let res_2_gc_network_5 =
+			GlobalConsensusConvertsFor::<UniversalLocationInNetwork2, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X1(GlobalConsensus(network_5))),
+			)
+			.expect("conversion is ok");
+
+		assert_ne!(res_1_gc_network_3, res_1_gc_network_4);
+		assert_ne!(res_1_gc_network_4, res_1_gc_network_5);
+		assert_ne!(res_1_gc_network_3, res_1_gc_network_5);
+
+		assert_eq!(res_1_gc_network_3, res_2_gc_network_3);
+		assert_eq!(res_1_gc_network_4, res_2_gc_network_4);
+		assert_eq!(res_1_gc_network_5, res_2_gc_network_5);
+	}
+
+	#[test]
 	fn global_consensus_parachain_converts_for_works() {
 		parameter_types! {
 			pub UniversalLocation: InteriorMultiLocation = X2(GlobalConsensus(ByGenesis([9; 32])), Parachain(1234));
@@ -427,11 +651,11 @@ mod tests {
 
 		for (location, expected_result) in test_data {
 			let result =
-				GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_ref(
+				GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_location(
 					&location,
 				);
 			match result {
-				Ok(account) => {
+				Some(account) => {
 					assert_eq!(
 						true, expected_result,
 						"expected_result: {}, but conversion passed: {:?}, location: {:?}",
@@ -451,7 +675,7 @@ mod tests {
 						)
 					}
 				},
-				Err(_) => {
+				None => {
 					assert_eq!(
 						false, expected_result,
 						"expected_result: {} - but conversion failed, location: {:?}",
@@ -463,23 +687,23 @@ mod tests {
 
 		// all success
 		let res_gc_a_p1000 =
-			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_ref(
-				MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([3; 32])), Parachain(1000))),
+			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([3; 32])), Parachain(1000))),
 			)
 			.expect("conversion is ok");
 		let res_gc_a_p1001 =
-			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_ref(
-				MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([3; 32])), Parachain(1001))),
+			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([3; 32])), Parachain(1001))),
 			)
 			.expect("conversion is ok");
 		let res_gc_b_p1000 =
-			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_ref(
-				MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([4; 32])), Parachain(1000))),
+			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([4; 32])), Parachain(1000))),
 			)
 			.expect("conversion is ok");
 		let res_gc_b_p1001 =
-			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_ref(
-				MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([4; 32])), Parachain(1001))),
+			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_location(
+				&MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([4; 32])), Parachain(1001))),
 			)
 			.expect("conversion is ok");
 		assert_ne!(res_gc_a_p1000, res_gc_a_p1001);
@@ -496,7 +720,7 @@ mod tests {
 			parents: 1,
 			interior: X2(Parachain(1), AccountId32 { network: None, id: [0u8; 32] }),
 		};
-		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap();
 
 		assert_eq!(
 			[
@@ -514,13 +738,13 @@ mod tests {
 			),
 		};
 
-		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
+		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 1,
 			interior: X2(Parachain(2), AccountId32 { network: None, id: [0u8; 32] }),
 		};
-		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap();
 
 		assert_eq!(
 			[
@@ -539,7 +763,7 @@ mod tests {
 			parents: 1,
 			interior: X2(Parachain(1), AccountKey20 { network: None, key: [0u8; 20] }),
 		};
-		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap();
 
 		assert_eq!(
 			[
@@ -557,13 +781,13 @@ mod tests {
 			),
 		};
 
-		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
+		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 1,
 			interior: X2(Parachain(2), AccountKey20 { network: None, key: [0u8; 20] }),
 		};
-		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap();
 
 		assert_eq!(
 			[
@@ -582,7 +806,7 @@ mod tests {
 			parents: 1,
 			interior: X1(AccountId32 { network: None, id: [0u8; 32] }),
 		};
-		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap();
 
 		assert_eq!(
 			[
@@ -597,13 +821,13 @@ mod tests {
 			interior: X1(AccountId32 { network: Some(NetworkId::Polkadot), id: [0u8; 32] }),
 		};
 
-		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
+		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 1,
 			interior: X1(AccountId32 { network: None, id: [1u8; 32] }),
 		};
-		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap();
 
 		assert_eq!(
 			[
@@ -622,7 +846,7 @@ mod tests {
 			parents: 0,
 			interior: X2(Parachain(1), AccountKey20 { network: None, key: [0u8; 20] }),
 		};
-		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap();
 
 		assert_eq!(
 			[
@@ -636,7 +860,7 @@ mod tests {
 			parents: 0,
 			interior: X2(Parachain(2), AccountKey20 { network: None, key: [0u8; 20] }),
 		};
-		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap();
 
 		assert_eq!(
 			[
@@ -655,7 +879,7 @@ mod tests {
 			parents: 0,
 			interior: X2(Parachain(1), AccountId32 { network: None, id: [0u8; 32] }),
 		};
-		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap();
 
 		assert_eq!(
 			[
@@ -673,13 +897,13 @@ mod tests {
 			),
 		};
 
-		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
+		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 0,
 			interior: X2(Parachain(2), AccountId32 { network: None, id: [0u8; 32] }),
 		};
-		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).unwrap();
 
 		assert_eq!(
 			[
@@ -698,6 +922,6 @@ mod tests {
 			parents: 1,
 			interior: X1(AccountKey20 { network: None, key: [0u8; 20] }),
 		};
-		assert!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).is_err());
+		assert!(ForeignChainAliasAccount::<[u8; 32]>::convert_location(&mul).is_none());
 	}
 }

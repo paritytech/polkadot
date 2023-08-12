@@ -3,6 +3,10 @@
 "gum" to make `tracing::{warn,info,..}` and `mick-jaeger` stick together, to be
 cross referenced in grafana with zero additional loc in the source code.
 
+## Usage
+
+See the crate docs (e.g. run `cargo doc --open`) for usage information!
+
 ## Architecture Decision Record (ADR)
 
 ### Context

@@ -17,6 +17,7 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{Id as ParaId, PersistedValidationData, ValidatorIndex};
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
@@ -28,9 +29,9 @@ use crate::{configuration, hrmp, paras};
 /// This ties together the storage of several modules.
 pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 	para_id: ParaId,
-	relay_parent_number: T::BlockNumber,
+	relay_parent_number: BlockNumberFor<T>,
 	relay_parent_storage_root: T::Hash,
-) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
+) -> Option<PersistedValidationData<T::Hash, BlockNumberFor<T>>> {
 	let config = <configuration::Pallet<T>>::config();
 
 	Some(PersistedValidationData {

@@ -41,7 +41,15 @@ test-linux-stable:
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
-    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics,try-runtime
+    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics,try-runtime,ci-only-tests
+    # Run `polkadot-runtime-parachains` tests a second time because `paras_inherent::enter` tests are gated by not having
+    # the `runtime-benchmarks` feature enabled.
+    - time cargo test --profile testnet --verbose --locked --features=runtime-metrics,try-runtime -p polkadot-runtime-parachains
+
+test-linux-oldkernel-stable:
+  extends: test-linux-stable
+  tags:
+    - oldkernel-vm
 
 .check-dependent-project: &check-dependent-project
   stage: test
@@ -81,6 +89,9 @@ test-node-metrics:
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
+    # Build the required workers.
+    - cargo build --bin polkadot-execute-worker --bin polkadot-prepare-worker --profile testnet --verbose --locked
+    # Run tests.
     - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
 
 test-deterministic-wasm:

@@ -16,7 +16,8 @@
 
 use crate::{
 	mock::*, AssetTraps, CurrentMigration, Error, LatestVersionedMultiLocation, Queries,
-	QueryStatus, VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets,
+	QueryStatus, VersionDiscoveryQueue, VersionMigrationStage, VersionNotifiers,
+	VersionNotifyTargets,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -28,7 +29,7 @@ use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash};
 use xcm::{latest::QueryResponseInfo, prelude::*};
 use xcm_builder::AllowKnownQueryResponses;
 use xcm_executor::{
-	traits::{Properties, ShouldExecute},
+	traits::{Properties, QueryHandler, QueryResponseStatus, ShouldExecute},
 	XcmExecutor,
 };
 
@@ -170,7 +171,8 @@ fn report_outcome_works() {
 			})
 		);
 
-		let response = Some((Response::ExecutionResult(None), 1));
+		let response =
+			QueryResponseStatus::Ready { response: Response::ExecutionResult(None), at: 1 };
 		assert_eq!(XcmPallet::take_response(0), response);
 	});
 }
@@ -270,7 +272,8 @@ fn custom_querier_works() {
 			})
 		);
 
-		let response = Some((Response::ExecutionResult(None), 1));
+		let response =
+			QueryResponseStatus::Ready { response: Response::ExecutionResult(None), at: 1 };
 		assert_eq!(XcmPallet::take_response(0), response);
 	});
 }
@@ -895,7 +898,7 @@ fn subscription_side_works() {
 		assert_eq!(take_sent_xcm(), vec![(remote.clone(), Xcm(vec![instr]))]);
 
 		// A runtime upgrade which doesn't alter the version sends no notifications.
-		XcmPallet::on_runtime_upgrade();
+		CurrentMigration::<Test>::put(VersionMigrationStage::default());
 		XcmPallet::on_initialize(1);
 		assert_eq!(take_sent_xcm(), vec![]);
 
@@ -903,7 +906,7 @@ fn subscription_side_works() {
 		AdvertisedXcmVersion::set(2);
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		CurrentMigration::<Test>::put(VersionMigrationStage::default());
 		XcmPallet::on_initialize(2);
 		let instr = QueryResponse {
 			query_id: 0,
@@ -930,7 +933,7 @@ fn subscription_side_upgrades_work_with_notify() {
 		AdvertisedXcmVersion::set(3);
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		CurrentMigration::<Test>::put(VersionMigrationStage::default());
 		XcmPallet::on_initialize(1);
 
 		let instr1 = QueryResponse {
@@ -980,7 +983,7 @@ fn subscription_side_upgrades_work_without_notify() {
 		VersionNotifyTargets::<Test>::insert(3, v3_location, (72, Weight::zero(), 2));
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		CurrentMigration::<Test>::put(VersionMigrationStage::default());
 		XcmPallet::on_initialize(1);
 
 		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
@@ -1164,7 +1167,7 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		AdvertisedXcmVersion::set(3);
 
 		// A runtime upgrade which alters the version does send notifications.
-		XcmPallet::on_runtime_upgrade();
+		CurrentMigration::<Test>::put(VersionMigrationStage::default());
 		let mut maybe_migration = CurrentMigration::<Test>::take();
 		let mut counter = 0;
 		while let Some(migration) = maybe_migration.take() {

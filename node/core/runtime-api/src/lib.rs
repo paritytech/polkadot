@@ -157,6 +157,12 @@ where
 				self.requests_cache.cache_version(relay_parent, version),
 			Disputes(relay_parent, disputes) =>
 				self.requests_cache.cache_disputes(relay_parent, disputes),
+			UnappliedSlashes(relay_parent, unapplied_slashes) =>
+				self.requests_cache.cache_unapplied_slashes(relay_parent, unapplied_slashes),
+			KeyOwnershipProof(relay_parent, validator_id, key_ownership_proof) => self
+				.requests_cache
+				.cache_key_ownership_proof((relay_parent, validator_id), key_ownership_proof),
+			SubmitReportDisputeLost(_, _, _, _) => {},
 		}
 	}
 
@@ -271,6 +277,17 @@ where
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
 			Request::Disputes(sender) =>
 				query!(disputes(), sender).map(|sender| Request::Disputes(sender)),
+			Request::UnappliedSlashes(sender) =>
+				query!(unapplied_slashes(), sender).map(|sender| Request::UnappliedSlashes(sender)),
+			Request::KeyOwnershipProof(validator_id, sender) =>
+				query!(key_ownership_proof(validator_id), sender)
+					.map(|sender| Request::KeyOwnershipProof(validator_id, sender)),
+			Request::SubmitReportDisputeLost(dispute_proof, key_ownership_proof, sender) =>
+				query!(submit_report_dispute_lost(dispute_proof, key_ownership_proof), sender).map(
+					|sender| {
+						Request::SubmitReportDisputeLost(dispute_proof, key_ownership_proof, sender)
+					},
+				),
 		}
 	}
 
@@ -419,33 +436,38 @@ where
 
 		Request::Authorities(sender) => query!(Authorities, authorities(), ver = 1, sender),
 		Request::Validators(sender) => query!(Validators, validators(), ver = 1, sender),
-		Request::ValidatorGroups(sender) =>
-			query!(ValidatorGroups, validator_groups(), ver = 1, sender),
-		Request::AvailabilityCores(sender) =>
-			query!(AvailabilityCores, availability_cores(), ver = 1, sender),
+		Request::ValidatorGroups(sender) => {
+			query!(ValidatorGroups, validator_groups(), ver = 1, sender)
+		},
+		Request::AvailabilityCores(sender) => {
+			query!(AvailabilityCores, availability_cores(), ver = 1, sender)
+		},
 		Request::PersistedValidationData(para, assumption, sender) => query!(
 			PersistedValidationData,
 			persisted_validation_data(para, assumption),
 			ver = 1,
 			sender
 		),
-		Request::AssumedValidationData(para, expected_persisted_validation_data_hash, sender) =>
+		Request::AssumedValidationData(para, expected_persisted_validation_data_hash, sender) => {
 			query!(
 				AssumedValidationData,
 				assumed_validation_data(para, expected_persisted_validation_data_hash),
 				ver = 1,
 				sender
-			),
+			)
+		},
 		Request::CheckValidationOutputs(para, commitments, sender) => query!(
 			CheckValidationOutputs,
 			check_validation_outputs(para, commitments),
 			ver = 1,
 			sender
 		),
-		Request::SessionIndexForChild(sender) =>
-			query!(SessionIndexForChild, session_index_for_child(), ver = 1, sender),
-		Request::ValidationCode(para, assumption, sender) =>
-			query!(ValidationCode, validation_code(para, assumption), ver = 1, sender),
+		Request::SessionIndexForChild(sender) => {
+			query!(SessionIndexForChild, session_index_for_child(), ver = 1, sender)
+		},
+		Request::ValidationCode(para, assumption, sender) => {
+			query!(ValidationCode, validation_code(para, assumption), ver = 1, sender)
+		},
 		Request::ValidationCodeByHash(validation_code_hash, sender) => query!(
 			ValidationCodeByHash,
 			validation_code_by_hash(validation_code_hash),
@@ -458,10 +480,12 @@ where
 			ver = 1,
 			sender
 		),
-		Request::CandidateEvents(sender) =>
-			query!(CandidateEvents, candidate_events(), ver = 1, sender),
-		Request::SessionInfo(index, sender) =>
-			query!(SessionInfo, session_info(index), ver = 2, sender),
+		Request::CandidateEvents(sender) => {
+			query!(CandidateEvents, candidate_events(), ver = 1, sender)
+		},
+		Request::SessionInfo(index, sender) => {
+			query!(SessionInfo, session_info(index), ver = 2, sender)
+		},
 		Request::SessionExecutorParams(session_index, sender) => query!(
 			SessionExecutorParams,
 			session_executor_params(session_index),
@@ -469,12 +493,15 @@ where
 			sender
 		),
 		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), ver = 1, sender),
-		Request::InboundHrmpChannelsContents(id, sender) =>
-			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), ver = 1, sender),
-		Request::CurrentBabeEpoch(sender) =>
-			query!(CurrentBabeEpoch, current_epoch(), ver = 1, sender),
-		Request::FetchOnChainVotes(sender) =>
-			query!(FetchOnChainVotes, on_chain_votes(), ver = 1, sender),
+		Request::InboundHrmpChannelsContents(id, sender) => {
+			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), ver = 1, sender)
+		},
+		Request::CurrentBabeEpoch(sender) => {
+			query!(CurrentBabeEpoch, current_epoch(), ver = 1, sender)
+		},
+		Request::FetchOnChainVotes(sender) => {
+			query!(FetchOnChainVotes, on_chain_votes(), ver = 1, sender)
+		},
 		Request::SubmitPvfCheckStatement(stmt, signature, sender) => {
 			query!(
 				SubmitPvfCheckStatement,
@@ -486,9 +513,29 @@ where
 		Request::PvfsRequirePrecheck(sender) => {
 			query!(PvfsRequirePrecheck, pvfs_require_precheck(), ver = 2, sender)
 		},
-		Request::ValidationCodeHash(para, assumption, sender) =>
-			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
-		Request::Disputes(sender) =>
-			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQUIREMENT, sender),
+		Request::ValidationCodeHash(para, assumption, sender) => {
+			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender)
+		},
+		Request::Disputes(sender) => {
+			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQUIREMENT, sender)
+		},
+		Request::UnappliedSlashes(sender) => query!(
+			UnappliedSlashes,
+			unapplied_slashes(),
+			ver = Request::UNAPPLIED_SLASHES_RUNTIME_REQUIREMENT,
+			sender
+		),
+		Request::KeyOwnershipProof(validator_id, sender) => query!(
+			KeyOwnershipProof,
+			key_ownership_proof(validator_id),
+			ver = Request::KEY_OWNERSHIP_PROOF_RUNTIME_REQUIREMENT,
+			sender
+		),
+		Request::SubmitReportDisputeLost(dispute_proof, key_ownership_proof, sender) => query!(
+			SubmitReportDisputeLost,
+			submit_report_dispute_lost(dispute_proof, key_ownership_proof),
+			ver = Request::SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT,
+			sender
+		),
 	}
 }

@@ -26,7 +26,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem_types::{
 	jaeger,
-	messages::{NetworkBridgeEvent, RuntimeApiRequest},
+	messages::{NetworkBridgeEvent, ReportPeerMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::{
@@ -855,7 +855,10 @@ fn test_availability_store_msg() -> AvailabilityStoreMessage {
 }
 
 fn test_network_bridge_tx_msg() -> NetworkBridgeTxMessage {
-	NetworkBridgeTxMessage::ReportPeer(PeerId::random(), UnifiedReputationChange::BenefitMinor(""))
+	NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(
+		PeerId::random(),
+		UnifiedReputationChange::BenefitMinor("").into(),
+	))
 }
 
 fn test_network_bridge_rx_msg() -> NetworkBridgeRxMessage {

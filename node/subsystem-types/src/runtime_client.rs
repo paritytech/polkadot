@@ -16,17 +16,18 @@
 
 use async_trait::async_trait;
 use polkadot_primitives::{
-	runtime_api::ParachainHost, Block, BlockNumber, CandidateCommitments, CandidateEvent,
+	runtime_api::ParachainHost, vstaging, Block, BlockNumber, CandidateCommitments, CandidateEvent,
 	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams,
 	GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage,
 	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
 	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 	ValidatorSignature,
 };
+use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
 use sp_consensus_babe::{BabeApi, Epoch};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Exposes all runtime calls that are used by the runtime API subsystem.
 #[async_trait]
@@ -182,6 +183,34 @@ pub trait RuntimeApiSubsystemClient {
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
 
+	/// Returns a list of validators that lost a past session dispute and need to be slashed.
+	///
+	/// WARNING: This is a staging method! Do not use on production runtimes!
+	async fn unapplied_slashes(
+		&self,
+		at: Hash,
+	) -> Result<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>, ApiError>;
+
+	/// Returns a merkle proof of a validator session key in a past session.
+	///
+	/// WARNING: This is a staging method! Do not use on production runtimes!
+	async fn key_ownership_proof(
+		&self,
+		at: Hash,
+		validator_id: ValidatorId,
+	) -> Result<Option<vstaging::slashing::OpaqueKeyOwnershipProof>, ApiError>;
+
+	/// Submits an unsigned extrinsic to slash validators who lost a dispute about
+	/// a candidate of a past session.
+	///
+	/// WARNING: This is a staging method! Do not use on production runtimes!
+	async fn submit_report_dispute_lost(
+		&self,
+		at: Hash,
+		dispute_proof: vstaging::slashing::DisputeProof,
+		key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+	) -> Result<Option<()>, ApiError>;
+
 	/// Get the execution environment parameter set by parent hash, if stored
 	async fn session_executor_params(
 		&self,
@@ -203,28 +232,44 @@ pub trait RuntimeApiSubsystemClient {
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
 }
 
+/// Default implementation of [`RuntimeApiSubsystemClient`] using the client.
+pub struct DefaultSubsystemClient<Client> {
+	client: Arc<Client>,
+	offchain_transaction_pool_factory: OffchainTransactionPoolFactory<Block>,
+}
+
+impl<Client> DefaultSubsystemClient<Client> {
+	/// Create new instance.
+	pub fn new(
+		client: Arc<Client>,
+		offchain_transaction_pool_factory: OffchainTransactionPoolFactory<Block>,
+	) -> Self {
+		Self { client, offchain_transaction_pool_factory }
+	}
+}
+
 #[async_trait]
-impl<T> RuntimeApiSubsystemClient for T
+impl<Client> RuntimeApiSubsystemClient for DefaultSubsystemClient<Client>
 where
-	T: ProvideRuntimeApi<Block> + Send + Sync,
-	T::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client: ProvideRuntimeApi<Block> + Send + Sync,
+	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 {
 	async fn validators(&self, at: Hash) -> Result<Vec<ValidatorId>, ApiError> {
-		self.runtime_api().validators(at)
+		self.client.runtime_api().validators(at)
 	}
 
 	async fn validator_groups(
 		&self,
 		at: Hash,
 	) -> Result<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>), ApiError> {
-		self.runtime_api().validator_groups(at)
+		self.client.runtime_api().validator_groups(at)
 	}
 
 	async fn availability_cores(
 		&self,
 		at: Hash,
 	) -> Result<Vec<CoreState<Hash, BlockNumber>>, ApiError> {
-		self.runtime_api().availability_cores(at)
+		self.client.runtime_api().availability_cores(at)
 	}
 
 	async fn persisted_validation_data(
@@ -233,7 +278,7 @@ where
 		para_id: Id,
 		assumption: OccupiedCoreAssumption,
 	) -> Result<Option<PersistedValidationData<Hash, BlockNumber>>, ApiError> {
-		self.runtime_api().persisted_validation_data(at, para_id, assumption)
+		self.client.runtime_api().persisted_validation_data(at, para_id, assumption)
 	}
 
 	async fn assumed_validation_data(
@@ -243,7 +288,7 @@ where
 		expected_persisted_validation_data_hash: Hash,
 	) -> Result<Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)>, ApiError>
 	{
-		self.runtime_api().assumed_validation_data(
+		self.client.runtime_api().assumed_validation_data(
 			at,
 			para_id,
 			expected_persisted_validation_data_hash,
@@ -256,11 +301,11 @@ where
 		para_id: Id,
 		outputs: CandidateCommitments,
 	) -> Result<bool, ApiError> {
-		self.runtime_api().check_validation_outputs(at, para_id, outputs)
+		self.client.runtime_api().check_validation_outputs(at, para_id, outputs)
 	}
 
 	async fn session_index_for_child(&self, at: Hash) -> Result<SessionIndex, ApiError> {
-		self.runtime_api().session_index_for_child(at)
+		self.client.runtime_api().session_index_for_child(at)
 	}
 
 	async fn validation_code(
@@ -269,7 +314,7 @@ where
 		para_id: Id,
 		assumption: OccupiedCoreAssumption,
 	) -> Result<Option<ValidationCode>, ApiError> {
-		self.runtime_api().validation_code(at, para_id, assumption)
+		self.client.runtime_api().validation_code(at, para_id, assumption)
 	}
 
 	async fn candidate_pending_availability(
@@ -277,11 +322,11 @@ where
 		at: Hash,
 		para_id: Id,
 	) -> Result<Option<CommittedCandidateReceipt<Hash>>, ApiError> {
-		self.runtime_api().candidate_pending_availability(at, para_id)
+		self.client.runtime_api().candidate_pending_availability(at, para_id)
 	}
 
 	async fn candidate_events(&self, at: Hash) -> Result<Vec<CandidateEvent<Hash>>, ApiError> {
-		self.runtime_api().candidate_events(at)
+		self.client.runtime_api().candidate_events(at)
 	}
 
 	async fn dmq_contents(
@@ -289,7 +334,7 @@ where
 		at: Hash,
 		recipient: Id,
 	) -> Result<Vec<InboundDownwardMessage<BlockNumber>>, ApiError> {
-		self.runtime_api().dmq_contents(at, recipient)
+		self.client.runtime_api().dmq_contents(at, recipient)
 	}
 
 	async fn inbound_hrmp_channels_contents(
@@ -297,7 +342,7 @@ where
 		at: Hash,
 		recipient: Id,
 	) -> Result<BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>>, ApiError> {
-		self.runtime_api().inbound_hrmp_channels_contents(at, recipient)
+		self.client.runtime_api().inbound_hrmp_channels_contents(at, recipient)
 	}
 
 	async fn validation_code_by_hash(
@@ -305,14 +350,14 @@ where
 		at: Hash,
 		hash: ValidationCodeHash,
 	) -> Result<Option<ValidationCode>, ApiError> {
-		self.runtime_api().validation_code_by_hash(at, hash)
+		self.client.runtime_api().validation_code_by_hash(at, hash)
 	}
 
 	async fn on_chain_votes(
 		&self,
 		at: Hash,
 	) -> Result<Option<ScrapedOnChainVotes<Hash>>, ApiError> {
-		self.runtime_api().on_chain_votes(at)
+		self.client.runtime_api().on_chain_votes(at)
 	}
 
 	async fn session_executor_params(
@@ -320,7 +365,7 @@ where
 		at: Hash,
 		session_index: SessionIndex,
 	) -> Result<Option<ExecutorParams>, ApiError> {
-		self.runtime_api().session_executor_params(at, session_index)
+		self.client.runtime_api().session_executor_params(at, session_index)
 	}
 
 	async fn session_info(
@@ -328,7 +373,7 @@ where
 		at: Hash,
 		index: SessionIndex,
 	) -> Result<Option<SessionInfo>, ApiError> {
-		self.runtime_api().session_info(at, index)
+		self.client.runtime_api().session_info(at, index)
 	}
 
 	async fn submit_pvf_check_statement(
@@ -337,11 +382,17 @@ where
 		stmt: PvfCheckStatement,
 		signature: ValidatorSignature,
 	) -> Result<(), ApiError> {
-		self.runtime_api().submit_pvf_check_statement(at, stmt, signature)
+		let mut runtime_api = self.client.runtime_api();
+
+		runtime_api.register_extension(
+			self.offchain_transaction_pool_factory.offchain_transaction_pool(at),
+		);
+
+		runtime_api.submit_pvf_check_statement(at, stmt, signature)
 	}
 
 	async fn pvfs_require_precheck(&self, at: Hash) -> Result<Vec<ValidationCodeHash>, ApiError> {
-		self.runtime_api().pvfs_require_precheck(at)
+		self.client.runtime_api().pvfs_require_precheck(at)
 	}
 
 	async fn validation_code_hash(
@@ -350,28 +401,58 @@ where
 		para_id: Id,
 		assumption: OccupiedCoreAssumption,
 	) -> Result<Option<ValidationCodeHash>, ApiError> {
-		self.runtime_api().validation_code_hash(at, para_id, assumption)
+		self.client.runtime_api().validation_code_hash(at, para_id, assumption)
 	}
 
 	async fn current_epoch(&self, at: Hash) -> Result<Epoch, ApiError> {
-		self.runtime_api().current_epoch(at)
+		self.client.runtime_api().current_epoch(at)
 	}
 
 	async fn authorities(
 		&self,
 		at: Hash,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError> {
-		self.runtime_api().authorities(at)
+		self.client.runtime_api().authorities(at)
 	}
 
 	async fn api_version_parachain_host(&self, at: Hash) -> Result<Option<u32>, ApiError> {
-		self.runtime_api().api_version::<dyn ParachainHost<Block>>(at)
+		self.client.runtime_api().api_version::<dyn ParachainHost<Block>>(at)
 	}
 
 	async fn disputes(
 		&self,
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError> {
-		self.runtime_api().disputes(at)
+		self.client.runtime_api().disputes(at)
+	}
+
+	async fn unapplied_slashes(
+		&self,
+		at: Hash,
+	) -> Result<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>, ApiError> {
+		self.client.runtime_api().unapplied_slashes(at)
+	}
+
+	async fn key_ownership_proof(
+		&self,
+		at: Hash,
+		validator_id: ValidatorId,
+	) -> Result<Option<vstaging::slashing::OpaqueKeyOwnershipProof>, ApiError> {
+		self.client.runtime_api().key_ownership_proof(at, validator_id)
+	}
+
+	async fn submit_report_dispute_lost(
+		&self,
+		at: Hash,
+		dispute_proof: vstaging::slashing::DisputeProof,
+		key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+	) -> Result<Option<()>, ApiError> {
+		let mut runtime_api = self.client.runtime_api();
+
+		runtime_api.register_extension(
+			self.offchain_transaction_pool_factory.offchain_transaction_pool(at),
+		);
+
+		runtime_api.submit_report_dispute_lost(at, dispute_proof, key_ownership_proof)
 	}
 }

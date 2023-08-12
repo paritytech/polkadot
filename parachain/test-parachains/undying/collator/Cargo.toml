@@ -2,6 +2,7 @@
 name = "test-parachain-undying-collator"
 description = "Collator for the undying test parachain"
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 authors.workspace = true
 
@@ -14,7 +15,7 @@ name = "undying_collator_puppet_worker"
 path = "bin/puppet_worker.rs"
 
 [dependencies]
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 clap = { version = "4.0.9", features = ["derive"] }
 futures = "0.3.19"
 futures-timer = "3.0.2"
@@ -34,7 +35,7 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 # This one is tricky. Even though it is not used directly by the collator, we still need it for the
 # `puppet_worker` binary, which is required for the integration test. However, this shouldn't be
 # a big problem since it is used transitively anyway.
-polkadot-node-core-pvf-worker = { path = "../../../../node/core/pvf/worker" }
+polkadot-node-core-pvf = { path = "../../../../node/core/pvf" }
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }

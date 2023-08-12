@@ -437,26 +437,6 @@ pub type XcmHash = [u8; 32];
 /// Result value when attempting to send an XCM message.
 pub type SendResult<T> = result::Result<(T, MultiAssets), SendError>;
 
-pub trait Unwrappable {
-	type Inner;
-	fn none() -> Self;
-	fn some(i: Self::Inner) -> Self;
-	fn take(self) -> Option<Self::Inner>;
-}
-
-impl<T> Unwrappable for Option<T> {
-	type Inner = T;
-	fn none() -> Self {
-		None
-	}
-	fn some(i: Self::Inner) -> Self {
-		Some(i)
-	}
-	fn take(self) -> Option<Self::Inner> {
-		self
-	}
-}
-
 /// Utility for sending an XCM message to a given location.
 ///
 /// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each
@@ -530,7 +510,7 @@ impl<T> Unwrappable for Option<T> {
 /// # }
 /// ```
 pub trait SendXcm {
-	/// Intermediate value which connects the two phaases of the send operation.
+	/// Intermediate value which connects the two phases of the send operation.
 	type Ticket;
 
 	/// Check whether the given `_message` is deliverable to the given `_destination` and if so

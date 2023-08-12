@@ -96,7 +96,7 @@ structure_message() {
 # access_token: see https://matrix.org/docs/guides/client-server-api/
 # Usage: send_message $body (json formatted) $room_id $access_token
 send_message() {
-curl -XPOST -d "$1" "https://matrix.parity.io/_matrix/client/r0/rooms/$2/send/m.room.message?access_token=$3"
+  curl -XPOST -d "$1" "https://m.parity.io/_matrix/client/r0/rooms/$2/send/m.room.message?access_token=$3"
 }
 
 # Pretty-printing functions
@@ -192,4 +192,74 @@ check_bootnode(){
     echo "[!] No peers found for $BOOTNODE"
     echo "    Bootnode appears unreachable"
     return 1
+}
+
+# Assumes the ENV are set:
+# - RELEASE_ID
+# - GITHUB_TOKEN
+# - REPO in the form paritytech/polkadot
+fetch_release_artifacts() {
+  echo "Release ID : $RELEASE_ID"
+  echo "Repo       : $REPO"
+  echo "ARTIFACT_FOLDER: $ARTIFACT_FOLDER"
+
+  curl -L -s \
+    -H "Accept: application/vnd.github+json" \
+    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    https://api.github.com/repos/${REPO}/releases/$RELEASE_ID > release.json
+
+  # Get Asset ids
+  ids=($(jq -r '.assets[].id' < release.json ))
+  count=$(jq '.assets|length' < release.json )
+
+  # Fetch artifacts
+  mkdir -p ${ARTIFACT_FOLDER}
+  pushd ${ARTIFACT_FOLDER} > /dev/null
+
+  iter=1
+  for id in "${ids[@]}"
+  do
+      echo " - $iter/$count: downloading asset id: $id..."
+      curl -s -OJ -L -H "Accept: application/octet-stream" \
+          -H "Authorization: Token ${GITHUB_TOKEN}" \
+          "https://api.github.com/repos/${REPO}/releases/assets/$id"
+      iter=$((iter + 1))
+  done
+
+  ls -al --color
+  popd > /dev/null
+}
+
+# Check the checksum for a given binary
+function check_sha256() {
+    echo "Checking SHA256 for $1"
+    shasum -qc $1.sha256
+}
+
+# Import GPG keys of the release team members
+# This is done in parallel as it can take a while sometimes
+function import_gpg_keys() {
+  GPG_KEYSERVER=${GPG_KEYSERVER:-"keyserver.ubuntu.com"}
+  SEC="9D4B2B6EB8F97156D19669A9FF0812D491B96798"
+  WILL="2835EAF92072BC01D188AF2C4A092B93E97CE1E2"
+  EGOR="E6FC4D4782EB0FA64A4903CCDB7D3555DD3932D3"
+  MARA="533C920F40E73A21EEB7E9EBF27AEA7E7594C9CF"
+  MORGAN="2E92A9D8B15D7891363D1AE8AF9E6C43F7F8C4CF"
+
+  echo "Importing GPG keys from $GPG_KEYSERVER in parallel"
+  for key in $SEC $WILL $EGOR $MARA $MORGAN; do
+    (
+      echo "Importing GPG key $key"
+      gpg --no-tty --quiet --keyserver $GPG_KEYSERVER --recv-keys $key
+      echo -e "5\ny\n" | gpg --no-tty --command-fd 0 --expert --edit-key $key trust;
+    ) &
+  done
+  wait
+}
+
+# Check the GPG signature for a given binary
+function check_gpg() {
+    echo "Checking GPG Signature for $1"
+    gpg --no-tty --verify -q $1.asc $1
 }

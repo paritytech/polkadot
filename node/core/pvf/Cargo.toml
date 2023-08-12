@@ -1,8 +1,14 @@
 [package]
 name = "polkadot-node-core-pvf"
+description = "Polkadot crate that implements the PVF validation host. Responsible for coordinating preparation and execution of PVFs."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "puppet_worker"
+path = "bin/puppet_worker.rs"
 
 [dependencies]
 always-assert = "0.1"
@@ -13,12 +19,16 @@ libc = "0.2.139"
 pin-project = "1.0.9"
 rand = "0.8.5"
 slotmap = "1.0"
+tempfile = "3.3.0"
 tokio = { version = "1.24.2", features = ["fs", "process"] }
 
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
+polkadot-node-core-pvf-common = { path = "common" }
+polkadot-node-core-pvf-execute-worker = { path = "execute-worker" }
+polkadot-node-core-pvf-prepare-worker = { path = "prepare-worker" }
 polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-primitives = { path = "../../../primitives" }
@@ -34,4 +44,9 @@ substrate-build-script-utils = { git = "https://github.com/paritytech/substrate"
 [dev-dependencies]
 assert_matches = "1.4.0"
 hex-literal = "0.3.4"
-tempfile = "3.3.0"
+
+adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
+halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
+
+[features]
+ci-only-tests = []

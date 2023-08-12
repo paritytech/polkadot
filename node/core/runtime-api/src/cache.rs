@@ -20,11 +20,12 @@ use lru::LruCache;
 use sp_consensus_babe::Epoch;
 
 use polkadot_primitives::{
-	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	vstaging, AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
+	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams,
+	GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 
 /// For consistency we have the same capacity for all caches. We use 128 as we'll only need that
@@ -63,6 +64,10 @@ pub(crate) struct RequestResultCache {
 		LruCache<(Hash, ParaId, OccupiedCoreAssumption), Option<ValidationCodeHash>>,
 	version: LruCache<Hash, u32>,
 	disputes: LruCache<Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
+	unapplied_slashes:
+		LruCache<Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>>,
+	key_ownership_proof:
+		LruCache<(Hash, ValidatorId), Option<vstaging::slashing::OpaqueKeyOwnershipProof>>,
 }
 
 impl Default for RequestResultCache {
@@ -90,6 +95,8 @@ impl Default for RequestResultCache {
 			validation_code_hash: LruCache::new(DEFAULT_CACHE_CAP),
 			version: LruCache::new(DEFAULT_CACHE_CAP),
 			disputes: LruCache::new(DEFAULT_CACHE_CAP),
+			unapplied_slashes: LruCache::new(DEFAULT_CACHE_CAP),
+			key_ownership_proof: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
 }
@@ -385,6 +392,44 @@ impl RequestResultCache {
 	) {
 		self.disputes.put(relay_parent, value);
 	}
+
+	pub(crate) fn unapplied_slashes(
+		&mut self,
+		relay_parent: &Hash,
+	) -> Option<&Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>> {
+		self.unapplied_slashes.get(relay_parent)
+	}
+
+	pub(crate) fn cache_unapplied_slashes(
+		&mut self,
+		relay_parent: Hash,
+		value: Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>,
+	) {
+		self.unapplied_slashes.put(relay_parent, value);
+	}
+
+	pub(crate) fn key_ownership_proof(
+		&mut self,
+		key: (Hash, ValidatorId),
+	) -> Option<&Option<vstaging::slashing::OpaqueKeyOwnershipProof>> {
+		self.key_ownership_proof.get(&key)
+	}
+
+	pub(crate) fn cache_key_ownership_proof(
+		&mut self,
+		key: (Hash, ValidatorId),
+		value: Option<vstaging::slashing::OpaqueKeyOwnershipProof>,
+	) {
+		self.key_ownership_proof.put(key, value);
+	}
+
+	// This request is never cached, hence always returns `None`.
+	pub(crate) fn submit_report_dispute_lost(
+		&mut self,
+		_key: (Hash, vstaging::slashing::DisputeProof, vstaging::slashing::OpaqueKeyOwnershipProof),
+	) -> Option<&Option<()>> {
+		None
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -422,4 +467,13 @@ pub(crate) enum RequestResult {
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeHash>),
 	Version(Hash, u32),
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
+	UnappliedSlashes(Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>),
+	KeyOwnershipProof(Hash, ValidatorId, Option<vstaging::slashing::OpaqueKeyOwnershipProof>),
+	// This is a request with side-effects.
+	SubmitReportDisputeLost(
+		Hash,
+		vstaging::slashing::DisputeProof,
+		vstaging::slashing::OpaqueKeyOwnershipProof,
+		Option<()>,
+	),
 }

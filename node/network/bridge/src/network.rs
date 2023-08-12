@@ -24,13 +24,13 @@ use parity_scale_codec::Encode;
 use sc_network::{
 	config::parse_addr, multiaddr::Multiaddr, types::ProtocolName, Event as NetworkEvent,
 	IfDisconnected, NetworkEventStream, NetworkNotification, NetworkPeers, NetworkRequest,
-	NetworkService, OutboundFailure, RequestFailure,
+	NetworkService, OutboundFailure, ReputationChange, RequestFailure,
 };
 
 use polkadot_node_network_protocol::{
 	peer_set::{PeerSet, PeerSetProtocolNames, ProtocolVersion},
 	request_response::{OutgoingRequest, Recipient, ReqProtocolNames, Requests},
-	PeerId, UnifiedReputationChange as Rep,
+	PeerId,
 };
 use polkadot_primitives::{AuthorityDiscoveryId, Block, Hash};
 
@@ -94,7 +94,11 @@ pub trait Network: Clone + Send + 'static {
 	) -> Result<(), String>;
 
 	/// Removes the peers for the protocol's peer set (both reserved and non-reserved).
-	async fn remove_from_peers_set(&mut self, protocol: ProtocolName, peers: Vec<PeerId>);
+	async fn remove_from_peers_set(
+		&mut self,
+		protocol: ProtocolName,
+		peers: Vec<PeerId>,
+	) -> Result<(), String>;
 
 	/// Send a request to a remote peer.
 	async fn start_request<AD: AuthorityDiscovery>(
@@ -106,7 +110,7 @@ pub trait Network: Clone + Send + 'static {
 	);
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
-	fn report_peer(&self, who: PeerId, cost_benefit: Rep);
+	fn report_peer(&self, who: PeerId, rep: ReputationChange);
 
 	/// Disconnect a given peer from the protocol specified without harming reputation.
 	fn disconnect_peer(&self, who: PeerId, protocol: ProtocolName);
@@ -129,12 +133,16 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		NetworkService::set_reserved_peers(&**self, protocol, multiaddresses)
 	}
 
-	async fn remove_from_peers_set(&mut self, protocol: ProtocolName, peers: Vec<PeerId>) {
-		NetworkService::remove_peers_from_reserved_set(&**self, protocol, peers);
+	async fn remove_from_peers_set(
+		&mut self,
+		protocol: ProtocolName,
+		peers: Vec<PeerId>,
+	) -> Result<(), String> {
+		NetworkService::remove_peers_from_reserved_set(&**self, protocol, peers)
 	}
 
-	fn report_peer(&self, who: PeerId, cost_benefit: Rep) {
-		NetworkService::report_peer(&**self, who, cost_benefit.into_base_rep());
+	fn report_peer(&self, who: PeerId, rep: ReputationChange) {
+		NetworkService::report_peer(&**self, who, rep);
 	}
 
 	fn disconnect_peer(&self, who: PeerId, protocol: ProtocolName) {

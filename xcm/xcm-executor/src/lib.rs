@@ -457,7 +457,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let current_surplus = self.total_surplus.saturating_sub(self.total_refunded);
 		if current_surplus.any_gt(Weight::zero()) {
 			self.total_refunded.saturating_accrue(current_surplus);
-			if let Some(w) = self.trader.refund_weight(current_surplus) {
+			if let Some(w) = self.trader.refund_weight(current_surplus, &self.context) {
 				self.subsume_asset(w)?;
 			}
 		}
@@ -689,7 +689,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					// pay for `weight` using up to `fees` of the holding register.
 					let max_fee =
 						self.holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
-					let unspent = self.trader.buy_weight(weight, max_fee)?;
+					let unspent = self.trader.buy_weight(weight, max_fee, &self.context)?;
 					self.subsume_assets(unspent)?;
 				}
 				Ok(())
@@ -876,9 +876,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			RequestUnlock { asset, locker } => {
 				let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 				let remote_asset = Self::try_reanchor(asset.clone(), &locker)?.0;
+				let remote_target = Self::try_reanchor_multilocation(origin, &locker)?.0;
 				let reduce_ticket =
 					Config::AssetLocker::prepare_reduce_unlockable(locker, asset, origin)?;
-				let msg = Xcm::<()>(vec![UnlockAsset { asset: remote_asset, target: origin }]);
+				let msg =
+					Xcm::<()>(vec![UnlockAsset { asset: remote_asset, target: remote_target }]);
 				let (ticket, price) = validate_send::<Config::XcmSender>(locker, msg)?;
 				self.take_fee(price, FeeReason::RequestUnlock)?;
 				reduce_ticket.enact()?;
@@ -912,7 +914,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.context.topic = None;
 				Ok(())
 			},
-			AliasOrigin(_) => Err(XcmError::NoPermission),
+			AliasOrigin(target) => {
+				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
+				if Config::Aliasers::contains(origin, &target) {
+					self.context.origin = Some(target);
+					Ok(())
+				} else {
+					Err(XcmError::NoPermission)
+				}
+			},
 			UnpaidExecution { check_origin, .. } => {
 				ensure!(
 					check_origin.is_none() || self.context.origin == check_origin,
@@ -988,6 +998,17 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			.reanchored(&destination, reanchor_context)
 			.map_err(|()| XcmError::ReanchorFailed)?;
 		Ok((asset, reanchor_context))
+	}
+
+	fn try_reanchor_multilocation(
+		location: MultiLocation,
+		destination: &MultiLocation,
+	) -> Result<(MultiLocation, InteriorMultiLocation), XcmError> {
+		let reanchor_context = Config::UniversalLocation::get();
+		let location = location
+			.reanchored(&destination, reanchor_context)
+			.map_err(|_| XcmError::ReanchorFailed)?;
+		Ok((location, reanchor_context))
 	}
 
 	/// NOTE: Any assets which were unable to be reanchored are introduced into `failed_bin`.

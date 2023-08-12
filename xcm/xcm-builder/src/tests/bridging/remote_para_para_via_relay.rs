@@ -27,8 +27,9 @@ parameter_types! {
 	pub BridgeTable: Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>
 		= vec![(Remote::get(), Parachain(1).into(), None)];
 }
-type TheBridge =
-	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteParaBridgeUniversalLocation>>;
+type TheBridge = TestBridge<
+	BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteParaBridgeUniversalLocation, ()>,
+>;
 type RelayExporter = HaulBlobExporter<TheBridge, Remote, ()>;
 type LocalInnerRouter =
 	UnpaidExecutingRouter<UniversalLocation, ParaBridgeUniversalLocation, RelayExporter>;

@@ -16,7 +16,7 @@
 
 #![warn(missing_docs)]
 
-//! A crate that implements the PVF validation host.
+//! The PVF validation host. Responsible for coordinating preparation and execution of PVFs.
 //!
 //! For more background, refer to the Implementer's Guide: [PVF
 //! Pre-checking](https://paritytech.github.io/polkadot/book/pvf-prechecking.html) and [Candidate
@@ -95,27 +95,31 @@ mod host;
 mod metrics;
 mod prepare;
 mod priority;
-mod pvf;
-mod worker_common;
-
-pub use artifacts::CompiledArtifact;
-pub use error::{
-	InternalValidationError, InvalidCandidate, PrepareError, PrepareResult, ValidationError,
-};
-pub use execute::{ExecuteHandshake, ExecuteResponse};
-#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-pub use prepare::MemoryAllocationStats;
-pub use prepare::{MemoryStats, PrepareStats};
-pub use priority::Priority;
-pub use pvf::PvfPrepData;
-
-pub use host::{start, Config, ValidationHost};
-pub use metrics::Metrics;
-pub use worker_common::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
-
-const LOG_TARGET: &str = "parachain::pvf";
+mod worker_intf;
 
 #[doc(hidden)]
-pub mod testing {
-	pub use crate::worker_common::{spawn_with_program_path, SpawnErr};
-}
+pub mod testing;
+
+// Used by `decl_puppet_worker_main!`.
+#[doc(hidden)]
+pub use sp_tracing;
+
+pub use error::{InvalidCandidate, ValidationError};
+pub use host::{start, Config, ValidationHost, EXECUTE_BINARY_NAME, PREPARE_BINARY_NAME};
+pub use metrics::Metrics;
+pub use priority::Priority;
+pub use worker_intf::{framed_recv, framed_send, JOB_TIMEOUT_WALL_CLOCK_FACTOR};
+
+// Re-export some common types.
+pub use polkadot_node_core_pvf_common::{
+	error::{InternalValidationError, PrepareError},
+	prepare::{PrepareJobKind, PrepareStats},
+	pvf::PvfPrepData,
+};
+
+// Re-export worker entrypoints.
+pub use polkadot_node_core_pvf_execute_worker::worker_entrypoint as execute_worker_entrypoint;
+pub use polkadot_node_core_pvf_prepare_worker::worker_entrypoint as prepare_worker_entrypoint;
+
+/// The log target for this crate.
+pub const LOG_TARGET: &str = "parachain::pvf";

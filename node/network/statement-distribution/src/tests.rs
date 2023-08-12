@@ -31,7 +31,9 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{network_bridge_event, AllMessages, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{
+		network_bridge_event, AllMessages, ReportPeerMessage, RuntimeApiMessage, RuntimeApiRequest,
+	},
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
@@ -47,6 +49,7 @@ use sp_authority_discovery::AuthorityPair;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{Keystore, KeystorePtr};
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
+use util::reputation::add_reputation;
 
 // Some deterministic genesis hash for protocol names
 const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
@@ -733,12 +736,13 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
-			Arc::new(LocalKeystore::in_memory()),
-			statement_req_receiver,
-			Default::default(),
-			AlwaysZeroRng,
-		);
+		let s = StatementDistributionSubsystem {
+			keystore: Arc::new(LocalKeystore::in_memory()),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| true),
+		};
 		s.run(ctx).await.unwrap();
 	};
 
@@ -862,8 +866,8 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => {}
 		);
 
 		assert_matches!(
@@ -936,12 +940,13 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
-			make_ferdie_keystore(),
-			statement_req_receiver,
-			Default::default(),
-			AlwaysZeroRng,
-		);
+		let s = StatementDistributionSubsystem {
+			keystore: make_ferdie_keystore(),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| true),
+		};
 		s.run(ctx).await.unwrap();
 	};
 
@@ -1226,8 +1231,8 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_bad && r == COST_WRONG_HASH => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_bad && r == COST_WRONG_HASH.into() => {}
 		);
 
 		// a is tried again (retried in reverse order):
@@ -1277,22 +1282,22 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r == COST_FETCH_FAIL => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_a && r == COST_FETCH_FAIL.into() => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_c && r == BENEFIT_VALID_RESPONSE => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_c && r == BENEFIT_VALID_RESPONSE.into() => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => {}
 		);
 
 		assert_matches!(
@@ -1393,6 +1398,441 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 }
 
 #[test]
+fn delay_reputation_changes() {
+	sp_tracing::try_init_simple();
+	let hash_a = Hash::repeat_byte(1);
+
+	let candidate = {
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
+		c.descriptor.relay_parent = hash_a;
+		c.descriptor.para_id = 1.into();
+		c.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
+		c
+	};
+
+	let peer_a = PeerId::random(); // Alice
+	let peer_b = PeerId::random(); // Bob
+	let peer_c = PeerId::random(); // Charlie
+	let peer_bad = PeerId::random(); // No validator
+
+	let validators = vec![
+		Sr25519Keyring::Alice.pair(),
+		Sr25519Keyring::Bob.pair(),
+		Sr25519Keyring::Charlie.pair(),
+		// We:
+		Sr25519Keyring::Ferdie.pair(),
+	];
+
+	let session_info = make_session_info(validators, vec![vec![0, 1, 2, 4], vec![3]]);
+
+	let session_index = 1;
+
+	let pool = sp_core::testing::TaskExecutor::new();
+	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+
+	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
+	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+
+	let reputation_interval = Duration::from_millis(100);
+
+	let bg = async move {
+		let s = StatementDistributionSubsystem {
+			keystore: make_ferdie_keystore(),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| false),
+		};
+		s.run_inner(ctx, reputation_interval).await.unwrap();
+	};
+
+	let test_fut = async move {
+		// register our active heads.
+		handle
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
+				ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: hash_a,
+					number: 1,
+					status: LeafStatus::Fresh,
+					span: Arc::new(jaeger::Span::Disabled),
+				}),
+			)))
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Ok(session_index));
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionInfo(sess_index, tx))
+			)
+				if r == hash_a && sess_index == session_index
+			=> {
+				let _ = tx.send(Ok(Some(session_info)));
+			}
+		);
+
+		// notify of peers and view
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(
+						peer_a.clone(),
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
+					),
+				),
+			})
+			.await;
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(
+						peer_b.clone(),
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
+					),
+				),
+			})
+			.await;
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(
+						peer_c.clone(),
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
+					),
+				),
+			})
+			.await;
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(
+						peer_bad.clone(),
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						None,
+					),
+				),
+			})
+			.await;
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
+				),
+			})
+			.await;
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
+				),
+			})
+			.await;
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_c.clone(), view![hash_a]),
+				),
+			})
+			.await;
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a]),
+				),
+			})
+			.await;
+
+		// receive a seconded statement from peer A, which does not provide the request data,
+		// then get that data from peer C. It should be propagated onwards to peer B and to
+		// candidate backing.
+		let statement = {
+			let signing_context = SigningContext { parent_hash: hash_a, session_index };
+
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
+				&*keystore,
+				ValidatorId::ID,
+				Some(&Sr25519Keyring::Alice.to_seed()),
+			)
+			.unwrap();
+
+			SignedFullStatement::sign(
+				&keystore,
+				Statement::Seconded(candidate.clone()),
+				&signing_context,
+				ValidatorIndex(0),
+				&alice_public.into(),
+			)
+			.ok()
+			.flatten()
+			.expect("should be signed")
+		};
+
+		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
+					),
+				),
+			})
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+				// Just drop request - should trigger error.
+			}
+		);
+
+		// There is a race between request handler asking for more peers and processing of the
+		// coming `PeerMessage`s, we want the request handler to ask first here for better test
+		// coverage:
+		Delay::new(Duration::from_millis(20)).await;
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_c.clone(),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
+					),
+				),
+			})
+			.await;
+
+		// Malicious peer:
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_bad.clone(),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
+					),
+				),
+			})
+			.await;
+
+		// Let c fail once too:
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_c));
+			}
+		);
+
+		// a fails again:
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				// On retry, we should have reverse order:
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+			}
+		);
+
+		// Send invalid response (all other peers have been tried now):
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_bad));
+				let bad_candidate = {
+					let mut bad = candidate.clone();
+					bad.descriptor.para_id = 0xeadbeaf.into();
+					bad
+				};
+				let response = StatementFetchingResponse::Statement(bad_candidate);
+				outgoing.pending_response.send(Ok(response.encode())).unwrap();
+			}
+		);
+
+		// a is tried again (retried in reverse order):
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				// On retry, we should have reverse order:
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+			}
+		);
+
+		// c succeeds now:
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				// On retry, we should have reverse order:
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_c));
+				let response = StatementFetchingResponse::Statement(candidate.clone());
+				outgoing.pending_response.send(Ok(response.encode())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::Statement(r, s)
+			) if r == hash_a && s == statement => {}
+		);
+
+		// Now messages should go out:
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(
+					mut recipients,
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
+						protocol_v1::StatementDistributionMessage::LargeStatement(meta)
+					)),
+				)
+			) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					?recipients,
+					"Recipients received"
+				);
+				recipients.sort();
+				let mut expected = vec![peer_b, peer_c, peer_bad];
+				expected.sort();
+				assert_eq!(recipients, expected);
+				assert_eq!(meta.relay_parent, hash_a);
+				assert_eq!(meta.candidate_hash, statement.payload().candidate_hash());
+				assert_eq!(meta.signed_by, statement.validator_index());
+				assert_eq!(&meta.signature, statement.signature());
+			}
+		);
+
+		// Wait enough to fire reputation delay
+		futures_timer::Delay::new(reputation_interval).await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(v))
+			) => {
+				let mut expected_change = HashMap::new();
+				for rep in vec![COST_FETCH_FAIL, BENEFIT_VALID_STATEMENT_FIRST] {
+					add_reputation(&mut expected_change, peer_a, rep)
+				}
+				for rep in vec![BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT] {
+					add_reputation(&mut expected_change, peer_c, rep)
+				}
+				for rep in vec![COST_WRONG_HASH, BENEFIT_VALID_STATEMENT] {
+					add_reputation(&mut expected_change, peer_bad, rep)
+				}
+				assert_eq!(v, expected_change);
+			}
+		);
+
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(bg);
+
+	executor::block_on(future::join(test_fut, bg));
+}
+
+#[test]
 fn share_prioritizes_backing_group() {
 	sp_tracing::try_init_simple();
 	let hash_a = Hash::repeat_byte(1);
@@ -1448,12 +1888,13 @@ fn share_prioritizes_backing_group() {
 		IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
-			make_ferdie_keystore(),
-			statement_req_receiver,
-			Default::default(),
-			AlwaysZeroRng,
-		);
+		let s = StatementDistributionSubsystem {
+			keystore: make_ferdie_keystore(),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| true),
+		};
 		s.run(ctx).await.unwrap();
 	};
 
@@ -1741,12 +2182,13 @@ fn peer_cant_flood_with_large_statements() {
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
-			make_ferdie_keystore(),
-			statement_req_receiver,
-			Default::default(),
-			AlwaysZeroRng,
-		);
+		let s = StatementDistributionSubsystem {
+			keystore: make_ferdie_keystore(),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| true),
+		};
 		s.run(ctx).await.unwrap();
 	};
 
@@ -1873,9 +2315,9 @@ fn peer_cant_flood_with_large_statements() {
 					requested = true;
 				},
 
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == COST_APPARENT_FLOOD =>
-				{
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
+					ReportPeerMessage::Single(p, r),
+				)) if p == peer_a && r == COST_APPARENT_FLOOD.into() => {
 					punished = true;
 				},
 
@@ -1945,12 +2387,13 @@ fn handle_multiple_seconded_statements() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let virtual_overseer_fut = async move {
-		let s = StatementDistributionSubsystem::new(
-			Arc::new(LocalKeystore::in_memory()),
-			statement_req_receiver,
-			Default::default(),
-			AlwaysZeroRng,
-		);
+		let s = StatementDistributionSubsystem {
+			keystore: Arc::new(LocalKeystore::in_memory()),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| true),
+		};
 		s.run(ctx).await.unwrap();
 	};
 
@@ -2136,10 +2579,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_a);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST.into());
 			}
 		);
 
@@ -2188,10 +2631,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_b);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT.into());
 			}
 		);
 
@@ -2237,10 +2680,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_a);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST.into());
 			}
 		);
 
@@ -2290,10 +2733,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_b);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT.into());
 			}
 		);
 

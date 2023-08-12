@@ -40,7 +40,7 @@ use sp_runtime::{
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
 use xcm::{latest::QueryResponseInfo, prelude::*};
-use xcm_executor::traits::{Convert, ConvertOrigin, Properties};
+use xcm_executor::traits::{ConvertOrigin, Properties};
 
 use frame_support::{
 	dispatch::{Dispatchable, GetDispatchInfo},
@@ -52,8 +52,8 @@ use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use xcm_executor::{
 	traits::{
-		CheckSuspension, ClaimAssets, DropAssets, MatchesFungible, OnResponse,
-		VersionChangeNotifier, WeightBounds,
+		CheckSuspension, ClaimAssets, ConvertLocation, DropAssets, MatchesFungible, OnResponse,
+		QueryHandler, QueryResponseStatus, VersionChangeNotifier, WeightBounds,
 	},
 	Assets,
 };
@@ -180,7 +180,7 @@ pub mod pallet {
 
 		/// A lockable currency.
 		// TODO: We should really use a trait which can handle multiple currencies.
-		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
+		type Currency: LockableCurrency<Self::AccountId, Moment = BlockNumberFor<Self>>;
 
 		/// The `MultiAsset` matcher for `Currency`.
 		type CurrencyMatcher: MatchesFungible<BalanceOf<Self>>;
@@ -247,7 +247,7 @@ pub mod pallet {
 		type TrustedLockers: ContainsPair<MultiLocation, MultiAsset>;
 
 		/// How to get an `AccountId` value from a `MultiLocation`, useful for handling asset locks.
-		type SovereignAccountOf: Convert<MultiLocation, Self::AccountId>;
+		type SovereignAccountOf: ConvertLocation<Self::AccountId>;
 
 		/// The maximum number of local XCM locks that a single account may have.
 		type MaxLockers: Get<u32>;
@@ -508,7 +508,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn query)]
 	pub(super) type Queries<T: Config> =
-		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
+		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<BlockNumberFor<T>>, OptionQuery>;
 
 	/// The existing asset traps.
 	///
@@ -521,6 +521,7 @@ pub mod pallet {
 	/// Default version to encode XCM when latest version of destination is unknown. If `None`,
 	/// then the destinations whose XCM version is unknown are considered unreachable.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	pub(super) type SafeXcmVersion<T: Config> = StorageValue<_, XcmVersion, OptionQuery>;
 
 	/// The Latest versions that we know various locations support.
@@ -571,6 +572,7 @@ pub mod pallet {
 	/// the `u32` counter is the number of times that a send to the destination has been attempted,
 	/// which is used as a prioritization.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	pub(super) type VersionDiscoveryQueue<T: Config> = StorageValue<
 		_,
 		BoundedVec<(VersionedMultiLocation, u32), VersionDiscoveryQueueSize<T>>,
@@ -633,20 +635,21 @@ pub mod pallet {
 	pub(super) type XcmExecutionSuspended<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	#[pallet::genesis_config]
-	pub struct GenesisConfig {
+	pub struct GenesisConfig<T: Config> {
+		#[serde(skip)]
+		pub _config: sp_std::marker::PhantomData<T>,
 		/// The default version to encode outgoing XCM messages with.
 		pub safe_xcm_version: Option<XcmVersion>,
 	}
 
-	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
+	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
-			Self { safe_xcm_version: Some(XCM_VERSION) }
+			Self { safe_xcm_version: Some(XCM_VERSION), _config: Default::default() }
 		}
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			SafeXcmVersion::<T>::set(self.safe_xcm_version);
 		}
@@ -685,12 +688,6 @@ pub mod pallet {
 				VersionDiscoveryQueue::<T>::put(q);
 			}
 			weight_used
-		}
-		fn on_runtime_upgrade() -> Weight {
-			// Start a migration (this happens before on_initialize so it'll happen later in this
-			// block, which should be good enough)...
-			CurrentMigration::<T>::put(VersionMigrationStage::default());
-			T::DbWeight::get().writes(1)
 		}
 	}
 
@@ -742,7 +739,7 @@ pub mod pallet {
 
 			if on_chain_storage_version < 1 {
 				let mut count = 0;
-				Queries::<T>::translate::<QueryStatusV0<T::BlockNumber>, _>(|_key, value| {
+				Queries::<T>::translate::<QueryStatusV0<BlockNumberFor<T>>, _>(|_key, value| {
 					count += 1;
 					Some(value.into())
 				});
@@ -1082,10 +1079,11 @@ pub mod pallet {
 			match (maybe_assets, maybe_dest) {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
+					let count = assets.len() as u32;
 					let mut message = Xcm(vec![
 						WithdrawAsset(assets),
 						SetFeesMode { jit_withdraw: true },
-						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
+						InitiateTeleport { assets: Wild(AllCounted(count)), dest, xcm: Xcm(vec![]) },
 					]);
 					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::teleport_assets().saturating_add(w))
 				}
@@ -1126,6 +1124,66 @@ pub mod pallet {
 
 /// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
 const MAX_ASSETS_FOR_TRANSFER: usize = 2;
+
+impl<T: Config> QueryHandler for Pallet<T> {
+	type QueryId = u64;
+	type BlockNumber = BlockNumberFor<T>;
+	type Error = XcmError;
+	type UniversalLocation = T::UniversalLocation;
+
+	/// Attempt to create a new query ID and register it as a query that is yet to respond.
+	fn new_query(
+		responder: impl Into<MultiLocation>,
+		timeout: BlockNumberFor<T>,
+		match_querier: impl Into<MultiLocation>,
+	) -> Self::QueryId {
+		Self::do_new_query(responder, None, timeout, match_querier).into()
+	}
+
+	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
+	/// value.
+	fn report_outcome(
+		message: &mut Xcm<()>,
+		responder: impl Into<MultiLocation>,
+		timeout: Self::BlockNumber,
+	) -> Result<Self::QueryId, Self::Error> {
+		let responder = responder.into();
+		let destination = Self::UniversalLocation::get()
+			.invert_target(&responder)
+			.map_err(|()| XcmError::LocationNotInvertible)?;
+		let query_id = Self::new_query(responder, timeout, Here);
+		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
+		let report_error = Xcm(vec![ReportError(response_info)]);
+		message.0.insert(0, SetAppendix(report_error));
+		Ok(query_id)
+	}
+
+	/// Removes response when ready and emits [Event::ResponseTaken] event.
+	fn take_response(query_id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber> {
+		match Queries::<T>::get(query_id) {
+			Some(QueryStatus::Ready { response, at }) => match response.try_into() {
+				Ok(response) => {
+					Queries::<T>::remove(query_id);
+					Self::deposit_event(Event::ResponseTaken { query_id });
+					QueryResponseStatus::Ready { response, at }
+				},
+				Err(_) => QueryResponseStatus::UnexpectedVersion,
+			},
+			Some(QueryStatus::Pending { timeout, .. }) => QueryResponseStatus::Pending { timeout },
+			Some(_) => QueryResponseStatus::UnexpectedVersion,
+			None => QueryResponseStatus::NotFound,
+		}
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn expect_response(id: Self::QueryId, response: Response) {
+		let response = response.into();
+		Queries::<T>::insert(
+			id,
+			QueryStatus::Ready { response, at: frame_system::Pallet::<T>::block_number() },
+		);
+	}
+}
 
 impl<T: Config> Pallet<T> {
 	fn do_reserve_transfer_assets(
@@ -1479,7 +1537,7 @@ impl<T: Config> Pallet<T> {
 	fn do_new_query(
 		responder: impl Into<MultiLocation>,
 		maybe_notify: Option<(u8, u8)>,
-		timeout: T::BlockNumber,
+		timeout: BlockNumberFor<T>,
 		match_querier: impl Into<MultiLocation>,
 	) -> u64 {
 		QueryCounter::<T>::mutate(|q| {
@@ -1496,36 +1554,6 @@ impl<T: Config> Pallet<T> {
 			);
 			r
 		})
-	}
-
-	/// Consume `message` and return another which is equivalent to it except that it reports
-	/// back the outcome.
-	///
-	/// - `message`: The message whose outcome should be reported.
-	/// - `responder`: The origin from which a response should be expected.
-	/// - `timeout`: The block number after which it is permissible for `notify` not to be
-	///   called even if a response is received.
-	///
-	/// `report_outcome` may return an error if the `responder` is not invertible.
-	///
-	/// It is assumed that the querier of the response will be `Here`.
-	///
-	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
-	/// value.
-	pub fn report_outcome(
-		message: &mut Xcm<()>,
-		responder: impl Into<MultiLocation>,
-		timeout: T::BlockNumber,
-	) -> Result<QueryId, XcmError> {
-		let responder = responder.into();
-		let destination = T::UniversalLocation::get()
-			.invert_target(&responder)
-			.map_err(|()| XcmError::LocationNotInvertible)?;
-		let query_id = Self::new_query(responder, timeout, Here);
-		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
-		let report_error = Xcm(vec![ReportError(response_info)]);
-		message.0.insert(0, SetAppendix(report_error));
-		Ok(query_id)
 	}
 
 	/// Consume `message` and return another which is equivalent to it except that it reports
@@ -1554,7 +1582,7 @@ impl<T: Config> Pallet<T> {
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
 		notify: impl Into<<T as Config>::RuntimeCall>,
-		timeout: T::BlockNumber,
+		timeout: BlockNumberFor<T>,
 	) -> Result<(), XcmError> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
@@ -1569,41 +1597,18 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Attempt to create a new query ID and register it as a query that is yet to respond.
-	pub fn new_query(
-		responder: impl Into<MultiLocation>,
-		timeout: T::BlockNumber,
-		match_querier: impl Into<MultiLocation>,
-	) -> u64 {
-		Self::do_new_query(responder, None, timeout, match_querier)
-	}
-
 	/// Attempt to create a new query ID and register it as a query that is yet to respond, and
 	/// which will call a dispatchable when a response happens.
 	pub fn new_notify_query(
 		responder: impl Into<MultiLocation>,
 		notify: impl Into<<T as Config>::RuntimeCall>,
-		timeout: T::BlockNumber,
+		timeout: BlockNumberFor<T>,
 		match_querier: impl Into<MultiLocation>,
 	) -> u64 {
 		let notify = notify.into().using_encoded(|mut bytes| Decode::decode(&mut bytes)).expect(
 			"decode input is output of Call encode; Call guaranteed to have two enums; qed",
 		);
 		Self::do_new_query(responder, Some(notify), timeout, match_querier)
-	}
-
-	/// Attempt to remove and return the response of query with ID `query_id`.
-	///
-	/// Returns `None` if the response is not (yet) available.
-	pub fn take_response(query_id: QueryId) -> Option<(Response, T::BlockNumber)> {
-		if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
-			let response = response.try_into().ok()?;
-			Queries::<T>::remove(query_id);
-			Self::deposit_event(Event::ResponseTaken { query_id });
-			Some((response, at))
-		} else {
-			None
-		}
 	}
 
 	/// Note that a particular destination to whom we would like to send a message is unknown
@@ -1744,7 +1749,7 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		owner: MultiLocation,
 	) -> Result<LockTicket<T>, xcm_executor::traits::LockError> {
 		use xcm_executor::traits::LockError::*;
-		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let sovereign_account = T::SovereignAccountOf::convert_location(&owner).ok_or(BadOwner)?;
 		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(UnknownAsset)?;
 		ensure!(T::Currency::free_balance(&sovereign_account) >= amount, AssetNotOwned);
 		let locks = LockedFungibles::<T>::get(&sovereign_account).unwrap_or_default();
@@ -1759,7 +1764,7 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		owner: MultiLocation,
 	) -> Result<UnlockTicket<T>, xcm_executor::traits::LockError> {
 		use xcm_executor::traits::LockError::*;
-		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let sovereign_account = T::SovereignAccountOf::convert_location(&owner).ok_or(BadOwner)?;
 		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(UnknownAsset)?;
 		ensure!(T::Currency::free_balance(&sovereign_account) >= amount, AssetNotOwned);
 		let locks = LockedFungibles::<T>::get(&sovereign_account).unwrap_or_default();
@@ -1781,7 +1786,7 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 			NonFungible(_) => return Err(Unimplemented),
 		};
 		owner.remove_network_id();
-		let account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let account = T::SovereignAccountOf::convert_location(&owner).ok_or(BadOwner)?;
 		let locker = locker.into();
 		let owner = owner.into();
 		let id: VersionedAssetId = asset.id.into();
@@ -1809,7 +1814,7 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 			NonFungible(_) => return Err(Unimplemented),
 		};
 		owner.remove_network_id();
-		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let sovereign_account = T::SovereignAccountOf::convert_location(&owner).ok_or(BadOwner)?;
 		let locker = locker.into();
 		let owner = owner.into();
 		let id: VersionedAssetId = asset.id.into();

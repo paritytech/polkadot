@@ -332,9 +332,14 @@ pub enum DispatchBlobError {
 	WrongGlobal,
 }
 
-pub struct BridgeBlobDispatcher<Router, OurPlace>(PhantomData<(Router, OurPlace)>);
-impl<Router: SendXcm, OurPlace: Get<InteriorMultiLocation>> DispatchBlob
-	for BridgeBlobDispatcher<Router, OurPlace>
+pub struct BridgeBlobDispatcher<Router, OurPlace, OurPlaceBridgeInstance>(
+	PhantomData<(Router, OurPlace, OurPlaceBridgeInstance)>,
+);
+impl<
+		Router: SendXcm,
+		OurPlace: Get<InteriorMultiLocation>,
+		OurPlaceBridgeInstance: Get<Option<InteriorMultiLocation>>,
+	> DispatchBlob for BridgeBlobDispatcher<Router, OurPlace, OurPlaceBridgeInstance>
 {
 	fn dispatch_blob(blob: Vec<u8>) -> Result<(), DispatchBlobError> {
 		let our_universal = OurPlace::get();
@@ -352,8 +357,16 @@ impl<Router: SendXcm, OurPlace: Get<InteriorMultiLocation>> DispatchBlob
 			.map_err(|()| DispatchBlobError::NonUniversalDestination)?;
 		ensure!(intended_global == our_global, DispatchBlobError::WrongGlobal);
 		let dest = universal_dest.relative_to(&our_universal);
-		let message: Xcm<()> =
+		let mut message: Xcm<()> =
 			message.try_into().map_err(|_| DispatchBlobError::UnsupportedXcmVersion)?;
+
+		// Prepend our bridge instance discriminator.
+		// Can be used for fine-grained control of origin on destination in case of multiple bridge instances,
+		// e.g. restrict `type UniversalAliases` and `UniversalOrigin` instruction to trust just particular bridge instance for `NetworkId`.
+		if let Some(bridge_instance) = OurPlaceBridgeInstance::get() {
+			message.0.insert(0, DescendOrigin(bridge_instance));
+		}
+
 		let _ = send_xcm::<Router>(dest, message).map_err(|_| DispatchBlobError::RoutingError)?;
 		Ok(())
 	}

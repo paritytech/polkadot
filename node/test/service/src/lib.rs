@@ -28,16 +28,14 @@ use polkadot_overseer::Handle;
 use polkadot_primitives::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_runtime_parachains::paras::{ParaGenesisArgs, ParaKind};
-use polkadot_service::{
-	ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull, PrometheusConfig,
-};
+use polkadot_service::{Error, FullClient, IsCollator, NewFull, PrometheusConfig};
 use polkadot_test_runtime::{
 	ParasCall, ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall,
 	UncheckedExtrinsic, VERSION,
 };
 
 use sc_chain_spec::ChainSpec;
-use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
+use sc_client_api::BlockchainEvents;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr, NetworkStateInfo,
@@ -63,57 +61,48 @@ use std::{
 use substrate_test_client::{
 	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
-/// Declare an instance of the native executor named `PolkadotTestExecutorDispatch`. Include the wasm binary as the
-/// equivalent wasm code.
-pub struct PolkadotTestExecutorDispatch;
-
-impl sc_executor::NativeExecutionDispatch for PolkadotTestExecutorDispatch {
-	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
-
-	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-		polkadot_test_runtime::api::dispatch(method, data)
-	}
-
-	fn native_version() -> sc_executor::NativeVersion {
-		polkadot_test_runtime::native_version()
-	}
-}
 
 /// The client type being used by the test service.
-pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch>;
+pub type Client = FullClient;
 
-pub use polkadot_service::FullBackend;
+pub use polkadot_service::{FullBackend, GetLastTimestamp};
 
 /// Create a new full node.
 #[sc_tracing::logging::prefix_logs_with(config.network.node_name.as_str())]
 pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
-	worker_program_path: Option<PathBuf>,
-) -> Result<NewFull<Arc<Client>>, Error> {
-	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch, _>(
+	workers_path: Option<PathBuf>,
+) -> Result<NewFull, Error> {
+	let workers_path = Some(workers_path.unwrap_or_else(get_relative_workers_path_for_test));
+
+	polkadot_service::new_full(
 		config,
-		is_collator,
-		None,
-		true,
-		None,
-		None,
-		worker_program_path,
-		false,
-		polkadot_service::RealOverseerGen,
-		None,
-		None,
-		None,
+		polkadot_service::NewFullParams {
+			is_collator,
+			grandpa_pause: None,
+			jaeger_agent: None,
+			telemetry_worker_handle: None,
+			node_version: None,
+			workers_path,
+			workers_names: None,
+			overseer_enable_anyways: false,
+			overseer_gen: polkadot_service::RealOverseerGen,
+			overseer_message_channel_capacity_override: None,
+			malus_finality_delay: None,
+			hwbench: None,
+		},
 	)
 }
 
-/// A wrapper for the test client that implements `ClientHandle`.
-pub struct TestClient(pub Arc<Client>);
-
-impl ClientHandle for TestClient {
-	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
-		T::execute_with_client::<_, _, polkadot_service::FullBackend>(t, self.0.clone())
-	}
+fn get_relative_workers_path_for_test() -> PathBuf {
+	// If no explicit worker path is passed in, we need to specify it ourselves as test binaries
+	// are in the "deps/" directory, one level below where the worker binaries are generated.
+	let mut exe_path = std::env::current_exe()
+		.expect("for test purposes it's reasonable to expect that this will not fail");
+	let _ = exe_path.pop();
+	let _ = exe_path.pop();
+	exe_path
 }
 
 /// Returns a prometheus config usable for testing.
@@ -183,14 +172,6 @@ pub fn node_config(
 			instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
 		},
 		wasm_runtime_overrides: Default::default(),
-		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
-		execution_strategies: ExecutionStrategies {
-			syncing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			importing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			block_construction: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-		},
 		rpc_addr: Default::default(),
 		rpc_max_request_size: Default::default(),
 		rpc_max_response_size: Default::default(),
@@ -206,6 +187,7 @@ pub fn node_config(
 		offchain_worker: Default::default(),
 		force_authoring: false,
 		disable_grandpa: false,
+		disable_beefy: false,
 		dev_key_seed: Some(key_seed),
 		tracing_targets: None,
 		tracing_receiver: Default::default(),

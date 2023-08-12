@@ -134,14 +134,14 @@ impl MetricsTrait for Metrics {
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_time_import_pending_now_known",
 					"Time spent on importing pending assignments and approvals.",
-				))?,
+				).buckets(vec![0.0001, 0.0004, 0.0016, 0.0064, 0.0256, 0.1024, 0.4096, 1.6384, 3.2768, 4.9152, 6.5536,]))?,
 				registry,
 			)?,
 			time_awaiting_approval_voting: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_time_awaiting_approval_voting",
 					"Time spent awaiting a reply from the Approval Voting Subsystem.",
-				))?,
+				).buckets(vec![0.0001, 0.0004, 0.0016, 0.0064, 0.0256, 0.1024, 0.4096, 1.6384, 3.2768, 4.9152, 6.5536,]))?,
 				registry,
 			)?,
 		};

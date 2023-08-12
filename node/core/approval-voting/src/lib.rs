@@ -116,8 +116,6 @@ const LOG_TARGET: &str = "parachain::approval-voting";
 pub struct Config {
 	/// The column family in the DB where approval-voting data is stored.
 	pub col_approval_data: u32,
-	/// The of the DB where rolling session info is stored.
-	pub col_session_data: u32,
 	/// The slot duration of the consensus algorithm, in milliseconds. Should be evenly
 	/// divisible by 500.
 	pub slot_duration_millis: u64,
@@ -162,6 +160,7 @@ struct MetricsInner {
 	time_db_transaction: prometheus::Histogram,
 	time_recover_and_approve: prometheus::Histogram,
 	candidate_signatures_requests_total: prometheus::Counter<prometheus::U64>,
+	unapproved_candidates_in_unfinalized_chain: prometheus::Gauge<prometheus::U64>,
 }
 
 /// Approval Voting metrics.
@@ -247,6 +246,12 @@ impl Metrics {
 
 	fn time_recover_and_approve(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.time_recover_and_approve.start_timer())
+	}
+
+	fn on_unapproved_candidates_in_unfinalized_chain(&self, count: usize) {
+		if let Some(metrics) = &self.0 {
+			metrics.unapproved_candidates_in_unfinalized_chain.set(count as u64);
+		}
 	}
 }
 
@@ -338,6 +343,13 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			unapproved_candidates_in_unfinalized_chain: prometheus::register(
+				prometheus::Gauge::new(
+					"polkadot_parachain_approval_unapproved_candidates_in_unfinalized_chain",
+					"Number of unapproved candidates in unfinalized chain",
+				)?,
+				registry,
+			)?,
 		};
 
 		Ok(Metrics(Some(metrics)))
@@ -357,10 +369,7 @@ impl ApprovalVotingSubsystem {
 			keystore,
 			slot_duration_millis: config.slot_duration_millis,
 			db,
-			db_config: DatabaseConfig {
-				col_approval_data: config.col_approval_data,
-				col_session_data: config.col_session_data,
-			},
+			db_config: DatabaseConfig { col_approval_data: config.col_approval_data },
 			mode: Mode::Syncing(sync_oracle),
 			metrics,
 		}
@@ -369,10 +378,8 @@ impl ApprovalVotingSubsystem {
 	/// Revert to the block corresponding to the specified `hash`.
 	/// The operation is not allowed for blocks older than the last finalized one.
 	pub fn revert_to(&self, hash: Hash) -> Result<(), SubsystemError> {
-		let config = approval_db::v1::Config {
-			col_approval_data: self.db_config.col_approval_data,
-			col_session_data: self.db_config.col_session_data,
-		};
+		let config =
+			approval_db::v1::Config { col_approval_data: self.db_config.col_approval_data };
 		let mut backend = approval_db::v1::DbBackend::new(self.db.clone(), config);
 		let mut overlay = OverlayedBackend::new(&backend);
 
@@ -1305,6 +1312,7 @@ async fn handle_from_overseer<Context>(
 					lower_bound,
 					wakeups,
 					&mut approved_ancestor_span,
+					&metrics,
 				)
 				.await
 				{
@@ -1430,9 +1438,11 @@ async fn handle_approved_ancestor<Context>(
 	lower_bound: BlockNumber,
 	wakeups: &Wakeups,
 	span: &mut jaeger::Span,
+	metrics: &Metrics,
 ) -> SubsystemResult<Option<HighestApprovedAncestorBlock>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
+	const LOGGING_DEPTH_THRESHOLD: usize = 10;
 	let mut span = span
 		.child("handle-approved-ancestor")
 		.with_stage(jaeger::Stage::ApprovalChecking);
@@ -1478,6 +1488,7 @@ async fn handle_approved_ancestor<Context>(
 	} else {
 		Vec::new()
 	};
+	let ancestry_len = ancestry.len();
 
 	let mut block_descriptions = Vec::new();
 
@@ -1541,6 +1552,17 @@ async fn handle_approved_ancestor<Context>(
 				unapproved.len(),
 				entry.candidates().len(),
 			);
+			if ancestry_len >= LOGGING_DEPTH_THRESHOLD && i > ancestry_len - LOGGING_DEPTH_THRESHOLD
+			{
+				gum::trace!(
+					target: LOG_TARGET,
+					?block_hash,
+					"Unapproved candidates at depth {}: {:?}",
+					bits.len(),
+					unapproved
+				)
+			}
+			metrics.on_unapproved_candidates_in_unfinalized_chain(unapproved.len());
 			entry_span.add_uint_tag("unapproved-candidates", unapproved.len() as u64);
 			for candidate_hash in unapproved {
 				match db.load_candidate_entry(&candidate_hash)? {
@@ -2521,6 +2543,17 @@ async fn launch_approval<Context>(
 							?para_id,
 							?candidate_hash,
 							"Data unavailable for candidate {:?}",
+							(candidate_hash, candidate.descriptor.para_id),
+						);
+						// do nothing. we'll just be a no-show and that'll cause others to rise up.
+						metrics_guard.take().on_approval_unavailable();
+					},
+					&RecoveryError::ChannelClosed => {
+						gum::warn!(
+							target: LOG_TARGET,
+							?para_id,
+							?candidate_hash,
+							"Channel closed while recovering data for candidate {:?}",
 							(candidate_hash, candidate.descriptor.para_id),
 						);
 						// do nothing. we'll just be a no-show and that'll cause others to rise up.

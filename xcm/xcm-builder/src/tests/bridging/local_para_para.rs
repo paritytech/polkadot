@@ -25,7 +25,7 @@ parameter_types! {
 	pub RemoteUniversalLocation: Junctions = X2(GlobalConsensus(Remote::get()), Parachain(1));
 }
 type TheBridge =
-	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;
+	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation, ()>>;
 type Router =
 	TestTopic<UnpaidLocalExporter<HaulBlobExporter<TheBridge, Remote, Price>, UniversalLocation>>;
 

@@ -37,11 +37,13 @@ use polkadot_node_subsystem::{
 		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
 		DisputeDistributionMessage, ImportStatementsResult,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, RuntimeApiError,
 };
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_node_subsystem_util::runtime::{
+	self, key_ownership_proof, submit_report_dispute_lost, RuntimeInfo,
+};
 use polkadot_primitives::{
-	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
+	vstaging, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, ValidDisputeStatementKind,
 	ValidatorId, ValidatorIndex,
 };
@@ -52,6 +54,7 @@ use crate::{
 	import::{CandidateEnvironment, CandidateVoteState},
 	is_potential_spam,
 	metrics::Metrics,
+	scraping::ScrapedUpdates,
 	status::{get_active_with_status, Clock},
 	DisputeCoordinatorSubsystem, LOG_TARGET,
 };
@@ -89,7 +92,7 @@ pub struct InitialData {
 pub(crate) struct Initialized {
 	keystore: Arc<LocalKeystore>,
 	runtime_info: RuntimeInfo,
-	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doen't matter if it was
+	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doesn't matter if it was
 	/// cached successfully or not. It is used to detect ancient disputes.
 	highest_session_seen: SessionIndex,
 	/// Will be set to `true` if an error occured during the last caching attempt
@@ -305,13 +308,12 @@ impl Initialized {
 				Ok(session_idx)
 					if self.gaps_in_cache || session_idx > self.highest_session_seen =>
 				{
-					// If error has occurred during last session caching - fetch the whole window
-					// Otherwise - cache only the new sessions
-					let lower_bound = if self.gaps_in_cache {
-						session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)
-					} else {
-						self.highest_session_seen + 1
-					};
+					// Fetch the last `DISPUTE_WINDOW` number of sessions unless there are no gaps in
+					// cache and we are not missing too many `SessionInfo`s
+					let mut lower_bound = session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1);
+					if !self.gaps_in_cache && self.highest_session_seen > lower_bound {
+						lower_bound = self.highest_session_seen + 1
+					}
 
 					// There is a new session. Perform a dummy fetch to cache it.
 					for idx in lower_bound..=session_idx {
@@ -349,25 +351,186 @@ impl Initialized {
 				},
 			}
 
+			let ScrapedUpdates { unapplied_slashes, on_chain_votes, .. } = scraped_updates;
+
+			self.process_unapplied_slashes(ctx, new_leaf.hash, unapplied_slashes).await;
+
 			gum::trace!(
 				target: LOG_TARGET,
 				timestamp = now,
 				"Will process {} onchain votes",
-				scraped_updates.on_chain_votes.len()
+				on_chain_votes.len()
 			);
 
-			self.process_chain_import_backlog(
-				ctx,
-				overlay_db,
-				scraped_updates.on_chain_votes,
-				now,
-				new_leaf.hash,
-			)
-			.await;
+			self.process_chain_import_backlog(ctx, overlay_db, on_chain_votes, now, new_leaf.hash)
+				.await;
 		}
 
 		gum::trace!(target: LOG_TARGET, timestamp = now, "Done processing ActiveLeavesUpdate");
 		Ok(())
+	}
+
+	/// For each unapplied (past-session) slash, report an unsigned extrinsic
+	/// to the runtime.
+	async fn process_unapplied_slashes<Context>(
+		&mut self,
+		ctx: &mut Context,
+		relay_parent: Hash,
+		unapplied_slashes: Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>,
+	) {
+		for (session_index, candidate_hash, pending) in unapplied_slashes {
+			gum::info!(
+				target: LOG_TARGET,
+				?session_index,
+				?candidate_hash,
+				n_slashes = pending.keys.len(),
+				"Processing unapplied validator slashes",
+			);
+
+			let inclusions = self.scraper.get_blocks_including_candidate(&candidate_hash);
+			if inclusions.is_empty() {
+				gum::info!(
+					target: LOG_TARGET,
+					"Couldn't find inclusion parent for an unapplied slash",
+				);
+				return
+			}
+
+			// Find the first inclusion parent that we can use
+			// to generate key ownership proof on.
+			// We use inclusion parents because of the proper session index.
+			let mut key_ownership_proofs = Vec::new();
+			let mut dispute_proofs = Vec::new();
+
+			for (_height, inclusion_parent) in inclusions {
+				for (validator_index, validator_id) in pending.keys.iter() {
+					let res =
+						key_ownership_proof(ctx.sender(), inclusion_parent, validator_id.clone())
+							.await;
+
+					match res {
+						Ok(Some(key_ownership_proof)) => {
+							key_ownership_proofs.push(key_ownership_proof);
+							let time_slot = vstaging::slashing::DisputesTimeSlot::new(
+								session_index,
+								candidate_hash,
+							);
+							let dispute_proof = vstaging::slashing::DisputeProof {
+								time_slot,
+								kind: pending.kind,
+								validator_index: *validator_index,
+								validator_id: validator_id.clone(),
+							};
+							dispute_proofs.push(dispute_proof);
+						},
+						Ok(None) => {},
+						Err(runtime::Error::RuntimeRequest(RuntimeApiError::NotSupported {
+							..
+						})) => {
+							gum::debug!(
+								target: LOG_TARGET,
+								?session_index,
+								?candidate_hash,
+								?validator_id,
+								"Key ownership proof not yet supported.",
+							);
+						},
+						Err(error) => {
+							gum::warn!(
+								target: LOG_TARGET,
+								?error,
+								?session_index,
+								?candidate_hash,
+								?validator_id,
+								"Could not generate key ownership proof",
+							);
+						},
+					}
+				}
+
+				if !key_ownership_proofs.is_empty() {
+					// If we found a parent that we can use, stop searching.
+					// If one key ownership was resolved successfully, all of them should be.
+					debug_assert_eq!(key_ownership_proofs.len(), pending.keys.len());
+					break
+				}
+			}
+
+			let expected_keys = pending.keys.len();
+			let resolved_keys = key_ownership_proofs.len();
+			if resolved_keys < expected_keys {
+				gum::warn!(
+					target: LOG_TARGET,
+					?session_index,
+					?candidate_hash,
+					"Could not generate key ownership proofs for {} keys",
+					expected_keys - resolved_keys,
+				);
+			}
+			debug_assert_eq!(resolved_keys, dispute_proofs.len());
+
+			for (key_ownership_proof, dispute_proof) in
+				key_ownership_proofs.into_iter().zip(dispute_proofs.into_iter())
+			{
+				let validator_id = dispute_proof.validator_id.clone();
+
+				gum::info!(
+					target: LOG_TARGET,
+					?session_index,
+					?candidate_hash,
+					key_ownership_proof_len = key_ownership_proof.len(),
+					"Trying to submit a slashing report",
+				);
+
+				let res = submit_report_dispute_lost(
+					ctx.sender(),
+					relay_parent,
+					dispute_proof,
+					key_ownership_proof,
+				)
+				.await;
+
+				match res {
+					Err(runtime::Error::RuntimeRequest(RuntimeApiError::NotSupported {
+						..
+					})) => {
+						gum::debug!(
+							target: LOG_TARGET,
+							?session_index,
+							?candidate_hash,
+							"Reporting pending slash not yet supported",
+						);
+					},
+					Err(error) => {
+						gum::warn!(
+							target: LOG_TARGET,
+							?error,
+							?session_index,
+							?candidate_hash,
+							"Error reporting pending slash",
+						);
+					},
+					Ok(Some(())) => {
+						gum::info!(
+							target: LOG_TARGET,
+							?session_index,
+							?candidate_hash,
+							?validator_id,
+							"Successfully reported pending slash",
+						);
+					},
+					Ok(None) => {
+						gum::debug!(
+							target: LOG_TARGET,
+							?session_index,
+							?candidate_hash,
+							?validator_id,
+							"Duplicate pending slash report",
+						);
+					},
+				}
+			}
+		}
 	}
 
 	/// Process one batch of our `chain_import_backlog`.
@@ -476,10 +639,11 @@ impl Initialized {
 							validator_public.clone(),
 							validator_signature.clone(),
 						).is_ok(),
-						"Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}",
+						"Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}, validator_index: {}",
 						candidate_hash,
 						session,
 						validator_public,
+						validator_index.0,
 					);
 					let signed_dispute_statement =
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
@@ -839,6 +1003,16 @@ impl Initialized {
 
 		gum::trace!(target: LOG_TARGET, ?candidate_hash, ?session, "Loaded votes");
 
+		let controlled_indices = env.controlled_indices();
+		let own_statements = statements
+			.iter()
+			.filter(|(statement, validator_index)| {
+				controlled_indices.contains(validator_index) &&
+					*statement.candidate_hash() == candidate_hash
+			})
+			.cloned()
+			.collect::<Vec<_>>();
+
 		let import_result = {
 			let intermediate_result = old_state.import_statements(&env, statements, now);
 
@@ -1143,6 +1317,16 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'valid' result",
 			);
+			for (statement, validator_index) in own_statements.iter() {
+				if statement.statement().indicates_invalidity() {
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?validator_index,
+						"Voted against a candidate that was concluded valid.",
+					);
+				}
+			}
 			self.metrics.on_concluded_valid();
 		}
 		if import_result.is_freshly_concluded_against() {
@@ -1152,6 +1336,16 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'invalid' result",
 			);
+			for (statement, validator_index) in own_statements.iter() {
+				if statement.statement().indicates_validity() {
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?validator_index,
+						"Voted for a candidate that was concluded invalid.",
+					);
+				}
+			}
 			self.metrics.on_concluded_invalid();
 		}
 

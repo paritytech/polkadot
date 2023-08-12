@@ -34,7 +34,7 @@ use polkadot_node_network_protocol::{
 
 /// Peer set info for network initialization.
 ///
-/// To be added to [`NetworkConfiguration::extra_sets`].
+/// To be passed to [`FullNetworkConfiguration::add_notification_protocol`]().
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
 use std::{collections::HashMap, sync::Arc};

@@ -25,6 +25,11 @@ use xcm::prelude::*;
 /// appends one to the message filled with a universally unique ID. This ID is returned from a
 /// successful `deliver`.
 ///
+/// If the message does already end with a `SetTopic` instruction, then it is the responsibility
+/// of the code author to ensure that the ID supplied to `SetTopic` is universally unique. Due to
+/// this property, consumers of the topic ID must be aware that a user-supplied ID may not be
+/// unique.
+///
 /// This is designed to be at the top-level of any routers, since it will always mutate the
 /// passed `message` reference into a `None`. Don't try to combine it within a tuple except as the
 /// last element.
@@ -41,7 +46,7 @@ impl<Inner: SendXcm> SendXcm for WithUniqueTopic<Inner> {
 			*id
 		} else {
 			let unique_id = unique(&message);
-			message.0.push(SetTopic(unique_id.clone()));
+			message.0.push(SetTopic(unique_id));
 			unique_id
 		};
 		let (ticket, assets) = Inner::validate(destination, &mut Some(message))
@@ -86,7 +91,7 @@ impl<Inner: SendXcm, TopicSource: SourceTopic> SendXcm for WithTopicSource<Inner
 			*id
 		} else {
 			let unique_id = TopicSource::source_topic(&message);
-			message.0.push(SetTopic(unique_id.clone()));
+			message.0.push(SetTopic(unique_id));
 			unique_id
 		};
 		let (ticket, assets) = Inner::validate(destination, &mut Some(message))

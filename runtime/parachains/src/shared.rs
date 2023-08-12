@@ -20,6 +20,7 @@
 //! dependent on any of the other pallets.
 
 use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{SessionIndex, ValidatorId, ValidatorIndex};
 use sp_std::vec::Vec;
 
@@ -73,7 +74,7 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -86,7 +87,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		session_index: SessionIndex,
 		random_seed: [u8; 32],
-		new_config: &HostConfiguration<T::BlockNumber>,
+		new_config: &HostConfiguration<BlockNumberFor<T>>,
 		all_validators: Vec<ValidatorId>,
 	) -> Vec<ValidatorId> {
 		CurrentSessionIndex::<T>::set(session_index);

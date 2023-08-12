@@ -80,6 +80,11 @@ pub mod pallet {
 		/// If set to `Err`, benchmarks which rely on `export_message` will be skipped.
 		fn export_message_origin_and_destination(
 		) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError>;
+
+		/// A `(MultiLocation, MultiLocation)` that is one of the `Aliasers` configured by the XCM executor.
+		///
+		/// If set to `Err`, benchmarks which rely on a universal alias will be skipped.
+		fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError>;
 	}
 
 	#[pallet::pallet]

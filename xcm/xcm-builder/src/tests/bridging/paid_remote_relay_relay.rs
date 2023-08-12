@@ -33,7 +33,7 @@ parameter_types! {
 	//     x (10 + 10) weight each).
 }
 type TheBridge =
-	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation>>;
+	TestBridge<BridgeBlobDispatcher<TestRemoteIncomingRouter, RemoteUniversalLocation, ()>>;
 type RelayExporter = HaulBlobExporter<TheBridge, Remote, Price>;
 type LocalInnerRouter = ExecutingRouter<UniversalLocation, RelayUniversalLocation, RelayExporter>;
 type LocalBridgeRouter = SovereignPaidRemoteExporter<

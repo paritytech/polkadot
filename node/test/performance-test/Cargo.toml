@@ -3,14 +3,15 @@ name = "polkadot-performance-test"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 thiserror = "1.0.31"
-quote = "1.0.26"
+quote = "1.0.28"
 env_logger = "0.9"
 log = "0.4"
 
-polkadot-node-core-pvf-worker = { path = "../../core/pvf/worker" }
+polkadot-node-core-pvf-prepare-worker = { path = "../../core/pvf/prepare-worker" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-primitives = { path = "../../../primitives" }

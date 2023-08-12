@@ -4,6 +4,7 @@ description = "Polkadot Relay-chain Client Node"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [package.metadata.wasm-pack.profile.release]
 # `wasm-opt` has some problems on Linux, see
@@ -22,8 +23,6 @@ pyro = { package = "pyroscope", version = "0.5.3", optional = true }
 pyroscope_pprofrs = { version = "0.2", optional = true }
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
-polkadot-client = { path = "../node/client", optional = true }
-polkadot-node-core-pvf-worker = { path = "../node/core/pvf/worker", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -44,7 +43,7 @@ sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch =
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = ["db", "cli", "full-node", "polkadot-native"]
+default = ["db", "cli", "full-node"]
 db = ["service/db"]
 cli = [
 	"clap",
@@ -53,8 +52,7 @@ cli = [
 	"sc-tracing",
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
-	"polkadot-client",
-	"polkadot-node-core-pvf-worker",
+	"service",
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",

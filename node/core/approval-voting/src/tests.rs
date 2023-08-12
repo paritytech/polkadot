@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::tests::test_constants::TEST_CONFIG;
-
 use super::*;
 use polkadot_node_primitives::{
 	approval::{
@@ -115,12 +113,10 @@ fn make_sync_oracle(val: bool) -> (Box<dyn SyncOracle + Send>, TestSyncOracleHan
 pub mod test_constants {
 	use crate::approval_db::v1::Config as DatabaseConfig;
 	const DATA_COL: u32 = 0;
-	const SESSION_DATA_COL: u32 = 1;
 
-	pub(crate) const NUM_COLUMNS: u32 = 2;
+	pub(crate) const NUM_COLUMNS: u32 = 1;
 
-	pub(crate) const TEST_CONFIG: DatabaseConfig =
-		DatabaseConfig { col_approval_data: DATA_COL, col_session_data: SESSION_DATA_COL };
+	pub(crate) const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_approval_data: DATA_COL };
 }
 
 struct MockSupportsParachains;
@@ -493,7 +489,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 			Config {
 				col_approval_data: test_constants::TEST_CONFIG.col_approval_data,
 				slot_duration_millis: SLOT_DURATION_MILLIS,
-				col_session_data: TEST_CONFIG.col_session_data,
 			},
 			Arc::new(db),
 			Arc::new(keystore),

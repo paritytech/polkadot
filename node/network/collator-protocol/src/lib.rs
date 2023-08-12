@@ -28,6 +28,7 @@ use futures::{
 	FutureExt, TryFutureExt,
 };
 
+use polkadot_node_subsystem_util::reputation::ReputationAggregator;
 use sp_keystore::KeystorePtr;
 
 use polkadot_node_network_protocol::{
@@ -36,9 +37,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_primitives::CollatorPair;
 
-use polkadot_node_subsystem::{
-	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, SpawnedSubsystem,
-};
+use polkadot_node_subsystem::{errors::SubsystemError, overseer, SpawnedSubsystem};
 
 mod error;
 
@@ -124,6 +123,7 @@ impl<Context> CollatorProtocolSubsystem {
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
 	peer: PeerId,
 	rep: Rep,
@@ -135,7 +135,7 @@ async fn modify_reputation(
 		"reputation change for peer",
 	);
 
-	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await;
+	reputation.modify(sender, peer, rep).await;
 }
 
 /// Wait until tick and return the timestamp for the following one.

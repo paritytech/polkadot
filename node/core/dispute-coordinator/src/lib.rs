@@ -127,16 +127,11 @@ pub struct DisputeCoordinatorSubsystem {
 pub struct Config {
 	/// The data column in the store to use for dispute data.
 	pub col_dispute_data: u32,
-	/// The data column in the store to use for session data.
-	pub col_session_data: u32,
 }
 
 impl Config {
 	fn column_config(&self) -> db::v1::ColumnConfiguration {
-		db::v1::ColumnConfiguration {
-			col_dispute_data: self.col_dispute_data,
-			col_session_data: self.col_session_data,
-		}
+		db::v1::ColumnConfiguration { col_dispute_data: self.col_dispute_data }
 	}
 }
 

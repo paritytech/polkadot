@@ -17,6 +17,10 @@
 //! Polkadot CLI library.
 
 use clap::Parser;
+use std::path::PathBuf;
+
+/// The version of the node. The passed-in version of the workers should match this.
+pub const NODE_VERSION: &'static str = env!("SUBSTRATE_CLI_IMPL_VERSION");
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
@@ -42,14 +46,6 @@ pub enum Subcommand {
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
 
-	#[allow(missing_docs)]
-	#[command(name = "prepare-worker", hide = true)]
-	PvfPrepareWorker(ValidationWorkerCommand),
-
-	#[allow(missing_docs)]
-	#[command(name = "execute-worker", hide = true)]
-	PvfExecuteWorker(ValidationWorkerCommand),
-
 	/// Sub-commands concerned with benchmarking.
 	/// The pallet benchmarking moved to the `pallet` sub-command.
 	#[command(subcommand)]
@@ -73,17 +69,6 @@ pub enum Subcommand {
 
 	/// Db meta columns information.
 	ChainInfo(sc_cli::ChainInfoCmd),
-}
-
-#[allow(missing_docs)]
-#[derive(Debug, Parser)]
-pub struct ValidationWorkerCommand {
-	/// The path to the validation host's socket.
-	#[arg(long)]
-	pub socket_path: String,
-	/// Calling node implementation version
-	#[arg(long)]
-	pub node_impl_version: String,
 }
 
 #[allow(missing_docs)]
@@ -114,10 +99,6 @@ pub struct RunCmd {
 	#[arg(long = "grandpa-pause", num_args = 2)]
 	pub grandpa_pause: Vec<u32>,
 
-	/// Enable the BEEFY gadget (only on Rococo or Wococo for now).
-	#[arg(long)]
-	pub beefy: bool,
-
 	/// Add the destination address to the jaeger agent.
 	///
 	/// Must be valid socket address, of format `IP:Port`
@@ -147,6 +128,17 @@ pub struct RunCmd {
 	/// **Dangerous!** Do not touch unless explicitly adviced to.
 	#[arg(long)]
 	pub overseer_channel_capacity_override: Option<usize>,
+
+	/// Path to the directory where auxiliary worker binaries reside. If not specified, the main
+	/// binary's directory is searched first, then `/usr/lib/polkadot` is searched. TESTING ONLY: if
+	/// the path points to an executable rather then directory, that executable is used both as
+	/// preparation and execution worker.
+	#[arg(long, value_name = "PATH")]
+	pub workers_path: Option<PathBuf>,
+
+	/// TESTING ONLY: disable the version check between nodes and workers.
+	#[arg(long, hide = true)]
+	pub disable_worker_version_check: bool,
 }
 
 #[allow(missing_docs)]

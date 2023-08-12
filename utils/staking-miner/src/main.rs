@@ -83,7 +83,7 @@ macro_rules! construct_runtime_prelude {
 				pub(crate) fn [<create_uxt_ $runtime>](
 					raw_solution: EPM::RawSolution<EPM::SolutionOf<Runtime>>,
 					signer: crate::signer::Signer,
-					nonce: crate::prelude::Index,
+					nonce: crate::prelude::Nonce,
 					tip: crate::prelude::Balance,
 					era: sp_runtime::generic::Era,
 				) -> UncheckedExtrinsic {
@@ -121,7 +121,7 @@ macro_rules! construct_runtime_prelude {
 
 // NOTE: we might be able to use some code from the bridges repo here.
 fn signed_ext_builder_polkadot(
-	nonce: Index,
+	nonce: Nonce,
 	tip: Balance,
 	era: sp_runtime::generic::Era,
 ) -> polkadot_runtime_exports::SignedExtra {
@@ -140,7 +140,7 @@ fn signed_ext_builder_polkadot(
 }
 
 fn signed_ext_builder_kusama(
-	nonce: Index,
+	nonce: Nonce,
 	tip: Balance,
 	era: sp_runtime::generic::Era,
 ) -> kusama_runtime_exports::SignedExtra {
@@ -158,7 +158,7 @@ fn signed_ext_builder_kusama(
 }
 
 fn signed_ext_builder_westend(
-	nonce: Index,
+	nonce: Nonce,
 	tip: Balance,
 	era: sp_runtime::generic::Era,
 ) -> westend_runtime_exports::SignedExtra {
