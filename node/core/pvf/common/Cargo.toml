@@ -1,5 +1,6 @@
 [package]
 name = "polkadot-node-core-pvf-common"
+description = "Polkadot crate that contains functionality related to PVFs that is shared by the PVF host and the PVF workers."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
