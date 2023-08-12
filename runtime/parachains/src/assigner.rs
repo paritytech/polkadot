@@ -21,7 +21,7 @@ use primitives::{v5::Assignment, CoreIndex, Id as ParaId};
 
 use crate::{
 	configuration, paras,
-	scheduler_common::{AssignmentProvider, AssignmentProviderConfig},
+	scheduler::common::{AssignmentProvider, AssignmentProviderConfig},
 };
 
 pub use pallet::*;

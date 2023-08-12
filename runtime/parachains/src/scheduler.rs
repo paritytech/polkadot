@@ -35,6 +35,7 @@
 //! number of groups as availability cores. Validator groups will be assigned to different availability cores
 //! over time.
 
+use crate::{configuration, initializer::SessionChangeNotification, paras};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{
@@ -47,12 +48,9 @@ use sp_std::{
 	prelude::*,
 };
 
-use crate::{
-	configuration,
-	initializer::SessionChangeNotification,
-	paras,
-	scheduler_common::{AssignmentProvider, AssignmentProviderConfig, CoreAssignment, FreedReason},
-};
+pub mod common;
+
+use common::{AssignmentProvider, AssignmentProviderConfig, CoreAssignment, FreedReason};
 
 pub use pallet::*;
 

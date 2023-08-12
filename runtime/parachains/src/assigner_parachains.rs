@@ -19,7 +19,7 @@
 
 use crate::{
 	configuration, paras,
-	scheduler_common::{AssignmentProvider, AssignmentProviderConfig},
+	scheduler::common::{AssignmentProvider, AssignmentProviderConfig},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 pub use pallet::*;
