@@ -1056,47 +1056,6 @@ fn candidate_checks() {
 			);
 		}
 
-		// TODO: Will be tested at a higher level
-		//
-		// candidate has wrong collator.
-		//{
-		//	let mut candidate = TestCandidateBuilder {
-		//		para_id: thread_a,
-		//		relay_parent: System::parent_hash(),
-		//		pov_hash: Hash::repeat_byte(1),
-		//		persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
-		//		hrmp_watermark: RELAY_PARENT_NUM,
-		//		..Default::default()
-		//	}
-		//	.build();
-
-		//	assert!(CollatorId::from(Sr25519Keyring::One.public()) != thread_collator);
-		//	collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
-
-		//	let backed = back_candidate(
-		//		candidate,
-		//		&validators,
-		//		group_validators(GroupIndex::from(2)).unwrap().as_ref(),
-		//		&keystore,
-		//		&signing_context,
-		//		BackingKind::Threshold,
-		//	);
-
-		//	assert_noop!(
-		//		ParaInclusion::process_candidates(
-		//			Default::default(),
-		//			vec![backed],
-		//			vec![
-		//				chain_a_assignment.clone(),
-		//				chain_b_assignment.clone(),
-		//				thread_a_assignment.clone(),
-		//			],
-		//			&group_validators,
-		//		),
-		//		Error::<Test>::WrongPeerId,
-		//	);
-		//}
-
 		// candidate not well-signed by collator.
 		{
 			let mut candidate = TestCandidateBuilder {
