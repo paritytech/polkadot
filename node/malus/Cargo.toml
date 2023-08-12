@@ -12,19 +12,6 @@ publish = false
 name = "malus"
 path = "src/malus.rs"
 
-# Use artifact dependencies once stable.
-# See https://github.com/rust-lang/cargo/issues/9096.
-[[bin]]
-name = "polkadot-execute-worker"
-path = "../../src/bin/execute-worker.rs"
-# Prevent rustdoc error. Already documented from top-level Cargo.toml.
-doc = false
-[[bin]]
-name = "polkadot-prepare-worker"
-path = "../../src/bin/prepare-worker.rs"
-# Prevent rustdoc error. Already documented from top-level Cargo.toml.
-doc = false
-
 [dependencies]
 polkadot-cli = { path = "../../cli", features = [ "malus", "rococo-native", "kusama-native", "westend-native", "polkadot-native" ] }
 polkadot-node-subsystem = { path = "../subsystem" }
@@ -46,11 +33,6 @@ futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../gum/" }
 erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
 rand = "0.8.5"
-
-# Required for worker binaries to build.
-polkadot-node-core-pvf-common = { path = "../core/pvf/common" }
-polkadot-node-core-pvf-execute-worker = { path = "../core/pvf/execute-worker" }
-polkadot-node-core-pvf-prepare-worker = { path = "../core/pvf/prepare-worker" }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }

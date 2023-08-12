@@ -2,14 +2,6 @@
 name = "polkadot"
 path = "src/main.rs"
 
-[[bin]]
-name = "polkadot-execute-worker"
-path = "src/bin/execute-worker.rs"
-
-[[bin]]
-name = "polkadot-prepare-worker"
-path = "src/bin/prepare-worker.rs"
-
 [package]
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
@@ -38,10 +30,6 @@ polkadot-node-core-pvf = { path = "node/core/pvf" }
 polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
 polkadot-overseer = { path = "node/overseer" }
 
-# Needed for worker binaries.
-polkadot-node-core-pvf-common = { path = "node/core/pvf/common" }
-polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
-
 [dev-dependencies]
 assert_cmd = "2.0.4"
 nix = { version = "0.26.1", features = ["signal"] }
@@ -49,13 +37,24 @@ tempfile = "3.2.0"
 tokio = "1.24.2"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
+polkadot-execute-worker = { path = "bin/execute-worker" }
+polkadot-prepare-worker = { path = "bin/prepare-worker" }
 
 [build-dependencies]
+ansi_term = "0.12.1"
+regex = "1.9.3"
+rustc_version = "0.4.0"
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+# To get the binary names.
+polkadot-execute-worker = { path = "bin/execute-worker" }
+polkadot-prepare-worker = { path = "bin/prepare-worker" }
 
 [workspace]
 members = [
 	"cli",
+	"bin/execute-worker",
+	"bin/prepare-worker",
 	"core-primitives",
 	"erasure-coding",
 	"erasure-coding/fuzzer",
@@ -140,6 +139,12 @@ members = [
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
 	"utils/generate-bags",
+]
+
+default-members = [
+	".",
+	"bin/execute-worker",
+	"bin/prepare-worker",
 ]
 
 [badges]

@@ -32,6 +32,8 @@ polkadot-node-core-pvf-prepare-worker = { path = "prepare-worker" }
 polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-primitives = { path = "../../../primitives" }
+polkadot-prepare-worker = { path = "../../../bin/prepare-worker" }
+polkadot-execute-worker = { path = "../../../bin/execute-worker" }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }

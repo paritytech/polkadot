@@ -77,7 +77,7 @@ build-malus:
     - .compiler-info
     - .collect-artifacts
   script:
-    - time cargo build --locked --profile testnet --verbose -p polkadot-test-malus
+    - time cargo build --locked --profile testnet --verbose -p polkadot-test-malus -p polkadot-execute-worker -p polkadot-prepare-worker
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/malus ./artifacts/.

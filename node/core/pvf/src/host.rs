@@ -52,12 +52,6 @@ pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_millis(200);
 /// The amount of times we will retry failed prepare jobs.
 pub const NUM_PREPARE_RETRIES: u32 = 5;
 
-/// The name of binary spawned to prepare a PVF artifact
-pub const PREPARE_BINARY_NAME: &str = "polkadot-prepare-worker";
-
-/// The name of binary spawned to execute a PVF
-pub const EXECUTE_BINARY_NAME: &str = "polkadot-execute-worker";
-
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
 
