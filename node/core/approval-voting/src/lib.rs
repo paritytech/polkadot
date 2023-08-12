@@ -26,6 +26,7 @@ use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
 		BlockApprovalMeta, DelayTranche, IndirectAssignmentCert, IndirectSignedApprovalVote,
+		RelayVRFStory,
 	},
 	ValidationResult, DISPUTE_WINDOW,
 };
@@ -49,9 +50,9 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, PvfExecTimeoutKind, SessionIndex, SessionInfo, ValidDisputeStatementKind,
-	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex,
+	DisputeStatement, GroupIndex, Hash, PvfExecTimeoutKind, SessionIndex, SessionInfo,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -59,7 +60,10 @@ use sp_consensus::SyncOracle;
 use sp_consensus_slots::Slot;
 
 use futures::{
-	channel::oneshot,
+	channel::{
+		mpsc::{channel, Sender},
+		oneshot::{self},
+	},
 	future::{BoxFuture, RemoteHandle},
 	prelude::*,
 	stream::FuturesUnordered,
@@ -70,12 +74,13 @@ use std::{
 		btree_map::Entry as BTMEntry, hash_map::Entry as HMEntry, BTreeMap, HashMap, HashSet,
 	},
 	num::NonZeroUsize,
+	pin::Pin,
 	sync::Arc,
 	time::Duration,
 };
 
 use approval_checking::RequiredTranches;
-use criteria::{AssignmentCriteria, RealAssignmentCriteria};
+use criteria::{AssignmentCriteria, InvalidAssignment, RealAssignmentCriteria};
 use persisted_entries::{ApprovalEntry, BlockEntry, CandidateEntry};
 use time::{slot_number_to_tick, Clock, ClockExt, SystemClock, Tick};
 
@@ -670,12 +675,35 @@ where
 	}
 }
 
+struct ApprovalCheckJob {
+	validator_public: ValidatorId,
+	candidate_hash: CandidateHash,
+	session: SessionIndex,
+	validator_signature: ValidatorSignature,
+	send_response: oneshot::Sender<Result<(), ()>>,
+}
+
+struct AssignmentCheckJob {
+	claimed_core_index: CoreIndex,
+	validator_index: ValidatorIndex,
+	config: criteria::Config,
+	relay_vrf_story: RelayVRFStory,
+	assignment: IndirectAssignmentCert,
+	backing_group: GroupIndex,
+	send_response: oneshot::Sender<Result<u32, InvalidAssignment>>,
+}
+pub const NUM_WORKERS: usize = 6;
+
 struct State {
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 	spans: HashMap<Hash, jaeger::PerLeafSpan>,
+	sender_to_approval_check_worker: Vec<Sender<ApprovalCheckJob>>,
+	sender_to_assignment_check_worker: Vec<Sender<AssignmentCheckJob>>,
+	current_worker: usize,
+	current_assignment_worker: usize,
 }
 
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
@@ -771,12 +799,70 @@ where
 		gum::warn!(target: LOG_TARGET, ?err, "Could not run approval vote DB sanity check");
 	}
 
+	let mut sender_to_approval_check_worker: Vec<Sender<ApprovalCheckJob>> =
+		Vec::with_capacity(NUM_WORKERS);
+
+	for _i in 0..NUM_WORKERS {
+		let (tx, mut worker_receiver) = channel(1000);
+
+		sender_to_approval_check_worker.push(tx);
+
+		ctx.spawn_blocking(
+			"approval-voting-approval",
+			Box::pin(async move {
+				while let Some(value) = worker_receiver.next().await {
+					let result =
+						DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
+							.check_signature(
+								&value.validator_public,
+								value.candidate_hash,
+								value.session,
+								&value.validator_signature,
+							);
+					value.send_response.send(result).expect("Send did not work correctly");
+				}
+			}),
+		)?;
+	}
+
+	let mut sender_to_assignment_check_worker: Vec<Sender<AssignmentCheckJob>> =
+		Vec::with_capacity(NUM_WORKERS);
+
+	for _i in 0..NUM_WORKERS {
+		let (tx, mut worker_receiver) = channel(1000);
+
+		sender_to_assignment_check_worker.push(tx);
+
+		ctx.spawn_blocking(
+			"approval-voting-assignment",
+			Box::pin(async move {
+				while let Some(value) = worker_receiver.next().await {
+					let assignment_criteria = RealAssignmentCriteria {};
+					let result = assignment_criteria.check_assignment_cert(
+						value.claimed_core_index,
+						value.validator_index,
+						&value.config,
+						value.relay_vrf_story,
+						&value.assignment.cert,
+						value.backing_group,
+					);
+
+					value.send_response.send(result).expect("Send did not work correctly");
+				}
+			}),
+		)?;
+	}
+
 	let mut state = State {
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
 		clock,
 		assignment_criteria,
 		spans: HashMap::new(),
+		sender_to_approval_check_worker,
+		sender_to_assignment_check_worker,
+		current_worker: 0,
+		current_assignment_worker: 0,
 	};
 
 	// `None` on start-up. Gets initialized/updated on leaf update
@@ -787,7 +873,33 @@ where
 	let mut wakeups = Wakeups::default();
 	let mut currently_checking_set = CurrentlyCheckingSet::default();
 	let mut approvals_cache = lru::LruCache::new(APPROVAL_CACHE_SIZE);
-
+	let mut checking_approvals: FuturesUnordered<
+		Pin<
+			Box<
+				dyn Future<
+						Output = (
+							Result<(), ()>,
+							IndirectSignedApprovalVote,
+							oneshot::Sender<ApprovalCheckResult>,
+						),
+					> + Send,
+			>,
+		>,
+	> = Default::default();
+	let mut checking_assignments: FuturesUnordered<
+		Pin<
+			Box<
+				dyn Future<
+						Output = (
+							Result<u32, InvalidAssignment>,
+							CandidateIndex,
+							IndirectAssignmentCert,
+							oneshot::Sender<AssignmentCheckResult>,
+						),
+					> + Send,
+			>,
+		>,
+	> = Default::default();
 	let mut last_finalized_height: Option<BlockNumber> = {
 		let (tx, rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::FinalizedBlockNumber(tx)).await;
@@ -803,6 +915,24 @@ where
 	loop {
 		let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
+			(result, approval, res) = checking_approvals.select_next_some() => {
+				let result = import_approval(
+					ctx.sender(), &mut state, result,
+					 &mut overlayed_db, &mut  session_info_provider,
+					  &subsystem.metrics, approval, |r| {
+					let _ = res.send(r);
+				})
+				.await.expect("Failure to import approval");
+				result.0
+			},
+			(result, candidate_index, assignment, res) = checking_assignments.select_next_some() => {
+				let (check_outcome, actions) = import_assignment(
+					result, ctx.sender(), &mut state,
+					&mut overlayed_db, &mut session_info_provider,
+					assignment, candidate_index).await.expect("Failed to  import assignment");
+				let _ = res.send(check_outcome);
+				actions
+			},
 			(_tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
 				subsystem.metrics.on_wakeup();
 				process_wakeup(
@@ -825,6 +955,8 @@ where
 					next_msg?,
 					&mut last_finalized_height,
 					&mut wakeups,
+					&mut checking_approvals,
+					&mut checking_assignments,
 				).await?;
 
 				if let Mode::Syncing(ref mut oracle) = subsystem.mode {
@@ -1182,6 +1314,33 @@ async fn handle_from_overseer<Context>(
 	x: FromOrchestra<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
 	wakeups: &mut Wakeups,
+	checking_approvals: &mut FuturesUnordered<
+		Pin<
+			Box<
+				dyn Future<
+						Output = (
+							Result<(), ()>,
+							IndirectSignedApprovalVote,
+							oneshot::Sender<ApprovalCheckResult>,
+						),
+					> + Send,
+			>,
+		>,
+	>,
+	checking_assignments: &mut FuturesUnordered<
+		Pin<
+			Box<
+				dyn Future<
+						Output = (
+							Result<u32, InvalidAssignment>,
+							CandidateIndex,
+							IndirectAssignmentCert,
+							oneshot::Sender<AssignmentCheckResult>,
+						),
+					> + Send,
+			>,
+		>,
+	>,
 ) -> SubsystemResult<Vec<Action>> {
 	let actions = match x {
 		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
@@ -1270,18 +1429,19 @@ async fn handle_from_overseer<Context>(
 		},
 		FromOrchestra::Communication { msg } => match msg {
 			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
-				let (check_outcome, actions) = check_and_import_assignment(
+				let _ = check_and_import_assignment(
 					ctx.sender(),
 					state,
 					db,
 					session_info_provider,
 					a,
 					claimed_core,
+					res,
+					checking_assignments,
 				)
 				.await?;
-				let _ = res.send(check_outcome);
 
-				actions
+				vec![]
 			},
 			ApprovalVotingMessage::CheckAndImportApproval(a, res) =>
 				check_and_import_approval(
@@ -1289,11 +1449,9 @@ async fn handle_from_overseer<Context>(
 					state,
 					db,
 					session_info_provider,
-					metrics,
 					a,
-					|r| {
-						let _ = res.send(r);
-					},
+					res,
+					checking_approvals,
 				)
 				.await?
 				.0,
@@ -1782,16 +1940,31 @@ fn schedule_wakeup_action(
 
 async fn check_and_import_assignment<Sender>(
 	sender: &mut Sender,
-	state: &State,
+	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut RuntimeInfo,
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
-) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)>
+	send_result: oneshot::Sender<AssignmentCheckResult>,
+	checking_assignments: &mut FuturesUnordered<
+		Pin<
+			Box<
+				dyn Future<
+						Output = (
+							Result<u32, InvalidAssignment>,
+							CandidateIndex,
+							IndirectAssignmentCert,
+							oneshot::Sender<AssignmentCheckResult>,
+						),
+					> + Send,
+			>,
+		>,
+	>,
+) -> SubsystemResult<()>
 where
 	Sender: SubsystemSender<RuntimeApiMessage>,
 {
-	let tick_now = state.clock.tick_now();
+	let _tick_now = state.clock.tick_now();
 
 	let mut check_and_import_assignment_span = state
 		.spans
@@ -1804,13 +1977,13 @@ where
 
 	let block_entry = match db.load_block_entry(&assignment.block_hash)? {
 		Some(b) => b,
-		None =>
-			return Ok((
-				AssignmentCheckResult::Bad(AssignmentCheckError::UnknownBlock(
-					assignment.block_hash,
-				)),
-				Vec::new(),
-			)),
+		None => {
+			let _ = send_result.send(AssignmentCheckResult::Bad(
+				AssignmentCheckError::UnknownBlock(assignment.block_hash),
+			));
+
+			return Ok(())
+		},
 	};
 
 	let session_info = match get_session_info(
@@ -1822,16 +1995,113 @@ where
 	.await
 	{
 		Some(s) => s,
+		None => {
+			let _ = send_result.send(AssignmentCheckResult::Bad(
+				AssignmentCheckError::UnknownSessionIndex(block_entry.session()),
+			));
+
+			return Ok(())
+		},
+	};
+
+	let (claimed_core_index, assigned_candidate_hash) =
+		match block_entry.candidate(candidate_index as usize) {
+			Some((c, h)) => (*c, *h),
+			None => {
+				let _ = send_result.send(AssignmentCheckResult::Bad(
+					AssignmentCheckError::InvalidCandidateIndex(candidate_index),
+				));
+				return Ok(())
+			}, // no candidate at core.
+		};
+
+	check_and_import_assignment_span
+		.add_string_tag("candidate-hash", format!("{:?}", assigned_candidate_hash));
+	check_and_import_assignment_span.add_string_tag(
+		"traceID",
+		format!("{:?}", jaeger::hash_to_trace_identifier(assigned_candidate_hash.0)),
+	);
+
+	let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
+		Some(c) => c,
+		None => {
+			let _ = send_result.send(AssignmentCheckResult::Bad(
+				AssignmentCheckError::InvalidCandidate(candidate_index, assigned_candidate_hash),
+			));
+			return Ok(())
+		},
+	};
+
+	// import the assignment.
+	let approval_entry = match candidate_entry.approval_entry_mut(&assignment.block_hash) {
+		Some(a) => a,
+		None => {
+			let _ = send_result.send(AssignmentCheckResult::Bad(AssignmentCheckError::Internal(
+				assignment.block_hash,
+				assigned_candidate_hash,
+			)));
+			return Ok(())
+		},
+	};
+	let (tx, rx) = oneshot::channel();
+
+	let assignment_job = AssignmentCheckJob {
+		claimed_core_index,
+		validator_index: assignment.validator,
+		config: criteria::Config::from(session_info),
+		relay_vrf_story: block_entry.relay_vrf_story(),
+		assignment: assignment.clone(),
+		backing_group: approval_entry.backing_group(),
+		send_response: tx,
+	};
+
+	state
+		.sender_to_assignment_check_worker
+		.get_mut(state.current_assignment_worker)
+		.unwrap()
+		.send(assignment_job)
+		.await
+		.expect("Could not send the job");
+	state.current_assignment_worker = (state.current_assignment_worker + 1) % NUM_WORKERS;
+	let await_future = async move {
+		(
+			rx.await.expect("Could not received response from worker"),
+			candidate_index,
+			assignment,
+			send_result,
+		)
+	}
+	.boxed();
+	checking_assignments.push(await_future);
+	Ok(())
+}
+
+async fn import_assignment<Sender>(
+	res: Result<u32, InvalidAssignment>,
+	sender: &mut Sender,
+	state: &mut State,
+	db: &mut OverlayedBackend<'_, impl Backend>,
+	session_info_provider: &mut RuntimeInfo,
+	assignment: IndirectAssignmentCert,
+	candidate_index: CandidateIndex,
+) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	let tick_now = state.clock.tick_now();
+
+	let block_entry = match db.load_block_entry(&assignment.block_hash)? {
+		Some(b) => b,
 		None =>
 			return Ok((
-				AssignmentCheckResult::Bad(AssignmentCheckError::UnknownSessionIndex(
-					block_entry.session(),
+				AssignmentCheckResult::Bad(AssignmentCheckError::UnknownBlock(
+					assignment.block_hash,
 				)),
 				Vec::new(),
 			)),
 	};
 
-	let (claimed_core_index, assigned_candidate_hash) =
+	let (_claimed_core_index, assigned_candidate_hash) =
 		match block_entry.candidate(candidate_index as usize) {
 			Some((c, h)) => (*c, *h),
 			None =>
@@ -1842,13 +2112,6 @@ where
 					Vec::new(),
 				)), // no candidate at core.
 		};
-
-	check_and_import_assignment_span
-		.add_string_tag("candidate-hash", format!("{:?}", assigned_candidate_hash));
-	check_and_import_assignment_span.add_string_tag(
-		"traceID",
-		format!("{:?}", jaeger::hash_to_trace_identifier(assigned_candidate_hash.0)),
-	);
 
 	let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
 		Some(c) => c,
@@ -1862,29 +2125,20 @@ where
 			)),
 	};
 
-	let res = {
-		// import the assignment.
-		let approval_entry = match candidate_entry.approval_entry_mut(&assignment.block_hash) {
-			Some(a) => a,
-			None =>
-				return Ok((
-					AssignmentCheckResult::Bad(AssignmentCheckError::Internal(
-						assignment.block_hash,
-						assigned_candidate_hash,
-					)),
-					Vec::new(),
+	// import the assignment.
+	let approval_entry = match candidate_entry.approval_entry_mut(&assignment.block_hash) {
+		Some(a) => a,
+		None =>
+			return Ok((
+				AssignmentCheckResult::Bad(AssignmentCheckError::Internal(
+					assignment.block_hash,
+					assigned_candidate_hash,
 				)),
-		};
+				Vec::new(),
+			)),
+	};
 
-		let res = state.assignment_criteria.check_assignment_cert(
-			claimed_core_index,
-			assignment.validator,
-			&criteria::Config::from(session_info),
-			block_entry.relay_vrf_story(),
-			&assignment.cert,
-			approval_entry.backing_group(),
-		);
-
+	let res = {
 		let tranche = match res {
 			Err(crate::criteria::InvalidAssignment(reason)) =>
 				return Ok((
@@ -1907,8 +2161,6 @@ where
 				tranche
 			},
 		};
-
-		check_and_import_assignment_span.add_uint_tag("tranche", tranche as u64);
 
 		let is_duplicate = approval_entry.is_assigned(assignment.validator);
 		approval_entry.import_assignment(tranche, assignment.validator, tick_now);
@@ -1952,21 +2204,37 @@ where
 	Ok((res, actions))
 }
 
-async fn check_and_import_approval<T, Sender>(
+async fn check_and_import_approval<Sender>(
 	sender: &mut Sender,
-	state: &State,
+	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut RuntimeInfo,
-	metrics: &Metrics,
 	approval: IndirectSignedApprovalVote,
-	with_response: impl FnOnce(ApprovalCheckResult) -> T,
-) -> SubsystemResult<(Vec<Action>, T)>
+	res: oneshot::Sender<ApprovalCheckResult>,
+	checking_approvals: &mut FuturesUnordered<
+		Pin<
+			Box<
+				dyn Future<
+						Output = (
+							Result<(), ()>,
+							IndirectSignedApprovalVote,
+							oneshot::Sender<ApprovalCheckResult>,
+						),
+					> + Send,
+			>,
+		>,
+	>,
+) -> SubsystemResult<(Vec<Action>, ())>
 where
 	Sender: SubsystemSender<RuntimeApiMessage>,
 {
+	// let with_response = |r| {
+	// 	let _ = res.send(r);
+	// };
+
 	macro_rules! respond_early {
 		($e: expr) => {{
-			let t = with_response($e);
+			let t = res.send($e).unwrap();
 			return Ok((Vec::new(), t))
 		}};
 	}
@@ -2024,14 +2292,77 @@ where
 			ApprovalCheckError::InvalidValidatorIndex(approval.validator),
 		)),
 	};
-
 	// Signature check:
-	match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
-		&pubkey,
-		approved_candidate_hash,
-		block_entry.session(),
-		&approval.signature,
-	) {
+	let (tx, rx) = oneshot::channel();
+	let signature_job = ApprovalCheckJob {
+		candidate_hash: approved_candidate_hash,
+		session: block_entry.session(),
+		validator_public: pubkey.clone(),
+		validator_signature: approval.signature.clone(),
+		send_response: tx,
+	};
+	state
+		.sender_to_approval_check_worker
+		.get_mut(state.current_worker)
+		.expect("null sender")
+		.send(signature_job)
+		.await
+		.expect("Could not send to worker");
+
+	// TODO: NAIVE WORK scheduling algorithm
+	state.current_worker = (state.current_worker + 1) % NUM_WORKERS;
+
+	let await_future = async move {
+		let result = rx.await.expect("Should not fail");
+		(result, approval, res)
+	}
+	.boxed();
+
+	checking_approvals.push(await_future);
+	Ok((vec![], ()))
+	// let (result, approval, res) = checking_approvals.select_next_some().await;
+	// import_approval(sender, state, result, db, session_info_provider, metrics, approval, |r| {
+	// 	let _ = res.send(r);
+	// })
+	// .await
+}
+
+async fn import_approval<T, Sender>(
+	sender: &mut Sender,
+	state: &mut State,
+	result: Result<(), ()>,
+	db: &mut OverlayedBackend<'_, impl Backend>,
+	session_info_provider: &mut RuntimeInfo,
+	metrics: &Metrics,
+	approval: IndirectSignedApprovalVote,
+	with_response: impl FnOnce(ApprovalCheckResult) -> T,
+) -> SubsystemResult<(Vec<Action>, T)>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	macro_rules! respond_early {
+		($e: expr) => {{
+			let t = with_response($e);
+			return Ok((Vec::new(), t))
+		}};
+	}
+	let block_entry = match db.load_block_entry(&approval.block_hash)? {
+		Some(b) => b,
+		None => {
+			respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::UnknownBlock(
+				approval.block_hash
+			),))
+		},
+	};
+
+	let approved_candidate_hash = match block_entry.candidate(approval.candidate_index as usize) {
+		Some((_, h)) => *h,
+		None => respond_early!(ApprovalCheckResult::Bad(
+			ApprovalCheckError::InvalidCandidateIndex(approval.candidate_index),
+		)),
+	};
+
+	match result {
 		Err(_) => respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidSignature(
 			approval.validator
 		),)),
@@ -2066,15 +2397,6 @@ where
 
 	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.
 	let t = with_response(ApprovalCheckResult::Accepted);
-
-	gum::trace!(
-		target: LOG_TARGET,
-		validator_index = approval.validator.0,
-		validator = ?pubkey,
-		candidate_hash = ?approved_candidate_hash,
-		para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
-		"Importing approval vote",
-	);
 
 	let actions = advance_approval_state(
 		sender,

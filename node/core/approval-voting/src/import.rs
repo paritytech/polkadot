@@ -633,6 +633,10 @@ pub(crate) mod tests {
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
 			spans: HashMap::new(),
+			sender_to_approval_check_worker: Default::default(),
+			sender_to_assignment_check_worker: Default::default(),
+			current_worker: Default::default(),
+			current_assignment_worker: Default::default(),
 		}
 	}
 

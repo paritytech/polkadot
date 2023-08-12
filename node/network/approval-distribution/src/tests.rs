@@ -502,20 +502,23 @@ fn spam_attack_results_in_negative_reputation_change() {
 			.collect();
 
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
-		send_message_from_peer(overseer, peer, msg.clone()).await;
+		// send_message_from_peer(overseer, peer, msg.clone()).await;
 
-		for i in 0..candidates_count {
+		for assignment in assignments {
+			let msg =
+				protocol_v1::ApprovalDistributionMessage::Assignments(vec![assignment.clone()]);
+			send_message_from_peer(overseer, peer, msg).await;
 			expect_reputation_change(overseer, peer, COST_UNEXPECTED_MESSAGE).await;
 
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
-					assignment,
+					assignment_recv,
 					claimed_candidate_index,
 					tx,
 				)) => {
-					assert_eq!(assignment, assignments[i].0);
-					assert_eq!(claimed_candidate_index, assignments[i].1);
+					assert_eq!(assignment_recv, assignment.0);
+					assert_eq!(claimed_candidate_index, assignment.1);
 					tx.send(AssignmentCheckResult::Accepted).unwrap();
 				}
 			);
