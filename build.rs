@@ -55,10 +55,11 @@ fn main() {
 		let out_dir = var("OUT_DIR").expect("`OUT_DIR` env variable is always set by cargo");
 		let target_dir = format!("{}/workers", out_dir);
 
-		// Get the profile from OUT_DIR instead of the PROFILE env var. If we are using e.g. testnet
-		// which inherits from release, then PROFILE will be release. The only way to get the actual
-		// profile (testnet) is with this hacky parsing code. 🙈 We need to get the actual profile
-		// to pass along settings like LTO (which is not even available to this build script).
+		// HACK: Get the profile from OUT_DIR instead of the PROFILE env var. If we are using e.g.
+		// testnet which inherits from release, then PROFILE will be release. The only way to get
+		// the actual profile (e.g. testnet) is with this hacky parsing code. 🙈 We need to get the
+		// actual profile to pass along settings like LTO (which is not even available to this build
+		// script) and build the binaries as expected.
 		let re = regex::Regex::new(r".*/target/(?<profile>\w+)/build/.*").unwrap();
 		let caps = re
 			.captures(&out_dir)
