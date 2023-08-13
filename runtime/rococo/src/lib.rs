@@ -2094,14 +2094,27 @@ sp_api::impl_runtime_apis! {
 			use xcm_config::{
 				LocalCheckAccount, LocationConverter, AssetHub, TokenLocation, XcmConfig,
 			};
-			use xcm_executor::FeesMode;
-			use xcm_executor::traits::FeeReason;
+
+			parameter_types! {
+				pub ExistentialDepositMultiAsset: Option<MultiAsset> = Some((
+					TokenLocation::get(),
+					ExistentialDeposit::get()
+				).into());
+				pub ToParachain: ParaId = rococo_runtime_constants::system_parachain::ASSET_HUB_ID.into();
+			}
 
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl frame_benchmarking::baseline::Config for Runtime {}
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = LocationConverter;
+				type DeliveryHelper = runtime_common::xcm_sender::ToParachainDeliveryHelper<
+					XcmConfig,
+					ExistentialDepositMultiAsset,
+					xcm_config::PriceForChildParachainDelivery,
+					ToParachain,
+					(),
+				>;
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(AssetHub::get())
 				}
@@ -2111,43 +2124,6 @@ sp_api::impl_runtime_apis! {
 						id: Concrete(TokenLocation::get()),
 						fun: Fungible(1_000_000 * UNITS),
 					}].into()
-				}
-				fn ensure_for_send(origin_ref: &MultiLocation, _dest: &MultiLocation, fee_reason: FeeReason) -> Option<FeesMode> {
-					use xcm_executor::traits::{FeeManager, TransactAsset};
-
-					let mut fees_mode = None;
-					if !<XcmConfig as xcm_executor::Config>::FeeManager::is_waived(Some(origin_ref), fee_reason) {
-						// if not waived, we need to set up accounts for paying and receiving fees
-
-						// mint ED to origin
-						let ed = MultiAsset {
-							id: Concrete(TokenLocation::get()),
-							fun: Fungible(EXISTENTIAL_DEPOSIT.into())
-						};
-						<XcmConfig as xcm_executor::Config>::AssetTransactor::deposit_asset(&ed, &origin_ref, None).unwrap();
-
-						// overestimate delivery fee
-						use runtime_common::xcm_sender::PriceForParachainDelivery;
-						let overestimated_xcm = vec![ClearOrigin; 128].into();
-						let overestimated_fees = runtime_common::xcm_sender::ExponentialPrice::<
-							xcm_config::FeeAssetId,
-							xcm_config::BaseDeliveryFee,
-							TransactionByteFee,
-							Dmp
-						>::price_for_parachain_delivery(
-							rococo_runtime_constants::system_parachain::ASSET_HUB_ID.into(),
-							&overestimated_xcm
-						);
-
-						// mint overestimated fee to origin
-						for fee in overestimated_fees.inner() {
-							<XcmConfig as xcm_executor::Config>::AssetTransactor::deposit_asset(&fee, &origin_ref, None).unwrap();
-						}
-
-						// expected worst case
-						fees_mode = Some(FeesMode { jit_withdraw: true });
-					}
-					fees_mode
 				}
 			}
 

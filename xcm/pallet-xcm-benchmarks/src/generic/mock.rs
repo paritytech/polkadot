@@ -140,6 +140,7 @@ impl xcm_executor::Config for XcmConfig {
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 	type AccountIdConverter = AccountIdConverter;
+	type DeliveryHelper = ();
 	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
 			Junction::AccountId32 { network: None, id: [0u8; 32] }.into();
@@ -151,15 +152,6 @@ impl crate::Config for Test {
 			depositable_count,
 			<XcmConfig as xcm_executor::Config>::MaxAssetsIntoHolding::get(),
 		)
-	}
-
-	fn ensure_for_send(
-		_origin_ref: &MultiLocation,
-		_dest: &MultiLocation,
-		_fee_reason: FeeReason,
-	) -> Option<FeesMode> {
-		// doing nothing
-		None
 	}
 }
 
