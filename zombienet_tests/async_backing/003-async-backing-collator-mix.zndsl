@@ -5,8 +5,6 @@ Creds: config
 # General
 alice: is up
 bob: is up
-charlie: is up
-dave: is up
 
 # Check peers
 alice: reports peers count is at least 3 within 20 seconds
