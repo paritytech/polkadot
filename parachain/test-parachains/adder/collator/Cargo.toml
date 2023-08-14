@@ -43,6 +43,7 @@ polkadot-test-service = { path = "../../../../node/test/service" }
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+# For the puppet worker, depend on ourselves with the test-utils feature.
 test-parachain-adder-collator = { path = ".", features = ["test-utils"] }
 
 tokio = { version = "1.24.2", features = ["macros"] }

@@ -44,6 +44,7 @@ substrate-build-script-utils = { git = "https://github.com/paritytech/substrate"
 assert_matches = "1.4.0"
 hex-literal = "0.3.4"
 polkadot-node-core-pvf-common = { path = "common", features = ["test-utils"] }
+# For the puppet worker, depend on ourselves with the test-utils feature.
 polkadot-node-core-pvf = { path = ".", features = ["test-utils"] }
 
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
