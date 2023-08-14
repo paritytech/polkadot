@@ -380,7 +380,7 @@ pub enum Instruction<Call> {
 	///
 	/// - `assets`: The asset(s) to be withdrawn into holding.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	WithdrawAsset(MultiAssets),
@@ -444,7 +444,7 @@ pub enum Instruction<Call> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	TransferAsset { assets: MultiAssets, beneficiary: MultiLocation },
@@ -464,7 +464,7 @@ pub enum Instruction<Call> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	TransferReserveAsset { assets: MultiAssets, dest: MultiLocation, xcm: Xcm<()> },
@@ -481,7 +481,7 @@ pub enum Instruction<Call> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	Transact { origin_kind: OriginKind, require_weight_at_most: Weight, call: DoubleEncoded<Call> },
@@ -549,14 +549,14 @@ pub enum Instruction<Call> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	ClearOrigin,
 
 	/// Mutate the origin to some interior location.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	DescendOrigin(InteriorMultiLocation),
@@ -567,7 +567,7 @@ pub enum Instruction<Call> {
 	///
 	/// - `response_info`: Information for making the response.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	ReportError(QueryResponseInfo),
@@ -578,7 +578,7 @@ pub enum Instruction<Call> {
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `beneficiary`: The new owner for the assets.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	DepositAsset { assets: MultiAssetFilter, beneficiary: MultiLocation },
@@ -596,7 +596,7 @@ pub enum Instruction<Call> {
 	/// - `xcm`: The orders that should follow the `ReserveAssetDeposited` instruction which is
 	///   sent onwards to `dest`.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	DepositReserveAsset { assets: MultiAssetFilter, dest: MultiLocation, xcm: Xcm<()> },
@@ -613,7 +613,7 @@ pub enum Instruction<Call> {
 	///   and receive accordingly more. If `false`, then prefer to give as little as possible in
 	///   order to receive as little as possible while receiving at least `want`.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	ExchangeAsset { give: MultiAssetFilter, want: MultiAssets, maximal: bool },
@@ -629,7 +629,7 @@ pub enum Instruction<Call> {
 	/// - `xcm`: The instructions to execute on the assets once withdrawn *on the reserve
 	///   location*.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	InitiateReserveWithdraw { assets: MultiAssetFilter, reserve: MultiLocation, xcm: Xcm<()> },
@@ -645,7 +645,7 @@ pub enum Instruction<Call> {
 	/// NOTE: The `dest` location *MUST* respect this origin as a valid teleportation origin for
 	/// all `assets`. If it does not, then the assets may be lost.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	InitiateTeleport { assets: MultiAssetFilter, dest: MultiLocation, xcm: Xcm<()> },
@@ -659,7 +659,7 @@ pub enum Instruction<Call> {
 	///   will be, asset-wise, *the lesser of this value and the holding register*. No wildcards
 	///   will be used when reporting assets back.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	ReportHolding { response_info: QueryResponseInfo, assets: MultiAssetFilter },
@@ -672,14 +672,14 @@ pub enum Instruction<Call> {
 	///   expected maximum weight of the total XCM to be executed for the
 	///   `AllowTopLevelPaidExecutionFrom` barrier to allow the XCM be executed.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	BuyExecution { fees: MultiAsset, weight_limit: WeightLimit },
 
 	/// Refund any surplus weight previously bought with `BuyExecution`.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: None.
 	RefundSurplus,
@@ -695,7 +695,7 @@ pub enum Instruction<Call> {
 	/// weight however includes only the difference between the previous handler and the new
 	/// handler, which can reasonably be negative, which would result in a surplus.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: None.
 	SetErrorHandler(Xcm<Call>),
@@ -711,14 +711,14 @@ pub enum Instruction<Call> {
 	/// weight however includes only the difference between the previous appendix and the new
 	/// appendix, which can reasonably be negative, which would result in a surplus.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: None.
 	SetAppendix(Xcm<Call>),
 
 	/// Clear the Error Register.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: None.
 	ClearError,
@@ -730,14 +730,14 @@ pub enum Instruction<Call> {
 	/// - `ticket`: The ticket of the asset; this is an abstract identifier to help locate the
 	///   asset.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	ClaimAsset { assets: MultiAssets, ticket: MultiLocation },
 
 	/// Always throws an error of type `Trap`.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	/// - `Trap`: All circumstances, whose inner value is the same as this item's inner value.
@@ -752,7 +752,7 @@ pub enum Instruction<Call> {
 	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
 	///   response may not execute at all.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: *Fallible*
 	SubscribeVersion {
@@ -763,7 +763,7 @@ pub enum Instruction<Call> {
 
 	/// Cancel the effect of a previous `SubscribeVersion` instruction.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: *Fallible*
 	UnsubscribeVersion,
@@ -774,14 +774,14 @@ pub enum Instruction<Call> {
 	/// error if the Holding does not contain the assets (to make this an error, use `ExpectAsset`
 	/// prior).
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: *Infallible*
 	BurnAsset(MultiAssets),
 
 	/// Throw an error if Holding does not contain at least the given assets.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	/// - `ExpectationFalse`: If Holding Register does not contain the assets in the parameter.
@@ -789,7 +789,7 @@ pub enum Instruction<Call> {
 
 	/// Ensure that the Origin Register equals some given value and throw an error if not.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	/// - `ExpectationFalse`: If Origin Register is not equal to the parameter.
@@ -797,7 +797,7 @@ pub enum Instruction<Call> {
 
 	/// Ensure that the Error Register equals some given value and throw an error if not.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	/// - `ExpectationFalse`: If the value of the Error Register is not equal to the parameter.
@@ -806,7 +806,7 @@ pub enum Instruction<Call> {
 	/// Ensure that the Transact Status Register equals some given value and throw an error if
 	/// not.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	/// - `ExpectationFalse`: If the value of the Transact Status Register is not equal to the
@@ -824,7 +824,7 @@ pub enum Instruction<Call> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: *Fallible*.
 	QueryPallet { module_name: Vec<u8>, response_info: QueryResponseInfo },
@@ -843,7 +843,7 @@ pub enum Instruction<Call> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	/// - `ExpectationFalse`: In case any of the expectations are broken.
@@ -866,7 +866,7 @@ pub enum Instruction<Call> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: *Fallible*.
 	ReportTransactStatus(QueryResponseInfo),
@@ -875,7 +875,7 @@ pub enum Instruction<Call> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: *Infallible*.
 	ClearTransactStatus,
@@ -890,7 +890,7 @@ pub enum Instruction<Call> {
 	/// The `Junction` parameter should generally be a `GlobalConsensus` variant since it is only
 	/// these which are children of the Universal Ancestor.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: *Fallible*.
 	UniversalOrigin(Junction),
@@ -911,7 +911,7 @@ pub enum Instruction<Call> {
 	/// `destination: X1(Parachain(1000))`. Alternatively, to export a message for execution on
 	/// Polkadot, you would call with `network: NetworkId:: Polkadot` and `destination: Here`.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: *Fallible*.
 	ExportMessage { network: NetworkId, destination: InteriorMultiLocation, xcm: Xcm<()> },
@@ -927,7 +927,7 @@ pub enum Instruction<Call> {
 	/// - `unlocker`: The value which the Origin must be for a corresponding `UnlockAsset`
 	///   instruction to work.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	LockAsset { asset: MultiAsset, unlocker: MultiLocation },
@@ -940,7 +940,7 @@ pub enum Instruction<Call> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	UnlockAsset { asset: MultiAsset, target: MultiLocation },
@@ -969,7 +969,7 @@ pub enum Instruction<Call> {
 	/// - `locker`: The location from which a previous `NoteUnlockable` was sent and to which an
 	///   `UnlockAsset` should be sent.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	RequestUnlock { asset: MultiAsset, locker: MultiLocation },
@@ -979,7 +979,7 @@ pub enum Instruction<Call> {
 	/// - `jit_withdraw`: The fees mode item; if set to `true` then fees for any instructions are
 	///   withdrawn as needed using the same mechanism as `WithdrawAssets`.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	SetFeesMode { jit_withdraw: bool },
@@ -992,21 +992,21 @@ pub enum Instruction<Call> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	SetTopic([u8; 32]),
 
 	/// Clear the Topic Register.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: None.
 	ClearTopic,
 
 	/// Alter the current Origin to another given origin.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: If the existing state would not allow such a change.
 	AliasOrigin(MultiLocation),
