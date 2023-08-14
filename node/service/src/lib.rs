@@ -629,6 +629,7 @@ where
 pub struct NewFullParams<OverseerGenerator: OverseerGen> {
 	pub is_collator: IsCollator,
 	pub grandpa_pause: Option<(u32, u32)>,
+	pub enable_beefy: bool,
 	pub jaeger_agent: Option<std::net::SocketAddr>,
 	pub telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	/// The version of the node. TESTING ONLY: `None` can be passed to skip the node/worker version
@@ -711,6 +712,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 	NewFullParams {
 		is_collator,
 		grandpa_pause,
+		enable_beefy,
 		jaeger_agent,
 		telemetry_worker_handle,
 		node_version,
@@ -745,7 +747,6 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		Some(backoff)
 	};
 
-	let enable_beefy = !config.disable_beefy;
 	// If not on a known test network, warn the user that BEEFY is still experimental.
 	if enable_beefy &&
 		!config.chain_spec.is_rococo() &&

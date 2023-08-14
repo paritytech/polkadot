@@ -53,15 +53,15 @@ fn main() -> Result<()> {
 				)
 			})?;
 
-			runner.run_node_until_exit(|mut config| async move {
+			runner.run_node_until_exit(|config| async move {
 				let collator = Collator::new(cli.run.pov_size, cli.run.pvf_complexity);
 
-				config.disable_beefy = true;
 				let full_node = polkadot_service::build_full(
 					config,
 					polkadot_service::NewFullParams {
 						is_collator: polkadot_service::IsCollator::Yes(collator.collator_key()),
 						grandpa_pause: None,
+						enable_beefy: false,
 						jaeger_agent: None,
 						telemetry_worker_handle: None,
 

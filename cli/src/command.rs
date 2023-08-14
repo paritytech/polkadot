@@ -235,10 +235,14 @@ fn run_node_inner<F>(
 where
 	F: FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration),
 {
-	let mut runner = cli
+	let runner = cli
 		.create_runner_with_logger_hook::<sc_cli::RunCmd, F>(&cli.run.base, logger_hook)
 		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
+
+	// By default, enable BEEFY on test networks.
+	let enable_beefy = (chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi()) &&
+		!cli.run.no_beefy;
 
 	set_default_ss58_version(chain_spec);
 
@@ -254,10 +258,6 @@ where
 		info!("      endorsed by the       ");
 		info!("     KUSAMA FOUNDATION      ");
 		info!("----------------------------");
-	}
-	// BEEFY allowed only on test networks.
-	if !(chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi()) {
-		runner.config_mut().disable_beefy = true;
 	}
 
 	let jaeger_agent = if let Some(ref jaeger_agent) = cli.run.jaeger_agent {
@@ -289,6 +289,7 @@ where
 			service::NewFullParams {
 				is_collator: service::IsCollator::No,
 				grandpa_pause,
+				enable_beefy,
 				jaeger_agent,
 				telemetry_worker_handle: None,
 				node_version,

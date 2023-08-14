@@ -81,6 +81,7 @@ pub fn new_full(
 		polkadot_service::NewFullParams {
 			is_collator,
 			grandpa_pause: None,
+			enable_beefy: true,
 			jaeger_agent: None,
 			telemetry_worker_handle: None,
 			node_version: None,
@@ -187,7 +188,6 @@ pub fn node_config(
 		offchain_worker: Default::default(),
 		force_authoring: false,
 		disable_grandpa: false,
-		disable_beefy: false,
 		dev_key_seed: Some(key_seed),
 		tracing_targets: None,
 		tracing_receiver: Default::default(),
