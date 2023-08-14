@@ -345,10 +345,11 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 	}
 }
 
-/// Converts a location which is a top-level relay chain (which provides its own consensus) into a 32-byte `AccountId`.
+/// Converts a location which is a top-level relay chain (which provides its own consensus) into a
+/// 32-byte `AccountId`.
 ///
-/// This will always result in the *same account ID* being returned for the same Relay-chain, regardless of the relative security of
-/// this Relay-chain compared to the local chain.
+/// This will always result in the *same account ID* being returned for the same Relay-chain,
+/// regardless of the relative security of this Relay-chain compared to the local chain.
 ///
 /// Note: No distinction is made between the cases when the given `UniversalLocation` lies within
 /// the same consensus system (i.e. is itself or a parent) and when it is a foreign consensus

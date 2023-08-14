@@ -67,14 +67,13 @@
 //!
 //! Here's the rundown on how fields work:
 //!
-//! - Fields on spans and events are specified using the `syntax field_name =
-//!   field_value`.
-//! - Local variables may be used as field values without an assignment, similar to
-//!   struct initializers.
-//! - The `?` sigil is shorthand that specifies a field should be recorded using its
-//!   `fmt::Debug` implementation.
-//! - The `%` sigil operates similarly, but indicates that the value should be
-//!   recorded using its `fmt::Display` implementation.
+//! - Fields on spans and events are specified using the `syntax field_name = field_value`.
+//! - Local variables may be used as field values without an assignment, similar to struct
+//!   initializers.
+//! - The `?` sigil is shorthand that specifies a field should be recorded using its `fmt::Debug`
+//!   implementation.
+//! - The `%` sigil operates similarly, but indicates that the value should be recorded using its
+//!   `fmt::Display` implementation.
 //!
 //! For full details, again see [the tracing
 //! docs](https://docs.rs/tracing/latest/tracing/index.html#recording-fields).

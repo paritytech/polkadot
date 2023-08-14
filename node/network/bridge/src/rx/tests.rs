@@ -795,8 +795,9 @@ fn peer_messages_sent_via_overseer() {
 
 		network_handle.disconnect_peer(peer.clone(), PeerSet::Validation).await;
 
-		// Approval distribution message comes first, and the message is only sent to that subsystem.
-		// then a disconnection event arises that is sent to all validation networking subsystems.
+		// Approval distribution message comes first, and the message is only sent to that
+		// subsystem. then a disconnection event arises that is sent to all validation networking
+		// subsystems.
 
 		assert_matches!(
 			virtual_overseer.recv().await,

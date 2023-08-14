@@ -174,7 +174,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		configuration::Pallet::<T>::config().max_validators.unwrap_or(200)
 	}
 
-	/// Maximum number of validators participating in parachains consensus (a.k.a. active validators).
+	/// Maximum number of validators participating in parachains consensus (a.k.a. active
+	/// validators).
 	fn max_validators(&self) -> u32 {
 		self.max_validators.unwrap_or(Self::fallback_max_validators())
 	}
@@ -186,8 +187,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self
 	}
 
-	/// Maximum number of validators per core (a.k.a. max validators per group). This value is used if none is
-	/// explicitly set on the builder.
+	/// Maximum number of validators per core (a.k.a. max validators per group). This value is used
+	/// if none is explicitly set on the builder.
 	pub(crate) fn fallback_max_validators_per_core() -> u32 {
 		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
 	}
@@ -479,7 +480,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create backed candidates for `cores_with_backed_candidates`. You need these cores to be
 	/// scheduled _within_ paras inherent, which requires marking the available bitfields as fully
 	/// available.
-	/// - `cores_with_backed_candidates` Mapping of `para_id`/`core_idx`/`group_idx` seed to number of
+	/// - `cores_with_backed_candidates` Mapping of `para_id`/`core_idx`/`group_idx` seed to number
+	///   of
 	/// validity votes.
 	fn create_backed_candidates(
 		&self,
@@ -687,9 +689,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		);
 		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), used_cores as usize,);
 
-		// Mark all the used cores as occupied. We expect that their are `backed_and_concluding_cores`
-		// that are pending availability and that there are `used_cores - backed_and_concluding_cores `
-		// which are about to be disputed.
+		// Mark all the used cores as occupied. We expect that their are
+		// `backed_and_concluding_cores` that are pending availability and that there are
+		// `used_cores - backed_and_concluding_cores ` which are about to be disputed.
 		scheduler::AvailabilityCores::<T>::set(vec![
 			Some(CoreOccupied::Parachain);
 			used_cores as usize
