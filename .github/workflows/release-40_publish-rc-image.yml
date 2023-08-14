@@ -31,7 +31,6 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   DOCKER_OWNER: ${{ inputs.owner || github.repository_owner }}
   REPO: ${{ github.repository }}
-  ARTIFACT_FOLDER: release-artifacts
 
 jobs:
   fetch-artifacts:
@@ -51,7 +50,7 @@ jobs:
         with:
           key: artifacts-${{ github.sha }}
           path: |
-            ${ARTIFACT_FOLDER}/**/*
+            ./release-artifacts/**/*
 
   build-container:
     runs-on: ubuntu-latest
@@ -69,11 +68,12 @@ jobs:
         uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
         with:
           key: artifacts-${{ github.sha }}
+          fail-on-cache-miss: true
           path: |
-            ${ARTIFACT_FOLDER}/**/*
+            ./release-artifacts/**/*
 
       - name: Check sha256 ${{ matrix.binary }}
-        working-directory: ${ARTIFACT_FOLDER}
+        working-directory: ./release-artifacts
         run: |
           . ../scripts/ci/common/lib.sh
 
@@ -81,7 +81,7 @@ jobs:
           check_sha256 ${{ matrix.binary }} && echo "OK" || echo "ERR"
 
       - name: Check GPG ${{ matrix.binary }}
-        working-directory: ${ARTIFACT_FOLDER}
+        working-directory: ./release-artifacts
         run: |
           . ../scripts/ci/common/lib.sh
           import_gpg_keys
@@ -102,7 +102,7 @@ jobs:
 
       - name: Build Injected Container image for ${{ matrix.binary }}
         env:
-            BIN_FOLDER: ${ARTIFACT_FOLDER}
+            BIN_FOLDER: ./release-artifacts
             BINARY: ${{ matrix.binary }}
             TAGS: ${{join(steps.fetch_refs.outputs.*, ',')}}
         run: |
@@ -112,7 +112,7 @@ jobs:
       - name: Login to Dockerhub
         uses: docker/login-action@v2
         with:
-          username: ${{ inputs.owner }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Push Container image for ${{ matrix.binary }}
