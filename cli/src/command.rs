@@ -287,7 +287,7 @@ where
 		let task_manager = service::build_full(
 			config,
 			service::NewFullParams {
-				is_collator: service::IsCollator::No,
+				is_parachain_node: service::IsParachainNode::No,
 				grandpa_pause,
 				jaeger_agent,
 				telemetry_worker_handle: None,
