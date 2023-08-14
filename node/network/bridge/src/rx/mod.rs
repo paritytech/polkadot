@@ -20,7 +20,10 @@ use super::*;
 
 use always_assert::never;
 use bytes::Bytes;
-use futures::stream::BoxStream;
+use futures::{
+	future::BoxFuture,
+	stream::{BoxStream, FuturesUnordered, StreamExt},
+};
 use parity_scale_codec::{Decode, DecodeAll};
 
 use sc_network::Event as NetworkEvent;
@@ -913,6 +916,30 @@ fn dispatch_collation_event_to_all_unbounded(
 	}
 }
 
+fn try_send_validation_event<E>(
+	event: E,
+	sender: &mut (impl overseer::NetworkBridgeRxSenderTrait + overseer::SubsystemSender<E>),
+	delayed_queue: &FuturesUnordered<BoxFuture<'static, ()>>,
+) where
+	E: Send + 'static,
+{
+	match sender.try_send_message(event) {
+		Ok(()) => {},
+		Err(overseer::TrySendError::Full(event)) => {
+			let mut sender = sender.clone();
+			delayed_queue.push(Box::pin(async move {
+				sender.send_message(event).await;
+			}));
+		},
+		Err(overseer::TrySendError::Closed(_)) => {
+			panic!(
+				"NetworkBridgeRxSender is closed when trying to send event of type: {}",
+				std::any::type_name::<E>()
+			);
+		},
+	}
+}
+
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
 	sender: &mut impl overseer::NetworkBridgeRxSenderTrait,
@@ -920,14 +947,27 @@ async fn dispatch_validation_events_to_all<I>(
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
 {
+	let delayed_messages: FuturesUnordered<BoxFuture<'static, ()>> = FuturesUnordered::new();
+
+	// Fast path for sending events to subsystems, if any subsystem's queue is full, we hold
+	// the slow path future in the `delayed_messages` queue.
 	for event in events {
-		sender
-			.send_messages(event.focus().map(StatementDistributionMessage::from))
-			.await;
-		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;
-		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
-		sender.send_messages(event.focus().map(GossipSupportMessage::from)).await;
+		if let Ok(msg) = event.focus().map(StatementDistributionMessage::from) {
+			try_send_validation_event(msg, sender, &delayed_messages);
+		}
+		if let Ok(msg) = event.focus().map(BitfieldDistributionMessage::from) {
+			try_send_validation_event(msg, sender, &delayed_messages);
+		}
+		if let Ok(msg) = event.focus().map(ApprovalDistributionMessage::from) {
+			try_send_validation_event(msg, sender, &delayed_messages);
+		}
+		if let Ok(msg) = event.focus().map(GossipSupportMessage::from) {
+			try_send_validation_event(msg, sender, &delayed_messages);
+		}
 	}
+
+	// Here we wait for all the delayed messages to be sent.
+	let _: Vec<()> = delayed_messages.collect().await;
 }
 
 async fn dispatch_collation_events_to_all<I>(

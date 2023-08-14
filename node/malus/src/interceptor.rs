@@ -47,12 +47,19 @@ where
 		Some(msg)
 	}
 
-	/// Modify outgoing messages.
+	/// Specifies if we need to replace some outgoing message with another (potentially empty) message
+	fn need_intercept_outgoing(
+		&self,
+		_msg: &<Self::Message as overseer::AssociateOutgoing>::OutgoingMessages,
+	) -> bool {
+		false
+	}
+	/// Send modified message instead of the original one
 	fn intercept_outgoing(
 		&self,
-		msg: <Self::Message as overseer::AssociateOutgoing>::OutgoingMessages,
+		_msg: &<Self::Message as overseer::AssociateOutgoing>::OutgoingMessages,
 	) -> Option<<Self::Message as overseer::AssociateOutgoing>::OutgoingMessages> {
-		Some(msg)
+		None
 	}
 }
 
@@ -66,7 +73,7 @@ pub struct InterceptedSender<Sender, Fil> {
 #[async_trait::async_trait]
 impl<OutgoingMessage, Sender, Fil> overseer::SubsystemSender<OutgoingMessage> for InterceptedSender<Sender, Fil>
 where
-	OutgoingMessage: overseer::AssociateOutgoing + Send + 'static,
+	OutgoingMessage: overseer::AssociateOutgoing + Send + 'static + TryFrom<overseer::AllMessages>,
 	Sender: overseer::SubsystemSender<OutgoingMessage>
 		+ overseer::SubsystemSender<
 				<
@@ -78,14 +85,45 @@ where
 	<
 		<Fil as MessageInterceptor<Sender>>::Message as overseer::AssociateOutgoing
 	>::OutgoingMessages:
-		From<OutgoingMessage>,
+		From<OutgoingMessage> + Send + Sync,
+	<OutgoingMessage as TryFrom<overseer::AllMessages>>::Error: std::fmt::Debug,
 {
 	async fn send_message(&mut self, msg: OutgoingMessage) {
 		let msg = <
 					<<Fil as MessageInterceptor<Sender>>::Message as overseer::AssociateOutgoing
 				>::OutgoingMessages as From<OutgoingMessage>>::from(msg);
-		if let Some(msg) = self.message_filter.intercept_outgoing(msg) {
+		if self.message_filter.need_intercept_outgoing(&msg) {
+			if let Some(msg) = self.message_filter.intercept_outgoing(&msg) {
+				self.inner.send_message(msg).await;
+			}
+		}
+		else {
 			self.inner.send_message(msg).await;
+		}
+	}
+
+	fn try_send_message(&mut self, msg: OutgoingMessage) -> Result<(), TrySendError<OutgoingMessage>> {
+		let msg = <
+				<<Fil as MessageInterceptor<Sender>>::Message as overseer::AssociateOutgoing
+			>::OutgoingMessages as From<OutgoingMessage>>::from(msg);
+		if self.message_filter.need_intercept_outgoing(&msg) {
+			if let Some(real_msg) = self.message_filter.intercept_outgoing(&msg) {
+				let orig_msg : OutgoingMessage = msg.into().try_into().expect("must be able to recover the original message");
+				self.inner.try_send_message(real_msg).map_err(|e| {
+					match e {
+						TrySendError::Full(_) => TrySendError::Full(orig_msg),
+						TrySendError::Closed(_) => TrySendError::Closed(orig_msg),
+					}
+				})
+			}
+			else {
+				// No message to send after intercepting
+				Ok(())
+			}
+		}
+		else {
+			let orig_msg : OutgoingMessage = msg.into().try_into().expect("must be able to recover the original message");
+			self.inner.try_send_message(orig_msg)
 		}
 	}
 
@@ -101,9 +139,14 @@ where
 
 	fn send_unbounded_message(&mut self, msg: OutgoingMessage) {
 		let msg = <
-					<<Fil as MessageInterceptor<Sender>>::Message as overseer::AssociateOutgoing
-				>::OutgoingMessages as From<OutgoingMessage>>::from(msg);
-		if let Some(msg) = self.message_filter.intercept_outgoing(msg) {
+				<<Fil as MessageInterceptor<Sender>>::Message as overseer::AssociateOutgoing
+			>::OutgoingMessages as From<OutgoingMessage>>::from(msg);
+		if self.message_filter.need_intercept_outgoing(&msg) {
+			if let Some(msg) = self.message_filter.intercept_outgoing(&msg) {
+				self.inner.send_unbounded_message(msg);
+			}
+		}
+		else {
 			self.inner.send_unbounded_message(msg);
 		}
 	}

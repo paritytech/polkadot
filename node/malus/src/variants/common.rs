@@ -434,11 +434,4 @@ where
 			msg => Some(msg),
 		}
 	}
-
-	fn intercept_outgoing(
-		&self,
-		msg: overseer::CandidateValidationOutgoingMessages,
-	) -> Option<overseer::CandidateValidationOutgoingMessages> {
-		Some(msg)
-	}
 }

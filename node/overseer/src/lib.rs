@@ -107,7 +107,7 @@ pub use orchestra::{
 	contextbounds, orchestra, subsystem, FromOrchestra, MapSubsystem, MessagePacket,
 	OrchestraError as OverseerError, SignalsReceived, Spawner, Subsystem, SubsystemContext,
 	SubsystemIncomingMessages, SubsystemInstance, SubsystemMeterReadouts, SubsystemMeters,
-	SubsystemSender, TimeoutExt, ToOrchestra,
+	SubsystemSender, TimeoutExt, ToOrchestra, TrySendError,
 };
 
 /// Store 2 days worth of blocks, not accounting for forks,

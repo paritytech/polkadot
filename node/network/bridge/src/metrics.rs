@@ -105,7 +105,14 @@ impl Metrics {
 
 	pub fn on_report_event(&self) {
 		if let Some(metrics) = self.0.as_ref() {
+			metrics.messages_sent.with_label_values(&["report_peer"]).inc();
 			metrics.report_events.inc()
+		}
+	}
+
+	pub fn on_message(&self, message_type: &'static str) {
+		if let Some(metrics) = self.0.as_ref() {
+			metrics.messages_sent.with_label_values(&[message_type]).inc()
 		}
 	}
 }
@@ -123,6 +130,8 @@ pub(crate) struct MetricsInner {
 
 	bytes_received: prometheus::CounterVec<prometheus::U64>,
 	bytes_sent: prometheus::CounterVec<prometheus::U64>,
+
+	messages_sent: prometheus::CounterVec<prometheus::U64>,
 }
 
 impl metrics::Metrics for Metrics {
@@ -214,6 +223,16 @@ impl metrics::Metrics for Metrics {
 						"The number of bytes sent on a parachain notification protocol",
 					),
 					&["protocol"]
+				)?,
+				registry,
+			)?,
+			messages_sent: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"polkadot_parachain_messages_sent_total",
+						"The number of messages sent via network bridge",
+					),
+					&["type"]
 				)?,
 				registry,
 			)?,
