@@ -31,7 +31,6 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   DOCKER_OWNER: ${{ inputs.owner || github.repository_owner }}
   REPO: ${{ github.repository }}
-  ARTIFACT_FOLDER: ./release-artifacts
 
 jobs:
   fetch-artifacts:
@@ -103,7 +102,7 @@ jobs:
 
       - name: Build Injected Container image for ${{ matrix.binary }}
         env:
-            BIN_FOLDER: ${ARTIFACT_FOLDER}
+            BIN_FOLDER: ./release-artifacts
             BINARY: ${{ matrix.binary }}
             TAGS: ${{join(steps.fetch_refs.outputs.*, ',')}}
         run: |
