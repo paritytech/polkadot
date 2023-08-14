@@ -201,7 +201,7 @@ check_bootnode(){
 fetch_release_artifacts() {
   echo "Release ID : $RELEASE_ID"
   echo "Repo       : $REPO"
-  echo "ARTIFACT_FOLDER: $ARTIFACT_FOLDER"
+  echo "ARTIFACT_FOLDER: $ARTIFACT_FOLDER = $(readlink -f $ARTIFACT_FOLDER)"
 
   curl -L -s \
     -H "Accept: application/vnd.github+json" \
@@ -214,8 +214,8 @@ fetch_release_artifacts() {
   count=$(jq '.assets|length' < release.json )
 
   # Fetch artifacts
-  mkdir -p ${ARTIFACT_FOLDER}
-  pushd ${ARTIFACT_FOLDER} > /dev/null
+  mkdir -p "${ARTIFACT_FOLDER}"
+  pushd "${ARTIFACT_FOLDER}" > /dev/null
 
   iter=1
   for id in "${ids[@]}"
@@ -227,6 +227,7 @@ fetch_release_artifacts() {
       iter=$((iter + 1))
   done
 
+  pwd
   ls -al --color
   popd > /dev/null
 }
