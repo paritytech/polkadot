@@ -322,7 +322,8 @@ pub mod pallet {
 					},
 					Err(err) => {
 						// Treat failed lease creation as warning .. slot will be allocated a lease
-						// in a subsequent lease period by the `allocate_temporary_slot_leases` function.
+						// in a subsequent lease period by the `allocate_temporary_slot_leases`
+						// function.
 						log::warn!(target: "assigned_slots",
 							"Failed to allocate a temp slot for para {:?} at period {:?}: {:?}",
 							id, current_lease_period, err
@@ -398,7 +399,8 @@ impl<T: Config> Pallet<T> {
 	/// total number of lease (lower first), and then when they last a turn (older ones first).
 	/// If any remaining ex-aequo, we just take the para ID in ascending order as discriminator.
 	///
-	/// Assigned slots with a `period_begin` bigger than current lease period are not considered (yet).
+	/// Assigned slots with a `period_begin` bigger than current lease period are not considered
+	/// (yet).
 	///
 	/// The function will call out to `Leaser::lease_out` to create the appropriate slot leases.
 	fn allocate_temporary_slot_leases(lease_period_index: LeasePeriodOf<T>) -> DispatchResult {
@@ -525,7 +527,8 @@ impl<T: Config> Pallet<T> {
 
 	/// Handles start of a lease period.
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) -> Weight {
-		// Note: leases that have ended in previous lease period, should have been cleaned in slots pallet.
+		// Note: leases that have ended in previous lease period, should have been cleaned in slots
+		// pallet.
 		if let Err(err) = Self::allocate_temporary_slot_leases(lease_period_index) {
 			log::error!(target: "assigned_slots",
 				"Allocating slots failed for lease period {:?}, with: {:?}",

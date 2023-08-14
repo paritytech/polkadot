@@ -160,8 +160,8 @@ impl TestState {
 
 	/// Generate a new relay parent and inform the subsystem about the new view.
 	///
-	/// If `merge_views == true` it means the subsystem will be informed that we are working on the old `relay_parent`
-	/// and the new one.
+	/// If `merge_views == true` it means the subsystem will be informed that we are working on the
+	/// old `relay_parent` and the new one.
 	async fn advance_to_new_round(
 		&mut self,
 		virtual_overseer: &mut VirtualOverseer,
@@ -901,7 +901,8 @@ fn collate_on_two_different_relay_chain_blocks() {
 
 			let old_relay_parent = test_state.relay_parent;
 
-			// Advance to a new round, while informing the subsystem that the old and the new relay parent are active.
+			// Advance to a new round, while informing the subsystem that the old and the new relay
+			// parent are active.
 			test_state.advance_to_new_round(virtual_overseer, true).await;
 
 			distribute_collation(virtual_overseer, &test_state, true).await;
@@ -1085,7 +1086,8 @@ where
 				.await
 				.unwrap();
 
-			// Keep the feedback channel alive because we need to use it to inform about the finished transfer.
+			// Keep the feedback channel alive because we need to use it to inform about the
+			// finished transfer.
 			let feedback_tx = assert_matches!(
 				rx.await,
 				Ok(full_response) => {

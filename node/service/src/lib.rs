@@ -243,7 +243,7 @@ pub enum Error {
 	InvalidWorkerBinaries { prep_worker_path: PathBuf, exec_worker_path: PathBuf },
 
 	#[cfg(feature = "full-node")]
-	#[error("Worker binaries could not be found, make sure polkadot was built/installed correctly. Searched given workers path ({given_workers_path:?}), polkadot binary path ({current_exe_path:?}), and lib path (/usr/lib/polkadot), workers names: {workers_names:?}")]
+	#[error("Worker binaries could not be found, make sure polkadot was built/installed correctly. If you ran with `cargo run`, please run `cargo build` first. Searched given workers path ({given_workers_path:?}), polkadot binary path ({current_exe_path:?}), and lib path (/usr/lib/polkadot), workers names: {workers_names:?}")]
 	MissingWorkerBinaries {
 		given_workers_path: Option<PathBuf>,
 		current_exe_path: PathBuf,
@@ -251,7 +251,7 @@ pub enum Error {
 	},
 
 	#[cfg(feature = "full-node")]
-	#[error("Version of worker binary ({worker_version}) is different from node version ({node_version}), worker_path: {worker_path}. TESTING ONLY: this check can be disabled with --disable-worker-version-check")]
+	#[error("Version of worker binary ({worker_version}) is different from node version ({node_version}), worker_path: {worker_path}. If you ran with `cargo run`, please run `cargo build` first, otherwise try to `cargo clean`. TESTING ONLY: this check can be disabled with --disable-worker-version-check")]
 	WorkerBinaryVersionMismatch {
 		worker_version: String,
 		node_version: String,
@@ -629,7 +629,6 @@ where
 pub struct NewFullParams<OverseerGenerator: OverseerGen> {
 	pub is_collator: IsCollator,
 	pub grandpa_pause: Option<(u32, u32)>,
-	pub enable_beefy: bool,
 	pub jaeger_agent: Option<std::net::SocketAddr>,
 	pub telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	/// The version of the node. TESTING ONLY: `None` can be passed to skip the node/worker version
@@ -697,9 +696,10 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
 /// a better choice.
 ///
-/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
-/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
-/// still determined based on the role of the node. Likewise for authority discovery.
+/// `overseer_enable_anyways` always enables the overseer, based on the provided
+/// `OverseerGenerator`, regardless of the role the node has. The relay chain selection (longest or
+/// disputes-aware) is still determined based on the role of the node. Likewise for authority
+/// discovery.
 ///
 /// `workers_path` is used to get the path to the directory where auxiliary worker binaries reside.
 /// If not specified, the main binary's directory is searched first, then `/usr/lib/polkadot` is
@@ -711,7 +711,6 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 	NewFullParams {
 		is_collator,
 		grandpa_pause,
-		enable_beefy,
 		jaeger_agent,
 		telemetry_worker_handle,
 		node_version,
@@ -746,6 +745,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		Some(backoff)
 	};
 
+	let enable_beefy = !config.disable_beefy;
 	// If not on a known test network, warn the user that BEEFY is still experimental.
 	if enable_beefy &&
 		!config.chain_spec.is_rococo() &&
@@ -828,10 +828,11 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		net_config.add_request_response_protocol(beefy_req_resp_cfg);
 	}
 
+	// validation/collation protocols are enabled only if `Overseer` is enabled
 	let peerset_protocol_names =
 		PeerSetProtocolNames::new(genesis_hash, config.chain_spec.fork_id());
 
-	{
+	if auth_or_collator || overseer_enable_anyways {
 		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
 		let is_authority = if role.is_authority() { IsAuthority::Yes } else { IsAuthority::No };
 		for config in peer_sets_info(is_authority, &peerset_protocol_names) {
@@ -1332,9 +1333,10 @@ pub fn new_chain_ops(
 /// The actual "flavor", aka if it will use `Polkadot`, `Rococo` or `Kusama` is determined based on
 /// [`IdentifyVariant`] using the chain spec.
 ///
-/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
-/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
-/// still determined based on the role of the node. Likewise for authority discovery.
+/// `overseer_enable_anyways` always enables the overseer, based on the provided
+/// `OverseerGenerator`, regardless of the role the node has. The relay chain selection (longest or
+/// disputes-aware) is still determined based on the role of the node. Likewise for authority
+/// discovery.
 #[cfg(feature = "full-node")]
 pub fn build_full<OverseerGenerator: OverseerGen>(
 	config: Configuration,

@@ -174,8 +174,8 @@ impl MultiLocation {
 		self.interior.push_front(new)
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with theoriginal value of
-	/// `self` in case of overflow.
+	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with
+	/// theoriginal value of `self` in case of overflow.
 	pub fn pushed_with_interior(self, new: Junction) -> result::Result<Self, (Self, Junction)> {
 		match self.interior.pushed_with(new) {
 			Ok(i) => Ok(MultiLocation { interior: i, parents: self.parents }),
@@ -183,8 +183,8 @@ impl MultiLocation {
 		}
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the original value of
-	/// `self` in case of overflow.
+	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the
+	/// original value of `self` in case of overflow.
 	pub fn pushed_front_with_interior(
 		self,
 		new: Junction,
@@ -430,7 +430,8 @@ impl From<Parent> for MultiLocation {
 	}
 }
 
-/// A tuple struct which can be converted into a `MultiLocation` of `parents` value 1 with the inner interior.
+/// A tuple struct which can be converted into a `MultiLocation` of `parents` value 1 with the inner
+/// interior.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct ParentThen(pub Junctions);
 impl From<ParentThen> for MultiLocation {
@@ -448,7 +449,8 @@ impl From<Ancestor> for MultiLocation {
 	}
 }
 
-/// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value and the inner interior.
+/// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value and the
+/// inner interior.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct AncestorThen<Interior>(pub u8, pub Interior);
 impl<Interior: Into<Junctions>> From<AncestorThen<Interior>> for MultiLocation {
@@ -598,8 +600,8 @@ impl Junctions {
 		}
 	}
 
-	/// Splits off the first junction, returning the remaining suffix (first item in tuple) and the first element
-	/// (second item in tuple) or `None` if it was empty.
+	/// Splits off the first junction, returning the remaining suffix (first item in tuple) and the
+	/// first element (second item in tuple) or `None` if it was empty.
 	pub fn split_first(self) -> (Junctions, Option<Junction>) {
 		match self {
 			Junctions::Here => (Junctions::Here, None),
@@ -614,8 +616,8 @@ impl Junctions {
 		}
 	}
 
-	/// Splits off the last junction, returning the remaining prefix (first item in tuple) and the last element
-	/// (second item in tuple) or `None` if it was empty.
+	/// Splits off the last junction, returning the remaining prefix (first item in tuple) and the
+	/// last element (second item in tuple) or `None` if it was empty.
 	pub fn split_last(self) -> (Junctions, Option<Junction>) {
 		match self {
 			Junctions::Here => (Junctions::Here, None),
@@ -727,7 +729,8 @@ impl Junctions {
 		}
 	}
 
-	/// Returns the junction at index `i`, or `None` if the location doesn't contain that many elements.
+	/// Returns the junction at index `i`, or `None` if the location doesn't contain that many
+	/// elements.
 	pub fn at(&self, i: usize) -> Option<&Junction> {
 		Some(match (i, self) {
 			(0, Junctions::X1(ref a)) => a,
@@ -770,8 +773,8 @@ impl Junctions {
 		})
 	}
 
-	/// Returns a mutable reference to the junction at index `i`, or `None` if the location doesn't contain that many
-	/// elements.
+	/// Returns a mutable reference to the junction at index `i`, or `None` if the location doesn't
+	/// contain that many elements.
 	pub fn at_mut(&mut self, i: usize) -> Option<&mut Junction> {
 		Some(match (i, self) {
 			(0, Junctions::X1(ref mut a)) => a,

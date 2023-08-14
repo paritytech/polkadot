@@ -81,7 +81,6 @@ pub fn new_full(
 		polkadot_service::NewFullParams {
 			is_collator,
 			grandpa_pause: None,
-			enable_beefy: true,
 			jaeger_agent: None,
 			telemetry_worker_handle: None,
 			node_version: None,
@@ -188,6 +187,7 @@ pub fn node_config(
 		offchain_worker: Default::default(),
 		force_authoring: false,
 		disable_grandpa: false,
+		disable_beefy: false,
 		dev_key_seed: Some(key_seed),
 		tracing_targets: None,
 		tracing_receiver: Default::default(),
@@ -257,7 +257,8 @@ pub struct PolkadotTestNode {
 	pub client: Arc<Client>,
 	/// A handle to Overseer.
 	pub overseer_handle: Handle,
-	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
+	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot
+	/// node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
 	/// `RPCHandlers` to make RPC queries.
 	pub rpc_handlers: RpcHandlers,
@@ -312,14 +313,15 @@ impl PolkadotTestNode {
 		self.send_sudo(call, Sr25519Keyring::Alice, 1).await
 	}
 
-	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
-	/// are ever created, thus you should restrict the maximum amount of time of the test execution.
+	/// Wait for `count` blocks to be imported in the node and then exit. This function will not
+	/// return if no blocks are ever created, thus you should restrict the maximum amount of time of
+	/// the test execution.
 	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
 		self.client.wait_for_blocks(count)
 	}
 
-	/// Wait for `count` blocks to be finalized and then exit. Similarly with `wait_for_blocks` this function will
-	/// not return if no block are ever finalized.
+	/// Wait for `count` blocks to be finalized and then exit. Similarly with `wait_for_blocks` this
+	/// function will not return if no block are ever finalized.
 	pub async fn wait_for_finalized_blocks(&self, count: usize) {
 		let mut import_notification_stream = self.client.finality_notification_stream();
 		let mut blocks = HashSet::new();

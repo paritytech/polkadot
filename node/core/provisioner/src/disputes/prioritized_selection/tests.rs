@@ -237,21 +237,22 @@ fn partitioning_happy_case() {
 	);
 }
 
-// This test verifies the double voting behavior. Currently we don't care if a supermajority is achieved with or
-// without the 'help' of a double vote (a validator voting for and against at the same time). This makes the test
-// a bit pointless but anyway I'm leaving it here to make this decision explicit and have the test code ready in
-// case this behavior needs to be further tested in the future.
-// Link to the PR with the discussions: https://github.com/paritytech/polkadot/pull/5567
+// This test verifies the double voting behavior. Currently we don't care if a supermajority is
+// achieved with or without the 'help' of a double vote (a validator voting for and against at the
+// same time). This makes the test a bit pointless but anyway I'm leaving it here to make this
+// decision explicit and have the test code ready in case this behavior needs to be further tested
+// in the future. Link to the PR with the discussions: https://github.com/paritytech/polkadot/pull/5567
 #[test]
 fn partitioning_doubled_onchain_vote() {
 	let mut input = Vec::<(SessionIndex, CandidateHash, DisputeStatus)>::new();
 	let mut onchain = HashMap::<(u32, CandidateHash), DisputeState>::new();
 
-	// Dispute A relies on a 'double onchain vote' to conclude. Validator with index 0 has voted both `for` and `against`.
-	// Despite that this dispute should be considered 'can conclude onchain'.
+	// Dispute A relies on a 'double onchain vote' to conclude. Validator with index 0 has voted
+	// both `for` and `against`. Despite that this dispute should be considered 'can conclude
+	// onchain'.
 	let dispute_a = (3, CandidateHash(Hash::random()), DisputeStatus::Active);
-	// Dispute B has supermajority + 1 votes, so the doubled onchain vote doesn't affect it. It should be considered
-	// as 'can conclude onchain'.
+	// Dispute B has supermajority + 1 votes, so the doubled onchain vote doesn't affect it. It
+	// should be considered as 'can conclude onchain'.
 	let dispute_b = (4, CandidateHash(Hash::random()), DisputeStatus::Active);
 	input.push(dispute_a.clone());
 	input.push(dispute_b.clone());

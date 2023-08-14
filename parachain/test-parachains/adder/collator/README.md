@@ -1,6 +1,12 @@
 # How to run this collator
 
-First start two validators that will run for the relay chain:
+First, build Polkadot:
+
+```sh
+cargo build --release
+```
+
+Then start two validators that will run for the relay chain:
 
 ```sh
 cargo run --release -- -d alice --chain rococo-local --validator --alice --port 50551

@@ -246,7 +246,8 @@ where
 				{
 					let mut connections = authorities_past_present_future(sender, leaf).await?;
 
-					// Remove all of our locally controlled validator indices so we don't connect to ourself.
+					// Remove all of our locally controlled validator indices so we don't connect to
+					// ourself.
 					let connections =
 						if remove_all_controlled(&self.keystore, &mut connections) != 0 {
 							connections

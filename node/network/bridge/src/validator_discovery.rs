@@ -106,9 +106,10 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	/// It will ask the network to connect to the validators and not disconnect
 	/// from them at least until the next request is issued for the same peer set.
 	///
-	/// This method will also disconnect from previously connected validators not in the `validator_ids` set.
-	/// it takes `network_service` and `authority_discovery_service` by value
-	/// and returns them as a workaround for the Future: Send requirement imposed by async function implementation.
+	/// This method will also disconnect from previously connected validators not in the
+	/// `validator_ids` set. it takes `network_service` and `authority_discovery_service` by value
+	/// and returns them as a workaround for the Future: Send requirement imposed by async function
+	/// implementation.
 	pub async fn on_request(
 		&mut self,
 		validator_ids: Vec<AuthorityDiscoveryId>,

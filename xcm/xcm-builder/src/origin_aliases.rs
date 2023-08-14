@@ -20,7 +20,8 @@ use frame_support::traits::{Contains, ContainsPair};
 use sp_std::marker::PhantomData;
 use xcm::latest::prelude::*;
 
-/// Alias a Foreign `AccountId32` with a local `AccountId32` if the foreign `AccountId32` matches the `Prefix` pattern.
+/// Alias a Foreign `AccountId32` with a local `AccountId32` if the foreign `AccountId32` matches
+/// the `Prefix` pattern.
 ///
 /// Requires that the prefixed origin `AccountId32` matches the target `AccountId32`.
 pub struct AliasForeignAccountId32<Prefix>(PhantomData<Prefix>);

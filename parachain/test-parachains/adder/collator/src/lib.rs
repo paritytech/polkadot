@@ -147,7 +147,8 @@ impl Collator {
 
 	/// Create the collation function.
 	///
-	/// This collation function can be plugged into the overseer to generate collations for the adder parachain.
+	/// This collation function can be plugged into the overseer to generate collations for the
+	/// adder parachain.
 	pub fn create_collation_function(
 		&self,
 		spawner: impl SpawnNamed + Clone + 'static,
@@ -228,8 +229,9 @@ impl Collator {
 
 	/// Wait until `seconded` collations of this collator are seconded by a parachain validator.
 	///
-	/// The internal counter isn't de-duplicating the collations when counting the number of seconded collations. This
-	/// means when one collation is seconded by X validators, we record X seconded messages.
+	/// The internal counter isn't de-duplicating the collations when counting the number of
+	/// seconded collations. This means when one collation is seconded by X validators, we record X
+	/// seconded messages.
 	pub async fn wait_for_seconded_collations(&self, seconded: u32) {
 		let seconded_collations = self.seconded_collations.clone();
 		loop {

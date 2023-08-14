@@ -396,7 +396,8 @@ fn max_assets_limit_should_work() {
 	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_parts(95, 95), XcmError::HoldingWouldOverflow));
 
-	// Attempt to withdraw 4 different assets and then the same 4 and then a different 4 will succeed.
+	// Attempt to withdraw 4 different assets and then the same 4 and then a different 4 will
+	// succeed.
 	let message = Xcm(vec![
 		WithdrawAsset(([1u8; 32], 100u128).into()),
 		WithdrawAsset(([2u8; 32], 100u128).into()),

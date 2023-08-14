@@ -367,8 +367,8 @@ impl XcmContext {
 ///
 /// All messages are delivered from a known *origin*, expressed as a `MultiLocation`.
 ///
-/// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
-/// XCM format, known as `VersionedXcm`.
+/// This is the inner XCM format and is version-sensitive. Messages are typically passed using the
+/// outer XCM format, known as `VersionedXcm`.
 #[derive(Derivative, Encode, Decode, TypeInfo, xcm_procedural::XcmWeightInfoTrait)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
@@ -417,9 +417,8 @@ pub enum Instruction<Call> {
 	/// - `response`: The message content.
 	/// - `max_weight`: The maximum weight that handling this response should take.
 	/// - `querier`: The location responsible for the initiation of the response, if there is one.
-	///   In general this will tend to be the same location as the receiver of this message.
-	///   NOTE: As usual, this is interpreted from the perspective of the receiving consensus
-	///   system.
+	///   In general this will tend to be the same location as the receiver of this message. NOTE:
+	///   As usual, this is interpreted from the perspective of the receiving consensus system.
 	///
 	/// Safety: Since this is information only, there are no immediate concerns. However, it should
 	/// be remembered that even if the Origin behaves reasonably, it can always be asked to make
@@ -460,8 +459,8 @@ pub enum Instruction<Call> {
 	/// - `dest`: The location whose sovereign account will own the assets and thus the effective
 	///   beneficiary for the assets and the notification target for the reserve asset deposit
 	///   message.
-	/// - `xcm`: The instructions that should follow the `ReserveAssetDeposited`
-	///   instruction, which is sent onwards to `dest`.
+	/// - `xcm`: The instructions that should follow the `ReserveAssetDeposited` instruction, which
+	///   is sent onwards to `dest`.
 	///
 	/// Safety: No concerns.
 	///
@@ -487,10 +486,11 @@ pub enum Instruction<Call> {
 	/// Errors:
 	Transact { origin_kind: OriginKind, require_weight_at_most: Weight, call: DoubleEncoded<Call> },
 
-	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
-	/// relay-chain to a para.
+	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by
+	/// the relay-chain to a para.
 	///
-	/// - `sender`: The sender in the to-be opened channel. Also, the initiator of the channel opening.
+	/// - `sender`: The sender in the to-be opened channel. Also, the initiator of the channel
+	///   opening.
 	/// - `max_message_size`: The maximum size of a message proposed by the sender.
 	/// - `max_capacity`: The maximum number of messages that can be queued in the channel.
 	///
@@ -507,8 +507,8 @@ pub enum Instruction<Call> {
 	},
 
 	/// A message to notify about that a previously sent open channel request has been accepted by
-	/// the recipient. That means that the channel will be opened during the next relay-chain session
-	/// change. This message is meant to be sent by the relay-chain to a para.
+	/// the recipient. That means that the channel will be opened during the next relay-chain
+	/// session change. This message is meant to be sent by the relay-chain to a para.
 	///
 	/// Safety: The message should originate directly from the relay-chain.
 	///
@@ -522,10 +522,10 @@ pub enum Instruction<Call> {
 		recipient: u32,
 	},
 
-	/// A message to notify that the other party in an open channel decided to close it. In particular,
-	/// `initiator` is going to close the channel opened from `sender` to the `recipient`. The close
-	/// will be enacted at the next relay-chain session change. This message is meant to be sent by
-	/// the relay-chain to a para.
+	/// A message to notify that the other party in an open channel decided to close it. In
+	/// particular, `initiator` is going to close the channel opened from `sender` to the
+	/// `recipient`. The close will be enacted at the next relay-chain session change. This message
+	/// is meant to be sent by the relay-chain to a para.
 	///
 	/// Safety: The message should originate directly from the relay-chain.
 	///
@@ -593,8 +593,8 @@ pub enum Instruction<Call> {
 	/// - `dest`: The location whose sovereign account will own the assets and thus the effective
 	///   beneficiary for the assets and the notification target for the reserve asset deposit
 	///   message.
-	/// - `xcm`: The orders that should follow the `ReserveAssetDeposited` instruction
-	///   which is sent onwards to `dest`.
+	/// - `xcm`: The orders that should follow the `ReserveAssetDeposited` instruction which is
+	///   sent onwards to `dest`.
 	///
 	/// Kind: *Command*
 	///
@@ -623,9 +623,9 @@ pub enum Instruction<Call> {
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `reserve`: A valid location that acts as a reserve for all asset(s) in `assets`. The
-	///   sovereign account of this consensus system *on the reserve location* will have appropriate
-	///   assets withdrawn and `effects` will be executed on them. There will typically be only one
-	///   valid location on any given asset/chain combination.
+	///   sovereign account of this consensus system *on the reserve location* will have
+	///   appropriate assets withdrawn and `effects` will be executed on them. There will typically
+	///   be only one valid location on any given asset/chain combination.
 	/// - `xcm`: The instructions to execute on the assets once withdrawn *on the reserve
 	///   location*.
 	///
@@ -642,8 +642,8 @@ pub enum Instruction<Call> {
 	/// - `xcm`: The instructions to execute on the assets once arrived *on the destination
 	///   location*.
 	///
-	/// NOTE: The `dest` location *MUST* respect this origin as a valid teleportation origin for all
-	/// `assets`. If it does not, then the assets may be lost.
+	/// NOTE: The `dest` location *MUST* respect this origin as a valid teleportation origin for
+	/// all `assets`. If it does not, then the assets may be lost.
 	///
 	/// Kind: *Command*
 	///
@@ -809,7 +809,8 @@ pub enum Instruction<Call> {
 	/// Kind: *Command*
 	///
 	/// Errors:
-	/// - `ExpectationFalse`: If the value of the Transact Status Register is not equal to the parameter.
+	/// - `ExpectationFalse`: If the value of the Transact Status Register is not equal to the
+	///   parameter.
 	ExpectTransactStatus(MaybeErrorCode),
 
 	/// Query the existence of a particular pallet type.
@@ -830,11 +831,15 @@ pub enum Instruction<Call> {
 
 	/// Ensure that a particular pallet with a particular version exists.
 	///
-	/// - `index: Compact`: The index which identifies the pallet. An error if no pallet exists at this index.
+	/// - `index: Compact`: The index which identifies the pallet. An error if no pallet exists at
+	///   this index.
 	/// - `name: Vec<u8>`: Name which must be equal to the name of the pallet.
-	/// - `module_name: Vec<u8>`: Module name which must be equal to the name of the module in which the pallet exists.
-	/// - `crate_major: Compact`: Version number which must be equal to the major version of the crate which implements the pallet.
-	/// - `min_crate_minor: Compact`: Version number which must be at most the minor version of the crate which implements the pallet.
+	/// - `module_name: Vec<u8>`: Module name which must be equal to the name of the module in
+	///   which the pallet exists.
+	/// - `crate_major: Compact`: Version number which must be equal to the major version of the
+	///   crate which implements the pallet.
+	/// - `min_crate_minor: Compact`: Version number which must be at most the minor version of the
+	///   crate which implements the pallet.
 	///
 	/// Safety: No concerns.
 	///
@@ -961,8 +966,8 @@ pub enum Instruction<Call> {
 	/// of course, if there is no record that the asset actually is locked.
 	///
 	/// - `asset`: The asset(s) to be unlocked.
-	/// - `locker`: The location from which a previous `NoteUnlockable` was sent and to which
-	///   an `UnlockAsset` should be sent.
+	/// - `locker`: The location from which a previous `NoteUnlockable` was sent and to which an
+	///   `UnlockAsset` should be sent.
 	///
 	/// Kind: *Command*.
 	///
@@ -971,8 +976,8 @@ pub enum Instruction<Call> {
 
 	/// Sets the Fees Mode Register.
 	///
-	/// - `jit_withdraw`: The fees mode item; if set to `true` then fees for any instructions
-	///   are withdrawn as needed using the same mechanism as `WithdrawAssets`.
+	/// - `jit_withdraw`: The fees mode item; if set to `true` then fees for any instructions are
+	///   withdrawn as needed using the same mechanism as `WithdrawAssets`.
 	///
 	/// Kind: *Command*.
 	///

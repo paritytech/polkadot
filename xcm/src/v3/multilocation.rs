@@ -198,8 +198,8 @@ impl MultiLocation {
 		self.interior.push_front(new)
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with theoriginal value of
-	/// `self` in case of overflow.
+	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with
+	/// theoriginal value of `self` in case of overflow.
 	pub fn pushed_with_interior(
 		self,
 		new: impl Into<Junction>,
@@ -210,8 +210,8 @@ impl MultiLocation {
 		}
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the original value of
-	/// `self` in case of overflow.
+	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the
+	/// original value of `self` in case of overflow.
 	pub fn pushed_front_with_interior(
 		self,
 		new: impl Into<Junction>,
@@ -472,7 +472,8 @@ impl From<Parent> for MultiLocation {
 	}
 }
 
-/// A tuple struct which can be converted into a `MultiLocation` of `parents` value 1 with the inner interior.
+/// A tuple struct which can be converted into a `MultiLocation` of `parents` value 1 with the inner
+/// interior.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct ParentThen(pub Junctions);
 impl From<ParentThen> for MultiLocation {
@@ -490,7 +491,8 @@ impl From<Ancestor> for MultiLocation {
 	}
 }
 
-/// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value and the inner interior.
+/// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value and the
+/// inner interior.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct AncestorThen<Interior>(pub u8, pub Interior);
 impl<Interior: Into<Junctions>> From<AncestorThen<Interior>> for MultiLocation {
