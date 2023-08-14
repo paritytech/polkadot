@@ -40,7 +40,7 @@ polkadot-overseer = { path = "node/overseer" }
 tracking-allocator = { path = "node/tracking-allocator", optional = true }
 
 # Needed for worker binaries.
-polkadot-node-core-pvf-common = { path = "node/core/pvf/common" }
+polkadot-node-core-pvf-common = { path = "node/core/pvf/common", features = ["test-utils"] }
 polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
 
 [dev-dependencies]
