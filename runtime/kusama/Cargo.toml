@@ -26,6 +26,7 @@ sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", d
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -191,6 +192,7 @@ std = [
 	"pallet-whitelist/std",
 	"pallet-babe/std",
 	"pallet-xcm/std",
+	"sp-application-crypto/std",
 	"sp-mmr-primitives/std",
 	"sp-runtime/std",
 	"sp-staking/std",
