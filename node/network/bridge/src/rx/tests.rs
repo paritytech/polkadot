@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use futures::{channel::oneshot, executor, stream::BoxStream};
+use futures::{channel::oneshot, executor};
 use polkadot_node_network_protocol::{self as net_protocol, OurView};
 use polkadot_node_subsystem::{messages::NetworkBridgeEvent, ActivatedLeaf};
 
@@ -27,7 +27,11 @@ use std::{
 	sync::atomic::{AtomicBool, Ordering},
 };
 
-use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName, ReputationChange};
+use sc_network::{
+	service::traits::{Direction, MessageSink, NotificationService},
+	IfDisconnected, Multiaddr, ObservedRole as SubstrateObservedRole, ProtocolName,
+	ReputationChange, Roles,
+};
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSetProtocolNames,
@@ -48,7 +52,6 @@ use polkadot_node_subsystem_test_helpers::{
 use polkadot_node_subsystem_util::metered;
 use polkadot_primitives::{AuthorityDiscoveryId, Hash};
 
-use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
 
 use crate::{network::Network, validator_discovery::AuthorityDiscovery};
@@ -63,10 +66,9 @@ pub enum NetworkAction {
 	WriteNotification(PeerId, PeerSet, Vec<u8>),
 }
 
-// The subsystem's view of the network - only supports a single call to `event_stream`.
+// The subsystem's view of the network.
 #[derive(Clone)]
 struct TestNetwork {
-	net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
 	protocol_names: Arc<PeerSetProtocolNames>,
 }
@@ -78,37 +80,42 @@ struct TestAuthorityDiscovery;
 // of `NetworkAction`s.
 struct TestNetworkHandle {
 	action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
-	net_tx: SingleItemSink<NetworkEvent>,
-	protocol_names: PeerSetProtocolNames,
+	validation_tx: SingleItemSink<NotificationEvent>,
+	collation_tx: SingleItemSink<NotificationEvent>,
 }
 
 fn new_test_network(
 	protocol_names: PeerSetProtocolNames,
-) -> (TestNetwork, TestNetworkHandle, TestAuthorityDiscovery) {
-	let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
+) -> (
+	TestNetwork,
+	TestNetworkHandle,
+	TestAuthorityDiscovery,
+	Box<dyn NotificationService>,
+	Box<dyn NotificationService>,
+) {
 	let (action_tx, action_rx) = metered::unbounded();
+	let (validation_tx, validation_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
+	let (collation_tx, collation_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
+	let action_tx = Arc::new(Mutex::new(action_tx));
 
 	(
 		TestNetwork {
-			net_events: Arc::new(Mutex::new(Some(net_rx))),
-			action_tx: Arc::new(Mutex::new(action_tx)),
+			action_tx: action_tx.clone(),
 			protocol_names: Arc::new(protocol_names.clone()),
 		},
-		TestNetworkHandle { action_rx, net_tx, protocol_names },
+		TestNetworkHandle { action_rx, validation_tx, collation_tx },
 		TestAuthorityDiscovery,
+		Box::new(TestNotificationService::new(
+			PeerSet::Validation,
+			action_tx.clone(),
+			validation_rx,
+		)),
+		Box::new(TestNotificationService::new(PeerSet::Collation, action_tx, collation_rx)),
 	)
 }
 
 #[async_trait]
 impl Network for TestNetwork {
-	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
-		self.net_events
-			.lock()
-			.take()
-			.expect("Subsystem made more than one call to `event_stream`")
-			.boxed()
-	}
-
 	async fn set_reserved_peers(
 		&mut self,
 		_protocol: ProtocolName,
@@ -151,14 +158,10 @@ impl Network for TestNetwork {
 			.unwrap();
 	}
 
-	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>) {
-		let (peer_set, version) = self.protocol_names.try_get_protocol(&protocol).unwrap();
-		assert_eq!(version, peer_set.get_main_version());
-
-		self.action_tx
-			.lock()
-			.unbounded_send(NetworkAction::WriteNotification(who, peer_set, message))
-			.unwrap();
+	fn peer_role(&self, _peer_id: PeerId, handshake: Vec<u8>) -> Option<SubstrateObservedRole> {
+		Roles::decode_all(&mut &handshake[..])
+			.ok()
+			.and_then(|role| Some(SubstrateObservedRole::from(role)))
 	}
 }
 
@@ -179,6 +182,7 @@ impl validator_discovery::AuthorityDiscovery for TestAuthorityDiscovery {
 	}
 }
 
+// TODO: convert this to use `NotificationService`
 impl TestNetworkHandle {
 	// Get the next network action.
 	async fn next_network_action(&mut self) -> NetworkAction {
@@ -196,34 +200,68 @@ impl TestNetworkHandle {
 	}
 
 	async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, role: ObservedRole) {
-		self.send_network_event(NetworkEvent::NotificationStreamOpened {
-			remote: peer,
-			protocol: self.protocol_names.get_main_name(peer_set),
-			negotiated_fallback: None,
-			role: role.into(),
-			received_handshake: vec![],
-		})
-		.await;
+		fn observed_role_to_handshake(role: &ObservedRole) -> Vec<u8> {
+			match role {
+				&ObservedRole::Light => Roles::LIGHT.encode(),
+				&ObservedRole::Authority => Roles::AUTHORITY.encode(),
+				&ObservedRole::Full => Roles::FULL.encode(),
+			}
+		}
+
+		match peer_set {
+			PeerSet::Validation => {
+				self.validation_tx
+					.send(NotificationEvent::NotificationStreamOpened {
+						peer,
+						direction: Direction::Inbound,
+						handshake: observed_role_to_handshake(&role),
+						negotiated_fallback: None,
+					})
+					.await
+					.expect("subsystem concluded early");
+			},
+			PeerSet::Collation => {
+				self.collation_tx
+					.send(NotificationEvent::NotificationStreamOpened {
+						peer,
+						direction: Direction::Inbound,
+						handshake: observed_role_to_handshake(&role),
+						negotiated_fallback: None,
+					})
+					.await
+					.expect("subsystem concluded early");
+			},
+		}
 	}
 
 	async fn disconnect_peer(&mut self, peer: PeerId, peer_set: PeerSet) {
-		self.send_network_event(NetworkEvent::NotificationStreamClosed {
-			remote: peer,
-			protocol: self.protocol_names.get_main_name(peer_set),
-		})
-		.await;
+		match peer_set {
+			PeerSet::Validation => self
+				.validation_tx
+				.send(NotificationEvent::NotificationStreamClosed { peer })
+				.await
+				.expect("subsystem concluded early"),
+			PeerSet::Collation => self
+				.collation_tx
+				.send(NotificationEvent::NotificationStreamClosed { peer })
+				.await
+				.expect("subsystem concluded early"),
+		}
 	}
 
 	async fn peer_message(&mut self, peer: PeerId, peer_set: PeerSet, message: Vec<u8>) {
-		self.send_network_event(NetworkEvent::NotificationsReceived {
-			remote: peer,
-			messages: vec![(self.protocol_names.get_main_name(peer_set), message.into())],
-		})
-		.await;
-	}
-
-	async fn send_network_event(&mut self, event: NetworkEvent) {
-		self.net_tx.send(event).await.expect("subsystem concluded early");
+		match peer_set {
+			PeerSet::Validation => self
+				.validation_tx
+				.send(NotificationEvent::NotificationReceived { peer, notification: message })
+				.await
+				.expect("subsystem concluded early"),
+			PeerSet::Collation => self
+				.collation_tx
+				.send(NotificationEvent::NotificationReceived { peer, notification: message })
+				.await
+				.expect("subsystem concluded early"),
+		}
 	}
 }
 
@@ -231,6 +269,119 @@ impl TestNetworkHandle {
 fn assert_network_actions_contains(actions: &[NetworkAction], action: &NetworkAction) {
 	if !actions.iter().any(|x| x == action) {
 		panic!("Could not find `{:?}` in `{:?}`", action, actions);
+	}
+}
+
+struct TestNotificationService {
+	peer_set: PeerSet,
+	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+	rx: SingleItemStream<NotificationEvent>,
+}
+
+impl std::fmt::Debug for TestNotificationService {
+	fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		Ok(())
+	}
+}
+
+impl TestNotificationService {
+	pub fn new(
+		peer_set: PeerSet,
+		action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+		rx: SingleItemStream<NotificationEvent>,
+	) -> Self {
+		Self { peer_set, action_tx, rx }
+	}
+}
+
+struct TestMessageSink {
+	peer: PeerId,
+	peer_set: PeerSet,
+	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+}
+
+impl TestMessageSink {
+	fn new(
+		peer: PeerId,
+		peer_set: PeerSet,
+		action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+	) -> TestMessageSink {
+		Self { peer, peer_set, action_tx }
+	}
+}
+
+#[async_trait::async_trait]
+impl MessageSink for TestMessageSink {
+	fn send_sync_notification(&self, notification: Vec<u8>) {
+		self.action_tx
+			.lock()
+			.unbounded_send(NetworkAction::WriteNotification(
+				self.peer,
+				self.peer_set,
+				notification,
+			))
+			.unwrap();
+	}
+
+	async fn send_async_notification(
+		&self,
+		_notification: Vec<u8>,
+	) -> Result<(), sc_network::error::Error> {
+		unimplemented!();
+	}
+}
+
+// TODO: how to implement this?
+#[async_trait::async_trait]
+impl NotificationService for TestNotificationService {
+	/// Instruct `Notifications` to open a new substream for `peer`.
+	async fn open_substream(&mut self, _peer: PeerId) -> Result<(), ()> {
+		unimplemented!();
+	}
+
+	/// Instruct `Notifications` to close substream for `peer`.
+	async fn close_substream(&mut self, _peer: PeerId) -> Result<(), ()> {
+		unimplemented!();
+	}
+
+	/// Send synchronous `notification` to `peer`.
+	fn send_sync_notification(&self, _peer: &PeerId, _notification: Vec<u8>) {
+		unimplemented!();
+	}
+
+	/// Send asynchronous `notification` to `peer`, allowing sender to exercise backpressure.
+	async fn send_async_notification(
+		&self,
+		_peer: &PeerId,
+		_notification: Vec<u8>,
+	) -> Result<(), sc_network::error::Error> {
+		unimplemented!();
+	}
+
+	/// Set handshake for the notification protocol replacing the old handshake.
+	async fn set_handshake(&mut self, _handshake: Vec<u8>) -> Result<(), ()> {
+		unimplemented!();
+	}
+
+	/// Get next event from the `Notifications` event stream.
+	async fn next_event(&mut self) -> Option<NotificationEvent> {
+		self.rx.next().await
+	}
+
+	// Clone [`NotificationService`]
+	fn clone(&mut self) -> Result<Box<dyn NotificationService>, ()> {
+		unimplemented!();
+	}
+
+	/// Get protocol name.
+	fn protocol(&self) -> &ProtocolName {
+		unimplemented!();
+	}
+
+	/// Get notification sink of the peer.
+	fn message_sink(&self, peer: &PeerId) -> Option<Box<dyn MessageSink>> {
+		// TODO: verify that peer exists?
+		Some(Box::new(TestMessageSink::new(*peer, self.peer_set, self.action_tx.clone())))
 	}
 }
 
@@ -329,10 +480,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let peerset_protocol_names = PeerSetProtocolNames::new(genesis_hash, fork_id);
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut network, network_handle, discovery) = new_test_network(peerset_protocol_names.clone());
+	let (network, network_handle, discovery, validation_service, collation_service) =
+		new_test_network(peerset_protocol_names.clone());
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
-	let network_stream = network.event_stream();
+	let network_notification_sinks = Arc::new(Mutex::new(HashMap::new()));
 	let shared = Shared::default();
 
 	let bridge = NetworkBridgeRx {
@@ -342,9 +494,12 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		sync_oracle,
 		shared: shared.clone(),
 		peerset_protocol_names,
+		validation_service,
+		collation_service,
+		network_notification_sinks,
 	};
 
-	let network_bridge = run_network_in(bridge, context, network_stream)
+	let network_bridge = run_network_in(bridge, context)
 		.map_err(|_| panic!("subsystem execution failed"))
 		.map(|_| ());
 
@@ -632,6 +787,7 @@ fn do_not_send_view_update_until_synced() {
 }
 
 #[test]
+// #[ignore]
 fn do_not_send_view_update_when_only_finalized_block_changed() {
 	test_harness(done_syncing_oracle(), |test_harness| async move {
 		let TestHarness { mut network_handle, mut virtual_overseer, shared } = test_harness;
@@ -914,6 +1070,7 @@ fn peer_disconnect_from_just_one_peerset() {
 }
 
 #[test]
+// #[ignore]
 fn relays_collation_protocol_messages() {
 	test_harness(done_syncing_oracle(), |test_harness| async move {
 		let TestHarness { mut network_handle, mut virtual_overseer, shared } = test_harness;
@@ -1109,6 +1266,7 @@ fn different_views_on_different_peer_sets() {
 }
 
 #[test]
+// #[ignore]
 fn sent_views_include_finalized_number_update() {
 	test_harness(done_syncing_oracle(), |test_harness| async move {
 		let TestHarness { mut network_handle, mut virtual_overseer, shared } = test_harness;

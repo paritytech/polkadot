@@ -51,7 +51,8 @@ use {
 	},
 	polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
 	polkadot_node_network_protocol::{
-		peer_set::PeerSetProtocolNames, request_response::ReqProtocolNames,
+		peer_set::{PeerSet, PeerSetProtocolNames},
+		request_response::ReqProtocolNames,
 	},
 	sc_client_api::BlockBackend,
 	sc_transaction_pool_api::OffchainTransactionPoolFactory,
@@ -75,7 +76,7 @@ pub use {
 #[cfg(feature = "full-node")]
 use polkadot_node_subsystem::jaeger;
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use prometheus_endpoint::Registry;
 #[cfg(feature = "full-node")]
@@ -805,9 +806,9 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
 	let grandpa_protocol_name = grandpa::protocol_standard_name(&genesis_hash, &config.chain_spec);
-	net_config.add_notification_protocol(grandpa::grandpa_peers_set_config(
-		grandpa_protocol_name.clone(),
-	));
+	let (grandpa_protocol_config, grandpa_notification_service) =
+		grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone());
+	net_config.add_notification_protocol(grandpa_protocol_config);
 
 	let beefy_gossip_proto_name =
 		beefy::gossip_protocol_name(&genesis_hash, config.chain_spec.fork_id());
@@ -820,23 +821,33 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 			client.clone(),
 			prometheus_registry.clone(),
 		);
-	if enable_beefy {
-		net_config.add_notification_protocol(beefy::communication::beefy_peers_set_config(
-			beefy_gossip_proto_name.clone(),
-		));
-		net_config.add_request_response_protocol(beefy_req_resp_cfg);
-	}
+
+	let beefy_notification_service = match enable_beefy {
+		false => None,
+		true => {
+			let (beefy_protocol_config, beefy_notification_service) =
+				beefy::communication::beefy_peers_set_config(beefy_gossip_proto_name.clone());
+			net_config.add_notification_protocol(beefy_protocol_config);
+			net_config.add_request_response_protocol(beefy_req_resp_cfg);
+			Some(beefy_notification_service)
+		},
+	};
 
 	let peerset_protocol_names =
 		PeerSetProtocolNames::new(genesis_hash, config.chain_spec.fork_id());
 
-	{
+	let notification_services = {
 		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
 		let is_authority = if role.is_authority() { IsAuthority::Yes } else { IsAuthority::No };
-		for config in peer_sets_info(is_authority, &peerset_protocol_names) {
-			net_config.add_notification_protocol(config);
-		}
-	}
+		peer_sets_info(is_authority, &peerset_protocol_names)
+			.into_iter()
+			.map(|(config, (peerset, service))| {
+				net_config.add_notification_protocol(config);
+				(peerset, service)
+			})
+			.collect::<HashMap<PeerSet, Box<dyn sc_network::service::traits::NotificationService>>>(
+			)
+	};
 
 	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, config.chain_spec.fork_id());
 
@@ -1050,6 +1061,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 					offchain_transaction_pool_factory: OffchainTransactionPoolFactory::new(
 						transaction_pool.clone(),
 					),
+					notification_services,
 				},
 			)
 			.map_err(|e| {
@@ -1158,6 +1170,8 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 			sync: sync_service.clone(),
 			gossip_protocol_name: beefy_gossip_proto_name,
 			justifications_protocol_name,
+			notification_service: beefy_notification_service
+				.expect("beefy is enabled so `NotificationService` exists. qed"),
 			_phantom: core::marker::PhantomData::<Block>,
 		};
 		let payload_provider = beefy_primitives::mmr::MmrRootProvider::new(client.clone());
@@ -1254,6 +1268,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 			voting_rule,
 			prometheus_registry: prometheus_registry.clone(),
 			shared_voter_state,
+			notification_service: grandpa_notification_service,
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 			offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
 		};

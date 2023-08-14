@@ -17,21 +17,18 @@
 //! The Network Bridge Subsystem - handles _incoming_ messages from the network, forwarded to the relevant subsystems.
 use super::*;
 
-use always_assert::never;
 use bytes::Bytes;
-use futures::stream::BoxStream;
 use parity_scale_codec::{Decode, DecodeAll};
 
-use sc_network::Event as NetworkEvent;
+use sc_network::service::traits::{
+	MessageSink, NotificationEvent, NotificationService, ValidationResult,
+};
 use sp_consensus::SyncOracle;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{SessionGridTopology, TopologyPeerInfo},
-	peer_set::{
-		CollationVersion, PeerSet, PeerSetProtocolNames, PerPeerSet, ProtocolVersion,
-		ValidationVersion,
-	},
+	peer_set::{CollationVersion, PeerSet, PeerSetProtocolNames, ValidationVersion},
 	v1 as protocol_v1, ObservedRole, OurView, PeerId, UnifiedReputationChange as Rep, View,
 };
 
@@ -83,6 +80,9 @@ pub struct NetworkBridgeRx<N, AD> {
 	shared: Shared,
 	metrics: Metrics,
 	peerset_protocol_names: PeerSetProtocolNames,
+	validation_service: Box<dyn NotificationService>,
+	collation_service: Box<dyn NotificationService>,
+	network_notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 }
 
 impl<N, AD> NetworkBridgeRx<N, AD> {
@@ -96,8 +96,18 @@ impl<N, AD> NetworkBridgeRx<N, AD> {
 		sync_oracle: Box<dyn SyncOracle + Send>,
 		metrics: Metrics,
 		peerset_protocol_names: PeerSetProtocolNames,
+		mut notification_services: HashMap<PeerSet, Box<dyn NotificationService>>,
+		network_notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 	) -> Self {
 		let shared = Shared::default();
+
+		let validation_service = notification_services
+			.remove(&PeerSet::Validation)
+			.expect("validation protocol was enabled so `NotificationService` for it exists. qed");
+		let collation_service = notification_services
+			.remove(&PeerSet::Collation)
+			.expect("collation protocol was enabled so `NotificationService` for it exists. qed");
+
 		Self {
 			network_service,
 			authority_discovery_service,
@@ -105,6 +115,9 @@ impl<N, AD> NetworkBridgeRx<N, AD> {
 			shared,
 			metrics,
 			peerset_protocol_names,
+			validation_service,
+			collation_service,
+			network_notification_sinks,
 		}
 	}
 }
@@ -115,371 +128,481 @@ where
 	Net: Network + Sync,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
-	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
-		// The stream of networking events has to be created at initialization, otherwise the
-		// networking might open connections before the stream of events has been grabbed.
-		let network_stream = self.network_service.event_stream();
-
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
-		let future = run_network_in(self, ctx, network_stream)
+		let future = run_network_in(self, ctx)
 			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
 			.boxed();
 		SpawnedSubsystem { name: "network-bridge-rx-subsystem", future }
 	}
 }
 
+/// Handle notification event received over the validation protocol.
+async fn handle_validation_message<AD>(
+	event: NotificationEvent,
+	network_service: &mut impl Network,
+	sender: &mut impl overseer::NetworkBridgeRxSenderTrait,
+	authority_discovery_service: &mut AD,
+	metrics: &Metrics,
+	shared: &Shared,
+	peerset_protocol_names: &PeerSetProtocolNames,
+	notification_service: &mut Box<dyn NotificationService>,
+	network_notification_sinks: &mut Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
+) -> Result<(), ()>
+where
+	AD: validator_discovery::AuthorityDiscovery + Send,
+{
+	match event {
+		NotificationEvent::ValidateInboundSubstream { result_tx, .. } => {
+			let _ = result_tx.send(ValidationResult::Accept);
+		},
+		NotificationEvent::NotificationStreamOpened {
+			peer,
+			handshake,
+			negotiated_fallback,
+			..
+		} => {
+			let role = match network_service.peer_role(peer, handshake) {
+				Some(role) => ObservedRole::from(role),
+				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?peer,
+						"Failed to determine peer role",
+					);
+					return Ok(())
+				},
+			};
+
+			let (peer_set, version) = {
+				let (peer_set, version) = {
+					let name = peerset_protocol_names.get_main_name(PeerSet::Validation);
+					peerset_protocol_names
+						.try_get_protocol(&name)
+						.expect("validation protocol exists since it's enabled. qed")
+				};
+
+				if let Some(fallback) = negotiated_fallback {
+					match peerset_protocol_names.try_get_protocol(&fallback) {
+						None => {
+							gum::debug!(
+								target: LOG_TARGET,
+								fallback = &*fallback,
+								?peer,
+								?peer_set,
+								"Unknown fallback",
+							);
+
+							return Ok(())
+						},
+						Some((p2, v2)) => {
+							if p2 != peer_set {
+								gum::debug!(
+									target: LOG_TARGET,
+									fallback = &*fallback,
+									fallback_peerset = ?p2,
+									peerset = ?peer_set,
+									"Fallback mismatched peer-set",
+								);
+
+								return Ok(())
+							}
+
+							(p2, v2)
+						},
+					}
+				} else {
+					(peer_set, version)
+				}
+			};
+
+			// store the notification sink to `network_notification_sinks` so both `NetworkBridgeRx`
+			// and `NetworkBridgeTx` can send messages to the peer.
+			match notification_service.message_sink(&peer) {
+				Some(sink) => {
+					network_notification_sinks.lock().insert((peer_set, peer), sink);
+				},
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						peer_set = ?peer_set,
+						version = %version,
+						peer = ?peer,
+						role = ?role,
+						"Message sink not available for peer",
+					);
+					return Ok(())
+				},
+			}
+
+			gum::debug!(
+				target: LOG_TARGET,
+				action = "PeerConnected",
+				peer_set = ?peer_set,
+				version = %version,
+				peer = ?peer,
+				role = ?role
+			);
+
+			let local_view = {
+				let mut shared = shared.0.lock();
+				let peer_map = &mut shared.validation_peers;
+
+				match peer_map.entry(peer) {
+					hash_map::Entry::Occupied(_) => return Ok(()),
+					hash_map::Entry::Vacant(vacant) => {
+						vacant.insert(PeerData { view: View::default(), version });
+					},
+				}
+
+				metrics.on_peer_connected(peer_set, version);
+				metrics.note_peer_count(peer_set, version, peer_map.len());
+
+				shared.local_view.clone().unwrap_or(View::default())
+			};
+
+			let maybe_authority =
+				authority_discovery_service.get_authority_ids_by_peer_id(peer).await;
+
+			// TODO: store sink to networkservice?
+			dispatch_validation_events_to_all(
+				vec![
+					NetworkBridgeEvent::PeerConnected(peer, role, version, maybe_authority),
+					NetworkBridgeEvent::PeerViewChange(peer, View::default()),
+				],
+				sender,
+			)
+			.await;
+
+			send_message(
+				vec![peer],
+				PeerSet::Validation,
+				version,
+				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(local_view),
+				metrics,
+				&network_notification_sinks,
+			);
+		},
+		NotificationEvent::NotificationStreamClosed { peer } => {
+			let (peer_set, version) = {
+				let name = peerset_protocol_names.get_main_name(PeerSet::Validation);
+				peerset_protocol_names
+					.try_get_protocol(&name)
+					.expect("validation protocol exists since it's enabled. qed")
+			};
+
+			gum::debug!(
+				target: LOG_TARGET,
+				action = "PeerDisconnected",
+				peer_set = ?peer_set,
+				peer = ?peer
+			);
+
+			let was_connected = {
+				let mut shared = shared.0.lock();
+				let peer_map = &mut shared.validation_peers;
+
+				let w = peer_map.remove(&peer).is_some();
+
+				metrics.on_peer_disconnected(peer_set, version);
+				metrics.note_peer_count(peer_set, version, peer_map.len());
+
+				w
+			};
+
+			network_notification_sinks.lock().remove(&(peer_set, peer));
+
+			if was_connected && version == peer_set.get_main_version() {
+				dispatch_validation_event_to_all(NetworkBridgeEvent::PeerDisconnected(peer), sender)
+					.await
+			}
+		},
+		NotificationEvent::NotificationReceived { peer, notification } => {
+			if shared.0.lock().validation_peers.get(&peer).is_none() {
+				// TODO: does this check make any sense?
+				gum::debug!(target: LOG_TARGET, action = "ReportPeer");
+				network_service.report_peer(peer, UNCONNECTED_PEERSET_COST.into());
+				return Ok(())
+			}
+
+			gum::trace!(target: LOG_TARGET, action = "PeerMessage", ?peer);
+
+			let (events, reports) = handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
+				peer,
+				PeerSet::Validation,
+				&mut shared.0.lock().validation_peers,
+				vec![Bytes::from(notification)],
+				&metrics,
+			);
+
+			for report in reports {
+				network_service.report_peer(peer, report.into());
+			}
+
+			dispatch_validation_events_to_all(events, sender).await;
+		},
+	}
+
+	Ok(())
+}
+
+/// Handle notification event received over the collation protocol.
+async fn handle_collation_message<AD>(
+	event: NotificationEvent,
+	network_service: &mut impl Network,
+	sender: &mut impl overseer::NetworkBridgeRxSenderTrait,
+	authority_discovery_service: &mut AD,
+	metrics: &Metrics,
+	shared: &Shared,
+	peerset_protocol_names: &PeerSetProtocolNames,
+	notification_service: &mut Box<dyn NotificationService>,
+	network_notification_sinks: &mut Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
+) -> Result<(), ()>
+where
+	AD: validator_discovery::AuthorityDiscovery + Send,
+{
+	match event {
+		NotificationEvent::ValidateInboundSubstream { result_tx, .. } => {
+			let _ = result_tx.send(ValidationResult::Accept);
+		},
+		NotificationEvent::NotificationStreamOpened {
+			peer,
+			handshake,
+			negotiated_fallback,
+			..
+		} => {
+			let role = match network_service.peer_role(peer, handshake) {
+				Some(role) => ObservedRole::from(role),
+				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?peer,
+						"Failed to determine peer role",
+					);
+					return Ok(())
+				},
+			};
+
+			let (peer_set, version) = {
+				let (peer_set, version) = {
+					let name = peerset_protocol_names.get_main_name(PeerSet::Collation);
+					peerset_protocol_names
+						.try_get_protocol(&name)
+						.expect("validation protocol exists since it's enabled. qed")
+				};
+
+				if let Some(fallback) = negotiated_fallback {
+					match peerset_protocol_names.try_get_protocol(&fallback) {
+						None => {
+							gum::debug!(
+								target: LOG_TARGET,
+								fallback = &*fallback,
+								?peer,
+								?peer_set,
+								"Unknown fallback",
+							);
+
+							return Ok(())
+						},
+						Some((p2, v2)) => {
+							if p2 != peer_set {
+								gum::debug!(
+									target: LOG_TARGET,
+									fallback = &*fallback,
+									fallback_peerset = ?p2,
+									peerset = ?peer_set,
+									"Fallback mismatched peer-set",
+								);
+
+								return Ok(())
+							}
+
+							(p2, v2)
+						},
+					}
+				} else {
+					(peer_set, version)
+				}
+			};
+
+			// store the notification sink to `network_notification_sinks` so both `NetworkBridgeRx`
+			// and `NetworkBridgeTx` can send messages to the peer.
+			match notification_service.message_sink(&peer) {
+				Some(sink) => {
+					network_notification_sinks.lock().insert((peer_set, peer), sink);
+				},
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						peer_set = ?peer_set,
+						version = %version,
+						peer = ?peer,
+						role = ?role,
+						"Message sink not available for peer",
+					);
+					return Ok(())
+				},
+			}
+
+			gum::debug!(
+				target: LOG_TARGET,
+				action = "PeerConnected",
+				peer_set = ?peer_set,
+				version = %version,
+				peer = ?peer,
+				role = ?role
+			);
+
+			let local_view = {
+				let mut shared = shared.0.lock();
+				let peer_map = &mut shared.collation_peers;
+
+				match peer_map.entry(peer) {
+					hash_map::Entry::Occupied(_) => return Ok(()),
+					hash_map::Entry::Vacant(vacant) => {
+						vacant.insert(PeerData { view: View::default(), version });
+					},
+				}
+
+				metrics.on_peer_connected(peer_set, version);
+				metrics.note_peer_count(peer_set, version, peer_map.len());
+
+				shared.local_view.clone().unwrap_or(View::default())
+			};
+
+			let maybe_authority =
+				authority_discovery_service.get_authority_ids_by_peer_id(peer).await;
+
+			dispatch_collation_events_to_all(
+				vec![
+					NetworkBridgeEvent::PeerConnected(peer, role, version, maybe_authority),
+					NetworkBridgeEvent::PeerViewChange(peer, View::default()),
+				],
+				sender,
+			)
+			.await;
+
+			send_message(
+				vec![peer],
+				PeerSet::Collation,
+				version,
+				WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(local_view),
+				metrics,
+				&network_notification_sinks,
+			);
+		},
+		NotificationEvent::NotificationStreamClosed { peer } => {
+			let (peer_set, version) = {
+				let name = peerset_protocol_names.get_main_name(PeerSet::Collation);
+				peerset_protocol_names
+					.try_get_protocol(&name)
+					.expect("validation protocol exists since it's enabled. qed")
+			};
+
+			gum::debug!(
+				target: LOG_TARGET,
+				action = "PeerDisconnected",
+				peer_set = ?peer_set,
+				peer = ?peer
+			);
+
+			let was_connected = {
+				let mut shared = shared.0.lock();
+				let peer_map = &mut shared.collation_peers;
+
+				let w = peer_map.remove(&peer).is_some();
+
+				metrics.on_peer_disconnected(peer_set, version);
+				metrics.note_peer_count(peer_set, version, peer_map.len());
+
+				w
+			};
+
+			network_notification_sinks.lock().remove(&(peer_set, peer));
+
+			if was_connected && version == peer_set.get_main_version() {
+				dispatch_collation_event_to_all(NetworkBridgeEvent::PeerDisconnected(peer), sender)
+					.await
+			}
+		},
+		NotificationEvent::NotificationReceived { peer, notification } => {
+			// TODO: does this check make any sense?
+			if shared.0.lock().collation_peers.get(&peer).is_none() {
+				gum::debug!(target: LOG_TARGET, action = "ReportPeer");
+				network_service.report_peer(peer, UNCONNECTED_PEERSET_COST.into());
+				return Ok(())
+			}
+
+			gum::trace!(target: LOG_TARGET, action = "PeerMessages", ?peer);
+
+			let (events, reports) = handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
+				peer,
+				PeerSet::Collation,
+				&mut shared.0.lock().collation_peers,
+				vec![Bytes::from(notification)],
+				&metrics,
+			);
+
+			for report in reports {
+				network_service.report_peer(peer, report.into());
+			}
+
+			dispatch_collation_events_to_all(events, sender).await;
+		},
+	}
+
+	Ok(())
+}
+
 async fn handle_network_messages<AD>(
 	mut sender: impl overseer::NetworkBridgeRxSenderTrait,
 	mut network_service: impl Network,
-	network_stream: BoxStream<'static, NetworkEvent>,
+	mut validation_service: Box<dyn NotificationService>,
+	mut collation_service: Box<dyn NotificationService>,
 	mut authority_discovery_service: AD,
 	metrics: Metrics,
 	shared: Shared,
 	peerset_protocol_names: PeerSetProtocolNames,
+	mut network_notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) -> Result<(), Error>
 where
 	AD: validator_discovery::AuthorityDiscovery + Send,
 {
-	let mut network_stream = network_stream.fuse();
 	loop {
-		match network_stream.next().await {
-			None => return Err(Error::EventStreamConcluded),
-			Some(NetworkEvent::Dht(_)) => {},
-			Some(NetworkEvent::NotificationStreamOpened {
-				remote: peer,
-				protocol,
-				role,
-				negotiated_fallback,
-				received_handshake: _,
-			}) => {
-				let role = ObservedRole::from(role);
-				let (peer_set, version) = {
-					let (peer_set, version) =
-						match peerset_protocol_names.try_get_protocol(&protocol) {
-							None => continue,
-							Some(p) => p,
-						};
-
-					if let Some(fallback) = negotiated_fallback {
-						match peerset_protocol_names.try_get_protocol(&fallback) {
-							None => {
-								gum::debug!(
-									target: LOG_TARGET,
-									fallback = &*fallback,
-									?peer,
-									?peer_set,
-									"Unknown fallback",
-								);
-
-								continue
-							},
-							Some((p2, v2)) => {
-								if p2 != peer_set {
-									gum::debug!(
-										target: LOG_TARGET,
-										fallback = &*fallback,
-										fallback_peerset = ?p2,
-										protocol = &*protocol,
-										peerset = ?peer_set,
-										"Fallback mismatched peer-set",
-									);
-
-									continue
-								}
-
-								(p2, v2)
-							},
-						}
-					} else {
-						(peer_set, version)
-					}
-				};
-
-				gum::debug!(
-					target: LOG_TARGET,
-					action = "PeerConnected",
-					peer_set = ?peer_set,
-					version = %version,
-					peer = ?peer,
-					role = ?role
-				);
-
-				let local_view = {
-					let mut shared = shared.0.lock();
-					let peer_map = match peer_set {
-						PeerSet::Validation => &mut shared.validation_peers,
-						PeerSet::Collation => &mut shared.collation_peers,
-					};
-
-					match peer_map.entry(peer) {
-						hash_map::Entry::Occupied(_) => continue,
-						hash_map::Entry::Vacant(vacant) => {
-							vacant.insert(PeerData { view: View::default(), version });
-						},
-					}
-
-					metrics.on_peer_connected(peer_set, version);
-					metrics.note_peer_count(peer_set, version, peer_map.len());
-
-					shared.local_view.clone().unwrap_or(View::default())
-				};
-
-				let maybe_authority =
-					authority_discovery_service.get_authority_ids_by_peer_id(peer).await;
-
-				match peer_set {
-					PeerSet::Validation => {
-						dispatch_validation_events_to_all(
-							vec![
-								NetworkBridgeEvent::PeerConnected(
-									peer,
-									role,
-									version,
-									maybe_authority,
-								),
-								NetworkBridgeEvent::PeerViewChange(peer, View::default()),
-							],
-							&mut sender,
-						)
-						.await;
-
-						send_message(
-							&mut network_service,
-							vec![peer],
-							PeerSet::Validation,
-							version,
-							&peerset_protocol_names,
-							WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(local_view),
-							&metrics,
-						);
-					},
-					PeerSet::Collation => {
-						dispatch_collation_events_to_all(
-							vec![
-								NetworkBridgeEvent::PeerConnected(
-									peer,
-									role,
-									version,
-									maybe_authority,
-								),
-								NetworkBridgeEvent::PeerViewChange(peer, View::default()),
-							],
-							&mut sender,
-						)
-						.await;
-
-						send_message(
-							&mut network_service,
-							vec![peer],
-							PeerSet::Collation,
-							version,
-							&peerset_protocol_names,
-							WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(local_view),
-							&metrics,
-						);
-					},
+		futures::select! {
+			event = validation_service.next_event().fuse() => match event {
+				Some(event) => if let Err(_error) = handle_validation_message(
+					event,
+					&mut network_service,
+					&mut sender,
+					&mut authority_discovery_service,
+					&metrics,
+					&shared,
+					&peerset_protocol_names,
+					&mut validation_service,
+					&mut network_notification_sinks,
+				).await {
+					// TODO: log error
 				}
+				None => return Err(Error::EventStreamConcluded),
 			},
-			Some(NetworkEvent::NotificationStreamClosed { remote: peer, protocol }) => {
-				let (peer_set, version) = match peerset_protocol_names.try_get_protocol(&protocol) {
-					None => continue,
-					Some(peer_set) => peer_set,
-				};
-
-				gum::debug!(
-					target: LOG_TARGET,
-					action = "PeerDisconnected",
-					peer_set = ?peer_set,
-					peer = ?peer
-				);
-
-				let was_connected = {
-					let mut shared = shared.0.lock();
-					let peer_map = match peer_set {
-						PeerSet::Validation => &mut shared.validation_peers,
-						PeerSet::Collation => &mut shared.collation_peers,
-					};
-
-					let w = peer_map.remove(&peer).is_some();
-
-					metrics.on_peer_disconnected(peer_set, version);
-					metrics.note_peer_count(peer_set, version, peer_map.len());
-
-					w
-				};
-
-				if was_connected && version == peer_set.get_main_version() {
-					match peer_set {
-						PeerSet::Validation =>
-							dispatch_validation_event_to_all(
-								NetworkBridgeEvent::PeerDisconnected(peer),
-								&mut sender,
-							)
-							.await,
-						PeerSet::Collation =>
-							dispatch_collation_event_to_all(
-								NetworkBridgeEvent::PeerDisconnected(peer),
-								&mut sender,
-							)
-							.await,
-					}
+			event = collation_service.next_event().fuse() => match event {
+				Some(event) => if let Err(_error) = handle_collation_message(
+					event,
+					&mut network_service,
+					&mut sender,
+					&mut authority_discovery_service,
+					&metrics,
+					&shared,
+					&peerset_protocol_names,
+					&mut collation_service,
+					&mut network_notification_sinks,
+				).await {
+					// TODO: log error
 				}
-			},
-			Some(NetworkEvent::NotificationsReceived { remote, messages }) => {
-				let expected_versions = {
-					let mut versions = PerPeerSet::<Option<ProtocolVersion>>::default();
-					let shared = shared.0.lock();
-					if let Some(peer_data) = shared.validation_peers.get(&remote) {
-						versions[PeerSet::Validation] = Some(peer_data.version);
-					}
-
-					if let Some(peer_data) = shared.collation_peers.get(&remote) {
-						versions[PeerSet::Collation] = Some(peer_data.version);
-					}
-
-					versions
-				};
-
-				// non-decoded, but version-checked validation messages.
-				let v_messages: Result<Vec<_>, _> = messages
-					.iter()
-					.filter_map(|(protocol, msg_bytes)| {
-						// version doesn't matter because we always receive on the 'correct'
-						// protocol name, not the negotiated fallback.
-						let (peer_set, _version) =
-							peerset_protocol_names.try_get_protocol(protocol)?;
-						if peer_set == PeerSet::Validation {
-							if expected_versions[PeerSet::Validation].is_none() {
-								return Some(Err(UNCONNECTED_PEERSET_COST))
-							}
-
-							Some(Ok(msg_bytes.clone()))
-						} else {
-							None
-						}
-					})
-					.collect();
-
-				let v_messages = match v_messages {
-					Err(rep) => {
-						gum::debug!(target: LOG_TARGET, action = "ReportPeer");
-						network_service.report_peer(remote, rep.into());
-
-						continue
-					},
-					Ok(v) => v,
-				};
-
-				// non-decoded, but version-checked collation messages.
-				let c_messages: Result<Vec<_>, _> = messages
-					.iter()
-					.filter_map(|(protocol, msg_bytes)| {
-						// version doesn't matter because we always receive on the 'correct'
-						// protocol name, not the negotiated fallback.
-						let (peer_set, _version) =
-							peerset_protocol_names.try_get_protocol(protocol)?;
-
-						if peer_set == PeerSet::Collation {
-							if expected_versions[PeerSet::Collation].is_none() {
-								return Some(Err(UNCONNECTED_PEERSET_COST))
-							}
-
-							Some(Ok(msg_bytes.clone()))
-						} else {
-							None
-						}
-					})
-					.collect();
-
-				let c_messages = match c_messages {
-					Err(rep) => {
-						gum::debug!(target: LOG_TARGET, action = "ReportPeer");
-						network_service.report_peer(remote, rep.into());
-
-						continue
-					},
-					Ok(v) => v,
-				};
-
-				if v_messages.is_empty() && c_messages.is_empty() {
-					continue
-				}
-
-				gum::trace!(
-					target: LOG_TARGET,
-					action = "PeerMessages",
-					peer = ?remote,
-					num_validation_messages = %v_messages.len(),
-					num_collation_messages = %c_messages.len()
-				);
-
-				if !v_messages.is_empty() {
-					let (events, reports) =
-						if expected_versions[PeerSet::Validation] ==
-							Some(ValidationVersion::V1.into())
-						{
-							handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
-								remote,
-								PeerSet::Validation,
-								&mut shared.0.lock().validation_peers,
-								v_messages,
-								&metrics,
-							)
-						} else {
-							gum::warn!(
-								target: LOG_TARGET,
-								version = ?expected_versions[PeerSet::Validation],
-								"Major logic bug. Peer somehow has unsupported validation protocol version."
-							);
-
-							never!("Only version 1 is supported; peer set connection checked above; qed");
-
-							// If a peer somehow triggers this, we'll disconnect them
-							// eventually.
-							(Vec::new(), vec![UNCONNECTED_PEERSET_COST])
-						};
-
-					for report in reports {
-						network_service.report_peer(remote, report.into());
-					}
-
-					dispatch_validation_events_to_all(events, &mut sender).await;
-				}
-
-				if !c_messages.is_empty() {
-					let (events, reports) =
-						if expected_versions[PeerSet::Collation] ==
-							Some(CollationVersion::V1.into())
-						{
-							handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
-								remote,
-								PeerSet::Collation,
-								&mut shared.0.lock().collation_peers,
-								c_messages,
-								&metrics,
-							)
-						} else {
-							gum::warn!(
-								target: LOG_TARGET,
-								version = ?expected_versions[PeerSet::Collation],
-								"Major logic bug. Peer somehow has unsupported collation protocol version."
-							);
-
-							never!("Only version 1 is supported; peer set connection checked above; qed");
-
-							// If a peer somehow triggers this, we'll disconnect them
-							// eventually.
-							(Vec::new(), vec![UNCONNECTED_PEERSET_COST])
-						};
-
-					for report in reports {
-						network_service.report_peer(remote, report.into());
-					}
-
-					dispatch_collation_events_to_all(events, &mut sender).await;
-				}
-			},
+				None => return Err(Error::EventStreamConcluded),
+			}
 		}
 	}
 }
@@ -505,17 +628,15 @@ where
 }
 
 #[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
-async fn run_incoming_orchestra_signals<Context, N, AD>(
+async fn run_incoming_orchestra_signals<Context, AD>(
 	mut ctx: Context,
-	mut network_service: N,
 	mut authority_discovery_service: AD,
 	shared: Shared,
 	sync_oracle: Box<dyn SyncOracle + Send>,
 	metrics: Metrics,
-	peerset_protocol_names: PeerSetProtocolNames,
+	network_notification_sinks: Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) -> Result<(), Error>
 where
-	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
 	// This is kept sorted, descending, by block number.
@@ -607,13 +728,12 @@ where
 						mode = Mode::Active;
 
 						update_our_view(
-							&mut network_service,
 							&mut ctx,
 							&live_heads,
 							&shared,
 							finalized_number,
 							&metrics,
-							&peerset_protocol_names,
+							&network_notification_sinks,
 						);
 					}
 				}
@@ -638,16 +758,10 @@ where
 /// and `parking_lot` currently does not provide `Send`, which helps us enforce that.
 /// If this breaks, we need to find another way to protect ourselves.
 ///
-/// ```compile_fail
-/// #use parking_lot::MutexGuard;
-/// #fn is_send<T: Send>();
-/// #is_send::<parking_lot::MutexGuard<'static, ()>();
-/// ```
 #[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
 async fn run_network_in<N, AD, Context>(
 	bridge: NetworkBridgeRx<N, AD>,
 	mut ctx: Context,
-	network_stream: BoxStream<'static, NetworkEvent>,
 ) -> Result<(), Error>
 where
 	N: Network,
@@ -660,16 +774,21 @@ where
 		sync_oracle,
 		shared,
 		peerset_protocol_names,
+		validation_service,
+		collation_service,
+		network_notification_sinks,
 	} = bridge;
 
 	let (task, network_event_handler) = handle_network_messages(
 		ctx.sender().clone(),
 		network_service.clone(),
-		network_stream,
+		validation_service,
+		collation_service,
 		authority_discovery_service.clone(),
 		metrics.clone(),
 		shared.clone(),
 		peerset_protocol_names.clone(),
+		network_notification_sinks.clone(),
 	)
 	.remote_handle();
 
@@ -678,12 +797,11 @@ where
 
 	let orchestra_signal_handler = run_incoming_orchestra_signals(
 		ctx,
-		network_service,
 		authority_discovery_service,
 		shared,
 		sync_oracle,
 		metrics,
-		peerset_protocol_names,
+		network_notification_sinks,
 	);
 
 	futures::pin_mut!(orchestra_signal_handler);
@@ -703,17 +821,14 @@ fn construct_view(
 }
 
 #[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
-fn update_our_view<Net, Context>(
-	net: &mut Net,
+fn update_our_view<Context>(
 	ctx: &mut Context,
 	live_heads: &[ActivatedLeaf],
 	shared: &Shared,
 	finalized_number: BlockNumber,
 	metrics: &Metrics,
-	peerset_protocol_names: &PeerSetProtocolNames,
-) where
-	Net: Network,
-{
+	network_notification_sinks: &Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
+) {
 	let new_view = construct_view(live_heads.iter().map(|v| v.hash), finalized_number);
 
 	let (validation_peers, collation_peers) = {
@@ -742,19 +857,17 @@ fn update_our_view<Net, Context>(
 	};
 
 	send_validation_message_v1(
-		net,
 		validation_peers,
-		peerset_protocol_names,
 		WireMessage::ViewUpdate(new_view.clone()),
 		metrics,
+		network_notification_sinks,
 	);
 
 	send_collation_message_v1(
-		net,
 		collation_peers,
-		peerset_protocol_names,
 		WireMessage::ViewUpdate(new_view),
 		metrics,
+		network_notification_sinks,
 	);
 
 	let our_view = OurView::new(
@@ -827,38 +940,34 @@ fn handle_v1_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
 }
 
 fn send_validation_message_v1(
-	net: &mut impl Network,
 	peers: Vec<PeerId>,
-	peerset_protocol_names: &PeerSetProtocolNames,
 	message: WireMessage<protocol_v1::ValidationProtocol>,
 	metrics: &Metrics,
+	network_notification_sinks: &Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) {
 	send_message(
-		net,
 		peers,
 		PeerSet::Validation,
 		ValidationVersion::V1.into(),
-		peerset_protocol_names,
 		message,
 		metrics,
+		network_notification_sinks,
 	);
 }
 
 fn send_collation_message_v1(
-	net: &mut impl Network,
 	peers: Vec<PeerId>,
-	peerset_protocol_names: &PeerSetProtocolNames,
 	message: WireMessage<protocol_v1::CollationProtocol>,
 	metrics: &Metrics,
+	network_notification_sinks: &Arc<Mutex<HashMap<(PeerSet, PeerId), Box<dyn MessageSink>>>>,
 ) {
 	send_message(
-		net,
 		peers,
 		PeerSet::Collation,
 		CollationVersion::V1.into(),
-		peerset_protocol_names,
 		message,
 		metrics,
+		&network_notification_sinks,
 	);
 }
 

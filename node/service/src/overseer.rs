@@ -20,6 +20,8 @@ use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_core::traits::SpawnNamed;
 
 use lru::LruCache;
+use parking_lot::Mutex;
+
 use polkadot_availability_distribution::IncomingRequestReceivers;
 use polkadot_node_core_approval_voting::Config as ApprovalVotingConfig;
 use polkadot_node_core_av_store::Config as AvailabilityConfig;
@@ -27,7 +29,7 @@ use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_network_protocol::{
-	peer_set::PeerSetProtocolNames,
+	peer_set::{PeerSet, PeerSetProtocolNames},
 	request_response::{v1 as request_v1, IncomingRequestReceiver, ReqProtocolNames},
 };
 #[cfg(any(feature = "malus", test))]
@@ -44,11 +46,11 @@ use polkadot_primitives::runtime_api::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
-use sc_network::NetworkStateInfo;
+use sc_network::{NetworkStateInfo, NotificationService};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus_babe::BabeApi;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 pub use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
 pub use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
@@ -129,6 +131,8 @@ where
 	pub peerset_protocol_names: PeerSetProtocolNames,
 	/// The offchain transaction pool factory.
 	pub offchain_transaction_pool_factory: OffchainTransactionPoolFactory<Block>,
+	/// Notification services.
+	pub notification_services: HashMap<PeerSet, Box<dyn NotificationService>>,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -160,6 +164,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		req_protocol_names,
 		peerset_protocol_names,
 		offchain_transaction_pool_factory,
+		notification_services,
 	}: OverseerGenArgs<Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -208,6 +213,7 @@ where
 	let spawner = SpawnGlue(spawner);
 
 	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
+	let network_notification_sinks = Arc::new(Mutex::new(HashMap::new()));
 
 	let runtime_api_client = Arc::new(DefaultSubsystemClient::new(
 		runtime_client.clone(),
@@ -221,6 +227,7 @@ where
 			network_bridge_metrics.clone(),
 			req_protocol_names,
 			peerset_protocol_names.clone(),
+			network_notification_sinks.clone(),
 		))
 		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
 			network_service.clone(),
@@ -228,6 +235,8 @@ where
 			Box::new(sync_service.clone()),
 			network_bridge_metrics,
 			peerset_protocol_names,
+			notification_services,
+			network_notification_sinks.clone(),
 		))
 		.availability_distribution(AvailabilityDistributionSubsystem::new(
 			keystore.clone(),
