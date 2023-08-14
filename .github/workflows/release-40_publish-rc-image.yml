@@ -74,7 +74,7 @@ jobs:
             ./release-artifacts/**/*
 
       - name: Check sha256 ${{ matrix.binary }}
-        working-directory: ${ARTIFACT_FOLDER}
+        working-directory: ./release-artifacts
         run: |
           . ../scripts/ci/common/lib.sh
 
@@ -82,7 +82,7 @@ jobs:
           check_sha256 ${{ matrix.binary }} && echo "OK" || echo "ERR"
 
       - name: Check GPG ${{ matrix.binary }}
-        working-directory: ${ARTIFACT_FOLDER}
+        working-directory: ./release-artifacts
         run: |
           . ../scripts/ci/common/lib.sh
           import_gpg_keys
