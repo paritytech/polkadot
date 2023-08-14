@@ -1232,8 +1232,8 @@ async fn handle_from_overseer<Context>(
 									);
 
 									// Our first wakeup will just be the tranche of our assignment,
-									// if any. This will likely be superseded by incoming assignments
-									// and approvals which trigger rescheduling.
+									// if any. This will likely be superseded by incoming
+									// assignments and approvals which trigger rescheduling.
 									actions.push(Action::ScheduleWakeup {
 										block_hash: block_batch.block_hash,
 										block_number: block_batch.block_number,
@@ -1256,12 +1256,14 @@ async fn handle_from_overseer<Context>(
 			crate::ops::canonicalize(db, block_number, block_hash)
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
 
-			// `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans accordingly.
+			// `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans
+			// accordingly.
 			wakeups.prune_finalized_wakeups(block_number, &mut state.spans);
 
-			// // `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans accordingly.
-			// let hash_set = wakeups.block_numbers.values().flatten().collect::<HashSet<_>>();
-			// state.spans.retain(|hash, _| hash_set.contains(hash));
+			// // `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans
+			// accordingly. let hash_set =
+			// wakeups.block_numbers.values().flatten().collect::<HashSet<_>>(); state.spans.
+			// retain(|hash, _| hash_set.contains(hash));
 
 			Vec::new()
 		},
@@ -1403,8 +1405,8 @@ async fn get_approval_signatures_for_candidate<Context>(
 			tx_distribution,
 		));
 
-		// Because of the unbounded sending and the nature of the call (just fetching data from state),
-		// this should not block long:
+		// Because of the unbounded sending and the nature of the call (just fetching data from
+		// state), this should not block long:
 		match rx_distribution.timeout(WAIT_FOR_SIGS_TIMEOUT).await {
 			None => {
 				gum::warn!(
@@ -2117,9 +2119,10 @@ impl ApprovalStateTransition {
 	}
 }
 
-// Advance the approval state, either by importing an approval vote which is already checked to be valid and corresponding to an assigned
-// validator on the candidate and block, or by noting that there are no further wakeups or tranches needed. This updates the block entry and candidate entry as
-// necessary and schedules any further wakeups.
+// Advance the approval state, either by importing an approval vote which is already checked to be
+// valid and corresponding to an assigned validator on the candidate and block, or by noting that
+// there are no further wakeups or tranches needed. This updates the block entry and candidate entry
+// as necessary and schedules any further wakeups.
 async fn advance_approval_state<Sender>(
 	sender: &mut Sender,
 	state: &State,
@@ -2251,7 +2254,8 @@ where
 		// 1. This is not a local approval, as we don't store anything new in the approval entry.
 		// 2. The candidate is not newly approved, as we haven't altered the approval entry's
 		//	  approved flag with `mark_approved` above.
-		// 3. The approver, if any, had already approved the candidate, as we haven't altered the bitfield.
+		// 3. The approver, if any, had already approved the candidate, as we haven't altered the
+		// bitfield.
 		if transition.is_local_approval() || newly_approved || !already_approved_by.unwrap_or(true)
 		{
 			// In all other cases, we need to write the candidate entry.
@@ -2279,7 +2283,8 @@ fn should_trigger_assignment(
 					&approval_entry,
 					RequiredTranches::All,
 				)
-				.is_approved(Tick::max_value()), // when all are required, we are just waiting for the first 1/3+
+				.is_approved(Tick::max_value()), /* when all are required, we are just waiting
+				                                  * for the first 1/3+ */
 				RequiredTranches::Pending { maximum_broadcast, clock_drift, .. } => {
 					let drifted_tranche_now =
 						tranche_now.saturating_sub(clock_drift as DelayTranche);
@@ -2615,8 +2620,8 @@ async fn launch_approval<Context>(
 		match val_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
 			Ok(Ok(ValidationResult::Valid(_, _))) => {
-				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
-				// then there isn't anything we can do.
+				// Validation checked out. Issue an approval command. If the underlying service is
+				// unreachable, then there isn't anything we can do.
 
 				gum::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Candidate Valid");
 

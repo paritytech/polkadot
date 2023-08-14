@@ -130,8 +130,8 @@ pub struct RunCmd {
 	pub overseer_channel_capacity_override: Option<usize>,
 
 	/// Path to the directory where auxiliary worker binaries reside. If not specified, the main
-	/// binary's directory is searched first, then `/usr/lib/polkadot` is searched. TESTING ONLY: if
-	/// the path points to an executable rather then directory, that executable is used both as
+	/// binary's directory is searched first, then `/usr/lib/polkadot` is searched. TESTING ONLY:
+	/// if the path points to an executable rather then directory, that executable is used both as
 	/// preparation and execution worker.
 	#[arg(long, value_name = "PATH")]
 	pub workers_path: Option<PathBuf>,

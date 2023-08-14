@@ -38,29 +38,30 @@ pub enum InvalidCandidate {
 	/// The worker has died during validation of a candidate. That may fall in one of the following
 	/// categories, which we cannot distinguish programmatically:
 	///
-	/// (a) Some sort of transient glitch caused the worker process to abort. An example would be that
-	///     the host machine ran out of free memory and the OOM killer started killing the processes,
-	///     and in order to save the parent it will "sacrifice child" first.
+	/// (a) Some sort of transient glitch caused the worker process to abort. An example would be
+	/// that     the host machine ran out of free memory and the OOM killer started killing the
+	/// processes,     and in order to save the parent it will "sacrifice child" first.
 	///
 	/// (b) The candidate triggered a code path that has lead to the process death. For example,
-	///     the PVF found a way to consume unbounded amount of resources and then it either exceeded
-	///     an `rlimit` (if set) or, again, invited OOM killer. Another possibility is a bug in
-	///     wasmtime allowed the PVF to gain control over the execution worker.
+	///     the PVF found a way to consume unbounded amount of resources and then it either
+	/// exceeded     an `rlimit` (if set) or, again, invited OOM killer. Another possibility is a
+	/// bug in     wasmtime allowed the PVF to gain control over the execution worker.
 	///
 	/// We attribute such an event to an *invalid candidate* in either case.
 	///
 	/// The rationale for this is that a glitch may lead to unfair rejecting candidate by a single
-	/// validator. If the glitch is somewhat more persistent the validator will reject all candidate
-	/// thrown at it and hopefully the operator notices it by decreased reward performance of the
-	/// validator. On the other hand, if the worker died because of (b) we would have better chances
-	/// to stop the attack.
+	/// validator. If the glitch is somewhat more persistent the validator will reject all
+	/// candidate thrown at it and hopefully the operator notices it by decreased reward
+	/// performance of the validator. On the other hand, if the worker died because of (b) we would
+	/// have better chances to stop the attack.
 	AmbiguousWorkerDeath,
 	/// PVF execution (compilation is not included) took more time than was allotted.
 	HardTimeout,
-	/// A panic occurred and we can't be sure whether the candidate is really invalid or some internal glitch occurred.
-	/// Whenever we are unsure, we can never treat an error as internal as we would abstain from voting. This is bad
-	/// because if the issue was due to the candidate, then all validators would abstain, stalling finality on the
-	/// chain. So we will first retry the candidate, and if the issue persists we are forced to vote invalid.
+	/// A panic occurred and we can't be sure whether the candidate is really invalid or some
+	/// internal glitch occurred. Whenever we are unsure, we can never treat an error as internal
+	/// as we would abstain from voting. This is bad because if the issue was due to the candidate,
+	/// then all validators would abstain, stalling finality on the chain. So we will first retry
+	/// the candidate, and if the issue persists we are forced to vote invalid.
 	Panic(String),
 }
 

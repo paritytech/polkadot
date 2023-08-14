@@ -239,7 +239,8 @@ pub fn worker_entrypoint(
 					WaitOutcome::TimedOut => {
 						match cpu_time_monitor_thread.join() {
 							Ok(Some(cpu_time_elapsed)) => {
-								// Log if we exceed the timeout and the other thread hasn't finished.
+								// Log if we exceed the timeout and the other thread hasn't
+								// finished.
 								gum::warn!(
 									target: LOG_TARGET,
 									%worker_pid,

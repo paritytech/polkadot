@@ -54,12 +54,12 @@ const LOG_TARGET: &str = "runtime::configuration";
 	serde::Deserialize,
 )]
 pub struct HostConfiguration<BlockNumber> {
-	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
-	// special treatment.
+	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct
+	// requires special treatment.
 	//
-	// A parachain requested this struct can only depend on the subset of this struct. Specifically,
-	// only a first few fields can be depended upon. These fields cannot be changed without
-	// corresponding migration of the parachains.
+	// A parachain requested this struct can only depend on the subset of this struct.
+	// Specifically, only a first few fields can be depended upon. These fields cannot be changed
+	// without corresponding migration of the parachains.
 	/**
 	 * The parameters that are required for the parachains.
 	 */
@@ -88,9 +88,9 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_message_num_per_candidate: u32,
 	/// The minimum period, in blocks, between which parachains can update their validation code.
 	///
-	/// This number is used to prevent parachains from spamming the relay chain with validation code
-	/// upgrades. The only thing it controls is the number of blocks the `UpgradeRestrictionSignal`
-	/// is set for the parachain in question.
+	/// This number is used to prevent parachains from spamming the relay chain with validation
+	/// code upgrades. The only thing it controls is the number of blocks the
+	/// `UpgradeRestrictionSignal` is set for the parachain in question.
 	///
 	/// If PVF pre-checking is enabled this should be greater than the maximum number of blocks
 	/// PVF pre-checking can take. Intuitively, this number should be greater than the duration
@@ -113,14 +113,15 @@ pub struct HostConfiguration<BlockNumber> {
 	/// been completed.
 	///
 	/// Note, there are situations in which `expected_at` in the past. For example, if
-	/// [`chain_availability_period`] or [`thread_availability_period`] is less than the delay set by
-	/// this field or if PVF pre-check took more time than the delay. In such cases, the upgrade is
-	/// further at the earliest possible time determined by [`minimum_validation_upgrade_delay`].
+	/// [`chain_availability_period`] or [`thread_availability_period`] is less than the delay set
+	/// by this field or if PVF pre-check took more time than the delay. In such cases, the upgrade
+	/// is further at the earliest possible time determined by
+	/// [`minimum_validation_upgrade_delay`].
 	///
 	/// The rationale for this delay has to do with relay-chain reversions. In case there is an
-	/// invalid candidate produced with the new version of the code, then the relay-chain can revert
-	/// [`validation_upgrade_delay`] many blocks back and still find the new code in the storage by
-	/// hash.
+	/// invalid candidate produced with the new version of the code, then the relay-chain can
+	/// revert [`validation_upgrade_delay`] many blocks back and still find the new code in the
+	/// storage by hash.
 	///
 	/// [#4601]: https://github.com/paritytech/polkadot/issues/4601
 	pub validation_upgrade_delay: BlockNumber,
@@ -179,13 +180,13 @@ pub struct HostConfiguration<BlockNumber> {
 	/// Must be non-zero.
 	pub group_rotation_frequency: BlockNumber,
 	/// The availability period, in blocks, for parachains. This is the amount of blocks
-	/// after inclusion that validators have to make the block available and signal its availability to
-	/// the chain.
+	/// after inclusion that validators have to make the block available and signal its
+	/// availability to the chain.
 	///
 	/// Must be at least 1.
 	pub chain_availability_period: BlockNumber,
-	/// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
-	/// but a differing timeout due to differing requirements.
+	/// The availability period, in blocks, for parathreads. Same as the
+	/// `chain_availability_period`, but a differing timeout due to differing requirements.
 	///
 	/// Must be at least 1.
 	pub thread_availability_period: BlockNumber,
@@ -217,8 +218,8 @@ pub struct HostConfiguration<BlockNumber> {
 	pub needed_approvals: u32,
 	/// The number of samples to do of the `RelayVRFModulo` approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
-	/// If an active PVF pre-checking vote observes this many number of sessions it gets automatically
-	/// rejected.
+	/// If an active PVF pre-checking vote observes this many number of sessions it gets
+	/// automatically rejected.
 	///
 	/// 0 means PVF pre-checking will be rejected on the first observed session unless the voting
 	/// gained supermajority before that the session change.
@@ -849,7 +850,8 @@ pub mod pallet {
 			})
 		}
 
-		/// Sets the maximum total size of items that can present in a upward dispatch queue at once.
+		/// Sets the maximum total size of items that can present in a upward dispatch queue at
+		/// once.
 		#[pallet::call_index(24)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
@@ -1257,8 +1259,8 @@ impl<T: Config> Pallet<T> {
 		// 3. pending_configs = [(cur+1, X)]
 		//    There is a pending configuration scheduled and it will be applied in the next session.
 		//
-		//    We will use X as the base configuration. We need to schedule a new configuration change
-		//    for the `scheduled_session` and use X as the base for the new configuration.
+		//    We will use X as the base configuration. We need to schedule a new configuration
+		// change    for the `scheduled_session` and use X as the base for the new configuration.
 		//
 		// 4. pending_configs = [(cur+1, X), (cur+2, Y)]
 		//    There is a pending configuration change in the next session and for the scheduled

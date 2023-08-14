@@ -69,8 +69,8 @@ pub trait AssetLock {
 	/// unlock.
 	type UnlockTicket: Enact;
 
-	/// `Enact` implementer for `prepare_reduce_unlockable`. This type may be dropped safely to avoid doing the
-	/// unlock.
+	/// `Enact` implementer for `prepare_reduce_unlockable`. This type may be dropped safely to
+	/// avoid doing the unlock.
 	type ReduceTicket: Enact;
 
 	/// Prepare to lock an asset. On success, a `Self::LockTicket` it returned, which can be used
