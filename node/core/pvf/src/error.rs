@@ -39,8 +39,8 @@ pub enum InvalidCandidate {
 	/// categories, which we cannot distinguish programmatically:
 	///
 	/// (a) Some sort of transient glitch caused the worker process to abort. An example would be
-	/// that     the host machine ran out of free memory and the OOM killer started killing the
-	/// processes,     and in order to save the parent it will "sacrifice child" first.
+	/// that the host machine ran out of free memory and the OOM killer started killing the
+	/// processes, and in order to save the parent it will "sacrifice child" first.
 	///
 	/// (b) The candidate triggered a code path that has lead to the process death. For example,
 	///     the PVF found a way to consume unbounded amount of resources and then it either
