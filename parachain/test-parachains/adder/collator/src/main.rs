@@ -60,7 +60,9 @@ fn main() -> Result<()> {
 				let full_node = polkadot_service::build_full(
 					config,
 					polkadot_service::NewFullParams {
-						is_parachain_node: polkadot_service::IsParachainNode::Collator(collator.collator_key()),
+						is_parachain_node: polkadot_service::IsParachainNode::Collator(
+							collator.collator_key(),
+						),
 						grandpa_pause: None,
 						jaeger_agent: None,
 						telemetry_worker_handle: None,
