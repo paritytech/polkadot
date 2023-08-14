@@ -201,21 +201,20 @@ check_bootnode(){
 fetch_release_artifacts() {
   echo "Release ID : $RELEASE_ID"
   echo "Repo       : $REPO"
-  echo "ARTIFACT_FOLDER: $ARTIFACT_FOLDER"
 
   curl -L -s \
     -H "Accept: application/vnd.github+json" \
     -H "Authorization: Bearer ${GITHUB_TOKEN}" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
-    https://api.github.com/repos/${REPO}/releases/$RELEASE_ID > release.json
+    https://api.github.com/repos/${REPO}/releases/${RELEASE_ID} > release.json
 
   # Get Asset ids
   ids=($(jq -r '.assets[].id' < release.json ))
   count=$(jq '.assets|length' < release.json )
 
   # Fetch artifacts
-  mkdir -p ${ARTIFACT_FOLDER}
-  pushd ${ARTIFACT_FOLDER} > /dev/null
+  mkdir -p "./release-artifacts"
+  pushd "./release-artifacts" > /dev/null
 
   iter=1
   for id in "${ids[@]}"
@@ -227,6 +226,7 @@ fetch_release_artifacts() {
       iter=$((iter + 1))
   done
 
+  pwd
   ls -al --color
   popd > /dev/null
 }
