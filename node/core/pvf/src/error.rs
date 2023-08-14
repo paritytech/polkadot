@@ -44,8 +44,8 @@ pub enum InvalidCandidate {
 	///
 	/// (b) The candidate triggered a code path that has lead to the process death. For example,
 	///     the PVF found a way to consume unbounded amount of resources and then it either
-	/// exceeded     an `rlimit` (if set) or, again, invited OOM killer. Another possibility is a
-	/// bug in     wasmtime allowed the PVF to gain control over the execution worker.
+	///     exceeded an `rlimit` (if set) or, again, invited OOM killer. Another possibility is a
+	///     bug in wasmtime allowed the PVF to gain control over the execution worker.
 	///
 	/// We attribute such an event to an *invalid candidate* in either case.
 	///
