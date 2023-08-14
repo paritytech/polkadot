@@ -895,7 +895,8 @@ fn multiple_requests_in_parallel_are_working() {
 			receivers.push(rx);
 		}
 
-		// The backpressure from reaching `MAX_PARALLEL_REQUESTS` will make the test block, we need to drop the lock.
+		// The backpressure from reaching `MAX_PARALLEL_REQUESTS` will make the test block, we need
+		// to drop the lock.
 		drop(lock);
 
 		for _ in 0..MAX_PARALLEL_REQUESTS * 100 {

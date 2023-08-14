@@ -32,8 +32,8 @@ pub struct Properties {
 
 /// Trait to determine whether the execution engine should actually execute a given XCM.
 ///
-/// Can be amalgamated into a tuple to have multiple trials. If any of the tuple elements returns `Ok()`, the
-/// execution stops. Else, `Err(_)` is returned if all elements reject the message.
+/// Can be amalgamated into a tuple to have multiple trials. If any of the tuple elements returns
+/// `Ok()`, the execution stops. Else, `Err(_)` is returned if all elements reject the message.
 pub trait ShouldExecute {
 	/// Returns `true` if the given `message` may be executed.
 	///

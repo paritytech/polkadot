@@ -17,17 +17,20 @@
 //! Grid topology support implementation
 //! The basic operation of the 2D grid topology is that:
 //!   * A validator producing a message sends it to its row-neighbors and its column-neighbors
-//!   * A validator receiving a message originating from one of its row-neighbors sends it to its column-neighbors
-//!   * A validator receiving a message originating from one of its column-neighbors sends it to its row-neighbors
+//!   * A validator receiving a message originating from one of its row-neighbors sends it to its
+//!     column-neighbors
+//!   * A validator receiving a message originating from one of its column-neighbors sends it to its
+//!     row-neighbors
 //!
-//! This grid approach defines 2 unique paths for every validator to reach every other validator in at most 2 hops.
+//! This grid approach defines 2 unique paths for every validator to reach every other validator in
+//! at most 2 hops.
 //!
 //! However, we also supplement this with some degree of random propagation:
 //! every validator, upon seeing a message for the first time, propagates it to 8 random peers.
 //! This inserts some redundancy in case the grid topology isn't working or is being attacked -
 //! an adversary doesn't know which peers a validator will send to.
-//! This is combined with the property that the adversary doesn't know which validators will elect to check a block.
-//!
+//! This is combined with the property that the adversary doesn't know which validators will elect
+//! to check a block.
 
 use crate::PeerId;
 use polkadot_primitives::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
@@ -188,7 +191,8 @@ impl GridNeighbors {
 			(false, false) => RequiredRouting::None,
 			(true, false) => RequiredRouting::GridY, // messages from X go to Y
 			(false, true) => RequiredRouting::GridX, // messages from Y go to X
-			(true, true) => RequiredRouting::GridXY, // if the grid works as expected, this shouldn't happen.
+			(true, true) => RequiredRouting::GridXY, /* if the grid works as expected, this
+			                                           * shouldn't happen. */
 		}
 	}
 
@@ -213,7 +217,8 @@ impl GridNeighbors {
 					"Grid topology is unexpected, play it safe and send to X AND Y"
 				);
 				RequiredRouting::GridXY
-			}, // if the grid works as expected, this shouldn't happen.
+			}, /* if the grid works as expected, this
+			                                           * shouldn't happen. */
 		}
 	}
 

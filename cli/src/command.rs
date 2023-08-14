@@ -148,8 +148,8 @@ impl SubstrateCli for Cli {
 				let chain_spec = Box::new(service::PolkadotChainSpec::from_json_file(path.clone())?)
 					as Box<dyn service::ChainSpec>;
 
-				// When `force_*` is given or the file name starts with the name of one of the known chains,
-				// we use the chain spec for the specific chain.
+				// When `force_*` is given or the file name starts with the name of one of the known
+				// chains, we use the chain spec for the specific chain.
 				if self.run.force_rococo ||
 					chain_spec.is_rococo() ||
 					chain_spec.is_wococo() ||

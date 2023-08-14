@@ -110,8 +110,8 @@ impl TestState {
 		Self { leaves, sessions, last_session_index }
 	}
 
-	/// A convenience function to receive a message from the overseer and returning `None` if nothing
-	/// was received within a reasonable (for local tests anyway) timeout.
+	/// A convenience function to receive a message from the overseer and returning `None` if
+	/// nothing was received within a reasonable (for local tests anyway) timeout.
 	async fn recv_timeout(&mut self, handle: &mut VirtualOverseer) -> Option<AllMessages> {
 		futures::select! {
 			msg = handle.recv().fuse() => {
