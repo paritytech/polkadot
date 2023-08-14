@@ -434,10 +434,7 @@ impl<T: Config> Pallet<T> {
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be
 	/// considered newly-freed along with the reason for them being freed. The list is assumed to be
 	/// sorted in ascending order by core index.
-	pub(crate) fn schedule(
-		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
-		now: BlockNumberFor<T>,
-	) {
+	pub(crate) fn schedule(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
 		Self::free_cores(just_freed_cores);
 
 		let cores = AvailabilityCores::<T>::get();

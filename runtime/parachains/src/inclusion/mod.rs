@@ -999,8 +999,7 @@ impl<T: Config> Pallet<T> {
 			// make sure that the queue is not overfilled.
 			// we do it here only once since returning false invalidates the whole relay-chain
 			// block.
-			if para_queue_size.saturating_add(msg_size as u64) > config.max_upward_queue_size as u64
-			{
+			if para_queue_size.saturating_add(msg_size) > config.max_upward_queue_size {
 				return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
 					total_size: para_queue_size.saturating_add(msg_size).into(),
 					limit: config.max_upward_queue_size.into(),
