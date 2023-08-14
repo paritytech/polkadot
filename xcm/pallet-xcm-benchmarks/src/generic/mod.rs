@@ -52,7 +52,8 @@ pub mod pallet {
 		/// If set to `Err`, benchmarks which rely on an `exchange_asset` will be skipped.
 		fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError>;
 
-		/// A `(MultiLocation, Junction)` that is one of the `UniversalAliases` configured by the XCM executor.
+		/// A `(MultiLocation, Junction)` that is one of the `UniversalAliases` configured by the
+		/// XCM executor.
 		///
 		/// If set to `Err`, benchmarks which rely on a universal alias will be skipped.
 		fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError>;
@@ -75,13 +76,15 @@ pub mod pallet {
 		/// Return an unlocker, owner and assets that can be locked and unlocked.
 		fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError>;
 
-		/// A `(MultiLocation, NetworkId, InteriorMultiLocation)` we can successfully export message to.
+		/// A `(MultiLocation, NetworkId, InteriorMultiLocation)` we can successfully export message
+		/// to.
 		///
 		/// If set to `Err`, benchmarks which rely on `export_message` will be skipped.
 		fn export_message_origin_and_destination(
 		) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError>;
 
-		/// A `(MultiLocation, MultiLocation)` that is one of the `Aliasers` configured by the XCM executor.
+		/// A `(MultiLocation, MultiLocation)` that is one of the `Aliasers` configured by the XCM
+		/// executor.
 		///
 		/// If set to `Err`, benchmarks which rely on a universal alias will be skipped.
 		fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError>;

@@ -137,8 +137,8 @@ async fn get_availability_cores(
 
 /// - get the list of core states from the runtime
 /// - for each core, concurrently determine chunk availability (see `get_core_availability`)
-/// - return the bitfield if there were no errors at any point in this process
-///   (otherwise, it's prone to false negatives)
+/// - return the bitfield if there were no errors at any point in this process (otherwise, it's
+///   prone to false negatives)
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
 	span: &jaeger::Span,

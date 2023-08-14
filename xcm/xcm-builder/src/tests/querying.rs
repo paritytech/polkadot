@@ -95,7 +95,8 @@ fn pallet_query_with_results_should_work() {
 #[test]
 fn prepaid_result_of_query_should_get_free_execution() {
 	let query_id = 33;
-	// We put this in manually here, but normally this would be done at the point of crafting the message.
+	// We put this in manually here, but normally this would be done at the point of crafting the
+	// message.
 	expect_response(query_id, Parent.into());
 
 	let the_response = Response::Assets((Parent, 100u128).into());

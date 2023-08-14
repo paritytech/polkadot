@@ -138,8 +138,8 @@ pub mod pallet {
 		Reserved { bidder: T::AccountId, extra_reserved: BalanceOf<T>, total_amount: BalanceOf<T> },
 		/// Funds were unreserved since bidder is no longer active. `[bidder, amount]`
 		Unreserved { bidder: T::AccountId, amount: BalanceOf<T> },
-		/// Someone attempted to lease the same slot twice for a parachain. The amount is held in reserve
-		/// but no parachain slot has been leased.
+		/// Someone attempted to lease the same slot twice for a parachain. The amount is held in
+		/// reserve but no parachain slot has been leased.
 		ReserveConfiscated { para_id: ParaId, leaser: T::AccountId, amount: BalanceOf<T> },
 		/// A new bid has been accepted as the current winner.
 		BidAccepted {
@@ -149,7 +149,8 @@ pub mod pallet {
 			first_slot: LeasePeriodOf<T>,
 			last_slot: LeasePeriodOf<T>,
 		},
-		/// The winning offset was chosen for an auction. This will map into the `Winning` storage map.
+		/// The winning offset was chosen for an auction. This will map into the `Winning` storage
+		/// map.
 		WinningOffset { auction_index: AuctionIndex, block_number: BlockNumberFor<T> },
 	}
 
@@ -217,9 +218,9 @@ pub mod pallet {
 		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
 			let mut weight = T::DbWeight::get().reads(1);
 
-			// If the current auction was in its ending period last block, then ensure that the (sub-)range
-			// winner information is duplicated from the previous block in case no bids happened in the
-			// last block.
+			// If the current auction was in its ending period last block, then ensure that the
+			// (sub-)range winner information is duplicated from the previous block in case no bids
+			// happened in the last block.
 			if let AuctionStatus::EndingPeriod(offset, _sub_sample) = Self::auction_status(n) {
 				weight = weight.saturating_add(T::DbWeight::get().reads(1));
 				if !Winning::<T>::contains_key(&offset) {
@@ -555,8 +556,9 @@ impl<T: Config> Pallet<T> {
 					});
 					let res = Winning::<T>::get(offset)
 						.unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
-					// This `remove_all` statement should remove at most `EndingPeriod` / `SampleLength` items,
-					// which should be bounded and sensibly configured in the runtime.
+					// This `remove_all` statement should remove at most `EndingPeriod` /
+					// `SampleLength` items, which should be bounded and sensibly configured in the
+					// runtime.
 					#[allow(deprecated)]
 					Winning::<T>::remove_all(None);
 					AuctionInfo::<T>::kill();
@@ -574,8 +576,8 @@ impl<T: Config> Pallet<T> {
 		auction_lease_period_index: LeasePeriodOf<T>,
 		winning_ranges: WinningData<T>,
 	) {
-		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
-		// amounts from the bidders that ended up being assigned the slot so there's no need to
+		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve
+		// the amounts from the bidders that ended up being assigned the slot so there's no need to
 		// special-case them here.
 		for ((bidder, _), amount) in ReservedAmounts::<T>::drain() {
 			CurrencyOf::<T>::unreserve(&bidder, amount);
@@ -596,12 +598,12 @@ impl<T: Config> Pallet<T> {
 				Err(LeaseError::ReserveFailed) |
 				Err(LeaseError::AlreadyEnded) |
 				Err(LeaseError::NoLeasePeriod) => {
-					// Should never happen since we just unreserved this amount (and our offset is from the
-					// present period). But if it does, there's not much we can do.
+					// Should never happen since we just unreserved this amount (and our offset is
+					// from the present period). But if it does, there's not much we can do.
 				},
 				Err(LeaseError::AlreadyLeased) => {
-					// The leaser attempted to get a second lease on the same para ID, possibly griefing us. Let's
-					// keep the amount reserved and let governance sort it out.
+					// The leaser attempted to get a second lease on the same para ID, possibly
+					// griefing us. Let's keep the amount reserved and let governance sort it out.
 					if CurrencyOf::<T>::reserve(&leaser, amount).is_ok() {
 						Self::deposit_event(Event::<T>::ReserveConfiscated {
 							para_id: para,
@@ -1123,11 +1125,11 @@ mod tests {
 				Auctions::auction_status(System::block_number()),
 				AuctionStatus::<u32>::EndingPeriod(2, 0)
 			);
-			// This will prevent the auction's winner from being decided in the next block, since the random
-			// seed was known before the final bids were made.
+			// This will prevent the auction's winner from being decided in the next block, since
+			// the random seed was known before the final bids were made.
 			set_last_random(H256::zero(), 8);
-			// Auction definitely ended now, but we don't know exactly when in the last 3 blocks yet since
-			// no randomness available yet.
+			// Auction definitely ended now, but we don't know exactly when in the last 3 blocks yet
+			// since no randomness available yet.
 			run_to_block(9);
 			// Auction has now ended... But auction winner still not yet decided, so no leases yet.
 			assert_eq!(
@@ -1136,8 +1138,8 @@ mod tests {
 			);
 			assert_eq!(leases(), vec![]);
 
-			// Random seed now updated to a value known at block 9, when the auction ended. This means
-			// that the winner can now be chosen.
+			// Random seed now updated to a value known at block 9, when the auction ended. This
+			// means that the winner can now be chosen.
 			set_last_random(H256::zero(), 9);
 			run_to_block(10);
 			// Auction ended and winner selected

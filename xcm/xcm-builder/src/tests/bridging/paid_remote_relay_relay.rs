@@ -80,7 +80,8 @@ fn sending_to_bridged_chain_works() {
 		)];
 		assert_eq!(take_received_remote_messages(), expected);
 
-		// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of balance).
+		// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of
+		// balance).
 		assert_eq!(asset_list(Parachain(100)), vec![(Here, 1000u128 - price).into()]);
 
 		let entry = LogEntry {
@@ -154,7 +155,8 @@ fn sending_to_parachain_of_bridged_chain_works() {
 		)];
 		assert_eq!(take_received_remote_messages(), expected);
 
-		// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of balance).
+		// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of
+		// balance).
 		assert_eq!(asset_list(Parachain(100)), vec![(Here, 1000u128 - price).into()]);
 
 		let entry = LogEntry {

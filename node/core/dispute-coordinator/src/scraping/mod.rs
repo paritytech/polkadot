@@ -120,7 +120,8 @@ impl Inclusions {
 	) {
 		for candidate in candidates_modified {
 			if let Some(blocks_including) = self.inclusions_inner.get_mut(&candidate) {
-				// Returns everything after the given key, including the key. This works because the blocks are sorted in ascending order.
+				// Returns everything after the given key, including the key. This works because the
+				// blocks are sorted in ascending order.
 				*blocks_including = blocks_including.split_off(height);
 			}
 		}
@@ -150,8 +151,8 @@ impl Inclusions {
 ///
 /// Concretely:
 ///
-/// - Monitors for `CandidateIncluded` events to keep track of candidates that have been
-///   included on chains.
+/// - Monitors for `CandidateIncluded` events to keep track of candidates that have been included on
+///   chains.
 /// - Monitors for `CandidateBacked` events to keep track of all backed candidates.
 /// - Calls `FetchOnChainVotes` for each block to gather potentially missed votes from chain.
 ///
@@ -294,11 +295,11 @@ impl ChainScraper {
 
 	/// Prune finalized candidates.
 	///
-	/// We keep each candidate for `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` blocks after finalization.
-	/// After that we treat it as low priority.
+	/// We keep each candidate for `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` blocks after
+	/// finalization. After that we treat it as low priority.
 	pub fn process_finalized_block(&mut self, finalized_block_number: &BlockNumber) {
-		// `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1` because `finalized_block_number`counts to the
-		// candidate lifetime.
+		// `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1` because
+		// `finalized_block_number`counts to the candidate lifetime.
 		match finalized_block_number.checked_sub(DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1)
 		{
 			Some(key_to_prune) => {

@@ -696,9 +696,10 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
 /// a better choice.
 ///
-/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
-/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
-/// still determined based on the role of the node. Likewise for authority discovery.
+/// `overseer_enable_anyways` always enables the overseer, based on the provided
+/// `OverseerGenerator`, regardless of the role the node has. The relay chain selection (longest or
+/// disputes-aware) is still determined based on the role of the node. Likewise for authority
+/// discovery.
 ///
 /// `workers_path` is used to get the path to the directory where auxiliary worker binaries reside.
 /// If not specified, the main binary's directory is searched first, then `/usr/lib/polkadot` is
@@ -1331,9 +1332,10 @@ pub fn new_chain_ops(
 /// The actual "flavor", aka if it will use `Polkadot`, `Rococo` or `Kusama` is determined based on
 /// [`IdentifyVariant`] using the chain spec.
 ///
-/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
-/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
-/// still determined based on the role of the node. Likewise for authority discovery.
+/// `overseer_enable_anyways` always enables the overseer, based on the provided
+/// `OverseerGenerator`, regardless of the role the node has. The relay chain selection (longest or
+/// disputes-aware) is still determined based on the role of the node. Likewise for authority
+/// discovery.
 #[cfg(feature = "full-node")]
 pub fn build_full<OverseerGenerator: OverseerGen>(
 	config: Configuration,
