@@ -294,7 +294,6 @@ where
 				node_version,
 				workers_path: cli.run.workers_path,
 				workers_names: None,
-				overseer_enable_anyways: false,
 				overseer_gen,
 				overseer_message_channel_capacity_override: cli
 					.run

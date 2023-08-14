@@ -70,7 +70,6 @@ fn main() -> Result<()> {
 						workers_path: None,
 						workers_names: None,
 
-						overseer_enable_anyways: false,
 						overseer_gen: polkadot_service::RealOverseerGen,
 						overseer_message_channel_capacity_override: None,
 						malus_finality_delay: None,

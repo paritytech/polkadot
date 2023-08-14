@@ -638,7 +638,6 @@ pub struct NewFullParams<OverseerGenerator: OverseerGen> {
 	pub workers_path: Option<std::path::PathBuf>,
 	/// Optional custom names for the prepare and execute workers.
 	pub workers_names: Option<(String, String)>,
-	pub overseer_enable_anyways: bool,
 	pub overseer_gen: OverseerGenerator,
 	pub overseer_message_channel_capacity_override: Option<usize>,
 	#[allow(dead_code)]
@@ -696,10 +695,6 @@ pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
 /// a better choice.
 ///
-/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
-/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
-/// still determined based on the role of the node. Likewise for authority discovery.
-///
 /// `workers_path` is used to get the path to the directory where auxiliary worker binaries reside.
 /// If not specified, the main binary's directory is searched first, then `/usr/lib/polkadot` is
 /// searched. If the path points to an executable rather then directory, that executable is used
@@ -715,7 +710,6 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		node_version,
 		workers_path,
 		workers_names,
-		overseer_enable_anyways,
 		overseer_gen,
 		overseer_message_channel_capacity_override,
 		malus_finality_delay: _malus_finality_delay,
@@ -977,7 +971,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
 
-	let authority_discovery_service = if auth_or_collator || overseer_enable_anyways {
+	let authority_discovery_service = if auth_or_collator {
 		use futures::StreamExt;
 		use sc_network::{Event, NetworkEventStream};
 
@@ -1330,10 +1324,6 @@ pub fn new_chain_ops(
 ///
 /// The actual "flavor", aka if it will use `Polkadot`, `Rococo` or `Kusama` is determined based on
 /// [`IdentifyVariant`] using the chain spec.
-///
-/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
-/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
-/// still determined based on the role of the node. Likewise for authority discovery.
 #[cfg(feature = "full-node")]
 pub fn build_full<OverseerGenerator: OverseerGen>(
 	config: Configuration,
