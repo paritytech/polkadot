@@ -20,10 +20,10 @@
 //! relay chain. These utilities allow the node-side to predict, with high accuracy, what
 //! the relay-chain will accept in the near future.
 //!
-//! This module has 2 key data types: [`Constraints`] and [`Fragment`]s. [`Constraints`] exhaustively
-//! define the set of valid inputs and outputs to parachain execution. A [`Fragment`] indicates
-//! a parachain block, anchored to the relay-chain at a particular relay-chain block, known as the
-//! relay-parent.
+//! This module has 2 key data types: [`Constraints`] and [`Fragment`]s. [`Constraints`]
+//! exhaustively define the set of valid inputs and outputs to parachain execution. A [`Fragment`]
+//! indicates a parachain block, anchored to the relay-chain at a particular relay-chain block,
+//! known as the relay-parent.
 //!
 //! ## Fragment Validity
 //!

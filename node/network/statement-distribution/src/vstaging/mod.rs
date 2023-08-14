@@ -538,8 +538,8 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 	}
 
 	// Reconcile all peers' views with the active leaf and any relay parents
-	// it implies. If they learned about the block before we did, this reconciliation will give non-empty
-	// results and we should send them messages concerning all activated relay-parents.
+	// it implies. If they learned about the block before we did, this reconciliation will give
+	// non-empty results and we should send them messages concerning all activated relay-parents.
 	{
 		let mut update_peers = Vec::new();
 		for (peer, peer_state) in state.peers.iter_mut() {
@@ -1059,7 +1059,8 @@ enum DirectTargetKind {
 }
 
 // Circulates a compact statement to all peers who need it: those in the current group of the
-// local validator and grid peers which have already indicated that they know the candidate as backed.
+// local validator and grid peers which have already indicated that they know the candidate as
+// backed.
 //
 // We only circulate statements for which we have the confirmed candidate, even to the local group.
 //
@@ -1097,7 +1098,8 @@ async fn circulate_statement<Context>(
 
 		let statement_group = per_session.groups.by_validator_index(originator);
 
-		// We're not meant to circulate statements in the cluster until we have the confirmed candidate.
+		// We're not meant to circulate statements in the cluster until we have the confirmed
+		// candidate.
 		let cluster_relevant = Some(local_validator.group) == statement_group;
 		let cluster_targets = if is_confirmed && cluster_relevant {
 			Some(
@@ -1226,12 +1228,10 @@ async fn modify_reputation(
 ///
 /// This also checks the signature of the statement.
 /// If the statement is fresh, this function guarantees that after completion
-///   - The statement is re-circulated to all relevant peers in both the cluster
-///     and the grid
-///   - If the candidate is out-of-cluster and is backable and importable,
-///     all statements about the candidate have been sent to backing
-///   - If the candidate is in-cluster and is importable,
-///     the statement has been sent to backing
+///   - The statement is re-circulated to all relevant peers in both the cluster and the grid
+///   - If the candidate is out-of-cluster and is backable and importable, all statements about the
+///     candidate have been sent to backing
+///   - If the candidate is in-cluster and is importable, the statement has been sent to backing
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn handle_incoming_statement<Context>(
 	ctx: &mut Context,
@@ -1369,9 +1369,9 @@ async fn handle_incoming_statement<Context>(
 	let originator_index = checked_statement.validator_index();
 	let candidate_hash = *checked_statement.payload().candidate_hash();
 
-	// Insert an unconfirmed candidate entry if needed. Note that if the candidate is already confirmed,
-	// this ensures that the assigned group of the originator matches the expected group of the
-	// parachain.
+	// Insert an unconfirmed candidate entry if needed. Note that if the candidate is already
+	// confirmed, this ensures that the assigned group of the originator matches the expected group
+	// of the parachain.
 	{
 		let res = state.candidates.insert_unconfirmed(
 			peer,
@@ -1769,8 +1769,8 @@ fn group_for_para(
 	group_rotation_info: &GroupRotationInfo,
 	para_id: ParaId,
 ) -> Option<GroupIndex> {
-	// Note: this won't work well for on-demand parachains as it assumes that core assignments are fixed
-	// across blocks.
+	// Note: this won't work well for on-demand parachains as it assumes that core assignments are
+	// fixed across blocks.
 	let core_index = availability_cores.iter().position(|c| c.para_id() == Some(para_id));
 
 	core_index
@@ -2659,9 +2659,8 @@ pub(crate) async fn handle_response<Context>(
 	.await;
 
 	// we don't need to send acknowledgement yet because
-	// 1. the candidate is not known yet, so cannot be backed.
-	//    any previous confirmation is a bug, because `apply_post_confirmation` is meant to
-	//    clear requests.
+	// 1. the candidate is not known yet, so cannot be backed. any previous confirmation is a bug,
+	//    because `apply_post_confirmation` is meant to clear requests.
 	// 2. providing the statements to backing will lead to 'Backed' message.
 	// 3. on 'Backed' we will send acknowledgements/follow up statements when this becomes
 	//    includable.

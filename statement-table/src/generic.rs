@@ -104,8 +104,8 @@ pub enum ValidityDoubleVote<Candidate, Digest, Signature> {
 }
 
 impl<Candidate, Digest, Signature> ValidityDoubleVote<Candidate, Digest, Signature> {
-	/// Deconstruct this misbehavior into two `(Statement, Signature)` pairs, erasing the information
-	/// about precisely what the problem was.
+	/// Deconstruct this misbehavior into two `(Statement, Signature)` pairs, erasing the
+	/// information about precisely what the problem was.
 	pub fn deconstruct<Ctx>(
 		self,
 	) -> ((Statement<Candidate, Digest>, Signature), (Statement<Candidate, Digest>, Signature))
@@ -132,8 +132,8 @@ pub enum DoubleSign<Candidate, Digest, Signature> {
 }
 
 impl<Candidate, Digest, Signature> DoubleSign<Candidate, Digest, Signature> {
-	/// Deconstruct this misbehavior into a statement with two signatures, erasing the information about
-	/// precisely where in the process the issue was detected.
+	/// Deconstruct this misbehavior into a statement with two signatures, erasing the information
+	/// about precisely where in the process the issue was detected.
 	pub fn deconstruct(self) -> (Statement<Candidate, Digest>, Signature, Signature) {
 		match self {
 			Self::Seconded(candidate, a, b) => (Statement::Seconded(candidate), a, b),
@@ -570,10 +570,11 @@ impl<'a, Ctx: Context> Iterator for DrainMisbehaviors<'a, Ctx> {
 	type Item = (Ctx::AuthorityId, MisbehaviorFor<Ctx>);
 
 	fn next(&mut self) -> Option<Self::Item> {
-		// Note: this implementation will prematurely return `None` if `self.drain.next()` ever returns a
-		// tuple whose vector is empty. That will never currently happen, as the only modification
-		// to the backing map is currently via `drain` and `entry(...).or_default().push(...)`.
-		// However, future code changes might change that property.
+		// Note: this implementation will prematurely return `None` if `self.drain.next()` ever
+		// returns a tuple whose vector is empty. That will never currently happen, as the only
+		// modification to the backing map is currently via `drain` and
+		// `entry(...).or_default().push(...)`. However, future code changes might change that
+		// property.
 		self.maybe_item().or_else(|| {
 			self.in_progress = self.drain.next().map(Into::into);
 			self.maybe_item()

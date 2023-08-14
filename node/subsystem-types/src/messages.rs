@@ -16,8 +16,8 @@
 
 //! Message types for the overseer and subsystems.
 //!
-//! These messages are intended to define the protocol by which different subsystems communicate with each
-//! other and signals that they receive from an overseer to coordinate their work.
+//! These messages are intended to define the protocol by which different subsystems communicate
+//! with each other and signals that they receive from an overseer to coordinate their work.
 //! This is intended for use with the `polkadot-overseer` crate.
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
@@ -86,8 +86,8 @@ pub enum CandidateBackingMessage {
 	/// Always responses with `false` if async backing is disabled for candidate's relay
 	/// parent.
 	CanSecond(CanSecondRequest, oneshot::Sender<bool>),
-	/// Note that the Candidate Backing subsystem should second the given candidate in the context of the
-	/// given relay-parent (ref. by hash). This candidate must be validated.
+	/// Note that the Candidate Backing subsystem should second the given candidate in the context
+	/// of the given relay-parent (ref. by hash). This candidate must be validated.
 	Second(Hash, CandidateReceipt, PersistedValidationData, PoV),
 	/// Note a validator's statement about a particular candidate in the context of the given
 	/// relay-parent. Disagreements about validity must be escalated to a broader check by the
@@ -168,8 +168,8 @@ pub enum CandidateValidationMessage {
 	/// Try to compile the given validation code and send back
 	/// the outcome.
 	///
-	/// The validation code is specified by the hash and will be queried from the runtime API at the
-	/// given relay-parent.
+	/// The validation code is specified by the hash and will be queried from the runtime API at
+	/// the given relay-parent.
 	PreCheck(
 		// Relay-parent
 		Hash,
@@ -182,17 +182,17 @@ pub enum CandidateValidationMessage {
 #[derive(Debug, derive_more::From)]
 pub enum CollatorProtocolMessage {
 	/// Signal to the collator protocol that it should connect to validators with the expectation
-	/// of collating on the given para. This is only expected to be called once, early on, if at all,
-	/// and only by the Collation Generation subsystem. As such, it will overwrite the value of
-	/// the previous signal.
+	/// of collating on the given para. This is only expected to be called once, early on, if at
+	/// all, and only by the Collation Generation subsystem. As such, it will overwrite the value
+	/// of the previous signal.
 	///
 	/// This should be sent before any `DistributeCollation` message.
 	CollateOn(ParaId),
 	/// Provide a collation to distribute to validators with an optional result sender.
 	/// The second argument is the parent head-data hash.
 	///
-	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
-	/// completely okay to just drop the sender.
+	/// The result sender should be informed when at least one parachain validator seconded the
+	/// collation. It is also completely okay to just drop the sender.
 	DistributeCollation(
 		CandidateReceipt,
 		Hash,
@@ -205,7 +205,8 @@ pub enum CollatorProtocolMessage {
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>),
-	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the
+	/// collator.
 	///
 	/// The hash is the relay parent.
 	Invalid(Hash, CandidateReceipt),
@@ -236,14 +237,15 @@ impl Default for CollatorProtocolMessage {
 pub enum DisputeCoordinatorMessage {
 	/// Import statements by validators about a candidate.
 	///
-	/// The subsystem will silently discard ancient statements or sets of only dispute-specific statements for
-	/// candidates that are previously unknown to the subsystem. The former is simply because ancient
-	/// data is not relevant and the latter is as a DoS prevention mechanism. Both backing and approval
-	/// statements already undergo anti-DoS procedures in their respective subsystems, but statements
-	/// cast specifically for disputes are not necessarily relevant to any candidate the system is
-	/// already aware of and thus present a DoS vector. Our expectation is that nodes will notify each
-	/// other of disputes over the network by providing (at least) 2 conflicting statements, of which one is either
-	/// a backing or validation statement.
+	/// The subsystem will silently discard ancient statements or sets of only dispute-specific
+	/// statements for candidates that are previously unknown to the subsystem. The former is
+	/// simply because ancient data is not relevant and the latter is as a DoS prevention
+	/// mechanism. Both backing and approval statements already undergo anti-DoS procedures in
+	/// their respective subsystems, but statements cast specifically for disputes are not
+	/// necessarily relevant to any candidate the system is already aware of and thus present a DoS
+	/// vector. Our expectation is that nodes will notify each other of disputes over the network
+	/// by providing (at least) 2 conflicting statements, of which one is either a backing or
+	/// validation statement.
 	///
 	/// This does not do any checking of the message signature.
 	ImportStatements {
@@ -260,16 +262,16 @@ pub enum DisputeCoordinatorMessage {
 		///
 		/// This is:
 		/// - we discarded the votes because
-		///		- they were ancient or otherwise invalid (result: `InvalidImport`)
-		///		- or we were not able to recover availability for an unknown candidate (result:
+		/// 		- they were ancient or otherwise invalid (result: `InvalidImport`)
+		/// 		- or we were not able to recover availability for an unknown candidate (result:
 		///		`InvalidImport`)
-		///		- or were known already (in that case the result will still be `ValidImport`)
+		/// 		- or were known already (in that case the result will still be `ValidImport`)
 		/// - or we recorded them because (`ValidImport`)
-		///		- we cast our own vote already on that dispute
-		///		- or we have approval votes on that candidate
-		///		- or other explicit votes on that candidate already recorded
-		///		- or recovered availability for the candidate
-		///		- or the imported statements are backing/approval votes, which are always accepted.
+		/// 		- we cast our own vote already on that dispute
+		/// 		- or we have approval votes on that candidate
+		/// 		- or other explicit votes on that candidate already recorded
+		/// 		- or recovered availability for the candidate
+		/// 		- or the imported statements are backing/approval votes, which are always accepted.
 		pending_confirmation: Option<oneshot::Sender<ImportStatementsResult>>,
 	},
 	/// Fetch a list of all recent disputes the coordinator is aware of.
@@ -284,15 +286,17 @@ pub enum DisputeCoordinatorMessage {
 		Vec<(SessionIndex, CandidateHash)>,
 		oneshot::Sender<Vec<(SessionIndex, CandidateHash, CandidateVotes)>>,
 	),
-	/// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
+	/// Sign and issue local dispute votes. A value of `true` indicates validity, and `false`
+	/// invalidity.
 	IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
 	/// Determine the highest undisputed block within the given chain, based on where candidates
 	/// were included. If even the base block should not be finalized due to a dispute,
 	/// then `None` should be returned on the channel.
 	///
-	/// The block descriptions begin counting upwards from the block after the given `base_number`. The `base_number`
-	/// is typically the number of the last finalized block but may be slightly higher. This block
-	/// is inevitably going to be finalized so it is not accounted for by this function.
+	/// The block descriptions begin counting upwards from the block after the given `base_number`.
+	/// The `base_number` is typically the number of the last finalized block but may be slightly
+	/// higher. This block is inevitably going to be finalized so it is not accounted for by this
+	/// function.
 	DetermineUndisputedChain {
 		/// The lowest possible block to vote on.
 		base: (BlockNumber, Hash),
@@ -407,8 +411,8 @@ pub enum NetworkBridgeTxMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
-	/// Alternative to `ConnectToValidators` in case you already know the `Multiaddrs` you want to be
-	/// connected to.
+	/// Alternative to `ConnectToValidators` in case you already know the `Multiaddrs` you want to
+	/// be connected to.
 	ConnectToResolvedValidators {
 		/// Each entry corresponds to the addresses of an already resolved validator.
 		validator_addrs: Vec<HashSet<Multiaddr>>,
@@ -614,8 +618,8 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<PersistedValidationData>>,
 	),
-	/// Get the persisted validation data for a particular para along with the current validation code
-	/// hash, matching the data hash against an expected one.
+	/// Get the persisted validation data for a particular para along with the current validation
+	/// code hash, matching the data hash against an expected one.
 	AssumedValidationData(
 		ParaId,
 		Hash,
@@ -633,10 +637,11 @@ pub enum RuntimeApiRequest {
 	/// will inform on how the validation data should be computed if the para currently
 	/// occupies a core.
 	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
-	/// Get validation code by its hash, either past, current or future code can be returned, as long as state is still
-	/// available.
+	/// Get validation code by its hash, either past, current or future code can be returned, as
+	/// long as state is still available.
 	ValidationCodeByHash(ValidationCodeHash, RuntimeApiSender<Option<ValidationCode>>),
-	/// Get a the candidate pending availability for a particular parachain by parachain / core index
+	/// Get a the candidate pending availability for a particular parachain by parachain / core
+	/// index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
@@ -661,8 +666,9 @@ pub enum RuntimeApiRequest {
 	SubmitPvfCheckStatement(PvfCheckStatement, ValidatorSignature, RuntimeApiSender<()>),
 	/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
 	PvfsRequirePrecheck(RuntimeApiSender<Vec<ValidationCodeHash>>),
-	/// Get the validation code used by the specified para, taking the given `OccupiedCoreAssumption`, which
-	/// will inform on how the validation data should be computed if the para currently occupies a core.
+	/// Get the validation code used by the specified para, taking the given
+	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
+	/// if the para currently occupies a core.
 	ValidationCodeHash(
 		ParaId,
 		OccupiedCoreAssumption,
@@ -735,22 +741,24 @@ pub enum StatementDistributionMessage {
 	/// The candidate received enough validity votes from the backing group.
 	///
 	/// If the candidate is backed as a result of a local statement, this message MUST
-	/// be preceded by a `Share` message for that statement. This ensures that Statement Distribution
-	/// is always aware of full candidates prior to receiving the `Backed` notification, even
-	/// when the group size is 1 and the candidate is seconded locally.
+	/// be preceded by a `Share` message for that statement. This ensures that Statement
+	/// Distribution is always aware of full candidates prior to receiving the `Backed`
+	/// notification, even when the group size is 1 and the candidate is seconded locally.
 	Backed(CandidateHash),
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::StatementDistributionMessage>),
 }
 
-/// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
+/// This data becomes intrinsics or extrinsics which should be included in a future relay chain
+/// block.
 // It needs to be cloneable because multiple potential block authors can request copies.
 #[derive(Debug, Clone)]
 pub enum ProvisionableData {
 	/// This bitfield indicates the availability of various candidate blocks.
 	Bitfield(Hash, SignedAvailabilityBitfield),
-	/// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
+	/// The Candidate Backing subsystem believes that this candidate is valid, pending
+	/// availability.
 	BackedCandidate(CandidateReceipt),
 	/// Misbehavior reports are self-contained proofs of validator misbehavior.
 	MisbehaviorReport(Hash, ValidatorIndex, Misbehavior),
@@ -774,11 +782,11 @@ pub struct ProvisionerInherentData {
 /// In all cases, the Hash is that of the relay parent.
 #[derive(Debug)]
 pub enum ProvisionerMessage {
-	/// This message allows external subsystems to request the set of bitfields and backed candidates
-	/// associated with a particular potential block hash.
+	/// This message allows external subsystems to request the set of bitfields and backed
+	/// candidates associated with a particular potential block hash.
 	///
-	/// This is expected to be used by a proposer, to inject that information into the `InherentData`
-	/// where it can be assembled into the `ParaInherent`.
+	/// This is expected to be used by a proposer, to inject that information into the
+	/// `InherentData` where it can be assembled into the `ParaInherent`.
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
 	ProvisionableData(Hash, ProvisionableData),

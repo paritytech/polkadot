@@ -45,8 +45,8 @@ pub mod pallet {
 		ParaDoesntExist,
 		/// The specified parachain is already registered.
 		ParaAlreadyExists,
-		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
-		/// message.
+		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a
+		/// downward message.
 		ExceedsMaxMessageSize,
 		/// Could not schedule para cleanup.
 		CouldntCleanup,
@@ -127,8 +127,8 @@ pub mod pallet {
 
 		/// Send a downward XCM to the given para.
 		///
-		/// The given parachain should exist and the payload should not exceed the preconfigured size
-		/// `config.max_downward_message_size`.
+		/// The given parachain should exist and the payload should not exceed the preconfigured
+		/// size `config.max_downward_message_size`.
 		#[pallet::call_index(4)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_queue_downward_xcm(

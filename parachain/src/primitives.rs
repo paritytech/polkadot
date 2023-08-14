@@ -288,13 +288,13 @@ impl IsSystem for Sibling {
 	}
 }
 
-/// A type that uniquely identifies an HRMP channel. An HRMP channel is established between two paras.
-/// In text, we use the notation `(A, B)` to specify a channel between A and B. The channels are
-/// unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
-/// that we use the first item tuple for the sender and the second for the recipient. Only one channel
-/// is allowed between two participants in one direction, i.e. there cannot be 2 different channels
-/// identified by `(A, B)`. A channel with the same para id in sender and recipient is invalid. That
-/// is, however, not enforced.
+/// A type that uniquely identifies an HRMP channel. An HRMP channel is established between two
+/// paras. In text, we use the notation `(A, B)` to specify a channel between A and B. The channels
+/// are unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The
+/// convention is that we use the first item tuple for the sender and the second for the recipient.
+/// Only one channel is allowed between two participants in one direction, i.e. there cannot be 2
+/// different channels identified by `(A, B)`. A channel with the same para id in sender and
+/// recipient is invalid. That is, however, not enforced.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct HrmpChannelId {
@@ -415,6 +415,7 @@ pub struct ValidationResult {
 	///
 	/// It is expected that the Parachain processes them from first to last.
 	pub processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	/// The mark which specifies the block number up to which all inbound HRMP messages are
+	/// processed.
 	pub hrmp_watermark: RelayChainBlockNumber,
 }

@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Network Bridge Subsystem - handles _incoming_ messages from the network, forwarded to the relevant subsystems.
+//! The Network Bridge Subsystem - handles _incoming_ messages from the network, forwarded to the
+//! relevant subsystems.
 use super::*;
 
 use always_assert::never;
@@ -87,7 +88,8 @@ pub struct NetworkBridgeRx<N, AD> {
 }
 
 impl<N, AD> NetworkBridgeRx<N, AD> {
-	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
+	/// Create a new network bridge subsystem with underlying network service and authority
+	/// discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).

@@ -17,7 +17,8 @@
 #![forbid(unused_crate_dependencies)]
 #![forbid(unused_extern_crates)]
 
-//! A set of primitive constructors, to aid in crafting meaningful testcase while reducing repetition.
+//! A set of primitive constructors, to aid in crafting meaningful testcase while reducing
+//! repetition.
 //!
 //! Note that `dummy_` prefixed values are meant to be fillers, that should not matter, and will
 //! contain randomness based data.

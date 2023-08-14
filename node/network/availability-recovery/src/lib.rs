@@ -111,7 +111,8 @@ const SMALL_POV_LIMIT: usize = 128 * 1024;
 pub enum RecoveryStrategy {
 	/// We always try the backing group first, then fallback to validator chunks.
 	BackersFirstAlways,
-	/// We try the backing group first if PoV size is lower than specified, then fallback to validator chunks.
+	/// We try the backing group first if PoV size is lower than specified, then fallback to
+	/// validator chunks.
 	BackersFirstIfSizeLower(usize),
 	/// We always recover using validator chunks.
 	ChunksAlways,
@@ -132,7 +133,8 @@ impl RecoveryStrategy {
 		}
 	}
 
-	/// Returns the PoV size limit in bytes for `BackersFirstIfSizeLower` strategy, otherwise `None`.
+	/// Returns the PoV size limit in bytes for `BackersFirstIfSizeLower` strategy, otherwise
+	/// `None`.
 	pub fn pov_size_limit(&self) -> Option<usize> {
 		match *self {
 			RecoveryStrategy::BackersFirstIfSizeLower(limit) => Some(limit),
@@ -165,8 +167,8 @@ struct RequestChunksFromValidators {
 	///
 	/// including failed ones.
 	total_received_responses: usize,
-	/// a random shuffling of the validators which indicates the order in which we connect to the validators and
-	/// request the chunk from them.
+	/// a random shuffling of the validators which indicates the order in which we connect to the
+	/// validators and request the chunk from them.
 	shuffling: VecDeque<ValidatorIndex>,
 	/// Chunks received so far.
 	received_chunks: HashMap<ValidatorIndex, ErasureChunk>,
@@ -215,7 +217,8 @@ enum ErasureTask {
 		HashMap<ValidatorIndex, ErasureChunk>,
 		oneshot::Sender<Result<AvailableData, ErasureEncodingError>>,
 	),
-	/// Re-encode `AvailableData` into erasure chunks in order to verify the provided root hash of the Merkle tree.
+	/// Re-encode `AvailableData` into erasure chunks in order to verify the provided root hash of
+	/// the Merkle tree.
 	Reencode(usize, Hash, AvailableData, oneshot::Sender<Option<AvailableData>>),
 }
 
@@ -808,8 +811,8 @@ where
 		self.params.metrics.on_recovery_started();
 
 		loop {
-			// These only fail if we cannot reach the underlying subsystem, which case there is nothing
-			// meaningful we can do.
+			// These only fail if we cannot reach the underlying subsystem, which case there is
+			// nothing meaningful we can do.
 			match self.source {
 				Source::RequestFromBackers(ref mut from_backers) => {
 					match from_backers.run(&self.params, &mut self.sender).await {
@@ -1008,7 +1011,8 @@ async fn launch_recovery_task<Context>(
 			);
 
 			backing_group = backing_group.filter(|_| {
-				// We keep the backing group only if `1/3` of chunks sum up to less than `small_pov_limit`.
+				// We keep the backing group only if `1/3` of chunks sum up to less than
+				// `small_pov_limit`.
 				prefer_backing_group
 			});
 		}
@@ -1194,18 +1198,21 @@ impl AvailabilityRecoverySubsystem {
 		let (erasure_task_tx, erasure_task_rx) = futures::channel::mpsc::channel(16);
 		let mut erasure_task_rx = erasure_task_rx.fuse();
 
-		// `ThreadPoolBuilder` spawns the tasks using `spawn_blocking`. For each worker there will be a `mpsc` channel created.
-		// Each of these workers take the `Receiver` and poll it in an infinite loop.
-		// All of the sender ends of the channel are sent as a vec which we then use to create a `Cycle` iterator.
-		// We use this iterator to assign work in a round-robin fashion to the workers in the pool.
+		// `ThreadPoolBuilder` spawns the tasks using `spawn_blocking`. For each worker there will
+		// be a `mpsc` channel created. Each of these workers take the `Receiver` and poll it in an
+		// infinite loop. All of the sender ends of the channel are sent as a vec which we then use
+		// to create a `Cycle` iterator. We use this iterator to assign work in a round-robin
+		// fashion to the workers in the pool.
 		//
 		// How work is dispatched to the pool from the recovery tasks:
-		// - Once a recovery task finishes retrieving the availability data, it needs to reconstruct from chunks and/or
+		// - Once a recovery task finishes retrieving the availability data, it needs to reconstruct
+		//   from chunks and/or
 		// re-encode the data which are heavy CPU computations.
-		// To do so it sends an `ErasureTask` to the main loop via the `erasure_task` channel, and waits for the results
-		// over a `oneshot` channel.
+		// To do so it sends an `ErasureTask` to the main loop via the `erasure_task` channel, and
+		// waits for the results over a `oneshot` channel.
 		// - In the subsystem main loop we poll the `erasure_task_rx` receiver.
-		// - We forward the received `ErasureTask` to the `next()` sender yielded by the `Cycle` iterator.
+		// - We forward the received `ErasureTask` to the `next()` sender yielded by the `Cycle`
+		//   iterator.
 		// - Some worker thread handles it and sends the response over the `oneshot` channel.
 
 		// Create a thread pool with 2 workers.
@@ -1348,11 +1355,13 @@ impl ThreadPoolBuilder {
 	// Creates a pool of `size` workers, where 1 <= `size` <= `MAX_THREADS`.
 	//
 	// Each worker is created by `spawn_blocking` and takes the receiver side of a channel
-	// while all of the senders are returned to the caller. Each worker runs `erasure_task_thread` that
-	// polls the `Receiver` for an `ErasureTask` which is expected to be CPU intensive. The larger
-	// the input (more or larger chunks/availability data), the more CPU cycles will be spent.
+	// while all of the senders are returned to the caller. Each worker runs `erasure_task_thread`
+	// that polls the `Receiver` for an `ErasureTask` which is expected to be CPU intensive. The
+	// larger the input (more or larger chunks/availability data), the more CPU cycles will be
+	// spent.
 	//
-	// For example, for 32KB PoVs, we'd expect re-encode to eat as much as 90ms and 500ms for 2.5MiB.
+	// For example, for 32KB PoVs, we'd expect re-encode to eat as much as 90ms and 500ms for
+	// 2.5MiB.
 	//
 	// After executing such a task, the worker sends the response via a provided `oneshot` sender.
 	//

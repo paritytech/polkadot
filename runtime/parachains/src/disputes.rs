@@ -887,8 +887,8 @@ impl<T: Config> Pallet<T> {
 				#[allow(deprecated)]
 				<BackersOnDisputes<T>>::remove_prefix(to_prune, None);
 
-				// This is larger, and will be extracted to the `shared` pallet for more proper pruning.
-				// TODO: https://github.com/paritytech/polkadot/issues/3469
+				// This is larger, and will be extracted to the `shared` pallet for more proper
+				// pruning. TODO: https://github.com/paritytech/polkadot/issues/3469
 				#[allow(deprecated)]
 				<Included<T>>::remove_prefix(to_prune, None);
 			}
@@ -1178,7 +1178,8 @@ impl<T: Config> Pallet<T> {
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
 
-		// Freeze if the INVALID votes against some local candidate are above the byzantine threshold
+		// Freeze if the INVALID votes against some local candidate are above the byzantine
+		// threshold
 		if summary.new_flags.contains(DisputeStateFlags::AGAINST_BYZANTINE) {
 			if let Some(revert_to) = <Included<T>>::get(&session, &candidate_hash) {
 				Self::revert_and_freeze(revert_to);

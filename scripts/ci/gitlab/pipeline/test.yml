@@ -89,6 +89,9 @@ test-node-metrics:
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
+    # Build the required workers.
+    - cargo build --bin polkadot-execute-worker --bin polkadot-prepare-worker --profile testnet --verbose --locked
+    # Run tests.
     - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
 
 test-deterministic-wasm:
@@ -111,4 +114,5 @@ cargo-clippy:
     - .docker-env
     - .test-refs
   script:
+    - cargo version && cargo clippy --version
     - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo clippy --locked --all-targets

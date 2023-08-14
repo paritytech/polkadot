@@ -403,16 +403,17 @@ async fn send_inherent_data(
 		"Selecting disputes"
 	);
 
-	let disputes = match has_required_runtime(
-		from_job,
-		leaf.hash,
-		PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
-	)
-	.await
-	{
-		true => disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await,
-		false => disputes::random_selection::select_disputes(from_job, metrics).await,
-	};
+	debug_assert!(
+		has_required_runtime(
+			from_job,
+			leaf.hash,
+			PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
+		)
+		.await,
+		"randomized selection no longer supported, please upgrade your runtime!"
+	);
+
+	let disputes = disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await;
 
 	gum::trace!(
 		target: LOG_TARGET,
@@ -483,11 +484,11 @@ async fn send_inherent_data(
 /// - not more than one per validator
 /// - each 1 bit must correspond to an occupied core
 ///
-/// If we have too many, an arbitrary selection policy is fine. For purposes of maximizing availability,
-/// we pick the one with the greatest number of 1 bits.
+/// If we have too many, an arbitrary selection policy is fine. For purposes of maximizing
+/// availability, we pick the one with the greatest number of 1 bits.
 ///
-/// Note: This does not enforce any sorting precondition on the output; the ordering there will be unrelated
-/// to the sorting of the input.
+/// Note: This does not enforce any sorting precondition on the output; the ordering there will be
+/// unrelated to the sorting of the input.
 fn select_availability_bitfields(
 	cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
@@ -612,7 +613,8 @@ async fn select_candidate_hashes_from_tracked(
 
 		let computed_validation_data_hash = validation_data.hash();
 
-		// we arbitrarily pick the first of the backed candidates which match the appropriate selection criteria
+		// we arbitrarily pick the first of the backed candidates which match the appropriate
+		// selection criteria
 		if let Some(candidate) = candidates.iter().find(|backed_candidate| {
 			let descriptor = &backed_candidate.descriptor;
 			descriptor.para_id == scheduled_core.para_id &&
@@ -663,8 +665,8 @@ async fn request_backable_candidates(
 						// The candidate occupying the core is available, choose its
 						// child in the fragment tree.
 						//
-						// TODO: doesn't work for on-demand parachains. We lean hard on the assumption
-						// that cores are fixed to specific parachains within a session.
+						// TODO: doesn't work for on-demand parachains. We lean hard on the
+						// assumption that cores are fixed to specific parachains within a session.
 						// https://github.com/paritytech/polkadot/issues/5492
 						(scheduled_core.para_id, vec![occupied_core.candidate_hash])
 					} else {
@@ -703,7 +705,8 @@ async fn request_backable_candidates(
 	Ok(selected_candidates)
 }
 
-/// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
+/// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to
+/// each free core.
 async fn select_candidates(
 	availability_cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
@@ -740,12 +743,12 @@ async fn select_candidates(
 	gum::trace!(target: LOG_TARGET, leaf_hash=?relay_parent,
 				"Got {} backed candidates", candidates.len());
 
-	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
-	// _should_ preserve that property, but let's just make sure.
+	// `selected_candidates` is generated in ascending order by core index, and
+	// `GetBackedCandidates` _should_ preserve that property, but let's just make sure.
 	//
-	// We can't easily map from `BackedCandidate` to `core_idx`, but we know that every selected candidate
-	// maps to either 0 or 1 backed candidate, and the hashes correspond. Therefore, by checking them
-	// in order, we can ensure that the backed candidates are also in order.
+	// We can't easily map from `BackedCandidate` to `core_idx`, but we know that every selected
+	// candidate maps to either 0 or 1 backed candidate, and the hashes correspond. Therefore, by
+	// checking them in order, we can ensure that the backed candidates are also in order.
 	let mut backed_idx = 0;
 	for selected in selected_candidates {
 		if selected.0 ==
@@ -838,8 +841,9 @@ fn bitfields_indicate_availability(
 		let validator_idx = bitfield.validator_index().0 as usize;
 		match availability.get_mut(validator_idx) {
 			None => {
-				// in principle, this function might return a `Result<bool, Error>` so that we can more clearly express this error condition
-				// however, in practice, that would just push off an error-handling routine which would look a whole lot like this one.
+				// in principle, this function might return a `Result<bool, Error>` so that we can
+				// more clearly express this error condition however, in practice, that would just
+				// push off an error-handling routine which would look a whole lot like this one.
 				// simpler to just handle the error internally here.
 				gum::warn!(
 					target: LOG_TARGET,
@@ -859,8 +863,8 @@ fn bitfields_indicate_availability(
 	3 * availability.count_ones() >= 2 * availability.len()
 }
 
-// If we have to be absolutely precise here, this method gets the version of the `ParachainHost` api.
-// For brevity we'll just call it 'runtime version'.
+// If we have to be absolutely precise here, this method gets the version of the `ParachainHost`
+// api. For brevity we'll just call it 'runtime version'.
 async fn has_required_runtime(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 	relay_parent: Hash,

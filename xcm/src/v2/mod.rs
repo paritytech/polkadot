@@ -39,11 +39,10 @@
 //! - `Order` is now obsolete and replaced entirely by `Instruction`.
 //! - `Xcm` is now a simple wrapper around a `Vec<Instruction>`.
 //! - During conversion from `Order` to `Instruction`, we do not handle `BuyExecution`s that have
-//!   nested XCMs, i.e. if the `instructions` field in the `BuyExecution` enum struct variant is
-//!   not empty, then the conversion will fail. To address this, rewrite the XCM using
-//!   `Instruction`s in chronological order.
-//! - During conversion from `Xcm` to `Instruction`, we do not handle `RelayedFrom` messages at
-//!   all.
+//!   nested XCMs, i.e. if the `instructions` field in the `BuyExecution` enum struct variant is not
+//!   empty, then the conversion will fail. To address this, rewrite the XCM using `Instruction`s in
+//!   chronological order.
+//! - During conversion from `Xcm` to `Instruction`, we do not handle `RelayedFrom` messages at all.
 //!
 //! ### XCM Pallet
 //! - The `Weigher` configuration item must have sensible weights defined for `BuyExecution` and
@@ -153,20 +152,20 @@ pub enum BodyId {
 	Executive,
 	/// The unambiguous technical body (for Polkadot, this would be the Technical Committee).
 	Technical,
-	/// The unambiguous legislative body (for Polkadot, this could be considered the opinion of a majority of
-	/// lock-voters).
+	/// The unambiguous legislative body (for Polkadot, this could be considered the opinion of a
+	/// majority of lock-voters).
 	Legislative,
-	/// The unambiguous judicial body (this doesn't exist on Polkadot, but if it were to get a "grand oracle", it
-	/// may be considered as that).
+	/// The unambiguous judicial body (this doesn't exist on Polkadot, but if it were to get a
+	/// "grand oracle", it may be considered as that).
 	Judicial,
-	/// The unambiguous defense body (for Polkadot, an opinion on the topic given via a public referendum
-	/// on the `staking_admin` track).
+	/// The unambiguous defense body (for Polkadot, an opinion on the topic given via a public
+	/// referendum on the `staking_admin` track).
 	Defense,
-	/// The unambiguous administration body (for Polkadot, an opinion on the topic given via a public referendum
-	/// on the `general_admin` track).
+	/// The unambiguous administration body (for Polkadot, an opinion on the topic given via a
+	/// public referendum on the `general_admin` track).
 	Administration,
-	/// The unambiguous treasury body (for Polkadot, an opinion on the topic given via a public referendum
-	/// on the `treasurer` track).
+	/// The unambiguous treasury body (for Polkadot, an opinion on the topic given via a public
+	/// referendum on the `treasurer` track).
 	Treasury,
 }
 
@@ -422,8 +421,8 @@ pub type Weight = u64;
 ///
 /// All messages are delivered from a known *origin*, expressed as a `MultiLocation`.
 ///
-/// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
-/// XCM format, known as `VersionedXcm`.
+/// This is the inner XCM format and is version-sensitive. Messages are typically passed using the
+/// outer XCM format, known as `VersionedXcm`.
 #[derive(Derivative, Encode, Decode, TypeInfo, xcm_procedural::XcmWeightInfoTrait)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
@@ -508,8 +507,8 @@ pub enum Instruction<RuntimeCall> {
 	/// - `dest`: The location whose sovereign account will own the assets and thus the effective
 	///   beneficiary for the assets and the notification target for the reserve asset deposit
 	///   message.
-	/// - `xcm`: The instructions that should follow the `ReserveAssetDeposited`
-	///   instruction, which is sent onwards to `dest`.
+	/// - `xcm`: The instructions that should follow the `ReserveAssetDeposited` instruction, which
+	///   is sent onwards to `dest`.
 	///
 	/// Safety: No concerns.
 	///
@@ -538,10 +537,11 @@ pub enum Instruction<RuntimeCall> {
 		call: DoubleEncoded<RuntimeCall>,
 	},
 
-	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
-	/// relay-chain to a para.
+	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by
+	/// the relay-chain to a para.
 	///
-	/// - `sender`: The sender in the to-be opened channel. Also, the initiator of the channel opening.
+	/// - `sender`: The sender in the to-be opened channel. Also, the initiator of the channel
+	///   opening.
 	/// - `max_message_size`: The maximum size of a message proposed by the sender.
 	/// - `max_capacity`: The maximum number of messages that can be queued in the channel.
 	///
@@ -558,8 +558,8 @@ pub enum Instruction<RuntimeCall> {
 	},
 
 	/// A message to notify about that a previously sent open channel request has been accepted by
-	/// the recipient. That means that the channel will be opened during the next relay-chain session
-	/// change. This message is meant to be sent by the relay-chain to a para.
+	/// the recipient. That means that the channel will be opened during the next relay-chain
+	/// session change. This message is meant to be sent by the relay-chain to a para.
 	///
 	/// Safety: The message should originate directly from the relay-chain.
 	///
@@ -573,10 +573,10 @@ pub enum Instruction<RuntimeCall> {
 		recipient: u32,
 	},
 
-	/// A message to notify that the other party in an open channel decided to close it. In particular,
-	/// `initiator` is going to close the channel opened from `sender` to the `recipient`. The close
-	/// will be enacted at the next relay-chain session change. This message is meant to be sent by
-	/// the relay-chain to a para.
+	/// A message to notify that the other party in an open channel decided to close it. In
+	/// particular, `initiator` is going to close the channel opened from `sender` to the
+	/// `recipient`. The close will be enacted at the next relay-chain session change. This message
+	/// is meant to be sent by the relay-chain to a para.
 	///
 	/// Safety: The message should originate directly from the relay-chain.
 	///
@@ -639,8 +639,8 @@ pub enum Instruction<RuntimeCall> {
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `max_assets`: The maximum number of unique assets/asset instances to remove from holding.
-	///   Only the first `max_assets` assets/instances of those matched by `assets` will be removed,
-	///   prioritized under standard asset ordering. Any others will remain in holding.
+	///   Only the first `max_assets` assets/instances of those matched by `assets` will be
+	///   removed, prioritized under standard asset ordering. Any others will remain in holding.
 	/// - `beneficiary`: The new owner for the assets.
 	///
 	/// Kind: *Instruction*
@@ -661,13 +661,13 @@ pub enum Instruction<RuntimeCall> {
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `max_assets`: The maximum number of unique assets/asset instances to remove from holding.
-	///   Only the first `max_assets` assets/instances of those matched by `assets` will be removed,
-	///   prioritized under standard asset ordering. Any others will remain in holding.
+	///   Only the first `max_assets` assets/instances of those matched by `assets` will be
+	///   removed, prioritized under standard asset ordering. Any others will remain in holding.
 	/// - `dest`: The location whose sovereign account will own the assets and thus the effective
 	///   beneficiary for the assets and the notification target for the reserve asset deposit
 	///   message.
-	/// - `xcm`: The orders that should follow the `ReserveAssetDeposited` instruction
-	///   which is sent onwards to `dest`.
+	/// - `xcm`: The orders that should follow the `ReserveAssetDeposited` instruction which is
+	///   sent onwards to `dest`.
 	///
 	/// Kind: *Instruction*
 	///
@@ -699,9 +699,9 @@ pub enum Instruction<RuntimeCall> {
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `reserve`: A valid location that acts as a reserve for all asset(s) in `assets`. The
-	///   sovereign account of this consensus system *on the reserve location* will have appropriate
-	///   assets withdrawn and `effects` will be executed on them. There will typically be only one
-	///   valid location on any given asset/chain combination.
+	///   sovereign account of this consensus system *on the reserve location* will have
+	///   appropriate assets withdrawn and `effects` will be executed on them. There will typically
+	///   be only one valid location on any given asset/chain combination.
 	/// - `xcm`: The instructions to execute on the assets once withdrawn *on the reserve
 	///   location*.
 	///
@@ -718,8 +718,8 @@ pub enum Instruction<RuntimeCall> {
 	/// - `xcm`: The instructions to execute on the assets once arrived *on the destination
 	///   location*.
 	///
-	/// NOTE: The `dest` location *MUST* respect this origin as a valid teleportation origin for all
-	/// `assets`. If it does not, then the assets may be lost.
+	/// NOTE: The `dest` location *MUST* respect this origin as a valid teleportation origin for
+	/// all `assets`. If it does not, then the assets may be lost.
 	///
 	/// Kind: *Instruction*
 	///

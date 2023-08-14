@@ -255,8 +255,8 @@ struct State {
 	/// relay-parents fall into one of 3 categories.
 	///   1. active leaves which do support prospective parachains
 	///   2. active leaves which do not support prospective parachains
-	///   3. relay-chain blocks which are ancestors of an active leaf and
-	///      do support prospective parachains.
+	///   3. relay-chain blocks which are ancestors of an active leaf and do support prospective
+	///      parachains.
 	///
 	/// Relay-chain blocks which don't support prospective parachains are
 	/// never included in the fragment trees of active leaves which do.
@@ -477,9 +477,10 @@ async fn store_available_data(
 	expected_erasure_root: Hash,
 ) -> Result<(), Error> {
 	let (tx, rx) = oneshot::channel();
-	// Important: the `av-store` subsystem will check if the erasure root of the `available_data` matches `expected_erasure_root`
-	// which was provided by the collator in the `CandidateReceipt`. This check is consensus critical and the `backing` subsystem
-	// relies on it for ensuring candidate validity.
+	// Important: the `av-store` subsystem will check if the erasure root of the `available_data`
+	// matches `expected_erasure_root` which was provided by the collator in the `CandidateReceipt`.
+	// This check is consensus critical and the `backing` subsystem relies on it for ensuring
+	// candidate validity.
 	sender
 		.send_message(AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
@@ -497,8 +498,8 @@ async fn store_available_data(
 
 // Make a `PoV` available.
 //
-// This calls the AV store to write the available data to storage. The AV store also checks the erasure root matches
-// the `expected_erasure_root`.
+// This calls the AV store to write the available data to storage. The AV store also checks the
+// erasure root matches the `expected_erasure_root`.
 // This returns `Err()` on erasure root mismatch or due to any AV store subsystem error.
 //
 // Otherwise, it returns `Ok(())`.
@@ -1256,8 +1257,9 @@ async fn handle_validated_candidate_command<Context>(
 						let parent_head_data_hash = persisted_validation_data.parent_head.hash();
 						// Note that `GetHypotheticalFrontier` doesn't account for recursion,
 						// i.e. candidates can appear at multiple depths in the tree and in fact
-						// at all depths, and we don't know what depths a candidate will ultimately occupy
-						// because that's dependent on other candidates we haven't yet received.
+						// at all depths, and we don't know what depths a candidate will ultimately
+						// occupy because that's dependent on other candidates we haven't yet
+						// received.
 						//
 						// The only way to effectively rule this out is to have candidate receipts
 						// directly commit to the parachain block number or some other incrementing
@@ -1467,8 +1469,8 @@ fn sign_statement(
 /// and any of the following are true:
 /// 1. There is no `PersistedValidationData` attached.
 /// 2. Prospective parachains are enabled for the relay parent and the prospective parachains
-///    subsystem returned an empty `FragmentTreeMembership`
-///    i.e. did not recognize the candidate as being applicable to any of the active leaves.
+///    subsystem returned an empty `FragmentTreeMembership` i.e. did not recognize the candidate as
+///    being applicable to any of the active leaves.
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn import_statement<Context>(
 	ctx: &mut Context,

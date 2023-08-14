@@ -61,7 +61,8 @@ pub struct NetworkBridgeTx<N, AD> {
 }
 
 impl<N, AD> NetworkBridgeTx<N, AD> {
-	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
+	/// Create a new network bridge subsystem with underlying network service and authority
+	/// discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).

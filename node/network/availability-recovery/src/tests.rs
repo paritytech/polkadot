@@ -817,7 +817,8 @@ fn wrong_chunk_index_leads_to_recovery_error() {
 
 		let candidate_hash = test_state.candidate.hash();
 
-		// These chunks should fail the index check as they don't have the correct index for validator.
+		// These chunks should fail the index check as they don't have the correct index for
+		// validator.
 		test_state.chunks[1] = test_state.chunks[0].clone();
 		test_state.chunks[2] = test_state.chunks[0].clone();
 		test_state.chunks[3] = test_state.chunks[0].clone();

@@ -180,8 +180,8 @@ impl std::fmt::Debug for Statement {
 impl Statement {
 	/// Get the candidate hash referenced by this statement.
 	///
-	/// If this is a `Statement::Seconded`, this does hash the candidate receipt, which may be expensive
-	/// for large candidates.
+	/// If this is a `Statement::Seconded`, this does hash the candidate receipt, which may be
+	/// expensive for large candidates.
 	pub fn candidate_hash(&self) -> CandidateHash {
 		match *self {
 			Statement::Valid(ref h) => *h,
@@ -242,8 +242,8 @@ impl std::fmt::Debug for StatementWithPVD {
 impl StatementWithPVD {
 	/// Get the candidate hash referenced by this statement.
 	///
-	/// If this is a `Statement::Seconded`, this does hash the candidate receipt, which may be expensive
-	/// for large candidates.
+	/// If this is a `Statement::Seconded`, this does hash the candidate receipt, which may be
+	/// expensive for large candidates.
 	pub fn candidate_hash(&self) -> CandidateHash {
 		match *self {
 			StatementWithPVD::Valid(ref h) => *h,
@@ -276,8 +276,8 @@ impl StatementWithPVD {
 			.expect("persisted_validation_data doesn't affect encode_as; qed")
 	}
 
-	/// Converts the statement to a compact signed statement by dropping the [`CommittedCandidateReceipt`]
-	/// and the [`PersistedValidationData`].
+	/// Converts the statement to a compact signed statement by dropping the
+	/// [`CommittedCandidateReceipt`] and the [`PersistedValidationData`].
 	pub fn signed_to_compact(signed: SignedFullStatementWithPVD) -> Signed<CompactStatement> {
 		signed
 			.convert_to_superpayload_with(|s| s.to_compact())
@@ -301,8 +301,8 @@ impl EncodeAs<CompactStatement> for StatementWithPVD {
 ///
 /// Signing context and validator set should be apparent from context.
 ///
-/// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
-/// Only the compact `SignedStatement` is suitable for submission to the chain.
+/// This statement is "full" in the sense that the `Seconded` variant includes the candidate
+/// receipt. Only the compact `SignedStatement` is suitable for submission to the chain.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
 
 /// Variant of `SignedFullStatement` where the signature has not yet been verified.
@@ -349,8 +349,8 @@ pub enum InvalidCandidate {
 /// Result of the validation of the candidate.
 #[derive(Debug)]
 pub enum ValidationResult {
-	/// Candidate is valid. The validation process yields these outputs and the persisted validation
-	/// data used to form inputs.
+	/// Candidate is valid. The validation process yields these outputs and the persisted
+	/// validation data used to form inputs.
 	Valid(CandidateCommitments, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid(InvalidCandidate),
@@ -426,7 +426,8 @@ pub struct Collation<BlockNumber = polkadot_primitives::BlockNumber> {
 	pub proof_of_validity: MaybeCompressedPoV,
 	/// The number of messages processed from the DMQ.
 	pub processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	/// The mark which specifies the block number up to which all inbound HRMP messages are
+	/// processed.
 	pub hrmp_watermark: BlockNumber,
 }
 
@@ -449,9 +450,9 @@ pub struct CollationResult {
 	pub collation: Collation,
 	/// An optional result sender that should be informed about a successfully seconded collation.
 	///
-	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
-	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
-	/// collation.
+	/// There is no guarantee that this sender is informed ever about any result, it is completely
+	/// okay to just drop it. However, if it is called, it should be called with the signed
+	/// statement of a parachain validator seconding the collation.
 	pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
 }
 
@@ -467,8 +468,9 @@ impl CollationResult {
 
 /// Collation function.
 ///
-/// Will be called with the hash of the relay chain block the parachain block should be build on and the
-/// [`ValidationData`] that provides information about the state of the parachain on the relay chain.
+/// Will be called with the hash of the relay chain block the parachain block should be build on and
+/// the [`ValidationData`] that provides information about the state of the parachain on the relay
+/// chain.
 ///
 /// Returns an optional [`CollationResult`].
 #[cfg(not(target_os = "unknown"))]
@@ -515,9 +517,9 @@ pub struct SubmitCollationParams {
 	pub validation_code_hash: ValidationCodeHash,
 	/// An optional result sender that should be informed about a successfully seconded collation.
 	///
-	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
-	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
-	/// collation.
+	/// There is no guarantee that this sender is informed ever about any result, it is completely
+	/// okay to just drop it. However, if it is called, it should be called with the signed
+	/// statement of a parachain validator seconding the collation.
 	pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
 }
 

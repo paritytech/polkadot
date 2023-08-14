@@ -22,9 +22,9 @@ use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Error as MatchError, MatchesFungibles, MatchesNonFungibles};
 
-/// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
-/// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
-/// `PalletInstance` junction.
+/// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be
+/// `TryFrom/TryInto<u128>`) into a `GeneralIndex` junction, prefixed by some `MultiLocation` value.
+/// The `MultiLocation` value will typically be a `PalletInstance` junction.
 pub struct AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>(
 	PhantomData<(Prefix, AssetId, ConvertAssetId)>,
 );

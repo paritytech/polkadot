@@ -133,9 +133,9 @@ impl ClusterTracker {
 
 		match statement {
 			CompactStatement::Seconded(candidate_hash) => {
-				// check whether the sender has not sent too many seconded statements for the originator.
-				// we know by the duplicate check above that this iterator doesn't include the
-				// statement itself.
+				// check whether the sender has not sent too many seconded statements for the
+				// originator. we know by the duplicate check above that this iterator doesn't
+				// include the statement itself.
 				let other_seconded_for_orig_from_remote = self
 					.knowledge
 					.get(&sender)
@@ -249,8 +249,8 @@ impl ClusterTracker {
 
 		match statement {
 			CompactStatement::Seconded(candidate_hash) => {
-				// we send the same `Seconded` statements to all our peers, and only the first `k` from
-				// each originator.
+				// we send the same `Seconded` statements to all our peers, and only the first `k`
+				// from each originator.
 				if !self.seconded_already_or_within_limit(originator, candidate_hash) {
 					return Err(RejectOutgoing::ExcessiveSeconded)
 				}
@@ -912,8 +912,8 @@ mod tests {
 				CompactStatement::Seconded(hash_a),
 			);
 
-			// We have to see that the candidate is known by the sender, e.g. we sent them 'Seconded'
-			// above.
+			// We have to see that the candidate is known by the sender, e.g. we sent them
+			// 'Seconded' above.
 			assert_eq!(
 				tracker.can_receive(
 					ValidatorIndex(24),
@@ -1165,8 +1165,8 @@ mod tests {
 				CompactStatement::Seconded(hash_b),
 			);
 
-			// We have to see that the candidate is known by the sender, e.g. we sent them 'Seconded'
-			// above.
+			// We have to see that the candidate is known by the sender, e.g. we sent them
+			// 'Seconded' above.
 			assert_eq!(
 				tracker.can_send(
 					ValidatorIndex(5),

@@ -643,7 +643,8 @@ fn send_candidates_and_check_if_found() {
 	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (2, 2));
 }
 
-// Send some candidates, check if the candidate won't be found once its relay parent leaves the view.
+// Send some candidates, check if the candidate won't be found once its relay parent leaves the
+// view.
 #[test]
 fn check_candidate_parent_leaving_view() {
 	let test_state = TestState::default();
@@ -1429,7 +1430,8 @@ fn persists_pending_availability_candidate() {
 		);
 		let candidate_hash_a = candidate_a.hash();
 
-		// Candidate B, built on top of the candidate which is out of scope but pending availability.
+		// Candidate B, built on top of the candidate which is out of scope but pending
+		// availability.
 		let (candidate_b, pvd_b) = make_candidate(
 			leaf_b_hash,
 			leaf_b_number,

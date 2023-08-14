@@ -92,7 +92,8 @@ mod select_availability_bitfields {
 		let cores = vec![occupied_core(0), occupied_core(1)];
 
 		// we pass in three bitfields with two validators
-		// this helps us check the postcondition that we get two bitfields back, for which the validators differ
+		// this helps us check the postcondition that we get two bitfields back, for which the
+		// validators differ
 		let bitfields = vec![
 			signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(0)),
 			signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(1)),

@@ -67,15 +67,15 @@ mod tests;
 
 const LOG_TARGET: &'static str = "parachain::candidate-validation";
 
-/// The amount of time to wait before retrying after a retry-able backing validation error. We use a lower value for the
-/// backing case, to fit within the lower backing timeout.
+/// The amount of time to wait before retrying after a retry-able backing validation error. We use a
+/// lower value for the backing case, to fit within the lower backing timeout.
 #[cfg(not(test))]
 const PVF_BACKING_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(500);
 #[cfg(test)]
 const PVF_BACKING_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
-/// The amount of time to wait before retrying after a retry-able approval validation error. We use a higher value for
-/// the approval case since we have more time, and if we wait longer it is more likely that transient conditions will
-/// resolve.
+/// The amount of time to wait before retrying after a retry-able approval validation error. We use
+/// a higher value for the approval case since we have more time, and if we wait longer it is more
+/// likely that transient conditions will resolve.
 #[cfg(not(test))]
 const PVF_APPROVAL_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(3);
 #[cfg(test)]
@@ -93,9 +93,12 @@ const DEFAULT_APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 pub struct Config {
 	/// The path where candidate validation can store compiled artifacts for PVFs.
 	pub artifacts_cache_path: PathBuf,
-	/// The path to the executable which can be used for spawning PVF compilation & validation
-	/// workers.
-	pub program_path: PathBuf,
+	/// The version of the node. `None` can be passed to skip the version check (only for tests).
+	pub node_version: Option<String>,
+	/// Path to the preparation worker binary
+	pub prep_worker_path: PathBuf,
+	/// Path to the execution worker binary
+	pub exec_worker_path: PathBuf,
 }
 
 /// The candidate validation subsystem.
@@ -104,7 +107,7 @@ pub struct CandidateValidationSubsystem {
 	pub metrics: Metrics,
 	#[allow(missing_docs)]
 	pub pvf_metrics: polkadot_node_core_pvf::Metrics,
-	config: Config,
+	config: Option<Config>,
 }
 
 impl CandidateValidationSubsystem {
@@ -113,7 +116,7 @@ impl CandidateValidationSubsystem {
 	///
 	/// Check out [`IsolationStrategy`] to get more details.
 	pub fn with_config(
-		config: Config,
+		config: Option<Config>,
 		metrics: Metrics,
 		pvf_metrics: polkadot_node_core_pvf::Metrics,
 	) -> Self {
@@ -124,16 +127,14 @@ impl CandidateValidationSubsystem {
 #[overseer::subsystem(CandidateValidation, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CandidateValidationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(
-			ctx,
-			self.metrics,
-			self.pvf_metrics,
-			self.config.artifacts_cache_path,
-			self.config.program_path,
-		)
-		.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-		.boxed();
-		SpawnedSubsystem { name: "candidate-validation-subsystem", future }
+		if let Some(config) = self.config {
+			let future = run(ctx, self.metrics, self.pvf_metrics, config)
+				.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
+				.boxed();
+			SpawnedSubsystem { name: "candidate-validation-subsystem", future }
+		} else {
+			polkadot_overseer::DummySubsystem.start(ctx)
+		}
 	}
 }
 
@@ -142,11 +143,15 @@ async fn run<Context>(
 	mut ctx: Context,
 	metrics: Metrics,
 	pvf_metrics: polkadot_node_core_pvf::Metrics,
-	cache_path: PathBuf,
-	program_path: PathBuf,
+	Config { artifacts_cache_path, node_version, prep_worker_path, exec_worker_path }: Config,
 ) -> SubsystemResult<()> {
 	let (validation_host, task) = polkadot_node_core_pvf::start(
-		polkadot_node_core_pvf::Config::new(cache_path, program_path),
+		polkadot_node_core_pvf::Config::new(
+			artifacts_cache_path,
+			node_version,
+			prep_worker_path,
+			exec_worker_path,
+		),
 		pvf_metrics,
 	);
 	ctx.spawn_blocking("pvf-validation-host", task.boxed())?;
@@ -446,9 +451,9 @@ where
 	const ASSUMPTIONS: &[OccupiedCoreAssumption] = &[
 		OccupiedCoreAssumption::Included,
 		OccupiedCoreAssumption::TimedOut,
-		// `TimedOut` and `Free` both don't perform any speculation and therefore should be the same
-		// for our purposes here. In other words, if `TimedOut` matched then the `Free` must be
-		// matched as well.
+		// `TimedOut` and `Free` both don't perform any speculation and therefore should be the
+		// same for our purposes here. In other words, if `TimedOut` matched then the `Free` must
+		// be matched as well.
 	];
 
 	// Consider running these checks in parallel to reduce validation latency.
@@ -477,9 +482,10 @@ where
 		AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
 			Ok(Some((validation_data, validation_code))),
 		AssumptionCheckOutcome::DoesNotMatch => {
-			// If neither the assumption of the occupied core having the para included or the assumption
-			// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
-			// is not based on the relay parent and is thus invalid.
+			// If neither the assumption of the occupied core having the para included or the
+			// assumption of the occupied core timing out are valid, then the
+			// persisted_validation_data_hash in the descriptor is not based on the relay parent and
+			// is thus invalid.
 			Ok(None)
 		},
 		AssumptionCheckOutcome::BadRequest =>
@@ -699,7 +705,8 @@ where
 						"Invalid candidate (commitments hash)"
 					);
 
-					// If validation produced a new set of commitments, we treat the candidate as invalid.
+					// If validation produced a new set of commitments, we treat the candidate as
+					// invalid.
 					Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))
 				} else {
 					Ok(ValidationResult::Valid(outputs, persisted_validation_data))
@@ -739,7 +746,8 @@ trait ValidationBackend {
 			prep_timeout,
 			PrepareJobKind::Compilation,
 		);
-		// We keep track of the total time that has passed and stop retrying if we are taking too long.
+		// We keep track of the total time that has passed and stop retrying if we are taking too
+		// long.
 		let total_time_start = Instant::now();
 
 		let mut validation_result =
@@ -775,8 +783,8 @@ trait ValidationBackend {
 				_ => break,
 			}
 
-			// If we got a possibly transient error, retry once after a brief delay, on the assumption
-			// that the conditions that caused this error may have resolved on their own.
+			// If we got a possibly transient error, retry once after a brief delay, on the
+			// assumption that the conditions that caused this error may have resolved on their own.
 			{
 				// Wait a brief delay before retrying.
 				futures_timer::Delay::new(retry_delay).await;

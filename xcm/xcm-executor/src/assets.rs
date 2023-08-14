@@ -132,15 +132,17 @@ impl Assets {
 
 	/// Mutate `self` to contain all given `assets`, saturating if necessary.
 	///
-	/// NOTE: [`Assets`] are always sorted, allowing us to optimize this function from `O(n^2)` to `O(n)`.
+	/// NOTE: [`Assets`] are always sorted, allowing us to optimize this function from `O(n^2)` to
+	/// `O(n)`.
 	pub fn subsume_assets(&mut self, mut assets: Assets) {
 		let mut f_iter = assets.fungible.iter_mut();
 		let mut g_iter = self.fungible.iter_mut();
 		if let (Some(mut f), Some(mut g)) = (f_iter.next(), g_iter.next()) {
 			loop {
 				if f.0 == g.0 {
-					// keys are equal. in this case, we add `self`'s balance for the asset onto `assets`, balance, knowing
-					// that the `append` operation which follows will clobber `self`'s value and only use `assets`'s.
+					// keys are equal. in this case, we add `self`'s balance for the asset onto
+					// `assets`, balance, knowing that the `append` operation which follows will
+					// clobber `self`'s value and only use `assets`'s.
 					(*f.1).saturating_accrue(*g.1);
 				}
 				if f.0 <= g.0 {
@@ -186,8 +188,9 @@ impl Assets {
 
 	/// Alter any concretely identified assets by prepending the given `MultiLocation`.
 	///
-	/// WARNING: For now we consider this infallible and swallow any errors. It is thus the caller's responsibility to
-	/// ensure that any internal asset IDs are able to be prepended without overflow.
+	/// WARNING: For now we consider this infallible and swallow any errors. It is thus the caller's
+	/// responsibility to ensure that any internal asset IDs are able to be prepended without
+	/// overflow.
 	pub fn prepend_location(&mut self, prepend: &MultiLocation) {
 		let mut fungible = Default::default();
 		mem::swap(&mut self.fungible, &mut fungible);
@@ -269,8 +272,8 @@ impl Assets {
 			self.non_fungible.is_superset(&assets.non_fungible)
 	}
 
-	/// Returns an error unless all `assets` are contained in `self`. In the case of an error, the first asset in
-	/// `assets` which is not wholly in `self` is returned.
+	/// Returns an error unless all `assets` are contained in `self`. In the case of an error, the
+	/// first asset in `assets` which is not wholly in `self` is returned.
 	pub fn ensure_contains(&self, assets: &MultiAssets) -> Result<(), TakeError> {
 		for asset in assets.inner().iter() {
 			match asset {
@@ -292,16 +295,17 @@ impl Assets {
 
 	/// Mutates `self` to its original value less `mask` and returns assets that were removed.
 	///
-	/// If `saturate` is `true`, then `self` is considered to be masked by `mask`, thereby avoiding any attempt at
-	/// reducing it by assets it does not contain. In this case, the function is infallible. If `saturate` is `false`
-	/// and `mask` references a definite asset which `self` does not contain then an error is returned.
+	/// If `saturate` is `true`, then `self` is considered to be masked by `mask`, thereby avoiding
+	/// any attempt at reducing it by assets it does not contain. In this case, the function is
+	/// infallible. If `saturate` is `false` and `mask` references a definite asset which `self`
+	/// does not contain then an error is returned.
 	///
 	/// The number of unique assets which are removed will respect the `count` parameter in the
 	/// counted wildcard variants.
 	///
-	/// Returns `Ok` with the definite assets token from `self` and mutates `self` to its value minus
-	/// `mask`. Returns `Err` in the non-saturating case where `self` did not contain (enough of) a definite asset to
-	/// be removed.
+	/// Returns `Ok` with the definite assets token from `self` and mutates `self` to its value
+	/// minus `mask`. Returns `Err` in the non-saturating case where `self` did not contain (enough
+	/// of) a definite asset to be removed.
 	fn general_take(
 		&mut self,
 		mask: MultiAssetFilter,
@@ -386,24 +390,27 @@ impl Assets {
 		Ok(taken)
 	}
 
-	/// Mutates `self` to its original value less `mask` and returns `true` iff it contains at least `mask`.
+	/// Mutates `self` to its original value less `mask` and returns `true` iff it contains at least
+	/// `mask`.
 	///
-	/// Returns `Ok` with the non-wildcard equivalence of `mask` taken and mutates `self` to its value minus
-	/// `mask` if `self` contains `asset`, and return `Err` otherwise.
+	/// Returns `Ok` with the non-wildcard equivalence of `mask` taken and mutates `self` to its
+	/// value minus `mask` if `self` contains `asset`, and return `Err` otherwise.
 	pub fn saturating_take(&mut self, asset: MultiAssetFilter) -> Assets {
 		self.general_take(asset, true)
 			.expect("general_take never results in error when saturating")
 	}
 
-	/// Mutates `self` to its original value less `mask` and returns `true` iff it contains at least `mask`.
+	/// Mutates `self` to its original value less `mask` and returns `true` iff it contains at least
+	/// `mask`.
 	///
-	/// Returns `Ok` with the non-wildcard equivalence of `asset` taken and mutates `self` to its value minus
-	/// `asset` if `self` contains `asset`, and return `Err` otherwise.
+	/// Returns `Ok` with the non-wildcard equivalence of `asset` taken and mutates `self` to its
+	/// value minus `asset` if `self` contains `asset`, and return `Err` otherwise.
 	pub fn try_take(&mut self, mask: MultiAssetFilter) -> Result<Assets, TakeError> {
 		self.general_take(mask, false)
 	}
 
-	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least `asset`.
+	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least
+	/// `asset`.
 	pub fn checked_sub(mut self, asset: MultiAsset) -> Result<Assets, Assets> {
 		match asset.fun {
 			Fungible(amount) => {

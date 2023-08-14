@@ -131,7 +131,7 @@ pub struct BackingState<H = Hash, N = BlockNumber> {
 	/// The state-machine constraints of the parachain.
 	pub constraints: Constraints<N>,
 	/// The candidates pending availability. These should be ordered, i.e. they should form
-	/// a sub-chain, where the first candidate builds on top of the required parent of the constraints
-	/// and each subsequent builds on top of the previous head-data.
+	/// a sub-chain, where the first candidate builds on top of the required parent of the
+	/// constraints and each subsequent builds on top of the previous head-data.
 	pub pending_availability: Vec<CandidatePendingAvailability<H, N>>,
 }

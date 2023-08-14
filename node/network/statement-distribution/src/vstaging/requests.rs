@@ -13,18 +13,21 @@
 
 //! A requester for full information on candidates.
 //!
-//! 1. We use `RequestManager::get_or_insert().get_mut()` to add and mutate [`RequestedCandidate`]s, either setting the
-//! priority or adding a peer we know has the candidate. We currently prioritize "cluster" candidates (those from our
-//! own group, although the cluster mechanism could be made to include multiple groups in the future) over "grid"
-//! candidates (those from other groups).
+//! 1. We use `RequestManager::get_or_insert().get_mut()` to add and mutate [`RequestedCandidate`]s,
+//!    either setting the
+//! priority or adding a peer we know has the candidate. We currently prioritize "cluster"
+//! candidates (those from our own group, although the cluster mechanism could be made to include
+//! multiple groups in the future) over "grid" candidates (those from other groups).
 //!
-//! 2. The main loop of the module will invoke [`RequestManager::next_request`] in a loop until it returns `None`,
-//! dispatching all requests with the `NetworkBridgeTxMessage`. The receiving half of the channel is owned by the
-//! [`RequestManager`].
+//! 2. The main loop of the module will invoke [`RequestManager::next_request`] in a loop until it
+//!    returns `None`,
+//! dispatching all requests with the `NetworkBridgeTxMessage`. The receiving half of the channel is
+//! owned by the [`RequestManager`].
 //!
-//! 3. The main loop of the module will also select over [`RequestManager::await_incoming`] to receive
-//! [`UnhandledResponse`]s, which it then validates using [`UnhandledResponse::validate_response`] (which requires state
-//! not owned by the request manager).
+//! 3. The main loop of the module will also select over [`RequestManager::await_incoming`] to
+//!    receive
+//! [`UnhandledResponse`]s, which it then validates using [`UnhandledResponse::validate_response`]
+//! (which requires state not owned by the request manager).
 
 use super::{
 	BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT, COST_IMPROPERLY_DECODED_RESPONSE,
@@ -500,13 +503,13 @@ impl UnhandledResponse {
 	/// checked statements.
 	///
 	/// Valid responses are defined as those which provide a valid candidate
-	/// and signatures which match the identifier, and provide enough statements to back the candidate.
+	/// and signatures which match the identifier, and provide enough statements to back the
+	/// candidate.
 	///
 	/// This will also produce a record of misbehaviors by peers:
 	///   * If the response is partially valid, misbehavior by the responding peer.
 	///   * If there are other peers which have advertised the same candidate for different
-	///     relay-parents or para-ids, misbehavior reports for those peers will also
-	///     be generated.
+	///     relay-parents or para-ids, misbehavior reports for those peers will also be generated.
 	///
 	/// Finally, in the case that the response is either valid or partially valid,
 	/// this will clean up all remaining requests for the candidate in the manager.

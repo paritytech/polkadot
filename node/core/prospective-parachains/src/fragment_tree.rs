@@ -43,10 +43,10 @@
 //! # Cycles
 //!
 //! Nodes do not uniquely refer to a parachain block for two reasons.
-//!   1. There's no requirement that head-data is unique
-//!      for a parachain. Furthermore, a parachain is under no obligation to be acyclic, and this is mostly
-//!      just because it's totally inefficient to enforce it. Practical use-cases are acyclic, but there is
-//!      still more than one way to reach the same head-data.
+//!   1. There's no requirement that head-data is unique for a parachain. Furthermore, a parachain
+//!      is under no obligation to be acyclic, and this is mostly just because it's totally
+//!      inefficient to enforce it. Practical use-cases are acyclic, but there is still more than
+//!      one way to reach the same head-data.
 //!   2. and candidates only refer to their parent by its head-data. This whole issue could be
 //!      resolved by having candidates reference their parent by candidate hash.
 //!
@@ -83,7 +83,8 @@
 //! The code in this module is not designed for speed or efficiency, but conceptual simplicity.
 //! Our assumption is that the amount of candidates and parachains we consider will be reasonably
 //! bounded and in practice will not exceed a few thousand at any time. This naive implementation
-//! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
+//! will still perform fairly well under these conditions, despite being somewhat wasteful of
+//! memory.
 
 use std::{
 	borrow::Cow,
@@ -584,7 +585,8 @@ impl FragmentTree {
 
 		let candidate_parent = &candidate_entry.candidate.persisted_validation_data.parent_head;
 
-		// Select an initial set of bases, whose required relay-parent matches that of the candidate.
+		// Select an initial set of bases, whose required relay-parent matches that of the
+		// candidate.
 		let root_base = if &self.scope.base_constraints.required_parent == candidate_parent {
 			Some(NodePointer::Root)
 		} else {
@@ -602,8 +604,8 @@ impl FragmentTree {
 
 		let bases = root_base.into_iter().chain(non_root_bases).collect();
 
-		// Pass this into the population function, which will sanity-check stuff like depth, fragments,
-		// etc. and then recursively populate.
+		// Pass this into the population function, which will sanity-check stuff like depth,
+		// fragments, etc. and then recursively populate.
 		self.populate_from_bases(storage, bases);
 	}
 

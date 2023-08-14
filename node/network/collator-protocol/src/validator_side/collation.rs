@@ -21,8 +21,8 @@
 //!    2. If the advertisement was accepted, it's queued for fetch (per relay parent).
 //!    3. Once it's requested, the collation is said to be Pending.
 //!    4. Pending collation becomes Fetched once received, we send it to backing for validation.
-//!    5. If it turns to be invalid or async backing allows seconding another candidate, carry on with
-//!       the next advertisement, otherwise we're done with this relay parent.
+//!    5. If it turns to be invalid or async backing allows seconding another candidate, carry on
+//!       with the next advertisement, otherwise we're done with this relay parent.
 //!
 //!    ┌──────────────────────────────────────────┐
 //!    └─▶Advertised ─▶ Pending ─▶ Fetched ─▶ Validated

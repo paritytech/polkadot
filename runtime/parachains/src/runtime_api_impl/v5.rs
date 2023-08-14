@@ -398,7 +398,8 @@ pub fn pvfs_require_precheck<T: paras::Config>() -> Vec<ValidationCodeHash> {
 	<paras::Pallet<T>>::pvfs_require_precheck()
 }
 
-/// Returns the validation code hash for the given parachain making the given `OccupiedCoreAssumption`.
+/// Returns the validation code hash for the given parachain making the given
+/// `OccupiedCoreAssumption`.
 pub fn validation_code_hash<T>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,

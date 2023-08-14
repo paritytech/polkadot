@@ -137,9 +137,9 @@ pub const MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS: u32 = 5;
 /// Response size limit for responses of POV like data.
 ///
 /// This is larger than `MAX_POV_SIZE` to account for protocol overhead and for additional data in
-/// `CollationFetchingV1` or `AvailableDataFetchingV1` for example. We try to err on larger limits here
-/// as a too large limit only allows an attacker to waste our bandwidth some more, a too low limit
-/// might have more severe effects.
+/// `CollationFetchingV1` or `AvailableDataFetchingV1` for example. We try to err on larger limits
+/// here as a too large limit only allows an attacker to waste our bandwidth some more, a too low
+/// limit might have more severe effects.
 const POV_RESPONSE_SIZE: u64 = MAX_POV_SIZE as u64 + 10_000;
 
 /// Maximum response sizes for `StatementFetchingV1`.

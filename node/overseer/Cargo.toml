@@ -3,6 +3,7 @@ name = "polkadot-overseer"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }

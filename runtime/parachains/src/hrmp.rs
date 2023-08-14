@@ -117,12 +117,12 @@ pub struct HrmpOpenChannelRequest {
 #[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub struct HrmpChannel {
-	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
-	// special treatment.
+	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct
+	// requires special treatment.
 	//
-	// A parachain requested this struct can only depend on the subset of this struct. Specifically,
-	// only a first few fields can be depended upon (See `AbridgedHrmpChannel`). These fields cannot
-	// be changed without corresponding migration of parachains.
+	// A parachain requested this struct can only depend on the subset of this struct.
+	// Specifically, only a first few fields can be depended upon (See `AbridgedHrmpChannel`).
+	// These fields cannot be changed without corresponding migration of parachains.
 	/// The maximum number of messages that can be pending in the channel at once.
 	pub max_capacity: u32,
 	/// The maximum total size of the messages that can be pending in the channel at once.
@@ -370,7 +370,8 @@ pub mod pallet {
 
 	/// The HRMP watermark associated with each para.
 	/// Invariant:
-	/// - each para `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a session.
+	/// - each para `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a
+	///   session.
 	#[pallet::storage]
 	pub type HrmpWatermarks<T: Config> = StorageMap<_, Twox64Concat, ParaId, BlockNumberFor<T>>;
 
@@ -976,9 +977,9 @@ impl<T: Config> Pallet<T> {
 			out_hrmp_msgs.iter().enumerate().map(|(idx, out_msg)| (idx as u32, out_msg))
 		{
 			match last_recipient {
-				// the messages must be sorted in ascending order and there must be no two messages sent
-				// to the same recipient. Thus we can check that every recipient is strictly greater than
-				// the previous one.
+				// the messages must be sorted in ascending order and there must be no two messages
+				// sent to the same recipient. Thus we can check that every recipient is strictly
+				// greater than the previous one.
 				Some(last_recipient) if out_msg.recipient <= last_recipient =>
 					return Err(OutboundHrmpAcceptanceErr::NotSorted { idx }),
 				_ => last_recipient = Some(out_msg.recipient),
@@ -1141,8 +1142,8 @@ impl<T: Config> Pallet<T> {
 			HrmpChannels::<T>::insert(&channel_id, channel);
 			HrmpChannelContents::<T>::append(&channel_id, inbound);
 
-			// The digests are sorted in ascending by block number order. There are only two possible
-			// scenarios here ("the current" is the block of candidate's inclusion):
+			// The digests are sorted in ascending by block number order. There are only two
+			// possible scenarios here ("the current" is the block of candidate's inclusion):
 			//
 			// (a) It's the first time anybody sends a message to this recipient within this block.
 			//     In this case, the digest vector would be empty or the block number of the latest

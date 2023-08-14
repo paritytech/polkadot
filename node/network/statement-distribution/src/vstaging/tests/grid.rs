@@ -2428,8 +2428,8 @@ fn peer_reported_for_advertisement_conflicting_with_confirmed_candidate() {
 
 		// Receive conflicting advertisement from peer C after confirmation.
 		//
-		// NOTE: This causes a conflict because we track received manifests on a per-validator basis,
-		// and this is the second time we're getting a manifest from C.
+		// NOTE: This causes a conflict because we track received manifests on a per-validator
+		// basis, and this is the second time we're getting a manifest from C.
 		{
 			let mut manifest = manifest.clone();
 			manifest.statement_knowledge = StatementFilter {

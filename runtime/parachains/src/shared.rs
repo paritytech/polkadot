@@ -61,7 +61,8 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 	AllowedRelayParentsTracker<Hash, BlockNumber>
 {
 	/// Add a new relay-parent to the allowed relay parents, along with info about the header.
-	/// Provide a maximum ancestry length for the buffer, which will cause old relay-parents to be pruned.
+	/// Provide a maximum ancestry length for the buffer, which will cause old relay-parents to be
+	/// pruned.
 	pub(crate) fn update(
 		&mut self,
 		relay_parent: Hash,
@@ -86,8 +87,8 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 	/// upon the given relay-parent.
 	///
 	/// This only succeeds if the relay-parent is one of the allowed relay-parents.
-	/// If a previous relay-parent number is passed, then this only passes if the new relay-parent is
-	/// more recent than the previous.
+	/// If a previous relay-parent number is passed, then this only passes if the new relay-parent
+	/// is more recent than the previous.
 	pub(crate) fn acquire_info(
 		&self,
 		relay_parent: Hash,
@@ -142,8 +143,8 @@ pub mod pallet {
 	pub(super) type ActiveValidatorIndices<T: Config> =
 		StorageValue<_, Vec<ValidatorIndex>, ValueQuery>;
 
-	/// The parachain attestation keys of the validators actively participating in parachain consensus.
-	/// This should be the same length as `ActiveValidatorIndices`.
+	/// The parachain attestation keys of the validators actively participating in parachain
+	/// consensus. This should be the same length as `ActiveValidatorIndices`.
 	#[pallet::storage]
 	#[pallet::getter(fn active_validator_keys)]
 	pub(super) type ActiveValidatorKeys<T: Config> = StorageValue<_, Vec<ValidatorId>, ValueQuery>;

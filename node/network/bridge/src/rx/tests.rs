@@ -118,7 +118,13 @@ impl Network for TestNetwork {
 		Ok(())
 	}
 
-	async fn remove_from_peers_set(&mut self, _protocol: ProtocolName, _: Vec<PeerId>) {}
+	async fn remove_from_peers_set(
+		&mut self,
+		_protocol: ProtocolName,
+		_: Vec<PeerId>,
+	) -> Result<(), String> {
+		Ok(())
+	}
 
 	async fn start_request<AD: AuthorityDiscovery>(
 		&self,
@@ -845,8 +851,9 @@ fn peer_messages_sent_via_overseer() {
 
 		network_handle.disconnect_peer(peer.clone(), PeerSet::Validation).await;
 
-		// Approval distribution message comes first, and the message is only sent to that subsystem.
-		// then a disconnection event arises that is sent to all validation networking subsystems.
+		// Approval distribution message comes first, and the message is only sent to that
+		// subsystem. then a disconnection event arises that is sent to all validation networking
+		// subsystems.
 
 		assert_matches!(
 			virtual_overseer.recv().await,

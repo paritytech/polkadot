@@ -1,12 +1,12 @@
 [package]
 name = "zombienet-backchannel"
 description = "Zombienet backchannel to notify test runner and coordinate with malus actors."
-license = "GPL-3.0-only"
 readme = "README.md"
 publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 tokio = { version = "1.24.2", default-features = false, features = ["macros", "net", "rt-multi-thread", "sync"] }

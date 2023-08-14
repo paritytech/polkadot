@@ -78,8 +78,8 @@ where
 	/// reputation changes in that case.
 	///
 	/// Params:
-	///		- The raw request to decode
-	///		- Reputation changes to apply for the peer in case decoding fails.
+	/// 		- The raw request to decode
+	/// 		- Reputation changes to apply for the peer in case decoding fails.
 	fn try_from_raw(
 		raw: sc_network::config::IncomingRequest,
 		reputation_changes: Vec<UnifiedReputationChange>,

@@ -1001,7 +1001,8 @@ mod tests {
 			.ok()
 			.unwrap();
 
-		// Advertise D. Do it correctly from one peer (parent B) and wrongly from another (parent A).
+		// Advertise D. Do it correctly from one peer (parent B) and wrongly from another (parent
+		// A).
 		candidates
 			.insert_unconfirmed(
 				peer_c,

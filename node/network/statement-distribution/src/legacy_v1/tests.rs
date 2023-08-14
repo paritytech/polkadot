@@ -872,8 +872,8 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			})
 			.await;
 
-		// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
-		// candidate backing.
+		// receive a seconded statement from peer A. it should be propagated onwards to peer B and
+		// to candidate backing.
 		let statement = {
 			let signing_context = SigningContext { parent_hash: hash_a, session_index };
 
@@ -2700,8 +2700,8 @@ fn handle_multiple_seconded_statements() {
 			})
 			.await;
 
-		// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
-		// candidate backing.
+		// receive a seconded statement from peer A. it should be propagated onwards to peer B and
+		// to candidate backing.
 		let statement = {
 			let signing_context = SigningContext { parent_hash: relay_parent_hash, session_index };
 

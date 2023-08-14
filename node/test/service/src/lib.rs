@@ -72,22 +72,37 @@ pub use polkadot_service::{FullBackend, GetLastTimestamp};
 pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
-	worker_program_path: Option<PathBuf>,
+	workers_path: Option<PathBuf>,
 ) -> Result<NewFull, Error> {
+	let workers_path = Some(workers_path.unwrap_or_else(get_relative_workers_path_for_test));
+
 	polkadot_service::new_full(
 		config,
-		is_collator,
-		None,
-		true,
-		None,
-		None,
-		worker_program_path,
-		false,
-		polkadot_service::RealOverseerGen,
-		None,
-		None,
-		None,
+		polkadot_service::NewFullParams {
+			is_collator,
+			grandpa_pause: None,
+			jaeger_agent: None,
+			telemetry_worker_handle: None,
+			node_version: None,
+			workers_path,
+			workers_names: None,
+			overseer_enable_anyways: false,
+			overseer_gen: polkadot_service::RealOverseerGen,
+			overseer_message_channel_capacity_override: None,
+			malus_finality_delay: None,
+			hwbench: None,
+		},
 	)
+}
+
+fn get_relative_workers_path_for_test() -> PathBuf {
+	// If no explicit worker path is passed in, we need to specify it ourselves as test binaries
+	// are in the "deps/" directory, one level below where the worker binaries are generated.
+	let mut exe_path = std::env::current_exe()
+		.expect("for test purposes it's reasonable to expect that this will not fail");
+	let _ = exe_path.pop();
+	let _ = exe_path.pop();
+	exe_path
 }
 
 /// Returns a prometheus config usable for testing.
@@ -172,6 +187,7 @@ pub fn node_config(
 		offchain_worker: Default::default(),
 		force_authoring: false,
 		disable_grandpa: false,
+		disable_beefy: false,
 		dev_key_seed: Some(key_seed),
 		tracing_targets: None,
 		tracing_receiver: Default::default(),
@@ -241,7 +257,8 @@ pub struct PolkadotTestNode {
 	pub client: Arc<Client>,
 	/// A handle to Overseer.
 	pub overseer_handle: Handle,
-	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
+	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot
+	/// node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
 	/// `RPCHandlers` to make RPC queries.
 	pub rpc_handlers: RpcHandlers,
@@ -296,14 +313,15 @@ impl PolkadotTestNode {
 		self.send_sudo(call, Sr25519Keyring::Alice, 1).await
 	}
 
-	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
-	/// are ever created, thus you should restrict the maximum amount of time of the test execution.
+	/// Wait for `count` blocks to be imported in the node and then exit. This function will not
+	/// return if no blocks are ever created, thus you should restrict the maximum amount of time of
+	/// the test execution.
 	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
 		self.client.wait_for_blocks(count)
 	}
 
-	/// Wait for `count` blocks to be finalized and then exit. Similarly with `wait_for_blocks` this function will
-	/// not return if no block are ever finalized.
+	/// Wait for `count` blocks to be finalized and then exit. Similarly with `wait_for_blocks` this
+	/// function will not return if no block are ever finalized.
 	pub async fn wait_for_finalized_blocks(&self, count: usize) {
 		let mut import_notification_stream = self.client.finality_notification_stream();
 		let mut blocks = HashSet::new();

@@ -128,7 +128,7 @@ where
 	/// Configuration for the availability store subsystem.
 	pub availability_config: AvailabilityConfig,
 	/// Configuration for the candidate validation subsystem.
-	pub candidate_validation_config: CandidateValidationConfig,
+	pub candidate_validation_config: Option<CandidateValidationConfig>,
 	/// Configuration for the chain selection subsystem.
 	pub chain_selection_config: ChainSelectionConfig,
 	/// Configuration for the dispute coordinator subsystem.

@@ -53,21 +53,29 @@ fn main() -> Result<()> {
 				)
 			})?;
 
-			runner.run_node_until_exit(|config| async move {
+			runner.run_node_until_exit(|mut config| async move {
 				let collator = Collator::new();
 
+				config.disable_beefy = true;
 				let full_node = polkadot_service::build_full(
 					config,
-					polkadot_service::IsCollator::Yes(collator.collator_key()),
-					None,
-					false,
-					None,
-					None,
-					false,
-					polkadot_service::RealOverseerGen,
-					None,
-					None,
-					None,
+					polkadot_service::NewFullParams {
+						is_collator: polkadot_service::IsCollator::Yes(collator.collator_key()),
+						grandpa_pause: None,
+						jaeger_agent: None,
+						telemetry_worker_handle: None,
+
+						// Collators don't spawn PVF workers, so we can disable version checks.
+						node_version: None,
+						workers_path: None,
+						workers_names: None,
+
+						overseer_enable_anyways: false,
+						overseer_gen: polkadot_service::RealOverseerGen,
+						overseer_message_channel_capacity_override: None,
+						malus_finality_delay: None,
+						hwbench: None,
+					},
 				)
 				.map_err(|e| e.to_string())?;
 				let mut overseer_handle = full_node

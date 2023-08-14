@@ -720,11 +720,10 @@ fn answer_prospective_validation_data_request(
 	tx: oneshot::Sender<Option<PersistedValidationData>>,
 ) {
 	// 1. Try to get the head-data from the candidate store if known.
-	// 2. Otherwise, it might exist as the base in some relay-parent and we can find it by
-	//    iterating fragment trees.
-	// 3. Otherwise, it is unknown.
-	// 4. Also try to find the relay parent block info by scanning
+	// 2. Otherwise, it might exist as the base in some relay-parent and we can find it by iterating
 	//    fragment trees.
+	// 3. Otherwise, it is unknown.
+	// 4. Also try to find the relay parent block info by scanning fragment trees.
 	// 5. If head data and relay parent block info are found - success. Otherwise, failure.
 
 	let storage = match view.candidate_storage.get(&request.para_id) {
@@ -765,8 +764,8 @@ fn answer_prospective_validation_data_request(
 				.is_some();
 			if contains_ancestor {
 				// We are leaning hard on two assumptions here.
-				// 1. That the fragment tree never contains allowed relay-parents whose session for children
-				//    is different from that of the base block's.
+				// 1. That the fragment tree never contains allowed relay-parents whose session for
+				//    children is different from that of the base block's.
 				// 2. That the max_pov_size is only configurable per session.
 				max_pov_size = Some(fragment_tree.scope().base_constraints().max_pov_size);
 			}

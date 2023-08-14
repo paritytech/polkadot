@@ -464,8 +464,8 @@ fn delay_reputation_change() {
 /// <https://github.com/paritytech/polkadot/pull/2160#discussion_r547594835>
 ///
 /// 1. Send a view update that removes block B from their view.
-/// 2. Send a message from B that they incur `COST_UNEXPECTED_MESSAGE` for,
-///    but then they receive `BENEFIT_VALID_MESSAGE`.
+/// 2. Send a message from B that they incur `COST_UNEXPECTED_MESSAGE` for, but then they receive
+///    `BENEFIT_VALID_MESSAGE`.
 /// 3. Send all other messages related to B.
 #[test]
 fn spam_attack_results_in_negative_reputation_change() {

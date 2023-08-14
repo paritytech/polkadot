@@ -22,45 +22,41 @@
 //!
 //! # Protocol
 //!
-//! - Once the candidate is backed, produce a 'backed candidate packet'
-//!   `(CommittedCandidateReceipt, Statements)`.
-//! - Members of a backing group produce an announcement of a fully-backed candidate
-//!   (aka "full manifest") when they are finished.
+//! - Once the candidate is backed, produce a 'backed candidate packet' `(CommittedCandidateReceipt,
+//!   Statements)`.
+//! - Members of a backing group produce an announcement of a fully-backed candidate (aka "full
+//!   manifest") when they are finished.
 //!   - `BackedCandidateManifest`
-//!   - Manifests are sent along the grid topology to peers who have the relay-parent
-//!     in their implicit view.
+//!   - Manifests are sent along the grid topology to peers who have the relay-parent in their
+//!     implicit view.
 //!   - Only sent by 1st-hop nodes after downloading the backed candidate packet.
-//!     - The grid topology is a 2-dimensional grid that provides either a 1
-//!       or 2-hop path from any originator to any recipient - 1st-hop nodes
-//!       are those which share either a row or column with the originator,
-//!       and 2nd-hop nodes are those which share a column or row with that
+//!     - The grid topology is a 2-dimensional grid that provides either a 1 or 2-hop path from any
+//!       originator to any recipient - 1st-hop nodes are those which share either a row or column
+//!       with the originator, and 2nd-hop nodes are those which share a column or row with that
 //!       1st-hop node.
-//!     - Note that for the purposes of statement distribution, we actually
-//!       take the union of the routing paths from each validator in a group
-//!       to the local node to determine the sending and receiving paths.
+//!     - Note that for the purposes of statement distribution, we actually take the union of the
+//!       routing paths from each validator in a group to the local node to determine the sending
+//!       and receiving paths.
 //!   - Ignored when received out-of-topology
-//! - On every local view change, members of the backing group rebroadcast the
-//!   manifest for all candidates under every new relay-parent across the grid.
-//! - Nodes should send a `BackedCandidateAcknowledgement(CandidateHash,
-//!   StatementFilter)` notification to any peer which has sent a manifest, and
-//!   the candidate has been acquired by other means.
+//! - On every local view change, members of the backing group rebroadcast the manifest for all
+//!   candidates under every new relay-parent across the grid.
+//! - Nodes should send a `BackedCandidateAcknowledgement(CandidateHash, StatementFilter)`
+//!   notification to any peer which has sent a manifest, and the candidate has been acquired by
+//!   other means.
 //! - Request/response for the candidate + votes.
 //!   - Ignore if they are inconsistent with the manifest.
-//!   - A malicious backing group is capable of producing an unbounded number of
-//!     backed candidates.
-//!     - We request the candidate only if the candidate has a hypothetical depth in
-//!       any of our fragment trees, and:
-//!     - the seconding validators have not seconded any other candidates at that
-//!       depth in any of those fragment trees
-//! - All members of the group attempt to circulate all statements (in compact form)
-//!   from the rest of the group on candidates that have already been backed.
+//!   - A malicious backing group is capable of producing an unbounded number of backed candidates.
+//!     - We request the candidate only if the candidate has a hypothetical depth in any of our
+//!       fragment trees, and:
+//!     - the seconding validators have not seconded any other candidates at that depth in any of
+//!       those fragment trees
+//! - All members of the group attempt to circulate all statements (in compact form) from the rest
+//!   of the group on candidates that have already been backed.
 //!   - They do this via the grid topology.
-//!   - They add the statements to their backed candidate packet for future
-//!     requestors, and also:
+//!   - They add the statements to their backed candidate packet for future requestors, and also:
 //!     - send the statement to any peer, which:
 //!       - we advertised the backed candidate to (sent manifest), and:
-//!         - has previously & successfully requested the backed candidate packet,
-//!           or:
+//!         - has previously & successfully requested the backed candidate packet, or:
 //!         - which has sent a `BackedCandidateAcknowledgement`
 //!   - 1st-hop nodes do the same thing
 
@@ -121,8 +117,8 @@ impl SessionTopologyView {
 
 /// Build a view of the topology for the session.
 /// For groups that we are part of: we receive from nobody and send to our X/Y peers.
-/// For groups that we are not part of: we receive from any validator in the group we share a slice with
-///    and send to the corresponding X/Y slice in the other dimension.
+/// For groups that we are not part of: we receive from any validator in the group we share a slice
+/// with    and send to the corresponding X/Y slice in the other dimension.
 ///    For any validators we don't share a slice with, we receive from the nodes
 ///    which share a slice with them.
 pub fn build_session_topology<'a>(
@@ -288,8 +284,8 @@ impl GridTracker {
 		let manifest_allowed = match kind {
 			// Peers can send manifests _if_:
 			//   * They are in the receiving set for the group AND the manifest is full OR
-			//   * They are in the sending set for the group AND we have sent them
-			//     a manifest AND the received manifest is partial.
+			//   * They are in the sending set for the group AND we have sent them a manifest AND
+			//     the received manifest is partial.
 			ManifestKind::Full => receiving_from,
 			ManifestKind::Acknowledgement =>
 				sending_to &&
@@ -1626,7 +1622,8 @@ mod tests {
 		assert_matches!(ack, Ok(false));
 	}
 
-	// Check that pending communication is set correctly when receiving a manifest on a confirmed candidate.
+	// Check that pending communication is set correctly when receiving a manifest on a confirmed
+	// candidate.
 	//
 	// It should also overwrite any existing `Full` ManifestKind.
 	#[test]

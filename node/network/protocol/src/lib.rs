@@ -91,7 +91,8 @@ impl Into<sc_network::ObservedRole> for ObservedRole {
 
 /// Specialized wrapper around [`View`].
 ///
-/// Besides the access to the view itself, it also gives access to the [`jaeger::Span`] per leave/head.
+/// Besides the access to the view itself, it also gives access to the [`jaeger::Span`] per
+/// leave/head.
 #[derive(Debug, Clone, Default)]
 pub struct OurView {
 	view: View,
@@ -131,7 +132,8 @@ impl std::ops::Deref for OurView {
 	}
 }
 
-/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled [`jaeger::Span`]'s.
+/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled
+/// [`jaeger::Span`]'s.
 ///
 /// NOTE: Use for tests only.
 ///
