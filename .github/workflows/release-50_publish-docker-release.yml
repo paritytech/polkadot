@@ -30,7 +30,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           push: true
-          file: scripts/ci/dockerfiles/polkadot_injected_release.Dockerfile
+          file: scripts/ci/dockerfiles/polkadot/polkadot_injected_debian.Dockerfile
           tags: |
             parity/polkadot:latest
             parity/polkadot:${{ github.event.release.tag_name }}
