@@ -28,6 +28,7 @@ mod v0 {
 	use frame_support::pallet_prelude::*;
 	use parity_scale_codec::{Decode, Encode};
 	use primitives::{CoreIndex, GroupIndex, Id as ParaId};
+	use sp_std::vec::Vec;
 
 	#[derive(Clone, Encode, Decode, TypeInfo)]
 	#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
