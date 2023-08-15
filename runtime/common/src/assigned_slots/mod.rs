@@ -209,9 +209,9 @@ pub mod pallet {
 		PermanentSlotAssigned(ParaId),
 		/// A para was assigned a temporary parachain slot
 		TemporarySlotAssigned(ParaId),
-		/// A maximum number of permanent slots has been changed
+		/// The maximum number of permanent slots has been changed
 		MaxPermanentSlotsChanged { slots: u32 },
-		/// A maximum number of temporary slots has been changed
+		/// The maximum number of temporary slots has been changed
 		MaxTemporarySlotsChanged { slots: u32 },
 	}
 
