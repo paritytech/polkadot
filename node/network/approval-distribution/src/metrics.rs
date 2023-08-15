@@ -31,6 +31,8 @@ struct MetricsInner {
 	time_unify_with_peer: prometheus::Histogram,
 	time_import_pending_now_known: prometheus::Histogram,
 	time_awaiting_approval_voting: prometheus::Histogram,
+	assignments_received_result: prometheus::CounterVec<prometheus::U64>,
+	approvals_received_result: prometheus::CounterVec<prometheus::U64>,
 }
 
 trait AsLabel {
@@ -76,6 +78,144 @@ impl Metrics {
 		self.0
 			.as_ref()
 			.map(|metrics| metrics.time_import_pending_now_known.start_timer())
+	}
+
+	pub fn on_approval_already_known(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["known"]).inc()
+		}
+	}
+
+	pub fn on_approval_entry_not_found(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["noapprovalentry"]).inc()
+		}
+	}
+
+	pub fn on_approval_recent_outdated(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["outdated"]).inc()
+		}
+	}
+
+	pub fn on_approval_invalid_block(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["invalidblock"]).inc()
+		}
+	}
+
+	pub fn on_approval_unknown_assignment(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics
+				.approvals_received_result
+				.with_label_values(&["unknownassignment"])
+				.inc()
+		}
+	}
+
+	pub fn on_approval_duplicate(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["duplicate"]).inc()
+		}
+	}
+
+	pub fn on_approval_out_of_view(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["outofview"]).inc()
+		}
+	}
+
+	pub fn on_approval_good_known(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["goodknown"]).inc()
+		}
+	}
+
+	pub fn on_approval_bad(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["bad"]).inc()
+		}
+	}
+
+	pub fn on_approval_unexpected(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["unexpected"]).inc()
+		}
+	}
+
+	pub fn on_approval_bug(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["bug"]).inc()
+		}
+	}
+
+	pub fn on_approval_sent_v1(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["v1"]).inc()
+		}
+	}
+
+	pub fn on_approval_sent_v2(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_received_result.with_label_values(&["v2"]).inc()
+		}
+	}
+
+	pub fn on_assignment_already_known(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.assignments_received_result.with_label_values(&["known"]).inc()
+		}
+	}
+
+	pub fn on_assignment_recent_outdated(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.assignments_received_result.with_label_values(&["outdated"]).inc()
+		}
+	}
+
+	pub fn on_assignment_invalid_block(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.assignments_received_result.with_label_values(&["invalidblock"]).inc()
+		}
+	}
+
+	pub fn on_assignment_duplicate(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.assignments_received_result.with_label_values(&["duplicate"]).inc()
+		}
+	}
+
+	pub fn on_assignment_out_of_view(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.assignments_received_result.with_label_values(&["outofview"]).inc()
+		}
+	}
+
+	pub fn on_assignment_good_known(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.assignments_received_result.with_label_values(&["goodknown"]).inc()
+		}
+	}
+
+	pub fn on_assignment_bad(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.assignments_received_result.with_label_values(&["bad"]).inc()
+		}
+	}
+
+	pub fn on_assignment_duplicatevoting(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics
+				.assignments_received_result
+				.with_label_values(&["duplicatevoting"])
+				.inc()
+		}
+	}
+
+	pub fn on_assignment_far(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.assignments_received_result.with_label_values(&["far"]).inc()
+		}
 	}
 
 	pub(crate) fn time_awaiting_approval_voting(
@@ -165,6 +305,26 @@ impl MetricsTrait for Metrics {
 					"polkadot_parachain_time_awaiting_approval_voting",
 					"Time spent awaiting a reply from the Approval Voting Subsystem.",
 				).buckets(vec![0.0001, 0.0004, 0.0016, 0.0064, 0.0256, 0.1024, 0.4096, 1.6384, 3.2768, 4.9152, 6.5536,]))?,
+				registry,
+			)?,
+			assignments_received_result: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"polkadot_parachain_assignments_received_result",
+						"Result of a processed assignement",
+					),
+					&["status"]
+				)?,
+				registry,
+			)?,
+			approvals_received_result: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"polkadot_parachain_approvals_received_result",
+						"Result of a processed approval",
+					),
+					&["status"]
+				)?,
 				registry,
 			)?,
 		};

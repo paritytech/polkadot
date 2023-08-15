@@ -1096,9 +1096,11 @@ impl State {
 							COST_UNEXPECTED_MESSAGE,
 						)
 						.await;
-						gum::error!(target: LOG_TARGET, "Received assignment for invalid block");
+						gum::debug!(target: LOG_TARGET, "Received assignment for invalid block");
+						metrics.on_assignment_recent_outdated();
 					}
 				}
+				metrics.on_assignment_invalid_block();
 				return
 			},
 		};
@@ -1131,6 +1133,7 @@ impl State {
 								COST_DUPLICATE_MESSAGE,
 							)
 							.await;
+							metrics.on_assignment_duplicate();
 						} else {
 							gum::trace!(
 								target: LOG_TARGET,
@@ -1158,6 +1161,7 @@ impl State {
 						COST_UNEXPECTED_MESSAGE,
 					)
 					.await;
+					metrics.on_assignment_out_of_view();
 				},
 			}
 
@@ -1174,6 +1178,7 @@ impl State {
 					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known assignment");
 					peer_knowledge.received.insert(message_subject, message_kind);
 				}
+				metrics.on_assignment_good_known();
 				return
 			}
 
@@ -1230,6 +1235,8 @@ impl State {
 						?peer_id,
 						"Got an `AcceptedDuplicate` assignment",
 					);
+					metrics.on_assignment_duplicatevoting();
+
 					return
 				},
 				AssignmentCheckResult::TooFarInFuture => {
@@ -1246,6 +1253,8 @@ impl State {
 						COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE,
 					)
 					.await;
+					metrics.on_assignment_far();
+
 					return
 				},
 				AssignmentCheckResult::Bad(error) => {
@@ -1263,6 +1272,7 @@ impl State {
 						COST_INVALID_MESSAGE,
 					)
 					.await;
+					metrics.on_assignment_bad();
 					return
 				},
 			}
@@ -1378,16 +1388,18 @@ impl State {
 		entry: &mut BlockEntry,
 		reputation: &mut ReputationAggregator,
 		peer_id: PeerId,
+		metrics: &Metrics,
 	) -> bool {
 		for message_subject in message_subjects {
 			if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
-				gum::debug!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?peer_id,
 					?message_subject,
 					"Unknown approval assignment",
 				);
 				modify_reputation(reputation, ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
+				metrics.on_approval_unknown_assignment();
 				return false
 			}
 
@@ -1397,7 +1409,7 @@ impl State {
 					let peer_knowledge = knowledge.get_mut();
 					if peer_knowledge.contains(&message_subject, message_kind) {
 						if !peer_knowledge.received.insert(message_subject.clone(), message_kind) {
-							gum::debug!(
+							gum::trace!(
 								target: LOG_TARGET,
 								?peer_id,
 								?message_subject,
@@ -1411,6 +1423,7 @@ impl State {
 								COST_DUPLICATE_MESSAGE,
 							)
 							.await;
+							metrics.on_approval_duplicate();
 						}
 						return false
 					}
@@ -1420,10 +1433,11 @@ impl State {
 						target: LOG_TARGET,
 						?peer_id,
 						?message_subject,
-						"Unknown approval assignment",
+						"Approval from a peer is out of view",
 					);
 					modify_reputation(reputation, ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE)
 						.await;
+					metrics.on_approval_out_of_view();
 					return true
 				},
 			}
@@ -1436,7 +1450,7 @@ impl State {
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
 					}
-					// We already processed this approval no need
+					// We already processed this approval no need to continue.
 					true
 				} else {
 					accumulator
@@ -1444,6 +1458,7 @@ impl State {
 			});
 		if good_known_approval {
 			gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subjects, "Known approval");
+			metrics.on_approval_good_known();
 			modify_reputation(reputation, ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE).await;
 		}
 
@@ -1481,10 +1496,11 @@ impl State {
 					let approval_entry_exists =
 						entry.contains_approval_entry(candidate_index as _, validator_index);
 					if !approval_entry_exists {
-						gum::error!(
-							target: LOG_TARGET, ?block_hash, ?candidate_index, validator_index = ?vote.validator,
-							peer_id = ?source.peer_id(), "Received approval before assignment"
+						gum::debug!(
+							   target: LOG_TARGET, ?block_hash, ?candidate_index, validator_index = ?vote.validator, candidate_indices = ?vote.candidate_indices,
+								peer_id = ?source.peer_id(), "Received approval before assignment"
 						);
+						metrics.on_approval_entry_not_found();
 					}
 					approval_entry_exists && result
 				}) =>
@@ -1499,7 +1515,10 @@ impl State {
 							COST_UNEXPECTED_MESSAGE,
 						)
 						.await;
-						gum::error!(target: LOG_TARGET, "Received approval for invalid block");
+						gum::debug!(target: LOG_TARGET, "Received approval for invalid block");
+						metrics.on_approval_invalid_block();
+					} else {
+						metrics.on_approval_recent_outdated();
 					}
 				}
 				return
@@ -1527,6 +1546,7 @@ impl State {
 				entry,
 				&mut self.reputation,
 				peer_id,
+				metrics,
 			)
 			.await
 			{
@@ -1585,6 +1605,7 @@ impl State {
 						%error,
 						"Got a bad approval from peer",
 					);
+					metrics.on_approval_bad();
 					return
 				},
 			}
@@ -1622,6 +1643,7 @@ impl State {
 					"Unknown approval assignment",
 				);
 				// No rep change as this is caused by an issue
+				metrics.on_approval_unexpected();
 				return
 			}
 
@@ -1640,7 +1662,7 @@ impl State {
 					?err,
 					"Possible bug: Vote import failed",
 				);
-
+				metrics.on_approval_bug();
 				return
 			}
 			required_routing = approval_entry.routing_info().required_routing;
@@ -1726,6 +1748,7 @@ impl State {
 					)),
 				))
 				.await;
+				metrics.on_approval_sent_v1();
 			}
 
 			if !v2_peers.is_empty() {
@@ -1738,6 +1761,7 @@ impl State {
 					),
 				))
 				.await;
+				metrics.on_approval_sent_v2();
 			}
 		}
 	}
