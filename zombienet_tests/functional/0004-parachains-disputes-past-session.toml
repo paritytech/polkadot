@@ -24,7 +24,7 @@ requests = { memory = "2G", cpu = "1" }
   [[relaychain.node_groups]]
   name = "honest-validator"
   count = 2
-  args = ["-lruntime=debug,sync=trace"]
+  args = ["-lruntime=debug"]
 
   [[relaychain.node_groups]]
   image = "{{MALUS_IMAGE}}"
@@ -35,11 +35,15 @@ requests = { memory = "2G", cpu = "1" }
 
 [[parachains]]
 id = 1000
-cumulus_based = true
+genesis_state_generator = "undying-collator export-genesis-state --pov-size=10000 --pvf-complexity=1"
+    
+    [parachains.collator]
+    image = "{{COL_IMAGE}}"
+    name = "collator"
+    command = "undying-collator"
+    args = ["-lparachain=debug", "--pov-size=10000", "--parachain-id=1000", "--pvf-complexity=1"]
 
-  [parachains.collator]
-  name = "collator"
-  command = "polkadot-parachain"
-  image = "docker.io/parity/polkadot-parachain:latest"
-  # image = "{{COL_IMAGE}}"
-  args = ["-lparachain=debug"]
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"
