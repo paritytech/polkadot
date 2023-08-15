@@ -121,4 +121,4 @@ cargo-clippy:
     # - cargo version && cargo clippy --version
     # - rustup show
     # - SKIP_WASM_BUILD=1 cargo +1.70 clippy --all-targets --locked -p polkadot-runtime-parachains
-    - SKIP_WASM_BUILD=1 cargo +1.70 clippy --all-targets --locked -p polkadot-runtime-parachains
+    - SKIP_WASM_BUILD=1 cargo clippy --all-targets --locked -p polkadot-runtime-parachains
