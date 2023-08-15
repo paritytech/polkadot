@@ -25,6 +25,20 @@ cargo-fmt:
     - cargo +nightly fmt --all -- --check
   allow_failure: true
 
+check-rust-feature-propagation:
+  stage: check
+  extends:
+    - .docker-env
+    - .test-refs
+    - .compiler-info
+  script:
+    - cargo install --locked --version 0.8.0 -q -f --no-default-features zepter && zepter --version
+    - echo "👉 Hello developer! If you see this CI check failing then it means that one of the crates is missing a feature for one of its dependencies. The output below tells you which feature needs to be added for which dependency to which crate. You can do this by modifying the Cargo.toml file. For more context see the MR where this check was introduced https://github.com/paritytech/substrate/pull/14660"
+    - zepter lint propagate-feature --feature try-runtime --left-side-feature-missing=ignore --workspace --feature-enables-dep="try-runtime:frame-try-runtime" --locked
+    - zepter lint propagate-feature --feature runtime-benchmarks --left-side-feature-missing=ignore --workspace --feature-enables-dep="runtime-benchmarks:frame-benchmarking" --locked
+    - zepter lint propagate-feature --feature std --left-side-feature-missing=ignore --workspace --locked
+  allow_failure: true # Experimental
+
 # Disabled in https://github.com/paritytech/polkadot/pull/7512
 .spellcheck_disabled:
   stage: check
