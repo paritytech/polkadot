@@ -62,8 +62,8 @@ pub async fn respond(
 		//
 		// 1. We want some requesters to have full data fast, rather then lots of them having them
 		//    late, as each requester having the data will help distributing it.
-		// 2. If we take too long, the requests timing out will not yet have had any data sent,
-		//    thus we wasted no bandwidth.
+		// 2. If we take too long, the requests timing out will not yet have had any data sent, thus
+		//    we wasted no bandwidth.
 		// 3. If the queue is full, requestes will get an immediate error instead of running in a
 		//    timeout, thus requesters can immediately try another peer and be faster.
 		//

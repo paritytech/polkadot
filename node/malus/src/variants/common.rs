@@ -125,8 +125,8 @@ where
 		Self { fake_validation, fake_validation_error, distribution, spawner }
 	}
 
-	/// Creates and sends the validation response for a given candidate. Queries the runtime to obtain the validation data for the
-	/// given candidate.
+	/// Creates and sends the validation response for a given candidate. Queries the runtime to
+	/// obtain the validation data for the given candidate.
 	pub fn send_validation_response<Sender>(
 		&self,
 		candidate_descriptor: CandidateDescriptor,
@@ -203,7 +203,8 @@ where
 {
 	type Message = CandidateValidationMessage;
 
-	// Capture all (approval and backing) candidate validation requests and depending on configuration fail them.
+	// Capture all (approval and backing) candidate validation requests and depending on
+	// configuration fail them.
 	fn intercept_incoming(
 		&self,
 		subsystem_sender: &mut Sender,
@@ -279,7 +280,8 @@ where
 					},
 					FakeCandidateValidation::ApprovalInvalid |
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
-						// Set the validation result to invalid with probability `p` and trigger a dispute
+						// Set the validation result to invalid with probability `p` and trigger a
+						// dispute
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
@@ -294,7 +296,8 @@ where
 									&validation_result,
 								);
 
-								// We're not even checking the candidate, this makes us appear faster than honest validators.
+								// We're not even checking the candidate, this makes us appear
+								// faster than honest validators.
 								sender.send(Ok(validation_result)).unwrap();
 								None
 							},
@@ -370,7 +373,8 @@ where
 								);
 								None
 							},
-							// If the `PoV` is malicious, we behave normally with some probability `(1-p)`
+							// If the `PoV` is malicious, we behave normally with some probability
+							// `(1-p)`
 							false => Some(FromOrchestra::Communication {
 								msg: CandidateValidationMessage::ValidateFromChainState(
 									candidate_receipt,
@@ -383,7 +387,8 @@ where
 					},
 					FakeCandidateValidation::BackingInvalid |
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
-						// Maliciously set the validation result to invalid for a valid candidate with probability `p`
+						// Maliciously set the validation result to invalid for a valid candidate
+						// with probability `p`
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
@@ -396,7 +401,8 @@ where
 									"😈 Maliciously sending invalid validation result: {:?}.",
 									&validation_result,
 								);
-								// We're not even checking the candidate, this makes us appear faster than honest validators.
+								// We're not even checking the candidate, this makes us appear
+								// faster than honest validators.
 								response_sender.send(Ok(validation_result)).unwrap();
 								None
 							},

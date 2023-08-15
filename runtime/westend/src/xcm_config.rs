@@ -272,8 +272,8 @@ impl xcm_executor::Config for XcmConfig {
 	type Aliasers = Nothing;
 }
 
-/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain.
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior
+/// location of this chain.
 pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,

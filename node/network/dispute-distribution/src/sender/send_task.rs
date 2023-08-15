@@ -45,8 +45,8 @@ use crate::{
 ///
 /// The unit of work for a `SendTask` is an authority/validator.
 pub struct SendTask<M> {
-	/// The request we are supposed to get out to all `parachain` validators of the dispute's session
-	/// and to all current authorities.
+	/// The request we are supposed to get out to all `parachain` validators of the dispute's
+	/// session and to all current authorities.
 	request: DisputeRequest,
 
 	/// The set of authorities we need to send our messages to. This set will change at session
@@ -185,7 +185,8 @@ impl<M: 'static + Send + Sync> SendTask<M> {
 
 	/// Handle a finished response waiting task.
 	///
-	/// Called by `DisputeSender` upon reception of the corresponding message from our spawned `wait_response_task`.
+	/// Called by `DisputeSender` upon reception of the corresponding message from our spawned
+	/// `wait_response_task`.
 	pub fn on_finished_send(&mut self, authority: &AuthorityDiscoveryId, result: TaskResult) {
 		match result {
 			TaskResult::Failed(err) => {
@@ -204,8 +205,8 @@ impl<M: 'static + Send + Sync> SendTask<M> {
 			TaskResult::Succeeded => {
 				let status = match self.deliveries.get_mut(&authority) {
 					None => {
-						// Can happen when a sending became irrelevant while the response was already
-						// queued.
+						// Can happen when a sending became irrelevant while the response was
+						// already queued.
 						gum::debug!(
 							target: LOG_TARGET,
 							candidate = ?self.request.0.candidate_receipt.hash(),

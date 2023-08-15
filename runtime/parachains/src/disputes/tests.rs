@@ -871,7 +871,8 @@ mod unconfirmed_disputes {
 	use assert_matches::assert_matches;
 	use sp_runtime::ModuleError;
 
-	// Shared initialization code between `test_unconfirmed_are_ignored` and `test_unconfirmed_disputes_cause_block_import_error`
+	// Shared initialization code between `test_unconfirmed_are_ignored` and
+	// `test_unconfirmed_disputes_cause_block_import_error`
 	fn generate_dispute_statement_set_and_run_to_block() -> DisputeStatementSet {
 		// 7 validators needed for byzantine threshold of 2.
 		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
@@ -2060,7 +2061,8 @@ fn deduplication_and_sorting_works() {
 		)
 		.unwrap_err();
 
-		// assert ordering of local only disputes, and at the same time, and being free of duplicates
+		// assert ordering of local only disputes, and at the same time, and being free of
+		// duplicates
 		assert_eq!(disputes_orig.len(), disputes.len() + 1);
 
 		let are_these_equal = |a: &DisputeStatementSet, b: &DisputeStatementSet| {
