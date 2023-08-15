@@ -114,4 +114,5 @@ cargo-clippy:
     - .docker-env
     - .test-refs
   script:
+    - cargo version && cargo clippy --version
     - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo clippy --locked --all-targets

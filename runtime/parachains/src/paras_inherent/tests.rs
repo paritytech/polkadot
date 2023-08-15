@@ -68,9 +68,9 @@ mod enter {
 	}
 
 	#[test]
-	// Validate that if we create 2 backed candidates which are assigned to 2 cores that will be freed via
-	// becoming fully available, the backed candidates will not be filtered out in `create_inherent` and
-	// will not cause `enter` to early.
+	// Validate that if we create 2 backed candidates which are assigned to 2 cores that will be
+	// freed via becoming fully available, the backed candidates will not be filtered out in
+	// `create_inherent` and will not cause `enter` to early.
 	fn include_backed_candidates() {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			let dispute_statements = BTreeMap::new();
@@ -252,7 +252,8 @@ mod enter {
 			let expected_para_inherent_data = scenario.data.clone();
 
 			// Check the para inherent data is as expected:
-			// * 1 bitfield per validator (5 validators per core, 3 disputes => 3 cores, 15 validators)
+			// * 1 bitfield per validator (5 validators per core, 3 disputes => 3 cores, 15
+			//   validators)
 			assert_eq!(expected_para_inherent_data.bitfields.len(), 15);
 			// * 0 backed candidate per core
 			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 0);
@@ -389,7 +390,8 @@ mod enter {
 			let expected_para_inherent_data = scenario.data.clone();
 
 			// Check the para inherent data is as expected:
-			// * 1 bitfield per validator (4 validators per core, 2 backed candidates, 3 disputes => 4*5 = 20)
+			// * 1 bitfield per validator (4 validators per core, 2 backed candidates, 3 disputes =>
+			//   4*5 = 20)
 			assert_eq!(expected_para_inherent_data.bitfields.len(), 20);
 			// * 2 backed candidates
 			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
@@ -408,7 +410,8 @@ mod enter {
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
 			assert!(limit_inherent_data != expected_para_inherent_data);
 
-			// Three disputes is over weight (see previous test), so we expect to only see 2 disputes
+			// Three disputes is over weight (see previous test), so we expect to only see 2
+			// disputes
 			assert_eq!(limit_inherent_data.disputes.len(), 2);
 			// Ensure disputes are filtered as expected
 			assert_eq!(limit_inherent_data.disputes[0].session, 1);
@@ -418,7 +421,8 @@ mod enter {
 				limit_inherent_data.bitfields.len(),
 				expected_para_inherent_data.bitfields.len()
 			);
-			// Ensure that all backed candidates are filtered out as either would make the block over weight
+			// Ensure that all backed candidates are filtered out as either would make the block
+			// over weight
 			assert_eq!(limit_inherent_data.backed_candidates.len(), 0);
 
 			assert_ok!(Pallet::<Test>::enter(
@@ -470,7 +474,8 @@ mod enter {
 			let expected_para_inherent_data = scenario.data.clone();
 
 			// Check the para inherent data is as expected:
-			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes => 4*5 = 20),
+			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes =>
+			//   4*5 = 20),
 			assert_eq!(expected_para_inherent_data.bitfields.len(), 25);
 			// * 2 backed candidates,
 			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
@@ -493,14 +498,16 @@ mod enter {
 			assert!(inherent_data_weight(&limit_inherent_data)
 				.all_lte(max_block_weight_proof_size_adjusted()));
 
-			// Three disputes is over weight (see previous test), so we expect to only see 2 disputes
+			// Three disputes is over weight (see previous test), so we expect to only see 2
+			// disputes
 			assert_eq!(limit_inherent_data.disputes.len(), 2);
 			// Ensure disputes are filtered as expected
 			assert_eq!(limit_inherent_data.disputes[0].session, 1);
 			assert_eq!(limit_inherent_data.disputes[1].session, 2);
 			// Ensure all bitfields are included as these are still not over weight
 			assert_eq!(limit_inherent_data.bitfields.len(), 20,);
-			// Ensure that all backed candidates are filtered out as either would make the block over weight
+			// Ensure that all backed candidates are filtered out as either would make the block
+			// over weight
 			assert_eq!(limit_inherent_data.backed_candidates.len(), 0);
 
 			assert_ok!(Pallet::<Test>::enter(
@@ -551,7 +558,8 @@ mod enter {
 			let expected_para_inherent_data = scenario.data.clone();
 
 			// Check the para inherent data is as expected:
-			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes => 5*5 = 25)
+			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes =>
+			//   5*5 = 25)
 			assert_eq!(expected_para_inherent_data.bitfields.len(), 25);
 			// * 2 backed candidates
 			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
@@ -632,7 +640,8 @@ mod enter {
 				.any_lt(inherent_data_weight(&expected_para_inherent_data)));
 
 			// Check the para inherent data is as expected:
-			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes => 5*5 = 25)
+			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes =>
+			//   5*5 = 25)
 			assert_eq!(expected_para_inherent_data.bitfields.len(), 25);
 			// * 2 backed candidates
 			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
@@ -645,7 +654,8 @@ mod enter {
 
 			let limit_inherent_data =
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
-			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
+			// Expect that inherent data is filtered to include only 1 backed candidate and 2
+			// disputes
 			assert!(limit_inherent_data != expected_para_inherent_data);
 			assert!(
 				max_block_weight_proof_size_adjusted()
@@ -727,7 +737,8 @@ mod enter {
 				.unwrap();
 			let limit_inherent_data =
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
-			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
+			// Expect that inherent data is filtered to include only 1 backed candidate and 2
+			// disputes
 			assert!(limit_inherent_data != expected_para_inherent_data);
 			assert!(
 				max_block_weight_proof_size_adjusted()
@@ -792,7 +803,8 @@ mod enter {
 
 			let limit_inherent_data =
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
-			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
+			// Expect that inherent data is filtered to include only 1 backed candidate and 2
+			// disputes
 			assert!(limit_inherent_data != expected_para_inherent_data);
 			assert!(
 				max_block_weight_proof_size_adjusted()
@@ -841,7 +853,8 @@ mod enter {
 				.any_lt(inherent_data_weight(&expected_para_inherent_data)));
 
 			// Check the para inherent data is as expected:
-			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 0 disputes => 2*5 = 10)
+			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 0 disputes =>
+			//   2*5 = 10)
 			assert_eq!(expected_para_inherent_data.bitfields.len(), 10);
 			// * 2 backed candidates
 			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
@@ -854,7 +867,8 @@ mod enter {
 
 			let limit_inherent_data =
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
-			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
+			// Expect that inherent data is filtered to include only 1 backed candidate and 2
+			// disputes
 			assert!(limit_inherent_data != expected_para_inherent_data);
 			assert!(
 				max_block_weight_proof_size_adjusted()
@@ -903,7 +917,8 @@ mod enter {
 				.any_lt(inherent_data_weight(&expected_para_inherent_data)));
 
 			// Check the para inherent data is as expected:
-			// * 1 bitfield per validator (5 validators per core, 30 backed candidates, 3 disputes => 5*33 = 165)
+			// * 1 bitfield per validator (5 validators per core, 30 backed candidates, 3 disputes
+			//   => 5*33 = 165)
 			assert_eq!(expected_para_inherent_data.bitfields.len(), 165);
 			// * 30 backed candidates
 			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 30);

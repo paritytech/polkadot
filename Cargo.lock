@@ -7239,6 +7239,7 @@ dependencies = [
  "parity-scale-codec",
  "pin-project",
  "polkadot-core-primitives",
+ "polkadot-node-core-pvf",
  "polkadot-node-core-pvf-common",
  "polkadot-node-core-pvf-execute-worker",
  "polkadot-node-core-pvf-prepare-worker",
@@ -12258,6 +12259,7 @@ dependencies = [
  "sp-keyring",
  "substrate-test-utils",
  "test-parachain-adder",
+ "test-parachain-adder-collator",
  "tokio",
 ]
 
@@ -12306,6 +12308,7 @@ dependencies = [
  "sp-keyring",
  "substrate-test-utils",
  "test-parachain-undying",
+ "test-parachain-undying-collator",
  "tokio",
 ]
 

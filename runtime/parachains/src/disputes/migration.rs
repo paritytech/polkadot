@@ -79,14 +79,16 @@ pub mod v1 {
 		}
 	}
 
-	/// Migrates the pallet storage to the most recent version, checking and setting the `StorageVersion`.
+	/// Migrates the pallet storage to the most recent version, checking and setting the
+	/// `StorageVersion`.
 	pub fn migrate_to_v1<T: Config>() -> Weight {
 		let mut weight: Weight = Weight::zero();
 
 		// SpamSlots should not contain too many keys so removing everything at once should be safe
 		let res = SpamSlots::<T>::clear(u32::MAX, None);
 		// `loops` is the number of iterations => used to calculate read weights
-		// `backend` is the number of keys removed from the backend => used to calculate write weights
+		// `backend` is the number of keys removed from the backend => used to calculate write
+		// weights
 		weight = weight
 			.saturating_add(T::DbWeight::get().reads_writes(res.loops as u64, res.backend as u64));
 

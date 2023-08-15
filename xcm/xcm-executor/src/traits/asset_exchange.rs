@@ -24,8 +24,8 @@ pub trait AssetExchange {
 	/// - `origin`: The location attempting the exchange; this should generally not matter.
 	/// - `give`: The assets which have been removed from the caller.
 	/// - `want`: The minimum amount of assets which should be given to the caller in case any
-	///   exchange happens. If more assets are provided, then they should generally be of the
-	///   same asset class if at all possible.
+	///   exchange happens. If more assets are provided, then they should generally be of the same
+	///   asset class if at all possible.
 	/// - `maximal`: If `true`, then as much as possible should be exchanged.
 	///
 	/// `Ok` is returned along with the new set of assets which have been exchanged for `give`. At

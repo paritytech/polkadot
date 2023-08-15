@@ -730,7 +730,8 @@ fn reject_connection_to_next_group() {
 	})
 }
 
-// Ensure that we fetch a second collation, after the first checked collation was found to be invalid.
+// Ensure that we fetch a second collation, after the first checked collation was found to be
+// invalid.
 #[test]
 fn fetch_next_collation_on_invalid_collation() {
 	let test_state = TestState::default();
