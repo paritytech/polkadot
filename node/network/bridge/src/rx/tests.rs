@@ -432,12 +432,8 @@ fn send_our_view_upon_connection() {
 
 		handle.await_mode_switch().await;
 
-		network_handle
-			.connect_peer(peer, PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer, PeerSet::Collation, ObservedRole::Full)
-			.await;
+		network_handle.connect_peer(peer, PeerSet::Validation, ObservedRole::Full).await;
+		network_handle.connect_peer(peer, PeerSet::Collation, ObservedRole::Full).await;
 
 		await_peer_connections(&shared, 1, 1).await;
 
@@ -700,9 +696,7 @@ fn peer_view_updates_sent_via_overseer() {
 
 		let peer = PeerId::random();
 
-		network_handle
-			.connect_peer(peer, PeerSet::Validation, ObservedRole::Full)
-			.await;
+		network_handle.connect_peer(peer, PeerSet::Validation, ObservedRole::Full).await;
 
 		await_peer_connections(&shared, 1, 0).await;
 
@@ -752,9 +746,7 @@ fn peer_messages_sent_via_overseer() {
 
 		let peer = PeerId::random();
 
-		network_handle
-			.connect_peer(peer, PeerSet::Validation, ObservedRole::Full)
-			.await;
+		network_handle.connect_peer(peer, PeerSet::Validation, ObservedRole::Full).await;
 
 		await_peer_connections(&shared, 1, 0).await;
 
@@ -827,12 +819,8 @@ fn peer_disconnect_from_just_one_peerset() {
 
 		let peer = PeerId::random();
 
-		network_handle
-			.connect_peer(peer, PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer, PeerSet::Collation, ObservedRole::Full)
-			.await;
+		network_handle.connect_peer(peer, PeerSet::Validation, ObservedRole::Full).await;
+		network_handle.connect_peer(peer, PeerSet::Collation, ObservedRole::Full).await;
 
 		await_peer_connections(&shared, 1, 1).await;
 
@@ -904,11 +892,7 @@ fn peer_disconnect_from_just_one_peerset() {
 
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::WriteNotification(
-				peer,
-				PeerSet::Collation,
-				wire_message.clone(),
-			),
+			&NetworkAction::WriteNotification(peer, PeerSet::Collation, wire_message.clone()),
 		);
 		virtual_overseer
 	});
@@ -1027,12 +1011,8 @@ fn different_views_on_different_peer_sets() {
 
 		let peer = PeerId::random();
 
-		network_handle
-			.connect_peer(peer, PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer, PeerSet::Collation, ObservedRole::Full)
-			.await;
+		network_handle.connect_peer(peer, PeerSet::Validation, ObservedRole::Full).await;
+		network_handle.connect_peer(peer, PeerSet::Collation, ObservedRole::Full).await;
 
 		await_peer_connections(&shared, 1, 1).await;
 
@@ -1146,11 +1126,7 @@ fn sent_views_include_finalized_number_update() {
 
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::WriteNotification(
-				peer_a,
-				PeerSet::Validation,
-				wire_message.clone(),
-			),
+			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, wire_message.clone()),
 		);
 		virtual_overseer
 	});

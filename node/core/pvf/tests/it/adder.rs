@@ -59,7 +59,8 @@ async fn execute_good_chain_on_parent() {
 	let host = TestHost::new();
 
 	for (number, add) in (0..10).enumerate() {
-		let parent_head = HeadData { number: number as u64, parent_hash, post_state: hash_state(last_state) };
+		let parent_head =
+			HeadData { number: number as u64, parent_hash, post_state: hash_state(last_state) };
 
 		let block_data = BlockData { state: last_state, add };
 

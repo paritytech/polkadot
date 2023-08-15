@@ -644,8 +644,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 		let statement = StoredStatement { comparator: &comparator, statement: &statement };
 
 		let mut topology = GridNeighbors::empty();
-		topology.peers_x =
-			HashSet::from_iter(vec![peer_a, peer_b, peer_c].into_iter());
+		topology.peers_x = HashSet::from_iter(vec![peer_a, peer_b, peer_c].into_iter());
 		let needs_dependents = circulate_statement(
 			RequiredRouting::GridXY,
 			&topology,

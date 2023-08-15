@@ -155,43 +155,31 @@ mod enter {
 			let generate_votes = |session: u32, candidate_hash: CandidateHash| {
 				// v0 votes for 3
 				vec![DisputeStatementSet {
-					candidate_hash: candidate_hash,
+					candidate_hash,
 					session,
 					statements: vec![
 						(
 							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 							ValidatorIndex(0),
 							v0.sign(
-								&ExplicitDisputeStatement {
-									valid: false,
-									candidate_hash: candidate_hash,
-									session,
-								}
-								.signing_payload(),
+								&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+									.signing_payload(),
 							),
 						),
 						(
 							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 							ValidatorIndex(1),
 							v1.sign(
-								&ExplicitDisputeStatement {
-									valid: false,
-									candidate_hash: candidate_hash,
-									session,
-								}
-								.signing_payload(),
+								&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+									.signing_payload(),
 							),
 						),
 						(
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
 							ValidatorIndex(1),
 							v1.sign(
-								&ExplicitDisputeStatement {
-									valid: true,
-									candidate_hash: candidate_hash,
-									session,
-								}
-								.signing_payload(),
+								&ExplicitDisputeStatement { valid: true, candidate_hash, session }
+									.signing_payload(),
 							),
 						),
 					],

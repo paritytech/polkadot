@@ -116,9 +116,7 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 #[test]
 fn add_parathread_claim_works() {
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-				config: default_config(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	};
 
@@ -223,9 +221,7 @@ fn cannot_add_claim_when_no_parathread_cores() {
 #[test]
 fn session_change_prunes_cores_beyond_retries_and_those_from_non_live_parathreads() {
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-				config: default_config(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	};
 	let max_parathread_retries = default_config().parathread_retries;
@@ -324,9 +320,7 @@ fn session_change_prunes_cores_beyond_retries_and_those_from_non_live_parathread
 #[test]
 fn session_change_shuffles_validators() {
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-				config: default_config(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	};
 
@@ -381,9 +375,7 @@ fn session_change_takes_only_max_per_core() {
 	};
 
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: config.clone() },
 		..Default::default()
 	};
 
@@ -428,9 +420,7 @@ fn session_change_takes_only_max_per_core() {
 #[test]
 fn schedule_schedules() {
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-				config: default_config(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	};
 
@@ -552,9 +542,7 @@ fn schedule_schedules() {
 #[test]
 fn schedule_schedules_including_just_freed() {
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-				config: default_config(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	};
 
@@ -727,9 +715,7 @@ fn schedule_schedules_including_just_freed() {
 #[test]
 fn schedule_clears_availability_cores() {
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-				config: default_config(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	};
 
@@ -832,9 +818,7 @@ fn schedule_rotates_groups() {
 	let parathread_cores = config.parathread_cores;
 
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: config.clone() },
 		..Default::default()
 	};
 
@@ -903,9 +887,7 @@ fn parathread_claims_are_pruned_after_retries() {
 	let max_retries = default_config().parathread_retries;
 
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-				config: default_config(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	};
 
@@ -950,9 +932,7 @@ fn parathread_claims_are_pruned_after_retries() {
 #[test]
 fn availability_predicate_works() {
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: default_config(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	};
 
@@ -1057,9 +1037,7 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 	config.parathread_cores = 1;
 
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: config.clone() },
 		..Default::default()
 	};
 
@@ -1128,9 +1106,7 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 	config.parathread_cores = 1;
 
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: config.clone() },
 		..Default::default()
 	};
 
@@ -1205,9 +1181,7 @@ fn next_up_on_available_is_parachain_always() {
 	config.parathread_cores = 0;
 
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: config.clone() },
 		..Default::default()
 	};
 
@@ -1258,9 +1232,7 @@ fn next_up_on_time_out_is_parachain_always() {
 	config.parathread_cores = 0;
 
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: config.clone() },
 		..Default::default()
 	};
 
@@ -1308,9 +1280,7 @@ fn next_up_on_time_out_is_parachain_always() {
 #[test]
 fn session_change_requires_reschedule_dropping_removed_paras() {
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: default_config(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	};
 
@@ -1384,9 +1354,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 #[test]
 fn parathread_claims_are_pruned_after_deregistration() {
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: default_config(),
-		},
+		configuration: crate::configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	};
 

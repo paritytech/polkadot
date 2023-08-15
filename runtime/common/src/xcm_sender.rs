@@ -147,16 +147,14 @@ mod tests {
 		);
 
 		// message size = 2
-		let result: u128 =
-			TestFeeTracker::get_fee_factor(id).saturating_mul_int(b + (2 * m));
+		let result: u128 = TestFeeTracker::get_fee_factor(id).saturating_mul_int(b + (2 * m));
 		assert_eq!(
 			TestExponentialPrice::price_for_parachain_delivery(id, &Xcm(vec![ClearOrigin])),
 			(FeeAssetId::get(), result).into()
 		);
 
 		// message size = 4
-		let result: u128 =
-			TestFeeTracker::get_fee_factor(id).saturating_mul_int(b + (4 * m));
+		let result: u128 = TestFeeTracker::get_fee_factor(id).saturating_mul_int(b + (4 * m));
 		assert_eq!(
 			TestExponentialPrice::price_for_parachain_delivery(
 				id,

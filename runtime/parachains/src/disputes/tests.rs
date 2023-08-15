@@ -464,7 +464,7 @@ fn test_provide_multi_dispute_is_providing() {
 		let inclusion_parent = sp_core::H256::repeat_byte(0xff);
 		let session = 1;
 		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session,
 			statements: vec![
 				(
@@ -480,12 +480,8 @@ fn test_provide_multi_dispute_is_providing() {
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(1),
 					v1.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 			],
@@ -527,31 +523,23 @@ fn test_disputes_with_missing_backing_votes_are_rejected() {
 		let session = 1;
 
 		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session,
 			statements: vec![
 				(
 					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
 					ValidatorIndex(0),
 					v0.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: true, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(1),
 					v1.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 			],
@@ -589,31 +577,23 @@ fn test_freeze_on_note_included() {
 
 		// v0 votes for 3
 		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session: 3,
 			statements: vec![
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(0),
 					v0.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session: 3,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session: 3 }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(1),
 					v1.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session: 3,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session: 3 }
+							.signing_payload(),
 					),
 				),
 				(
@@ -662,31 +642,23 @@ fn test_freeze_provided_against_supermajority_for_included() {
 
 		// v0 votes for 3
 		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session,
 			statements: vec![
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(0),
 					v0.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(1),
 					v1.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
@@ -743,43 +715,31 @@ fn test_freeze_provided_against_byzantine_threshold_for_included() {
 
 		// A byzantine threshold of INVALID
 		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session,
 			statements: vec![
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(0),
 					v0.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(1),
 					v1.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(2),
 					v2.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
@@ -812,43 +772,31 @@ fn test_freeze_provided_against_byzantine_threshold_for_included() {
 
 		// And generate enough votes to reach supermajority of invalid votes
 		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session,
 			statements: vec![
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(3),
 					v3.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(4),
 					v4.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(5),
 					v5.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 			],
@@ -921,31 +869,23 @@ mod unconfirmed_disputes {
 
 		// v0 votes for 4, v1 votes against 4.
 		DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session: 4,
 			statements: vec![
 				(
 					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
 					ValidatorIndex(0),
 					v0.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash,
-							session: 4,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: true, candidate_hash, session: 4 }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(3),
 					v1.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session: 4,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session: 4 }
+							.signing_payload(),
 					),
 				),
 			],
@@ -1036,7 +976,7 @@ fn test_provide_multi_dispute_success_and_other() {
 
 		// v0 and v1 vote for 3, v6 votes against
 		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session,
 			statements: vec![
 				(
@@ -1052,24 +992,16 @@ fn test_provide_multi_dispute_success_and_other() {
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(2),
 					v6.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
 					ValidatorIndex(3),
 					v1.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash,
-							session: 3,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: true, candidate_hash, session: 3 }
+							.signing_payload(),
 					),
 				),
 			],
@@ -1085,23 +1017,19 @@ fn test_provide_multi_dispute_success_and_other() {
 		// v3 votes against 3 and for 5, v2 and v6 vote against 5.
 		let stmts = vec![
 			DisputeStatementSet {
-				candidate_hash: candidate_hash,
+				candidate_hash,
 				session: 3,
 				statements: vec![(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(5),
 					v3.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session: 3,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session: 3 }
+							.signing_payload(),
 					),
 				)],
 			},
 			DisputeStatementSet {
-				candidate_hash: candidate_hash,
+				candidate_hash,
 				session: 5,
 				statements: vec![
 					(
@@ -1117,24 +1045,16 @@ fn test_provide_multi_dispute_success_and_other() {
 						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 						ValidatorIndex(6),
 						v2.sign(
-							&ExplicitDisputeStatement {
-								valid: false,
-								candidate_hash: candidate_hash,
-								session: 5,
-							}
-							.signing_payload(),
+							&ExplicitDisputeStatement { valid: false, candidate_hash, session: 5 }
+								.signing_payload(),
 						),
 					),
 					(
 						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 						ValidatorIndex(2),
 						v6.sign(
-							&ExplicitDisputeStatement {
-								valid: false,
-								candidate_hash: candidate_hash,
-								session: 5,
-							}
-							.signing_payload(),
+							&ExplicitDisputeStatement { valid: false, candidate_hash, session: 5 }
+								.signing_payload(),
 						),
 					),
 				],
@@ -1149,18 +1069,14 @@ fn test_provide_multi_dispute_success_and_other() {
 
 		// v2 votes for 3
 		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session: 3,
 			statements: vec![(
 				DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
 				ValidatorIndex(6),
 				v2.sign(
-					&ExplicitDisputeStatement {
-						valid: true,
-						candidate_hash: candidate_hash,
-						session: 3,
-					}
-					.signing_payload(),
+					&ExplicitDisputeStatement { valid: true, candidate_hash, session: 3 }
+						.signing_payload(),
 				),
 			)],
 		}];
@@ -1170,74 +1086,54 @@ fn test_provide_multi_dispute_success_and_other() {
 		let stmts = vec![
 			// 0, 4, and 5 vote against 5
 			DisputeStatementSet {
-				candidate_hash: candidate_hash,
+				candidate_hash,
 				session: 5,
 				statements: vec![
 					(
 						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 						ValidatorIndex(0),
 						v0.sign(
-							&ExplicitDisputeStatement {
-								valid: false,
-								candidate_hash: candidate_hash,
-								session: 5,
-							}
-							.signing_payload(),
+							&ExplicitDisputeStatement { valid: false, candidate_hash, session: 5 }
+								.signing_payload(),
 						),
 					),
 					(
 						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 						ValidatorIndex(1),
 						v4.sign(
-							&ExplicitDisputeStatement {
-								valid: false,
-								candidate_hash: candidate_hash,
-								session: 5,
-							}
-							.signing_payload(),
+							&ExplicitDisputeStatement { valid: false, candidate_hash, session: 5 }
+								.signing_payload(),
 						),
 					),
 					(
 						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 						ValidatorIndex(4),
 						v5.sign(
-							&ExplicitDisputeStatement {
-								valid: false,
-								candidate_hash: candidate_hash,
-								session: 5,
-							}
-							.signing_payload(),
+							&ExplicitDisputeStatement { valid: false, candidate_hash, session: 5 }
+								.signing_payload(),
 						),
 					),
 				],
 			},
 			// 4 and 5 vote for 3
 			DisputeStatementSet {
-				candidate_hash: candidate_hash,
+				candidate_hash,
 				session: 3,
 				statements: vec![
 					(
 						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
 						ValidatorIndex(1),
 						v4.sign(
-							&ExplicitDisputeStatement {
-								valid: true,
-								candidate_hash: candidate_hash,
-								session: 3,
-							}
-							.signing_payload(),
+							&ExplicitDisputeStatement { valid: true, candidate_hash, session: 3 }
+								.signing_payload(),
 						),
 					),
 					(
 						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
 						ValidatorIndex(4),
 						v5.sign(
-							&ExplicitDisputeStatement {
-								valid: true,
-								candidate_hash: candidate_hash,
-								session: 3,
-							}
-							.signing_payload(),
+							&ExplicitDisputeStatement { valid: true, candidate_hash, session: 3 }
+								.signing_payload(),
 						),
 					),
 				],
@@ -1371,7 +1267,7 @@ fn test_punish_post_conclusion() {
 		let session = 3;
 
 		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session,
 			statements: vec![
 				(
@@ -1387,60 +1283,40 @@ fn test_punish_post_conclusion() {
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(1),
 					v4.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(2),
 					v6.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(6),
 					v2.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(4),
 					v5.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(5),
 					v3.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 				(
@@ -1468,7 +1344,7 @@ fn test_punish_post_conclusion() {
 
 		// someone reveals 3 backing vote, 6 votes against
 		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session,
 			statements: vec![
 				(
@@ -1484,12 +1360,8 @@ fn test_punish_post_conclusion() {
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 					ValidatorIndex(6),
 					v2.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash,
-							session,
-						}
-						.signing_payload(),
+						&ExplicitDisputeStatement { valid: false, candidate_hash, session }
+							.signing_payload(),
 					),
 				),
 			],
@@ -1599,37 +1471,28 @@ fn test_check_signature() {
 	let wrong_inclusion_parent = sp_core::H256::repeat_byte(4);
 
 	let statement_1 = DisputeStatement::Valid(ValidDisputeStatementKind::Explicit);
-	let statement_2 = DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(
-		inclusion_parent,
-	));
-	let wrong_statement_2 = DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(
-		wrong_inclusion_parent,
-	));
+	let statement_2 =
+		DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(inclusion_parent));
+	let wrong_statement_2 =
+		DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(wrong_inclusion_parent));
 	let statement_3 =
 		DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent));
-	let wrong_statement_3 = DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
-		wrong_inclusion_parent,
-	));
+	let wrong_statement_3 =
+		DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(wrong_inclusion_parent));
 	let statement_4 = DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking);
 	let statement_5 = DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit);
 
-	let signed_1 = validator_id.sign(
-		&ExplicitDisputeStatement { valid: true, candidate_hash: candidate_hash, session }
-			.signing_payload(),
-	);
-	let signed_2 =
-		validator_id.sign(&CompactStatement::Seconded(candidate_hash).signing_payload(
-			&SigningContext { session_index: session, parent_hash: inclusion_parent },
-		));
-	let signed_3 =
-		validator_id.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
-			&SigningContext { session_index: session, parent_hash: inclusion_parent },
-		));
-	let signed_4 =
-		validator_id.sign(&ApprovalVote(candidate_hash).signing_payload(session));
+	let signed_1 = validator_id
+		.sign(&ExplicitDisputeStatement { valid: true, candidate_hash, session }.signing_payload());
+	let signed_2 = validator_id.sign(&CompactStatement::Seconded(candidate_hash).signing_payload(
+		&SigningContext { session_index: session, parent_hash: inclusion_parent },
+	));
+	let signed_3 = validator_id.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+		&SigningContext { session_index: session, parent_hash: inclusion_parent },
+	));
+	let signed_4 = validator_id.sign(&ApprovalVote(candidate_hash).signing_payload(session));
 	let signed_5 = validator_id.sign(
-		&ExplicitDisputeStatement { valid: false, candidate_hash: candidate_hash, session }
-			.signing_payload(),
+		&ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
 	);
 
 	assert!(check_signature(
@@ -2006,9 +1869,8 @@ fn deduplication_and_sorting_works() {
 		                                 c_hash: &CandidateHash,
 		                                 valid,
 		                                 session| {
-			let payload =
-				ExplicitDisputeStatement { valid, candidate_hash: *c_hash, session }
-					.signing_payload();
+			let payload = ExplicitDisputeStatement { valid, candidate_hash: *c_hash, session }
+				.signing_payload();
 			let sig = validator.sign(&payload);
 			(DisputeStatement::Valid(ValidDisputeStatementKind::Explicit), vidx, sig.clone())
 		};
@@ -2115,19 +1977,11 @@ fn filter_removes_duplicates_within_set() {
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
 
-		let payload = ExplicitDisputeStatement {
-			valid: true,
-			candidate_hash: candidate_hash,
-			session: 1,
-		}
-		.signing_payload();
+		let payload =
+			ExplicitDisputeStatement { valid: true, candidate_hash, session: 1 }.signing_payload();
 
-		let payload_against = ExplicitDisputeStatement {
-			valid: false,
-			candidate_hash: candidate_hash,
-			session: 1,
-		}
-		.signing_payload();
+		let payload_against =
+			ExplicitDisputeStatement { valid: false, candidate_hash, session: 1 }.signing_payload();
 
 		let sig_a = v0.sign(&payload);
 		let sig_b = v0.sign(&payload);
@@ -2135,7 +1989,7 @@ fn filter_removes_duplicates_within_set() {
 		let sig_d = v1.sign(&payload_against);
 
 		let statements = DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session: 1,
 			statements: vec![
 				(
@@ -2171,7 +2025,7 @@ fn filter_removes_duplicates_within_set() {
 		assert_eq!(
 			statements,
 			Some(CheckedDisputeStatementSet::unchecked_from_unchecked(DisputeStatementSet {
-				candidate_hash: candidate_hash,
+				candidate_hash,
 				session: 1,
 				statements: vec![
 					(
@@ -2261,17 +2115,13 @@ fn filter_removes_session_out_of_bounds() {
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
 
-		let payload = ExplicitDisputeStatement {
-			valid: true,
-			candidate_hash: candidate_hash,
-			session: 1,
-		}
-		.signing_payload();
+		let payload =
+			ExplicitDisputeStatement { valid: true, candidate_hash, session: 1 }.signing_payload();
 
 		let sig_a = v0.sign(&payload);
 
 		let statements = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash,
+			candidate_hash,
 			session: 100,
 			statements: vec![(
 				DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
@@ -2333,19 +2183,13 @@ fn filter_removes_concluded_ancient() {
 			},
 		);
 
-		let payload_a = ExplicitDisputeStatement {
-			valid: true,
-			candidate_hash: candidate_hash_a,
-			session: 1,
-		}
-		.signing_payload();
+		let payload_a =
+			ExplicitDisputeStatement { valid: true, candidate_hash: candidate_hash_a, session: 1 }
+				.signing_payload();
 
-		let payload_b = ExplicitDisputeStatement {
-			valid: true,
-			candidate_hash: candidate_hash_b,
-			session: 1,
-		}
-		.signing_payload();
+		let payload_b =
+			ExplicitDisputeStatement { valid: true, candidate_hash: candidate_hash_b, session: 1 }
+				.signing_payload();
 
 		let sig_a = v0.sign(&payload_a);
 		let sig_b = v0.sign(&payload_b);
@@ -2406,19 +2250,13 @@ fn filter_removes_duplicate_statements_sets() {
 
 		let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
 
-		let payload = ExplicitDisputeStatement {
-			valid: true,
-			candidate_hash: candidate_hash_a,
-			session: 1,
-		}
-		.signing_payload();
+		let payload =
+			ExplicitDisputeStatement { valid: true, candidate_hash: candidate_hash_a, session: 1 }
+				.signing_payload();
 
-		let payload_against = ExplicitDisputeStatement {
-			valid: false,
-			candidate_hash: candidate_hash_a,
-			session: 1,
-		}
-		.signing_payload();
+		let payload_against =
+			ExplicitDisputeStatement { valid: false, candidate_hash: candidate_hash_a, session: 1 }
+				.signing_payload();
 
 		let sig_a = v0.sign(&payload);
 		let sig_a_against = v1.sign(&payload_against);
@@ -2457,11 +2295,7 @@ fn filter_removes_duplicate_statements_sets() {
 
 		assert_eq!(
 			sets,
-			vec![DisputeStatementSet {
-				candidate_hash: candidate_hash_a,
-				session: 1,
-				statements,
-			}]
+			vec![DisputeStatementSet { candidate_hash: candidate_hash_a, session: 1, statements }]
 		);
 	})
 }
@@ -2478,12 +2312,9 @@ fn filter_ignores_single_sided() {
 
 		let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
 
-		let payload = ExplicitDisputeStatement {
-			valid: true,
-			candidate_hash: candidate_hash_a,
-			session: 1,
-		}
-		.signing_payload();
+		let payload =
+			ExplicitDisputeStatement { valid: true, candidate_hash: candidate_hash_a, session: 1 }
+				.signing_payload();
 
 		let sig_a = v0.sign(&payload);
 
@@ -2515,12 +2346,9 @@ fn import_ignores_single_sided() {
 
 		let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
 
-		let payload = ExplicitDisputeStatement {
-			valid: true,
-			candidate_hash: candidate_hash_a,
-			session: 1,
-		}
-		.signing_payload();
+		let payload =
+			ExplicitDisputeStatement { valid: true, candidate_hash: candidate_hash_a, session: 1 }
+				.signing_payload();
 
 		let sig_a = v0.sign(&payload);
 

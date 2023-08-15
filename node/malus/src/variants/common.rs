@@ -392,9 +392,8 @@ where
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
-								let validation_result = ValidationResult::Invalid(
-									self.fake_validation_error.into(),
-								);
+								let validation_result =
+									ValidationResult::Invalid(self.fake_validation_error.into());
 								gum::info!(
 									target: MALUS,
 									para_id = ?candidate_receipt.descriptor.para_id,

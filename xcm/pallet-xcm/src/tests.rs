@@ -46,10 +46,8 @@ fn report_outcome_notify_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	let sender: MultiLocation = AccountId32 { network: None, id: ALICE.into() }.into();
-	let mut message = Xcm(vec![TransferAsset {
-		assets: (Here, SEND_AMOUNT).into(),
-		beneficiary: sender,
-	}]);
+	let mut message =
+		Xcm(vec![TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender }]);
 	let call = pallet_test_notifier::Call::notification_received {
 		query_id: 0,
 		response: Default::default(),
@@ -123,10 +121,8 @@ fn report_outcome_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	let sender: MultiLocation = AccountId32 { network: None, id: ALICE.into() }.into();
-	let mut message = Xcm(vec![TransferAsset {
-		assets: (Here, SEND_AMOUNT).into(),
-		beneficiary: sender,
-	}]);
+	let mut message =
+		Xcm(vec![TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender }]);
 	new_test_ext_with_balances(balances).execute_with(|| {
 		XcmPallet::report_outcome(&mut message, Parachain(PARA_ID).into_location(), 100).unwrap();
 		assert_eq!(
@@ -683,7 +679,7 @@ fn trapped_assets_can_be_claimed() {
 			last_events(2),
 			vec![
 				RuntimeEvent::XcmPallet(crate::Event::AssetsTrapped {
-					hash: hash,
+					hash,
 					origin: source,
 					assets: vma
 				}),
@@ -747,10 +743,7 @@ fn basic_subscription_works() {
 
 		assert_eq!(
 			Queries::<Test>::iter().collect::<Vec<_>>(),
-			vec![(
-				0,
-				QueryStatus::VersionNotifier { origin: remote.into(), is_active: false }
-			)]
+			vec![(0, QueryStatus::VersionNotifier { origin: remote.into(), is_active: false })]
 		);
 		assert_eq!(
 			VersionNotifiers::<Test>::iter().collect::<Vec<_>>(),

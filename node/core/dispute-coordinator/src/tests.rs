@@ -399,7 +399,8 @@ impl TestState {
 					let mut response = Vec::new();
 					for i in target_header.number.saturating_sub(k as u32)..target_header.number {
 						response.push(
-							*self.block_num_to_header
+							*self
+								.block_num_to_header
 								.get(&i)
 								.expect("headers and block_num_to_header should always be in sync"),
 						);

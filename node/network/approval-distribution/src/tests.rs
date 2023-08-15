@@ -234,8 +234,7 @@ async fn setup_peer_with_view(
 	overseer_send(
 		virtual_overseer,
 		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
-			*peer_id,
-			view,
+			*peer_id, view,
 		)),
 	)
 	.await;

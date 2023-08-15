@@ -251,12 +251,7 @@ impl ChainBuilder {
 		self.add_block_inner(hash, parent_hash, number)
 	}
 
-	fn add_block_inner(
-		&mut self,
-		hash: Hash,
-		parent_hash: Hash,
-		number: u32,
-	) -> &mut Self {
+	fn add_block_inner(&mut self, hash: Hash, parent_hash: Hash, number: u32) -> &mut Self {
 		let header = ChainBuilder::make_header(parent_hash, number);
 		assert!(
 			self.0.blocks_by_hash.insert(hash, header).is_none(),

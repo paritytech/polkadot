@@ -812,8 +812,7 @@ fn collators_declare_to_connected_peers() {
 			setup_system(&mut test_harness.virtual_overseer, &test_state).await;
 
 			// A validator connected to us
-			connect_peer(&mut test_harness.virtual_overseer, peer, Some(validator_id))
-				.await;
+			connect_peer(&mut test_harness.virtual_overseer, peer, Some(validator_id)).await;
 			expect_declare_msg(&mut test_harness.virtual_overseer, &test_state, &peer).await;
 			test_harness
 		},
