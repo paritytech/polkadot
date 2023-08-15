@@ -35,3 +35,11 @@ honest-validator-0: reports parachain_candidate_dispute_concluded{validity="vali
 
 # Check an unsigned extrinsic is submitted
 honest-validator: log line contains "Successfully reported pending slash" within 180 seconds
+
+# Check lag - approval
+alice: reports polkadot_parachain_approval_checking_finality_lag is 0
+honest-validator-0: reports polkadot_parachain_approval_checking_finality_lag is 0
+
+# Check lag - dispute conclusion
+alice: reports polkadot_parachain_disputes_finality_lag is 0
+honest-validator-0: reports polkadot_parachain_disputes_finality_lag is 0
