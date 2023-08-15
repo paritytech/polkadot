@@ -280,7 +280,6 @@ fn para_past_code_pruning_in_initialize() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -333,7 +332,6 @@ fn note_new_head_sets_head() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -375,7 +373,6 @@ fn note_past_code_sets_up_pruning_correctly() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -424,7 +421,6 @@ fn code_upgrade_applied_after_delay() {
 				validation_upgrade_cooldown,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -537,7 +533,6 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 				validation_upgrade_cooldown,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -620,7 +615,6 @@ fn submit_code_change_when_not_allowed_is_err() {
 				validation_upgrade_cooldown,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -691,7 +685,6 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 				validation_upgrade_cooldown,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -757,7 +750,6 @@ fn full_parachain_cleanup_storage() {
 				thread_availability_period: 1,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1013,7 +1005,6 @@ fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 				validation_upgrade_delay,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1104,7 +1095,6 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { validation_upgrade_delay, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1169,7 +1159,6 @@ fn pvf_check_onboarding_reject_on_expiry() {
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { pvf_voting_ttl, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1569,7 +1558,6 @@ fn add_trusted_validation_code_insta_approval() {
 				minimum_validation_upgrade_delay,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1611,7 +1599,6 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 				minimum_validation_upgrade_delay,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};

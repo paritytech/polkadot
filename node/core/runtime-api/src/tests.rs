@@ -984,7 +984,7 @@ fn requests_submit_pvf_check_statement() {
 				),
 			})
 			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), ());
+		let _ = rx.await.unwrap().unwrap();
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
 			.send(FromOrchestra::Communication {
@@ -994,7 +994,7 @@ fn requests_submit_pvf_check_statement() {
 				),
 			})
 			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), ());
+		let _ = rx.await.unwrap().unwrap();
 
 		assert_eq!(
 			&*subsystem_client.submitted_pvf_check_statement.lock().expect("poisened mutex"),

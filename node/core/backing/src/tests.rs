@@ -696,7 +696,6 @@ fn backing_misbehavior_works() {
 			pov_hash,
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
 			head_data: expected_head_data.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -881,7 +880,6 @@ fn backing_dont_second_invalid() {
 			pov_hash: pov_hash_b,
 			erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
 			head_data: expected_head_data.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -1263,7 +1261,6 @@ fn validation_work_ignores_wrong_collator() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 

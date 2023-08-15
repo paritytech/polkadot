@@ -377,7 +377,6 @@ fn test_initializer_on_new_session() {
 	let mock_genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { dispute_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -2297,7 +2296,6 @@ fn filter_removes_concluded_ancient() {
 				dispute_post_conclusion_acceptance_period,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};

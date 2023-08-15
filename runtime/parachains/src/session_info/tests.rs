@@ -73,7 +73,6 @@ fn genesis_config() -> MockGenesisConfig {
 	MockGenesisConfig {
 		configuration: configuration::GenesisConfig {
 			config: default_config(),
-			..Default::default()
 		},
 		..Default::default()
 	}

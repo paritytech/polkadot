@@ -70,7 +70,6 @@ pub(crate) fn genesis_config(paras: Vec<(ParaId, ParaKind)>) -> MockGenesisConfi
 		},
 		configuration: configuration::GenesisConfig {
 			config: default_config(),
-			..Default::default()
 		},
 		..Default::default()
 	}
