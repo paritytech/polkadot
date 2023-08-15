@@ -44,8 +44,8 @@ impl From<Error> for XcmError {
 	}
 }
 
-/// Simple adapter to use a currency as asset transactor. This type can be used as `type AssetTransactor` in
-/// `xcm::Config`.
+/// Simple adapter to use a currency as asset transactor. This type can be used as `type
+/// AssetTransactor` in `xcm::Config`.
 ///
 /// # Example
 /// ```

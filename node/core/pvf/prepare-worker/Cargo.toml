@@ -1,5 +1,6 @@
 [package]
 name = "polkadot-node-core-pvf-prepare-worker"
+description = "Polkadot crate that contains the logic for preparing PVFs. Used by the polkadot-prepare-worker binary."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

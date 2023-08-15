@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 authors.workspace = true
+publish = false
 
 [[bin]]
 name = "undying-collator"
@@ -13,6 +14,7 @@ path = "src/main.rs"
 [[bin]]
 name = "undying_collator_puppet_worker"
 path = "bin/puppet_worker.rs"
+required-features = ["test-utils"]
 
 [dependencies]
 parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
@@ -31,18 +33,24 @@ polkadot-node-subsystem = { path = "../../../../node/subsystem" }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
 # This one is tricky. Even though it is not used directly by the collator, we still need it for the
 # `puppet_worker` binary, which is required for the integration test. However, this shouldn't be
 # a big problem since it is used transitively anyway.
-polkadot-node-core-pvf = { path = "../../../../node/core/pvf" }
+polkadot-node-core-pvf = { path = "../../../../node/core/pvf", features = ["test-utils"], optional = true }
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }
 polkadot-test-service = { path = "../../../../node/test/service" }
+# For the puppet worker, depend on ourselves with the test-utils feature.
+test-parachain-undying-collator = { path = ".", features = ["test-utils"] }
 
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 tokio = { version = "1.24.2", features = ["macros"] }
+
+[features]
+# This feature is used to export test code to other crates without putting it in the production build.
+# This is also used by the `puppet_worker` binary.
+test-utils = ["polkadot-node-core-pvf/test-utils"]
