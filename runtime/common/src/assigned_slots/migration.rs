@@ -64,8 +64,8 @@ pub mod v1 {
 	}
 
 	/// [`VersionUncheckedMigrateToV1`] wrapped in a
-	/// [`frame_support::migrations::VersionedRuntimeUpgrade`], ensuring the migration is only performed
-	/// when on-chain version is 0.
+	/// [`frame_support::migrations::VersionedRuntimeUpgrade`], ensuring the migration is only
+	/// performed when on-chain version is 0.
 	#[cfg(feature = "experimental")]
 	pub type VersionCheckedMigrateToV1<T> = frame_support::migrations::VersionedRuntimeUpgrade<
 		0,
