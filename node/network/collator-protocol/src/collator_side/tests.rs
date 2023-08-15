@@ -773,6 +773,7 @@ fn delay_reputation_change() {
 }
 
 #[test]
+#[allow(clippy::async_yields_async)]
 fn send_only_one_collation_per_relay_parent_at_a_time() {
 	test_validator_send_sequence(|mut second_response_receiver, feedback_first_tx| async move {
 		Delay::new(Duration::from_millis(100)).await;
@@ -788,6 +789,7 @@ fn send_only_one_collation_per_relay_parent_at_a_time() {
 }
 
 #[test]
+#[allow(clippy::async_yields_async)]
 fn send_next_collation_after_max_unshared_upload_time() {
 	test_validator_send_sequence(|second_response_receiver, _| async move {
 		Delay::new(MAX_UNSHARED_UPLOAD_TIME + Duration::from_millis(50)).await;
