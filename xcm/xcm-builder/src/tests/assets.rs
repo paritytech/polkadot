@@ -149,7 +149,7 @@ fn reserve_transfer_should_work() {
 		dest: Parachain(2).into(),
 		xcm: Xcm::<()>(vec![DepositAsset {
 			assets: AllCounted(1).into(),
-			beneficiary: three.clone(),
+			beneficiary: three,
 		}]),
 	}]);
 	let hash = fake_message_hash(&message);

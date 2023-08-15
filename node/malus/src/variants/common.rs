@@ -393,7 +393,7 @@ where
 						match behave_maliciously {
 							true => {
 								let validation_result = ValidationResult::Invalid(
-									self.fake_validation_error.clone().into(),
+									self.fake_validation_error.into(),
 								);
 								gum::info!(
 									target: MALUS,

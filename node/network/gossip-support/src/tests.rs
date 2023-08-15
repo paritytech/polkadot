@@ -643,8 +643,8 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 					let mut expected = get_address_map(AUTHORITIES_WITHOUT_US.clone()).await;
 					expected.remove(&alice);
 					expected.remove(&bob);
-					let expected: HashSet<Multiaddr> = expected.into_iter().map(|(_,v)| v.into_iter()).flatten().collect();
-					assert_eq!(validator_addrs.into_iter().map(|v| v.into_iter()).flatten().collect::<HashSet<_>>(), expected);
+					let expected: HashSet<Multiaddr> = expected.into_values().flat_map(|v| v.into_iter()).collect();
+					assert_eq!(validator_addrs.into_iter().flat_map(|v| v.into_iter()).collect::<HashSet<_>>(), expected);
 					assert_eq!(peer_set, PeerSet::Validation);
 				}
 			);
@@ -707,8 +707,8 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 			}) => {
 				let mut expected = get_address_map(AUTHORITIES_WITHOUT_US.clone()).await;
 				expected.remove(&bob);
-				let expected: HashSet<Multiaddr> = expected.into_iter().map(|(_,v)| v.into_iter()).flatten().collect();
-				assert_eq!(validator_addrs.into_iter().map(|v| v.into_iter()).flatten().collect::<HashSet<_>>(), expected);
+				let expected: HashSet<Multiaddr> = expected.into_values().flat_map(|v| v.into_iter()).collect();
+				assert_eq!(validator_addrs.into_iter().flat_map(|v| v.into_iter()).collect::<HashSet<_>>(), expected);
 				assert_eq!(peer_set, PeerSet::Validation);
 			}
 		);

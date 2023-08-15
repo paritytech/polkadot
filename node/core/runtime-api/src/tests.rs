@@ -1063,7 +1063,7 @@ fn requests_validation_code_hash() {
 	let mut subsystem_client = MockSubsystemClient::default();
 	subsystem_client
 		.validation_code_hash
-		.insert(para_a, validation_code_hash.clone());
+		.insert(para_a, validation_code_hash);
 	let subsystem_client = Arc::new(subsystem_client);
 
 	let subsystem =

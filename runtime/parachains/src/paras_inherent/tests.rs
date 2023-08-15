@@ -155,7 +155,7 @@ mod enter {
 			let generate_votes = |session: u32, candidate_hash: CandidateHash| {
 				// v0 votes for 3
 				vec![DisputeStatementSet {
-					candidate_hash: candidate_hash.clone(),
+					candidate_hash: candidate_hash,
 					session,
 					statements: vec![
 						(
@@ -164,7 +164,7 @@ mod enter {
 							v0.sign(
 								&ExplicitDisputeStatement {
 									valid: false,
-									candidate_hash: candidate_hash.clone(),
+									candidate_hash: candidate_hash,
 									session,
 								}
 								.signing_payload(),
@@ -176,7 +176,7 @@ mod enter {
 							v1.sign(
 								&ExplicitDisputeStatement {
 									valid: false,
-									candidate_hash: candidate_hash.clone(),
+									candidate_hash: candidate_hash,
 									session,
 								}
 								.signing_payload(),
@@ -188,7 +188,7 @@ mod enter {
 							v1.sign(
 								&ExplicitDisputeStatement {
 									valid: true,
-									candidate_hash: candidate_hash.clone(),
+									candidate_hash: candidate_hash,
 									session,
 								}
 								.signing_payload(),
@@ -202,7 +202,7 @@ mod enter {
 			};
 
 			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
-			let statements = generate_votes(3, candidate_hash.clone());
+			let statements = generate_votes(3, candidate_hash);
 			set_scrapable_on_chain_disputes::<Test>(3, statements);
 			assert_matches!(pallet::Pallet::<Test>::on_chain_votes(), Some(ScrapedOnChainVotes {
 				session,
@@ -221,7 +221,7 @@ mod enter {
 			});
 
 			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(2));
-			let statements = generate_votes(7, candidate_hash.clone());
+			let statements = generate_votes(7, candidate_hash);
 			set_scrapable_on_chain_disputes::<Test>(7, statements);
 			assert_matches!(pallet::Pallet::<Test>::on_chain_votes(), Some(ScrapedOnChainVotes {
 				session,
@@ -1330,7 +1330,7 @@ mod sanitizers {
 				let mut set = std::collections::HashSet::new();
 				for (idx, backed_candidate) in backed_candidates.iter().enumerate() {
 					if idx & 0x01 == 0 {
-						set.insert(backed_candidate.hash().clone());
+						set.insert(backed_candidate.hash());
 					}
 				}
 				set
