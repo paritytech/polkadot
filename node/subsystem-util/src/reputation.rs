@@ -48,7 +48,8 @@ impl ReputationAggregator {
 	///
 	/// * `send_immediately_if` - A function, takes `UnifiedReputationChange`,
 	/// results shows if we need to send the changes right away.
-	/// By default, it is used for sending `UnifiedReputationChange::Malicious` changes immediately and for testing.
+	/// By default, it is used for sending `UnifiedReputationChange::Malicious` changes immediately
+	/// and for testing.
 	pub fn new(send_immediately_if: fn(UnifiedReputationChange) -> bool) -> Self {
 		Self { by_peer: Default::default(), send_immediately_if }
 	}

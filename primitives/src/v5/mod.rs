@@ -103,7 +103,8 @@ pub trait TypeIndex {
 	fn type_index(&self) -> usize;
 }
 
-/// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
+/// Index of the validator is used as a lightweight replacement of the `ValidatorId` when
+/// appropriate.
 #[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
 pub struct ValidatorIndex(pub u32);
@@ -589,25 +590,27 @@ impl Ord for CommittedCandidateReceipt {
 	}
 }
 
-/// The validation data provides information about how to create the inputs for validation of a candidate.
-/// This information is derived from the chain state and will vary from para to para, although some
-/// fields may be the same for every para.
+/// The validation data provides information about how to create the inputs for validation of a
+/// candidate. This information is derived from the chain state and will vary from para to para,
+/// although some fields may be the same for every para.
 ///
-/// Since this data is used to form inputs to the validation function, it needs to be persisted by the
-/// availability system to avoid dependence on availability of the relay-chain state.
+/// Since this data is used to form inputs to the validation function, it needs to be persisted by
+/// the availability system to avoid dependence on availability of the relay-chain state.
 ///
-/// Furthermore, the validation data acts as a way to authorize the additional data the collator needs
-/// to pass to the validation function. For example, the validation function can check whether the incoming
-/// messages (e.g. downward messages) were actually sent by using the data provided in the validation data
-/// using so called MQC heads.
+/// Furthermore, the validation data acts as a way to authorize the additional data the collator
+/// needs to pass to the validation function. For example, the validation function can check whether
+/// the incoming messages (e.g. downward messages) were actually sent by using the data provided in
+/// the validation data using so called MQC heads.
 ///
-/// Since the commitments of the validation function are checked by the relay-chain, secondary checkers
-/// can rely on the invariant that the relay-chain only includes para-blocks for which these checks have
-/// already been done. As such, there is no need for the validation data used to inform validators and
-/// collators about the checks the relay-chain will perform to be persisted by the availability system.
+/// Since the commitments of the validation function are checked by the relay-chain, secondary
+/// checkers can rely on the invariant that the relay-chain only includes para-blocks for which
+/// these checks have already been done. As such, there is no need for the validation data used to
+/// inform validators and collators about the checks the relay-chain will perform to be persisted by
+/// the availability system.
 ///
-/// The `PersistedValidationData` should be relatively lightweight primarily because it is constructed
-/// during inclusion for each candidate and therefore lies on the critical path of inclusion.
+/// The `PersistedValidationData` should be relatively lightweight primarily because it is
+/// constructed during inclusion for each candidate and therefore lies on the critical path of
+/// inclusion.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Default))]
 pub struct PersistedValidationData<H = Hash, N = BlockNumber> {
@@ -642,7 +645,8 @@ pub struct CandidateCommitments<N = BlockNumber> {
 	pub head_data: HeadData,
 	/// The number of messages processed from the DMQ.
 	pub processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	/// The mark which specifies the block number up to which all inbound HRMP messages are
+	/// processed.
 	pub hrmp_watermark: N,
 }
 
@@ -677,7 +681,8 @@ pub type UncheckedSignedAvailabilityBitfield = UncheckedSigned<AvailabilityBitfi
 
 /// A set of signed availability bitfields. Should be sorted by validator index, ascending.
 pub type SignedAvailabilityBitfields = Vec<SignedAvailabilityBitfield>;
-/// A set of unchecked signed availability bitfields. Should be sorted by validator index, ascending.
+/// A set of unchecked signed availability bitfields. Should be sorted by validator index,
+/// ascending.
 pub type UncheckedSignedAvailabilityBitfields = Vec<UncheckedSignedAvailabilityBitfield>;
 
 /// A backed (or backable, depending on context) candidate.
@@ -975,8 +980,9 @@ pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// variant.
 	#[codec(index = 1)]
 	Scheduled(ScheduledCore),
-	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
-	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
+	/// The core is currently free and there is nothing scheduled. This can be the case for
+	/// parathread cores when there are no parathread blocks queued. Parachain cores will never be
+	/// left idle.
 	#[codec(index = 2)]
 	Free,
 }
@@ -1079,8 +1085,8 @@ impl From<ValidityError> for u8 {
 	}
 }
 
-/// Abridged version of `HostConfiguration` (from the `Configuration` parachains host runtime module)
-/// meant to be used by a parachain or PDK such as cumulus.
+/// Abridged version of `HostConfiguration` (from the `Configuration` parachains host runtime
+/// module) meant to be used by a parachain or PDK such as cumulus.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct AbridgedHostConfiguration {
@@ -1156,17 +1162,18 @@ pub enum UpgradeRestriction {
 #[derive(Copy, Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum UpgradeGoAhead {
 	/// Abort the upgrade process. There is something wrong with the validation code previously
-	/// submitted by the parachain. This variant can also be used to prevent upgrades by the governance
-	/// should an emergency emerge.
+	/// submitted by the parachain. This variant can also be used to prevent upgrades by the
+	/// governance should an emergency emerge.
 	///
 	/// The expected reaction on this variant is that the parachain will admit this message and
 	/// remove all the data about the pending upgrade. Depending on the nature of the problem (to
-	/// be examined offchain for now), it can try to send another validation code or just retry later.
+	/// be examined offchain for now), it can try to send another validation code or just retry
+	/// later.
 	#[codec(index = 0)]
 	Abort,
-	/// Apply the pending code change. The parablock that is built on a relay-parent that is descendant
-	/// of the relay-parent where the parachain observed this signal must use the upgraded validation
-	/// code.
+	/// Apply the pending code change. The parablock that is built on a relay-parent that is
+	/// descendant of the relay-parent where the parachain observed this signal must use the
+	/// upgraded validation code.
 	#[codec(index = 1)]
 	GoAhead,
 }
@@ -1646,7 +1653,7 @@ pub const fn supermajority_threshold(n: usize) -> usize {
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct SessionInfo {
-	/****** New in v2 *******/
+	/****** New in v2 ****** */
 	/// All the validators actively participating in parachain consensus.
 	/// Indices are into the broader validator set.
 	pub active_validator_indices: Vec<ValidatorIndex>,
@@ -1655,11 +1662,11 @@ pub struct SessionInfo {
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
 
-	/****** Old fields ******/
+	/****** Old fields ***** */
 	/// Validators in canonical ordering.
 	///
-	/// NOTE: There might be more authorities in the current session, than `validators` participating
-	/// in parachain consensus. See
+	/// NOTE: There might be more authorities in the current session, than `validators`
+	/// participating in parachain consensus. See
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
 	///
 	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
@@ -1667,8 +1674,8 @@ pub struct SessionInfo {
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	///
 	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
-	/// `validators`, afterwards any remaining authorities can be found. This is any authorities not
-	/// participating in parachain consensus - see
+	/// `validators`, afterwards any remaining authorities can be found. This is any authorities
+	/// not participating in parachain consensus - see
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148)
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment keys for validators.
@@ -1679,8 +1686,8 @@ pub struct SessionInfo {
 	///
 	/// Therefore:
 	/// ```ignore
-	///		assignment_keys.len() == validators.len() && validators.len() <= discovery_keys.len()
-	///	```
+	/// 		assignment_keys.len() == validators.len() && validators.len() <= discovery_keys.len()
+	/// 	```
 	pub assignment_keys: Vec<AssignmentId>,
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by

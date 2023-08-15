@@ -35,10 +35,10 @@ use std::any::{Any, TypeId};
 // left for the stack; this is, of course, overridable at link time when compiling the runtime)
 // plus the number of pages specified in the `extra_heap_pages` passed to the executor.
 //
-// By default, rustc (or `lld` specifically) should allocate 1 MiB for the shadow stack, or 16 pages.
-// The data section for runtimes are typically rather small and can fit in a single digit number of
-// WASM pages, so let's say an extra 16 pages. Thus let's assume that 32 pages or 2 MiB are used for
-// these needs by default.
+// By default, rustc (or `lld` specifically) should allocate 1 MiB for the shadow stack, or 16
+// pages. The data section for runtimes are typically rather small and can fit in a single digit
+// number of WASM pages, so let's say an extra 16 pages. Thus let's assume that 32 pages or 2 MiB
+// are used for these needs by default.
 const DEFAULT_HEAP_PAGES_ESTIMATE: u32 = 32;
 const EXTRA_HEAP_PAGES: u32 = 2048;
 
@@ -65,9 +65,9 @@ pub const DEFAULT_CONFIG: Config = Config {
 		//
 		// Here is how the values below were chosen.
 		//
-		// At the moment of writing, the default native stack size limit is 1 MiB. Assuming a logical item
-		// (see the docs about the field and the instrumentation algorithm) is 8 bytes, 1 MiB can
-		// fit 2x 65536 logical items.
+		// At the moment of writing, the default native stack size limit is 1 MiB. Assuming a
+		// logical item (see the docs about the field and the instrumentation algorithm) is 8 bytes,
+		// 1 MiB can fit 2x 65536 logical items.
 		//
 		// Since reaching the native stack limit is undesirable, we halve the logical item limit and
 		// also increase the native 256x. This hopefully should preclude wasm code from reaching
@@ -113,7 +113,7 @@ pub fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, S
 			ExecutorParam::WasmExtBulkMemory => sem.wasm_bulk_memory = true,
 			// TODO: Not implemented yet; <https://github.com/paritytech/polkadot/issues/6472>.
 			ExecutorParam::PrecheckingMaxMemory(_) => (),
-			ExecutorParam::PvfPrepTimeout(_, _) | ExecutorParam::PvfExecTimeout(_, _) => (), // Not used here
+			ExecutorParam::PvfPrepTimeout(_, _) | ExecutorParam::PvfExecTimeout(_, _) => (), /* Not used here */
 		}
 	}
 	sem.deterministic_stack_limit = Some(stack_limit);
@@ -135,8 +135,8 @@ impl Executor {
 		Ok(Self { config })
 	}
 
-	/// Executes the given PVF in the form of a compiled artifact and returns the result of execution
-	/// upon success.
+	/// Executes the given PVF in the form of a compiled artifact and returns the result of
+	/// execution upon success.
 	///
 	/// # Safety
 	///
