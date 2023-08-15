@@ -98,6 +98,7 @@ mod persisted_entries;
 mod time;
 
 use crate::{
+	approval_checking::Check,
 	approval_db::v2::{Config as DatabaseConfig, DbBackend},
 	backend::{Backend, OverlayedBackend},
 	criteria::InvalidAssignmentReason,
@@ -165,6 +166,7 @@ struct MetricsInner {
 	assignments_produced: prometheus::Histogram,
 	approvals_produced_total: prometheus::CounterVec<prometheus::U64>,
 	no_shows_total: prometheus::Counter<prometheus::U64>,
+	approved_by_one_third: prometheus::Counter<prometheus::U64>,
 	wakeups_triggered_total: prometheus::Counter<prometheus::U64>,
 	coalesced_approvals_buckets: prometheus::Histogram,
 	candidate_approval_time_ticks: prometheus::Histogram,
@@ -233,6 +235,12 @@ impl Metrics {
 	fn on_no_shows(&self, n: usize) {
 		if let Some(metrics) = &self.0 {
 			metrics.no_shows_total.inc_by(n as u64);
+		}
+	}
+
+	fn on_approved_by_one_third(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approved_by_one_third.inc();
 		}
 	}
 
@@ -329,6 +337,13 @@ impl metrics::Metrics for Metrics {
 						"polkadot_parachain_approvals_coalesced_approvals_buckets",
 						"Number of coalesced approvals.",
 					).buckets(vec![1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5]),
+				)?,
+				registry,
+			)?,
+			approved_by_one_third: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_approved_by_one_third",
+					"Number of candidates where more than one third had to vote ",
 				)?,
 				registry,
 			)?,
@@ -2523,6 +2538,12 @@ where
 
 			if no_shows != 0 {
 				metrics.on_no_shows(no_shows);
+			}
+			if check == Check::ApprovedOneThird {
+				// No-shows are not counted when more than one third of validators,
+				// so count candidates where more than one third of validators had
+				// to approve it, this is indicative of something breaking.
+				metrics.on_approved_by_one_third()
 			}
 
 			metrics.on_candidate_approved(status.tranche_now as _);

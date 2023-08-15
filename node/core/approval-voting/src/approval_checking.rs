@@ -64,7 +64,7 @@ pub enum RequiredTranches {
 }
 
 /// The result of a check.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Check {
 	/// The candidate is unapproved.
 	Unapproved,
