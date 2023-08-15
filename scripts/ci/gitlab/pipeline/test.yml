@@ -116,4 +116,4 @@ cargo-clippy:
   script:
     - echo $RUSTFLAGS
     - cargo version && cargo clippy --version
-    - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo clippy --locked --all-targets
+    - SKIP_WASM_BUILD=1 cargo +1.70 clippy --all-targets --locked -p polkadot-runtime-parachains
