@@ -23,7 +23,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 thiserror = "1.0.31"
 fatality = "0.0.6"
 lru = "0.11.0"
-indexmap = "1.9.1"
+indexmap = "2.0.0"
 
 [dev-dependencies]
 async-channel = "1.8.0"
