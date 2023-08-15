@@ -37,7 +37,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_primitives::CollatorPair;
 
-use polkadot_node_subsystem::{errors::SubsystemError, overseer, SpawnedSubsystem};
+use polkadot_node_subsystem::{errors::SubsystemError, overseer, DummySubsystem, SpawnedSubsystem};
 
 mod error;
 
@@ -89,6 +89,8 @@ pub enum ProtocolSide {
 		/// Metrics.
 		metrics: collator_side::Metrics,
 	},
+	/// No protocol side, just disable it.
+	None,
 }
 
 /// The collator protocol subsystem.
@@ -105,11 +107,16 @@ impl CollatorProtocolSubsystem {
 	pub fn new(protocol_side: ProtocolSide) -> Self {
 		Self { protocol_side }
 	}
+}
 
-	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError> {
-		match self.protocol_side {
+#[overseer::subsystem(CollatorProtocol, error=SubsystemError, prefix=self::overseer)]
+impl<Context> CollatorProtocolSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
-				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
+				validator_side::run(ctx, keystore, eviction_policy, metrics)
+					.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
+					.boxed(),
 			ProtocolSide::Collator {
 				peer_id,
 				collator_pair,
@@ -125,18 +132,10 @@ impl CollatorProtocolSubsystem {
 					request_receiver_vstaging,
 					metrics,
 				)
-				.await,
-		}
-	}
-}
-
-#[overseer::subsystem(CollatorProtocol, error=SubsystemError, prefix=self::overseer)]
-impl<Context> CollatorProtocolSubsystem {
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = self
-			.run(ctx)
-			.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
-			.boxed();
+				.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
+				.boxed(),
+			ProtocolSide::None => return DummySubsystem.start(ctx),
+		};
 
 		SpawnedSubsystem { name: "collator-protocol-subsystem", future }
 	}
