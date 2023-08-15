@@ -205,9 +205,9 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A para was assigned a permanent parachain slot
+		/// A parachain was assigned a permanent parachain slot
 		PermanentSlotAssigned(ParaId),
-		/// A para was assigned a temporary parachain slot
+		/// A parachain was assigned a temporary parachain slot
 		TemporarySlotAssigned(ParaId),
 		/// The maximum number of permanent slots has been changed
 		MaxPermanentSlotsChanged { slots: u32 },
@@ -231,9 +231,9 @@ pub mod pallet {
 		SlotNotAssigned,
 		/// An ongoing lease already exists.
 		OngoingLeaseExists,
-		// Maximum number of permanent slots exceeded
+		// The maximum number of permanent slots exceeded
 		MaxPermanentSlotsExceeded,
-		// Maximum number of temporary slots exceeded
+		// The maximum number of temporary slots exceeded
 		MaxTemporarySlotsExceeded,
 	}
 
