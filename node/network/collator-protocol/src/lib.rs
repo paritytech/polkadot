@@ -109,6 +109,7 @@ impl CollatorProtocolSubsystem {
 	}
 }
 
+// TODO [now]: this is a random comment to try to trigger CI to run tests
 #[overseer::subsystem(CollatorProtocol, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CollatorProtocolSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
