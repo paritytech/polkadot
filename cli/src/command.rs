@@ -148,8 +148,8 @@ impl SubstrateCli for Cli {
 				let chain_spec = Box::new(service::PolkadotChainSpec::from_json_file(path.clone())?)
 					as Box<dyn service::ChainSpec>;
 
-				// When `force_*` is given or the file name starts with the name of one of the known chains,
-				// we use the chain spec for the specific chain.
+				// When `force_*` is given or the file name starts with the name of one of the known
+				// chains, we use the chain spec for the specific chain.
 				if self.run.force_rococo ||
 					chain_spec.is_rococo() ||
 					chain_spec.is_wococo() ||
@@ -286,7 +286,7 @@ where
 		let task_manager = service::build_full(
 			config,
 			service::NewFullParams {
-				is_collator: service::IsCollator::No,
+				is_parachain_node: service::IsParachainNode::No,
 				grandpa_pause,
 				enable_beefy,
 				jaeger_agent,
@@ -294,7 +294,6 @@ where
 				node_version,
 				workers_path: cli.run.workers_path,
 				workers_names: None,
-				overseer_enable_anyways: false,
 				overseer_gen,
 				overseer_message_channel_capacity_override: cli
 					.run

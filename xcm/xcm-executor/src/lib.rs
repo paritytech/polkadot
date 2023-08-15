@@ -356,7 +356,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	/// Execute any final operations after having executed the XCM message.
-	/// This includes refunding surplus weight, trapping extra holding funds, and returning any errors during execution.
+	/// This includes refunding surplus weight, trapping extra holding funds, and returning any
+	/// errors during execution.
 	pub fn post_process(mut self, xcm_weight: Weight) -> Outcome {
 		// We silently drop any error from our attempt to refund the surplus as it's a charitable
 		// thing so best-effort is all we will do.
@@ -533,9 +534,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						Config::IsTeleporter::contains(asset, &origin),
 						XcmError::UntrustedTeleportLocation
 					);
-					// We should check that the asset can actually be teleported in (for this to be in error, there
-					// would need to be an accounting violation by one of the trusted chains, so it's unlikely, but we
-					// don't want to punish a possibly innocent chain/user).
+					// We should check that the asset can actually be teleported in (for this to be
+					// in error, there would need to be an accounting violation by one of the
+					// trusted chains, so it's unlikely, but we don't want to punish a possibly
+					// innocent chain/user).
 					Config::AssetTransactor::can_check_in(&origin, asset, &self.context)?;
 				}
 				for asset in assets.into_inner().into_iter() {
@@ -603,8 +605,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ReportError(response_info) => {
-				// Report the given result by sending a QueryResponse XCM to a previously given outcome
-				// destination if one was registered.
+				// Report the given result by sending a QueryResponse XCM to a previously given
+				// outcome destination if one was registered.
 				self.respond(
 					self.cloned_origin(),
 					Response::ExecutionResult(self.error),
@@ -823,10 +825,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ExportMessage { network, destination, xcm } => {
-				// The actual message sent to the bridge for forwarding is prepended with `UniversalOrigin`
-				// and `DescendOrigin` in order to ensure that the message is executed with this Origin.
+				// The actual message sent to the bridge for forwarding is prepended with
+				// `UniversalOrigin` and `DescendOrigin` in order to ensure that the message is
+				// executed with this Origin.
 				//
-				// Prepend the desired message with instructions which effectively rewrite the origin.
+				// Prepend the desired message with instructions which effectively rewrite the
+				// origin.
 				//
 				// This only works because the remote chain empowers the bridge
 				// to speak for the local network.

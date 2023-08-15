@@ -19,7 +19,8 @@
 //! Collects a bunch of metrics providers and related features such as
 //! `Metronome` for usage with metrics collections.
 //!
-//! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
+//! This crate also reexports Prometheus metric types which are expected to be implemented by
+//! subsystems.
 
 #![deny(missing_docs)]
 #![deny(unused_imports)]

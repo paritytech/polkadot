@@ -649,7 +649,8 @@ fn submit_code_change_when_not_allowed_is_err() {
 		Paras::schedule_code_upgrade(para_id, newer_code.clone(), 2, &Configuration::config());
 		assert_eq!(
 			FutureCodeUpgrades::<Test>::get(&para_id),
-			Some(1 + validation_upgrade_delay), // did not change since the same assertion from the last time.
+			Some(1 + validation_upgrade_delay), /* did not change since the same assertion from
+			                                     * the last time. */
 		);
 		assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 		check_code_is_not_stored(&newer_code);
@@ -1554,8 +1555,9 @@ fn increase_code_ref_doesnt_have_allergy_on_add_trusted_validation_code() {
 
 #[test]
 fn add_trusted_validation_code_insta_approval() {
-	// In particular, this tests that `kick_off_pvf_check` reacts to the `add_trusted_validation_code`
-	// and uses the `CodeByHash::contains_key` which is what `add_trusted_validation_code` uses.
+	// In particular, this tests that `kick_off_pvf_check` reacts to the
+	// `add_trusted_validation_code` and uses the `CodeByHash::contains_key` which is what
+	// `add_trusted_validation_code` uses.
 	let para_id = 100.into();
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	let validation_upgrade_delay = 25;
