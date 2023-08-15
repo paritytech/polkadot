@@ -114,6 +114,7 @@ cargo-clippy:
     - .docker-env
     - .test-refs
   script:
+    - rustup show
     - echo $RUSTFLAGS
     - cargo version && cargo clippy --version
     - rustup install 1.70
