@@ -570,7 +570,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					};
 				let actual_weight = maybe_actual_weight.unwrap_or(weight);
 				let surplus = require_weight_at_most.saturating_sub(actual_weight);
-				// We assume that the `Config::Weigher` will counts the `require_weight_at_most`
+				// We assume that the `Config::Weigher` will count the `require_weight_at_most`
 				// for the estimate of how much weight this instruction will take. Now that we know
 				// that it's less, we credit it.
 				//
