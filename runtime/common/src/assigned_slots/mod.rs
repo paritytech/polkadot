@@ -483,7 +483,8 @@ impl<T: Config> Pallet<T> {
 	/// total number of lease (lower first), and then when they last a turn (older ones first).
 	/// If any remaining ex-aequo, we just take the para ID in ascending order as discriminator.
 	///
-	/// Assigned slots with a `period_begin` bigger than current lease period are not considered (yet).
+	/// Assigned slots with a `period_begin` bigger than current lease period are not considered
+	/// (yet).
 	///
 	/// The function will call out to `Leaser::lease_out` to create the appropriate slot leases.
 	fn allocate_temporary_slot_leases(lease_period_index: LeasePeriodOf<T>) -> DispatchResult {
@@ -610,7 +611,8 @@ impl<T: Config> Pallet<T> {
 
 	/// Handles start of a lease period.
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) -> Weight {
-		// Note: leases that have ended in previous lease period, should have been cleaned in slots pallet.
+		// Note: leases that have ended in previous lease period, should have been cleaned in slots
+		// pallet.
 		if let Err(err) = Self::allocate_temporary_slot_leases(lease_period_index) {
 			log::error!(
 				target: LOG_TARGET,

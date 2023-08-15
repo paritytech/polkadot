@@ -455,8 +455,8 @@ async fn handle_precheck_pvf(
 			ArtifactState::Preparing { waiting_for_response, num_failures: _ } =>
 				waiting_for_response.push(result_sender),
 			ArtifactState::FailedToProcess { error, .. } => {
-				// Do not retry failed preparation if another pre-check request comes in. We do not retry pre-checking,
-				// anyway.
+				// Do not retry failed preparation if another pre-check request comes in. We do not
+				// retry pre-checking, anyway.
 				let _ = result_sender.send(PrepareResult::Err(error.clone()));
 			},
 		}
@@ -470,8 +470,8 @@ async fn handle_precheck_pvf(
 
 /// Handles PVF execution.
 ///
-/// This will try to prepare the PVF, if a prepared artifact does not already exist. If there is already a
-/// preparation job, we coalesce the two preparation jobs.
+/// This will try to prepare the PVF, if a prepared artifact does not already exist. If there is
+/// already a preparation job, we coalesce the two preparation jobs.
 ///
 /// If the prepare job succeeded previously, we will enqueue an execute job right away.
 ///
@@ -521,7 +521,8 @@ async fn handle_execute_pvf(
 						"handle_execute_pvf: Re-queuing PVF preparation for prepared artifact with missing file."
 					);
 
-					// The artifact has been prepared previously but the file is missing, prepare it again.
+					// The artifact has been prepared previously but the file is missing, prepare it
+					// again.
 					*state = ArtifactState::Preparing {
 						waiting_for_response: Vec::new(),
 						num_failures: 0,
@@ -721,8 +722,8 @@ async fn handle_prepare_done(
 		pending_requests
 	{
 		if result_tx.is_canceled() {
-			// Preparation could've taken quite a bit of time and the requester may be not interested
-			// in execution anymore, in which case we just skip the request.
+			// Preparation could've taken quite a bit of time and the requester may be not
+			// interested in execution anymore, in which case we just skip the request.
 			continue
 		}
 
@@ -855,8 +856,8 @@ fn can_retry_prepare_after_failure(
 		return false
 	}
 
-	// Retry if the retry cooldown has elapsed and if we have already retried less than `NUM_PREPARE_RETRIES` times. IO
-	// errors may resolve themselves.
+	// Retry if the retry cooldown has elapsed and if we have already retried less than
+	// `NUM_PREPARE_RETRIES` times. IO errors may resolve themselves.
 	SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
 		num_failures <= NUM_PREPARE_RETRIES
 }

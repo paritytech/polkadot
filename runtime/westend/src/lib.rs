@@ -22,7 +22,7 @@
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::ecdsa_crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
-use frame_election_provider_support::{onchain, SequentialPhragmen};
+use frame_election_provider_support::{bounds::ElectionBoundsBuilder, onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -338,8 +338,8 @@ pub struct MaybeSignedPhase;
 
 impl Get<u32> for MaybeSignedPhase {
 	fn get() -> u32 {
-		// 1 day = 4 eras -> 1 week = 28 eras. We want to disable signed phase once a week to test the fallback unsigned
-		// phase is able to compute elections on Westend.
+		// 1 day = 4 eras -> 1 week = 28 eras. We want to disable signed phase once a week to test
+		// the fallback unsigned phase is able to compute elections on Westend.
 		if Staking::current_era().unwrap_or(1) % 28 == 0 {
 			0
 		} else {
@@ -371,11 +371,12 @@ parameter_types! {
 	// 1 hour session, 15 minutes unsigned phase, 4 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 4;
 
-	/// We take the top 22500 nominators as electing voters..
 	pub const MaxElectingVoters: u32 = 22_500;
-	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
-	/// shall not increase the size of the validator intentions.
-	pub const MaxElectableTargets: u16 = u16::MAX;
+	/// We take the top 22500 nominators as electing voters and all of the validators as electable
+	/// targets. Whilst this is the case, we cannot and shall not increase the size of the
+	/// validator intentions.
+	pub ElectionBounds: frame_election_provider_support::bounds::ElectionBounds =
+		ElectionBoundsBuilder::default().voters_count(MaxElectingVoters::get().into()).build();
 	// Maximum winners that can be chosen as active validators
 	pub const MaxActiveValidators: u32 = 1000;
 
@@ -398,8 +399,7 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type DataProvider = Staking;
 	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
 	type MaxWinners = MaxActiveValidators;
-	type VotersBound = MaxElectingVoters;
-	type TargetsBound = MaxElectableTargets;
+	type Bounds = ElectionBounds;
 }
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
@@ -465,9 +465,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
-	type MaxElectingVoters = MaxElectingVoters;
-	type MaxElectableTargets = MaxElectableTargets;
 	type MaxWinners = MaxActiveValidators;
+	type ElectionBounds = ElectionBounds;
 }
 
 parameter_types! {
@@ -508,7 +507,6 @@ parameter_types! {
 }
 
 impl pallet_staking::Config for Runtime {
-	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
 	type UnixTime = Timestamp;
@@ -530,6 +528,7 @@ impl pallet_staking::Config for Runtime {
 	type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	type VoterList = VoterList;
 	type TargetList = UseValidatorsMap<Self>;
+	type NominationsQuota = pallet_staking::FixedNominationsQuota<{ MaxNominations::get() }>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type HistoryDepth = frame_support::traits::ConstU32<84>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;

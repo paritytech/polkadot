@@ -193,8 +193,8 @@ pub mod pallet {
 		SignerHasNoClaim,
 		/// Account ID sending transaction has no claim.
 		SenderHasNoClaim,
-		/// There's not enough in the pot to pay out some unvested amount. Generally implies a logic
-		/// error.
+		/// There's not enough in the pot to pay out some unvested amount. Generally implies a
+		/// logic error.
 		PotUnderflow,
 		/// A needed statement was not included.
 		InvalidStatement,
@@ -288,8 +288,8 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `dest`: The destination account to payout the claim.
-		/// - `ethereum_signature`: The signature of an ethereum signed message
-		///    matching the format described above.
+		/// - `ethereum_signature`: The signature of an ethereum signed message matching the format
+		///   described above.
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
@@ -368,9 +368,10 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `dest`: The destination account to payout the claim.
-		/// - `ethereum_signature`: The signature of an ethereum signed message
-		///    matching the format described above.
-		/// - `statement`: The identity of the statement which is being attested to in the signature.
+		/// - `ethereum_signature`: The signature of an ethereum signed message matching the format
+		///   described above.
+		/// - `statement`: The identity of the statement which is being attested to in the
+		///   signature.
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
@@ -400,14 +401,16 @@ pub mod pallet {
 
 		/// Attest to a statement, needed to finalize the claims process.
 		///
-		/// WARNING: Insecure unless your chain includes `PrevalidateAttests` as a `SignedExtension`.
+		/// WARNING: Insecure unless your chain includes `PrevalidateAttests` as a
+		/// `SignedExtension`.
 		///
 		/// Unsigned Validation:
 		/// A call to attest is deemed valid if the sender has a `Preclaim` registered
 		/// and provides a `statement` which is expected for the account.
 		///
 		/// Parameters:
-		/// - `statement`: The identity of the statement which is being attested to in the signature.
+		/// - `statement`: The identity of the statement which is being attested to in the
+		///   signature.
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
