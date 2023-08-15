@@ -423,7 +423,7 @@ fn transform_session_keys(v: AccountId, old: OldSessionKeys) -> SessionKeys {
 			// So, produce a dummy value that's unique for the `ValidatorId, KeyTypeId` combination.
 			let mut id: BeefyId = sp_application_crypto::ecdsa::Public::from_raw([0u8; 33]).into();
 			let id_raw: &mut [u8] = id.as_mut();
-			id_raw.copy_from_slice(v.as_ref());
+			id_raw[1..33].copy_from_slice(v.as_ref());
 			id_raw[0..4].copy_from_slice(b"beef");
 			id
 		},
