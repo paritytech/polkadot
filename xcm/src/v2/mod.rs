@@ -434,7 +434,7 @@ pub enum Instruction<RuntimeCall> {
 	///
 	/// - `assets`: The asset(s) to be withdrawn into holding.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	WithdrawAsset(MultiAssets),
@@ -492,7 +492,7 @@ pub enum Instruction<RuntimeCall> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	TransferAsset { assets: MultiAssets, beneficiary: MultiLocation },
@@ -512,7 +512,7 @@ pub enum Instruction<RuntimeCall> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	TransferReserveAsset { assets: MultiAssets, dest: MultiLocation, xcm: Xcm<()> },
@@ -527,7 +527,7 @@ pub enum Instruction<RuntimeCall> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	Transact {
@@ -600,14 +600,14 @@ pub enum Instruction<RuntimeCall> {
 	///
 	/// Safety: No concerns.
 	///
-	/// Kind: *Instruction*.
+	/// Kind: *Command*.
 	///
 	/// Errors:
 	ClearOrigin,
 
 	/// Mutate the origin to some interior location.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	DescendOrigin(InteriorMultiLocation),
@@ -623,7 +623,7 @@ pub enum Instruction<RuntimeCall> {
 	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
 	///   response may not execute at all.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	ReportError {
@@ -643,7 +643,7 @@ pub enum Instruction<RuntimeCall> {
 	///   removed, prioritized under standard asset ordering. Any others will remain in holding.
 	/// - `beneficiary`: The new owner for the assets.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	DepositAsset {
@@ -669,7 +669,7 @@ pub enum Instruction<RuntimeCall> {
 	/// - `xcm`: The orders that should follow the `ReserveAssetDeposited` instruction which is
 	///   sent onwards to `dest`.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	DepositReserveAsset {
@@ -689,7 +689,7 @@ pub enum Instruction<RuntimeCall> {
 	/// - `give`: The asset(s) to remove from holding.
 	/// - `receive`: The minimum amount of assets(s) which `give` should be exchanged for.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	ExchangeAsset { give: MultiAssetFilter, receive: MultiAssets },
@@ -705,7 +705,7 @@ pub enum Instruction<RuntimeCall> {
 	/// - `xcm`: The instructions to execute on the assets once withdrawn *on the reserve
 	///   location*.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	InitiateReserveWithdraw { assets: MultiAssetFilter, reserve: MultiLocation, xcm: Xcm<()> },
@@ -721,7 +721,7 @@ pub enum Instruction<RuntimeCall> {
 	/// NOTE: The `dest` location *MUST* respect this origin as a valid teleportation origin for
 	/// all `assets`. If it does not, then the assets may be lost.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	InitiateTeleport { assets: MultiAssetFilter, dest: MultiLocation, xcm: Xcm<()> },
@@ -739,7 +739,7 @@ pub enum Instruction<RuntimeCall> {
 	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
 	///   response may not execute at all.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	QueryHolding {
@@ -759,14 +759,14 @@ pub enum Instruction<RuntimeCall> {
 	///   expected maximum weight of the total XCM to be executed for the
 	///   `AllowTopLevelPaidExecutionFrom` barrier to allow the XCM be executed.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	BuyExecution { fees: MultiAsset, weight_limit: WeightLimit },
 
 	/// Refund any surplus weight previously bought with `BuyExecution`.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: None.
 	RefundSurplus,
@@ -782,7 +782,7 @@ pub enum Instruction<RuntimeCall> {
 	/// weight however includes only the difference between the previous handler and the new
 	/// handler, which can reasonably be negative, which would result in a surplus.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: None.
 	SetErrorHandler(Xcm<RuntimeCall>),
@@ -798,14 +798,14 @@ pub enum Instruction<RuntimeCall> {
 	/// weight however includes only the difference between the previous appendix and the new
 	/// appendix, which can reasonably be negative, which would result in a surplus.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: None.
 	SetAppendix(Xcm<RuntimeCall>),
 
 	/// Clear the Error Register.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: None.
 	ClearError,
@@ -817,14 +817,14 @@ pub enum Instruction<RuntimeCall> {
 	/// - `ticket`: The ticket of the asset; this is an abstract identifier to help locate the
 	///   asset.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	ClaimAsset { assets: MultiAssets, ticket: MultiLocation },
 
 	/// Always throws an error of type `Trap`.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors:
 	/// - `Trap`: All circumstances, whose inner value is the same as this item's inner value.
@@ -839,7 +839,7 @@ pub enum Instruction<RuntimeCall> {
 	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
 	///   response may not execute at all.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: *Fallible*
 	SubscribeVersion {
@@ -851,7 +851,7 @@ pub enum Instruction<RuntimeCall> {
 
 	/// Cancel the effect of a previous `SubscribeVersion` instruction.
 	///
-	/// Kind: *Instruction*
+	/// Kind: *Command*
 	///
 	/// Errors: *Fallible*
 	UnsubscribeVersion,

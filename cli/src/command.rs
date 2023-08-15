@@ -287,7 +287,7 @@ where
 		let task_manager = service::build_full(
 			config,
 			service::NewFullParams {
-				is_collator: service::IsCollator::No,
+				is_parachain_node: service::IsParachainNode::No,
 				grandpa_pause,
 				enable_beefy,
 				jaeger_agent,
@@ -295,7 +295,6 @@ where
 				node_version,
 				workers_path: cli.run.workers_path,
 				workers_names: None,
-				overseer_enable_anyways: false,
 				overseer_gen,
 				overseer_message_channel_capacity_override: cli
 					.run
