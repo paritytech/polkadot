@@ -54,7 +54,7 @@ fn main() -> Result<()> {
 				)
 			})?;
 
-			runner.run_node_until_exit(|config| async move {
+			runner.run_node_until_exit(|mut config| async move {
 				let collator = Collator::new(cli.run.pov_size, cli.run.pvf_complexity);
 
 				// Zombienet is spawning all collators currently with the same CLI, this means it
