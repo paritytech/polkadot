@@ -123,17 +123,16 @@ impl<Context> CollatorProtocolSubsystem {
 				request_receiver_v1,
 				request_receiver_vstaging,
 				metrics,
-			} =>
-				collator_side::run(
-					ctx,
-					peer_id,
-					collator_pair,
-					request_receiver_v1,
-					request_receiver_vstaging,
-					metrics,
-				)
-				.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
-				.boxed(),
+			} => collator_side::run(
+				ctx,
+				peer_id,
+				collator_pair,
+				request_receiver_v1,
+				request_receiver_vstaging,
+				metrics,
+			)
+			.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
+			.boxed(),
 			ProtocolSide::None => return DummySubsystem.start(ctx),
 		};
 
