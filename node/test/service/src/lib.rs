@@ -28,7 +28,7 @@ use polkadot_overseer::Handle;
 use polkadot_primitives::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_runtime_parachains::paras::{ParaGenesisArgs, ParaKind};
-use polkadot_service::{Error, FullClient, IsCollator, NewFull, PrometheusConfig};
+use polkadot_service::{Error, FullClient, IsParachainNode, NewFull, PrometheusConfig};
 use polkadot_test_runtime::{
 	ParasCall, ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall,
 	UncheckedExtrinsic, VERSION,
@@ -71,7 +71,7 @@ pub use polkadot_service::{FullBackend, GetLastTimestamp};
 #[sc_tracing::logging::prefix_logs_with(config.network.node_name.as_str())]
 pub fn new_full(
 	config: Configuration,
-	is_collator: IsCollator,
+	is_parachain_node: IsParachainNode,
 	workers_path: Option<PathBuf>,
 ) -> Result<NewFull, Error> {
 	let workers_path = Some(workers_path.unwrap_or_else(get_relative_workers_path_for_test));
@@ -79,14 +79,13 @@ pub fn new_full(
 	polkadot_service::new_full(
 		config,
 		polkadot_service::NewFullParams {
-			is_collator,
+			is_parachain_node,
 			grandpa_pause: None,
 			jaeger_agent: None,
 			telemetry_worker_handle: None,
 			node_version: None,
 			workers_path,
 			workers_names: None,
-			overseer_enable_anyways: false,
 			overseer_gen: polkadot_service::RealOverseerGen,
 			overseer_message_channel_capacity_override: None,
 			malus_finality_delay: None,
@@ -207,7 +206,7 @@ pub fn run_validator_node(
 ) -> PolkadotTestNode {
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
-		new_full(config, IsCollator::No, worker_program_path)
+		new_full(config, IsParachainNode::No, worker_program_path)
 			.expect("could not create Polkadot test service");
 
 	let overseer_handle = overseer_handle.expect("test node must have an overseer handle");
@@ -239,7 +238,7 @@ pub fn run_collator_node(
 	let config = node_config(storage_update_func, tokio_handle, key, boot_nodes, false);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
-		new_full(config, IsCollator::Yes(collator_pair), None)
+		new_full(config, IsParachainNode::Collator(collator_pair), None)
 			.expect("could not create Polkadot test service");
 
 	let overseer_handle = overseer_handle.expect("test node must have an overseer handle");

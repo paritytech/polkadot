@@ -1244,28 +1244,27 @@ impl<T: Config> Pallet<T> {
 	) -> DispatchResult {
 		let mut pending_configs = <PendingConfigs<T>>::get();
 
-		// 1. pending_configs = []
-		//    No pending configuration changes.
+		// 1. pending_configs = [] No pending configuration changes.
 		//
 		//    That means we should use the active config as the base configuration. We will insert
 		//    the new pending configuration as (cur+2, new_config) into the list.
 		//
-		// 2. pending_configs = [(cur+2, X)]
-		//    There is a configuration that is pending for the scheduled session.
+		// 2. pending_configs = [(cur+2, X)] There is a configuration that is pending for the
+		//    scheduled session.
 		//
 		//    We will use X as the base configuration. We can update the pending configuration X
 		//    directly.
 		//
-		// 3. pending_configs = [(cur+1, X)]
-		//    There is a pending configuration scheduled and it will be applied in the next session.
+		// 3. pending_configs = [(cur+1, X)] There is a pending configuration scheduled and it will
+		//    be applied in the next session.
 		//
 		//    We will use X as the base configuration. We need to schedule a new configuration
 		// change    for the `scheduled_session` and use X as the base for the new configuration.
 		//
-		// 4. pending_configs = [(cur+1, X), (cur+2, Y)]
-		//    There is a pending configuration change in the next session and for the scheduled
-		//    session. Due to case №3, we can be sure that Y is based on top of X. This means we
-		//    can use Y as the base configuration and update Y directly.
+		// 4. pending_configs = [(cur+1, X), (cur+2, Y)] There is a pending configuration change in
+		//    the next session and for the scheduled session. Due to case №3, we can be sure that Y
+		//    is based on top of X. This means we can use Y as the base configuration and update Y
+		//    directly.
 		//
 		// There cannot be (cur, X) because those are applied in the session change handler for the
 		// current session.
