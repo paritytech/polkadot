@@ -57,7 +57,6 @@ fn main() -> Result<()> {
 			runner.run_node_until_exit(|mut config| async move {
 				let collator = Collator::new();
 
-				config.disable_beefy = true;
 				// Zombienet is spawning all collators currently with the same CLI, this means it
 				// sets `--validator` and this is wrong here.
 				config.role = Role::Full;
@@ -68,6 +67,7 @@ fn main() -> Result<()> {
 							collator.collator_key(),
 						),
 						grandpa_pause: None,
+						enable_beefy: false,
 						jaeger_agent: None,
 						telemetry_worker_handle: None,
 
