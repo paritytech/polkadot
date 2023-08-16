@@ -1188,63 +1188,6 @@ fn backing_works_after_failed_validation() {
 }
 
 #[test]
-fn validation_work_ignores_wrong_collator() {
-	let mut test_state = TestState::default();
-	test_state.availability_cores[0] =
-		CoreState::Scheduled(ScheduledCore { para_id: ParaId::from(1), collator: None });
-
-	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
-		test_startup(&mut virtual_overseer, &test_state).await;
-
-		let pov = PoV { block_data: BlockData(vec![1, 2, 3]) };
-
-		let pov_hash = pov.hash();
-
-		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
-
-		let candidate_a = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
-			relay_parent: test_state.relay_parent,
-			pov_hash,
-			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
-		}
-		.build();
-
-		let public2 = Keystore::sr25519_generate_new(
-			&*test_state.keystore,
-			ValidatorId::ID,
-			Some(&test_state.validators[2].to_seed()),
-		)
-		.expect("Insert key into keystore");
-		let seconding = SignedFullStatement::sign(
-			&test_state.keystore,
-			Statement::Seconded(candidate_a.clone()),
-			&test_state.signing_context,
-			ValidatorIndex(2),
-			&public2.into(),
-		)
-		.ok()
-		.flatten()
-		.expect("should be signed");
-
-		let statement =
-			CandidateBackingMessage::Statement(test_state.relay_parent, seconding.clone());
-
-		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
-
-		// The statement will be ignored because it has the wrong collator.
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
-			)))
-			.await;
-		virtual_overseer
-	});
-}
-
-#[test]
 fn candidate_backing_reorders_votes() {
 	use sp_core::Encode;
 
