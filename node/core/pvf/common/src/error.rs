@@ -18,8 +18,8 @@ use crate::prepare::PrepareStats;
 use parity_scale_codec::{Decode, Encode};
 use std::fmt;
 
-/// Result of PVF preparation performed by the validation host. Contains stats about the preparation if
-/// successful
+/// Result of PVF preparation performed by the validation host. Contains stats about the preparation
+/// if successful
 pub type PrepareResult = Result<PrepareStats, PrepareError>;
 
 /// An error that occurred during the prepare part of the PVF pipeline.
@@ -35,13 +35,15 @@ pub enum PrepareError {
 	Panic(String),
 	/// Failed to prepare the PVF due to the time limit.
 	TimedOut,
-	/// An IO error occurred. This state is reported by either the validation host or by the worker.
+	/// An IO error occurred. This state is reported by either the validation host or by the
+	/// worker.
 	IoErr(String),
-	/// The temporary file for the artifact could not be created at the given cache path. This state is reported by the
-	/// validation host (not by the worker).
+	/// The temporary file for the artifact could not be created at the given cache path. This
+	/// state is reported by the validation host (not by the worker).
 	CreateTmpFileErr(String),
-	/// The response from the worker is received, but the file cannot be renamed (moved) to the final destination
-	/// location. This state is reported by the validation host (not by the worker).
+	/// The response from the worker is received, but the file cannot be renamed (moved) to the
+	/// final destination location. This state is reported by the validation host (not by the
+	/// worker).
 	RenameTmpFileErr(String),
 }
 
@@ -81,15 +83,16 @@ impl fmt::Display for PrepareError {
 
 /// Some internal error occurred.
 ///
-/// Should only ever be used for validation errors independent of the candidate and PVF, or for errors we ruled out
-/// during pre-checking (so preparation errors are fine).
+/// Should only ever be used for validation errors independent of the candidate and PVF, or for
+/// errors we ruled out during pre-checking (so preparation errors are fine).
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum InternalValidationError {
 	/// Some communication error occurred with the host.
 	HostCommunication(String),
 	/// Could not find or open compiled artifact file.
 	CouldNotOpenFile(String),
-	/// An error occurred in the CPU time monitor thread. Should be totally unrelated to validation.
+	/// An error occurred in the CPU time monitor thread. Should be totally unrelated to
+	/// validation.
 	CpuTimeMonitorThread(String),
 	/// Some non-deterministic preparation error occurred.
 	NonDeterministicPrepareError(PrepareError),

@@ -51,9 +51,10 @@ use runtime_parachains::{
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
+use beefy_primitives::ecdsa_crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
 use frame_election_provider_support::{
-	generate_solution_type, onchain, NposSolution, SequentialPhragmen,
+	bounds::ElectionBoundsBuilder, generate_solution_type, onchain, NposSolution,
+	SequentialPhragmen,
 };
 use frame_support::{
 	construct_runtime, parameter_types,
@@ -399,11 +400,12 @@ parameter_types! {
 	// 1 hour session, 15 minutes unsigned phase, 8 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 8;
 
-	/// We take the top 12500 nominators as electing voters..
 	pub const MaxElectingVoters: u32 = 12_500;
-	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
-	/// shall not increase the size of the validator intentions.
-	pub const MaxElectableTargets: u16 = u16::MAX;
+	/// We take the top 12500 nominators as electing voters and all of the validators as electable
+	/// targets. Whilst this is the case, we cannot and shall not increase the size of the
+	/// validator intentions.
+	pub ElectionBounds: frame_election_provider_support::bounds::ElectionBounds =
+		ElectionBoundsBuilder::default().voters_count(MaxElectingVoters::get().into()).build();
 	pub NposSolutionPriority: TransactionPriority =
 		Perbill::from_percent(90) * TransactionPriority::max_value();
 	/// Setup election pallet to support maximum winners upto 2000. This will mean Staking Pallet
@@ -428,8 +430,7 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type DataProvider = Staking;
 	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
 	type MaxWinners = MaxActiveValidators;
-	type VotersBound = MaxElectingVoters;
-	type TargetsBound = MaxElectableTargets;
+	type Bounds = ElectionBounds;
 }
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
@@ -495,9 +496,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EitherOf<EnsureRoot<Self::AccountId>, StakingAdmin>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
-	type MaxElectingVoters = MaxElectingVoters;
-	type MaxElectableTargets = MaxElectableTargets;
 	type MaxWinners = MaxActiveValidators;
+	type ElectionBounds = ElectionBounds;
 }
 
 parameter_types! {
@@ -564,7 +564,6 @@ parameter_types! {
 }
 
 impl pallet_staking::Config for Runtime {
-	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
 	type UnixTime = Timestamp;
@@ -586,6 +585,7 @@ impl pallet_staking::Config for Runtime {
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type VoterList = VoterList;
 	type TargetList = UseValidatorsMap<Self>;
+	type NominationsQuota = pallet_staking::FixedNominationsQuota<{ MaxNominations::get() }>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type HistoryDepth = frame_support::traits::ConstU32<84>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
@@ -1816,7 +1816,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl beefy_primitives::BeefyApi<Block> for Runtime {
+	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
 		fn beefy_genesis() -> Option<BlockNumber> {
 			// dummy implementation due to lack of BEEFY pallet.
 			None

@@ -3,7 +3,9 @@ name = "xcm-executor-integration-tests"
 description = "Integration tests for the XCM Executor"
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 version.workspace = true
+publish = false
 
 [dependencies]
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

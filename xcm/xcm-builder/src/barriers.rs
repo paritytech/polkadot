@@ -207,6 +207,9 @@ impl<
 
 /// Sets the message ID to `t` using a `SetTopic(t)` in the last position if present.
 ///
+/// Note that the message ID does not necessarily have to be unique; it is the
+/// sender's responsibility to ensure uniqueness.
+///
 /// Requires some inner barrier to pass on the rest of the message.
 pub struct TrailingSetTopicAsId<InnerBarrier>(PhantomData<InnerBarrier>);
 impl<InnerBarrier: ShouldExecute> ShouldExecute for TrailingSetTopicAsId<InnerBarrier> {

@@ -1,9 +1,11 @@
 [package]
 name = "polkadot-node-subsystem-test-helpers"
 description = "Subsystem traits and message definitions"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 async-trait = "0.1.57"

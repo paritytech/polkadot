@@ -7,7 +7,7 @@ COPY . /polkadot
 RUN cargo build --locked --release
 
 # This is the 2nd stage: a very small image where we copy the Polkadot binary."
-FROM docker.io/library/ubuntu:20.04
+FROM docker.io/parity/base-bin:latest
 
 LABEL description="Multistage Docker image for Polkadot: a platform for web3" \
 	io.parity.image.type="builder" \

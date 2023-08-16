@@ -70,7 +70,7 @@ pub static ref MOCK_VALIDATORS_DISCOVERY_KEYS: HashMap<Sr25519Keyring, Authority
 	MOCK_VALIDATORS
 	.iter()
 	.chain(MOCK_AUTHORITIES_NEXT_SESSION.iter())
-	.map(|v| (v.clone(), v.public().into()))
+	.map(|v| (*v, v.public().into()))
 	.collect()
 ;
 pub static ref FERDIE_DISCOVERY_KEY: AuthorityDiscoveryId =
