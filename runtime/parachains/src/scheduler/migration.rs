@@ -83,31 +83,23 @@ mod v0 {
 
 pub mod v1 {
 	use super::*;
+	use crate::scheduler;
 	use frame_support::traits::StorageVersion;
-
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 		fn on_runtime_upgrade() -> Weight {
-			let mut weight: Weight = Weight::zero();
+			if StorageVersion::get::<Pallet<T>>() == 0 {
+				let weight_consumed = migrate_to_v1::<T>();
 
-			if StorageVersion::get::<Pallet<T>>() < STORAGE_VERSION {
-				log::info!(
-					target: crate::scheduler::LOG_TARGET,
-					"Migrating scheduler storage to v1"
-				);
-				weight += migrate_to_v1::<T>();
-				STORAGE_VERSION.put::<Pallet<T>>();
-				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+				log::info!(target: scheduler::LOG_TARGET, "Migrating para scheduler storage to v1");
+				StorageVersion::new(1).put::<Pallet<T>>();
+
+				weight_consumed
 			} else {
-				log::info!(
-					target: crate::scheduler::LOG_TARGET,
-					"Scheduler storage up to date - no need for migration"
-				);
+				log::warn!(target: scheduler::LOG_TARGET, "Para scheduler v1 migration should be removed.");
+				T::DbWeight::get().reads(1)
 			}
-
-			weight
 		}
 
 		#[cfg(feature = "try-runtime")]
