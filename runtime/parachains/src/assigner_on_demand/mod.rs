@@ -56,14 +56,19 @@ const LOG_TARGET: &str = "runtime::parachains::on-demand-assigner";
 pub use pallet::*;
 
 pub trait WeightInfo {
-	fn place_order(s: u32) -> Weight;
+	fn place_order_allow_death(s: u32) -> Weight;
+	fn place_order_keep_alive(s: u32) -> Weight;
 }
 
 /// A weight info that is only suitable for testing.
 pub struct TestWeightInfo;
 
 impl WeightInfo for TestWeightInfo {
-	fn place_order(_: u32) -> Weight {
+	fn place_order_allow_death(_: u32) -> Weight {
+		Weight::MAX
+	}
+
+	fn place_order_keep_alive(_: u32) -> Weight {
 		Weight::MAX
 	}
 }
@@ -240,7 +245,7 @@ pub mod pallet {
 		/// Events:
 		/// - `SpotOrderPlaced`
 		#[pallet::call_index(0)]
-		#[pallet::weight(<T as Config>::WeightInfo::place_order(OnDemandQueue::<T>::get().len() as u32))]
+		#[pallet::weight(<T as Config>::WeightInfo::place_order_allow_death(OnDemandQueue::<T>::get().len() as u32))]
 		pub fn place_order_allow_death(
 			origin: OriginFor<T>,
 			max_amount: BalanceOf<T>,
@@ -268,7 +273,7 @@ pub mod pallet {
 		/// Events:
 		/// - `SpotOrderPlaced`
 		#[pallet::call_index(1)]
-		#[pallet::weight(<T as Config>::WeightInfo::place_order(OnDemandQueue::<T>::get().len() as u32))]
+		#[pallet::weight(<T as Config>::WeightInfo::place_order_keep_alive(OnDemandQueue::<T>::get().len() as u32))]
 		pub fn place_order_keep_alive(
 			origin: OriginFor<T>,
 			max_amount: BalanceOf<T>,
