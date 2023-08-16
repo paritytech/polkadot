@@ -254,7 +254,7 @@ impl TransactAsset for TestAssetTransactor {
 		who: &MultiLocation,
 		_context: Option<&XcmContext>,
 	) -> Result<(), XcmError> {
-		add_asset(who.clone(), what.clone());
+		add_asset(*who, what.clone());
 		Ok(())
 	}
 
@@ -515,7 +515,7 @@ pub fn disallow_unlock(
 pub fn unlock_allowed(unlocker: &MultiLocation, asset: &MultiAsset, owner: &MultiLocation) -> bool {
 	ALLOWED_UNLOCKS.with(|l| {
 		l.borrow_mut()
-			.get(&(owner.clone(), unlocker.clone()))
+			.get(&(*owner, *unlocker))
 			.map_or(false, |x| x.contains_asset(asset))
 	})
 }
@@ -550,7 +550,7 @@ pub fn request_unlock_allowed(
 ) -> bool {
 	ALLOWED_REQUEST_UNLOCKS.with(|l| {
 		l.borrow_mut()
-			.get(&(owner.clone(), locker.clone()))
+			.get(&(*owner, *locker))
 			.map_or(false, |x| x.contains_asset(asset))
 	})
 }
@@ -560,11 +560,11 @@ impl Enact for TestTicket {
 	fn enact(self) -> Result<(), LockError> {
 		match &self.0 {
 			LockTraceItem::Lock { unlocker, asset, owner } =>
-				allow_unlock(unlocker.clone(), asset.clone(), owner.clone()),
+				allow_unlock(*unlocker, asset.clone(), *owner),
 			LockTraceItem::Unlock { unlocker, asset, owner } =>
-				disallow_unlock(unlocker.clone(), asset.clone(), owner.clone()),
+				disallow_unlock(*unlocker, asset.clone(), *owner),
 			LockTraceItem::Reduce { locker, asset, owner } =>
-				disallow_request_unlock(locker.clone(), asset.clone(), owner.clone()),
+				disallow_request_unlock(*locker, asset.clone(), *owner),
 			_ => {},
 		}
 		LOCK_TRACE.with(move |l| l.borrow_mut().push(self.0));
@@ -583,7 +583,7 @@ impl AssetLock for TestAssetLock {
 		asset: MultiAsset,
 		owner: MultiLocation,
 	) -> Result<Self::LockTicket, LockError> {
-		ensure!(assets(owner.clone()).contains_asset(&asset), LockError::AssetNotOwned);
+		ensure!(assets(owner).contains_asset(&asset), LockError::AssetNotOwned);
 		Ok(TestTicket(LockTraceItem::Lock { unlocker, asset, owner }))
 	}
 
@@ -601,7 +601,7 @@ impl AssetLock for TestAssetLock {
 		asset: MultiAsset,
 		owner: MultiLocation,
 	) -> Result<(), LockError> {
-		allow_request_unlock(locker.clone(), asset.clone(), owner.clone());
+		allow_request_unlock(locker, asset.clone(), owner);
 		let item = LockTraceItem::Note { locker, asset, owner };
 		LOCK_TRACE.with(move |l| l.borrow_mut().push(item));
 		Ok(())

@@ -183,8 +183,7 @@ where
 	}
 
 	/// 1. Determine if the current session index has changed.
-	/// 2. If it has, determine relevant validators
-	///    and issue a connection request.
+	/// 2. If it has, determine relevant validators and issue a connection request.
 	async fn handle_active_leaves(
 		&mut self,
 		sender: &mut impl overseer::GossipSupportSenderTrait,

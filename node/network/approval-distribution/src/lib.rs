@@ -1319,13 +1319,13 @@ impl State {
 			}
 
 			// Here we're leaning on a few behaviors of assignment propagation:
-			//   1. At this point, the only peer we're aware of which has the approval
-			//      message is the source peer.
-			//   2. We have sent the assignment message to every peer in the required routing
-			//      which is aware of this block _unless_ the peer we originally received the
-			//      assignment from was part of the required routing. In that case, we've sent
-			//      the assignment to all aware peers in the required routing _except_ the original
-			//      source of the assignment. Hence the `in_topology_check`.
+			//   1. At this point, the only peer we're aware of which has the approval message is
+			//      the source peer.
+			//   2. We have sent the assignment message to every peer in the required routing which
+			//      is aware of this block _unless_ the peer we originally received the assignment
+			//      from was part of the required routing. In that case, we've sent the assignment
+			//      to all aware peers in the required routing _except_ the original source of the
+			//      assignment. Hence the `in_topology_check`.
 			//   3. Any randomly selected peers have been sent the assignment already.
 			let in_topology = topology
 				.map_or(false, |t| t.local_grid_neighbors().route_to_peer(required_routing, peer));

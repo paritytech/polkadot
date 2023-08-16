@@ -71,10 +71,7 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 
 fn genesis_config() -> MockGenesisConfig {
 	MockGenesisConfig {
-		configuration: configuration::GenesisConfig {
-			config: default_config(),
-			..Default::default()
-		},
+		configuration: configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	}
 }
