@@ -54,7 +54,7 @@ use sp_runtime::{
 
 use sp_std::{collections::vec_deque::VecDeque, prelude::*};
 
-const LOG_TARGET: &str = "runtime::parachains::on-demand-assigner";
+const LOG_TARGET: &str = "runtime::parachains::assigner-on-demand";
 
 pub use pallet::*;
 
