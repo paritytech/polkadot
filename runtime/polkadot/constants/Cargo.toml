@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-smallvec = "1.11.0"
+smallvec = "1.8.0"
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../../primitives", default-features = false }
