@@ -311,7 +311,7 @@ mod tests {
 		let (ns, ads) = new_network();
 
 		let authority_ids: Vec<_> =
-			ads.by_peer_id.values().map(|v| v.iter()).flatten().cloned().collect();
+			ads.by_peer_id.values().flat_map(|v| v.iter()).cloned().collect();
 
 		futures::executor::block_on(async move {
 			let (failed, _) = oneshot::channel();
@@ -344,7 +344,7 @@ mod tests {
 		let (ns, ads) = new_network();
 
 		let authority_ids: Vec<_> =
-			ads.by_peer_id.values().map(|v| v.iter()).flatten().cloned().collect();
+			ads.by_peer_id.values().flat_map(|v| v.iter()).cloned().collect();
 
 		futures::executor::block_on(async move {
 			let (failed, failed_rx) = oneshot::channel();

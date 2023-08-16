@@ -59,7 +59,7 @@ fn version_subscription_instruction_should_work() {
 	let hash = fake_message_hash(&message);
 	let weight_limit = Weight::from_parts(20, 20);
 	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
-		origin.clone(),
+		origin,
 		message,
 		hash,
 		weight_limit,
@@ -124,7 +124,7 @@ fn version_unsubscription_instruction_should_work() {
 	let hash = fake_message_hash(&message);
 	let weight_limit = Weight::from_parts(20, 20);
 	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
-		origin.clone(),
+		origin,
 		message,
 		hash,
 		weight_limit,
