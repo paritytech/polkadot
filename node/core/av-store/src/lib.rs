@@ -39,10 +39,11 @@ use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use sp_consensus::SyncOracle;
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
+use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
-	messages::{AvailabilityStoreMessage, ChainApiMessage},
+	messages::{AvailabilityStoreMessage, ChainApiMessage, StoreAvailableDataError},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
@@ -66,8 +67,8 @@ const META_PREFIX: &[u8; 4] = b"meta";
 const UNFINALIZED_PREFIX: &[u8; 11] = b"unfinalized";
 const PRUNE_BY_TIME_PREFIX: &[u8; 13] = b"prune_by_time";
 
-// We have some keys we want to map to empty values because existence of the key is enough. We use this because
-// rocksdb doesn't support empty values.
+// We have some keys we want to map to empty values because existence of the key is enough. We use
+// this because rocksdb doesn't support empty values.
 const TOMBSTONE_VALUE: &[u8] = b" ";
 
 /// Unavailable blocks are kept for 1 hour.
@@ -138,10 +139,11 @@ enum State {
 	/// Candidate data was first observed at the given time but is not available in any block.
 	#[codec(index = 0)]
 	Unavailable(BETimestamp),
-	/// The candidate was first observed at the given time and was included in the given list of unfinalized blocks, which may be
-	/// empty. The timestamp here is not used for pruning. Either one of these blocks will be finalized or the state will regress to
-	/// `State::Unavailable`, in which case the same timestamp will be reused. Blocks are sorted ascending first by block number and
-	/// then hash.
+	/// The candidate was first observed at the given time and was included in the given list of
+	/// unfinalized blocks, which may be empty. The timestamp here is not used for pruning. Either
+	/// one of these blocks will be finalized or the state will regress to `State::Unavailable`, in
+	/// which case the same timestamp will be reused. Blocks are sorted ascending first by block
+	/// number and then hash.
 	#[codec(index = 1)]
 	Unfinalized(BETimestamp, Vec<(BEBlockNumber, Hash)>),
 	/// Candidate data has appeared in a finalized block and did so at the given time.
@@ -372,6 +374,9 @@ pub enum Error {
 
 	#[error("Custom databases are not supported")]
 	CustomDatabase,
+
+	#[error("Erasure root does not match expected one")]
+	InvalidErasureRoot,
 }
 
 impl Error {
@@ -816,8 +821,8 @@ fn note_block_included(
 
 	match load_meta(db, config, &candidate_hash)? {
 		None => {
-			// This is alarming. We've observed a block being included without ever seeing it backed.
-			// Warn and ignore.
+			// This is alarming. We've observed a block being included without ever seeing it
+			// backed. Warn and ignore.
 			gum::warn!(
 				target: LOG_TARGET,
 				?candidate_hash,
@@ -890,9 +895,9 @@ async fn process_block_finalized<Context>(
 		let mut db_transaction = DBTransaction::new();
 		let (start_prefix, end_prefix) = finalized_block_range(finalized_number);
 
-		// We have to do some juggling here of the `iter` to make sure it doesn't cross the `.await` boundary
-		// as it is not `Send`. That is why we create the iterator once within this loop, drop it,
-		// do an asynchronous request, and then instantiate the exact same iterator again.
+		// We have to do some juggling here of the `iter` to make sure it doesn't cross the `.await`
+		// boundary as it is not `Send`. That is why we create the iterator once within this loop,
+		// drop it, do an asynchronous request, and then instantiate the exact same iterator again.
 		let batch_num = {
 			let mut iter = subsystem
 				.db
@@ -957,8 +962,9 @@ async fn process_block_finalized<Context>(
 
 		update_blocks_at_finalized_height(&subsystem, &mut db_transaction, batch, batch_num, now)?;
 
-		// We need to write at the end of the loop so the prefix iterator doesn't pick up the same values again
-		// in the next iteration. Another unfortunate effect of having to re-initialize the iterator.
+		// We need to write at the end of the loop so the prefix iterator doesn't pick up the same
+		// values again in the next iteration. Another unfortunate effect of having to re-initialize
+		// the iterator.
 		subsystem.db.write(db_transaction)?;
 	}
 
@@ -1184,21 +1190,35 @@ fn process_message(
 			candidate_hash,
 			n_validators,
 			available_data,
+			expected_erasure_root,
 			tx,
 		} => {
 			subsystem.metrics.on_chunks_received(n_validators as _);
 
 			let _timer = subsystem.metrics.time_store_available_data();
 
-			let res =
-				store_available_data(&subsystem, candidate_hash, n_validators as _, available_data);
+			let res = store_available_data(
+				&subsystem,
+				candidate_hash,
+				n_validators as _,
+				available_data,
+				expected_erasure_root,
+			);
 
 			match res {
 				Ok(()) => {
 					let _ = tx.send(Ok(()));
 				},
+				Err(Error::InvalidErasureRoot) => {
+					let _ = tx.send(Err(StoreAvailableDataError::InvalidErasureRoot));
+					return Err(Error::InvalidErasureRoot)
+				},
 				Err(e) => {
-					let _ = tx.send(Err(()));
+					// We do not bubble up internal errors to caller subsystems, instead the
+					// tx channel is dropped and that error is caught by the caller subsystem.
+					//
+					// We bubble up the specific error here so `av-store` logs still tell what
+					// happend.
 					return Err(e.into())
 				},
 			}
@@ -1250,6 +1270,7 @@ fn store_available_data(
 	candidate_hash: CandidateHash,
 	n_validators: usize,
 	available_data: AvailableData,
+	expected_erasure_root: Hash,
 ) -> Result<(), Error> {
 	let mut tx = DBTransaction::new();
 
@@ -1276,8 +1297,20 @@ fn store_available_data(
 		},
 	};
 
+	let erasure_span = jaeger::Span::new(candidate_hash, "erasure-coding")
+		.with_candidate(candidate_hash)
+		.with_pov(&available_data.pov);
+
+	// Important note: This check below is critical for consensus and the `backing` subsystem relies
+	// on it to ensure candidate validity.
 	let chunks = erasure::obtain_chunks_v1(n_validators, &available_data)?;
 	let branches = erasure::branches(chunks.as_ref());
+
+	if branches.root() != expected_erasure_root {
+		return Err(Error::InvalidErasureRoot)
+	}
+
+	drop(erasure_span);
 
 	let erasure_chunks = chunks.iter().zip(branches.map(|(proof, _)| proof)).enumerate().map(
 		|(index, (chunk, proof))| ErasureChunk {

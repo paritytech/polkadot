@@ -56,7 +56,8 @@ fn run_to_block(
 
 		if let Some(notification) = new_session(b + 1) {
 			let mut notification_with_session_index = notification;
-			// We will make every session change trigger an action queue. Normally this may require 2 or more session changes.
+			// We will make every session change trigger an action queue. Normally this may require
+			// 2 or more session changes.
 			if notification_with_session_index.session_index == SessionIndex::default() {
 				notification_with_session_index.session_index = ParasShared::scheduled_session();
 			}
@@ -103,10 +104,10 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 		thread_availability_period: 5,
 		scheduling_lookahead: 2,
 		parathread_retries: 1,
-		pvf_checking_enabled: false,
 		// This field does not affect anything that scheduler does. However, `HostConfiguration`
-		// is still a subject to consistency test. It requires that `minimum_validation_upgrade_delay`
-		// is greater than `chain_availability_period` and `thread_availability_period`.
+		// is still a subject to consistency test. It requires that
+		// `minimum_validation_upgrade_delay` is greater than `chain_availability_period` and
+		// `thread_availability_period`.
 		minimum_validation_upgrade_delay: 6,
 		..Default::default()
 	}
@@ -627,9 +628,9 @@ fn schedule_schedules_including_just_freed() {
 			assert!(Scheduler::scheduled().is_empty());
 		}
 
-		// add a couple more parathread claims - the claim on `b` will go to the 3rd parathread core (4)
-		// and the claim on `d` will go back to the 1st parathread core (2). The claim on `e` then
-		// will go for core `3`.
+		// add a couple more parathread claims - the claim on `b` will go to the 3rd parathread core
+		// (4) and the claim on `d` will go back to the 1st parathread core (2). The claim on `e`
+		// then will go for core `3`.
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_d, collator.clone()));
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_e, collator.clone()));

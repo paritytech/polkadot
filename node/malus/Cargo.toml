@@ -1,16 +1,29 @@
 [package]
 name = "polkadot-test-malus"
 description = "Misbehaving nodes for local testnets, system and Simnet tests."
-license = "GPL-3.0-only"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 readme = "README.md"
 publish = false
 
 [[bin]]
 name = "malus"
 path = "src/malus.rs"
+
+# Use artifact dependencies once stable.
+# See https://github.com/rust-lang/cargo/issues/9096.
+[[bin]]
+name = "polkadot-execute-worker"
+path = "../../src/bin/execute-worker.rs"
+# Prevent rustdoc error. Already documented from top-level Cargo.toml.
+doc = false
+[[bin]]
+name = "polkadot-prepare-worker"
+path = "../../src/bin/prepare-worker.rs"
+# Prevent rustdoc error. Already documented from top-level Cargo.toml.
+doc = false
 
 [dependencies]
 polkadot-cli = { path = "../../cli", features = [ "malus", "rococo-native", "westend-native" ] }
@@ -20,8 +33,6 @@ polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator" }
 polkadot-node-core-candidate-validation = { path = "../core/candidate-validation" }
 polkadot-node-core-backing = { path = "../core/backing" }
-polkadot-node-core-pvf-execute-worker = { path = "../core/pvf/execute-worker" }
-polkadot-node-core-pvf-prepare-worker = { path = "../core/pvf/prepare-worker" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
 color-eyre = { version = "0.6.1", default-features = false }
@@ -36,11 +47,19 @@ gum = { package = "tracing-gum", path = "../gum/" }
 erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
 rand = "0.8.5"
 
-[features]
-default = []
-fast-runtime = ["polkadot-cli/fast-runtime"]
+# Required for worker binaries to build.
+polkadot-node-core-pvf-common = { path = "../core/pvf/common", features = ["test-utils"] }
+polkadot-node-core-pvf-execute-worker = { path = "../core/pvf/execute-worker" }
+polkadot-node-core-pvf-prepare-worker = { path = "../core/pvf/prepare-worker" }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
+
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[features]
+default = []
+fast-runtime = ["polkadot-cli/fast-runtime"]

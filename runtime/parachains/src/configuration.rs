@@ -37,7 +37,6 @@ mod tests;
 mod benchmarking;
 
 pub mod migration;
-pub mod migration_ump;
 
 pub use pallet::*;
 
@@ -55,12 +54,12 @@ const LOG_TARGET: &str = "runtime::configuration";
 	serde::Deserialize,
 )]
 pub struct HostConfiguration<BlockNumber> {
-	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
-	// special treatment.
+	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct
+	// requires special treatment.
 	//
-	// A parachain requested this struct can only depend on the subset of this struct. Specifically,
-	// only a first few fields can be depended upon. These fields cannot be changed without
-	// corresponding migration of the parachains.
+	// A parachain requested this struct can only depend on the subset of this struct.
+	// Specifically, only a first few fields can be depended upon. These fields cannot be changed
+	// without corresponding migration of the parachains.
 	/**
 	 * The parameters that are required for the parachains.
 	 */
@@ -89,9 +88,9 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_message_num_per_candidate: u32,
 	/// The minimum period, in blocks, between which parachains can update their validation code.
 	///
-	/// This number is used to prevent parachains from spamming the relay chain with validation code
-	/// upgrades. The only thing it controls is the number of blocks the `UpgradeRestrictionSignal`
-	/// is set for the parachain in question.
+	/// This number is used to prevent parachains from spamming the relay chain with validation
+	/// code upgrades. The only thing it controls is the number of blocks the
+	/// `UpgradeRestrictionSignal` is set for the parachain in question.
 	///
 	/// If PVF pre-checking is enabled this should be greater than the maximum number of blocks
 	/// PVF pre-checking can take. Intuitively, this number should be greater than the duration
@@ -114,14 +113,15 @@ pub struct HostConfiguration<BlockNumber> {
 	/// been completed.
 	///
 	/// Note, there are situations in which `expected_at` in the past. For example, if
-	/// [`chain_availability_period`] or [`thread_availability_period`] is less than the delay set by
-	/// this field or if PVF pre-check took more time than the delay. In such cases, the upgrade is
-	/// further at the earliest possible time determined by [`minimum_validation_upgrade_delay`].
+	/// [`chain_availability_period`] or [`thread_availability_period`] is less than the delay set
+	/// by this field or if PVF pre-check took more time than the delay. In such cases, the upgrade
+	/// is further at the earliest possible time determined by
+	/// [`minimum_validation_upgrade_delay`].
 	///
 	/// The rationale for this delay has to do with relay-chain reversions. In case there is an
-	/// invalid candidate produced with the new version of the code, then the relay-chain can revert
-	/// [`validation_upgrade_delay`] many blocks back and still find the new code in the storage by
-	/// hash.
+	/// invalid candidate produced with the new version of the code, then the relay-chain can
+	/// revert [`validation_upgrade_delay`] many blocks back and still find the new code in the
+	/// storage by hash.
 	///
 	/// [#4601]: https://github.com/paritytech/polkadot/issues/4601
 	pub validation_upgrade_delay: BlockNumber,
@@ -180,13 +180,13 @@ pub struct HostConfiguration<BlockNumber> {
 	/// Must be non-zero.
 	pub group_rotation_frequency: BlockNumber,
 	/// The availability period, in blocks, for parachains. This is the amount of blocks
-	/// after inclusion that validators have to make the block available and signal its availability to
-	/// the chain.
+	/// after inclusion that validators have to make the block available and signal its
+	/// availability to the chain.
 	///
 	/// Must be at least 1.
 	pub chain_availability_period: BlockNumber,
-	/// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
-	/// but a differing timeout due to differing requirements.
+	/// The availability period, in blocks, for parathreads. Same as the
+	/// `chain_availability_period`, but a differing timeout due to differing requirements.
 	///
 	/// Must be at least 1.
 	pub thread_availability_period: BlockNumber,
@@ -218,14 +218,8 @@ pub struct HostConfiguration<BlockNumber> {
 	pub needed_approvals: u32,
 	/// The number of samples to do of the `RelayVRFModulo` approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
-	/// This flag controls whether PVF pre-checking is enabled.
-	///
-	/// If the flag is false, the behavior should be exactly the same as prior. Specifically, the
-	/// upgrade procedure is time-based and parachains that do not look at the go-ahead signal
-	/// should still work.
-	pub pvf_checking_enabled: bool,
-	/// If an active PVF pre-checking vote observes this many number of sessions it gets automatically
-	/// rejected.
+	/// If an active PVF pre-checking vote observes this many number of sessions it gets
+	/// automatically rejected.
 	///
 	/// 0 means PVF pre-checking will be rejected on the first observed session unless the voting
 	/// gained supermajority before that the session change.
@@ -291,7 +285,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
-			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
 			executor_params: Default::default(),
@@ -487,7 +480,8 @@ pub mod pallet {
 	///      + <https://github.com/paritytech/polkadot/pull/6961>
 	///      + <https://github.com/paritytech/polkadot/pull/6934>
 	/// v5-v6: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(6);
+	/// v6-v7: <https://github.com/paritytech/polkadot/pull/7396>
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -508,9 +502,10 @@ pub mod pallet {
 
 	/// The active configuration for the current session.
 	#[pallet::storage]
+	#[pallet::whitelist_storage]
 	#[pallet::getter(fn config)]
 	pub(crate) type ActiveConfig<T: Config> =
-		StorageValue<_, HostConfiguration<T::BlockNumber>, ValueQuery>;
+		StorageValue<_, HostConfiguration<BlockNumberFor<T>>, ValueQuery>;
 
 	/// Pending configuration changes.
 	///
@@ -521,7 +516,7 @@ pub mod pallet {
 	/// 2 items: for the next session and for the `scheduled_session`.
 	#[pallet::storage]
 	pub(crate) type PendingConfigs<T: Config> =
-		StorageValue<_, Vec<(SessionIndex, HostConfiguration<T::BlockNumber>)>, ValueQuery>;
+		StorageValue<_, Vec<(SessionIndex, HostConfiguration<BlockNumberFor<T>>)>, ValueQuery>;
 
 	/// If this is set, then the configuration setters will bypass the consistency checks. This
 	/// is meant to be used only as the last resort.
@@ -531,11 +526,11 @@ pub mod pallet {
 	#[pallet::genesis_config]
 	#[derive(DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
-		pub config: HostConfiguration<T::BlockNumber>,
+		pub config: HostConfiguration<BlockNumberFor<T>>,
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			self.config.panic_if_not_consistent();
 			ActiveConfig::<T>::put(&self.config);
@@ -552,7 +547,7 @@ pub mod pallet {
 		))]
 		pub fn set_validation_upgrade_cooldown(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -568,7 +563,7 @@ pub mod pallet {
 		))]
 		pub fn set_validation_upgrade_delay(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -584,7 +579,7 @@ pub mod pallet {
 		))]
 		pub fn set_code_retention_period(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -665,7 +660,7 @@ pub mod pallet {
 		))]
 		pub fn set_group_rotation_frequency(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -681,7 +676,7 @@ pub mod pallet {
 		))]
 		pub fn set_chain_availability_period(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -697,7 +692,7 @@ pub mod pallet {
 		))]
 		pub fn set_thread_availability_period(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -768,7 +763,7 @@ pub mod pallet {
 		))]
 		pub fn set_dispute_post_conclusion_acceptance_period(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -855,7 +850,8 @@ pub mod pallet {
 			})
 		}
 
-		/// Sets the maximum total size of items that can present in a upward dispatch queue at once.
+		/// Sets the maximum total size of items that can present in a upward dispatch queue at
+		/// once.
 		#[pallet::call_index(24)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
@@ -1070,20 +1066,6 @@ pub mod pallet {
 			})
 		}
 
-		/// Enable or disable PVF pre-checking. Consult the field documentation prior executing.
-		#[pallet::call_index(41)]
-		#[pallet::weight((
-			// Using u32 here is a little bit of cheating, but that should be fine.
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_pvf_checking_enabled(origin: OriginFor<T>, new: bool) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.pvf_checking_enabled = new;
-			})
-		}
-
 		/// Set the number of session changes after which a PVF pre-checking voting is rejected.
 		#[pallet::call_index(42)]
 		#[pallet::weight((
@@ -1108,7 +1090,7 @@ pub mod pallet {
 		))]
 		pub fn set_minimum_validation_upgrade_delay(
 			origin: OriginFor<T>,
-			new: T::BlockNumber,
+			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
@@ -1183,7 +1165,7 @@ pub struct SessionChangeOutcome<BlockNumber> {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -1197,7 +1179,7 @@ impl<T: Config> Pallet<T> {
 	/// be the same.
 	pub(crate) fn initializer_on_new_session(
 		session_index: &SessionIndex,
-	) -> SessionChangeOutcome<T::BlockNumber> {
+	) -> SessionChangeOutcome<BlockNumberFor<T>> {
 		let pending_configs = <PendingConfigs<T>>::get();
 		let prev_config = ActiveConfig::<T>::get();
 
@@ -1238,7 +1220,7 @@ impl<T: Config> Pallet<T> {
 	/// Forcibly set the active config. This should be used with extreme care, and typically
 	/// only when enabling parachains runtime pallets for the first time on a chain which has
 	/// been running without them.
-	pub fn force_set_active_config(config: HostConfiguration<T::BlockNumber>) {
+	pub fn force_set_active_config(config: HostConfiguration<BlockNumberFor<T>>) {
 		ActiveConfig::<T>::set(config);
 	}
 
@@ -1258,32 +1240,31 @@ impl<T: Config> Pallet<T> {
 	// the sake of essentially avoiding an indirect call. Doesn't worth it.
 	#[inline(never)]
 	pub(crate) fn schedule_config_update(
-		updater: impl FnOnce(&mut HostConfiguration<T::BlockNumber>),
+		updater: impl FnOnce(&mut HostConfiguration<BlockNumberFor<T>>),
 	) -> DispatchResult {
 		let mut pending_configs = <PendingConfigs<T>>::get();
 
-		// 1. pending_configs = []
-		//    No pending configuration changes.
+		// 1. pending_configs = [] No pending configuration changes.
 		//
 		//    That means we should use the active config as the base configuration. We will insert
 		//    the new pending configuration as (cur+2, new_config) into the list.
 		//
-		// 2. pending_configs = [(cur+2, X)]
-		//    There is a configuration that is pending for the scheduled session.
+		// 2. pending_configs = [(cur+2, X)] There is a configuration that is pending for the
+		//    scheduled session.
 		//
 		//    We will use X as the base configuration. We can update the pending configuration X
 		//    directly.
 		//
-		// 3. pending_configs = [(cur+1, X)]
-		//    There is a pending configuration scheduled and it will be applied in the next session.
+		// 3. pending_configs = [(cur+1, X)] There is a pending configuration scheduled and it will
+		//    be applied in the next session.
 		//
-		//    We will use X as the base configuration. We need to schedule a new configuration change
-		//    for the `scheduled_session` and use X as the base for the new configuration.
+		//    We will use X as the base configuration. We need to schedule a new configuration
+		// change    for the `scheduled_session` and use X as the base for the new configuration.
 		//
-		// 4. pending_configs = [(cur+1, X), (cur+2, Y)]
-		//    There is a pending configuration change in the next session and for the scheduled
-		//    session. Due to case №3, we can be sure that Y is based on top of X. This means we
-		//    can use Y as the base configuration and update Y directly.
+		// 4. pending_configs = [(cur+1, X), (cur+2, Y)] There is a pending configuration change in
+		//    the next session and for the scheduled session. Due to case №3, we can be sure that Y
+		//    is based on top of X. This means we can use Y as the base configuration and update Y
+		//    directly.
 		//
 		// There cannot be (cur, X) because those are applied in the session change handler for the
 		// current session.

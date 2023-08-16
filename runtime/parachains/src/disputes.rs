@@ -298,9 +298,9 @@ impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 	fn initializer_on_new_session(_notification: &SessionChangeNotification<BlockNumber>) {}
 }
 
-impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T>
+impl<T: Config> DisputesHandler<BlockNumberFor<T>> for pallet::Pallet<T>
 where
-	T::BlockNumber: Ord,
+	BlockNumberFor<T>: Ord,
 {
 	fn is_frozen() -> bool {
 		pallet::Pallet::<T>::is_frozen()
@@ -308,7 +308,7 @@ where
 
 	fn filter_dispute_data(
 		set: DisputeStatementSet,
-		post_conclusion_acceptance_period: T::BlockNumber,
+		post_conclusion_acceptance_period: BlockNumberFor<T>,
 	) -> Option<CheckedDisputeStatementSet> {
 		pallet::Pallet::<T>::filter_dispute_data(&set, post_conclusion_acceptance_period)
 			.filter_statement_set(set)
@@ -323,7 +323,7 @@ where
 	fn note_included(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-		included_in: T::BlockNumber,
+		included_in: BlockNumberFor<T>,
 	) {
 		pallet::Pallet::<T>::note_included(session, candidate_hash, included_in)
 	}
@@ -331,7 +331,7 @@ where
 	fn included_state(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-	) -> Option<T::BlockNumber> {
+	) -> Option<BlockNumberFor<T>> {
 		pallet::Pallet::<T>::included_state(session, candidate_hash)
 	}
 
@@ -339,7 +339,7 @@ where
 		pallet::Pallet::<T>::concluded_invalid(session, candidate_hash)
 	}
 
-	fn initializer_initialize(now: T::BlockNumber) -> Weight {
+	fn initializer_initialize(now: BlockNumberFor<T>) -> Weight {
 		pallet::Pallet::<T>::initializer_initialize(now)
 	}
 
@@ -347,7 +347,7 @@ where
 		pallet::Pallet::<T>::initializer_finalize()
 	}
 
-	fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
+	fn initializer_on_new_session(notification: &SessionChangeNotification<BlockNumberFor<T>>) {
 		pallet::Pallet::<T>::initializer_on_new_session(notification)
 	}
 }
@@ -373,7 +373,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + configuration::Config + session_info::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type RewardValidators: RewardValidators;
-		type SlashingHandler: SlashingHandler<Self::BlockNumber>;
+		type SlashingHandler: SlashingHandler<BlockNumberFor<Self>>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -400,7 +400,7 @@ pub mod pallet {
 		SessionIndex,
 		Blake2_128Concat,
 		CandidateHash,
-		DisputeState<T::BlockNumber>,
+		DisputeState<BlockNumberFor<T>>,
 	>;
 
 	/// Backing votes stored for each dispute.
@@ -424,7 +424,7 @@ pub mod pallet {
 		SessionIndex,
 		Blake2_128Concat,
 		CandidateHash,
-		T::BlockNumber,
+		BlockNumberFor<T>,
 	>;
 
 	/// Whether the chain is frozen. Starts as `None`. When this is `Some`,
@@ -433,7 +433,7 @@ pub mod pallet {
 	/// It can only be set back to `None` by governance intervention.
 	#[pallet::storage]
 	#[pallet::getter(fn last_valid_block)]
-	pub(super) type Frozen<T: Config> = StorageValue<_, Option<T::BlockNumber>, ValueQuery>;
+	pub(super) type Frozen<T: Config> = StorageValue<_, Option<BlockNumberFor<T>>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
@@ -447,7 +447,7 @@ pub mod pallet {
 		/// Block authors should no longer build on top of this head and should
 		/// instead revert the block at the given height. This should be the
 		/// number of the child of the last known valid block in the chain.
-		Revert(T::BlockNumber),
+		Revert(BlockNumberFor<T>),
 	}
 
 	#[pallet::error]
@@ -854,7 +854,7 @@ impl StatementSetFilter {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes module.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -863,7 +863,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to note a new session in the disputes pallet.
 	pub(crate) fn initializer_on_new_session(
-		notification: &SessionChangeNotification<T::BlockNumber>,
+		notification: &SessionChangeNotification<BlockNumberFor<T>>,
 	) {
 		let config = <configuration::Pallet<T>>::config();
 
@@ -887,8 +887,8 @@ impl<T: Config> Pallet<T> {
 				#[allow(deprecated)]
 				<BackersOnDisputes<T>>::remove_prefix(to_prune, None);
 
-				// This is larger, and will be extracted to the `shared` pallet for more proper pruning.
-				// TODO: https://github.com/paritytech/polkadot/issues/3469
+				// This is larger, and will be extracted to the `shared` pallet for more proper
+				// pruning. TODO: https://github.com/paritytech/polkadot/issues/3469
 				#[allow(deprecated)]
 				<Included<T>>::remove_prefix(to_prune, None);
 			}
@@ -937,7 +937,7 @@ impl<T: Config> Pallet<T> {
 	// Disputes without enough votes to get confirmed are also filtered out.
 	fn filter_dispute_data(
 		set: &DisputeStatementSet,
-		post_conclusion_acceptance_period: <T as frame_system::Config>::BlockNumber,
+		post_conclusion_acceptance_period: BlockNumberFor<T>,
 	) -> StatementSetFilter {
 		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
 
@@ -1048,7 +1048,7 @@ impl<T: Config> Pallet<T> {
 	/// dispute is fresh.
 	fn process_checked_dispute_data(
 		set: &CheckedDisputeStatementSet,
-		dispute_post_conclusion_acceptance_period: T::BlockNumber,
+		dispute_post_conclusion_acceptance_period: BlockNumberFor<T>,
 	) -> Result<bool, DispatchError> {
 		// Dispute statement sets on any dispute which concluded
 		// before this point are to be rejected.
@@ -1178,7 +1178,8 @@ impl<T: Config> Pallet<T> {
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
 
-		// Freeze if the INVALID votes against some local candidate are above the byzantine threshold
+		// Freeze if the INVALID votes against some local candidate are above the byzantine
+		// threshold
 		if summary.new_flags.contains(DisputeStateFlags::AGAINST_BYZANTINE) {
 			if let Some(revert_to) = <Included<T>>::get(&session, &candidate_hash) {
 				Self::revert_and_freeze(revert_to);
@@ -1189,14 +1190,15 @@ impl<T: Config> Pallet<T> {
 	}
 
 	#[allow(unused)]
-	pub(crate) fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
+	pub(crate) fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumberFor<T>>)>
+	{
 		<Disputes<T>>::iter().collect()
 	}
 
 	pub(crate) fn note_included(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-		included_in: T::BlockNumber,
+		included_in: BlockNumberFor<T>,
 	) {
 		if included_in.is_zero() {
 			return
@@ -1216,7 +1218,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn included_state(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-	) -> Option<T::BlockNumber> {
+	) -> Option<BlockNumberFor<T>> {
 		<Included<T>>::get(session, candidate_hash)
 	}
 
@@ -1231,7 +1233,7 @@ impl<T: Config> Pallet<T> {
 		Self::last_valid_block().is_some()
 	}
 
-	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
+	pub(crate) fn revert_and_freeze(revert_to: BlockNumberFor<T>) {
 		if Self::last_valid_block().map_or(true, |last| last > revert_to) {
 			Frozen::<T>::set(Some(revert_to));
 

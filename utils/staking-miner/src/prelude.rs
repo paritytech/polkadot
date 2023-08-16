@@ -26,8 +26,8 @@ pub type AccountId = core_primitives::AccountId;
 pub type BlockNumber = core_primitives::BlockNumber;
 /// The balance type.
 pub type Balance = core_primitives::Balance;
-/// The index of an account.
-pub type Index = core_primitives::AccountIndex;
+/// Index of a transaction in the chain.
+pub type Nonce = core_primitives::Nonce;
 /// The hash type. We re-export it here, but we can easily get it from block as well.
 pub type Hash = core_primitives::Hash;
 /// The header type. We re-export it here, but we can easily get it from block as well.

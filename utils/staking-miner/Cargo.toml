@@ -7,6 +7,8 @@ name = "staking-miner"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
+publish = false
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.6.1" }

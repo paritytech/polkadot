@@ -21,21 +21,23 @@
 //!   - Scheduling parachains and parathreads
 //!
 //! It aims to achieve these tasks with these goals in mind:
-//! - It should be possible to know at least a block ahead-of-time, ideally more,
-//!   which validators are going to be assigned to which parachains.
-//! - Parachains that have a candidate pending availability in this fork of the chain
-//!   should not be assigned.
+//! - It should be possible to know at least a block ahead-of-time, ideally more, which validators
+//!   are going to be assigned to which parachains.
+//! - Parachains that have a candidate pending availability in this fork of the chain should not be
+//!   assigned.
 //! - Validator assignments should not be gameable. Malicious cartels should not be able to
 //!   manipulate the scheduler to assign themselves as desired.
-//! - High or close to optimal throughput of parachains and parathreads. Work among validator groups should be balanced.
+//! - High or close to optimal throughput of parachains and parathreads. Work among validator groups
+//!   should be balanced.
 //!
 //! The Scheduler manages resource allocation using the concept of "Availability Cores".
 //! There will be one availability core for each parachain, and a fixed number of cores
 //! used for multiplexing parathreads. Validators will be partitioned into groups, with the same
-//! number of groups as availability cores. Validator groups will be assigned to different availability cores
-//! over time.
+//! number of groups as availability cores. Validator groups will be assigned to different
+//! availability cores over time.
 
 use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{
 	CollatorId, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
 	ParathreadClaim, ParathreadEntry, ScheduledCore, ValidatorIndex,
@@ -168,8 +170,9 @@ pub mod pallet {
 	/// broader set of Polkadot validators, but instead just the subset used for parachains during
 	/// this session.
 	///
-	/// Bound: The number of cores is the sum of the numbers of parachains and parathread multiplexers.
-	/// Reasonably, 100-1000. The dominant factor is the number of validators: safe upper bound at 10k.
+	/// Bound: The number of cores is the sum of the numbers of parachains and parathread
+	/// multiplexers. Reasonably, 100-1000. The dominant factor is the number of validators: safe
+	/// upper bound at 10k.
 	#[pallet::storage]
 	#[pallet::getter(fn validator_groups)]
 	pub(crate) type ValidatorGroups<T> = StorageValue<_, Vec<Vec<ValidatorIndex>>, ValueQuery>;
@@ -181,8 +184,8 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(crate) type ParathreadQueue<T> = StorageValue<_, ParathreadClaimQueue, ValueQuery>;
 
-	/// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
-	/// temporarily `Some` if scheduled but not occupied.
+	/// One entry for each availability core. Entries are `None` if the core is not currently
+	/// occupied. Can be temporarily `Some` if scheduled but not occupied.
 	/// The i'th parachain belongs to the i'th core, with the remaining cores all being
 	/// parathread-multiplexers.
 	///
@@ -196,11 +199,13 @@ pub mod pallet {
 	/// An index used to ensure that only one claim on a parathread exists in the queue or is
 	/// currently being handled by an occupied core.
 	///
-	/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
+	/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 =
+	/// 500.
 	#[pallet::storage]
 	pub(crate) type ParathreadClaimIndex<T> = StorageValue<_, Vec<ParaId>, ValueQuery>;
 
-	/// The block number where the session start occurred. Used to track how many group rotations have occurred.
+	/// The block number where the session start occurred. Used to track how many group rotations
+	/// have occurred.
 	///
 	/// Note that in the context of parachains modules the session change is signaled during
 	/// the block and enacted at the end of the block (at the finalization stage, to be exact).
@@ -208,14 +213,14 @@ pub mod pallet {
 	/// block following the session change, block number of which we save in this storage value.
 	#[pallet::storage]
 	#[pallet::getter(fn session_start_block)]
-	pub(crate) type SessionStartBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+	pub(crate) type SessionStartBlock<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
 	/// Currently scheduled cores - free but up to be occupied.
 	///
 	/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
 	///
-	/// The value contained here will not be valid after the end of a block. Runtime APIs should be used to determine scheduled cores/
-	/// for the upcoming block.
+	/// The value contained here will not be valid after the end of a block. Runtime APIs should be
+	/// used to determine scheduled cores/ for the upcoming block.
 	#[pallet::storage]
 	#[pallet::getter(fn scheduled)]
 	pub(crate) type Scheduled<T> = StorageValue<_, Vec<CoreAssignment>, ValueQuery>;
@@ -224,7 +229,7 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the scheduler pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -233,7 +238,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		notification: &SessionChangeNotification<T::BlockNumber>,
+		notification: &SessionChangeNotification<BlockNumberFor<T>>,
 	) {
 		let SessionChangeNotification { validators, new_config, .. } = notification;
 		let config = new_config;
@@ -379,8 +384,9 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
-	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
-	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
+	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along
+	/// with the reason for them being freed. The list is assumed to be sorted in ascending order by
+	/// core index.
 	pub(crate) fn free_cores(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
 		let config = <configuration::Pallet<T>>::config();
 
@@ -402,8 +408,8 @@ impl<T: Config> Pallet<T> {
 									})
 								},
 								FreedReason::TimedOut => {
-									// If a parathread candidate times out, it's not the collator's fault,
-									// so we don't increment retries.
+									// If a parathread candidate times out, it's not the collator's
+									// fault, so we don't increment retries.
 									ParathreadQueue::<T>::mutate(|queue| {
 										queue.enqueue_entry(entry, config.parathread_cores);
 									})
@@ -416,12 +422,12 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
-	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
-	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
-	/// ascending order by core index.
+	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be
+	/// considered newly-freed along with the reason for them being freed. The list is assumed to be
+	/// sorted in ascending order by core index.
 	pub(crate) fn schedule(
 		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
-		now: T::BlockNumber,
+		now: BlockNumberFor<T>,
 	) {
 		Self::free_cores(just_freed_cores);
 
@@ -454,10 +460,10 @@ impl<T: Config> Pallet<T> {
 
 					// check the first entry already scheduled with core index >= than the one we
 					// are looking at. 3 cases:
-					//  1. No such entry, clearly this core is not scheduled, so we need to schedule and put at the end.
-					//  2. Entry exists and has same index as the core we are inspecting. do not schedule again.
-					//  3. Entry exists and has higher index than the core we are inspecting. schedule and note
-					//     insertion position.
+					//  1. No such entry, clearly this core is not scheduled, so we need to schedule
+					// and put at the end.  2. Entry exists and has same index as the core we are
+					// inspecting. do not schedule again.  3. Entry exists and has higher index than
+					// the core we are inspecting. schedule and note     insertion position.
 					prev_scheduled_in_order.peek().map_or(
 						Some(scheduled.len()),
 						|(idx_in_scheduled, assign)| {
@@ -508,8 +514,9 @@ impl<T: Config> Pallet<T> {
 				}
 			}
 
-			// at this point, because `Scheduled` is guaranteed to be sorted and we navigated unassigned
-			// core indices in ascending order, we can enact the updates prepared by the previous actions.
+			// at this point, because `Scheduled` is guaranteed to be sorted and we navigated
+			// unassigned core indices in ascending order, we can enact the updates prepared by the
+			// previous actions.
 			//
 			// while inserting, we have to account for the amount of insertions already done.
 			//
@@ -521,20 +528,20 @@ impl<T: Config> Pallet<T> {
 				scheduled.insert(insert_at, to_insert);
 			}
 
-			// scheduled is guaranteed to be sorted after this point because it was sorted before, and we
-			// applied sorted updates at their correct positions, accounting for the offsets of previous
-			// insertions.
+			// scheduled is guaranteed to be sorted after this point because it was sorted before,
+			// and we applied sorted updates at their correct positions, accounting for the offsets
+			// of previous insertions.
 		}
 
 		Scheduled::<T>::set(scheduled);
 		ParathreadQueue::<T>::set(parathread_queue);
 	}
 
-	/// Note that the given cores have become occupied. Behavior undefined if any of the given cores were not scheduled
-	/// or the slice is not sorted ascending by core index.
+	/// Note that the given cores have become occupied. Behavior undefined if any of the given cores
+	/// were not scheduled or the slice is not sorted ascending by core index.
 	///
-	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
-	/// This is efficient in the case that most scheduled cores are occupied.
+	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total
+	/// cores. This is efficient in the case that most scheduled cores are occupied.
 	pub(crate) fn occupied(now_occupied: &[CoreIndex]) {
 		if now_occupied.is_empty() {
 			return
@@ -567,8 +574,8 @@ impl<T: Config> Pallet<T> {
 		AvailabilityCores::<T>::set(availability_cores);
 	}
 
-	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
-	/// out of bounds will return `None`, as will indices of unassigned cores.
+	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core
+	/// indices out of bounds will return `None`, as will indices of unassigned cores.
 	pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
 		let cores = AvailabilityCores::<T>::get();
 		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
@@ -586,11 +593,12 @@ impl<T: Config> Pallet<T> {
 		ValidatorGroups::<T>::get().get(group_index.0 as usize).map(|g| g.clone())
 	}
 
-	/// Get the group assigned to a specific core by index at the current block number. Result undefined if the core index is unknown
-	/// or the block number is less than the session start index.
+	/// Get the group assigned to a specific core by index at the current block number. Result
+	/// undefined if the core index is unknown or the block number is less than the session start
+	/// index.
 	pub(crate) fn group_assigned_to_core(
 		core: CoreIndex,
-		at: T::BlockNumber,
+		at: BlockNumberFor<T>,
 	) -> Option<GroupIndex> {
 		let config = <configuration::Pallet<T>>::config();
 		let session_start_block = <SessionStartBlock<T>>::get();
@@ -605,11 +613,12 @@ impl<T: Config> Pallet<T> {
 			return None
 		}
 
-		let rotations_since_session_start: T::BlockNumber =
+		let rotations_since_session_start: BlockNumberFor<T> =
 			(at - session_start_block) / config.group_rotation_frequency.into();
 
 		let rotations_since_session_start =
-			<T::BlockNumber as TryInto<u32>>::try_into(rotations_since_session_start).unwrap_or(0);
+			<BlockNumberFor<T> as TryInto<u32>>::try_into(rotations_since_session_start)
+				.unwrap_or(0);
 		// Error case can only happen if rotations occur only once every u32::max(),
 		// so functionally no difference in behavior.
 
@@ -620,16 +629,17 @@ impl<T: Config> Pallet<T> {
 
 	/// Returns an optional predicate that should be used for timing out occupied cores.
 	///
-	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
-	/// block number since which it has been occupied, and the respective parachain and parathread
-	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
-	/// of the last rotation would this return `Some`, unless there are no rotations.
+	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and
+	/// the block number since which it has been occupied, and the respective parachain and
+	/// parathread timeouts, i.e. only within `max(config.chain_availability_period,
+	/// config.thread_availability_period)` of the last rotation would this return `Some`, unless
+	/// there are no rotations.
 	///
 	/// This really should not be a box, but is working around a compiler limitation filed here:
 	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
 	pub(crate) fn availability_timeout_predicate(
-	) -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
+	) -> Option<Box<dyn Fn(CoreIndex, BlockNumberFor<T>) -> bool>> {
 		let now = <frame_system::Pallet<T>>::block_number();
 		let config = <configuration::Pallet<T>>::config();
 
@@ -670,7 +680,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Returns a helper for determining group rotation.
-	pub(crate) fn group_rotation_info(now: T::BlockNumber) -> GroupRotationInfo<T::BlockNumber> {
+	pub(crate) fn group_rotation_info(
+		now: BlockNumberFor<T>,
+	) -> GroupRotationInfo<BlockNumberFor<T>> {
 		let session_start_block = Self::session_start_block();
 		let group_rotation_frequency =
 			<configuration::Pallet<T>>::config().group_rotation_frequency;

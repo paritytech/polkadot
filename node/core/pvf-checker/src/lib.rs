@@ -110,8 +110,8 @@ struct State {
 	///
 	/// Here are some fun facts about these futures:
 	///
-	/// - Pre-checking can take quite some time, in the matter of tens of seconds, so the futures here
-	///   can soak for quite some time.
+	/// - Pre-checking can take quite some time, in the matter of tens of seconds, so the futures
+	///   here can soak for quite some time.
 	/// - Pre-checking of one PVF can take drastically more time than pre-checking of another PVF.
 	///   This leads to results coming out of order.
 	///

@@ -23,16 +23,18 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("rococo-dev"), DB CACHE: 1024
 
 // Executed Command:
-// ./target/production/polkadot
+// target/production/polkadot
 // benchmark
 // pallet
-// --chain=rococo-dev
 // --steps=50
 // --repeat=20
-// --pallet=pallet_xcm
 // --extrinsic=*
 // --execution=wasm
 // --wasm-execution=compiled
+// --heap-pages=4096
+// --json-file=/var/lib/gitlab-runner/builds/zyw4fam_/0/parity/mirrors/polkadot/.git/.artifacts/bench.json
+// --pallet=pallet_xcm
+// --chain=rococo-dev
 // --header=./file_header.txt
 // --output=./runtime/rococo/src/weights/
 
@@ -53,10 +55,6 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	/// Proof Skipped: Dmp DeliveryFeeFactor (max_values: None, max_size: None, mode: Measured)
 	/// Storage: XcmPallet SupportedVersion (r:1 w:0)
 	/// Proof Skipped: XcmPallet SupportedVersion (max_values: None, max_size: None, mode: Measured)
-	/// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
-	/// Proof Skipped: XcmPallet VersionDiscoveryQueue (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
-	/// Proof Skipped: XcmPallet SafeXcmVersion (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	/// Proof Skipped: Dmp DownwardMessageQueues (max_values: None, max_size: None, mode: Measured)
 	/// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
@@ -106,8 +104,6 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
-	/// Storage: XcmPallet SafeXcmVersion (r:0 w:1)
-	/// Proof Skipped: XcmPallet SafeXcmVersion (max_values: Some(1), max_size: None, mode: Measured)
 	fn force_default_xcm_version() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
@@ -115,7 +111,6 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 		// Minimum execution time: 3_163_000 picoseconds.
 		Weight::from_parts(3_298_000, 0)
 			.saturating_add(Weight::from_parts(0, 0))
-			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: XcmPallet VersionNotifiers (r:1 w:1)
 	/// Proof Skipped: XcmPallet VersionNotifiers (max_values: None, max_size: None, mode: Measured)
@@ -127,10 +122,6 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	/// Proof Skipped: Dmp DeliveryFeeFactor (max_values: None, max_size: None, mode: Measured)
 	/// Storage: XcmPallet SupportedVersion (r:1 w:0)
 	/// Proof Skipped: XcmPallet SupportedVersion (max_values: None, max_size: None, mode: Measured)
-	/// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
-	/// Proof Skipped: XcmPallet VersionDiscoveryQueue (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
-	/// Proof Skipped: XcmPallet SafeXcmVersion (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	/// Proof Skipped: Dmp DownwardMessageQueues (max_values: None, max_size: None, mode: Measured)
 	/// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
@@ -155,10 +146,6 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	/// Proof Skipped: Dmp DeliveryFeeFactor (max_values: None, max_size: None, mode: Measured)
 	/// Storage: XcmPallet SupportedVersion (r:1 w:0)
 	/// Proof Skipped: XcmPallet SupportedVersion (max_values: None, max_size: None, mode: Measured)
-	/// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
-	/// Proof Skipped: XcmPallet VersionDiscoveryQueue (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
-	/// Proof Skipped: XcmPallet SafeXcmVersion (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	/// Proof Skipped: Dmp DownwardMessageQueues (max_values: None, max_size: None, mode: Measured)
 	/// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
@@ -229,10 +216,6 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	/// Proof Skipped: Dmp DeliveryFeeFactor (max_values: None, max_size: None, mode: Measured)
 	/// Storage: XcmPallet SupportedVersion (r:1 w:0)
 	/// Proof Skipped: XcmPallet SupportedVersion (max_values: None, max_size: None, mode: Measured)
-	/// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
-	/// Proof Skipped: XcmPallet VersionDiscoveryQueue (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
-	/// Proof Skipped: XcmPallet SafeXcmVersion (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	/// Proof Skipped: Dmp DownwardMessageQueues (max_values: None, max_size: None, mode: Measured)
 	/// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
@@ -278,10 +261,6 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	/// Proof Skipped: Dmp DeliveryFeeFactor (max_values: None, max_size: None, mode: Measured)
 	/// Storage: XcmPallet SupportedVersion (r:1 w:0)
 	/// Proof Skipped: XcmPallet SupportedVersion (max_values: None, max_size: None, mode: Measured)
-	/// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
-	/// Proof Skipped: XcmPallet VersionDiscoveryQueue (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
-	/// Proof Skipped: XcmPallet SafeXcmVersion (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	/// Proof Skipped: Dmp DownwardMessageQueues (max_values: None, max_size: None, mode: Measured)
 	/// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)

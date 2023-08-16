@@ -185,8 +185,8 @@ struct VcPerPeerTracker {
 }
 
 impl VcPerPeerTracker {
-	/// Note that the remote should now be aware that a validator has seconded a given candidate (by hash)
-	/// based on a message that we have sent it from our local pool.
+	/// Note that the remote should now be aware that a validator has seconded a given candidate (by
+	/// hash) based on a message that we have sent it from our local pool.
 	fn note_local(&mut self, h: CandidateHash) {
 		if !note_hash(&mut self.local_observed, h) {
 			gum::warn!(
@@ -198,8 +198,8 @@ impl VcPerPeerTracker {
 		}
 	}
 
-	/// Note that the remote should now be aware that a validator has seconded a given candidate (by hash)
-	/// based on a message that it has sent us.
+	/// Note that the remote should now be aware that a validator has seconded a given candidate (by
+	/// hash) based on a message that it has sent us.
 	///
 	/// Returns `true` if the peer was allowed to send us such a message, `false` otherwise.
 	fn note_remote(&mut self, h: CandidateHash) -> bool {
@@ -226,8 +226,8 @@ fn note_hash(
 /// knowledge that a peer has about goings-on in a relay parent.
 #[derive(Default)]
 struct PeerRelayParentKnowledge {
-	/// candidates that the peer is aware of because we sent statements to it. This indicates that we can
-	/// send other statements pertaining to that candidate.
+	/// candidates that the peer is aware of because we sent statements to it. This indicates that
+	/// we can send other statements pertaining to that candidate.
 	sent_candidates: HashSet<CandidateHash>,
 	/// candidates that peer is aware of, because we received statements from it.
 	received_candidates: HashSet<CandidateHash>,
@@ -321,13 +321,13 @@ impl PeerRelayParentKnowledge {
 		}
 	}
 
-	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
-	/// a message we are receiving from the peer.
+	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based
+	/// on a message we are receiving from the peer.
 	///
 	/// Provide the maximum message count that we can receive per candidate. In practice we should
-	/// not receive more statements for any one candidate than there are members in the group assigned
-	/// to that para, but this maximum needs to be lenient to account for equivocations that may be
-	/// cross-group. As such, a maximum of 2 * `n_validators` is recommended.
+	/// not receive more statements for any one candidate than there are members in the group
+	/// assigned to that para, but this maximum needs to be lenient to account for equivocations
+	/// that may be cross-group. As such, a maximum of 2 * `n_validators` is recommended.
 	///
 	/// This returns an error if the peer should not have sent us this message according to protocol
 	/// rules for flood protection.
@@ -490,13 +490,13 @@ impl PeerData {
 		self.view_knowledge.get(relay_parent).map_or(false, |k| k.can_send(fingerprint))
 	}
 
-	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
-	/// a message we are receiving from the peer.
+	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based
+	/// on a message we are receiving from the peer.
 	///
 	/// Provide the maximum message count that we can receive per candidate. In practice we should
-	/// not receive more statements for any one candidate than there are members in the group assigned
-	/// to that para, but this maximum needs to be lenient to account for equivocations that may be
-	/// cross-group. As such, a maximum of 2 * `n_validators` is recommended.
+	/// not receive more statements for any one candidate than there are members in the group
+	/// assigned to that para, but this maximum needs to be lenient to account for equivocations
+	/// that may be cross-group. As such, a maximum of 2 * `n_validators` is recommended.
 	///
 	/// This returns an error if the peer should not have sent us this message according to protocol
 	/// rules for flood protection.
@@ -600,8 +600,8 @@ enum NotedStatement<'a> {
 
 /// Large statement fetching status.
 enum LargeStatementStatus {
-	/// We are currently fetching the statement data from a remote peer. We keep a list of other nodes
-	/// claiming to have that data and will fallback on them.
+	/// We are currently fetching the statement data from a remote peer. We keep a list of other
+	/// nodes claiming to have that data and will fallback on them.
 	Fetching(FetchingInfo),
 	/// Statement data is fetched or we got it locally via `StatementDistributionMessage::Share`.
 	FetchedOrShared(CommittedCandidateReceipt),
@@ -712,8 +712,8 @@ impl ActiveHeadData {
 	/// to have been checked, including that the validator index is not out-of-bounds and
 	/// the signature is valid.
 	///
-	/// Any other statements or those that reference a candidate we are not aware of cannot be accepted
-	/// and will return `NotedStatement::NotUseful`.
+	/// Any other statements or those that reference a candidate we are not aware of cannot be
+	/// accepted and will return `NotedStatement::NotUseful`.
 	fn note_statement(&mut self, statement: SignedFullStatement) -> NotedStatement {
 		let validator_index = statement.validator_index();
 		let comparator = StoredStatementComparator {
@@ -1272,9 +1272,9 @@ async fn retrieve_statement_from_message<'a, Context>(
 					}
 				},
 				protocol_v1::StatementDistributionMessage::Statement(_, s) => {
-					// No fetch in progress, safe to return any statement immediately (we don't bother
-					// about normal network jitter which might cause `Valid` statements to arrive early
-					// for now.).
+					// No fetch in progress, safe to return any statement immediately (we don't
+					// bother about normal network jitter which might cause `Valid` statements to
+					// arrive early for now.).
 					return Some(s)
 				},
 			}
@@ -1470,7 +1470,8 @@ async fn handle_incoming_message<'a, Context>(
 		);
 
 		match rep {
-			// This happens when a Valid statement has been received but there is no corresponding Seconded
+			// This happens when a Valid statement has been received but there is no corresponding
+			// Seconded
 			COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE => {
 				metrics.on_unexpected_statement_valid();
 				// Report peer merely if this is not a duplicate out-of-view statement that
@@ -1754,6 +1755,34 @@ async fn handle_network_update<Context, R>(
 		NetworkBridgeEvent::OurViewChange(_view) => {
 			// handled by `ActiveLeavesUpdate`
 		},
+		NetworkBridgeEvent::UpdatedAuthorityIds(peer, authority_ids) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?peer,
+				?authority_ids,
+				"Updated `AuthorityDiscoveryId`s"
+			);
+
+			// get the outdated authority_ids stored for the specific peer_id.
+			let old_auth_ids: Vec<AuthorityDiscoveryId> = authorities
+				.into_iter()
+				.filter(|(_, p)| **p == peer)
+				.map(|(auth, _)| auth.clone())
+				.collect();
+
+			// remove all of the outdated authority_ids.
+			for auth in old_auth_ids {
+				authorities.remove(&auth);
+			}
+
+			// update `authorities` with the new updated data.
+			authority_ids.clone().into_iter().for_each(|a| {
+				authorities.insert(a, peer);
+			});
+			if let Some(data) = peers.get_mut(&peer) {
+				data.maybe_authority = Some(authority_ids);
+			}
+		},
 	}
 }
 
@@ -1810,6 +1839,8 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		)
 		.map_err(FatalError::SpawnTask)?;
 
+		let mut warn_freq = gum::Freq::new();
+
 		loop {
 			select! {
 				_ = reputation_delay => {
@@ -1851,7 +1882,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 									result.ok_or(FatalError::RequesterReceiverFinished)?,
 								)
 								.await;
-							log_error(result.map_err(From::from), "handle_requester_message")?;
+							log_error(result.map_err(From::from), "handle_requester_message", &mut warn_freq)?;
 						},
 						MuxedMessage::Responder(result) => {
 							let result = self
@@ -1861,7 +1892,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 									result.ok_or(FatalError::ResponderReceiverFinished)?,
 								)
 								.await;
-							log_error(result.map_err(From::from), "handle_responder_message")?;
+							log_error(result.map_err(From::from), "handle_responder_message", &mut warn_freq)?;
 						},
 					};
 				}

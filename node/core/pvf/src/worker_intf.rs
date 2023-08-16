@@ -43,12 +43,14 @@ pub const JOB_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
 pub async fn spawn_with_program_path(
 	debug_id: &'static str,
 	program_path: impl Into<PathBuf>,
-	extra_args: &'static [&'static str],
+	extra_args: &[&str],
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	let program_path = program_path.into();
 	with_transient_socket_path(debug_id, |socket_path| {
 		let socket_path = socket_path.to_owned();
+		let extra_args: Vec<String> = extra_args.iter().map(|arg| arg.to_string()).collect();
+
 		async move {
 			let listener = UnixListener::bind(&socket_path).map_err(|err| {
 				gum::warn!(
@@ -63,7 +65,7 @@ pub async fn spawn_with_program_path(
 			})?;
 
 			let handle =
-				WorkerHandle::spawn(&program_path, extra_args, socket_path).map_err(|err| {
+				WorkerHandle::spawn(&program_path, &extra_args, socket_path).map_err(|err| {
 					gum::warn!(
 						target: LOG_TARGET,
 						%debug_id,
@@ -194,13 +196,15 @@ pub enum SpawnErr {
 	Handshake,
 }
 
-/// This is a representation of a potentially running worker. Drop it and the process will be killed.
+/// This is a representation of a potentially running worker. Drop it and the process will be
+/// killed.
 ///
 /// A worker's handle is also a future that resolves when it's detected that the worker's process
 /// has been terminated. Since the worker is running in another process it is obviously not
 /// necessary to poll this future to make the worker run, it's only for termination detection.
 ///
-/// This future relies on the fact that a child process's stdout `fd` is closed upon it's termination.
+/// This future relies on the fact that a child process's stdout `fd` is closed upon it's
+/// termination.
 #[pin_project]
 pub struct WorkerHandle {
 	child: process::Child,
@@ -214,7 +218,7 @@ pub struct WorkerHandle {
 impl WorkerHandle {
 	fn spawn(
 		program: impl AsRef<Path>,
-		extra_args: &[&str],
+		extra_args: &[String],
 		socket_path: impl AsRef<Path>,
 	) -> io::Result<Self> {
 		let mut child = process::Command::new(program.as_ref())
@@ -238,15 +242,15 @@ impl WorkerHandle {
 			child_id,
 			stdout,
 			program: program.as_ref().to_path_buf(),
-			// We don't expect the bytes to be ever read. But in case we do, we should not use a buffer
-			// of a small size, because otherwise if the child process does return any data we will end up
-			// issuing a syscall for each byte. We also prefer not to do allocate that on the stack, since
-			// each poll the buffer will be allocated and initialized (and that's due `poll_read` takes &mut [u8]
-			// and there are no guarantees that a `poll_read` won't ever read from there even though that's
-			// unlikely).
+			// We don't expect the bytes to be ever read. But in case we do, we should not use a
+			// buffer of a small size, because otherwise if the child process does return any data
+			// we will end up issuing a syscall for each byte. We also prefer not to do allocate
+			// that on the stack, since each poll the buffer will be allocated and initialized (and
+			// that's due `poll_read` takes &mut [u8] and there are no guarantees that a `poll_read`
+			// won't ever read from there even though that's unlikely).
 			//
-			// OTOH, we also don't want to be super smart here and we could just afford to allocate a buffer
-			// for that here.
+			// OTOH, we also don't want to be super smart here and we could just afford to allocate
+			// a buffer for that here.
 			drop_box: vec![0; 8192].into_boxed_slice(),
 		})
 	}
@@ -278,8 +282,8 @@ impl futures::Future for WorkerHandle {
 				}
 			},
 			Err(err) => {
-				// The implementation is guaranteed to not to return `WouldBlock` and Interrupted. This
-				// leaves us with legit errors which we suppose were due to termination.
+				// The implementation is guaranteed to not to return `WouldBlock` and Interrupted.
+				// This leaves us with legit errors which we suppose were due to termination.
 
 				// Log the status code.
 				gum::debug!(

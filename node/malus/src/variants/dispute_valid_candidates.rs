@@ -32,6 +32,7 @@ use polkadot_cli::{
 	Cli,
 };
 use polkadot_node_subsystem::SpawnGlue;
+use polkadot_node_subsystem_types::DefaultSubsystemClient;
 use sp_core::traits::SpawnNamed;
 
 // Filter wrapping related types.
@@ -44,14 +45,15 @@ use std::sync::Arc;
 #[command(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct DisputeAncestorOptions {
-	/// Malicious candidate validation subsystem configuration. When enabled, node PVF execution is skipped
-	/// during backing and/or approval and it's result can by specified by this option and `--fake-validation-error`
-	/// for invalid candidate outcomes.
+	/// Malicious candidate validation subsystem configuration. When enabled, node PVF execution is
+	/// skipped during backing and/or approval and it's result can by specified by this option and
+	/// `--fake-validation-error` for invalid candidate outcomes.
 	#[arg(long, value_enum, ignore_case = true, default_value_t = FakeCandidateValidation::BackingAndApprovalInvalid)]
 	pub fake_validation: FakeCandidateValidation,
 
-	/// Applies only when `--fake-validation` is configured to reject candidates as invalid. It allows
-	/// to specify the exact error to return from the malicious candidate validation subsystem.
+	/// Applies only when `--fake-validation` is configured to reject candidates as invalid. It
+	/// allows to specify the exact error to return from the malicious candidate validation
+	/// subsystem.
 	#[arg(long, value_enum, ignore_case = true, default_value_t = FakeCandidateValidationError::InvalidOutputs)]
 	pub fake_validation_error: FakeCandidateValidationError,
 
@@ -78,7 +80,10 @@ impl OverseerGen for DisputeValidCandidates {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		Error,
+	>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,

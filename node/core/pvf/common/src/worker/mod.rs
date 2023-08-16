@@ -16,6 +16,8 @@
 
 //! Functionality common to both prepare and execute workers.
 
+pub mod security;
+
 use crate::LOG_TARGET;
 use cpu_time::ProcessTime;
 use futures::never::Never;
@@ -31,34 +33,54 @@ use tokio::{io, net::UnixStream, runtime::Runtime};
 /// spawning the desired worker.
 #[macro_export]
 macro_rules! decl_worker_main {
-	($expected_command:expr, $entrypoint:expr) => {
+	($expected_command:expr, $entrypoint:expr, $worker_version:expr) => {
+		fn print_help(expected_command: &str) {
+			println!("{} {}", expected_command, $worker_version);
+			println!();
+			println!("PVF worker that is called by polkadot.");
+		}
+
 		fn main() {
-			::sp_tracing::try_init_simple();
+			$crate::sp_tracing::try_init_simple();
 
 			let args = std::env::args().collect::<Vec<_>>();
-			if args.len() < 3 {
-				panic!("wrong number of arguments");
+			if args.len() == 1 {
+				print_help($expected_command);
+				return
 			}
 
-			let mut version = None;
+			match args[1].as_ref() {
+				"--help" | "-h" => {
+					print_help($expected_command);
+					return
+				},
+				"--version" | "-v" => {
+					println!("{}", $worker_version);
+					return
+				},
+				subcommand => {
+					// Must be passed for compatibility with the single-binary test workers.
+					if subcommand != $expected_command {
+						panic!(
+							"trying to run {} binary with the {} subcommand",
+							$expected_command, subcommand
+						)
+					}
+				},
+			}
+
+			let mut node_version = None;
 			let mut socket_path: &str = "";
 
-			for i in 2..args.len() {
+			for i in (2..args.len()).step_by(2) {
 				match args[i].as_ref() {
 					"--socket-path" => socket_path = args[i + 1].as_str(),
-					"--node-version" => version = Some(args[i + 1].as_str()),
-					_ => (),
+					"--node-impl-version" => node_version = Some(args[i + 1].as_str()),
+					arg => panic!("Unexpected argument found: {}", arg),
 				}
 			}
 
-			let subcommand = &args[1];
-			if subcommand != $expected_command {
-				panic!(
-					"trying to run {} binary with the {} subcommand",
-					$expected_command, subcommand
-				)
-			}
-			$entrypoint(&socket_path, version);
+			$entrypoint(&socket_path, node_version, Some($worker_version));
 		}
 	};
 }
@@ -73,10 +95,13 @@ pub fn bytes_to_path(bytes: &[u8]) -> Option<PathBuf> {
 	std::str::from_utf8(bytes).ok().map(PathBuf::from)
 }
 
+// The worker version must be passed in so that we accurately get the version of the worker, and not
+// the version that this crate was compiled with.
 pub fn worker_event_loop<F, Fut>(
 	debug_id: &'static str,
 	socket_path: &str,
 	node_version: Option<&str>,
+	worker_version: Option<&str>,
 	mut event_loop: F,
 ) where
 	F: FnMut(UnixStream) -> Fut,
@@ -86,11 +111,13 @@ pub fn worker_event_loop<F, Fut>(
 	gum::debug!(target: LOG_TARGET, %worker_pid, "starting pvf worker ({})", debug_id);
 
 	// Check for a mismatch between the node and worker versions.
-	if let Some(version) = node_version {
-		if version != env!("SUBSTRATE_CLI_IMPL_VERSION") {
+	if let (Some(node_version), Some(worker_version)) = (node_version, worker_version) {
+		if node_version != worker_version {
 			gum::error!(
 				target: LOG_TARGET,
 				%worker_pid,
+				%node_version,
+				%worker_version,
 				"Node and worker version mismatch, node needs restarting, forcing shutdown",
 			);
 			kill_parent_node_in_emergency();
@@ -176,7 +203,7 @@ pub fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String
 
 /// In case of node and worker version mismatch (as a result of in-place upgrade), send `SIGTERM`
 /// to the node to tear it down and prevent it from raising disputes on valid candidates. Node
-/// restart should be handled by the node owner. As node exits, unix sockets opened to workers
+/// restart should be handled by the node owner. As node exits, Unix sockets opened to workers
 /// get closed by the OS and other workers receive error on socket read and also exit. Preparation
 /// jobs are written to the temporary files that are renamed to real artifacts on the node side, so
 /// no leftover artifacts are possible.
@@ -203,7 +230,7 @@ pub mod thread {
 	};
 
 	/// Contains the outcome of waiting on threads, or `Pending` if none are ready.
-	#[derive(Clone, Copy)]
+	#[derive(Debug, Clone, Copy)]
 	pub enum WaitOutcome {
 		Finished,
 		TimedOut,
@@ -224,8 +251,14 @@ pub mod thread {
 		Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()))
 	}
 
-	/// Runs a thread, afterwards notifying the threads waiting on the condvar. Catches panics and
-	/// resumes them after triggering the condvar, so that the waiting thread is notified on panics.
+	/// Runs a worker thread. Will first enable security features, and afterwards notify the threads
+	/// waiting on the condvar. Catches panics during execution and resumes the panics after
+	/// triggering the condvar, so that the waiting thread is notified on panics.
+	///
+	/// # Returns
+	///
+	/// Returns the thread's join handle. Calling `.join()` on it returns the result of executing
+	/// `f()`, as well as whether we were able to enable sandboxing.
 	pub fn spawn_worker_thread<F, R>(
 		name: &str,
 		f: F,
@@ -308,5 +341,92 @@ pub mod thread {
 		} else {
 			Some(*result.0)
 		}
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use assert_matches::assert_matches;
+
+		#[test]
+		fn get_condvar_should_be_pending() {
+			let condvar = get_condvar();
+			let outcome = *condvar.0.lock().unwrap();
+			assert!(outcome.is_pending());
+		}
+
+		#[test]
+		fn wait_for_threads_with_timeout_return_none_on_time_out() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+			let outcome = wait_for_threads_with_timeout(&condvar, Duration::from_millis(100));
+			assert!(outcome.is_none());
+		}
+
+		#[test]
+		fn wait_for_threads_with_timeout_returns_outcome() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+			let condvar2 = condvar.clone();
+			cond_notify_all(condvar2, WaitOutcome::Finished);
+			let outcome = wait_for_threads_with_timeout(&condvar, Duration::from_secs(2));
+			assert_matches!(outcome.unwrap(), WaitOutcome::Finished);
+		}
+
+		#[test]
+		fn spawn_worker_thread_should_notify_on_done() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+			let response =
+				spawn_worker_thread("thread", || 2, condvar.clone(), WaitOutcome::TimedOut);
+			let (lock, _) = &*condvar;
+			let r = response.unwrap().join().unwrap();
+			assert_eq!(r, 2);
+			assert_matches!(*lock.lock().unwrap(), WaitOutcome::TimedOut);
+		}
+
+		#[test]
+		fn spawn_worker_should_not_change_finished_outcome() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Finished), Condvar::new()));
+			let response =
+				spawn_worker_thread("thread", move || 2, condvar.clone(), WaitOutcome::TimedOut);
+
+			let r = response.unwrap().join().unwrap();
+			assert_eq!(r, 2);
+			assert_matches!(*condvar.0.lock().unwrap(), WaitOutcome::Finished);
+		}
+
+		#[test]
+		fn cond_notify_on_done_should_update_wait_outcome_when_panic() {
+			let condvar = Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()));
+			let err = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+				cond_notify_on_done(|| panic!("test"), condvar.clone(), WaitOutcome::Finished)
+			}));
+
+			assert_matches!(*condvar.0.lock().unwrap(), WaitOutcome::Finished);
+			assert!(err.is_err());
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::sync::mpsc::channel;
+
+	#[test]
+	fn cpu_time_monitor_loop_should_return_time_elapsed() {
+		let cpu_time_start = ProcessTime::now();
+		let timeout = Duration::from_secs(0);
+		let (_tx, rx) = channel();
+		let result = cpu_time_monitor_loop(cpu_time_start, timeout, rx);
+		assert_ne!(result, None);
+	}
+
+	#[test]
+	fn cpu_time_monitor_loop_should_return_none() {
+		let cpu_time_start = ProcessTime::now();
+		let timeout = Duration::from_secs(10);
+		let (tx, rx) = channel();
+		tx.send(()).unwrap();
+		let result = cpu_time_monitor_loop(cpu_time_start, timeout, rx);
+		assert_eq!(result, None);
 	}
 }

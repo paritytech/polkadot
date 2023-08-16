@@ -28,6 +28,7 @@ use frame_support::{
 	assert_err, assert_noop, assert_ok,
 	traits::{OnFinalize, OnInitialize},
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::BlockNumber;
 use sp_core::{crypto::CryptoType, Pair};
 
@@ -870,7 +871,8 @@ mod unconfirmed_disputes {
 	use assert_matches::assert_matches;
 	use sp_runtime::ModuleError;
 
-	// Shared initialization code between `test_unconfirmed_are_ignored` and `test_unconfirmed_disputes_cause_block_import_error`
+	// Shared initialization code between `test_unconfirmed_are_ignored` and
+	// `test_unconfirmed_disputes_cause_block_import_error`
 	fn generate_dispute_statement_set_and_run_to_block() -> DisputeStatementSet {
 		// 7 validators needed for byzantine threshold of 2.
 		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
@@ -2054,11 +2056,13 @@ fn deduplication_and_sorting_works() {
 
 		let disputes_orig = disputes.clone();
 
-		<Pallet<Test> as DisputesHandler<
-				<Test as frame_system::Config>::BlockNumber,
-			>>::deduplicate_and_sort_dispute_data(&mut disputes).unwrap_err();
+		<Pallet<Test> as DisputesHandler<BlockNumberFor<Test>>>::deduplicate_and_sort_dispute_data(
+			&mut disputes,
+		)
+		.unwrap_err();
 
-		// assert ordering of local only disputes, and at the same time, and being free of duplicates
+		// assert ordering of local only disputes, and at the same time, and being free of
+		// duplicates
 		assert_eq!(disputes_orig.len(), disputes.len() + 1);
 
 		let are_these_equal = |a: &DisputeStatementSet, b: &DisputeStatementSet| {
@@ -2083,10 +2087,11 @@ fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
 
 	let mut acc = Vec::<CheckedDisputeStatementSet>::new();
 	for dispute_statement in sets {
-		if let Some(checked) = <Pallet<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
-			dispute_statement,
-			post_conclusion_acceptance_period,
-		) {
+		if let Some(checked) =
+			<Pallet<T> as DisputesHandler<BlockNumberFor<T>>>::filter_dispute_data(
+				dispute_statement,
+				post_conclusion_acceptance_period,
+			) {
 			acc.push(checked);
 		}
 	}
@@ -2158,9 +2163,11 @@ fn filter_removes_duplicates_within_set() {
 		};
 
 		let post_conclusion_acceptance_period = 10;
-		let statements = <Pallet<Test> as DisputesHandler<
-			<Test as frame_system::Config>::BlockNumber,
-		>>::filter_dispute_data(statements, post_conclusion_acceptance_period);
+		let statements =
+			<Pallet<Test> as DisputesHandler<BlockNumberFor<Test>>>::filter_dispute_data(
+				statements,
+				post_conclusion_acceptance_period,
+			);
 
 		assert_eq!(
 			statements,
@@ -2446,7 +2453,7 @@ fn filter_removes_duplicate_statements_sets() {
 
 		// `Err(())` indicates presence of duplicates
 		assert!(<Pallet::<Test> as DisputesHandler<
-			<Test as frame_system::Config>::BlockNumber,
+			BlockNumberFor<Test>,
 		>>::deduplicate_and_sort_dispute_data(&mut sets)
 		.is_err());
 

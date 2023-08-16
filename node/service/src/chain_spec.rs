@@ -16,7 +16,7 @@
 
 //! Polkadot chain configurations.
 
-use beefy_primitives::crypto::AuthorityId as BeefyId;
+use beefy_primitives::ecdsa_crypto::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 #[cfg(any(
@@ -54,6 +54,11 @@ use westend_runtime as westend;
 #[cfg(feature = "westend-native")]
 use westend_runtime_constants::currency::UNITS as WND;
 
+<<<<<<< HEAD
+=======
+#[cfg(feature = "kusama-native")]
+const KUSAMA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
+>>>>>>> origin/master
 #[cfg(feature = "westend-native")]
 const WESTEND_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "rococo-native")]
@@ -373,7 +378,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 	const STASH: u128 = 100 * WND;
 
 	westend::RuntimeGenesisConfig {
-		system: westend::SystemConfig { code: wasm_binary.to_vec() },
+		system: westend::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
 		balances: westend::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
@@ -416,10 +421,14 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 		babe: westend::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(westend::BABE_GENESIS_EPOCH_CONFIG),
+			..Default::default()
 		},
 		grandpa: Default::default(),
 		im_online: Default::default(),
-		authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
+		authority_discovery: westend::AuthorityDiscoveryConfig {
+			keys: vec![],
+			..Default::default()
+		},
 		vesting: westend::VestingConfig { vesting: vec![] },
 		sudo: westend::SudoConfig { key: Some(endowed_accounts[0].clone()) },
 		hrmp: Default::default(),
@@ -429,12 +438,211 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 		paras: Default::default(),
 		registrar: westend_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::LOWEST_PUBLIC_ID,
+			..Default::default()
 		},
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
+<<<<<<< HEAD
+=======
+#[cfg(feature = "kusama-native")]
+fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
+	use hex_literal::hex;
+	use sp_core::crypto::UncheckedInto;
+
+	// subkey inspect "$SECRET"
+	let endowed_accounts = vec![
+		// 5CVFESwfkk7NmhQ6FwHCM9roBvr9BGa4vJHFYU8DnGQxrXvz
+		hex!["12b782529c22032ed4694e0f6e7d486be7daa6d12088f6bc74d593b3900b8438"].into(),
+	];
+
+	// for i in 1 2 3 4; do for j in stash controller; do subkey inspect "$SECRET//$i//$j"; done;
+	// done for i in 1 2 3 4; do for j in babe; do subkey --sr25519 inspect "$SECRET//$i//$j"; done;
+	// done for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j";
+	// done; done for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect
+	// "$SECRET//$i//$j"; done; done for i in 1 2 3 4; do for j in para_validator para_assignment;
+	// do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	let initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		BabeId,
+		GrandpaId,
+		ImOnlineId,
+		ValidatorId,
+		AssignmentId,
+		AuthorityDiscoveryId,
+	)> = vec![
+		(
+			// 5DD7Q4VEfPTLEdn11CnThoHT5f9xKCrnofWJL5SsvpTghaAT
+			hex!["32a5718e87d16071756d4b1370c411bbbb947eb62f0e6e0b937d5cbfc0ea633b"].into(),
+			// 5GNzaEqhrZAtUQhbMe2gn9jBuNWfamWFZHULryFwBUXyd1cG
+			hex!["bee39fe862c85c91aaf343e130d30b643c6ea0b4406a980206f1df8331f7093b"].into(),
+			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
+			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
+				.unchecked_into(),
+			// 5EjvdwATjyFFikdZibVvx1q5uBHhphS2Mnsq5c7yfaYK25vm
+			hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"]
+				.unchecked_into(),
+			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
+			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
+				.unchecked_into(),
+			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
+			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
+				.unchecked_into(),
+			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
+			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
+				.unchecked_into(),
+			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
+			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
+				.unchecked_into(),
+		),
+		(
+			// 5G9VGb8ESBeS8Ca4or43RfhShzk9y7T5iTmxHk5RJsjZwsRx
+			hex!["b496c98a405ceab59b9e970e59ef61acd7765a19b704e02ab06c1cdfe171e40f"].into(),
+			// 5F7V9Y5FcxKXe1aroqvPeRiUmmeQwTFcL3u9rrPXcMuMiCNx
+			hex!["86d3a7571dd60139d297e55d8238d0c977b2e208c5af088f7f0136b565b0c103"].into(),
+			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
+				.unchecked_into(),
+			// 5HBDAaybNqjmY7ww8ZcZZY1L5LHxvpnyfqJwoB7HhR6raTmG
+			hex!["e2234d661bee4a04c38392c75d1566200aa9e6ae44dd98ee8765e4cc9af63cb7"]
+				.unchecked_into(),
+			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
+				.unchecked_into(),
+			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
+				.unchecked_into(),
+			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
+				.unchecked_into(),
+			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
+				.unchecked_into(),
+		),
+		(
+			// 5FzwpgGvk2kk9agow6KsywLYcPzjYc8suKej2bne5G5b9YU3
+			hex!["ae12f70078a22882bf5135d134468f77301927aa67c376e8c55b7ff127ace115"].into(),
+			// 5EqoZhVC2BcsM4WjvZNidu2muKAbu5THQTBKe3EjvxXkdP7A
+			hex!["7addb914ec8486bbc60643d2647685dcc06373401fa80e09813b630c5831d54b"].into(),
+			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+				.unchecked_into(),
+			// 5E8ULLQrDAtWhfnVfZmX41Yux86zNAwVJYguWJZVWrJvdhBe
+			hex!["5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"]
+				.unchecked_into(),
+			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+				.unchecked_into(),
+			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+				.unchecked_into(),
+			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+				.unchecked_into(),
+			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+				.unchecked_into(),
+		),
+		(
+			// 5CFj6Kg9rmVn1vrqpyjau2ztyBzKeVdRKwNPiA3tqhB5HPqq
+			hex!["0867dbb49721126df589db100dda728dc3b475cbf414dad8f72a1d5e84897252"].into(),
+			// 5CwQXP6nvWzigFqNhh2jvCaW9zWVzkdveCJY3tz2MhXMjTon
+			hex!["26ab2b4b2eba2263b1e55ceb48f687bb0018130a88df0712fbdaf6a347d50e2a"].into(),
+			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
+			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
+				.unchecked_into(),
+			// 5HGLmrZsiTFTPp3QoS1W8w9NxByt8PVq79reqvdxNcQkByqK
+			hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"]
+				.unchecked_into(),
+			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
+			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
+				.unchecked_into(),
+			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
+			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
+				.unchecked_into(),
+			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
+			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
+				.unchecked_into(),
+			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
+			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
+				.unchecked_into(),
+		),
+	];
+
+	const ENDOWMENT: u128 = 1_000_000 * KSM;
+	const STASH: u128 = 100 * KSM;
+
+	kusama::RuntimeGenesisConfig {
+		system: kusama::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		balances: kusama::BalancesConfig {
+			balances: endowed_accounts
+				.iter()
+				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
+				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
+				.collect(),
+		},
+		indices: kusama::IndicesConfig { indices: vec![] },
+		session: kusama::SessionConfig {
+			keys: initial_authorities
+				.iter()
+				.map(|x| {
+					(
+						x.0.clone(),
+						x.0.clone(),
+						kusama_session_keys(
+							x.2.clone(),
+							x.3.clone(),
+							x.4.clone(),
+							x.5.clone(),
+							x.6.clone(),
+							x.7.clone(),
+						),
+					)
+				})
+				.collect::<Vec<_>>(),
+		},
+		staking: kusama::StakingConfig {
+			validator_count: 50,
+			minimum_validator_count: 4,
+			stakers: initial_authorities
+				.iter()
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, kusama::StakerStatus::Validator))
+				.collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			force_era: Forcing::ForceNone,
+			slash_reward_fraction: Perbill::from_percent(10),
+			..Default::default()
+		},
+		babe: kusama::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
+			..Default::default()
+		},
+		grandpa: Default::default(),
+		im_online: Default::default(),
+		authority_discovery: kusama::AuthorityDiscoveryConfig {
+			keys: vec![],
+			..Default::default()
+		},
+		claims: kusama::ClaimsConfig { claims: vec![], vesting: vec![] },
+		vesting: kusama::VestingConfig { vesting: vec![] },
+		treasury: Default::default(),
+		hrmp: Default::default(),
+		configuration: kusama::ConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
+		paras: Default::default(),
+		xcm_pallet: Default::default(),
+		nomination_pools: Default::default(),
+		nis_counterpart_balances: Default::default(),
+	}
+}
+
+>>>>>>> origin/master
 #[cfg(feature = "rococo-native")]
 fn rococo_staging_testnet_config_genesis(
 	wasm_binary: &[u8],
@@ -682,7 +890,7 @@ fn rococo_staging_testnet_config_genesis(
 	const STASH: u128 = 100 * ROC;
 
 	rococo_runtime::RuntimeGenesisConfig {
-		system: rococo_runtime::SystemConfig { code: wasm_binary.to_vec() },
+		system: rococo_runtime::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
 		balances: rococo_runtime::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
@@ -716,6 +924,7 @@ fn rococo_staging_testnet_config_genesis(
 		babe: rococo_runtime::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(rococo_runtime::BABE_GENESIS_EPOCH_CONFIG),
+			..Default::default()
 		},
 		grandpa: Default::default(),
 		im_online: Default::default(),
@@ -727,20 +936,25 @@ fn rococo_staging_testnet_config_genesis(
 		},
 		technical_membership: Default::default(),
 		treasury: Default::default(),
-		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig { keys: vec![] },
+		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
+			keys: vec![],
+			..Default::default()
+		},
 		claims: rococo::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: rococo::VestingConfig { vesting: vec![] },
 		sudo: rococo_runtime::SudoConfig { key: Some(endowed_accounts[0].clone()) },
-		paras: rococo_runtime::ParasConfig { paras: vec![] },
+		paras: rococo_runtime::ParasConfig { paras: vec![], ..Default::default() },
 		hrmp: Default::default(),
 		configuration: rococo_runtime::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		registrar: rococo_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::LOWEST_PUBLIC_ID,
+			..Default::default()
 		},
 		xcm_pallet: Default::default(),
 		nis_counterpart_balances: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -754,6 +968,32 @@ pub fn polkadot_chain_spec_properties() -> serde_json::map::Map<String, serde_js
 	.clone()
 }
 
+<<<<<<< HEAD
+=======
+/// Staging testnet config.
+#[cfg(feature = "kusama-native")]
+pub fn kusama_staging_testnet_config() -> Result<KusamaChainSpec, String> {
+	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
+	let boot_nodes = vec![];
+
+	Ok(KusamaChainSpec::from_genesis(
+		"Kusama Staging Testnet",
+		"kusama_staging_testnet",
+		ChainType::Live,
+		move || kusama_staging_testnet_config_genesis(wasm_binary),
+		boot_nodes,
+		Some(
+			TelemetryEndpoints::new(vec![(KUSAMA_STAGING_TELEMETRY_URL.to_string(), 0)])
+				.expect("Kusama Staging telemetry url is valid; qed"),
+		),
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		None,
+		Default::default(),
+	))
+}
+
+>>>>>>> origin/master
 /// Westend staging testnet config.
 #[cfg(feature = "westend-native")]
 pub fn westend_staging_testnet_config() -> Result<WestendChainSpec, String> {
@@ -919,6 +1159,184 @@ fn testnet_accounts() -> Vec<AccountId> {
 	]
 }
 
+<<<<<<< HEAD
+=======
+/// Helper function to create polkadot `RuntimeGenesisConfig` for testing
+#[cfg(feature = "polkadot-native")]
+pub fn polkadot_testnet_genesis(
+	wasm_binary: &[u8],
+	initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		BabeId,
+		GrandpaId,
+		ImOnlineId,
+		ValidatorId,
+		AssignmentId,
+		AuthorityDiscoveryId,
+	)>,
+	_root_key: AccountId,
+	endowed_accounts: Option<Vec<AccountId>>,
+) -> polkadot::RuntimeGenesisConfig {
+	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
+
+	const ENDOWMENT: u128 = 1_000_000 * DOT;
+	const STASH: u128 = 100 * DOT;
+
+	polkadot::RuntimeGenesisConfig {
+		system: polkadot::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		indices: polkadot::IndicesConfig { indices: vec![] },
+		balances: polkadot::BalancesConfig {
+			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
+		},
+		session: polkadot::SessionConfig {
+			keys: initial_authorities
+				.iter()
+				.map(|x| {
+					(
+						x.0.clone(),
+						x.0.clone(),
+						polkadot_session_keys(
+							x.2.clone(),
+							x.3.clone(),
+							x.4.clone(),
+							x.5.clone(),
+							x.6.clone(),
+							x.7.clone(),
+						),
+					)
+				})
+				.collect::<Vec<_>>(),
+		},
+		staking: polkadot::StakingConfig {
+			minimum_validator_count: 1,
+			validator_count: initial_authorities.len() as u32,
+			stakers: initial_authorities
+				.iter()
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, polkadot::StakerStatus::Validator))
+				.collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			force_era: Forcing::NotForcing,
+			slash_reward_fraction: Perbill::from_percent(10),
+			..Default::default()
+		},
+		phragmen_election: Default::default(),
+		democracy: polkadot::DemocracyConfig::default(),
+		council: polkadot::CouncilConfig { members: vec![], phantom: Default::default() },
+		technical_committee: polkadot::TechnicalCommitteeConfig {
+			members: vec![],
+			phantom: Default::default(),
+		},
+		technical_membership: Default::default(),
+		babe: polkadot::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(polkadot::BABE_GENESIS_EPOCH_CONFIG),
+			..Default::default()
+		},
+		grandpa: Default::default(),
+		im_online: Default::default(),
+		authority_discovery: polkadot::AuthorityDiscoveryConfig {
+			keys: vec![],
+			..Default::default()
+		},
+		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
+		vesting: polkadot::VestingConfig { vesting: vec![] },
+		treasury: Default::default(),
+		hrmp: Default::default(),
+		configuration: polkadot::ConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
+		paras: Default::default(),
+		xcm_pallet: Default::default(),
+		nomination_pools: Default::default(),
+	}
+}
+
+/// Helper function to create kusama `RuntimeGenesisConfig` for testing
+#[cfg(feature = "kusama-native")]
+pub fn kusama_testnet_genesis(
+	wasm_binary: &[u8],
+	initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		BabeId,
+		GrandpaId,
+		ImOnlineId,
+		ValidatorId,
+		AssignmentId,
+		AuthorityDiscoveryId,
+	)>,
+	_root_key: AccountId,
+	endowed_accounts: Option<Vec<AccountId>>,
+) -> kusama::RuntimeGenesisConfig {
+	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
+
+	const ENDOWMENT: u128 = 1_000_000 * KSM;
+	const STASH: u128 = 100 * KSM;
+
+	kusama::RuntimeGenesisConfig {
+		system: kusama::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
+		indices: kusama::IndicesConfig { indices: vec![] },
+		balances: kusama::BalancesConfig {
+			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
+		},
+		session: kusama::SessionConfig {
+			keys: initial_authorities
+				.iter()
+				.map(|x| {
+					(
+						x.0.clone(),
+						x.0.clone(),
+						kusama_session_keys(
+							x.2.clone(),
+							x.3.clone(),
+							x.4.clone(),
+							x.5.clone(),
+							x.6.clone(),
+							x.7.clone(),
+						),
+					)
+				})
+				.collect::<Vec<_>>(),
+		},
+		staking: kusama::StakingConfig {
+			minimum_validator_count: 1,
+			validator_count: initial_authorities.len() as u32,
+			stakers: initial_authorities
+				.iter()
+				.map(|x| (x.0.clone(), x.0.clone(), STASH, kusama::StakerStatus::Validator))
+				.collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			force_era: Forcing::NotForcing,
+			slash_reward_fraction: Perbill::from_percent(10),
+			..Default::default()
+		},
+		babe: kusama::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
+			..Default::default()
+		},
+		grandpa: Default::default(),
+		im_online: Default::default(),
+		authority_discovery: kusama::AuthorityDiscoveryConfig {
+			keys: vec![],
+			..Default::default()
+		},
+		claims: kusama::ClaimsConfig { claims: vec![], vesting: vec![] },
+		vesting: kusama::VestingConfig { vesting: vec![] },
+		treasury: Default::default(),
+		hrmp: Default::default(),
+		configuration: kusama::ConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
+		paras: Default::default(),
+		xcm_pallet: Default::default(),
+		nomination_pools: Default::default(),
+		nis_counterpart_balances: Default::default(),
+	}
+}
+
+>>>>>>> origin/master
 /// Helper function to create westend `RuntimeGenesisConfig` for testing
 #[cfg(feature = "westend-native")]
 pub fn westend_testnet_genesis(
@@ -942,7 +1360,7 @@ pub fn westend_testnet_genesis(
 	const STASH: u128 = 100 * WND;
 
 	westend::RuntimeGenesisConfig {
-		system: westend::SystemConfig { code: wasm_binary.to_vec() },
+		system: westend::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
 		indices: westend::IndicesConfig { indices: vec![] },
 		balances: westend::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
@@ -981,10 +1399,14 @@ pub fn westend_testnet_genesis(
 		babe: westend::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(westend::BABE_GENESIS_EPOCH_CONFIG),
+			..Default::default()
 		},
 		grandpa: Default::default(),
 		im_online: Default::default(),
-		authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
+		authority_discovery: westend::AuthorityDiscoveryConfig {
+			keys: vec![],
+			..Default::default()
+		},
 		vesting: westend::VestingConfig { vesting: vec![] },
 		sudo: westend::SudoConfig { key: Some(root_key) },
 		hrmp: Default::default(),
@@ -994,9 +1416,11 @@ pub fn westend_testnet_genesis(
 		paras: Default::default(),
 		registrar: westend_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::LOWEST_PUBLIC_ID,
+			..Default::default()
 		},
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -1023,7 +1447,7 @@ pub fn rococo_testnet_genesis(
 	const ENDOWMENT: u128 = 1_000_000 * ROC;
 
 	rococo_runtime::RuntimeGenesisConfig {
-		system: rococo_runtime::SystemConfig { code: wasm_binary.to_vec() },
+		system: rococo_runtime::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
 		beefy: Default::default(),
 		indices: rococo_runtime::IndicesConfig { indices: vec![] },
 		balances: rococo_runtime::BalancesConfig {
@@ -1052,6 +1476,7 @@ pub fn rococo_testnet_genesis(
 		babe: rococo_runtime::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(rococo_runtime::BABE_GENESIS_EPOCH_CONFIG),
+			..Default::default()
 		},
 		grandpa: Default::default(),
 		im_online: Default::default(),
@@ -1066,7 +1491,10 @@ pub fn rococo_testnet_genesis(
 		treasury: Default::default(),
 		claims: rococo::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: rococo::VestingConfig { vesting: vec![] },
-		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig { keys: vec![] },
+		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
+			keys: vec![],
+			..Default::default()
+		},
 		sudo: rococo_runtime::SudoConfig { key: Some(root_key.clone()) },
 		hrmp: Default::default(),
 		configuration: rococo_runtime::ConfigurationConfig {
@@ -1075,12 +1503,14 @@ pub fn rococo_testnet_genesis(
 				..default_parachains_host_configuration()
 			},
 		},
-		paras: rococo_runtime::ParasConfig { paras: vec![] },
+		paras: rococo_runtime::ParasConfig { paras: vec![], ..Default::default() },
 		registrar: rococo_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::LOWEST_PUBLIC_ID,
+			..Default::default()
 		},
 		xcm_pallet: Default::default(),
 		nis_counterpart_balances: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 

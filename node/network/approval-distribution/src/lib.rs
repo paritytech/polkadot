@@ -102,11 +102,13 @@ impl RecentlyOutdated {
 // Aggression has 3 levels:
 //
 //  * Aggression Level 0: The basic behaviors described above.
-//  * Aggression Level 1: The originator of a message sends to all peers. Other peers follow the rules above.
-//  * Aggression Level 2: All peers send all messages to all their row and column neighbors.
-//    This means that each validator will, on average, receive each message approximately `2*sqrt(n)` times.
-// The aggression level of messages pertaining to a block increases when that block is unfinalized and
-// is a child of the finalized block.
+//  * Aggression Level 1: The originator of a message sends to all peers. Other peers follow the
+//    rules above.
+//  * Aggression Level 2: All peers send all messages to all their row and column neighbors. This
+//    means that each validator will, on average, receive each message approximately `2*sqrt(n)`
+//    times.
+// The aggression level of messages pertaining to a block increases when that block is unfinalized
+// and is a child of the finalized block.
 // This means that only one block at a time has its messages propagated with aggression > 0.
 //
 // A note on aggression thresholds: changes in propagation apply only to blocks which are the
@@ -120,7 +122,8 @@ impl RecentlyOutdated {
 struct AggressionConfig {
 	/// Aggression level 1: all validators send all their own messages to all peers.
 	l1_threshold: Option<BlockNumber>,
-	/// Aggression level 2: level 1 + all validators send all messages to all peers in the X and Y dimensions.
+	/// Aggression level 2: level 1 + all validators send all messages to all peers in the X and Y
+	/// dimensions.
 	l2_threshold: Option<BlockNumber>,
 	/// How often to re-send messages to all targeted recipients.
 	/// This applies to all unfinalized blocks.
@@ -167,11 +170,12 @@ struct State {
 	blocks: HashMap<Hash, BlockEntry>,
 
 	/// Our view updates to our peers can race with `NewBlocks` updates. We store messages received
-	/// against the directly mentioned blocks in our view in this map until `NewBlocks` is received.
+	/// against the directly mentioned blocks in our view in this map until `NewBlocks` is
+	/// received.
 	///
-	/// As long as the parent is already in the `blocks` map and `NewBlocks` messages aren't delayed
-	/// by more than a block length, this strategy will work well for mitigating the race. This is
-	/// also a race that occurs typically on local networks.
+	/// As long as the parent is already in the `blocks` map and `NewBlocks` messages aren't
+	/// delayed by more than a block length, this strategy will work well for mitigating the race.
+	/// This is also a race that occurs typically on local networks.
 	pending_known: HashMap<Hash, Vec<(PeerId, PendingMessage)>>,
 
 	/// Peer data is partially stored here, and partially inline within the [`BlockEntry`]s
@@ -186,7 +190,7 @@ struct State {
 	/// Config for aggression.
 	aggression_config: AggressionConfig,
 
-	/// HashMap from active leaves to spans
+	/// `HashMap` from active leaves to spans
 	spans: HashMap<Hash, jaeger::PerLeafSpan>,
 
 	/// Current approval checking finality lag.
@@ -388,6 +392,9 @@ impl State {
 					}
 					live
 				});
+			},
+			NetworkBridgeEvent::UpdatedAuthorityIds { .. } => {
+				// The approval-distribution subsystem doesn't deal with `AuthorityDiscoveryId`s.
 			},
 			NetworkBridgeEvent::PeerMessage(peer_id, Versioned::V1(msg)) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg, rng).await;
@@ -944,7 +951,8 @@ impl State {
 			}
 		}
 
-		// Invariant: to our knowledge, none of the peers except for the `source` know about the assignment.
+		// Invariant: to our knowledge, none of the peers except for the `source` know about the
+		// assignment.
 		metrics.on_assignment_imported();
 
 		let topology = self.topologies.get_topology(entry.session);
@@ -1236,7 +1244,8 @@ impl State {
 			}
 		}
 
-		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
+		// Invariant: to our knowledge, none of the peers except for the `source` know about the
+		// approval.
 		metrics.on_approval_imported();
 
 		let required_routing = match entry.candidates.get_mut(candidate_index as usize) {
@@ -1310,13 +1319,13 @@ impl State {
 			}
 
 			// Here we're leaning on a few behaviors of assignment propagation:
-			//   1. At this point, the only peer we're aware of which has the approval
-			//      message is the source peer.
-			//   2. We have sent the assignment message to every peer in the required routing
-			//      which is aware of this block _unless_ the peer we originally received the
-			//      assignment from was part of the required routing. In that case, we've sent
-			//      the assignment to all aware peers in the required routing _except_ the original
-			//      source of the assignment. Hence the `in_topology_check`.
+			//   1. At this point, the only peer we're aware of which has the approval message is
+			//      the source peer.
+			//   2. We have sent the assignment message to every peer in the required routing which
+			//      is aware of this block _unless_ the peer we originally received the assignment
+			//      from was part of the required routing. In that case, we've sent the assignment
+			//      to all aware peers in the required routing _except_ the original source of the
+			//      assignment. Hence the `in_topology_check`.
 			//   3. Any randomly selected peers have been sent the assignment already.
 			let in_topology = topology
 				.map_or(false, |t| t.local_grid_neighbors().route_to_peer(required_routing, peer));
@@ -1922,9 +1931,9 @@ const fn ensure_size_not_zero(size: usize) -> usize {
 }
 
 /// The maximum amount of assignments per batch is 33% of maximum allowed by protocol.
-/// This is an arbitrary value. Bumping this up increases the maximum amount of approvals or assignments
-/// we send in a single message to peers. Exceeding `MAX_NOTIFICATION_SIZE` will violate the protocol
-/// configuration.
+/// This is an arbitrary value. Bumping this up increases the maximum amount of approvals or
+/// assignments we send in a single message to peers. Exceeding `MAX_NOTIFICATION_SIZE` will violate
+/// the protocol configuration.
 pub const MAX_ASSIGNMENT_BATCH_SIZE: usize = ensure_size_not_zero(
 	MAX_NOTIFICATION_SIZE as usize /
 		std::mem::size_of::<(IndirectAssignmentCert, CandidateIndex)>() /

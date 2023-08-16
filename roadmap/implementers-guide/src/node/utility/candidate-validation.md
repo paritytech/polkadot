@@ -44,86 +44,10 @@ Once we have all parameters, we can spin up a background task to perform the val
   * The collator signature is valid
   * The PoV provided matches the `pov_hash` field of the descriptor
 
+For more details please see [PVF Host and Workers](pvf-host-and-workers.md).
+
 ### Checking Validation Outputs
 
 If we can assume the presence of the relay-chain state (that is, during processing [`CandidateValidationMessage`][CVM]`::ValidateFromChainState`) we can run all the checks that the relay-chain would run at the inclusion time thus confirming that the candidate will be accepted.
-
-### PVF Host
-
-The PVF host is responsible for handling requests to prepare and execute PVF
-code blobs.
-
-One high-level goal is to make PVF operations as deterministic as possible, to
-reduce the rate of disputes. Disputes can happen due to e.g. a job timing out on
-one machine, but not another. While we do not yet have full determinism, there
-are some dispute reduction mechanisms in place right now.
-
-#### Retrying execution requests
-
-If the execution request fails during **preparation**, we will retry if it is
-possible that the preparation error was transient (e.g. if the error was a panic
-or time out). We will only retry preparation if another request comes in after
-15 minutes, to ensure any potential transient conditions had time to be
-resolved. We will retry up to 5 times.
-
-If the actual **execution** of the artifact fails, we will retry once if it was
-a possibly transient error, to allow the conditions that led to the error to
-hopefully resolve. We use a more brief delay here (1 second as opposed to 15
-minutes for preparation (see above)), because a successful execution must happen
-in a short amount of time.
-
-We currently know of the following specific cases that will lead to a retried
-execution request:
-
-1. **OOM:** The host might have been temporarily low on memory due to other
-   processes running on the same machine. **NOTE:** This case will lead to
-   voting against the candidate (and possibly a dispute) if the retry is still
-   not successful.
-2. **Artifact missing:** The prepared artifact might have been deleted due to
-   operator error or some bug in the system.
-3. **Panic:** The worker thread panicked for some indeterminate reason, which
-   may or may not be independent of the candidate or PVF.
-
-#### Preparation timeouts
-
-We use timeouts for both preparation and execution jobs to limit the amount of
-time they can take. As the time for a job can vary depending on the machine and
-load on the machine, this can potentially lead to disputes where some validators
-successfuly execute a PVF and others don't.
-
-One dispute mitigation we have in place is a more lenient timeout for
-preparation during execution than during pre-checking. The rationale is that the
-PVF has already passed pre-checking, so we know it should be valid, and we allow
-it to take longer than expected, as this is likely due to an issue with the
-machine and not the PVF.
-
-#### CPU clock timeouts
-
-Another timeout-related mitigation we employ is to measure the time taken by
-jobs using CPU time, rather than wall clock time. This is because the CPU time
-of a process is less variable under different system conditions. When the
-overall system is under heavy load, the wall clock time of a job is affected
-more than the CPU time.
-
-#### Internal errors
-
-In general, for errors not raising a dispute we have to be very careful. This is
-only sound, if we either:
-
-1. Ruled out that error in pre-checking. If something is not checked in
-   pre-checking, even if independent of the candidate and PVF, we must raise a
-   dispute.
-2. We are 100% confident that it is a hardware/local issue: Like corrupted file,
-   etc.
-
-Reasoning: Otherwise it would be possible to register a PVF where candidates can
-not be checked, but we don't get a dispute - so nobody gets punished. Second, we
-end up with a finality stall that is not going to resolve!
-
-There are some error conditions where we can't be sure whether the candidate is
-really invalid or some internal glitch occurred, e.g. panics. Whenever we are
-unsure, we can never treat an error as internal as we would abstain from voting.
-So we will first retry the candidate, and if the issue persists we are forced to
-vote invalid.
 
 [CVM]: ../../types/overseer-protocol.md#validationrequesttype

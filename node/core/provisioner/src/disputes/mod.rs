@@ -14,12 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The disputes module is responsible for selecting dispute votes to be sent with the inherent data. It contains two
-//! different implementations, extracted in two separate modules - `random_selection` and `prioritized_selection`. Which
-//! implementation will be executed depends on the version of the runtime. Runtime v2 supports `random_selection`. Runtime
-//! `v3` and above - `prioritized_selection`. The entrypoint to these implementations is the `select_disputes` function.
-//! `prioritized_selection` is considered superior and will be the default one in the future. Refer to the documentation of
-//! the modules for more details about each implementation.
+//! The disputes module is responsible for selecting dispute votes to be sent with the inherent
+//! data.
 
 use crate::LOG_TARGET;
 use futures::channel::oneshot;
@@ -27,7 +23,8 @@ use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer};
 use polkadot_primitives::{CandidateHash, SessionIndex};
 
-/// Request the relevant dispute statements for a set of disputes identified by `CandidateHash` and the `SessionIndex`.
+/// Request the relevant dispute statements for a set of disputes identified by `CandidateHash` and
+/// the `SessionIndex`.
 async fn request_votes(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 	disputes_to_query: Vec<(SessionIndex, CandidateHash)>,
@@ -49,5 +46,3 @@ async fn request_votes(
 }
 
 pub(crate) mod prioritized_selection;
-
-pub(crate) mod random_selection;

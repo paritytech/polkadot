@@ -33,14 +33,14 @@
 //!
 //! This module helps with this in part. It does not break the multithreaded by default approach,
 //! but it breaks the `spawn everything` approach. So once you `spawn` you will still be
-//! multithreaded by default, despite that for most tasks we spawn (which just wait for network or some
-//! message to arrive), that is very much pointless and needless overhead. You will just spawn less in
-//! the first place.
+//! multithreaded by default, despite that for most tasks we spawn (which just wait for network or
+//! some message to arrive), that is very much pointless and needless overhead. You will just spawn
+//! less in the first place.
 //!
 //! By default your code is single threaded, except when actually needed:
-//!		- need to wait for long running synchronous IO (a threaded runtime is actually useful here)
-//!		- need to wait for some async event (message to arrive)
-//!		- need to do some hefty CPU bound processing (a thread is required here as well)
+//! 		- need to wait for long running synchronous IO (a threaded runtime is actually useful here)
+//! 		- need to wait for some async event (message to arrive)
+//! 		- need to do some hefty CPU bound processing (a thread is required here as well)
 //!
 //! and it is not acceptable to block the main task for waiting for the result, because we actually
 //! really have other things to do or at least need to stay responsive just in case.
@@ -48,7 +48,8 @@
 //! With the types and traits in this module you can achieve exactly that: You write modules which
 //! just execute logic and can call into the functions of other modules - yes we are calling normal
 //! functions. For the case a module you are calling into requires an occasional background task,
-//! you provide it with a `NestingSender<M, ChildModuleMessage>` that it can pass to any spawned tasks.
+//! you provide it with a `NestingSender<M, ChildModuleMessage>` that it can pass to any spawned
+//! tasks.
 //!
 //! This way you don't have to spawn a task for each module just for it to be able to handle
 //! asynchronous events. The module relies on the using/enclosing code/module to forward it any
@@ -65,9 +66,9 @@
 //! Because the wrapping is optional and transparent to the lower modules, each module can also be
 //! used at the top directly without any wrapping, e.g. for standalone use or for testing purposes.
 //!
-//! Checkout the documentation of [`NestingSender`][nesting_sender::NestingSender] below for a basic usage example. For a real
-//! world usage I would like to point you to the dispute-distribution subsystem which makes use of
-//! this architecture.
+//! Checkout the documentation of [`NestingSender`][nesting_sender::NestingSender] below for a basic
+//! usage example. For a real world usage I would like to point you to the dispute-distribution
+//! subsystem which makes use of this architecture.
 //!
 //! ## Limitations
 //!
@@ -81,7 +82,7 @@
 //! this approach to put back pressure on only a single source (as all are the same). If a module
 //! has a task that requires this, it indeed has to spawn a long running task which can do the
 //! back-pressure on that message source or we make it its own subsystem. This is just one of the
-//! situations that justifies the complexity of asynchronism.
+//! situations that justifies the complexity of asynchrony.
 
 use std::{convert::identity, sync::Arc};
 

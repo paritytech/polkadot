@@ -114,8 +114,8 @@ impl Requester {
 				.with_string_tag("leaf", format!("{:?}", leaf.hash))
 				.with_stage(jaeger::Stage::AvailabilityDistribution);
 
-			// Order important! We need to handle activated, prior to deactivated, otherwise we might
-			// cancel still needed jobs.
+			// Order important! We need to handle activated, prior to deactivated, otherwise we
+			// might cancel still needed jobs.
 			self.start_requesting_chunks(ctx, runtime, leaf, &span).await?;
 		}
 
@@ -168,8 +168,8 @@ impl Requester {
 			// any tasks separately.
 			//
 			// The next time the subsystem receives leaf update, some of spawned task will be bumped
-			// to be live in fresh relay parent, while some might get dropped due to the current leaf
-			// being deactivated.
+			// to be live in fresh relay parent, while some might get dropped due to the current
+			// leaf being deactivated.
 			self.add_cores(ctx, runtime, leaf, leaf_session_index, cores, span).await?;
 		}
 
@@ -177,7 +177,6 @@ impl Requester {
 	}
 
 	/// Stop requesting chunks for obsolete heads.
-	///
 	fn stop_requesting_chunks(&mut self, obsolete_leaves: impl Iterator<Item = Hash>) {
 		let obsolete_leaves: HashSet<_> = obsolete_leaves.collect();
 		self.fetches.retain(|_, task| {
@@ -226,10 +225,10 @@ impl Requester {
 						.with_session_info(
 							context,
 							runtime,
-							// We use leaf here, the relay_parent must be in the same session as the
-							// leaf. This is guaranteed by runtime which ensures that cores are cleared
-							// at session boundaries. At the same time, only leaves are guaranteed to
-							// be fetchable by the state trie.
+							// We use leaf here, the relay_parent must be in the same session as
+							// the leaf. This is guaranteed by runtime which ensures that cores are
+							// cleared at session boundaries. At the same time, only leaves are
+							// guaranteed to be fetchable by the state trie.
 							leaf,
 							leaf_session_index,
 							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info, span),

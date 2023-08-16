@@ -45,7 +45,8 @@ impl pallet_democracy::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
-	/// A 60% super-majority can have the next scheduled referendum be a straight majority-carries vote.
+	/// A 60% super-majority can have the next scheduled referendum be a straight majority-carries
+	/// vote.
 	type ExternalMajorityOrigin = EitherOfDiverse<
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
 		frame_system::EnsureRoot<AccountId>,
@@ -141,7 +142,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type Currency = Balances;
 	type ChangeMembers = Council;
 	type InitializeMembers = Council;
-	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
+	type CurrencyToVote = runtime_common::CurrencyToVote;
 	type CandidacyBond = CandidacyBond;
 	type VotingBondBase = VotingBondBase;
 	type VotingBondFactor = VotingBondFactor;

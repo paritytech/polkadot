@@ -151,10 +151,10 @@ impl<
 	}
 }
 
-/// Specialization of the [PayOverXcm] trait to allow `[u8; 32]`-based `AccountId` values to be
+/// Specialization of the [`PayOverXcm`] trait to allow `[u8; 32]`-based `AccountId` values to be
 /// paid on a remote chain.
 ///
-/// Implementation of the [frame_support::traits::tokens::Pay] trait, to allow
+/// Implementation of the [`frame_support::traits::tokens::Pay`] trait, to allow
 /// for XCM payments of a given `Balance` of `AssetKind` existing on a `DestinationChain` under
 /// ownership of some `Interior` location of the local chain to a particular `Beneficiary`.
 ///
@@ -184,7 +184,7 @@ pub type PayAccountId32OnChainOverXcm<
 	FixedLocation<DestinationChain>,
 >;
 
-/// Simple struct which contains both an XCM `location` and `asset_id` to identift an asset which
+/// Simple struct which contains both an XCM `location` and `asset_id` to identify an asset which
 /// exists on some chain.
 pub struct LocatableAssetId {
 	/// The asset's ID.
@@ -193,7 +193,7 @@ pub struct LocatableAssetId {
 	pub location: MultiLocation,
 }
 
-/// Adapter `struct` which implements a conversion from any `AssetKind` into a [LocatableAsset]
+/// Adapter `struct` which implements a conversion from any `AssetKind` into a [`LocatableAsset`]
 /// value using a fixed `Location` for the `location` field.
 pub struct FixedLocation<Location>(sp_std::marker::PhantomData<Location>);
 impl<Location: Get<MultiLocation>, AssetKind: Into<AssetId>> Convert<AssetKind, LocatableAssetId>

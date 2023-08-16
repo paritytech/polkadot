@@ -14,7 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsCollator, Registry};
+use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsParachainNode, Registry};
+use polkadot_node_subsystem_types::DefaultSubsystemClient;
+use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_core::traits::SpawnNamed;
 
 use lru::LruCache;
@@ -106,13 +108,13 @@ where
 	/// Task spawner to be used throughout the overseer and the APIs it provides.
 	pub spawner: Spawner,
 	/// Determines the behavior of the collator.
-	pub is_collator: IsCollator,
+	pub is_parachain_node: IsParachainNode,
 	/// Configuration for the approval voting subsystem.
 	pub approval_voting_config: ApprovalVotingConfig,
 	/// Configuration for the availability store subsystem.
 	pub availability_config: AvailabilityConfig,
 	/// Configuration for the candidate validation subsystem.
-	pub candidate_validation_config: CandidateValidationConfig,
+	pub candidate_validation_config: Option<CandidateValidationConfig>,
 	/// Configuration for the chain selection subsystem.
 	pub chain_selection_config: ChainSelectionConfig,
 	/// Configuration for the dispute coordinator subsystem.
@@ -125,6 +127,8 @@ where
 	pub req_protocol_names: ReqProtocolNames,
 	/// [`PeerSet`] protocol names to protocols mapping.
 	pub peerset_protocol_names: PeerSetProtocolNames,
+	/// The offchain transaction pool factory.
+	pub offchain_transaction_pool_factory: OffchainTransactionPoolFactory<Block>,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -145,7 +149,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		dispute_req_receiver,
 		registry,
 		spawner,
-		is_collator,
+		is_parachain_node,
 		approval_voting_config,
 		availability_config,
 		candidate_validation_config,
@@ -155,11 +159,12 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		overseer_message_channel_capacity_override,
 		req_protocol_names,
 		peerset_protocol_names,
+		offchain_transaction_pool_factory,
 	}: OverseerGenArgs<Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
-		Arc<RuntimeClient>,
+		Arc<DefaultSubsystemClient<RuntimeClient>>,
 		CandidateValidationSubsystem,
 		PvfCheckerSubsystem,
 		CandidateBackingSubsystem,
@@ -169,7 +174,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		BitfieldSigningSubsystem,
 		BitfieldDistributionSubsystem,
 		ProvisionerSubsystem,
-		RuntimeApiSubsystem<RuntimeClient>,
+		RuntimeApiSubsystem<DefaultSubsystemClient<RuntimeClient>>,
 		AvailabilityStoreSubsystem,
 		NetworkBridgeRxSubsystem<
 			Arc<sc_network::NetworkService<Block, Hash>>,
@@ -203,6 +208,11 @@ where
 	let spawner = SpawnGlue(spawner);
 
 	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
+
+	let runtime_api_client = Arc::new(DefaultSubsystemClient::new(
+		runtime_client.clone(),
+		offchain_transaction_pool_factory,
+	));
 
 	let builder = Overseer::builder()
 		.network_bridge_tx(NetworkBridgeTxSubsystem::new(
@@ -256,14 +266,15 @@ where
 		.chain_api(ChainApiSubsystem::new(runtime_client.clone(), Metrics::register(registry)?))
 		.collation_generation(CollationGenerationSubsystem::new(Metrics::register(registry)?))
 		.collator_protocol({
-			let side = match is_collator {
-				IsCollator::Yes(collator_pair) => ProtocolSide::Collator(
+			let side = match is_parachain_node {
+				IsParachainNode::Collator(collator_pair) => ProtocolSide::Collator(
 					network_service.local_peer_id(),
 					collator_pair,
 					collation_req_receiver,
 					Metrics::register(registry)?,
 				),
-				IsCollator::No => ProtocolSide::Validator {
+				IsParachainNode::FullNode => ProtocolSide::None,
+				IsParachainNode::No => ProtocolSide::Validator {
 					keystore: keystore.clone(),
 					eviction_policy: Default::default(),
 					metrics: Metrics::register(registry)?,
@@ -273,7 +284,7 @@ where
 		})
 		.provisioner(ProvisionerSubsystem::new(Metrics::register(registry)?))
 		.runtime_api(RuntimeApiSubsystem::new(
-			runtime_client.clone(),
+			runtime_api_client.clone(),
 			Metrics::register(registry)?,
 			spawner.clone(),
 		))
@@ -312,7 +323,7 @@ where
 		.activation_external_listeners(Default::default())
 		.span_per_active_leaf(Default::default())
 		.active_leaves(Default::default())
-		.supports_parachains(runtime_client)
+		.supports_parachains(runtime_api_client)
 		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 		.metrics(metrics)
 		.spawner(spawner);
@@ -334,7 +345,10 @@ pub trait OverseerGen {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<Spawner, RuntimeClient>,
-	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		Error,
+	>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -358,7 +372,10 @@ impl OverseerGen for RealOverseerGen {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<Spawner, RuntimeClient>,
-	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		Error,
+	>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,

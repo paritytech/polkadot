@@ -52,6 +52,12 @@ pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_millis(200);
 /// The amount of times we will retry failed prepare jobs.
 pub const NUM_PREPARE_RETRIES: u32 = 5;
 
+/// The name of binary spawned to prepare a PVF artifact
+pub const PREPARE_BINARY_NAME: &str = "polkadot-prepare-worker";
+
+/// The name of binary spawned to execute a PVF
+pub const EXECUTE_BINARY_NAME: &str = "polkadot-execute-worker";
+
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
 
@@ -140,9 +146,12 @@ struct ExecutePvfInputs {
 }
 
 /// Configuration for the validation host.
+#[derive(Debug)]
 pub struct Config {
 	/// The root directory where the prepared artifacts can be stored.
 	pub cache_path: PathBuf,
+	/// The version of the node. `None` can be passed to skip the version check (only for tests).
+	pub node_version: Option<String>,
 	/// The path to the program that can be used to spawn the prepare workers.
 	pub prepare_worker_program_path: PathBuf,
 	/// The time allotted for a prepare worker to spawn and report to the host.
@@ -162,18 +171,20 @@ pub struct Config {
 
 impl Config {
 	/// Create a new instance of the configuration.
-	pub fn new(cache_path: std::path::PathBuf, program_path: std::path::PathBuf) -> Self {
-		// Do not contaminate the other parts of the codebase with the types from `tokio`.
-		let cache_path = PathBuf::from(cache_path);
-		let program_path = PathBuf::from(program_path);
-
+	pub fn new(
+		cache_path: PathBuf,
+		node_version: Option<String>,
+		prepare_worker_program_path: PathBuf,
+		execute_worker_program_path: PathBuf,
+	) -> Self {
 		Self {
 			cache_path,
-			prepare_worker_program_path: program_path.clone(),
+			node_version,
+			prepare_worker_program_path,
 			prepare_worker_spawn_timeout: Duration::from_secs(3),
 			prepare_workers_soft_max_num: 1,
 			prepare_workers_hard_max_num: 1,
-			execute_worker_program_path: program_path,
+			execute_worker_program_path,
 			execute_worker_spawn_timeout: Duration::from_secs(3),
 			execute_workers_max_num: 2,
 		}
@@ -189,6 +200,11 @@ impl Config {
 /// In that case all pending requests will be canceled, dropping the result senders and new ones
 /// will be rejected.
 pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<Output = ()>) {
+	gum::debug!(target: LOG_TARGET, ?config, "starting PVF validation host");
+
+	// Run checks for supported security features once per host startup.
+	warn_if_no_landlock();
+
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
 	let validation_host = ValidationHost { to_host_tx };
@@ -198,6 +214,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		config.prepare_worker_program_path.clone(),
 		config.cache_path.clone(),
 		config.prepare_worker_spawn_timeout,
+		config.node_version.clone(),
 	);
 
 	let (to_prepare_queue_tx, from_prepare_queue_rx, run_prepare_queue) = prepare::start_queue(
@@ -214,6 +231,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		config.execute_worker_program_path.to_owned(),
 		config.execute_workers_max_num,
 		config.execute_worker_spawn_timeout,
+		config.node_version,
 	);
 
 	let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(100);
@@ -437,8 +455,8 @@ async fn handle_precheck_pvf(
 			ArtifactState::Preparing { waiting_for_response, num_failures: _ } =>
 				waiting_for_response.push(result_sender),
 			ArtifactState::FailedToProcess { error, .. } => {
-				// Do not retry failed preparation if another pre-check request comes in. We do not retry pre-checking,
-				// anyway.
+				// Do not retry failed preparation if another pre-check request comes in. We do not
+				// retry pre-checking, anyway.
 				let _ = result_sender.send(PrepareResult::Err(error.clone()));
 			},
 		}
@@ -452,8 +470,8 @@ async fn handle_precheck_pvf(
 
 /// Handles PVF execution.
 ///
-/// This will try to prepare the PVF, if a prepared artifact does not already exist. If there is already a
-/// preparation job, we coalesce the two preparation jobs.
+/// This will try to prepare the PVF, if a prepared artifact does not already exist. If there is
+/// already a preparation job, we coalesce the two preparation jobs.
 ///
 /// If the prepare job succeeded previously, we will enqueue an execute job right away.
 ///
@@ -503,7 +521,8 @@ async fn handle_execute_pvf(
 						"handle_execute_pvf: Re-queuing PVF preparation for prepared artifact with missing file."
 					);
 
-					// The artifact has been prepared previously but the file is missing, prepare it again.
+					// The artifact has been prepared previously but the file is missing, prepare it
+					// again.
 					*state = ArtifactState::Preparing {
 						waiting_for_response: Vec::new(),
 						num_failures: 0,
@@ -703,8 +722,8 @@ async fn handle_prepare_done(
 		pending_requests
 	{
 		if result_tx.is_canceled() {
-			// Preparation could've taken quite a bit of time and the requester may be not interested
-			// in execution anymore, in which case we just skip the request.
+			// Preparation could've taken quite a bit of time and the requester may be not
+			// interested in execution anymore, in which case we just skip the request.
 			continue
 		}
 
@@ -837,8 +856,8 @@ fn can_retry_prepare_after_failure(
 		return false
 	}
 
-	// Retry if the retry cooldown has elapsed and if we have already retried less than `NUM_PREPARE_RETRIES` times. IO
-	// errors may resolve themselves.
+	// Retry if the retry cooldown has elapsed and if we have already retried less than
+	// `NUM_PREPARE_RETRIES` times. IO errors may resolve themselves.
 	SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
 		num_failures <= NUM_PREPARE_RETRIES
 }
@@ -852,6 +871,30 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 		}
 	})
 	.map(|_| ())
+}
+
+/// Check if landlock is supported and emit a warning if not.
+fn warn_if_no_landlock() {
+	#[cfg(target_os = "linux")]
+	{
+		use polkadot_node_core_pvf_common::worker::security::landlock;
+		let status = landlock::get_status();
+		if !landlock::status_is_fully_enabled(&status) {
+			let abi = landlock::LANDLOCK_ABI as u8;
+			gum::warn!(
+				target: LOG_TARGET,
+				?status,
+				%abi,
+				"Cannot fully enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider upgrading the kernel version for maximum security."
+			);
+		}
+	}
+
+	#[cfg(not(target_os = "linux"))]
+	gum::warn!(
+		target: LOG_TARGET,
+		"Cannot enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider running on Linux with landlock support for maximum security."
+	);
 }
 
 #[cfg(test)]

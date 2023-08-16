@@ -14,4 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-pub mod migration;
+fn main() {
+	substrate_build_script_utils::generate_cargo_keys();
+	// For the node/worker version check, make sure we always rebuild the node and binary workers
+	// when the version changes.
+	substrate_build_script_utils::rerun_if_git_head_changed();
+}

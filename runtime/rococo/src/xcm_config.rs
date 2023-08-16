@@ -56,8 +56,8 @@ parameter_types! {
 pub type LocationConverter =
 	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<ThisNetwork, AccountId>);
 
-/// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
-/// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
+/// Our asset transactor. This is what allows us to interest with the runtime facilities from the
+/// point of view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
 ///
 /// Ours is only aware of the Balances pallet, which is mapped to `RocLocation`.
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
@@ -107,7 +107,7 @@ pub type XcmRouter = WithUniqueTopic<(
 
 parameter_types! {
 	pub const Roc: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const Statemine: MultiLocation = Parachain(1000).into_location();
+	pub const Rockmine: MultiLocation = Parachain(1000).into_location();
 	pub const Contracts: MultiLocation = Parachain(1002).into_location();
 	pub const Encointer: MultiLocation = Parachain(1003).into_location();
 	pub const Tick: MultiLocation = Parachain(100).into_location();
@@ -116,7 +116,7 @@ parameter_types! {
 	pub const RocForTick: (MultiAssetFilter, MultiLocation) = (Roc::get(), Tick::get());
 	pub const RocForTrick: (MultiAssetFilter, MultiLocation) = (Roc::get(), Trick::get());
 	pub const RocForTrack: (MultiAssetFilter, MultiLocation) = (Roc::get(), Track::get());
-	pub const RocForStatemine: (MultiAssetFilter, MultiLocation) = (Roc::get(), Statemine::get());
+	pub const RocForRockmine: (MultiAssetFilter, MultiLocation) = (Roc::get(), Rockmine::get());
 	pub const RocForContracts: (MultiAssetFilter, MultiLocation) = (Roc::get(), Contracts::get());
 	pub const RocForEncointer: (MultiAssetFilter, MultiLocation) = (Roc::get(), Encointer::get());
 	pub const MaxInstructions: u32 = 100;
@@ -126,7 +126,7 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RocForTick>,
 	xcm_builder::Case<RocForTrick>,
 	xcm_builder::Case<RocForTrack>,
-	xcm_builder::Case<RocForStatemine>,
+	xcm_builder::Case<RocForRockmine>,
 	xcm_builder::Case<RocForContracts>,
 	xcm_builder::Case<RocForEncointer>,
 );
@@ -342,11 +342,11 @@ pub type CouncilToPlurality = BackingToPlurality<
 	CouncilBodyId,
 >;
 
-/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain.
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior
+/// location of this chain.
 pub type LocalOriginToLocation = (
-	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
-	// `Unit` body.
+	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality
+	// of the `Unit` body.
 	CouncilToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
