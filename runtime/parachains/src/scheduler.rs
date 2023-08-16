@@ -35,6 +35,7 @@
 //! number of groups as availability cores. Validator groups will be assigned to different availability cores
 //! over time.
 
+use crate::{configuration, initializer::SessionChangeNotification, paras};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{
@@ -47,12 +48,9 @@ use sp_std::{
 	prelude::*,
 };
 
-use crate::{
-	configuration,
-	initializer::SessionChangeNotification,
-	paras,
-	scheduler_common::{AssignmentProvider, CoreAssignment, FreedReason},
-};
+pub mod common;
+
+use common::{AssignmentProvider, AssignmentProviderConfig, CoreAssignment, FreedReason};
 
 pub use pallet::*;
 
@@ -65,7 +63,6 @@ pub mod migration;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use crate::scheduler_common::AssignmentProvider;
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
@@ -304,7 +301,8 @@ impl<T: Config> Pallet<T> {
 					for drop in dropped_claims {
 						match T::AssignmentProvider::pop_assignment_for_core(core_idx, drop) {
 							Some(assignment) => {
-								let ttl = <configuration::Pallet<T>>::config().on_demand_ttl;
+								let AssignmentProviderConfig { ttl, .. } =
+									T::AssignmentProvider::get_provider_config(core_idx);
 								core_claimqueue.push_back(Some(ParasEntry::new(
 									assignment.clone(),
 									now + ttl,
@@ -397,8 +395,8 @@ impl<T: Config> Pallet<T> {
 		} else {
 			Some(|core_index: CoreIndex, pending_since| {
 				let availability_cores = AvailabilityCores::<T>::get();
-				let availability_period =
-					T::AssignmentProvider::get_availability_period(core_index);
+				let AssignmentProviderConfig { availability_period, .. } =
+					T::AssignmentProvider::get_provider_config(core_index);
 				let now = <frame_system::Pallet<T>>::block_number();
 				match availability_cores.get(core_index.0 as usize) {
 					None => true, // out-of-bounds, doesn't really matter what is returned.
@@ -445,7 +443,10 @@ impl<T: Config> Pallet<T> {
 			cores.get(core.0 as usize).and_then(|c| match c {
 				CoreOccupied::Free => None,
 				CoreOccupied::Paras(pe) => {
-					if pe.availability_timeouts < T::AssignmentProvider::get_max_retries(core) {
+					let AssignmentProviderConfig { max_availability_timeouts, .. } =
+						T::AssignmentProvider::get_provider_config(core);
+
+					if pe.availability_timeouts < max_availability_timeouts {
 						Some(Self::paras_entry_to_scheduled_core(pe))
 					} else {
 						None
@@ -545,9 +546,9 @@ impl<T: Config> Pallet<T> {
 
 				// add previously timedout paras back into the queue
 				if let Some(mut entry) = timedout_paras.remove(&core_idx) {
-					if entry.availability_timeouts <
-						T::AssignmentProvider::get_max_retries(core_idx)
-					{
+					let AssignmentProviderConfig { max_availability_timeouts, .. } =
+						T::AssignmentProvider::get_provider_config(core_idx);
+					if entry.availability_timeouts < max_availability_timeouts {
 						// Increment the timeout counter.
 						entry.availability_timeouts += 1;
 						// Reset the ttl so that a timed out assignment.

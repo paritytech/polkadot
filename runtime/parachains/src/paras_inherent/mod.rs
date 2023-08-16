@@ -29,7 +29,7 @@ use crate::{
 	initializer,
 	metrics::METRICS,
 	scheduler,
-	scheduler_common::{CoreAssignment, FreedReason},
+	scheduler::common::{CoreAssignment, FreedReason},
 	shared, ParaId,
 };
 use bitvec::prelude::BitVec;

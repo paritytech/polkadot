@@ -14,26 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The scheduler module for parachains and parathreads.
-//!
-//! This module is responsible for two main tasks:
-//!   - Partitioning validators into groups and assigning groups to parachains and parathreads
-//!   - Scheduling parachains and parathreads
-//!
-//! It aims to achieve these tasks with these goals in mind:
-//! - It should be possible to know at least a block ahead-of-time, ideally more,
-//!   which validators are going to be assigned to which parachains.
-//! - Parachains that have a candidate pending availability in this fork of the chain
-//!   should not be assigned.
-//! - Validator assignments should not be gameable. Malicious cartels should not be able to
-//!   manipulate the scheduler to assign themselves as desired.
-//! - High or close to optimal throughput of parachains and parathreads. Work among validator groups should be balanced.
-//!
-//! The Scheduler manages resource allocation using the concept of "Availability Cores".
-//! There will be one availability core for each parachain, and a fixed number of cores
-//! used for multiplexing parathreads. Validators will be partitioned into groups, with the same
-//! number of groups as availability cores. Validator groups will be assigned to different availability cores
-//! over time.
+//! Common traits and types used by the scheduler and assignment providers.
 
 use frame_support::pallet_prelude::*;
 use primitives::{
@@ -56,6 +37,20 @@ pub enum FreedReason {
 	TimedOut,
 }
 
+/// A set of variables required by the scheduler in order to operate.
+pub struct AssignmentProviderConfig<BlockNumber> {
+	/// The availability period specified by the implementation.
+	/// See [`HostConfiguration::paras_availability_period`] for more information.
+	pub availability_period: BlockNumber,
+
+	/// How many times a collation can time out on availability.
+	/// Zero timeouts still means that a collation can be provided as per the slot auction assignment provider.
+	pub max_availability_timeouts: u32,
+
+	/// How long the collator has to provide a collation to the backing group before being dropped.
+	pub ttl: BlockNumber,
+}
+
 pub trait AssignmentProvider<BlockNumber> {
 	/// How many cores are allocated to this provider.
 	fn session_core_count() -> u32;
@@ -73,15 +68,8 @@ pub trait AssignmentProvider<BlockNumber> {
 	/// such as the on demand assignment provider.
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
-	/// Returns the availability period specified by the implementation.
-	/// See
-	/// [`HostConfiguration::paras_availability_period`]
-	/// for more information.
-	fn get_availability_period(core_idx: CoreIndex) -> BlockNumber;
-
-	/// How many times a collation can time out on availability.
-	/// Zero retries still means that a collation can be provided as per the slot auction assignment provider.
-	fn get_max_retries(core_idx: CoreIndex) -> u32;
+	/// Returns a set of variables needed by the scheduler
+	fn get_provider_config(core_idx: CoreIndex) -> AssignmentProviderConfig<BlockNumber>;
 }
 
 /// How a core is mapped to a backing group and a `ParaId`

@@ -38,7 +38,6 @@ pub mod paras;
 pub mod paras_inherent;
 pub mod reward_points;
 pub mod scheduler;
-pub mod scheduler_common;
 pub mod session_info;
 pub mod shared;
 
