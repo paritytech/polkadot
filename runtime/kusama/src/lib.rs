@@ -687,20 +687,6 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
-// Tips are here purely so locked funds can be released before we purge the storage. It should be
-// removed from the runtime once the migration was confirmed successful, probably in 1.1.
-// See https://github.com/paritytech/polkadot/issues/6749
-impl pallet_tips::Config for Runtime {
-	type MaximumReasonLength = MaximumReasonLength;
-	type DataDepositPerByte = DataDepositPerByte;
-	type Tippers = PhragmenElection;
-	type TipCountdown = TipCountdown;
-	type TipFindersFee = TipFindersFee;
-	type TipReportDepositBase = TipReportDepositBase;
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = weights::pallet_tips::WeightInfo<Runtime>;
-}
-
 impl pallet_authority_discovery::Config for Runtime {
 	type MaxAuthorities = MaxAuthorities;
 }
@@ -1404,14 +1390,6 @@ construct_runtime! {
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config<T>} = 12,
 
-		// Old, deprecated governance pallets. Here purely so storage can be migrated.
-		// See https://github.com/paritytech/polkadot/issues/6749
-		Council: pallet_collective::<Instance1> exclude_parts {Call} = 14,
-		TechnicalCommittee: pallet_collective::<Instance2> exclude_parts {Call} = 15,
-		PhragmenElection: pallet_elections_phragmen exclude_parts {Call} = 16,
-		TechnicalMembership: pallet_membership::<Instance1> exclude_parts {Call} = 17,
-		Tips: pallet_tips exclude_parts {Call} = 36,
-
 		// Governance stuff.
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config<T>, Event<T>} = 18,
 		ConvictionVoting: pallet_conviction_voting::{Pallet, Call, Storage, Event<T>} = 20,
@@ -1539,17 +1517,6 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 	}
 }
 
-// Gov V1 pallets pending storage removal using the frame_support RemovePallet migration.
-// See https://github.com/paritytech/polkadot/issues/6749
-parameter_types! {
-	pub const DemocracyPalletName: &'static str = "Democracy";
-	pub const CouncilPalletName: &'static str = "Council";
-	pub const TechnicalCommitteePalletName: &'static str = "TechnicalCommittee";
-	pub const PhragmenElectionPalletName: &'static str = "PhragmenElection";
-	pub const TechnicalMembershipPalletName: &'static str = "TechnicalMembership";
-	pub const TipsPalletName: &'static str = "Tips";
-}
-
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
@@ -1560,14 +1527,23 @@ pub type Migrations = (migrations::Unreleased,);
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
+	use frame_support::traits::LockIdentifier;
 	use frame_system::pallet_prelude::BlockNumberFor;
 
-	// Stand-in configuration for the Democracy pallet to pass to its migration.
-	// Allows us to run the migration for the pallet without it existing in the runtime.
-	pub struct DemocracyUnlockConfig;
-	impl pallet_democracy::migrations::unlock_and_unreserve_all_funds::UnlockConfig
-		for DemocracyUnlockConfig
-	{
+	parameter_types! {
+		pub const DemocracyPalletName: &'static str = "Democracy";
+		pub const CouncilPalletName: &'static str = "Council";
+		pub const TechnicalCommitteePalletName: &'static str = "TechnicalCommittee";
+		pub const PhragmenElectionPalletName: &'static str = "PhragmenElection";
+		pub const TechnicalMembershipPalletName: &'static str = "TechnicalMembership";
+		pub const TipsPalletName: &'static str = "Tips";
+		pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
+	}
+
+	// Special Config for Gov V1 pallets, allowing us to run migrations for them without
+	// implementing their configs on [`Runtime`].
+	pub struct UnlockConfig;
+	impl pallet_democracy::migrations::unlock_and_unreserve_all_funds::UnlockConfig for UnlockConfig {
 		type Currency = Balances;
 		type MaxVotes = ConstU32<100>;
 		type MaxDeposits = ConstU32<100>;
@@ -1575,6 +1551,27 @@ pub mod migrations {
 		type BlockNumber = BlockNumberFor<Runtime>;
 		type DbWeight = <Runtime as frame_system::Config>::DbWeight;
 		type PalletName = DemocracyPalletName;
+	}
+	impl pallet_elections_phragmen::migrations::unlock_and_unreserve_all_funds::UnlockConfig
+		for UnlockConfig
+	{
+		type Currency = Balances;
+		type MaxVotesPerVoter = ConstU32<16>;
+		type PalletId = PhragmenElectionPalletId;
+		type AccountId = AccountId;
+		type BlockNumber = BlockNumberFor<Runtime>;
+		type DbWeight = <Runtime as frame_system::Config>::DbWeight;
+		type PalletName = PhragmenElectionPalletName;
+	}
+	impl pallet_tips::migrations::unreserve_deposits::UnlockConfig<()> for UnlockConfig {
+		type Currency = Balances;
+		type Hash = Hash;
+		type DataDepositPerByte = DataDepositPerByte;
+		type TipReportDepositBase = TipReportDepositBase;
+		type AccountId = AccountId;
+		type BlockNumber = BlockNumberFor<Runtime>;
+		type DbWeight = <Runtime as frame_system::Config>::DbWeight;
+		type PalletName = TipsPalletName;
 	}
 
 	/// Unreleased migrations. Add new ones here:
@@ -1588,23 +1585,19 @@ pub mod migrations {
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 
-		// Gov v1 storage migrations
+		// Unlock/unreserve balances from Gov v1 pallets that hold them
 		// https://github.com/paritytech/polkadot/issues/6749
-		pallet_elections_phragmen::migrations::unlock_and_unreserve_all_funds::UnlockAndUnreserveAllFunds<Runtime>,
-		pallet_democracy::migrations::unlock_and_unreserve_all_funds::UnlockAndUnreserveAllFunds<DemocracyUnlockConfig>,
-		pallet_tips::migrations::unreserve_deposits::UnreserveDeposits<Runtime, ()>,
+		pallet_elections_phragmen::migrations::unlock_and_unreserve_all_funds::UnlockAndUnreserveAllFunds<UnlockConfig>,
+		pallet_democracy::migrations::unlock_and_unreserve_all_funds::UnlockAndUnreserveAllFunds<UnlockConfig>,
+		pallet_tips::migrations::unreserve_deposits::UnreserveDeposits<UnlockConfig, ()>,
 
-		// RemovePallets only after they have been removed from the runtime. Otherwise, the on-chain
-		// storage version is removed for active pallets causing try-runtime to fail. The below code
-		// should be uncommented to fully remove the storage at the same time as the pallets are
-		// removed from the runtime, probably in 1.1.
-		// See https://github.com/paritytech/polkadot/issues/6749
+		// Delete storage key/values from all Gov v1 pallets
 		frame_support::migrations::RemovePallet<DemocracyPalletName, <Runtime as frame_system::Config>::DbWeight>,
-		// frame_support::migrations::RemovePallet<CouncilStr, RocksDbWeight>,
-		// frame_support::migrations::RemovePallet<TechnicalCommitteeStr, RocksDbWeight>,
-		// frame_support::migrations::RemovePallet<PhragmenElectionStr, RocksDbWeight>,
-		// frame_support::migrations::RemovePallet<TechnicalMembershipStr, RocksDbWeight>,
-		// frame_support::migrations::RemovePallet<TipsStr, RocksDbWeight>,
+		frame_support::migrations::RemovePallet<CouncilPalletName, <Runtime as frame_system::Config>::DbWeight>,
+		frame_support::migrations::RemovePallet<TechnicalCommitteePalletName, <Runtime as frame_system::Config>::DbWeight>,
+		frame_support::migrations::RemovePallet<PhragmenElectionPalletName, <Runtime as frame_system::Config>::DbWeight>,
+		frame_support::migrations::RemovePallet<TechnicalMembershipPalletName, <Runtime as frame_system::Config>::DbWeight>,
+		frame_support::migrations::RemovePallet<TipsPalletName, <Runtime as frame_system::Config>::DbWeight>,
 	);
 }
 

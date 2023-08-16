@@ -23,9 +23,6 @@ use frame_support::{
 };
 use frame_system::EnsureRootWithSuccess;
 
-// Old governance configurations.
-pub mod old;
-
 mod origins;
 pub use origins::{
 	pallet_custom_origins, AuctionAdmin, Fellows, FellowshipAdmin, FellowshipExperts,
