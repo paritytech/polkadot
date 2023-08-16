@@ -117,7 +117,6 @@ pub mod pallet {
 	/// as there is one currently being scheduled. Not using `None` here would overwrite the
 	/// `CoreState` in the runtime API. The value contained here will not be valid after the end of
 	/// a block. Runtime APIs should be used to determine scheduled cores/ for the upcoming block.
-	// TODO: this is behaviour is likely going to change when adapting for AB
 	#[pallet::storage]
 	#[pallet::getter(fn claimqueue)]
 	pub(crate) type ClaimQueue<T: Config> = StorageValue<
