@@ -17,8 +17,8 @@
 use crate::{
 	configuration, inclusion, initializer, paras,
 	paras::ParaKind,
-	paras_inherent::{self},
-	scheduler::{self, common::AssignmentProvider},
+	paras_inherent,
+	scheduler::{self, common::AssignmentProviderConfig},
 	session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
@@ -691,7 +691,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		);
 		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), used_cores as usize,);
 
-		// Mark all the used cores as occupied. We expect that their are
+		// Mark all the used cores as occupied. We expect that there are
 		// `backed_and_concluding_cores` that are pending availability and that there are
 		// `used_cores - backed_and_concluding_cores ` which are about to be disputed.
 		let now = <frame_system::Pallet<T>>::block_number() + One::one();
@@ -699,10 +699,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.into_iter()
 			.map(|i| {
 				let AssignmentProviderConfig { ttl, .. } =
-					<scheduler as Config>::AssignmentProvider::get_provider_config(i);
+					scheduler::Pallet::<T>::assignment_provider_config(CoreIndex(i));
 				CoreOccupied::Paras(ParasEntry::new(
 					Assignment::new(ParaId::from(i as u32)),
-					now + config.on_demand_ttl,
+					now + ttl,
 				))
 			})
 			.collect();

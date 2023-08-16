@@ -661,6 +661,13 @@ impl<T: Config> Pallet<T> {
 		Some(CoreAssignment { core: core_idx, group_idx, paras_entry: pe })
 	}
 
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	pub(crate) fn assignment_provider_config(
+		core_idx: CoreIndex,
+	) -> AssignmentProviderConfig<BlockNumberFor<T>> {
+		T::AssignmentProvider::get_provider_config(core_idx)
+	}
+
 	#[cfg(any(feature = "try-runtime", test))]
 	fn claimqueue_len() -> usize {
 		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).sum()
