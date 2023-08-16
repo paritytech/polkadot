@@ -133,6 +133,17 @@ To get up and running with the smallest footprint on your system, you may use an
 
 You may also build a polkadot container image yourself (it takes a while...) using the container specs `scripts/ci/dockerfiles/polkadot/polkadot_builder.Dockerfile`.
 
+For a one-time build, you may simply run:
+```
+$ENGINE build --pull -t polkadot-builder -f scripts/ci/dockerfiles/polkadot/polkadot_builder.Dockerfile .
+```
+
+The build can be slow depending on the resources you allocated to your container engine.
+Here are some recommendations to get started and ensure a successful build:
+- allocate enough memory: 32GB is good, less is untested
+- allocate enough disk: 150GB works, 100GB is not enough
+- allocate all the CPUs you can, this will speed up the build
+
 ### Debian injected
 
 The Debian injected image is how the official polkadot container image is produced. It relies on the Debian package that is published upon each release. The Debian injected image is usually available a few minutes after a new release is published.
