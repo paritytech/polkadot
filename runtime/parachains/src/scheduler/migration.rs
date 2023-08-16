@@ -123,7 +123,7 @@ pub mod v1 {
 		fn post_upgrade(state: Vec<u8>) -> Result<(), sp_runtime::DispatchError> {
 			log::trace!(target: crate::scheduler::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
-				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
+				StorageVersion::get::<Pallet<T>>() == 1,
 				"Storage version should be `1` after the migration"
 			);
 			ensure!(
