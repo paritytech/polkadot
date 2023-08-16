@@ -1,5 +1,9 @@
 # This file is part of .gitlab-ci.yml
 # Here are all jobs that are executed during "zombienet" stage
+.zombienet-common:
+  variables:
+    RUN_IN_CONTAINER: "1"
+
 
 zombienet-tests-parachains-smoke-test:
   stage: zombienet
@@ -7,6 +11,7 @@ zombienet-tests-parachains-smoke-test:
   extends:
     - .kubernetes-env
     - .zombienet-refs
+    - .zombienet-common
   needs:
     - job: publish-polkadot-debug-image
     - job: publish-malus-image
@@ -38,6 +43,7 @@ zombienet-tests-parachains-pvf:
   extends:
     - .kubernetes-env
     - .zombienet-refs
+    - .zombienet-common
   needs:
     - job: publish-polkadot-debug-image
     - job: publish-test-collators-image
@@ -68,6 +74,7 @@ zombienet-tests-parachains-disputes:
   extends:
     - .kubernetes-env
     - .zombienet-refs
+    - .zombienet-common
   needs:
     - job: publish-polkadot-debug-image
     - job: publish-test-collators-image
@@ -99,6 +106,7 @@ zombienet-tests-parachains-disputes-garbage-candidate:
   extends:
     - .kubernetes-env
     - .zombienet-refs
+    - .zombienet-common
   needs:
     - job: publish-polkadot-debug-image
     - job: publish-test-collators-image
@@ -130,6 +138,7 @@ zombienet-tests-parachains-disputes-past-session:
   extends:
     - .kubernetes-env
     - .zombienet-refs
+    - .zombienet-common
   needs:
     - job: publish-polkadot-debug-image
     - job: publish-test-collators-image
@@ -162,6 +171,7 @@ zombienet-test-parachains-upgrade-smoke-test:
   extends:
     - .kubernetes-env
     - .zombienet-refs
+    - .zombienet-common
   needs:
     - job: publish-polkadot-debug-image
     - job: publish-malus-image
@@ -192,6 +202,7 @@ zombienet-tests-misc-paritydb:
   extends:
     - .kubernetes-env
     - .zombienet-refs
+    - .zombienet-common
   needs:
     - job: publish-polkadot-debug-image
     - job: publish-test-collators-image
@@ -221,6 +232,7 @@ zombienet-tests-misc-upgrade-node:
    extends:
      - .kubernetes-env
      - .zombienet-refs
+    - .zombienet-common
    needs:
      - job: publish-polkadot-debug-image
      - job: publish-test-collators-image
@@ -253,6 +265,7 @@ zombienet-tests-malus-dispute-valid:
   extends:
     - .kubernetes-env
     - .zombienet-refs
+    - .zombienet-common
   needs:
     - job: publish-polkadot-debug-image
     - job: publish-malus-image
@@ -284,6 +297,7 @@ zombienet-tests-deregister-register-validator:
   extends:
     - .kubernetes-env
     - .zombienet-refs
+    - .zombienet-common
   needs:
     - job: publish-polkadot-debug-image
       artifacts: true
@@ -312,6 +326,7 @@ zombienet-tests-beefy-and-mmr:
   extends:
     - .kubernetes-env
     - .zombienet-refs
+    - .zombienet-common
   needs:
     - job: publish-polkadot-debug-image
   variables:
