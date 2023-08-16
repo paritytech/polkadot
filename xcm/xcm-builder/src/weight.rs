@@ -145,8 +145,9 @@ impl<RuntimeCall> ProvideWeighableInstructions<RuntimeCall> for () {
 	}
 }
 
-/// Function trait for handling some revenue. Similar to a negative imbalance (credit) handler, but for a
-/// `MultiAsset`. Sensible implementations will deposit the asset in some known treasury or block-author account.
+/// Function trait for handling some revenue. Similar to a negative imbalance (credit) handler, but
+/// for a `MultiAsset`. Sensible implementations will deposit the asset in some known treasury or
+/// block-author account.
 pub trait TakeRevenue {
 	/// Do something with the given `revenue`, which is a single non-wildcard `MultiAsset`.
 	fn take_revenue(revenue: MultiAsset);

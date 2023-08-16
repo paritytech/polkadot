@@ -60,8 +60,8 @@ use self::sender::{DisputeSender, DisputeSenderMessage};
 
 /// ## The receiver [`DisputesReceiver`]
 ///
-/// The receiving side is implemented as `DisputesReceiver` and is run as a separate long running task within
-/// this subsystem ([`DisputesReceiver::run`]).
+/// The receiving side is implemented as `DisputesReceiver` and is run as a separate long running
+/// task within this subsystem ([`DisputesReceiver::run`]).
 ///
 /// Conceptually all the receiver has to do, is waiting for incoming requests which are passed in
 /// via a dedicated channel and forwarding them to the dispute coordinator via
@@ -101,8 +101,8 @@ const LOG_TARGET: &'static str = "parachain::dispute-distribution";
 
 /// Rate limit on the `receiver` side.
 ///
-/// If messages from one peer come in at a higher rate than every `RECEIVE_RATE_LIMIT` on average, we
-/// start dropping messages from that peer to enforce that limit.
+/// If messages from one peer come in at a higher rate than every `RECEIVE_RATE_LIMIT` on average,
+/// we start dropping messages from that peer to enforce that limit.
 pub const RECEIVE_RATE_LIMIT: Duration = Duration::from_millis(100);
 
 /// Rate limit on the `sender` side.

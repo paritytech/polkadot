@@ -37,7 +37,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_primitives::CollatorPair;
 
-use polkadot_node_subsystem::{errors::SubsystemError, overseer, SpawnedSubsystem};
+use polkadot_node_subsystem::{errors::SubsystemError, overseer, DummySubsystem, SpawnedSubsystem};
 
 mod error;
 
@@ -82,6 +82,8 @@ pub enum ProtocolSide {
 		IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
 		collator_side::Metrics,
 	),
+	/// No protocol side, just disable it.
+	None,
 }
 
 /// The collator protocol subsystem.
@@ -98,24 +100,22 @@ impl CollatorProtocolSubsystem {
 	pub fn new(protocol_side: ProtocolSide) -> Self {
 		Self { protocol_side }
 	}
-
-	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError> {
-		match self.protocol_side {
-			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
-				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
-			ProtocolSide::Collator(local_peer_id, collator_pair, req_receiver, metrics) =>
-				collator_side::run(ctx, local_peer_id, collator_pair, req_receiver, metrics).await,
-		}
-	}
 }
 
 #[overseer::subsystem(CollatorProtocol, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CollatorProtocolSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = self
-			.run(ctx)
-			.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
-			.boxed();
+		let future = match self.protocol_side {
+			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
+				validator_side::run(ctx, keystore, eviction_policy, metrics)
+					.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
+					.boxed(),
+			ProtocolSide::Collator(local_peer_id, collator_pair, req_receiver, metrics) =>
+				collator_side::run(ctx, local_peer_id, collator_pair, req_receiver, metrics)
+					.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
+					.boxed(),
+			ProtocolSide::None => return DummySubsystem.start(ctx),
+		};
 
 		SpawnedSubsystem { name: "collator-protocol-subsystem", future }
 	}

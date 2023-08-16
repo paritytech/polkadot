@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Contains the logic for executing PVFs. Used by the polkadot-execute-worker binary.
+
 pub use polkadot_node_core_pvf_common::executor_intf::Executor;
 
 // NOTE: Initializing logging in e.g. tests will not have an effect in the workers, as they are
@@ -53,8 +55,8 @@ use tokio::{io, net::UnixStream};
 //
 // There are quirks to that configuration knob:
 //
-// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check
-//    that the stack space is actually available.
+// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check that
+//    the stack space is actually available.
 //
 //    That means, if the calling thread has 1 MiB of stack space left and the wasm code consumes
 //    more, then the wasmtime limit will **not** trigger. Instead, the wasm code will hit the
@@ -237,7 +239,8 @@ pub fn worker_entrypoint(
 					WaitOutcome::TimedOut => {
 						match cpu_time_monitor_thread.join() {
 							Ok(Some(cpu_time_elapsed)) => {
-								// Log if we exceed the timeout and the other thread hasn't finished.
+								// Log if we exceed the timeout and the other thread hasn't
+								// finished.
 								gum::warn!(
 									target: LOG_TARGET,
 									%worker_pid,

@@ -4,6 +4,7 @@ description = "Test kit to simulate cross-chain message passing and XCM executio
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.6.1" }

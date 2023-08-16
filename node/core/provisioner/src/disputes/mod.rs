@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The disputes module is responsible for selecting dispute votes to be sent with the inherent data.
+//! The disputes module is responsible for selecting dispute votes to be sent with the inherent
+//! data.
 
 use crate::LOG_TARGET;
 use futures::channel::oneshot;
@@ -22,7 +23,8 @@ use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer};
 use polkadot_primitives::{CandidateHash, SessionIndex};
 
-/// Request the relevant dispute statements for a set of disputes identified by `CandidateHash` and the `SessionIndex`.
+/// Request the relevant dispute statements for a set of disputes identified by `CandidateHash` and
+/// the `SessionIndex`.
 async fn request_votes(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 	disputes_to_query: Vec<(SessionIndex, CandidateHash)>,

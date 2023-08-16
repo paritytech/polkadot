@@ -16,11 +16,12 @@
 
 //! The parachain inherent data provider
 //!
-//! Parachain backing and approval is an off-chain process, but the parachain needs to progress on chain as well. To
-//! make it progress on chain a block producer needs to forward information about the state of a parachain to the
-//! runtime. This information is forwarded through an inherent to the runtime. Here we provide the
-//! [`ParachainInherentDataProvider`] that requests the relevant data from the provisioner subsystem and creates the
-//! the inherent data that the runtime will use to create an inherent.
+//! Parachain backing and approval is an off-chain process, but the parachain needs to progress on
+//! chain as well. To make it progress on chain a block producer needs to forward information about
+//! the state of a parachain to the runtime. This information is forwarded through an inherent to
+//! the runtime. Here we provide the [`ParachainInherentDataProvider`] that requests the relevant
+//! data from the provisioner subsystem and creates the the inherent data that the runtime will use
+//! to create an inherent.
 
 #![deny(unused_crate_dependencies, unused_results)]
 

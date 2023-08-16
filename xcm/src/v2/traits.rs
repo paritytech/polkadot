@@ -81,7 +81,8 @@ pub enum Error {
 	/// Used by `Transact` when the functor cannot be decoded.
 	#[codec(index = 17)]
 	FailedToDecode,
-	/// Used by `Transact` to indicate that the given weight limit could be breached by the functor.
+	/// Used by `Transact` to indicate that the given weight limit could be breached by the
+	/// functor.
 	#[codec(index = 18)]
 	MaxWeightInvalid,
 	/// Used by `BuyExecution` when the Holding Register does not contain payable fees.
@@ -94,7 +95,8 @@ pub enum Error {
 	#[codec(index = 21)]
 	Trap(u64),
 
-	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
+	// Errors that happen prior to instructions being executed. These fall outside of the XCM
+	// spec.
 	/// XCM version not able to be handled.
 	UnhandledXcmVersion,
 	/// Execution of the XCM would potentially result in a greater weight used than weight limit.
@@ -161,7 +163,8 @@ pub type Result = result::Result<(), Error>;
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
 	Complete(Weight),
-	/// Execution started, but did not complete successfully due to the given error; given weight was used.
+	/// Execution started, but did not complete successfully due to the given error; given weight
+	/// was used.
 	Incomplete(Weight, Error),
 	/// Execution did not start due to the given error.
 	Error(Error),
@@ -194,9 +197,9 @@ impl Outcome {
 
 /// Type of XCM message executor.
 pub trait ExecuteXcm<RuntimeCall> {
-	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
-	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
-	/// other aspects.
+	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The
+	/// weight limit is a basic hard-limit and the implementation may place further restrictions or
+	/// requirements on weight and other aspects.
 	fn execute_xcm(
 		origin: impl Into<MultiLocation>,
 		message: Xcm<RuntimeCall>,
@@ -215,8 +218,8 @@ pub trait ExecuteXcm<RuntimeCall> {
 
 	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight.
 	///
-	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
-	/// execution without associated payment.
+	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may
+	/// allow execution without associated payment.
 	fn execute_xcm_in_credit(
 		origin: impl Into<MultiLocation>,
 		message: Xcm<RuntimeCall>,
@@ -263,9 +266,9 @@ pub type SendResult = result::Result<(), SendError>;
 
 /// Utility for sending an XCM message.
 ///
-/// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
-/// `NotApplicable` to pass the execution to the next sender item. Note that each `NotApplicable`
-/// might alter the destination and the XCM message for to the next router.
+/// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each
+/// router might return `NotApplicable` to pass the execution to the next sender item. Note that
+/// each `NotApplicable` might alter the destination and the XCM message for to the next router.
 ///
 ///
 /// # Example
@@ -330,9 +333,9 @@ pub type SendResult = result::Result<(), SendError>;
 pub trait SendXcm {
 	/// Send an XCM `message` to a given `destination`.
 	///
-	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
-	/// return `NotApplicable`. Any other error will cause the tuple implementation to exit early without
-	/// trying other type fields.
+	/// If it is not a destination which can be reached with this type but possibly could by others,
+	/// then it *MUST* return `NotApplicable`. Any other error will cause the tuple implementation
+	/// to exit early without trying other type fields.
 	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult;
 }
 

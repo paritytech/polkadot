@@ -305,7 +305,8 @@ fn reqs_get_queued_on_no_recent_block() {
 
 	// Responds to messages from the test and verifies its behaviour
 	let request_handler = async {
-		// If we receive `BlockNumber` request this implicitly proves that the participation is queued
+		// If we receive `BlockNumber` request this implicitly proves that the participation is
+		// queued
 		assert_matches!(
 			ctx_handle.recv().await,
 			AllMessages::ChainApi(ChainApiMessage::BlockNumber(_, tx)) => {
