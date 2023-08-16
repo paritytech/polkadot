@@ -1292,8 +1292,8 @@ mod tests {
 			));
 
 			assert_noop!(Registrar::add_lock(RuntimeOrigin::signed(2), para_id), BadOrigin);
-			// Once they begin onboarding, we lock them in.
-			assert_ok!(Registrar::add_lock(RuntimeOrigin::signed(1), para_id));
+			// Once they produces new block, we lock them in.
+			Registrar::on_new_head(para_id, &Default::default());
 			// Owner cannot pass origin check when checking lock
 			assert_noop!(
 				Registrar::ensure_root_para_or_owner(RuntimeOrigin::signed(1), para_id),
@@ -1304,6 +1304,11 @@ mod tests {
 			// Para can.
 			assert_ok!(Registrar::remove_lock(para_origin(para_id), para_id));
 			// Owner can pass origin check again
+			assert_ok!(Registrar::ensure_root_para_or_owner(RuntimeOrigin::signed(1), para_id));
+
+			// Won't lock again after it is unlocked
+			Registrar::on_new_head(para_id, &Default::default());
+
 			assert_ok!(Registrar::ensure_root_para_or_owner(RuntimeOrigin::signed(1), para_id));
 		});
 	}
