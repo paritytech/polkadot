@@ -94,10 +94,7 @@ macro_rules! construct_runtime_prelude {
 					let crate::signer::Signer { account, pair, .. } = signer;
 
 					let local_call = EPMCall::<Runtime>::submit { raw_solution: Box::new(raw_solution) };
-					let call: RuntimeCall = <EPMCall<Runtime> as std::convert::TryInto<RuntimeCall>>::try_into(local_call)
-						.expect("election provider pallet must exist in the runtime, thus \
-							inner call can be converted, qed."
-						);
+					let call: RuntimeCall = local_call.into();
 
 					let extra: SignedExtra = crate::[<signed_ext_builder_ $runtime>](nonce, tip, era);
 					let raw_payload = SignedPayload::new(call, extra).expect("creating signed payload infallible; qed.");

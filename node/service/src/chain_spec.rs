@@ -18,22 +18,10 @@
 
 use beefy_primitives::ecdsa_crypto::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
-#[cfg(feature = "kusama-native")]
-use kusama_runtime as kusama;
-#[cfg(feature = "kusama-native")]
-use kusama_runtime_constants::currency::UNITS as KSM;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-#[cfg(any(
-	feature = "polkadot-native",
-	feature = "kusama-native",
-	feature = "westend-native",
-))]
+#[cfg(feature = "westend-native")]
 use pallet_staking::Forcing;
 use polkadot_primitives::{AccountId, AccountPublic, AssignmentId, ValidatorId};
-#[cfg(feature = "polkadot-native")]
-use polkadot_runtime as polkadot;
-#[cfg(feature = "polkadot-native")]
-use polkadot_runtime_constants::currency::UNITS as DOT;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 
@@ -42,48 +30,27 @@ use rococo_runtime as rococo;
 #[cfg(feature = "rococo-native")]
 use rococo_runtime_constants::currency::UNITS as ROC;
 use sc_chain_spec::ChainSpecExtension;
-#[cfg(any(
-	feature = "polkadot-native",
-	feature = "kusama-native",
-	feature = "westend-native",
-	feature = "rococo-native"
-))]
+#[cfg(any(feature = "westend-native", feature = "rococo-native"))]
 use sc_chain_spec::ChainType;
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::IdentifyAccount;
-#[cfg(any(
-	feature = "polkadot-native",
-	feature = "kusama-native",
-	feature = "westend-native",
-))]
+#[cfg(feature = "westend-native")]
 use sp_runtime::Perbill;
-#[cfg(any(
-	feature = "polkadot-native",
-	feature = "kusama-native",
-	feature = "westend-native",
-	feature = "rococo-native"
-))]
+#[cfg(any(feature = "westend-native", feature = "rococo-native"))]
 use telemetry::TelemetryEndpoints;
 #[cfg(feature = "westend-native")]
 use westend_runtime as westend;
 #[cfg(feature = "westend-native")]
 use westend_runtime_constants::currency::UNITS as WND;
 
-#[cfg(feature = "kusama-native")]
-const KUSAMA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "westend-native")]
 const WESTEND_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "rococo-native")]
 const ROCOCO_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "rococo-native")]
 const VERSI_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
-#[cfg(any(
-	feature = "polkadot-native",
-	feature = "kusama-native",
-	feature = "westend-native",
-	feature = "rococo-native"
-))]
+#[cfg(any(feature = "westend-native", feature = "rococo-native"))]
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// Node `ChainSpec` extensions.
@@ -103,25 +70,8 @@ pub struct Extensions {
 	pub light_sync_state: sc_sync_state_rpc::LightSyncStateExtension,
 }
 
-/// The `ChainSpec` parameterized for the polkadot runtime.
-#[cfg(feature = "polkadot-native")]
-pub type PolkadotChainSpec = service::GenericChainSpec<polkadot::RuntimeGenesisConfig, Extensions>;
-
-// Dummy chain spec, in case when we don't have the native runtime.
-pub type DummyChainSpec = service::GenericChainSpec<(), Extensions>;
-
-// Dummy chain spec, but that is fine when we don't have the native runtime.
-#[cfg(not(feature = "polkadot-native"))]
-pub type PolkadotChainSpec = DummyChainSpec;
-
-/// The `ChainSpec` parameterized for the kusama runtime.
-#[cfg(feature = "kusama-native")]
-pub type KusamaChainSpec = service::GenericChainSpec<kusama::RuntimeGenesisConfig, Extensions>;
-
-/// The `ChainSpec` parameterized for the kusama runtime.
-// Dummy chain spec, but that is fine when we don't have the native runtime.
-#[cfg(not(feature = "kusama-native"))]
-pub type KusamaChainSpec = DummyChainSpec;
+// Generic chain spec, in case when we don't have the native runtime.
+pub type GenericChainSpec = service::GenericChainSpec<(), Extensions>;
 
 /// The `ChainSpec` parameterized for the westend runtime.
 #[cfg(feature = "westend-native")]
@@ -130,7 +80,7 @@ pub type WestendChainSpec = service::GenericChainSpec<westend::RuntimeGenesisCon
 /// The `ChainSpec` parameterized for the westend runtime.
 // Dummy chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "westend-native"))]
-pub type WestendChainSpec = DummyChainSpec;
+pub type WestendChainSpec = GenericChainSpec;
 
 /// The `ChainSpec` parameterized for the rococo runtime.
 #[cfg(feature = "rococo-native")]
@@ -144,7 +94,7 @@ pub type VersiChainSpec = RococoChainSpec;
 /// The `ChainSpec` parameterized for the rococo runtime.
 // Dummy chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "rococo-native"))]
-pub type RococoChainSpec = DummyChainSpec;
+pub type RococoChainSpec = GenericChainSpec;
 
 /// Extension for the Rococo genesis config to support a custom changes to the genesis state.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -170,12 +120,12 @@ impl sp_runtime::BuildStorage for RococoGenesisExt {
 	}
 }
 
-pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
-	PolkadotChainSpec::from_json_bytes(&include_bytes!("../chain-specs/polkadot.json")[..])
+pub fn polkadot_config() -> Result<GenericChainSpec, String> {
+	GenericChainSpec::from_json_bytes(&include_bytes!("../chain-specs/polkadot.json")[..])
 }
 
-pub fn kusama_config() -> Result<KusamaChainSpec, String> {
-	KusamaChainSpec::from_json_bytes(&include_bytes!("../chain-specs/kusama.json")[..])
+pub fn kusama_config() -> Result<GenericChainSpec, String> {
+	GenericChainSpec::from_json_bytes(&include_bytes!("../chain-specs/kusama.json")[..])
 }
 
 pub fn westend_config() -> Result<WestendChainSpec, String> {
@@ -192,12 +142,7 @@ pub fn wococo_config() -> Result<RococoChainSpec, String> {
 }
 
 /// The default parachains host configuration.
-#[cfg(any(
-	feature = "rococo-native",
-	feature = "kusama-native",
-	feature = "westend-native",
-	feature = "polkadot-native"
-))]
+#[cfg(any(feature = "rococo-native", feature = "westend-native",))]
 fn default_parachains_host_configuration(
 ) -> polkadot_runtime_parachains::configuration::HostConfiguration<polkadot_primitives::BlockNumber>
 {
@@ -239,53 +184,10 @@ fn default_parachains_host_configuration(
 	}
 }
 
-#[cfg(any(
-	feature = "rococo-native",
-	feature = "kusama-native",
-	feature = "westend-native",
-	feature = "polkadot-native"
-))]
+#[cfg(any(feature = "rococo-native", feature = "westend-native",))]
 #[test]
 fn default_parachains_host_configuration_is_consistent() {
 	default_parachains_host_configuration().panic_if_not_consistent();
-}
-
-#[cfg(feature = "polkadot-native")]
-fn polkadot_session_keys(
-	babe: BabeId,
-	grandpa: GrandpaId,
-	im_online: ImOnlineId,
-	para_validator: ValidatorId,
-	para_assignment: AssignmentId,
-	authority_discovery: AuthorityDiscoveryId,
-) -> polkadot::SessionKeys {
-	polkadot::SessionKeys {
-		babe,
-		grandpa,
-		im_online,
-		para_validator,
-		para_assignment,
-		authority_discovery,
-	}
-}
-
-#[cfg(feature = "kusama-native")]
-fn kusama_session_keys(
-	babe: BabeId,
-	grandpa: GrandpaId,
-	im_online: ImOnlineId,
-	para_validator: ValidatorId,
-	para_assignment: AssignmentId,
-	authority_discovery: AuthorityDiscoveryId,
-) -> kusama::SessionKeys {
-	kusama::SessionKeys {
-		babe,
-		grandpa,
-		im_online,
-		para_validator,
-		para_assignment,
-		authority_discovery,
-	}
 }
 
 #[cfg(feature = "westend-native")]
@@ -516,200 +418,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
 		assigned_slots: Default::default(),
-	}
-}
-
-#[cfg(feature = "kusama-native")]
-fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
-	use hex_literal::hex;
-	use sp_core::crypto::UncheckedInto;
-
-	// subkey inspect "$SECRET"
-	let endowed_accounts = vec![
-		// 5CVFESwfkk7NmhQ6FwHCM9roBvr9BGa4vJHFYU8DnGQxrXvz
-		hex!["12b782529c22032ed4694e0f6e7d486be7daa6d12088f6bc74d593b3900b8438"].into(),
-	];
-
-	// for i in 1 2 3 4; do for j in stash controller; do subkey inspect "$SECRET//$i//$j"; done;
-	// done for i in 1 2 3 4; do for j in babe; do subkey --sr25519 inspect "$SECRET//$i//$j"; done;
-	// done for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j";
-	// done; done for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect
-	// "$SECRET//$i//$j"; done; done for i in 1 2 3 4; do for j in para_validator para_assignment;
-	// do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
-	let initial_authorities: Vec<(
-		AccountId,
-		AccountId,
-		BabeId,
-		GrandpaId,
-		ImOnlineId,
-		ValidatorId,
-		AssignmentId,
-		AuthorityDiscoveryId,
-	)> = vec![
-		(
-			// 5DD7Q4VEfPTLEdn11CnThoHT5f9xKCrnofWJL5SsvpTghaAT
-			hex!["32a5718e87d16071756d4b1370c411bbbb947eb62f0e6e0b937d5cbfc0ea633b"].into(),
-			// 5GNzaEqhrZAtUQhbMe2gn9jBuNWfamWFZHULryFwBUXyd1cG
-			hex!["bee39fe862c85c91aaf343e130d30b643c6ea0b4406a980206f1df8331f7093b"].into(),
-			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
-			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
-				.unchecked_into(),
-			// 5EjvdwATjyFFikdZibVvx1q5uBHhphS2Mnsq5c7yfaYK25vm
-			hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"]
-				.unchecked_into(),
-			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
-			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
-				.unchecked_into(),
-			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
-			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
-				.unchecked_into(),
-			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
-			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
-				.unchecked_into(),
-			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
-			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
-				.unchecked_into(),
-		),
-		(
-			// 5G9VGb8ESBeS8Ca4or43RfhShzk9y7T5iTmxHk5RJsjZwsRx
-			hex!["b496c98a405ceab59b9e970e59ef61acd7765a19b704e02ab06c1cdfe171e40f"].into(),
-			// 5F7V9Y5FcxKXe1aroqvPeRiUmmeQwTFcL3u9rrPXcMuMiCNx
-			hex!["86d3a7571dd60139d297e55d8238d0c977b2e208c5af088f7f0136b565b0c103"].into(),
-			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
-			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
-				.unchecked_into(),
-			// 5HBDAaybNqjmY7ww8ZcZZY1L5LHxvpnyfqJwoB7HhR6raTmG
-			hex!["e2234d661bee4a04c38392c75d1566200aa9e6ae44dd98ee8765e4cc9af63cb7"]
-				.unchecked_into(),
-			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
-			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
-				.unchecked_into(),
-			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
-			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
-				.unchecked_into(),
-			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
-			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
-				.unchecked_into(),
-			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
-			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
-				.unchecked_into(),
-		),
-		(
-			// 5FzwpgGvk2kk9agow6KsywLYcPzjYc8suKej2bne5G5b9YU3
-			hex!["ae12f70078a22882bf5135d134468f77301927aa67c376e8c55b7ff127ace115"].into(),
-			// 5EqoZhVC2BcsM4WjvZNidu2muKAbu5THQTBKe3EjvxXkdP7A
-			hex!["7addb914ec8486bbc60643d2647685dcc06373401fa80e09813b630c5831d54b"].into(),
-			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
-			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
-				.unchecked_into(),
-			// 5E8ULLQrDAtWhfnVfZmX41Yux86zNAwVJYguWJZVWrJvdhBe
-			hex!["5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"]
-				.unchecked_into(),
-			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
-			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
-				.unchecked_into(),
-			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
-			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
-				.unchecked_into(),
-			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
-			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
-				.unchecked_into(),
-			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
-			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
-				.unchecked_into(),
-		),
-		(
-			// 5CFj6Kg9rmVn1vrqpyjau2ztyBzKeVdRKwNPiA3tqhB5HPqq
-			hex!["0867dbb49721126df589db100dda728dc3b475cbf414dad8f72a1d5e84897252"].into(),
-			// 5CwQXP6nvWzigFqNhh2jvCaW9zWVzkdveCJY3tz2MhXMjTon
-			hex!["26ab2b4b2eba2263b1e55ceb48f687bb0018130a88df0712fbdaf6a347d50e2a"].into(),
-			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
-			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
-				.unchecked_into(),
-			// 5HGLmrZsiTFTPp3QoS1W8w9NxByt8PVq79reqvdxNcQkByqK
-			hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"]
-				.unchecked_into(),
-			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
-			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
-				.unchecked_into(),
-			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
-			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
-				.unchecked_into(),
-			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
-			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
-				.unchecked_into(),
-			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
-			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
-				.unchecked_into(),
-		),
-	];
-
-	const ENDOWMENT: u128 = 1_000_000 * KSM;
-	const STASH: u128 = 100 * KSM;
-
-	kusama::RuntimeGenesisConfig {
-		system: kusama::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
-		balances: kusama::BalancesConfig {
-			balances: endowed_accounts
-				.iter()
-				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
-				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
-				.collect(),
-		},
-		indices: kusama::IndicesConfig { indices: vec![] },
-		session: kusama::SessionConfig {
-			keys: initial_authorities
-				.iter()
-				.map(|x| {
-					(
-						x.0.clone(),
-						x.0.clone(),
-						kusama_session_keys(
-							x.2.clone(),
-							x.3.clone(),
-							x.4.clone(),
-							x.5.clone(),
-							x.6.clone(),
-							x.7.clone(),
-						),
-					)
-				})
-				.collect::<Vec<_>>(),
-		},
-		staking: kusama::StakingConfig {
-			validator_count: 50,
-			minimum_validator_count: 4,
-			stakers: initial_authorities
-				.iter()
-				.map(|x| (x.0.clone(), x.0.clone(), STASH, kusama::StakerStatus::Validator))
-				.collect(),
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-			force_era: Forcing::ForceNone,
-			slash_reward_fraction: Perbill::from_percent(10),
-			..Default::default()
-		},
-		babe: kusama::BabeConfig {
-			authorities: Default::default(),
-			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
-			..Default::default()
-		},
-		grandpa: Default::default(),
-		im_online: Default::default(),
-		authority_discovery: kusama::AuthorityDiscoveryConfig {
-			keys: vec![],
-			..Default::default()
-		},
-		claims: kusama::ClaimsConfig { claims: vec![], vesting: vec![] },
-		vesting: kusama::VestingConfig { vesting: vec![] },
-		treasury: Default::default(),
-		hrmp: Default::default(),
-		configuration: kusama::ConfigurationConfig {
-			config: default_parachains_host_configuration(),
-		},
-		paras: Default::default(),
-		xcm_pallet: Default::default(),
-		nomination_pools: Default::default(),
-		nis_counterpart_balances: Default::default(),
 	}
 }
 
@@ -1038,29 +746,6 @@ pub fn polkadot_chain_spec_properties() -> serde_json::map::Map<String, serde_js
 	.clone()
 }
 
-/// Staging testnet config.
-#[cfg(feature = "kusama-native")]
-pub fn kusama_staging_testnet_config() -> Result<KusamaChainSpec, String> {
-	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
-	let boot_nodes = vec![];
-
-	Ok(KusamaChainSpec::from_genesis(
-		"Kusama Staging Testnet",
-		"kusama_staging_testnet",
-		ChainType::Live,
-		move || kusama_staging_testnet_config_genesis(wasm_binary),
-		boot_nodes,
-		Some(
-			TelemetryEndpoints::new(vec![(KUSAMA_STAGING_TELEMETRY_URL.to_string(), 0)])
-				.expect("Kusama Staging telemetry url is valid; qed"),
-		),
-		Some(DEFAULT_PROTOCOL_ID),
-		None,
-		None,
-		Default::default(),
-	))
-}
-
 /// Westend staging testnet config.
 #[cfg(feature = "westend-native")]
 pub fn westend_staging_testnet_config() -> Result<WestendChainSpec, String> {
@@ -1205,12 +890,7 @@ pub fn get_authority_keys_from_seed_no_beefy(
 	)
 }
 
-#[cfg(any(
-	feature = "polkadot-native",
-	feature = "kusama-native",
-	feature = "westend-native",
-	feature = "rococo-native"
-))]
+#[cfg(any(feature = "westend-native", feature = "rococo-native"))]
 fn testnet_accounts() -> Vec<AccountId> {
 	vec![
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -1226,181 +906,6 @@ fn testnet_accounts() -> Vec<AccountId> {
 		get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
 		get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
 	]
-}
-
-/// Helper function to create polkadot `RuntimeGenesisConfig` for testing
-#[cfg(feature = "polkadot-native")]
-pub fn polkadot_testnet_genesis(
-	wasm_binary: &[u8],
-	initial_authorities: Vec<(
-		AccountId,
-		AccountId,
-		BabeId,
-		GrandpaId,
-		ImOnlineId,
-		ValidatorId,
-		AssignmentId,
-		AuthorityDiscoveryId,
-	)>,
-	_root_key: AccountId,
-	endowed_accounts: Option<Vec<AccountId>>,
-) -> polkadot::RuntimeGenesisConfig {
-	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
-
-	const ENDOWMENT: u128 = 1_000_000 * DOT;
-	const STASH: u128 = 100 * DOT;
-
-	polkadot::RuntimeGenesisConfig {
-		system: polkadot::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
-		indices: polkadot::IndicesConfig { indices: vec![] },
-		balances: polkadot::BalancesConfig {
-			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
-		},
-		session: polkadot::SessionConfig {
-			keys: initial_authorities
-				.iter()
-				.map(|x| {
-					(
-						x.0.clone(),
-						x.0.clone(),
-						polkadot_session_keys(
-							x.2.clone(),
-							x.3.clone(),
-							x.4.clone(),
-							x.5.clone(),
-							x.6.clone(),
-							x.7.clone(),
-						),
-					)
-				})
-				.collect::<Vec<_>>(),
-		},
-		staking: polkadot::StakingConfig {
-			minimum_validator_count: 1,
-			validator_count: initial_authorities.len() as u32,
-			stakers: initial_authorities
-				.iter()
-				.map(|x| (x.0.clone(), x.0.clone(), STASH, polkadot::StakerStatus::Validator))
-				.collect(),
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-			force_era: Forcing::NotForcing,
-			slash_reward_fraction: Perbill::from_percent(10),
-			..Default::default()
-		},
-		phragmen_election: Default::default(),
-		democracy: polkadot::DemocracyConfig::default(),
-		council: polkadot::CouncilConfig { members: vec![], phantom: Default::default() },
-		technical_committee: polkadot::TechnicalCommitteeConfig {
-			members: vec![],
-			phantom: Default::default(),
-		},
-		technical_membership: Default::default(),
-		babe: polkadot::BabeConfig {
-			authorities: Default::default(),
-			epoch_config: Some(polkadot::BABE_GENESIS_EPOCH_CONFIG),
-			..Default::default()
-		},
-		grandpa: Default::default(),
-		im_online: Default::default(),
-		authority_discovery: polkadot::AuthorityDiscoveryConfig {
-			keys: vec![],
-			..Default::default()
-		},
-		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
-		vesting: polkadot::VestingConfig { vesting: vec![] },
-		treasury: Default::default(),
-		hrmp: Default::default(),
-		configuration: polkadot::ConfigurationConfig {
-			config: default_parachains_host_configuration(),
-		},
-		paras: Default::default(),
-		xcm_pallet: Default::default(),
-		nomination_pools: Default::default(),
-	}
-}
-
-/// Helper function to create kusama `RuntimeGenesisConfig` for testing
-#[cfg(feature = "kusama-native")]
-pub fn kusama_testnet_genesis(
-	wasm_binary: &[u8],
-	initial_authorities: Vec<(
-		AccountId,
-		AccountId,
-		BabeId,
-		GrandpaId,
-		ImOnlineId,
-		ValidatorId,
-		AssignmentId,
-		AuthorityDiscoveryId,
-	)>,
-	_root_key: AccountId,
-	endowed_accounts: Option<Vec<AccountId>>,
-) -> kusama::RuntimeGenesisConfig {
-	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
-
-	const ENDOWMENT: u128 = 1_000_000 * KSM;
-	const STASH: u128 = 100 * KSM;
-
-	kusama::RuntimeGenesisConfig {
-		system: kusama::SystemConfig { code: wasm_binary.to_vec(), ..Default::default() },
-		indices: kusama::IndicesConfig { indices: vec![] },
-		balances: kusama::BalancesConfig {
-			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
-		},
-		session: kusama::SessionConfig {
-			keys: initial_authorities
-				.iter()
-				.map(|x| {
-					(
-						x.0.clone(),
-						x.0.clone(),
-						kusama_session_keys(
-							x.2.clone(),
-							x.3.clone(),
-							x.4.clone(),
-							x.5.clone(),
-							x.6.clone(),
-							x.7.clone(),
-						),
-					)
-				})
-				.collect::<Vec<_>>(),
-		},
-		staking: kusama::StakingConfig {
-			minimum_validator_count: 1,
-			validator_count: initial_authorities.len() as u32,
-			stakers: initial_authorities
-				.iter()
-				.map(|x| (x.0.clone(), x.0.clone(), STASH, kusama::StakerStatus::Validator))
-				.collect(),
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-			force_era: Forcing::NotForcing,
-			slash_reward_fraction: Perbill::from_percent(10),
-			..Default::default()
-		},
-		babe: kusama::BabeConfig {
-			authorities: Default::default(),
-			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
-			..Default::default()
-		},
-		grandpa: Default::default(),
-		im_online: Default::default(),
-		authority_discovery: kusama::AuthorityDiscoveryConfig {
-			keys: vec![],
-			..Default::default()
-		},
-		claims: kusama::ClaimsConfig { claims: vec![], vesting: vec![] },
-		vesting: kusama::VestingConfig { vesting: vec![] },
-		treasury: Default::default(),
-		hrmp: Default::default(),
-		configuration: kusama::ConfigurationConfig {
-			config: default_parachains_host_configuration(),
-		},
-		paras: Default::default(),
-		xcm_pallet: Default::default(),
-		nomination_pools: Default::default(),
-		nis_counterpart_balances: Default::default(),
-	}
 }
 
 /// Helper function to create westend `RuntimeGenesisConfig` for testing
@@ -1580,26 +1085,6 @@ pub fn rococo_testnet_genesis(
 	}
 }
 
-#[cfg(feature = "polkadot-native")]
-fn polkadot_development_config_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeGenesisConfig {
-	polkadot_testnet_genesis(
-		wasm_binary,
-		vec![get_authority_keys_from_seed_no_beefy("Alice")],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-	)
-}
-
-#[cfg(feature = "kusama-native")]
-fn kusama_development_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
-	kusama_testnet_genesis(
-		wasm_binary,
-		vec![get_authority_keys_from_seed_no_beefy("Alice")],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-	)
-}
-
 #[cfg(feature = "westend-native")]
 fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::RuntimeGenesisConfig {
 	westend_testnet_genesis(
@@ -1618,44 +1103,6 @@ fn rococo_development_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::Runt
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 	)
-}
-
-/// Polkadot development config (single validator Alice)
-#[cfg(feature = "polkadot-native")]
-pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
-	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
-
-	Ok(PolkadotChainSpec::from_genesis(
-		"Development",
-		"polkadot_dev",
-		ChainType::Development,
-		move || polkadot_development_config_genesis(wasm_binary),
-		vec![],
-		None,
-		Some(DEFAULT_PROTOCOL_ID),
-		None,
-		Some(polkadot_chain_spec_properties()),
-		Default::default(),
-	))
-}
-
-/// Kusama development config (single validator Alice)
-#[cfg(feature = "kusama-native")]
-pub fn kusama_development_config() -> Result<KusamaChainSpec, String> {
-	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
-
-	Ok(KusamaChainSpec::from_genesis(
-		"Development",
-		"kusama_dev",
-		ChainType::Development,
-		move || kusama_development_config_genesis(wasm_binary),
-		vec![],
-		None,
-		Some(DEFAULT_PROTOCOL_ID),
-		None,
-		None,
-		Default::default(),
-	))
 }
 
 /// Westend development config (single validator Alice)
@@ -1741,70 +1188,6 @@ pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
 		vec![],
 		None,
 		Some(WOCOCO_DEV_PROTOCOL_ID),
-		None,
-		None,
-		Default::default(),
-	))
-}
-
-#[cfg(feature = "polkadot-native")]
-fn polkadot_local_testnet_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeGenesisConfig {
-	polkadot_testnet_genesis(
-		wasm_binary,
-		vec![
-			get_authority_keys_from_seed_no_beefy("Alice"),
-			get_authority_keys_from_seed_no_beefy("Bob"),
-		],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-	)
-}
-
-/// Polkadot local testnet config (multivalidator Alice + Bob)
-#[cfg(feature = "polkadot-native")]
-pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
-	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
-
-	Ok(PolkadotChainSpec::from_genesis(
-		"Local Testnet",
-		"local_testnet",
-		ChainType::Local,
-		move || polkadot_local_testnet_genesis(wasm_binary),
-		vec![],
-		None,
-		Some(DEFAULT_PROTOCOL_ID),
-		None,
-		Some(polkadot_chain_spec_properties()),
-		Default::default(),
-	))
-}
-
-#[cfg(feature = "kusama-native")]
-fn kusama_local_testnet_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
-	kusama_testnet_genesis(
-		wasm_binary,
-		vec![
-			get_authority_keys_from_seed_no_beefy("Alice"),
-			get_authority_keys_from_seed_no_beefy("Bob"),
-		],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-	)
-}
-
-/// Kusama local testnet config (multivalidator Alice + Bob)
-#[cfg(feature = "kusama-native")]
-pub fn kusama_local_testnet_config() -> Result<KusamaChainSpec, String> {
-	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
-
-	Ok(KusamaChainSpec::from_genesis(
-		"Kusama Local Testnet",
-		"kusama_local_testnet",
-		ChainType::Local,
-		move || kusama_local_testnet_genesis(wasm_binary),
-		vec![],
-		None,
-		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		None,
 		Default::default(),

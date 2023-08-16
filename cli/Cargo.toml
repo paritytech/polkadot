@@ -65,11 +65,7 @@ fast-runtime = ["service/fast-runtime"]
 pyroscope = ["pyro", "pyroscope_pprofrs"]
 hostperfcheck = ["polkadot-performance-test"]
 
-# Configure the native runtimes to use. Polkadot is enabled by default.
-#
-# Validators require the native runtime currently
-polkadot-native = ["service/polkadot-native"]
-kusama-native = ["service/kusama-native"]
+# Configure the native runtimes to use.
 westend-native = ["service/westend-native"]
 rococo-native = ["service/rococo-native"]
 
