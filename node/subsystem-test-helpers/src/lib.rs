@@ -310,7 +310,8 @@ pub fn make_buffered_subsystem_context<M, S>(
 
 /// Test a subsystem, mocking the overseer
 ///
-/// Pass in two async closures: one mocks the overseer, the other runs the test from the perspective of a subsystem.
+/// Pass in two async closures: one mocks the overseer, the other runs the test from the perspective
+/// of a subsystem.
 ///
 /// Times out in 5 seconds.
 pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(

@@ -498,8 +498,8 @@ struct CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3 --- 0xA4(!avail) --- 0xA5(!avail)
-///			   \
-///				`- 0xB2
+/// 			   \
+/// 				`- 0xB2
 /// ```
 fn chain_undisputed() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -529,8 +529,8 @@ fn chain_undisputed() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed) --- 0xA4(!avail) --- 0xA5(!avail)
-///			   \
-///				`- 0xB2
+/// 			   \
+/// 				`- 0xB2
 /// ```
 fn chain_0() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -560,8 +560,8 @@ fn chain_0() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2(disputed) --- 0xA3
-///			   \
-///				`- 0xB2 --- 0xB3(!available)
+/// 			   \
+/// 				`- 0xB2 --- 0xB3(!available)
 /// ```
 fn chain_1() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -588,8 +588,8 @@ fn chain_1() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2(disputed) --- 0xA3
-///			   \
-///				`- 0xB2 --- 0xB3
+/// 			   \
+/// 				`- 0xB2 --- 0xB3
 /// ```
 fn chain_2() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -616,8 +616,8 @@ fn chain_2() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed)
-///			   \
-///				`- 0xB2 --- 0xB3
+/// 			   \
+/// 				`- 0xB2 --- 0xB3
 /// ```
 fn chain_3() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -644,10 +644,10 @@ fn chain_3() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed)
-///			   \
-///				`- 0xB2 --- 0xB3
+/// 			   \
+/// 				`- 0xB2 --- 0xB3
 ///
-///	            ? --- NEX(does_not_exist)
+/// 	            ? --- NEX(does_not_exist)
 /// ```
 fn chain_4() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;

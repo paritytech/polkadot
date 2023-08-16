@@ -3,6 +3,7 @@ name = "polkadot-node-core-bitfield-signing"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 futures = "0.3.21"

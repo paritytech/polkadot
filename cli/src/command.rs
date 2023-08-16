@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::{Cli, Subcommand};
+use crate::cli::{Cli, Subcommand, NODE_VERSION};
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
@@ -55,7 +55,7 @@ impl SubstrateCli for Cli {
 	}
 
 	fn impl_version() -> String {
-		env!("SUBSTRATE_CLI_IMPL_VERSION").into()
+		NODE_VERSION.into()
 	}
 
 	fn description() -> String {
@@ -148,8 +148,8 @@ impl SubstrateCli for Cli {
 				let chain_spec = Box::new(service::PolkadotChainSpec::from_json_file(path.clone())?)
 					as Box<dyn service::ChainSpec>;
 
-				// When `force_*` is given or the file name starts with the name of one of the known chains,
-				// we use the chain spec for the specific chain.
+				// When `force_*` is given or the file name starts with the name of one of the known
+				// chains, we use the chain spec for the specific chain.
 				if self.run.force_rococo ||
 					chain_spec.is_rococo() ||
 					chain_spec.is_wococo() ||
@@ -272,6 +272,9 @@ where
 		None
 	};
 
+	let node_version =
+		if cli.run.disable_worker_version_check { None } else { Some(NODE_VERSION.to_string()) };
+
 	runner.run_node_until_exit(move |config| async move {
 		let hwbench = (!cli.run.no_hardware_benchmarks)
 			.then_some(config.database.path().map(|database_path| {
@@ -283,16 +286,22 @@ where
 		let database_source = config.database.clone();
 		let task_manager = service::build_full(
 			config,
-			service::IsCollator::No,
-			grandpa_pause,
-			enable_beefy,
-			jaeger_agent,
-			None,
-			false,
-			overseer_gen,
-			cli.run.overseer_channel_capacity_override,
-			maybe_malus_finality_delay,
-			hwbench,
+			service::NewFullParams {
+				is_parachain_node: service::IsParachainNode::No,
+				grandpa_pause,
+				enable_beefy,
+				jaeger_agent,
+				telemetry_worker_handle: None,
+				node_version,
+				workers_path: cli.run.workers_path,
+				workers_names: None,
+				overseer_gen,
+				overseer_message_channel_capacity_override: cli
+					.run
+					.overseer_channel_capacity_override,
+				malus_finality_delay: maybe_malus_finality_delay,
+				hwbench,
+			},
 		)
 		.map(|full| full.task_manager)?;
 
@@ -418,50 +427,6 @@ pub fn run() -> Result<()> {
 					task_manager,
 				))
 			})?)
-		},
-		Some(Subcommand::PvfPrepareWorker(cmd)) => {
-			let mut builder = sc_cli::LoggerBuilder::new("");
-			builder.with_colors(false);
-			let _ = builder.init();
-
-			#[cfg(target_os = "android")]
-			{
-				return Err(sc_cli::Error::Input(
-					"PVF preparation workers are not supported under this platform".into(),
-				)
-				.into())
-			}
-
-			#[cfg(not(target_os = "android"))]
-			{
-				polkadot_node_core_pvf_prepare_worker::worker_entrypoint(
-					&cmd.socket_path,
-					Some(&cmd.node_impl_version),
-				);
-				Ok(())
-			}
-		},
-		Some(Subcommand::PvfExecuteWorker(cmd)) => {
-			let mut builder = sc_cli::LoggerBuilder::new("");
-			builder.with_colors(false);
-			let _ = builder.init();
-
-			#[cfg(target_os = "android")]
-			{
-				return Err(sc_cli::Error::Input(
-					"PVF execution workers are not supported under this platform".into(),
-				)
-				.into())
-			}
-
-			#[cfg(not(target_os = "android"))]
-			{
-				polkadot_node_core_pvf_execute_worker::worker_entrypoint(
-					&cmd.socket_path,
-					Some(&cmd.node_impl_version),
-				);
-				Ok(())
-			}
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;

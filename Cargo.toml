@@ -2,19 +2,29 @@
 name = "polkadot"
 path = "src/main.rs"
 
+[[bin]]
+name = "polkadot-execute-worker"
+path = "src/bin/execute-worker.rs"
+
+[[bin]]
+name = "polkadot-prepare-worker"
+path = "src/bin/prepare-worker.rs"
+
 [package]
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
-license = "GPL-3.0-only"
 rust-version = "1.64.0" # workspace properties
 readme = "README.md"
+default-run = "polkadot"
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 
 [workspace.package]
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+license = "GPL-3.0-only"
 repository = "https://github.com/paritytech/polkadot.git"
 version = "0.9.43"
 
@@ -28,6 +38,10 @@ polkadot-node-core-pvf = { path = "node/core/pvf" }
 polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
 polkadot-overseer = { path = "node/overseer" }
 
+# Needed for worker binaries.
+polkadot-node-core-pvf-common = { path = "node/core/pvf/common", features = ["test-utils"] }
+polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
+
 [dev-dependencies]
 assert_cmd = "2.0.4"
 nix = { version = "0.26.1", features = ["signal"] }
@@ -35,6 +49,9 @@ tempfile = "3.2.0"
 tokio = "1.24.2"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
+
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [workspace]
 members = [
@@ -210,7 +227,6 @@ fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
 jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
-
 # Enables timeout-based tests supposed to be run only in CI environment as they may be flaky
 # when run locally depending on system load
 ci-only-tests = ["polkadot-node-core-pvf/ci-only-tests"]
@@ -226,6 +242,8 @@ license-file = ["LICENSE", "0"]
 maintainer-scripts = "scripts/packaging/deb-maintainer-scripts"
 assets = [
 	["target/release/polkadot", "/usr/bin/", "755"],
+	["target/release/polkadot-prepare-worker", "/usr/lib/polkadot/", "755"],
+	["target/release/polkadot-execute-worker", "/usr/lib/polkadot/", "755"],
 	["scripts/packaging/polkadot.service", "/lib/systemd/system/", "644"]
 ]
 conf-files = [

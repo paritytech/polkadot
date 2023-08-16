@@ -137,8 +137,10 @@ struct Queue {
 	/// The receiver that receives messages to the pool.
 	to_queue_rx: mpsc::Receiver<ToQueue>,
 
+	// Some variables related to the current session.
 	program_path: PathBuf,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
 
 	/// The queue of jobs that are waiting for a worker to pick up.
 	queue: VecDeque<ExecuteJob>,
@@ -152,12 +154,14 @@ impl Queue {
 		program_path: PathBuf,
 		worker_capacity: usize,
 		spawn_timeout: Duration,
+		node_version: Option<String>,
 		to_queue_rx: mpsc::Receiver<ToQueue>,
 	) -> Self {
 		Self {
 			metrics,
 			program_path,
 			spawn_timeout,
+			node_version,
 			to_queue_rx,
 			queue: VecDeque::new(),
 			mux: Mux::new(),
@@ -398,9 +402,15 @@ fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
 	queue.metrics.execute_worker().on_begin_spawn();
 	gum::debug!(target: LOG_TARGET, "spawning an extra worker");
 
-	queue
-		.mux
-		.push(spawn_worker_task(queue.program_path.clone(), job, queue.spawn_timeout).boxed());
+	queue.mux.push(
+		spawn_worker_task(
+			queue.program_path.clone(),
+			job,
+			queue.spawn_timeout,
+			queue.node_version.clone(),
+		)
+		.boxed(),
+	);
 	queue.workers.spawn_inflight += 1;
 }
 
@@ -409,17 +419,24 @@ fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
 /// beforehand. In such a way, a race condition is avoided: during the worker being spawned,
 /// another job in the queue, with an incompatible execution environment, may become stale, and
 /// the queue would have to kill a newly started worker and spawn another one.
-/// Nevertheless, if the worker finishes executing the job, it becomes idle and may be used to execute other jobs with a compatible execution environment.
+/// Nevertheless, if the worker finishes executing the job, it becomes idle and may be used to
+/// execute other jobs with a compatible execution environment.
 async fn spawn_worker_task(
 	program_path: PathBuf,
 	job: ExecuteJob,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
 ) -> QueueEvent {
 	use futures_timer::Delay;
 
 	loop {
-		match super::worker_intf::spawn(&program_path, job.executor_params.clone(), spawn_timeout)
-			.await
+		match super::worker_intf::spawn(
+			&program_path,
+			job.executor_params.clone(),
+			spawn_timeout,
+			node_version.as_deref(),
+		)
+		.await
 		{
 			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle, job),
 			Err(err) => {
@@ -481,8 +498,17 @@ pub fn start(
 	program_path: PathBuf,
 	worker_capacity: usize,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
 ) -> (mpsc::Sender<ToQueue>, impl Future<Output = ()>) {
 	let (to_queue_tx, to_queue_rx) = mpsc::channel(20);
-	let run = Queue::new(metrics, program_path, worker_capacity, spawn_timeout, to_queue_rx).run();
+	let run = Queue::new(
+		metrics,
+		program_path,
+		worker_capacity,
+		spawn_timeout,
+		node_version,
+		to_queue_rx,
+	)
+	.run();
 	(to_queue_tx, run)
 }

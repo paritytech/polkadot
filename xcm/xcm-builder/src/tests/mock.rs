@@ -60,8 +60,8 @@ pub enum TestOrigin {
 
 /// A dummy call.
 ///
-/// Each item contains the amount of weight that it *wants* to consume as the first item, and the actual amount (if
-/// different from the former) in the second option.
+/// Each item contains the amount of weight that it *wants* to consume as the first item, and the
+/// actual amount (if different from the former) in the second option.
 #[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, Copy, scale_info::TypeInfo)]
 pub enum TestCall {
 	OnlyRoot(Weight, Option<Weight>),

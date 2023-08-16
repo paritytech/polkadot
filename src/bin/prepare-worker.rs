@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-fn main() {
-	substrate_build_script_utils::generate_cargo_keys();
-}
+//! Prepare worker.
+
+polkadot_node_core_pvf_common::decl_worker_main!(
+	"prepare-worker",
+	polkadot_node_core_pvf_prepare_worker::worker_entrypoint,
+	env!("SUBSTRATE_CLI_IMPL_VERSION")
+);

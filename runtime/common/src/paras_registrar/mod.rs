@@ -120,9 +120,9 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The aggregated origin type must support the `parachains` origin. We require that we can
-		/// infallibly convert between this origin and the system origin, but in reality, they're the
-		/// same type, we just can't express that to the Rust type system without writing a `where`
-		/// clause everywhere.
+		/// infallibly convert between this origin and the system origin, but in reality, they're
+		/// the same type, we just can't express that to the Rust type system without writing a
+		/// `where` clause everywhere.
 		type RuntimeOrigin: From<<Self as frame_system::Config>::RuntimeOrigin>
 			+ Into<result::Result<Origin, <Self as Config>::RuntimeOrigin>>;
 
@@ -176,14 +176,15 @@ pub mod pallet {
 		CannotDowngrade,
 		/// Cannot schedule upgrade of parathread to parachain
 		CannotUpgrade,
-		/// Para is locked from manipulation by the manager. Must use parachain or relay chain governance.
+		/// Para is locked from manipulation by the manager. Must use parachain or relay chain
+		/// governance.
 		ParaLocked,
 		/// The ID given for registration has not been reserved.
 		NotReserved,
 		/// Registering parachain with empty code is not allowed.
 		EmptyCode,
-		/// Cannot perform a parachain slot / lifecycle swap. Check that the state of both paras are
-		/// correct for the swap to work.
+		/// Cannot perform a parachain slot / lifecycle swap. Check that the state of both paras
+		/// are correct for the swap to work.
 		CannotSwap,
 	}
 
@@ -193,8 +194,8 @@ pub mod pallet {
 
 	/// Amount held on deposit for each para and the original depositor.
 	///
-	/// The given account ID is responsible for registering the code and initial head data, but may only do
-	/// so if it isn't yet registered. (After that, it's up to governance to do so.)
+	/// The given account ID is responsible for registering the code and initial head data, but may
+	/// only do so if it isn't yet registered. (After that, it's up to governance to do so.)
 	#[pallet::storage]
 	pub type Paras<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ParaInfo<T::AccountId, BalanceOf<T>>>;
@@ -237,8 +238,8 @@ pub mod pallet {
 		/// - `validation_code`: The initial validation code of the parachain/thread.
 		///
 		/// ## Deposits/Fees
-		/// The origin signed account must reserve a corresponding deposit for the registration. Anything already
-		/// reserved previously for this para ID is accounted for.
+		/// The origin signed account must reserve a corresponding deposit for the registration.
+		/// Anything already reserved previously for this para ID is accounted for.
 		///
 		/// ## Events
 		/// The `Registered` event is emitted in case of success.
@@ -277,7 +278,8 @@ pub mod pallet {
 
 		/// Deregister a Para Id, freeing all data and returning any deposit.
 		///
-		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a parathread.
+		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a
+		/// parathread.
 		#[pallet::call_index(2)]
 		#[pallet::weight(<T as Config>::WeightInfo::deregister())]
 		pub fn deregister(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
@@ -358,17 +360,20 @@ pub mod pallet {
 		/// Reserve a Para Id on the relay chain.
 		///
 		/// This function will reserve a new Para Id to be owned/managed by the origin account.
-		/// The origin account is able to register head data and validation code using `register` to create
-		/// a parathread. Using the Slots pallet, a parathread can then be upgraded to get a parachain slot.
+		/// The origin account is able to register head data and validation code using `register` to
+		/// create a parathread. Using the Slots pallet, a parathread can then be upgraded to get a
+		/// parachain slot.
 		///
 		/// ## Arguments
-		/// - `origin`: Must be called by a `Signed` origin. Becomes the manager/owner of the new para ID.
+		/// - `origin`: Must be called by a `Signed` origin. Becomes the manager/owner of the new
+		///   para ID.
 		///
 		/// ## Deposits/Fees
 		/// The origin must reserve a deposit of `ParaDeposit` for the registration.
 		///
 		/// ## Events
-		/// The `Reserved` event is emitted in case of success, which provides the ID reserved for use.
+		/// The `Reserved` event is emitted in case of success, which provides the ID reserved for
+		/// use.
 		#[pallet::call_index(5)]
 		#[pallet::weight(<T as Config>::WeightInfo::reserve())]
 		pub fn reserve(origin: OriginFor<T>) -> DispatchResult {
@@ -382,7 +387,8 @@ pub mod pallet {
 		/// Add a manager lock from a para. This will prevent the manager of a
 		/// para to deregister or swap a para.
 		///
-		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is
+		/// unlocked.
 		#[pallet::call_index(6)]
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
 		pub fn add_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
@@ -393,7 +399,8 @@ pub mod pallet {
 
 		/// Schedule a parachain upgrade.
 		///
-		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is
+		/// unlocked.
 		#[pallet::call_index(7)]
 		#[pallet::weight(<T as Config>::WeightInfo::schedule_code_upgrade(new_code.0.len() as u32))]
 		pub fn schedule_code_upgrade(
@@ -408,7 +415,8 @@ pub mod pallet {
 
 		/// Set the parachain's current head.
 		///
-		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is
+		/// unlocked.
 		#[pallet::call_index(8)]
 		#[pallet::weight(<T as Config>::WeightInfo::set_current_head(new_head.0.len() as u32))]
 		pub fn set_current_head(

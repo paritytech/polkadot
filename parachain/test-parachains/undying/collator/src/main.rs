@@ -21,6 +21,7 @@ use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_primitives::Id as ParaId;
 use sc_cli::{Error as SubstrateCliError, SubstrateCli};
+use sc_service::Role;
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_undying_collator::Collator;
 
@@ -53,21 +54,33 @@ fn main() -> Result<()> {
 				)
 			})?;
 
-			runner.run_node_until_exit(|config| async move {
+			runner.run_node_until_exit(|mut config| async move {
 				let collator = Collator::new(cli.run.pov_size, cli.run.pvf_complexity);
 
+				// Zombienet is spawning all collators currently with the same CLI, this means it
+				// sets `--validator` and this is wrong here.
+				config.role = Role::Full;
 				let full_node = polkadot_service::build_full(
 					config,
-					polkadot_service::IsCollator::Yes(collator.collator_key()),
-					None,
-					false,
-					None,
-					None,
-					false,
-					polkadot_service::RealOverseerGen,
-					None,
-					None,
-					None,
+					polkadot_service::NewFullParams {
+						is_parachain_node: polkadot_service::IsParachainNode::Collator(
+							collator.collator_key(),
+						),
+						grandpa_pause: None,
+						enable_beefy: false,
+						jaeger_agent: None,
+						telemetry_worker_handle: None,
+
+						// Collators don't spawn PVF workers, so we can disable version checks.
+						node_version: None,
+						workers_path: None,
+						workers_names: None,
+
+						overseer_gen: polkadot_service::RealOverseerGen,
+						overseer_message_channel_capacity_override: None,
+						malus_finality_delay: None,
+						hwbench: None,
+					},
 				)
 				.map_err(|e| e.to_string())?;
 				let mut overseer_handle = full_node

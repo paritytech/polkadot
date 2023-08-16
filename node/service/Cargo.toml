@@ -4,6 +4,7 @@ rust-version = "1.60"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 # Substrate Client
@@ -88,6 +89,7 @@ codec = { package = "parity-scale-codec", version = "3.6.1" }
 async-trait = "0.1.57"
 lru = "0.11"
 log = "0.4.17"
+is_executable = "1.0.1"
 
 # Polkadot
 polkadot-core-primitives = { path = "../../core-primitives" }
@@ -135,6 +137,7 @@ polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
 polkadot-node-core-chain-selection = { path = "../core/chain-selection", optional = true }
 polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator", optional = true }
 polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
+polkadot-node-core-pvf = { path = "../core/pvf", optional = true }
 polkadot-node-core-pvf-checker = { path = "../core/pvf-checker", optional = true }
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
@@ -144,6 +147,7 @@ polkadot-test-client = { path = "../test/client" }
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 env_logger = "0.9.0"
 assert_matches = "1.5.0"
+serial_test = "2.0.0"
 tempfile = "3.2"
 
 [features]
@@ -174,6 +178,7 @@ full-node = [
 	"polkadot-node-core-runtime-api",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
+	"polkadot-node-core-pvf",
 	"polkadot-node-core-pvf-checker",
 	"kvdb-rocksdb",
 	"parity-db",

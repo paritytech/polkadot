@@ -53,7 +53,6 @@ use rand::{seq::SliceRandom, SeedableRng};
 use scale_info::TypeInfo;
 use sp_runtime::traits::{Header as HeaderT, One};
 use sp_std::{
-	cmp::Ordering,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
 	prelude::*,
 	vec::Vec,
@@ -62,12 +61,13 @@ use sp_std::{
 mod misc;
 mod weights;
 
+use self::weights::checked_multi_dispute_statement_sets_weight;
 pub use self::{
 	misc::{IndexedRetain, IsSortedBy},
 	weights::{
 		backed_candidate_weight, backed_candidates_weight, dispute_statement_set_weight,
-		multi_dispute_statement_sets_weight, paras_inherent_total_weight, signed_bitfields_weight,
-		TestWeightInfo, WeightInfo,
+		multi_dispute_statement_sets_weight, paras_inherent_total_weight, signed_bitfield_weight,
+		signed_bitfields_weight, TestWeightInfo, WeightInfo,
 	},
 };
 
@@ -264,8 +264,8 @@ pub mod pallet {
 		#[pallet::weight((
 			paras_inherent_total_weight::<T>(
 				data.backed_candidates.as_slice(),
-				data.bitfields.as_slice(),
-				data.disputes.as_slice(),
+				&data.bitfields,
+				&data.disputes,
 			),
 			DispatchClass::Mandatory,
 		))]
@@ -285,8 +285,9 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in [`Self::create_inherent`].
-	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
+	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in
+	/// [`Self::create_inherent`]. This code is pulled out of [`Self::create_inherent`] so it can be
+	/// unit tested.
 	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<HeaderFor<T>>> {
 		let parachains_inherent_data = match data.get_data(&Self::INHERENT_IDENTIFIER) {
 			Ok(Some(d)) => d,
@@ -313,11 +314,11 @@ impl<T: Config> Pallet<T> {
 	/// The given inherent data is processed and state is altered accordingly. If any data could
 	/// not be applied (inconsitencies, weight limit, ...) it is removed.
 	///
-	/// When called from `create_inherent` the `context` must be set to `ProcessInherentDataContext::ProvideInherent`
-	/// so it guarantees the invariant that inherent is not overweight.
-	///  
-	/// It is **mandatory** that calls from `enter` set `context` to `ProcessInherentDataContext::Enter` to ensure
-	/// the weight invariant is checked.
+	/// When called from `create_inherent` the `context` must be set to
+	/// `ProcessInherentDataContext::ProvideInherent` so it guarantees the invariant that inherent
+	/// is not overweight.  
+	/// It is **mandatory** that calls from `enter` set `context` to
+	/// `ProcessInherentDataContext::Enter` to ensure the weight invariant is checked.
 	///
 	/// Returns: Result containing processed inherent data and weight, the processed inherent would
 	/// consume.
@@ -356,16 +357,46 @@ impl<T: Config> Pallet<T> {
 		let now = <frame_system::Pallet<T>>::block_number();
 
 		let candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
-		let bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
-		let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
-		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+		let bitfields_weight = signed_bitfields_weight::<T>(&bitfields);
+		let disputes_weight = multi_dispute_statement_sets_weight::<T>(&disputes);
 
-		METRICS
-			.on_before_filter((candidates_weight + bitfields_weight + disputes_weight).ref_time());
+		let all_weight_before = candidates_weight + bitfields_weight + disputes_weight;
+
+		METRICS.on_before_filter(all_weight_before.ref_time());
+		log::debug!(target: LOG_TARGET, "Size before filter: {}, candidates + bitfields: {}, disputes: {}", all_weight_before.proof_size(), candidates_weight.proof_size() + bitfields_weight.proof_size(), disputes_weight.proof_size());
+		log::debug!(target: LOG_TARGET, "Time weight before filter: {}, candidates + bitfields: {}, disputes: {}", all_weight_before.ref_time(), candidates_weight.ref_time() + bitfields_weight.ref_time(), disputes_weight.ref_time());
 
 		let current_session = <shared::Pallet<T>>::session_index();
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 		let validator_public = shared::Pallet::<T>::active_validator_keys();
+
+		// We are assuming (incorrectly) to have all the weight (for the mandatory class or even
+		// full block) available to us. This can lead to slightly overweight blocks, which still
+		// works as the dispatch class for `enter` is `Mandatory`. By using the `Mandatory`
+		// dispatch class, the upper layers impose no limit on the weight of this inherent, instead
+		// we limit ourselves and make sure to stay within reasonable bounds. It might make sense
+		// to subtract BlockWeights::base_block to reduce chances of becoming overweight.
+		let max_block_weight = {
+			let dispatch_class = DispatchClass::Mandatory;
+			let max_block_weight_full = <T as frame_system::Config>::BlockWeights::get();
+			log::debug!(target: LOG_TARGET, "Max block weight: {}", max_block_weight_full.max_block);
+			// Get max block weight for the mandatory class if defined, otherwise total max weight
+			// of the block.
+			let max_weight = max_block_weight_full
+				.per_class
+				.get(dispatch_class)
+				.max_total
+				.unwrap_or(max_block_weight_full.max_block);
+			log::debug!(target: LOG_TARGET, "Used max block time weight: {}", max_weight);
+
+			let max_block_size_full = <T as frame_system::Config>::BlockLength::get();
+			let max_block_size = max_block_size_full.max.get(dispatch_class);
+			log::debug!(target: LOG_TARGET, "Used max block size: {}", max_block_size);
+
+			// Adjust proof size to max block size as we are tracking tx size.
+			max_weight.set_proof_size(*max_block_size as u64)
+		};
+		log::debug!(target: LOG_TARGET, "Used max block weight: {}", max_block_weight);
 
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
@@ -382,16 +413,16 @@ impl<T: Config> Pallet<T> {
 			T::DisputesHandler::filter_dispute_data(set, post_conclusion_acceptance_period)
 		};
 
-		// Limit the disputes first, since the following statements depend on the votes include here.
+		// Limit the disputes first, since the following statements depend on the votes include
+		// here.
 		let (checked_disputes_sets, checked_disputes_sets_consumed_weight) =
 			limit_and_sanitize_disputes::<T, _>(
 				disputes,
 				dispute_statement_set_valid,
 				max_block_weight,
-				&mut rng,
 			);
 
-		let full_weight = if context == ProcessInherentDataContext::ProvideInherent {
+		let all_weight_after = if context == ProcessInherentDataContext::ProvideInherent {
 			// Assure the maximum block weight is adhered, by limiting bitfields and backed
 			// candidates. Dispute statement sets were already limited before.
 			let non_disputes_weight = apply_weight_limit::<T>(
@@ -401,36 +432,38 @@ impl<T: Config> Pallet<T> {
 				&mut rng,
 			);
 
-			let full_weight =
+			let all_weight_after =
 				non_disputes_weight.saturating_add(checked_disputes_sets_consumed_weight);
 
-			METRICS.on_after_filter(full_weight.ref_time());
+			METRICS.on_after_filter(all_weight_after.ref_time());
+			log::debug!(
+			target: LOG_TARGET,
+			"[process_inherent_data] after filter: bitfields.len(): {}, backed_candidates.len(): {}, checked_disputes_sets.len() {}",
+			bitfields.len(),
+			backed_candidates.len(),
+			checked_disputes_sets.len()
+			);
+			log::debug!(target: LOG_TARGET, "Size after filter: {}, candidates + bitfields: {}, disputes: {}", all_weight_after.proof_size(), non_disputes_weight.proof_size(), checked_disputes_sets_consumed_weight.proof_size());
+			log::debug!(target: LOG_TARGET, "Time weight after filter: {}, candidates + bitfields: {}, disputes: {}", all_weight_after.ref_time(), non_disputes_weight.ref_time(), checked_disputes_sets_consumed_weight.ref_time());
 
-			if full_weight.any_gt(max_block_weight) {
-				log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large.");
+			if all_weight_after.any_gt(max_block_weight) {
+				log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large, time: {}, size: {}", all_weight_after.ref_time(), all_weight_after.proof_size());
 			}
-
-			full_weight
+			all_weight_after
 		} else {
-			// We compute the weight for the unfiltered disputes for a stronger check, since `create_inherent`
-			// should already have filtered them out in block authorship.
-			let full_weight = candidates_weight
-				.saturating_add(bitfields_weight)
-				.saturating_add(disputes_weight);
-
-			// This check is performed in the context of block execution. Ensures inherent weight invariants guaranteed
-			// by `create_inherent_data` for block authorship.
-			if full_weight.any_gt(max_block_weight) {
+			// This check is performed in the context of block execution. Ensures inherent weight
+			// invariants guaranteed by `create_inherent_data` for block authorship.
+			if all_weight_before.any_gt(max_block_weight) {
 				log::error!(
 					"Overweight para inherent data reached the runtime {:?}: {} > {}",
 					parent_hash,
-					full_weight,
+					all_weight_before,
 					max_block_weight
 				);
 			}
 
-			ensure!(full_weight.all_lte(max_block_weight), Error::<T>::InherentOverweight);
-			full_weight
+			ensure!(all_weight_before.all_lte(max_block_weight), Error::<T>::InherentOverweight);
+			all_weight_before
 		};
 
 		// Note that `process_checked_multi_dispute_data` will iterate and import each
@@ -597,7 +630,7 @@ impl<T: Config> Pallet<T> {
 
 		let processed =
 			ParachainsInherentData { bitfields, backed_candidates, disputes, parent_header };
-		Ok((processed, Some(full_weight).into()))
+		Ok((processed, Some(all_weight_after).into()))
 	}
 }
 
@@ -683,13 +716,14 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 /// If there is sufficient space, all bitfields and all candidates
 /// will be included.
 ///
-/// Otherwise tries to include all disputes, and then tries to fill the remaining space with bitfields and then candidates.
+/// Otherwise tries to include all disputes, and then tries to fill the remaining space with
+/// bitfields and then candidates.
 ///
-/// The selection process is random. For candidates, there is an exception for code upgrades as they are preferred.
-/// And for disputes, local and older disputes are preferred (see `limit_and_sanitize_disputes`).
-/// for backed candidates, since with a increasing number of parachains their chances of
-/// inclusion become slim. All backed candidates  are checked beforehands in `fn create_inherent_inner`
-/// which guarantees sanity.
+/// The selection process is random. For candidates, there is an exception for code upgrades as they
+/// are preferred. And for disputes, local and older disputes are preferred (see
+/// `limit_and_sanitize_disputes`). for backed candidates, since with a increasing number of
+/// parachains their chances of inclusion become slim. All backed candidates  are checked
+/// beforehands in `fn create_inherent_inner` which guarantees sanity.
 ///
 /// Assumes disputes are already filtered by the time this is called.
 ///
@@ -702,7 +736,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 ) -> Weight {
 	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice());
 
-	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
+	let total_bitfields_weight = signed_bitfields_weight::<T>(&bitfields);
 
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
@@ -734,6 +768,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 				|c| backed_candidate_weight::<T>(c),
 				max_consumable_by_candidates,
 			);
+		log::debug!(target: LOG_TARGET, "Indices Candidates: {:?}, size: {}", indices, candidates.len());
 		candidates.indexed_retain(|idx, _backed_candidate| indices.binary_search(&idx).is_ok());
 		// pick all bitfields, and
 		// fill the remaining space with candidates
@@ -750,9 +785,10 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		rng,
 		&bitfields,
 		vec![],
-		|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
+		|bitfield| signed_bitfield_weight::<T>(&bitfield),
 		max_consumable_weight,
 	);
+	log::debug!(target: LOG_TARGET, "Indices Bitfields: {:?}, size: {}", indices, bitfields.len());
 
 	bitfields.indexed_retain(|idx, _bitfield| indices.binary_search(&idx).is_ok());
 
@@ -941,94 +977,42 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 /// 2. If exceeded:
 ///   1. Check validity of all dispute statements sequentially
 /// 2. If not exceeded:
-///   1. Sort the disputes based on locality and age, locality first.
-///   1. Split the array
-///   1. Prefer local ones over remote disputes
-///   1. If weight is exceeded by locals, pick the older ones (lower indices)
-///      until the weight limit is reached.
-///   1. If weight is exceeded by locals and remotes, pick remotes
-///      randomly and check validity one by one.
+///   1. If weight is exceeded by locals, pick the older ones (lower indices) until the weight limit
+///      is reached.
 ///
-/// Returns the consumed weight amount, that is guaranteed to be less than the provided `max_consumable_weight`.
+/// Returns the consumed weight amount, that is guaranteed to be less than the provided
+/// `max_consumable_weight`.
 fn limit_and_sanitize_disputes<
 	T: Config,
 	CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>,
 >(
-	mut disputes: MultiDisputeStatementSet,
+	disputes: MultiDisputeStatementSet,
 	mut dispute_statement_set_valid: CheckValidityFn,
 	max_consumable_weight: Weight,
-	rng: &mut rand_chacha::ChaChaRng,
 ) -> (Vec<CheckedDisputeStatementSet>, Weight) {
 	// The total weight if all disputes would be included
-	let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
+	let disputes_weight = multi_dispute_statement_sets_weight::<T>(&disputes);
 
 	if disputes_weight.any_gt(max_consumable_weight) {
+		log::debug!(target: LOG_TARGET, "Above max consumable weight: {}/{}", disputes_weight, max_consumable_weight);
 		let mut checked_acc = Vec::<CheckedDisputeStatementSet>::with_capacity(disputes.len());
-
-		// Since the disputes array is sorted, we may use binary search to find the beginning of
-		// remote disputes
-		let idx = disputes
-			.binary_search_by(|probe| {
-				if T::DisputesHandler::included_state(probe.session, probe.candidate_hash).is_some()
-				{
-					Ordering::Less
-				} else {
-					Ordering::Greater
-				}
-			})
-			// The above predicate will never find an item and therefore we are guaranteed to obtain
-			// an error, which we can safely unwrap. QED.
-			.unwrap_err();
-
-		// Due to the binary search predicate above, the index computed will constitute the beginning
-		// of the remote disputes sub-array `[Local, Local, Local, ^Remote, Remote]`.
-		let remote_disputes = disputes.split_off(idx);
 
 		// Accumualated weight of all disputes picked, that passed the checks.
 		let mut weight_acc = Weight::zero();
 
 		// Select disputes in-order until the remaining weight is attained
-		disputes.iter().for_each(|dss| {
-			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
-				dss.statements.len() as u32,
-			);
+		disputes.into_iter().for_each(|dss| {
+			let dispute_weight = dispute_statement_set_weight::<T, &DisputeStatementSet>(&dss);
 			let updated = weight_acc.saturating_add(dispute_weight);
 			if max_consumable_weight.all_gte(updated) {
-				// only apply the weight if the validity check passes
-				if let Some(checked) = dispute_statement_set_valid(dss.clone()) {
+				// Always apply the weight. Invalid data cost processing time too:
+				weight_acc = updated;
+				if let Some(checked) = dispute_statement_set_valid(dss) {
 					checked_acc.push(checked);
-					weight_acc = updated;
 				}
 			}
 		});
 
-		// Compute the statements length of all remote disputes
-		let d = remote_disputes.iter().map(|d| d.statements.len() as u32).collect::<Vec<u32>>();
-
-		// Select remote disputes at random until the block is full
-		let (_acc_remote_disputes_weight, mut indices) = random_sel::<u32, _>(
-			rng,
-			&d,
-			vec![],
-			|v| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(*v),
-			max_consumable_weight.saturating_sub(weight_acc),
-		);
-
-		// Sort the indices, to retain the same sorting as the input.
-		indices.sort();
-
-		// Add the remote disputes after checking their validity.
-		checked_acc.extend(indices.into_iter().filter_map(|idx| {
-			dispute_statement_set_valid(remote_disputes[idx].clone()).map(|cdss| {
-				let weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
-					cdss.as_ref().statements.len() as u32,
-				);
-				weight_acc = weight_acc.saturating_add(weight);
-				cdss
-			})
-		}));
-
-		// Update the remaining weight
 		(checked_acc, weight_acc)
 	} else {
 		// Go through all of them, and just apply the filter, they would all fit
@@ -1037,7 +1021,7 @@ fn limit_and_sanitize_disputes<
 			.filter_map(|dss| dispute_statement_set_valid(dss))
 			.collect::<Vec<CheckedDisputeStatementSet>>();
 		// some might have been filtered out, so re-calc the weight
-		let checked_disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&checked);
+		let checked_disputes_weight = checked_multi_dispute_statement_sets_weight::<T>(&checked);
 		(checked, checked_disputes_weight)
 	}
 }
