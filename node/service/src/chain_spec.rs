@@ -550,8 +550,8 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeG
 	// Following keys are used in genesis config for development chains.
 	// DO NOT use them in production chains as the secret seed is public.
 	//
-	// SECRET_SEED="explain impose opinion genius bar parrot erupt panther surround best expire album"
-	// subkey inspect -n kusama "$SECRET_SEED"
+	// SECRET_SEED="explain impose opinion genius bar parrot erupt panther surround best expire
+	// album" subkey inspect -n kusama "$SECRET_SEED"
 	let endowed_accounts = vec![
 		// FLN5cfhF7VCGJYefjPQJR2V6WwbfRmb9ozTwLAzBNeQQG6y
 		hex!["7a0fe424217ed176da7abf12e08198db0d0949298e1372c80a1930cb6dc21d3e"].into(),

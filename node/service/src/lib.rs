@@ -1192,7 +1192,8 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 
 		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
 
-		// BEEFY is part of consensus, if it fails we'll bring the node down with it to make sure it is noticed.
+		// BEEFY is part of consensus, if it fails we'll bring the node down with it to make sure it
+		// is noticed.
 		task_manager
 			.spawn_essential_handle()
 			.spawn_blocking("beefy-gadget", None, gadget);
