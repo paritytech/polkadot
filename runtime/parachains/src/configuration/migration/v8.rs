@@ -72,7 +72,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV8<T> {
 
 	fn on_runtime_upgrade() -> Weight {
 		log::info!(target: configuration::LOG_TARGET, "HostConfiguration MigrateToV8 started");
-		if StorageVersion::get::<Pallet<T>>() == 6 {
+		if StorageVersion::get::<Pallet<T>>() == 7 {
 			let weight_consumed = migrate_to_v8::<T>();
 
 			log::info!(target: configuration::LOG_TARGET, "HostConfiguration MigrateToV8 executed successfully");
