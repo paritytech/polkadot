@@ -19,9 +19,7 @@
 use beefy_primitives::ecdsa_crypto::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-#[cfg(any(
-	feature = "westend-native",
-))]
+#[cfg(feature = "westend-native")]
 use pallet_staking::Forcing;
 use polkadot_primitives::{AccountId, AccountPublic, AssignmentId, ValidatorId};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
@@ -32,22 +30,14 @@ use rococo_runtime as rococo;
 #[cfg(feature = "rococo-native")]
 use rococo_runtime_constants::currency::UNITS as ROC;
 use sc_chain_spec::ChainSpecExtension;
-#[cfg(any(
-	feature = "westend-native",
-	feature = "rococo-native"
-))]
+#[cfg(any(feature = "westend-native", feature = "rococo-native"))]
 use sc_chain_spec::ChainType;
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::IdentifyAccount;
-#[cfg(any(
-	feature = "westend-native",
-))]
+#[cfg(feature = "westend-native")]
 use sp_runtime::Perbill;
-#[cfg(any(
-	feature = "westend-native",
-	feature = "rococo-native"
-))]
+#[cfg(any(feature = "westend-native", feature = "rococo-native"))]
 use telemetry::TelemetryEndpoints;
 #[cfg(feature = "westend-native")]
 use westend_runtime as westend;
@@ -60,10 +50,7 @@ const WESTEND_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/
 const ROCOCO_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "rococo-native")]
 const VERSI_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
-#[cfg(any(
-	feature = "westend-native",
-	feature = "rococo-native"
-))]
+#[cfg(any(feature = "westend-native", feature = "rococo-native"))]
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// Node `ChainSpec` extensions.
@@ -155,10 +142,7 @@ pub fn wococo_config() -> Result<RococoChainSpec, String> {
 }
 
 /// The default parachains host configuration.
-#[cfg(any(
-	feature = "rococo-native",
-	feature = "westend-native",
-))]
+#[cfg(any(feature = "rococo-native", feature = "westend-native",))]
 fn default_parachains_host_configuration(
 ) -> polkadot_runtime_parachains::configuration::HostConfiguration<polkadot_primitives::BlockNumber>
 {
@@ -200,10 +184,7 @@ fn default_parachains_host_configuration(
 	}
 }
 
-#[cfg(any(
-	feature = "rococo-native",
-	feature = "westend-native",
-))]
+#[cfg(any(feature = "rococo-native", feature = "westend-native",))]
 #[test]
 fn default_parachains_host_configuration_is_consistent() {
 	default_parachains_host_configuration().panic_if_not_consistent();
@@ -909,10 +890,7 @@ pub fn get_authority_keys_from_seed_no_beefy(
 	)
 }
 
-#[cfg(any(
-	feature = "westend-native",
-	feature = "rococo-native"
-))]
+#[cfg(any(feature = "westend-native", feature = "rococo-native"))]
 fn testnet_accounts() -> Vec<AccountId> {
 	vec![
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
