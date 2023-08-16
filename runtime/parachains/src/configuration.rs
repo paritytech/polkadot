@@ -473,7 +473,8 @@ pub mod pallet {
 	///      + <https://github.com/paritytech/polkadot/pull/6934>
 	/// v5-v6: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
 	/// v6-v7: <https://github.com/paritytech/polkadot/pull/7396>
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
+	/// v7-v8: <https://github.com/paritytech/polkadot/pull/6969>
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(8);
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]

@@ -23,14 +23,106 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use primitives::SessionIndex;
-use sp_runtime::Perbill;
+use primitives::{vstaging::AsyncBackingParams, Balance, ExecutorParams, SessionIndex};
 use sp_std::vec::Vec;
 
 use frame_support::traits::OnRuntimeUpgrade;
 
 use super::v6::V6HostConfiguration;
-type V7HostConfiguration<BlockNumber> = configuration::HostConfiguration<BlockNumber>;
+
+#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug, Clone)]
+pub struct V7HostConfiguration<BlockNumber> {
+	pub max_code_size: u32,
+	pub max_head_data_size: u32,
+	pub max_upward_queue_count: u32,
+	pub max_upward_queue_size: u32,
+	pub max_upward_message_size: u32,
+	pub max_upward_message_num_per_candidate: u32,
+	pub hrmp_max_message_num_per_candidate: u32,
+	pub validation_upgrade_cooldown: BlockNumber,
+	pub validation_upgrade_delay: BlockNumber,
+	pub async_backing_params: AsyncBackingParams,
+	pub max_pov_size: u32,
+	pub max_downward_message_size: u32,
+	pub hrmp_max_parachain_outbound_channels: u32,
+	pub hrmp_max_parathread_outbound_channels: u32,
+	pub hrmp_sender_deposit: Balance,
+	pub hrmp_recipient_deposit: Balance,
+	pub hrmp_channel_max_capacity: u32,
+	pub hrmp_channel_max_total_size: u32,
+	pub hrmp_max_parachain_inbound_channels: u32,
+	pub hrmp_max_parathread_inbound_channels: u32,
+	pub hrmp_channel_max_message_size: u32,
+	pub executor_params: ExecutorParams,
+	pub code_retention_period: BlockNumber,
+	pub parathread_cores: u32,
+	pub parathread_retries: u32,
+	pub group_rotation_frequency: BlockNumber,
+	pub chain_availability_period: BlockNumber,
+	pub thread_availability_period: BlockNumber,
+	pub scheduling_lookahead: u32,
+	pub max_validators_per_core: Option<u32>,
+	pub max_validators: Option<u32>,
+	pub dispute_period: SessionIndex,
+	pub dispute_post_conclusion_acceptance_period: BlockNumber,
+	pub no_show_slots: u32,
+	pub n_delay_tranches: u32,
+	pub zeroth_delay_tranche_width: u32,
+	pub needed_approvals: u32,
+	pub relay_vrf_modulo_samples: u32,
+	pub pvf_voting_ttl: SessionIndex,
+	pub minimum_validation_upgrade_delay: BlockNumber,
+}
+
+impl<BlockNumber: Default + From<u32>> Default for V7HostConfiguration<BlockNumber> {
+	fn default() -> Self {
+		Self {
+			async_backing_params: AsyncBackingParams {
+				max_candidate_depth: 0,
+				allowed_ancestry_len: 0,
+			},
+			group_rotation_frequency: 1u32.into(),
+			chain_availability_period: 1u32.into(),
+			thread_availability_period: 1u32.into(),
+			no_show_slots: 1u32.into(),
+			validation_upgrade_cooldown: Default::default(),
+			validation_upgrade_delay: 2u32.into(),
+			code_retention_period: Default::default(),
+			max_code_size: Default::default(),
+			max_pov_size: Default::default(),
+			max_head_data_size: Default::default(),
+			parathread_cores: Default::default(),
+			parathread_retries: Default::default(),
+			scheduling_lookahead: Default::default(),
+			max_validators_per_core: Default::default(),
+			max_validators: None,
+			dispute_period: 6,
+			dispute_post_conclusion_acceptance_period: 100.into(),
+			n_delay_tranches: Default::default(),
+			zeroth_delay_tranche_width: Default::default(),
+			needed_approvals: Default::default(),
+			relay_vrf_modulo_samples: Default::default(),
+			max_upward_queue_count: Default::default(),
+			max_upward_queue_size: Default::default(),
+			max_downward_message_size: Default::default(),
+			max_upward_message_size: Default::default(),
+			max_upward_message_num_per_candidate: Default::default(),
+			hrmp_sender_deposit: Default::default(),
+			hrmp_recipient_deposit: Default::default(),
+			hrmp_channel_max_capacity: Default::default(),
+			hrmp_channel_max_total_size: Default::default(),
+			hrmp_max_parachain_inbound_channels: Default::default(),
+			hrmp_max_parathread_inbound_channels: Default::default(),
+			hrmp_channel_max_message_size: Default::default(),
+			hrmp_max_parachain_outbound_channels: Default::default(),
+			hrmp_max_parathread_outbound_channels: Default::default(),
+			hrmp_max_message_num_per_candidate: Default::default(),
+			pvf_voting_ttl: 2u32.into(),
+			minimum_validation_upgrade_delay: 2.into(),
+			executor_params: Default::default(),
+		}
+	}
+}
 
 mod v6 {
 	use super::*;
@@ -119,18 +211,21 @@ validation_upgrade_cooldown              : pre.validation_upgrade_cooldown,
 validation_upgrade_delay                 : pre.validation_upgrade_delay,
 max_pov_size                             : pre.max_pov_size,
 max_downward_message_size                : pre.max_downward_message_size,
+hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
+hrmp_max_parathread_outbound_channels    : pre.hrmp_max_parathread_outbound_channels,
 hrmp_sender_deposit                      : pre.hrmp_sender_deposit,
 hrmp_recipient_deposit                   : pre.hrmp_recipient_deposit,
 hrmp_channel_max_capacity                : pre.hrmp_channel_max_capacity,
 hrmp_channel_max_total_size              : pre.hrmp_channel_max_total_size,
 hrmp_max_parachain_inbound_channels      : pre.hrmp_max_parachain_inbound_channels,
-hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
+hrmp_max_parathread_inbound_channels     : pre.hrmp_max_parathread_inbound_channels,
 hrmp_channel_max_message_size            : pre.hrmp_channel_max_message_size,
 code_retention_period                    : pre.code_retention_period,
-on_demand_cores                          : pre.parathread_cores,
-on_demand_retries                        : pre.parathread_retries,
+parathread_cores                         : pre.parathread_cores,
+parathread_retries                       : pre.parathread_retries,
 group_rotation_frequency                 : pre.group_rotation_frequency,
-paras_availability_period                : pre.chain_availability_period,
+chain_availability_period                : pre.chain_availability_period,
+thread_availability_period               : pre.thread_availability_period,
 scheduling_lookahead                     : pre.scheduling_lookahead,
 max_validators_per_core                  : pre.max_validators_per_core,
 max_validators                           : pre.max_validators,
@@ -145,11 +240,6 @@ pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 async_backing_params                     : pre.async_backing_params,
 executor_params                          : pre.executor_params,
-on_demand_queue_max_size                 : 10_000u32,
-on_demand_base_fee                       : 10_000_000u128,
-on_demand_fee_variability                : Perbill::from_percent(3),
-on_demand_target_queue_utilization       : Perbill::from_percent(25),
-on_demand_ttl                            : 5u32.into(),
 		}
 	};
 
@@ -263,17 +353,20 @@ mod tests {
 					assert_eq!(v6.max_pov_size                             , v7.max_pov_size);
 					assert_eq!(v6.max_downward_message_size                , v7.max_downward_message_size);
 					assert_eq!(v6.hrmp_max_parachain_outbound_channels     , v7.hrmp_max_parachain_outbound_channels);
+					assert_eq!(v6.hrmp_max_parathread_outbound_channels    , v7.hrmp_max_parathread_outbound_channels);
 					assert_eq!(v6.hrmp_sender_deposit                      , v7.hrmp_sender_deposit);
 					assert_eq!(v6.hrmp_recipient_deposit                   , v7.hrmp_recipient_deposit);
 					assert_eq!(v6.hrmp_channel_max_capacity                , v7.hrmp_channel_max_capacity);
 					assert_eq!(v6.hrmp_channel_max_total_size              , v7.hrmp_channel_max_total_size);
 					assert_eq!(v6.hrmp_max_parachain_inbound_channels      , v7.hrmp_max_parachain_inbound_channels);
+					assert_eq!(v6.hrmp_max_parathread_inbound_channels     , v7.hrmp_max_parathread_inbound_channels);
 					assert_eq!(v6.hrmp_channel_max_message_size            , v7.hrmp_channel_max_message_size);
 					assert_eq!(v6.code_retention_period                    , v7.code_retention_period);
-					assert_eq!(v6.on_demand_cores                          , v7.on_demand_cores);
-					assert_eq!(v6.on_demand_retries                        , v7.on_demand_retries);
+					assert_eq!(v6.parathread_cores                         , v7.parathread_cores);
+					assert_eq!(v6.parathread_retries                       , v7.parathread_retries);
 					assert_eq!(v6.group_rotation_frequency                 , v7.group_rotation_frequency);
-					assert_eq!(v6.paras_availability_period                , v7.paras_availability_period);
+					assert_eq!(v6.chain_availability_period                , v7.chain_availability_period);
+					assert_eq!(v6.thread_availability_period               , v7.thread_availability_period);
 					assert_eq!(v6.scheduling_lookahead                     , v7.scheduling_lookahead);
 					assert_eq!(v6.max_validators_per_core                  , v7.max_validators_per_core);
 					assert_eq!(v6.max_validators                           , v7.max_validators);
