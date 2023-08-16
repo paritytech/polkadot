@@ -238,7 +238,7 @@ pub mod mock_msg_queue {
 				Ok(xcm) => {
 					let location = MultiLocation::new(1, X1(Parachain(sender.into())));
 					match T::XcmExecutor::execute_xcm(location, xcm, message_hash, max_weight) {
-						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
+						Outcome::Error(e) => (Err(e), Event::Fail(Some(hash), e)),
 						Outcome::Complete(w) => (Ok(w), Event::Success(Some(hash))),
 						// As far as the caller is concerned, this was dispatched without error, so
 						// we just report the weight used.
@@ -262,7 +262,7 @@ pub mod mock_msg_queue {
 				let _ = XcmpMessageFormat::decode(&mut data_ref)
 					.expect("Simulator encodes with versioned xcm format; qed");
 
-				let mut remaining_fragments = &data_ref[..];
+				let mut remaining_fragments = data_ref;
 				while !remaining_fragments.is_empty() {
 					if let Ok(xcm) =
 						VersionedXcm::<T::RuntimeCall>::decode(&mut remaining_fragments)
