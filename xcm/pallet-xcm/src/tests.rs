@@ -526,8 +526,8 @@ fn reserve_transfer_assets_works() {
 ///
 /// Asserts that the sender's balance is decreased and the beneficiary's balance
 /// is increased. Verifies the correct message is sent and event is emitted.
-/// Verifies that XCM router fees (`SendXcm::validate` -> `MultiAssets`) are withdrawn from correct user account
-/// and deposited to a correct target account (`XcmFeesTargetAccount`).
+/// Verifies that XCM router fees (`SendXcm::validate` -> `MultiAssets`) are withdrawn from correct
+/// user account and deposited to a correct target account (`XcmFeesTargetAccount`).
 #[test]
 fn reserve_transfer_assets_with_paid_router_works() {
 	let user_account = AccountId::from(XCM_FEES_NOT_WAIVED_USER_ACCOUNT);

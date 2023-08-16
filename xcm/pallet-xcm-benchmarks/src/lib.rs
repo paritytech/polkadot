@@ -115,10 +115,11 @@ pub fn account_and_location<T: Config>(index: u32) -> (T::AccountId, MultiLocati
 	(account, location)
 }
 
-/// Trait for a type which ensures all requirements for successful delivery with XCM transport layers.
+/// Trait for a type which ensures all requirements for successful delivery with XCM transport
+/// layers.
 pub trait EnsureDelivery {
-	/// Prepare all requirements for successful `XcmSender: SendXcm` passing (accounts, balances, channels ...).
-	/// Returns possible `FeesMode` which is expected to be set to executor.
+	/// Prepare all requirements for successful `XcmSender: SendXcm` passing (accounts, balances,
+	/// channels ...). Returns possible `FeesMode` which is expected to be set to executor.
 	fn ensure_successful_delivery(
 		origin_ref: &MultiLocation,
 		dest: &MultiLocation,

@@ -109,8 +109,8 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion, P: PriceForPar
 	}
 }
 
-/// Implementation of `pallet_xcm_benchmarks::EnsureDelivery` which helps to ensure delivery to the `ParaId` parachain (sibling or child).
-/// Deposits existential deposit for origin (if needed).
+/// Implementation of `pallet_xcm_benchmarks::EnsureDelivery` which helps to ensure delivery to the
+/// `ParaId` parachain (sibling or child). Deposits existential deposit for origin (if needed).
 /// Deposits estimated fee to the origin account (if needed).
 /// Allows to trigger additional logic for specific `ParaId` (e.g. open HRMP channel) (if neeeded).
 #[cfg(feature = "runtime-benchmarks")]
