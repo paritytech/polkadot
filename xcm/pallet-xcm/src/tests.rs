@@ -522,6 +522,74 @@ fn reserve_transfer_assets_works() {
 	});
 }
 
+/// Test `reserve_transfer_assets_with_paid_router_works`
+///
+/// Asserts that the sender's balance is decreased and the beneficiary's balance
+/// is increased. Verifies the correct message is sent and event is emitted.
+/// Verifies that XCM router fees (`SendXcm::validate` -> `MultiAssets`) are withdrawn from correct
+/// user account and deposited to a correct target account (`XcmFeesTargetAccount`).
+#[test]
+fn reserve_transfer_assets_with_paid_router_works() {
+	let user_account = AccountId::from(XCM_FEES_NOT_WAIVED_USER_ACCOUNT);
+	let paid_para_id = Para3000::get();
+	let balances = vec![
+		(user_account.clone(), INITIAL_BALANCE),
+		(ParaId::from(paid_para_id).into_account_truncating(), INITIAL_BALANCE),
+		(XcmFeesTargetAccount::get(), INITIAL_BALANCE),
+	];
+	new_test_ext_with_balances(balances).execute_with(|| {
+		let xcm_router_fee_amount = Para3000PaymentAmount::get();
+		let weight = BaseXcmWeight::get() * 2;
+		let dest: MultiLocation =
+			Junction::AccountId32 { network: None, id: user_account.clone().into() }.into();
+		assert_eq!(Balances::total_balance(&user_account), INITIAL_BALANCE);
+		assert_ok!(XcmPallet::reserve_transfer_assets(
+			RuntimeOrigin::signed(user_account.clone()),
+			Box::new(Parachain(paid_para_id).into()),
+			Box::new(dest.into()),
+			Box::new((Here, SEND_AMOUNT).into()),
+			0,
+		));
+		// check event
+		assert_eq!(
+			last_event(),
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
+		);
+
+		// XCM_FEES_NOT_WAIVED_USER_ACCOUNT spent amount
+		assert_eq!(
+			Balances::free_balance(user_account),
+			INITIAL_BALANCE - SEND_AMOUNT - xcm_router_fee_amount
+		);
+		// Destination account (parachain account) has amount
+		let para_acc: AccountId = ParaId::from(paid_para_id).into_account_truncating();
+		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + SEND_AMOUNT);
+		// XcmFeesTargetAccount where should lend xcm_router_fee_amount
+		assert_eq!(
+			Balances::free_balance(XcmFeesTargetAccount::get()),
+			INITIAL_BALANCE + xcm_router_fee_amount
+		);
+		assert_eq!(
+			sent_xcm(),
+			vec![(
+				Parachain(paid_para_id).into(),
+				Xcm(vec![
+					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
+					ClearOrigin,
+					buy_limited_execution((Parent, SEND_AMOUNT), Weight::from_parts(4000, 4000)),
+					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
+				]),
+			)]
+		);
+		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
+		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
+		assert_eq!(
+			last_event(),
+			RuntimeEvent::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
+		);
+	});
+}
+
 /// Test `limited_reserve_transfer_assets`
 ///
 /// Asserts that the sender's balance is decreased and the beneficiary's balance

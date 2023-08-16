@@ -1860,6 +1860,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = xcm_config::XcmConfig;
 				type AccountIdConverter = xcm_config::LocationConverter;
+				type DeliveryHelper = ();
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(AssetHub::get())
 				}

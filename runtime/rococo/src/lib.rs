@@ -2094,11 +2094,26 @@ sp_api::impl_runtime_apis! {
 				LocalCheckAccount, LocationConverter, AssetHub, TokenLocation, XcmConfig,
 			};
 
+			parameter_types! {
+				pub ExistentialDepositMultiAsset: Option<MultiAsset> = Some((
+					TokenLocation::get(),
+					ExistentialDeposit::get()
+				).into());
+				pub ToParachain: ParaId = rococo_runtime_constants::system_parachain::ASSET_HUB_ID.into();
+			}
+
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl frame_benchmarking::baseline::Config for Runtime {}
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = LocationConverter;
+				type DeliveryHelper = runtime_common::xcm_sender::ToParachainDeliveryHelper<
+					XcmConfig,
+					ExistentialDepositMultiAsset,
+					xcm_config::PriceForChildParachainDelivery,
+					ToParachain,
+					(),
+				>;
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(AssetHub::get())
 				}
@@ -2116,10 +2131,7 @@ sp_api::impl_runtime_apis! {
 					AssetHub::get(),
 					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
-				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
-					AssetHub::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
-				));
+				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = None;
 			}
 
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {

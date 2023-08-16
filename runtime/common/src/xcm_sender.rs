@@ -109,6 +109,96 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion, P: PriceForPar
 	}
 }
 
+/// Implementation of `pallet_xcm_benchmarks::EnsureDelivery` which helps to ensure delivery to the
+/// `ParaId` parachain (sibling or child). Deposits existential deposit for origin (if needed).
+/// Deposits estimated fee to the origin account (if needed).
+/// Allows to trigger additional logic for specific `ParaId` (e.g. open HRMP channel) (if neeeded).
+#[cfg(feature = "runtime-benchmarks")]
+pub struct ToParachainDeliveryHelper<
+	XcmConfig,
+	ExistentialDeposit,
+	PriceForDelivery,
+	ParaId,
+	ToParaIdHelper,
+>(
+	sp_std::marker::PhantomData<(
+		XcmConfig,
+		ExistentialDeposit,
+		PriceForDelivery,
+		ParaId,
+		ToParaIdHelper,
+	)>,
+);
+
+#[cfg(feature = "runtime-benchmarks")]
+impl<
+		XcmConfig: xcm_executor::Config,
+		ExistentialDeposit: Get<Option<MultiAsset>>,
+		PriceForDelivery: PriceForParachainDelivery,
+		Parachain: Get<ParaId>,
+		ToParachainHelper: EnsureForParachain,
+	> pallet_xcm_benchmarks::EnsureDelivery
+	for ToParachainDeliveryHelper<
+		XcmConfig,
+		ExistentialDeposit,
+		PriceForDelivery,
+		Parachain,
+		ToParachainHelper,
+	>
+{
+	fn ensure_successful_delivery(
+		origin_ref: &MultiLocation,
+		_dest: &MultiLocation,
+		fee_reason: xcm_executor::traits::FeeReason,
+	) -> (Option<xcm_executor::FeesMode>, Option<MultiAssets>) {
+		use xcm_executor::{
+			traits::{FeeManager, TransactAsset},
+			FeesMode,
+		};
+
+		let mut fees_mode = None;
+		if !XcmConfig::FeeManager::is_waived(Some(origin_ref), fee_reason) {
+			// if not waived, we need to set up accounts for paying and receiving fees
+
+			// mint ED to origin if needed
+			if let Some(ed) = ExistentialDeposit::get() {
+				XcmConfig::AssetTransactor::deposit_asset(&ed, &origin_ref, None).unwrap();
+			}
+
+			// overestimate delivery fee
+			let overestimated_xcm = vec![ClearOrigin; 128].into();
+			let overestimated_fees = PriceForDelivery::price_for_parachain_delivery(
+				Parachain::get(),
+				&overestimated_xcm,
+			);
+
+			// mint overestimated fee to origin
+			for fee in overestimated_fees.inner() {
+				XcmConfig::AssetTransactor::deposit_asset(&fee, &origin_ref, None).unwrap();
+			}
+
+			// allow more initialization for target parachain
+			ToParachainHelper::ensure(Parachain::get());
+
+			// expected worst case - direct withdraw
+			fees_mode = Some(FeesMode { jit_withdraw: true });
+		}
+		(fees_mode, None)
+	}
+}
+
+/// Ensure more initialization for `ParaId`. (e.g. open HRMP channels, ...)
+#[cfg(feature = "runtime-benchmarks")]
+pub trait EnsureForParachain {
+	fn ensure(para_id: ParaId);
+}
+#[cfg(feature = "runtime-benchmarks")]
+impl EnsureForParachain for () {
+	fn ensure(_para_id: ParaId) {
+		// doing nothing
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

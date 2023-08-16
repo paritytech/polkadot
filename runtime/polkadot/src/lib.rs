@@ -2076,9 +2076,24 @@ sp_api::impl_runtime_apis! {
 			let treasury_key = frame_system::Account::<Runtime>::hashed_key_for(Treasury::account_id());
 			whitelist.push(treasury_key.to_vec().into());
 
+			parameter_types! {
+				pub ExistentialDepositMultiAsset: Option<MultiAsset> = Some((
+					TokenLocation::get(),
+					ExistentialDeposit::get()
+				).into());
+				pub ToParachain: ParaId = polkadot_runtime_constants::system_parachain::ASSET_HUB_ID.into();
+			}
+
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = SovereignAccountOf;
+				type DeliveryHelper = runtime_common::xcm_sender::ToParachainDeliveryHelper<
+					XcmConfig,
+					ExistentialDepositMultiAsset,
+					xcm_config::PriceForChildParachainDelivery,
+					ToParachain,
+					(),
+				>;
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(AssetHubLocation::get())
 				}

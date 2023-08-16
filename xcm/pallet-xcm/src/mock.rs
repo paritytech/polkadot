@@ -16,8 +16,8 @@
 
 use codec::Encode;
 use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{ConstU32, Everything, Nothing},
+	construct_runtime, match_types, parameter_types,
+	traits::{ConstU32, Everything, EverythingBut, Nothing},
 	weights::Weight,
 };
 use frame_system::EnsureRoot;
@@ -25,14 +25,16 @@ use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
 use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
-pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
+pub use sp_std::{
+	cell::RefCell, collections::btree_map::BTreeMap, fmt::Debug, marker::PhantomData,
+};
 use xcm::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, Case, ChildParachainAsNative, ChildParachainConvertsVia,
 	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible,
 	FixedWeightBounds, IsConcrete, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit,
+	SovereignSignedViaLocation, TakeWeightCredit, XcmFeesToAccount,
 };
 use xcm_executor::XcmExecutor;
 
@@ -154,7 +156,7 @@ pub(crate) fn take_sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
 		r
 	})
 }
-/// Sender that never returns error, always sends
+/// Sender that never returns error.
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	type Ticket = (MultiLocation, Xcm<()>);
@@ -185,6 +187,38 @@ impl SendXcm for TestSendXcmErrX8 {
 		} else {
 			Ok(((dest, msg), MultiAssets::new()))
 		}
+	}
+	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
+		let hash = fake_message_hash(&pair.1);
+		SENT_XCM.with(|q| q.borrow_mut().push(pair));
+		Ok(hash)
+	}
+}
+
+parameter_types! {
+	pub Para3000: u32 = 3000;
+	pub Para3000Location: MultiLocation = Parachain(Para3000::get()).into();
+	pub Para3000PaymentAmount: u128 = 1;
+	pub Para3000PaymentMultiAssets: MultiAssets = MultiAssets::from(MultiAsset::from((Here, Para3000PaymentAmount::get())));
+}
+/// Sender only sends to `Parachain(3000)` destination requiring payment.
+pub struct TestPaidForPara3000SendXcm;
+impl SendXcm for TestPaidForPara3000SendXcm {
+	type Ticket = (MultiLocation, Xcm<()>);
+	fn validate(
+		dest: &mut Option<MultiLocation>,
+		msg: &mut Option<Xcm<()>>,
+	) -> SendResult<(MultiLocation, Xcm<()>)> {
+		if let Some(dest) = dest.as_ref() {
+			if !dest.eq(&Para3000Location::get()) {
+				return Err(SendError::NotApplicable)
+			}
+		} else {
+			return Err(SendError::NotApplicable)
+		}
+
+		let pair = (dest.take().unwrap(), msg.take().unwrap());
+		Ok((pair, Para3000PaymentMultiAssets::get()))
 	}
 	fn deliver(pair: (MultiLocation, Xcm<()>)) -> Result<XcmHash, SendError> {
 		let hash = fake_message_hash(&pair.1);
@@ -271,6 +305,14 @@ parameter_types! {
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
+	pub XcmFeesTargetAccount: AccountId = AccountId::new([167u8; 32]);
+}
+
+pub const XCM_FEES_NOT_WAIVED_USER_ACCOUNT: [u8; 32] = [37u8; 32];
+match_types! {
+	pub type XcmFeesNotWaivedLocations: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Junction::AccountId32 {network: None, id: XCM_FEES_NOT_WAIVED_USER_ACCOUNT})}
+	};
 }
 
 pub type Barrier = (
@@ -283,7 +325,7 @@ pub type Barrier = (
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type RuntimeCall = RuntimeCall;
-	type XcmSender = TestSendXcm;
+	type XcmSender = (TestPaidForPara3000SendXcm, TestSendXcm);
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
@@ -300,7 +342,12 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
-	type FeeManager = ();
+	type FeeManager = XcmFeesToAccount<
+		Self,
+		EverythingBut<XcmFeesNotWaivedLocations>,
+		AccountId,
+		XcmFeesTargetAccount,
+	>;
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
@@ -322,7 +369,7 @@ parameter_types! {
 impl pallet_xcm::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
-	type XcmRouter = (TestSendXcmErrX8, TestSendXcm);
+	type XcmRouter = (TestSendXcmErrX8, TestPaidForPara3000SendXcm, TestSendXcm);
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = XcmExecutor<XcmConfig>;

@@ -140,6 +140,7 @@ impl xcm_executor::Config for XcmConfig {
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 	type AccountIdConverter = AccountIdConverter;
+	type DeliveryHelper = ();
 	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
 			Junction::AccountId32 { network: None, id: [0u8; 32] }.into();

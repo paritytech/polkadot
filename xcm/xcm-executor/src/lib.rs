@@ -405,10 +405,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		reason: FeeReason,
 	) -> Result<XcmHash, XcmError> {
 		let (ticket, fee) = validate_send::<Config::XcmSender>(dest, msg)?;
-		if !Config::FeeManager::is_waived(self.origin_ref(), reason) {
-			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
-			Config::FeeManager::handle_fee(paid.into(), Some(&self.context));
-		}
+		self.take_fee(fee, reason)?;
 		Config::XcmSender::deliver(ticket).map_err(Into::into)
 	}
 
@@ -948,6 +945,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		if Config::FeeManager::is_waived(self.origin_ref(), reason) {
 			return Ok(())
 		}
+		log::trace!(
+			target: "xcm::fees",
+			"taking fee: {:?} from origin_ref: {:?} in fees_mode: {:?} for a reason: {:?}",
+			fee,
+			self.origin_ref(),
+			self.fees_mode,
+			reason,
+		);
 		let paid = if self.fees_mode.jit_withdraw {
 			let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 			for asset in fee.inner() {
@@ -989,12 +994,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let QueryResponseInfo { destination, query_id, max_weight } = info;
 		let instruction = QueryResponse { query_id, response, max_weight, querier };
 		let message = Xcm(vec![instruction]);
-		let (ticket, fee) = validate_send::<Config::XcmSender>(destination, message)?;
-		if !Config::FeeManager::is_waived(self.origin_ref(), fee_reason) {
-			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
-			Config::FeeManager::handle_fee(paid.into(), Some(&self.context));
-		}
-		Config::XcmSender::deliver(ticket).map_err(Into::into)
+		self.send(destination, message, fee_reason)
 	}
 
 	fn try_reanchor(

@@ -22,7 +22,10 @@ use codec::Encode;
 use frame_benchmarking::{account, BenchmarkError};
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
-use xcm_executor::{traits::ConvertLocation, Config as XcmConfig};
+use xcm_executor::{
+	traits::{ConvertLocation, FeeReason},
+	Config as XcmConfig, FeesMode,
+};
 
 pub mod fungible;
 pub mod generic;
@@ -40,6 +43,9 @@ pub trait Config: frame_system::Config {
 
 	/// A converter between a multi-location to a sovereign account.
 	type AccountIdConverter: ConvertLocation<Self::AccountId>;
+
+	/// Helper that ensures successful delivery for XCM instructions which need `SendXcm`.
+	type DeliveryHelper: EnsureDelivery;
 
 	/// Does any necessary setup to create a valid destination for XCM messages.
 	/// Returns that destination's multi-location to be used in benchmarks.
@@ -107,4 +113,30 @@ pub fn account_and_location<T: Config>(index: u32) -> (T::AccountId, MultiLocati
 	let account = T::AccountIdConverter::convert_location(&location).unwrap();
 
 	(account, location)
+}
+
+/// Trait for a type which ensures all requirements for successful delivery with XCM transport
+/// layers.
+pub trait EnsureDelivery {
+	/// Prepare all requirements for successful `XcmSender: SendXcm` passing (accounts, balances,
+	/// channels ...). Returns:
+	/// - possible `FeesMode` which is expected to be set to executor
+	/// - possible `MultiAssets` which are expected to be subsume to the Holding Register
+	fn ensure_successful_delivery(
+		origin_ref: &MultiLocation,
+		dest: &MultiLocation,
+		fee_reason: FeeReason,
+	) -> (Option<FeesMode>, Option<MultiAssets>);
+}
+
+/// `()` implementation does nothing which means no special requirements for environment.
+impl EnsureDelivery for () {
+	fn ensure_successful_delivery(
+		_origin_ref: &MultiLocation,
+		_dest: &MultiLocation,
+		_fee_reason: FeeReason,
+	) -> (Option<FeesMode>, Option<MultiAssets>) {
+		// doing nothing
+		(None, None)
+	}
 }

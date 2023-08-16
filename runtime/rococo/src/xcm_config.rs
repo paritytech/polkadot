@@ -96,15 +96,14 @@ parameter_types! {
 	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 }
 
+pub type PriceForChildParachainDelivery =
+	ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, Dmp>;
+
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
 pub type XcmRouter = WithUniqueTopic<(
 	// Only one router so far - use DMP to communicate with child parachains.
-	ChildParachainRouter<
-		Runtime,
-		XcmPallet,
-		ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, Dmp>,
-	>,
+	ChildParachainRouter<Runtime, XcmPallet, PriceForChildParachainDelivery>,
 )>;
 
 parameter_types! {
@@ -139,6 +138,9 @@ pub type TrustedTeleporters = (
 match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+	pub type HereLocation: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: Here }
 	};
 }
 
@@ -319,7 +321,8 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
-	type FeeManager = XcmFeesToAccount<Self, SystemParachains, AccountId, TreasuryAccount>;
+	type FeeManager =
+		XcmFeesToAccount<Self, (SystemParachains, HereLocation), AccountId, TreasuryAccount>;
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 	type CallDispatcher = WithOriginFilter<SafeCallFilter>;
