@@ -115,7 +115,8 @@ where
 }
 
 /// Adapter for `UniversalWeigher` which can estimate weights for an XCM program,
-/// that is executed on destination with possibility to add additional instructions on the way (e.g. SetTopic, UniversalOrigin, ...).
+/// that is executed on destination with possibility to add additional instructions on the way (e.g.
+/// SetTopic, UniversalOrigin, ...).
 pub struct UniversalWeigherAdapter<Weigher, AdditionalInstructions>(
 	PhantomData<(Weigher, AdditionalInstructions)>,
 );
