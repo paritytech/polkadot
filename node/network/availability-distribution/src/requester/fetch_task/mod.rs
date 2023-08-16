@@ -260,6 +260,8 @@ impl RunningTask {
 		let mut succeeded = false;
 		let mut count: u32 = 0;
 		let mut span = self.span.child("run-fetch-chunk-task").with_relay_parent(self.relay_parent);
+		let mut network_error_freq = gum::Freq::new();
+		let mut canceled_freq = gum::Freq::new();
 		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
 			// Report retries:
@@ -272,7 +274,10 @@ impl RunningTask {
 				.with_chunk_index(self.request.index.0)
 				.with_stage(jaeger::Stage::AvailabilityDistribution);
 			// Send request:
-			let resp = match self.do_request(&validator).await {
+			let resp = match self
+				.do_request(&validator, &mut network_error_freq, &mut canceled_freq)
+				.await
+			{
 				Ok(resp) => resp,
 				Err(TaskError::ShuttingDown) => {
 					gum::info!(
@@ -310,7 +315,8 @@ impl RunningTask {
 					continue
 				},
 			};
-			// We drop the span so that the span is not active whilst we validate and store the chunk.
+			// We drop the span so that the span is not active whilst we validate and store the
+			// chunk.
 			drop(_chunk_recombine_span);
 			let _chunk_validate_and_store_span = span
 				.child("validate-and-store-chunk")
@@ -342,6 +348,8 @@ impl RunningTask {
 	async fn do_request(
 		&mut self,
 		validator: &AuthorityDiscoveryId,
+		nerwork_error_freq: &mut gum::Freq,
+		canceled_freq: &mut gum::Freq,
 	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		gum::trace!(
 			target: LOG_TARGET,
@@ -386,7 +394,9 @@ impl RunningTask {
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::NetworkError(err)) => {
-				gum::debug!(
+				gum::warn_if_frequent!(
+					freq: nerwork_error_freq,
+					max_rate: gum::Times::PerHour(100),
 					target: LOG_TARGET,
 					origin = ?validator,
 					relay_parent = ?self.relay_parent,
@@ -400,7 +410,9 @@ impl RunningTask {
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::Canceled(oneshot::Canceled)) => {
-				gum::debug!(
+				gum::warn_if_frequent!(
+					freq: canceled_freq,
+					max_rate: gum::Times::PerHour(100),
 					target: LOG_TARGET,
 					origin = ?validator,
 					relay_parent = ?self.relay_parent,

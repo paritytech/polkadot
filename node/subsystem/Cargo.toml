@@ -4,6 +4,7 @@ description = "Subsystem traits and message definitions and the generated overse
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 polkadot-overseer = { path = "../overseer" }

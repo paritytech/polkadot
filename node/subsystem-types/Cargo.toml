@@ -4,6 +4,7 @@ description = "Subsystem traits and message definitions"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 derive_more = "0.99.17"
@@ -18,6 +19,7 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 smallvec = "1.8.0"
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.31"

@@ -3,11 +3,12 @@ name = "polkadot-node-core-runtime-api"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
-lru = "0.9"
+lru = "0.11.0"
 
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -18,9 +19,9 @@ polkadot-node-subsystem-types = { path = "../../subsystem-types" }
 
 [dev-dependencies]
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+async-trait = "0.1.57"
 futures = { version = "0.3.21", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-node-primitives = { path = "../../primitives" }

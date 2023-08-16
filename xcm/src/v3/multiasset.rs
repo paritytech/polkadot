@@ -17,11 +17,14 @@
 //! Cross-Consensus Message format asset data structures.
 //!
 //! This encompasses four types for representing assets:
-//! - `MultiAsset`: A description of a single asset, either an instance of a non-fungible or some amount of a fungible.
-//! - `MultiAssets`: A collection of `MultiAsset`s. These are stored in a `Vec` and sorted with fungibles first.
-//! - `Wild`: A single asset wildcard, this can either be "all" assets, or all assets of a specific kind.
-//! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
-//!   account.
+//! - `MultiAsset`: A description of a single asset, either an instance of a non-fungible or some
+//!   amount of a fungible.
+//! - `MultiAssets`: A collection of `MultiAsset`s. These are stored in a `Vec` and sorted with
+//!   fungibles first.
+//! - `Wild`: A single asset wildcard, this can either be "all" assets, or all assets of a specific
+//!   kind.
+//! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently
+//!   filtering an XCM holding account.
 
 use super::{InteriorMultiLocation, MultiLocation};
 use crate::v2::{
@@ -47,8 +50,8 @@ pub enum AssetInstance {
 	/// Undefined - used if the non-fungible asset class has only one instance.
 	Undefined,
 
-	/// A compact index. Technically this could be greater than `u128`, but this implementation supports only
-	/// values up to `2**128 - 1`.
+	/// A compact index. Technically this could be greater than `u128`, but this implementation
+	/// supports only values up to `2**128 - 1`.
 	Index(#[codec(compact)] u128),
 
 	/// A 4-byte fixed-length datum.
@@ -234,7 +237,8 @@ impl TryFrom<AssetInstance> for u128 {
 	}
 }
 
-/// Classification of whether an asset is fungible or not, along with a mandatory amount or instance.
+/// Classification of whether an asset is fungible or not, along with a mandatory amount or
+/// instance.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Fungibility {
@@ -387,13 +391,14 @@ impl AssetId {
 		Ok(())
 	}
 
-	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `MultiAsset` value.
+	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding
+	/// `MultiAsset` value.
 	pub fn into_multiasset(self, fun: Fungibility) -> MultiAsset {
 		MultiAsset { fun, id: self }
 	}
 
-	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `WildMultiAsset`
-	/// wildcard (`AllOf`) value.
+	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding
+	/// `WildMultiAsset` wildcard (`AllOf`) value.
 	pub fn into_wild(self, fun: WildFungibility) -> WildMultiAsset {
 		WildMultiAsset::AllOf { fun, id: self }
 	}
@@ -406,7 +411,7 @@ pub struct MultiAsset {
 	/// The overall asset identity (aka *class*, in the case of a non-fungible).
 	pub id: AssetId,
 	/// The fungibility of the asset, which contains either the amount (in the case of a fungible
-	/// asset) or the *insance ID`, the secondary asset identifier.
+	/// asset) or the *instance ID*, the secondary asset identifier.
 	pub fun: Fungibility,
 }
 
@@ -576,11 +581,12 @@ impl MultiAssets {
 		Self(Vec::new())
 	}
 
-	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted and
-	/// which contain no duplicates.
+	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted
+	/// and which contain no duplicates.
 	///
-	/// Returns `Ok` if the operation succeeds and `Err` if `r` is out of order or had duplicates. If you can't
-	/// guarantee that `r` is sorted and deduplicated, then use `From::<Vec<MultiAsset>>::from` which is infallible.
+	/// Returns `Ok` if the operation succeeds and `Err` if `r` is out of order or had duplicates.
+	/// If you can't guarantee that `r` is sorted and deduplicated, then use
+	/// `From::<Vec<MultiAsset>>::from` which is infallible.
 	pub fn from_sorted_and_deduplicated(r: Vec<MultiAsset>) -> Result<Self, ()> {
 		if r.is_empty() {
 			return Ok(Self(Vec::new()))
@@ -595,20 +601,22 @@ impl MultiAssets {
 		Ok(Self(r))
 	}
 
-	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted and
-	/// which contain no duplicates.
+	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted
+	/// and which contain no duplicates.
 	///
-	/// In release mode, this skips any checks to ensure that `r` is correct, making it a negligible-cost operation.
-	/// Generally though you should avoid using it unless you have a strict proof that `r` is valid.
+	/// In release mode, this skips any checks to ensure that `r` is correct, making it a
+	/// negligible-cost operation. Generally though you should avoid using it unless you have a
+	/// strict proof that `r` is valid.
 	#[cfg(test)]
 	pub fn from_sorted_and_deduplicated_skip_checks(r: Vec<MultiAsset>) -> Self {
 		Self::from_sorted_and_deduplicated(r).expect("Invalid input r is not sorted/deduped")
 	}
-	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted and
-	/// which contain no duplicates.
+	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted
+	/// and which contain no duplicates.
 	///
-	/// In release mode, this skips any checks to ensure that `r` is correct, making it a negligible-cost operation.
-	/// Generally though you should avoid using it unless you have a strict proof that `r` is valid.
+	/// In release mode, this skips any checks to ensure that `r` is correct, making it a
+	/// negligible-cost operation. Generally though you should avoid using it unless you have a
+	/// strict proof that `r` is valid.
 	///
 	/// In test mode, this checks anyway and panics on fail.
 	#[cfg(not(test))]
@@ -616,7 +624,8 @@ impl MultiAssets {
 		Self(r)
 	}
 
-	/// Add some asset onto the list, saturating. This is quite a laborious operation since it maintains the ordering.
+	/// Add some asset onto the list, saturating. This is quite a laborious operation since it
+	/// maintains the ordering.
 	pub fn push(&mut self, a: MultiAsset) {
 		for asset in self.0.iter_mut().filter(|x| x.id == a.id) {
 			match (&a.fun, &mut asset.fun) {

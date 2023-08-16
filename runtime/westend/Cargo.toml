@@ -4,6 +4,7 @@ build = "build.rs"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
@@ -76,7 +77,7 @@ pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/sub
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
+pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false, features=["experimental"] }
 pallet-xcm-benchmarks = { path = "../../xcm/pallet-xcm-benchmarks", default-features = false, optional = true }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -88,7 +89,7 @@ pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate"
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 hex-literal = { version = "0.4.1", optional = true }
 
-runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
+runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false, features=["experimental"] }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }

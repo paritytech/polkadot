@@ -27,6 +27,7 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{AssignmentId, AuthorityDiscoveryId, ExecutorParams, SessionIndex, SessionInfo};
 use sp_std::vec::Vec;
 
@@ -125,7 +126,7 @@ impl<T: pallet_authority_discovery::Config> AuthorityDiscoveryConfig for T {
 impl<T: Config> Pallet<T> {
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
-		notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>,
+		notification: &crate::initializer::SessionChangeNotification<BlockNumberFor<T>>,
 	) {
 		let config = <configuration::Pallet<T>>::config();
 
@@ -195,7 +196,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Called by the initializer to initialize the session info pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 

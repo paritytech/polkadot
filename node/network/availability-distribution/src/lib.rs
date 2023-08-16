@@ -97,6 +97,7 @@ impl AvailabilityDistributionSubsystem {
 
 		let IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver } = recvs;
 		let mut requester = Requester::new(metrics.clone()).fuse();
+		let mut warn_freq = gum::Freq::new();
 
 		{
 			let sender = ctx.sender().clone();
@@ -147,6 +148,7 @@ impl AvailabilityDistributionSubsystem {
 							.update_fetching_heads(&mut ctx, &mut runtime, update, &spans)
 							.await,
 						"Error in Requester::update_fetching_heads",
+						&mut warn_freq,
 					)?;
 				},
 				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, _)) => {
@@ -188,6 +190,7 @@ impl AvailabilityDistributionSubsystem {
 						)
 						.await,
 						"pov_requester::fetch_pov",
+						&mut warn_freq,
 					)?;
 				},
 			}

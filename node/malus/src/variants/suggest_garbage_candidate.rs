@@ -33,6 +33,7 @@ use polkadot_cli::{
 };
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
+use polkadot_node_subsystem_types::DefaultSubsystemClient;
 use polkadot_primitives::{CandidateDescriptor, CandidateReceipt};
 
 use polkadot_node_subsystem_util::request_validators;
@@ -87,17 +88,18 @@ where
 					"Received request to second candidate",
 				);
 
-				// Need to draw value from Bernoulli distribution with given probability of success defined by the clap parameter.
-				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function.
-				// It must be converted from u8, due to the lack of support for the .range() call on u64 in the clap crate.
+				// Need to draw value from Bernoulli distribution with given probability of success
+				// defined by the clap parameter. Note that clap parameter must be f64 since this is
+				// expected by the Bernoulli::new() function. It must be converted from u8, due to
+				// the lack of support for the .range() call on u64 in the clap crate.
 				let distribution = Bernoulli::new(self.percentage / 100.0)
 					.expect("Invalid probability! Percentage must be in range [0..=100].");
 
-				// Draw a random boolean from the Bernoulli distribution with probability of true equal to `p`.
-				// We use `rand::thread_rng` as the source of randomness.
+				// Draw a random boolean from the Bernoulli distribution with probability of true
+				// equal to `p`. We use `rand::thread_rng` as the source of randomness.
 				let generate_malicious_candidate = distribution.sample(&mut rand::thread_rng());
 
-				if generate_malicious_candidate == true {
+				if generate_malicious_candidate {
 					gum::debug!(target: MALUS, "😈 Suggesting malicious candidate.",);
 
 					let pov = PoV { block_data: BlockData(MALICIOUS_POV.into()) };
@@ -251,11 +253,14 @@ pub(crate) struct SuggestGarbageCandidates {
 }
 
 impl OverseerGen for SuggestGarbageCandidates {
-	fn generate<'a, Spawner, RuntimeClient>(
+	fn generate<Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
+		args: OverseerGenArgs<'_, Spawner, RuntimeClient>,
+	) -> Result<
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		Error,
+	>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,

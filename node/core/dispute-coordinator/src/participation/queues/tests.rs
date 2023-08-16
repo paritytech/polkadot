@@ -38,13 +38,13 @@ fn make_dummy_comparator(
 	CandidateComparator::new_dummy(relay_parent, *req.candidate_hash())
 }
 
-/// Make a partial clone of the given ParticipationRequest, just missing
-/// the request_timer field. We prefer this helper to implementing Clone
-/// for ParticipationRequest, since we only clone requests in tests.
+/// Make a partial clone of the given `ParticipationRequest`, just missing
+/// the `request_timer` field. We prefer this helper to implementing Clone
+/// for `ParticipationRequest`, since we only clone requests in tests.
 fn clone_request(request: &ParticipationRequest) -> ParticipationRequest {
 	ParticipationRequest {
 		candidate_receipt: request.candidate_receipt.clone(),
-		candidate_hash: request.candidate_hash.clone(),
+		candidate_hash: request.candidate_hash,
 		session: request.session,
 		request_timer: None,
 	}
@@ -53,8 +53,8 @@ fn clone_request(request: &ParticipationRequest) -> ParticipationRequest {
 /// Check that dequeuing acknowledges order.
 ///
 /// Any priority item will be dequeued before any best effort items, priority and best effort with
-/// known parent block number items will be processed in order. Best effort items without known parent
-/// block number should be treated with lowest priority.
+/// known parent block number items will be processed in order. Best effort items without known
+/// parent block number should be treated with lowest priority.
 #[test]
 fn ordering_works_as_expected() {
 	let metrics = Metrics::default();

@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Network Bridge Subsystem - handles _incoming_ messages from the network, forwarded to the relevant subsystems.
+//! The Network Bridge Subsystem - handles _incoming_ messages from the network, forwarded to the
+//! relevant subsystems.
 use super::*;
 
 use always_assert::never;
@@ -86,7 +87,8 @@ pub struct NetworkBridgeRx<N, AD> {
 }
 
 impl<N, AD> NetworkBridgeRx<N, AD> {
-	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
+	/// Create a new network bridge subsystem with underlying network service and authority
+	/// discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
@@ -371,7 +373,7 @@ where
 					Ok(v) => v,
 				};
 
-				// non-decoded, but version-checked colldation messages.
+				// non-decoded, but version-checked collation messages.
 				let c_messages: Result<Vec<_>, _> = messages
 					.iter()
 					.filter_map(|(protocol, msg_bytes)| {
@@ -552,6 +554,27 @@ where
 						topology: SessionGridTopology::new(shuffled_indices, topology_peers),
 						local_index,
 					}),
+					ctx.sender(),
+				);
+			},
+			FromOrchestra::Communication {
+				msg: NetworkBridgeRxMessage::UpdatedAuthorityIds { peer_id, authority_ids },
+			} => {
+				gum::debug!(
+					target: LOG_TARGET,
+					action = "UpdatedAuthorityIds",
+					?peer_id,
+					?authority_ids,
+					"`AuthorityDiscoveryId`s have changed",
+				);
+				// using unbounded send to avoid cycles
+				// the messages are sent only once per session up to one per peer
+				dispatch_collation_event_to_all_unbounded(
+					NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids.clone()),
+					ctx.sender(),
+				);
+				dispatch_validation_event_to_all_unbounded(
+					NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids),
 					ctx.sender(),
 				);
 			},

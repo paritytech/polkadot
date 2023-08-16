@@ -42,7 +42,6 @@ for PALLET in "${PALLETS[@]}"; do
     --repeat=20 \
     --pallet="$PALLET" \
     --extrinsic="*" \
-    --execution=wasm \
     --wasm-execution=compiled \
     --header=./file_header.txt \
     --output="./runtime/${runtime}/src/weights/${output_file}" 2>&1
@@ -58,7 +57,6 @@ echo "[+] Benchmarking block and extrinsic overheads..."
 OUTPUT=$(
   ./target/production/polkadot benchmark overhead \
   --chain="${runtime}-dev" \
-  --execution=wasm \
   --wasm-execution=compiled \
   --weight-path="runtime/${runtime}/constants/src/weights/" \
   --warmup=10 \

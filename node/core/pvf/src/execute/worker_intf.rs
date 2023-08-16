@@ -45,14 +45,14 @@ pub async fn spawn(
 	program_path: &Path,
 	executor_params: ExecutorParams,
 	spawn_timeout: Duration,
+	node_version: Option<&str>,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	let (mut idle_worker, worker_handle) = spawn_with_program_path(
-		"execute",
-		program_path,
-		&["execute-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
-		spawn_timeout,
-	)
-	.await?;
+	let mut extra_args = vec!["execute-worker"];
+	if let Some(node_version) = node_version {
+		extra_args.extend_from_slice(&["--node-impl-version", node_version]);
+	}
+	let (mut idle_worker, worker_handle) =
+		spawn_with_program_path("execute", program_path, &extra_args, spawn_timeout).await?;
 	send_handshake(&mut idle_worker.stream, Handshake { executor_params })
 		.await
 		.map_err(|error| {
@@ -74,8 +74,9 @@ pub enum Outcome {
 	/// PVF execution completed successfully and the result is returned. The worker is ready for
 	/// another job.
 	Ok { result_descriptor: ValidationResult, duration: Duration, idle_worker: IdleWorker },
-	/// The candidate validation failed. It may be for example because the wasm execution triggered a trap.
-	/// Errors related to the preparation process are not expected to be encountered by the execution workers.
+	/// The candidate validation failed. It may be for example because the wasm execution triggered
+	/// a trap. Errors related to the preparation process are not expected to be encountered by the
+	/// execution workers.
 	InvalidCandidate { err: String, idle_worker: IdleWorker },
 	/// An internal error happened during the validation. Such an error is most likely related to
 	/// some transient glitch.
@@ -95,7 +96,8 @@ pub enum Outcome {
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
 /// returns the outcome.
 ///
-/// NOTE: Not returning the idle worker token in `Outcome` will trigger the child process being killed.
+/// NOTE: Not returning the idle worker token in `Outcome` will trigger the child process being
+/// killed.
 pub async fn start_work(
 	worker: IdleWorker,
 	artifact: ArtifactPathId,

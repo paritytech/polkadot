@@ -86,7 +86,8 @@ pub enum Error {
 	/// Used by `Transact` when the functor cannot be decoded.
 	#[codec(index = 17)]
 	FailedToDecode,
-	/// Used by `Transact` to indicate that the given weight limit could be breached by the functor.
+	/// Used by `Transact` to indicate that the given weight limit could be breached by the
+	/// functor.
 	#[codec(index = 18)]
 	MaxWeightInvalid,
 	/// Used by `BuyExecution` when the Holding Register does not contain payable fees.
@@ -138,7 +139,8 @@ pub enum Error {
 	#[codec(index = 34)]
 	NotDepositable,
 
-	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
+	// Errors that happen prior to instructions being executed. These fall outside of the XCM
+	// spec.
 	/// XCM version not able to be handled.
 	UnhandledXcmVersion,
 	/// Execution of the XCM would potentially result in a greater weight used than weight limit.
@@ -263,7 +265,8 @@ impl From<Error> for Outcome {
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
 	Complete(Weight),
-	/// Execution started, but did not complete successfully due to the given error; given weight was used.
+	/// Execution started, but did not complete successfully due to the given error; given weight
+	/// was used.
 	Incomplete(Weight, Error),
 	/// Execution did not start due to the given error.
 	Error(Error),
@@ -510,7 +513,7 @@ pub type SendResult<T> = result::Result<(T, MultiAssets), SendError>;
 /// # }
 /// ```
 pub trait SendXcm {
-	/// Intermediate value which connects the two phaases of the send operation.
+	/// Intermediate value which connects the two phases of the send operation.
 	type Ticket;
 
 	/// Check whether the given `_message` is deliverable to the given `_destination` and if so

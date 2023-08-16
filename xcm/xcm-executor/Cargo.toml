@@ -3,6 +3,7 @@ name = "xcm-executor"
 description = "An abstract and configurable XCM message executor."
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 
 [dependencies]
@@ -36,4 +37,5 @@ std = [
 	"sp-weights/std",
 	"frame-support/std",
 	"log/std",
+	"frame-benchmarking/std",
 ]

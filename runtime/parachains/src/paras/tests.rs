@@ -280,7 +280,6 @@ fn para_past_code_pruning_in_initialize() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -333,7 +332,6 @@ fn note_new_head_sets_head() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -375,7 +373,6 @@ fn note_past_code_sets_up_pruning_correctly() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -422,10 +419,8 @@ fn code_upgrade_applied_after_delay() {
 				code_retention_period,
 				validation_upgrade_delay,
 				validation_upgrade_cooldown,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -536,10 +531,8 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 				code_retention_period,
 				validation_upgrade_delay,
 				validation_upgrade_cooldown,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -620,10 +613,8 @@ fn submit_code_change_when_not_allowed_is_err() {
 				code_retention_period,
 				validation_upgrade_delay,
 				validation_upgrade_cooldown,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -652,7 +643,8 @@ fn submit_code_change_when_not_allowed_is_err() {
 		Paras::schedule_code_upgrade(para_id, newer_code.clone(), 2, &Configuration::config());
 		assert_eq!(
 			FutureCodeUpgrades::<Test>::get(&para_id),
-			Some(1 + validation_upgrade_delay), // did not change since the same assertion from the last time.
+			Some(1 + validation_upgrade_delay), /* did not change since the same assertion from
+			                                     * the last time. */
 		);
 		assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 		check_code_is_not_stored(&newer_code);
@@ -691,10 +683,8 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 				code_retention_period,
 				validation_upgrade_delay,
 				validation_upgrade_cooldown,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -753,7 +743,6 @@ fn full_parachain_cleanup_storage() {
 			config: HostConfiguration {
 				code_retention_period,
 				validation_upgrade_delay,
-				pvf_checking_enabled: false,
 				minimum_validation_upgrade_delay: 2,
 				// Those are not relevant to this test. However, HostConfiguration is still a
 				// subject for the consistency check.
@@ -761,7 +750,6 @@ fn full_parachain_cleanup_storage() {
 				thread_availability_period: 1,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -861,10 +849,6 @@ fn cannot_offboard_ongoing_pvf_check() {
 
 	let genesis_config = MockGenesisConfig {
 		paras: GenesisConfig { paras, ..Default::default() },
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
-			..Default::default()
-		},
 		..Default::default()
 	};
 
@@ -901,13 +885,7 @@ fn para_incoming_at_session() {
 	let code_b = ValidationCode(vec![1]);
 	let code_c = ValidationCode(vec![3]);
 
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = MockGenesisConfig::default();
 
 	new_test_ext(genesis_config).execute_with(|| {
 		run_to_block(1, Some(vec![1]));
@@ -1025,10 +1003,8 @@ fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 			config: HostConfiguration {
 				code_retention_period,
 				validation_upgrade_delay,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1118,12 +1094,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 	let genesis_config = MockGenesisConfig {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration {
-				pvf_checking_enabled: true,
-				validation_upgrade_delay,
-				..Default::default()
-			},
-			..Default::default()
+			config: HostConfiguration { validation_upgrade_delay, ..Default::default() },
 		},
 		..Default::default()
 	};
@@ -1187,12 +1158,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration {
-				pvf_checking_enabled: true,
-				pvf_voting_ttl,
-				..Default::default()
-			},
-			..Default::default()
+			config: HostConfiguration { pvf_voting_ttl, ..Default::default() },
 		},
 		..Default::default()
 	};
@@ -1250,10 +1216,6 @@ fn pvf_check_upgrade_reject() {
 
 	let genesis_config = MockGenesisConfig {
 		paras: GenesisConfig { paras, ..Default::default() },
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
-			..Default::default()
-		},
 		..Default::default()
 	};
 
@@ -1330,13 +1292,7 @@ fn pvf_check_submit_vote() {
 		(validate_unsigned, dispatch_result)
 	};
 
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = MockGenesisConfig::default();
 
 	new_test_ext(genesis_config).execute_with(|| {
 		// Important to run this to seed the validators.
@@ -1440,10 +1396,6 @@ fn include_pvf_check_statement_refunds_weight() {
 
 	let genesis_config = MockGenesisConfig {
 		paras: GenesisConfig { paras, ..Default::default() },
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
-			..Default::default()
-		},
 		..Default::default()
 	};
 
@@ -1592,8 +1544,9 @@ fn increase_code_ref_doesnt_have_allergy_on_add_trusted_validation_code() {
 
 #[test]
 fn add_trusted_validation_code_insta_approval() {
-	// In particular, this tests that `kick_off_pvf_check` reacts to the `add_trusted_validation_code`
-	// and uses the `CodeByHash::contains_key` which is what `add_trusted_validation_code` uses.
+	// In particular, this tests that `kick_off_pvf_check` reacts to the
+	// `add_trusted_validation_code` and uses the `CodeByHash::contains_key` which is what
+	// `add_trusted_validation_code` uses.
 	let para_id = 100.into();
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	let validation_upgrade_delay = 25;
@@ -1601,12 +1554,10 @@ fn add_trusted_validation_code_insta_approval() {
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration {
-				pvf_checking_enabled: true,
 				validation_upgrade_delay,
 				minimum_validation_upgrade_delay,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1621,8 +1572,7 @@ fn add_trusted_validation_code_insta_approval() {
 		Paras::schedule_code_upgrade(para_id, validation_code.clone(), 1, &Configuration::config());
 		Paras::note_new_head(para_id, HeadData::default(), 1);
 
-		// Verify that the code upgrade has `expected_at` set to `26`. This is the behavior
-		// equal to that of `pvf_checking_enabled: false`.
+		// Verify that the code upgrade has `expected_at` set to `26`.
 		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(1 + validation_upgrade_delay));
 
 		// Verify that the required events were emitted.
@@ -1645,12 +1595,10 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration {
-				pvf_checking_enabled: true,
 				validation_upgrade_delay,
 				minimum_validation_upgrade_delay,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};

@@ -105,7 +105,13 @@ impl Network for TestNetwork {
 		Ok(())
 	}
 
-	async fn remove_from_peers_set(&mut self, _protocol: ProtocolName, _: Vec<PeerId>) {}
+	async fn remove_from_peers_set(
+		&mut self,
+		_protocol: ProtocolName,
+		_: Vec<PeerId>,
+	) -> Result<(), String> {
+		Ok(())
+	}
 
 	async fn start_request<AD: AuthorityDiscovery>(
 		&self,
@@ -236,7 +242,7 @@ fn send_messages_to_peers() {
 		let peer = PeerId::random();
 
 		network_handle
-			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
+			.connect_peer(peer, PeerSet::Validation, ObservedRole::Full)
 			.timeout(TIMEOUT)
 			.await
 			.expect("Timeout does not occur");
@@ -245,7 +251,7 @@ fn send_messages_to_peers() {
 		// so the single item sink has to be free explicitly
 
 		network_handle
-			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
+			.connect_peer(peer, PeerSet::Collation, ObservedRole::Full)
 			.timeout(TIMEOUT)
 			.await
 			.expect("Timeout does not occur");
@@ -263,7 +269,7 @@ fn send_messages_to_peers() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeTxMessage::SendValidationMessage(
-						vec![peer.clone()],
+						vec![peer],
 						Versioned::V1(message_v1.clone()),
 					),
 				})
@@ -278,7 +284,7 @@ fn send_messages_to_peers() {
 					.await
 					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
-					peer.clone(),
+					peer,
 					PeerSet::Validation,
 					WireMessage::ProtocolMessage(message_v1).encode(),
 				)
@@ -300,7 +306,7 @@ fn send_messages_to_peers() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeTxMessage::SendCollationMessage(
-						vec![peer.clone()],
+						vec![peer],
 						Versioned::V1(message_v1.clone()),
 					),
 				})
@@ -313,7 +319,7 @@ fn send_messages_to_peers() {
 					.await
 					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
-					peer.clone(),
+					peer,
 					PeerSet::Collation,
 					WireMessage::ProtocolMessage(message_v1).encode(),
 				)

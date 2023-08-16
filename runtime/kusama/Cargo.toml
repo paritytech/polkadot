@@ -4,6 +4,7 @@ build = "build.rs"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
@@ -70,7 +71,7 @@ pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-referenda = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["experimental"] }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

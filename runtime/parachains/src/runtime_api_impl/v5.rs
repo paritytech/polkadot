@@ -11,7 +11,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! A module exporting runtime API implementation functions for all runtime APIs using v5
+//! A module exporting runtime API implementation functions for all runtime APIs using `v5`
 //! primitives.
 //!
 //! Runtimes implementing the v2 runtime API are recommended to forward directly to these
@@ -21,6 +21,7 @@ use crate::{
 	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
 	session_info, shared,
 };
+use frame_system::pallet_prelude::*;
 use primitives::{
 	slashing, AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
 	CoreIndex, CoreOccupied, CoreState, DisputeState, ExecutorParams, GroupIndex,
@@ -39,7 +40,7 @@ pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
 
 /// Implementation for the `validator_groups` function of the runtime API.
 pub fn validator_groups<T: initializer::Config>(
-) -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<T::BlockNumber>) {
+) -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumberFor<T>>) {
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 
 	let groups = <scheduler::Pallet<T>>::validator_groups();
@@ -49,7 +50,7 @@ pub fn validator_groups<T: initializer::Config>(
 }
 
 /// Implementation for the `availability_cores` function of the runtime API.
-pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
+pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, BlockNumberFor<T>>> {
 	let cores = <scheduler::Pallet<T>>::availability_cores();
 	let parachains = <paras::Pallet<T>>::parachains();
 	let config = <configuration::Pallet<T>>::config();
@@ -176,7 +177,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 
 /// Returns current block number being processed and the corresponding root hash.
 fn current_relay_parent<T: frame_system::Config>(
-) -> (<T as frame_system::Config>::BlockNumber, <T as frame_system::Config>::Hash) {
+) -> (BlockNumberFor<T>, <T as frame_system::Config>::Hash) {
 	use parity_scale_codec::Decode as _;
 	let state_version = <frame_system::Pallet<T>>::runtime_version().state_version();
 	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
@@ -214,7 +215,7 @@ where
 pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
+) -> Option<PersistedValidationData<T::Hash, BlockNumberFor<T>>> {
 	let (relay_parent_number, relay_parent_storage_root) = current_relay_parent::<T>();
 	with_assumption::<T, _, _>(para_id, assumption, || {
 		crate::util::make_persisted_validation_data::<T>(
@@ -229,7 +230,7 @@ pub fn persisted_validation_data<T: initializer::Config>(
 pub fn assumed_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	expected_persisted_validation_data_hash: Hash,
-) -> Option<(PersistedValidationData<T::Hash, T::BlockNumber>, ValidationCodeHash)> {
+) -> Option<(PersistedValidationData<T::Hash, BlockNumberFor<T>>, ValidationCodeHash)> {
 	let (relay_parent_number, relay_parent_storage_root) = current_relay_parent::<T>();
 	// This closure obtains the `persisted_validation_data` for the given `para_id` and matches
 	// its hash against an expected one.
@@ -355,14 +356,14 @@ pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<Sess
 /// Implementation for the `dmq_contents` function of the runtime API.
 pub fn dmq_contents<T: dmp::Config>(
 	recipient: ParaId,
-) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+) -> Vec<InboundDownwardMessage<BlockNumberFor<T>>> {
 	<dmp::Pallet<T>>::dmq_contents(recipient)
 }
 
 /// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
 pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 	recipient: ParaId,
-) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
+) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumberFor<T>>>> {
 	<hrmp::Pallet<T>>::inbound_hrmp_channels_contents(recipient)
 }
 
@@ -392,7 +393,8 @@ pub fn pvfs_require_precheck<T: paras::Config>() -> Vec<ValidationCodeHash> {
 	<paras::Pallet<T>>::pvfs_require_precheck()
 }
 
-/// Returns the validation code hash for the given parachain making the given `OccupiedCoreAssumption`.
+/// Returns the validation code hash for the given parachain making the given
+/// `OccupiedCoreAssumption`.
 pub fn validation_code_hash<T>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
@@ -407,7 +409,7 @@ where
 
 /// Implementation for `get_session_disputes` function from the runtime API
 pub fn get_session_disputes<T: disputes::Config>(
-) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
+) -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumberFor<T>>)> {
 	<disputes::Pallet<T>>::disputes()
 }
 

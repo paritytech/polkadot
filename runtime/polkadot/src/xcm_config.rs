@@ -42,9 +42,9 @@ use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter,
-	FixedWeightBounds, IsConcrete, MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative,
+	IsConcrete, MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
-	WithComputedOrigin,
+	WeightInfoBounds, WithComputedOrigin,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -63,8 +63,8 @@ parameter_types! {
 	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
 }
 
-/// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to determine
-/// the sovereign account controlled by a location.
+/// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to
+/// determine the sovereign account controlled by a location.
 pub type SovereignAccountOf = (
 	// We can convert a child parachain using the standard `AccountId` conversion.
 	ChildParachainConvertsVia<ParaId, AccountId>,
@@ -72,8 +72,8 @@ pub type SovereignAccountOf = (
 	AccountId32Aliases<ThisNetwork, AccountId>,
 );
 
-/// Our asset transactor. This is what allows us to interact with the runtime assets from the point of
-/// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
+/// Our asset transactor. This is what allows us to interact with the runtime assets from the point
+/// of view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
 ///
 /// Ours is only aware of the Balances pallet, which is mapped to `TokenLocation`.
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
@@ -109,9 +109,6 @@ type LocalOriginConverter = (
 parameter_types! {
 	/// The amount of weight an XCM operation takes. This is a safe overestimate.
 	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000_000_000, 1024);
-	/// A temporary weight value for each XCM instruction.
-	/// NOTE: This should be removed after we account for PoV weights.
-	pub const TempFixedXcmWeight: Weight = Weight::from_parts(1_000_000_000, 0);
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;
@@ -134,7 +131,8 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Dot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(STATEMINT_ID).into_location());
+	pub const StatemintLocation: MultiLocation = Parachain(STATEMINT_ID).into_location();
+	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), StatemintLocation::get());
 	pub const CollectivesLocation: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
 	pub const DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), CollectivesLocation::get());
 	pub const MaxAssetsIntoHolding: u32 = 64;
@@ -326,7 +324,11 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<TempFixedXcmWeight, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<
+		crate::weights::xcm::PolkadotXcmWeight<RuntimeCall>,
+		RuntimeCall,
+		MaxInstructions,
+	>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader =
 		UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
@@ -367,8 +369,8 @@ pub type CouncilToPlurality = BackingToPlurality<
 	CouncilBodyId,
 >;
 
-/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain.
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior
+/// location of this chain.
 pub type LocalOriginToLocation = (
 	CouncilToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
@@ -383,11 +385,11 @@ pub type StakingAdminToPlurality =
 pub type FellowshipAdminToPlurality =
 	OriginToPluralityVoice<RuntimeOrigin, FellowshipAdmin, FellowshipAdminBodyId>;
 
-/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain for a destination chain.
+/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an
+/// interior location of this chain for a destination chain.
 pub type LocalPalletOriginToLocation = (
-	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
-	// `Unit` body.
+	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality
+	// of the `Unit` body.
 	CouncilToPlurality,
 	// StakingAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
 	StakingAdminToPlurality,
@@ -397,7 +399,8 @@ pub type LocalPalletOriginToLocation = (
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	// We only allow the root, the council, the fellowship admin and the staking admin to send messages.
+	// We only allow the root, the council, the fellowship admin and the staking admin to send
+	// messages.
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalPalletOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
@@ -407,7 +410,11 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything; // == Allow All
 	type XcmReserveTransferFilter = Everything; // == Allow All
-	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<
+		crate::weights::xcm::PolkadotXcmWeight<RuntimeCall>,
+		RuntimeCall,
+		MaxInstructions,
+	>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;

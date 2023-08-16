@@ -92,8 +92,8 @@ pub struct InitialData {
 pub(crate) struct Initialized {
 	keystore: Arc<LocalKeystore>,
 	runtime_info: RuntimeInfo,
-	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doen't matter if it was
-	/// cached successfully or not. It is used to detect ancient disputes.
+	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doesn't matter if it
+	/// was cached successfully or not. It is used to detect ancient disputes.
 	highest_session_seen: SessionIndex,
 	/// Will be set to `true` if an error occured during the last caching attempt
 	gaps_in_cache: bool,
@@ -308,8 +308,8 @@ impl Initialized {
 				Ok(session_idx)
 					if self.gaps_in_cache || session_idx > self.highest_session_seen =>
 				{
-					// Fetch the last `DISPUTE_WINDOW` number of sessions unless there are no gaps in
-					// cache and we are not missing too many `SessionInfo`s
+					// Fetch the last `DISPUTE_WINDOW` number of sessions unless there are no gaps
+					// in cache and we are not missing too many `SessionInfo`s
 					let mut lower_bound = session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1);
 					if !self.gaps_in_cache && self.highest_session_seen > lower_bound {
 						lower_bound = self.highest_session_seen + 1
@@ -1133,8 +1133,8 @@ impl Initialized {
 		}
 
 		// Participate in dispute if we did not cast a vote before and actually have keys to cast a
-		// local vote. Disputes should fall in one of the categories below, otherwise we will refrain
-		// from participation:
+		// local vote. Disputes should fall in one of the categories below, otherwise we will
+		// refrain from participation:
 		// - `is_included` lands in prioritised queue
 		// - `is_confirmed` | `is_backed` lands in best effort queue
 		// We don't participate in disputes on finalized candidates.

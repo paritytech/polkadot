@@ -28,6 +28,7 @@ use crate::{
 };
 use primitives::{SignedAvailabilityBitfields, UncheckedSignedAvailabilityBitfields};
 
+use assert_matches::assert_matches;
 use frame_support::assert_noop;
 use keyring::Sr25519Keyring;
 use parity_scale_codec::DecodeAll;
@@ -44,7 +45,8 @@ use test_helpers::{dummy_collator, dummy_collator_signature, dummy_validation_co
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
 	config.parathread_cores = 1;
-	config.max_code_size = 3;
+	config.max_code_size = 0b100000;
+	config.max_head_data_size = 0b100000;
 	config
 }
 
@@ -66,10 +68,7 @@ pub(crate) fn genesis_config(paras: Vec<(ParaId, ParaKind)>) -> MockGenesisConfi
 				.collect(),
 			..Default::default()
 		},
-		configuration: configuration::GenesisConfig {
-			config: default_config(),
-			..Default::default()
-		},
+		configuration: configuration::GenesisConfig { config: default_config() },
 		..Default::default()
 	}
 }
@@ -1901,4 +1900,142 @@ fn aggregate_origin_decode_regression_check() {
 	let raw = (0u8, 0u8, u32::MAX).encode();
 	let decoded = AggregateMessageOrigin::decode_all(&mut &raw[..]);
 	assert_eq!(decoded, Ok(ump), "Migration needed for AggregateMessageOrigin");
+}
+
+#[test]
+fn para_upgrade_delay_scheduled_from_inclusion() {
+	let chain_a = ParaId::from(1_u32);
+
+	// The block number of the relay-parent for testing.
+	const RELAY_PARENT_NUM: BlockNumber = 4;
+
+	let paras = vec![(chain_a, ParaKind::Parachain)];
+	let validators = vec![
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Ferdie,
+	];
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+	for validator in validators.iter() {
+		Keystore::sr25519_generate_new(
+			&*keystore,
+			PARACHAIN_KEY_TYPE_ID,
+			Some(&validator.to_seed()),
+		)
+		.unwrap();
+	}
+	let validator_public = validator_pubkeys(&validators);
+
+	new_test_ext(genesis_config(paras)).execute_with(|| {
+		shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+		shared::Pallet::<Test>::set_session_index(5);
+
+		let new_validation_code: ValidationCode = vec![1, 2, 3, 4, 5].into();
+		let new_validation_code_hash = new_validation_code.hash();
+
+		// Otherwise upgrade is no-op.
+		assert_ne!(new_validation_code, dummy_validation_code());
+
+		run_to_block(5, |_| None);
+
+		let signing_context =
+			SigningContext { parent_hash: System::parent_hash(), session_index: 5 };
+
+		let group_validators = |group_index: GroupIndex| {
+			match group_index {
+				group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1, 2, 3, 4]),
+				_ => panic!("Group index out of bounds for 1 parachain"),
+			}
+			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
+		};
+
+		let core_lookup = |core| match core {
+			core if core == CoreIndex::from(0) => Some(chain_a),
+			_ => None,
+		};
+
+		let chain_a_assignment = CoreAssignment {
+			core: CoreIndex::from(0),
+			para_id: chain_a,
+			kind: AssignmentKind::Parachain,
+			group_idx: GroupIndex::from(0),
+		};
+
+		let mut candidate_a = TestCandidateBuilder {
+			para_id: chain_a,
+			relay_parent: System::parent_hash(),
+			pov_hash: Hash::repeat_byte(1),
+			persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+			new_validation_code: Some(new_validation_code.clone()),
+			hrmp_watermark: RELAY_PARENT_NUM,
+			..Default::default()
+		}
+		.build();
+		collator_sign_candidate(Sr25519Keyring::One, &mut candidate_a);
+
+		let backed_a = back_candidate(
+			candidate_a.clone(),
+			&validators,
+			group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+			&keystore,
+			&signing_context,
+			BackingKind::Threshold,
+		);
+
+		let ProcessedCandidates { core_indices: occupied_cores, .. } =
+			ParaInclusion::process_candidates(
+				Default::default(),
+				vec![backed_a],
+				vec![chain_a_assignment.clone()],
+				&group_validators,
+			)
+			.expect("candidates scheduled, in order, and backed");
+
+		assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
+
+		// Run a couple of blocks before the inclusion.
+		run_to_block(7, |_| None);
+
+		let mut bare_bitfield = default_bitfield();
+		*bare_bitfield.0.get_mut(0).unwrap() = true;
+
+		let signed_bitfields = validators
+			.iter()
+			.enumerate()
+			.map(|(i, key)| {
+				sign_bitfield(
+					&keystore,
+					key,
+					ValidatorIndex(i as _),
+					bare_bitfield.clone(),
+					&signing_context,
+				)
+				.into()
+			})
+			.collect::<Vec<_>>();
+
+		let checked_bitfields = simple_sanitize_bitfields(
+			signed_bitfields,
+			DisputedBitfield::zeros(expected_bits()),
+			expected_bits(),
+		);
+
+		let v = process_bitfields(expected_bits(), checked_bitfields, core_lookup);
+		assert_eq!(vec![(CoreIndex(0), candidate_a.hash())], v);
+
+		assert!(<PendingAvailability<Test>>::get(&chain_a).is_none());
+		assert!(<PendingAvailabilityCommitments<Test>>::get(&chain_a).is_none());
+
+		let active_vote_state = paras::Pallet::<Test>::active_vote_state(&new_validation_code_hash)
+			.expect("prechecking must be initiated");
+
+		let cause = &active_vote_state.causes()[0];
+		// Upgrade block is the block of inclusion, not candidate's parent.
+		assert_matches!(cause,
+			paras::PvfCheckCause::Upgrade { id, included_at }
+				if id == &chain_a && included_at == &7
+		);
+	});
 }

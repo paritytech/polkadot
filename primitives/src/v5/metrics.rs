@@ -164,8 +164,8 @@ pub mod metric_definitions {
 		};
 
 	/// Counts the number of `imported`, `current` and `concluded_invalid` dispute statements sets
-	/// processed in `process_inherent_data`. The `current` label refers to the disputes statement sets of
-	/// the current session.
+	/// processed in `process_inherent_data`. The `current` label refers to the disputes statement
+	/// sets of the current session.
 	pub const PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED: CounterVecDefinition =
 		CounterVecDefinition {
 			name: "polkadot_parachain_inherent_data_dispute_sets_processed",
@@ -174,7 +174,8 @@ pub mod metric_definitions {
 			labels: &["category"],
 		};
 
-	/// Counts the number of `valid` and `invalid` bitfields signature checked in `process_inherent_data`.
+	/// Counts the number of `valid` and `invalid` bitfields signature checked in
+	/// `process_inherent_data`.
 	pub const PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS: CounterVecDefinition =
 		CounterVecDefinition {
 			name: "polkadot_parachain_create_inherent_bitfields_signature_checks",
@@ -183,7 +184,8 @@ pub mod metric_definitions {
 			labels: &["validity"],
 		};
 
-	/// Measures how much time does it take to verify a single validator signature of a dispute statement
+	/// Measures how much time does it take to verify a single validator signature of a dispute
+	/// statement
 	pub const PARACHAIN_VERIFY_DISPUTE_SIGNATURE: HistogramDefinition =
 		HistogramDefinition {
 			name: "polkadot_parachain_verify_dispute_signature",

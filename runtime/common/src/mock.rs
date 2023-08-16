@@ -21,6 +21,7 @@ use frame_support::{
 	dispatch::{DispatchError, DispatchResult},
 	weights::Weight,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{HeadData, Id as ParaId, PvfCheckStatement, SessionIndex, ValidationCode};
 use runtime_parachains::paras;
@@ -192,7 +193,7 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 }
 
 impl<T: frame_system::Config> TestRegistrar<T> {
-	pub fn operations() -> Vec<(ParaId, T::BlockNumber, bool)> {
+	pub fn operations() -> Vec<(ParaId, BlockNumberFor<T>, bool)> {
 		OPERATIONS
 			.with(|x| x.borrow().iter().map(|(p, b, c)| (*p, (*b).into(), *c)).collect::<Vec<_>>())
 	}

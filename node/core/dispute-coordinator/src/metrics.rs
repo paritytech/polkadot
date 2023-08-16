@@ -123,14 +123,14 @@ impl Metrics {
 			.map(|metrics| metrics.participation_pipeline_durations.start_timer())
 	}
 
-	/// Set the priority_queue_size metric
+	/// Set the `priority_queue_size` metric
 	pub fn report_priority_queue_size(&self, size: u64) {
 		if let Some(metrics) = &self.0 {
 			metrics.participation_priority_queue_size.set(size);
 		}
 	}
 
-	/// Set the best_effort_queue_size metric
+	/// Set the `best_effort_queue_size` metric
 	pub fn report_best_effort_queue_size(&self, size: u64) {
 		if let Some(metrics) = &self.0 {
 			metrics.participation_best_effort_queue_size.set(size);

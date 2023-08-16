@@ -45,14 +45,13 @@ use tokio::{io, net::UnixStream};
 pub async fn spawn(
 	program_path: &Path,
 	spawn_timeout: Duration,
+	node_version: Option<&str>,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	spawn_with_program_path(
-		"prepare",
-		program_path,
-		&["prepare-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
-		spawn_timeout,
-	)
-	.await
+	let mut extra_args = vec!["prepare-worker"];
+	if let Some(node_version) = node_version {
+		extra_args.extend_from_slice(&["--node-impl-version", node_version]);
+	}
+	spawn_with_program_path("prepare", program_path, &extra_args, spawn_timeout).await
 }
 
 pub enum Outcome {
@@ -248,8 +247,8 @@ where
 
 	let outcome = f(tmp_file.clone(), stream).await;
 
-	// The function called above is expected to move `tmp_file` to a new location upon success. However,
-	// the function may as well fail and in that case we should remove the tmp file here.
+	// The function called above is expected to move `tmp_file` to a new location upon success.
+	// However, the function may as well fail and in that case we should remove the tmp file here.
 	//
 	// In any case, we try to remove the file here so that there are no leftovers. We only report
 	// errors that are different from the `NotFound`.

@@ -17,6 +17,7 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
+use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{Id as ParaId, PersistedValidationData, ValidatorIndex};
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
@@ -28,9 +29,9 @@ use crate::{configuration, hrmp, paras};
 /// This ties together the storage of several modules.
 pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 	para_id: ParaId,
-	relay_parent_number: T::BlockNumber,
+	relay_parent_number: BlockNumberFor<T>,
 	relay_parent_storage_root: T::Hash,
-) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
+) -> Option<PersistedValidationData<T::Hash, BlockNumberFor<T>>> {
 	let config = <configuration::Pallet<T>>::config();
 
 	Some(PersistedValidationData {
@@ -47,7 +48,7 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 /// the order of the `active` vec, the second item will contain the rest, in the original order.
 ///
 /// ```ignore
-///		split_active_subset(active, all).0 == take_active_subset(active, all)
+/// 		split_active_subset(active, all).0 == take_active_subset(active, all)
 /// ```
 pub fn split_active_subset<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> (Vec<T>, Vec<T>) {
 	let active_set: BTreeSet<_> = active.iter().cloned().collect();
@@ -75,7 +76,7 @@ pub fn split_active_subset<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> (V
 /// Uses `split_active_subset` and concatenates the inactive to the active vec.
 ///
 /// ```ignore
-///		split_active_subset(active, all)[0..active.len()]) == take_active_subset(active, all)
+/// 		split_active_subset(active, all)[0..active.len()]) == take_active_subset(active, all)
 /// ```
 pub fn take_active_subset_and_inactive<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> Vec<T> {
 	let (mut a, mut i) = split_active_subset(active, all);

@@ -17,6 +17,7 @@
 //! XCM sender for relay chain.
 
 use frame_support::traits::Get;
+use frame_system::pallet_prelude::BlockNumberFor;
 use parity_scale_codec::Encode;
 use primitives::Id as ParaId;
 use runtime_parachains::{
@@ -72,12 +73,12 @@ pub struct ChildParachainRouter<T, W, P>(PhantomData<(T, W, P)>);
 impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion, P: PriceForParachainDelivery>
 	SendXcm for ChildParachainRouter<T, W, P>
 {
-	type Ticket = (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>);
+	type Ticket = (HostConfiguration<BlockNumberFor<T>>, ParaId, Vec<u8>);
 
 	fn validate(
 		dest: &mut Option<MultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> SendResult<(HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>)> {
+	) -> SendResult<(HostConfiguration<BlockNumberFor<T>>, ParaId, Vec<u8>)> {
 		let d = dest.take().ok_or(MissingArgument)?;
 		let id = if let MultiLocation { parents: 0, interior: X1(Parachain(id)) } = &d {
 			*id
@@ -99,7 +100,7 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion, P: PriceForPar
 	}
 
 	fn deliver(
-		(config, para, blob): (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>),
+		(config, para, blob): (HostConfiguration<BlockNumberFor<T>>, ParaId, Vec<u8>),
 	) -> Result<XcmHash, SendError> {
 		let hash = sp_io::hashing::blake2_256(&blob[..]);
 		<dmp::Pallet<T>>::queue_downward_message(&config, para, blob)
@@ -139,26 +140,24 @@ mod tests {
 
 		// F * (B + msg_length * M)
 		// message_length = 1
-		let result: u128 = TestFeeTracker::get_fee_factor(id.clone()).saturating_mul_int(b + m);
+		let result: u128 = TestFeeTracker::get_fee_factor(id).saturating_mul_int(b + m);
 		assert_eq!(
-			TestExponentialPrice::price_for_parachain_delivery(id.clone(), &Xcm(vec![])),
+			TestExponentialPrice::price_for_parachain_delivery(id, &Xcm(vec![])),
 			(FeeAssetId::get(), result).into()
 		);
 
 		// message size = 2
-		let result: u128 =
-			TestFeeTracker::get_fee_factor(id.clone()).saturating_mul_int(b + (2 * m));
+		let result: u128 = TestFeeTracker::get_fee_factor(id).saturating_mul_int(b + (2 * m));
 		assert_eq!(
-			TestExponentialPrice::price_for_parachain_delivery(id.clone(), &Xcm(vec![ClearOrigin])),
+			TestExponentialPrice::price_for_parachain_delivery(id, &Xcm(vec![ClearOrigin])),
 			(FeeAssetId::get(), result).into()
 		);
 
 		// message size = 4
-		let result: u128 =
-			TestFeeTracker::get_fee_factor(id.clone()).saturating_mul_int(b + (4 * m));
+		let result: u128 = TestFeeTracker::get_fee_factor(id).saturating_mul_int(b + (4 * m));
 		assert_eq!(
 			TestExponentialPrice::price_for_parachain_delivery(
-				id.clone(),
+				id,
 				&Xcm(vec![SetAppendix(Xcm(vec![ClearOrigin]))])
 			),
 			(FeeAssetId::get(), result).into()

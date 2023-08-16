@@ -147,10 +147,7 @@ fn reserve_transfer_should_work() {
 	let message = Xcm(vec![TransferReserveAsset {
 		assets: (Here, 100u128).into(),
 		dest: Parachain(2).into(),
-		xcm: Xcm::<()>(vec![DepositAsset {
-			assets: AllCounted(1).into(),
-			beneficiary: three.clone(),
-		}]),
+		xcm: Xcm::<()>(vec![DepositAsset { assets: AllCounted(1).into(), beneficiary: three }]),
 	}]);
 	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
@@ -396,7 +393,8 @@ fn max_assets_limit_should_work() {
 	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_parts(95, 95), XcmError::HoldingWouldOverflow));
 
-	// Attempt to withdraw 4 different assets and then the same 4 and then a different 4 will succeed.
+	// Attempt to withdraw 4 different assets and then the same 4 and then a different 4 will
+	// succeed.
 	let message = Xcm(vec![
 		WithdrawAsset(([1u8; 32], 100u128).into()),
 		WithdrawAsset(([2u8; 32], 100u128).into()),

@@ -23,7 +23,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("rococo-dev"), DB CACHE: 1024
 
 // Executed Command:
-// target/production/polkadot
+// ./target/production/polkadot
 // benchmark
 // pallet
 // --steps=50
@@ -220,31 +220,6 @@ impl<T: frame_system::Config> WeightInfo<T> {
 		// Minimum execution time: 4_943_000 picoseconds.
 		Weight::from_parts(5_128_000, 0)
 			.saturating_add(T::DbWeight::get().writes(1))
-	}
-	/// Storage: unknown `0x3a696e747261626c6f636b5f656e74726f7079` (r:1 w:1)
-	/// Proof Skipped: unknown `0x3a696e747261626c6f636b5f656e74726f7079` (r:1 w:1)
-	/// Storage: Configuration ActiveConfig (r:1 w:0)
-	/// Proof Skipped: Configuration ActiveConfig (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Dmp DeliveryFeeFactor (r:1 w:0)
-	/// Proof Skipped: Dmp DeliveryFeeFactor (max_values: None, max_size: None, mode: Measured)
-	/// Storage: XcmPallet SupportedVersion (r:1 w:0)
-	/// Proof Skipped: XcmPallet SupportedVersion (max_values: None, max_size: None, mode: Measured)
-	/// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
-	/// Proof Skipped: XcmPallet VersionDiscoveryQueue (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
-	/// Proof Skipped: XcmPallet SafeXcmVersion (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Dmp DownwardMessageQueues (r:1 w:1)
-	/// Proof Skipped: Dmp DownwardMessageQueues (max_values: None, max_size: None, mode: Measured)
-	/// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
-	/// Proof Skipped: Dmp DownwardMessageQueueHeads (max_values: None, max_size: None, mode: Measured)
-	pub(crate) fn initiate_reserve_withdraw() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `565`
-		//  Estimated: `4030`
-		// Minimum execution time: 35_068_000 picoseconds.
-		Weight::from_parts(36_124_000, 4030)
-			.saturating_add(T::DbWeight::get().reads(8))
-			.saturating_add(T::DbWeight::get().writes(4))
 	}
 	pub(crate) fn burn_asset() -> Weight {
 		// Proof Size summary in bytes:

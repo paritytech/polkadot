@@ -171,7 +171,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type VestingSchedule: VestingSchedule<Self::AccountId, Moment = Self::BlockNumber>;
+		type VestingSchedule: VestingSchedule<Self::AccountId, Moment = BlockNumberFor<Self>>;
 		#[pallet::constant]
 		type Prefix: Get<&'static [u8]>;
 		type MoveClaimOrigin: EnsureOrigin<Self::RuntimeOrigin>;
@@ -193,8 +193,8 @@ pub mod pallet {
 		SignerHasNoClaim,
 		/// Account ID sending transaction has no claim.
 		SenderHasNoClaim,
-		/// There's not enough in the pot to pay out some unvested amount. Generally implies a logic
-		/// error.
+		/// There's not enough in the pot to pay out some unvested amount. Generally implies a
+		/// logic error.
 		PotUnderflow,
 		/// A needed statement was not included.
 		InvalidStatement,
@@ -217,7 +217,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn vesting)]
 	pub(super) type Vesting<T: Config> =
-		StorageMap<_, Identity, EthereumAddress, (BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
+		StorageMap<_, Identity, EthereumAddress, (BalanceOf<T>, BalanceOf<T>, BlockNumberFor<T>)>;
 
 	/// The statement kind that must be signed, if any.
 	#[pallet::storage]
@@ -232,11 +232,11 @@ pub mod pallet {
 	pub struct GenesisConfig<T: Config> {
 		pub claims:
 			Vec<(EthereumAddress, BalanceOf<T>, Option<T::AccountId>, Option<StatementKind>)>,
-		pub vesting: Vec<(EthereumAddress, (BalanceOf<T>, BalanceOf<T>, T::BlockNumber))>,
+		pub vesting: Vec<(EthereumAddress, (BalanceOf<T>, BalanceOf<T>, BlockNumberFor<T>))>,
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			// build `Claims`
 			self.claims.iter().map(|(a, b, _, _)| (*a, *b)).for_each(|(a, b)| {
@@ -288,8 +288,8 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `dest`: The destination account to payout the claim.
-		/// - `ethereum_signature`: The signature of an ethereum signed message
-		///    matching the format described above.
+		/// - `ethereum_signature`: The signature of an ethereum signed message matching the format
+		///   described above.
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
@@ -336,7 +336,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
-			vesting_schedule: Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>,
+			vesting_schedule: Option<(BalanceOf<T>, BalanceOf<T>, BlockNumberFor<T>)>,
 			statement: Option<StatementKind>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
@@ -368,9 +368,10 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `dest`: The destination account to payout the claim.
-		/// - `ethereum_signature`: The signature of an ethereum signed message
-		///    matching the format described above.
-		/// - `statement`: The identity of the statement which is being attested to in the signature.
+		/// - `ethereum_signature`: The signature of an ethereum signed message matching the format
+		///   described above.
+		/// - `statement`: The identity of the statement which is being attested to in the
+		///   signature.
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
@@ -400,14 +401,16 @@ pub mod pallet {
 
 		/// Attest to a statement, needed to finalize the claims process.
 		///
-		/// WARNING: Insecure unless your chain includes `PrevalidateAttests` as a `SignedExtension`.
+		/// WARNING: Insecure unless your chain includes `PrevalidateAttests` as a
+		/// `SignedExtension`.
 		///
 		/// Unsigned Validation:
 		/// A call to attest is deemed valid if the sender has a `Preclaim` registered
 		/// and provides a `statement` which is expected for the account.
 		///
 		/// Parameters:
-		/// - `statement`: The identity of the statement which is being attested to in the signature.
+		/// - `statement`: The identity of the statement which is being attested to in the
+		///   signature.
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
@@ -710,26 +713,21 @@ mod tests {
 		assert_err, assert_noop, assert_ok,
 		dispatch::{DispatchError::BadOrigin, GetDispatchInfo, Pays},
 		ord_parameter_types, parameter_types,
-		traits::{ConstU32, ExistenceRequirement, GenesisBuild, WithdrawReasons},
+		traits::{ConstU32, ExistenceRequirement, WithdrawReasons},
 	};
 	use pallet_balances;
 	use sp_runtime::{
-		testing::Header,
 		traits::{BlakeTwo256, Identity, IdentityLookup},
 		transaction_validity::TransactionLongevity,
-		TokenError,
+		BuildStorage, TokenError,
 	};
 
-	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
 
 	frame_support::construct_runtime!(
-		pub enum Test where
-			Block = Block,
-			NodeBlock = Block,
-			UncheckedExtrinsic = UncheckedExtrinsic,
+		pub enum Test
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Vesting: pallet_vesting::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Claims: claims::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
@@ -746,13 +744,12 @@ mod tests {
 		type DbWeight = ();
 		type RuntimeOrigin = RuntimeOrigin;
 		type RuntimeCall = RuntimeCall;
-		type Index = u64;
-		type BlockNumber = u64;
+		type Nonce = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
-		type Header = Header;
+		type Block = Block;
 		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
@@ -836,7 +833,7 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
 		pallet_balances::GenesisConfig::<Test>::default()
 			.assimilate_storage(&mut t)

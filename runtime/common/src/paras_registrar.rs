@@ -107,9 +107,9 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The aggregated origin type must support the `parachains` origin. We require that we can
-		/// infallibly convert between this origin and the system origin, but in reality, they're the
-		/// same type, we just can't express that to the Rust type system without writing a `where`
-		/// clause everywhere.
+		/// infallibly convert between this origin and the system origin, but in reality, they're
+		/// the same type, we just can't express that to the Rust type system without writing a
+		/// `where` clause everywhere.
 		type RuntimeOrigin: From<<Self as frame_system::Config>::RuntimeOrigin>
 			+ Into<result::Result<Origin, <Self as Config>::RuntimeOrigin>>;
 
@@ -163,14 +163,15 @@ pub mod pallet {
 		CannotDowngrade,
 		/// Cannot schedule upgrade of parathread to parachain
 		CannotUpgrade,
-		/// Para is locked from manipulation by the manager. Must use parachain or relay chain governance.
+		/// Para is locked from manipulation by the manager. Must use parachain or relay chain
+		/// governance.
 		ParaLocked,
 		/// The ID given for registration has not been reserved.
 		NotReserved,
 		/// Registering parachain with empty code is not allowed.
 		EmptyCode,
-		/// Cannot perform a parachain slot / lifecycle swap. Check that the state of both paras are
-		/// correct for the swap to work.
+		/// Cannot perform a parachain slot / lifecycle swap. Check that the state of both paras
+		/// are correct for the swap to work.
 		CannotSwap,
 	}
 
@@ -180,8 +181,8 @@ pub mod pallet {
 
 	/// Amount held on deposit for each para and the original depositor.
 	///
-	/// The given account ID is responsible for registering the code and initial head data, but may only do
-	/// so if it isn't yet registered. (After that, it's up to governance to do so.)
+	/// The given account ID is responsible for registering the code and initial head data, but may
+	/// only do so if it isn't yet registered. (After that, it's up to governance to do so.)
 	#[pallet::storage]
 	pub type Paras<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ParaInfo<T::AccountId, BalanceOf<T>>>;
@@ -191,18 +192,20 @@ pub mod pallet {
 	pub type NextFreeParaId<T> = StorageValue<_, ParaId, ValueQuery>;
 
 	#[pallet::genesis_config]
-	pub struct GenesisConfig {
+	pub struct GenesisConfig<T: Config> {
+		#[serde(skip)]
+		pub _config: sp_std::marker::PhantomData<T>,
 		pub next_free_para_id: ParaId,
 	}
 
-	impl Default for GenesisConfig {
+	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
-			GenesisConfig { next_free_para_id: LOWEST_PUBLIC_ID }
+			GenesisConfig { next_free_para_id: LOWEST_PUBLIC_ID, _config: Default::default() }
 		}
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			NextFreeParaId::<T>::put(self.next_free_para_id);
 		}
@@ -222,8 +225,8 @@ pub mod pallet {
 		/// - `validation_code`: The initial validation code of the parachain/thread.
 		///
 		/// ## Deposits/Fees
-		/// The origin signed account must reserve a corresponding deposit for the registration. Anything already
-		/// reserved previously for this para ID is accounted for.
+		/// The origin signed account must reserve a corresponding deposit for the registration.
+		/// Anything already reserved previously for this para ID is accounted for.
 		///
 		/// ## Events
 		/// The `Registered` event is emitted in case of success.
@@ -262,7 +265,8 @@ pub mod pallet {
 
 		/// Deregister a Para Id, freeing all data and returning any deposit.
 		///
-		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a parathread.
+		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a
+		/// parathread.
 		#[pallet::call_index(2)]
 		#[pallet::weight(<T as Config>::WeightInfo::deregister())]
 		pub fn deregister(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
@@ -343,17 +347,20 @@ pub mod pallet {
 		/// Reserve a Para Id on the relay chain.
 		///
 		/// This function will reserve a new Para Id to be owned/managed by the origin account.
-		/// The origin account is able to register head data and validation code using `register` to create
-		/// a parathread. Using the Slots pallet, a parathread can then be upgraded to get a parachain slot.
+		/// The origin account is able to register head data and validation code using `register` to
+		/// create a parathread. Using the Slots pallet, a parathread can then be upgraded to get a
+		/// parachain slot.
 		///
 		/// ## Arguments
-		/// - `origin`: Must be called by a `Signed` origin. Becomes the manager/owner of the new para ID.
+		/// - `origin`: Must be called by a `Signed` origin. Becomes the manager/owner of the new
+		///   para ID.
 		///
 		/// ## Deposits/Fees
 		/// The origin must reserve a deposit of `ParaDeposit` for the registration.
 		///
 		/// ## Events
-		/// The `Reserved` event is emitted in case of success, which provides the ID reserved for use.
+		/// The `Reserved` event is emitted in case of success, which provides the ID reserved for
+		/// use.
 		#[pallet::call_index(5)]
 		#[pallet::weight(<T as Config>::WeightInfo::reserve())]
 		pub fn reserve(origin: OriginFor<T>) -> DispatchResult {
@@ -367,7 +374,8 @@ pub mod pallet {
 		/// Add a manager lock from a para. This will prevent the manager of a
 		/// para to deregister or swap a para.
 		///
-		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is
+		/// unlocked.
 		#[pallet::call_index(6)]
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
 		pub fn add_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
@@ -378,7 +386,8 @@ pub mod pallet {
 
 		/// Schedule a parachain upgrade.
 		///
-		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is
+		/// unlocked.
 		#[pallet::call_index(7)]
 		#[pallet::weight(<T as Config>::WeightInfo::schedule_code_upgrade(new_code.0.len() as u32))]
 		pub fn schedule_code_upgrade(
@@ -393,7 +402,8 @@ pub mod pallet {
 
 		/// Set the parachain's current head.
 		///
-		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is
+		/// unlocked.
 		#[pallet::call_index(8)]
 		#[pallet::weight(<T as Config>::WeightInfo::set_current_head(new_head.0.len() as u32))]
 		pub fn set_current_head(
@@ -661,11 +671,11 @@ mod tests {
 		assert_noop, assert_ok,
 		error::BadOrigin,
 		parameter_types,
-		traits::{ConstU32, GenesisBuild, OnFinalize, OnInitialize},
+		traits::{ConstU32, OnFinalize, OnInitialize},
 	};
 	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
-	use primitives::{Balance, BlockNumber, Header, SessionIndex};
+	use primitives::{Balance, BlockNumber, SessionIndex};
 	use runtime_parachains::{configuration, origin, shared};
 	use sp_core::H256;
 	use sp_io::TestExternalities;
@@ -673,23 +683,20 @@ mod tests {
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup},
 		transaction_validity::TransactionPriority,
-		Perbill,
+		BuildStorage, Perbill,
 	};
 	use sp_std::collections::btree_map::BTreeMap;
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-	type Block = frame_system::mocking::MockBlock<Test>;
+	type Block = frame_system::mocking::MockBlockU32<Test>;
 
 	frame_support::construct_runtime!(
-		pub enum Test where
-			Block = Block,
-			NodeBlock = Block,
-			UncheckedExtrinsic = UncheckedExtrinsic,
+		pub enum Test
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-			Parachains: paras::{Pallet, Call, Storage, Config, Event},
+			Parachains: paras::{Pallet, Call, Storage, Config<T>, Event},
 			ParasShared: shared::{Pallet, Call, Storage},
 			Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
 			ParachainsOrigin: origin::{Pallet, Origin},
@@ -717,13 +724,12 @@ mod tests {
 		type BaseCallFilter = frame_support::traits::Everything;
 		type RuntimeOrigin = RuntimeOrigin;
 		type RuntimeCall = RuntimeCall;
-		type Index = u64;
-		type BlockNumber = BlockNumber;
+		type Nonce = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
-		type Header = Header;
+		type Block = Block;
 		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
@@ -797,18 +803,16 @@ mod tests {
 	}
 
 	pub fn new_test_ext() -> TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 
-		GenesisBuild::<Test>::assimilate_storage(
-			&configuration::GenesisConfig {
-				config: configuration::HostConfiguration {
-					max_code_size: 2 * 1024 * 1024,      // 2 MB
-					max_head_data_size: 1 * 1024 * 1024, // 1 MB
-					..Default::default()
-				},
+		configuration::GenesisConfig::<Test> {
+			config: configuration::HostConfiguration {
+				max_code_size: 2 * 1024 * 1024,      // 2 MB
+				max_head_data_size: 1 * 1024 * 1024, // 1 MB
+				..Default::default()
 			},
-			&mut t,
-		)
+		}
+		.assimilate_storage(&mut t)
 		.unwrap();
 
 		pallet_balances::GenesisConfig::<Test> {

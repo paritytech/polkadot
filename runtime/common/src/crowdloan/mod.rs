@@ -45,9 +45,9 @@
 //! slot auction enters its ending period, then parachains will each place a bid; the bid will be
 //! raised once per block if the parachain had additional funds contributed since the last bid.
 //!
-//! Successful funds remain tracked (in the `Funds` storage item and the associated child trie) as long as
-//! the parachain remains active. Users can withdraw their funds once the slot is completed and funds are
-//! returned to the crowdloan account.
+//! Successful funds remain tracked (in the `Funds` storage item and the associated child trie) as
+//! long as the parachain remains active. Users can withdraw their funds once the slot is completed
+//! and funds are returned to the crowdloan account.
 
 pub mod migration;
 
@@ -66,6 +66,7 @@ use frame_support::{
 	},
 	Identity, PalletId,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::Id as ParaId;
@@ -78,11 +79,8 @@ use sp_runtime::{
 };
 use sp_std::vec::Vec;
 
-type CurrencyOf<T> =
-	<<T as Config>::Auctioneer as Auctioneer<<T as frame_system::Config>::BlockNumber>>::Currency;
-type LeasePeriodOf<T> = <<T as Config>::Auctioneer as Auctioneer<
-	<T as frame_system::Config>::BlockNumber,
->>::LeasePeriod;
+type CurrencyOf<T> = <<T as Config>::Auctioneer as Auctioneer<BlockNumberFor<T>>>::Currency;
+type LeasePeriodOf<T> = <<T as Config>::Auctioneer as Auctioneer<BlockNumberFor<T>>>::LeasePeriod;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[allow(dead_code)]
@@ -166,11 +164,11 @@ pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
 	/// If this is `Ending(n)`, this fund received a contribution during the current ending period,
 	/// where `n` is how far into the ending period the contribution was made.
 	pub last_contribution: LastContribution<BlockNumber>,
-	/// First lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
-	/// as `BlockNumber`.
+	/// First lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same
+	/// type as `BlockNumber`.
 	pub first_period: LeasePeriod,
-	/// Last lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
-	/// as `BlockNumber`.
+	/// Last lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same
+	/// type as `BlockNumber`.
 	pub last_period: LeasePeriod,
 	/// Unique index used to represent this fund.
 	pub fund_index: FundIndex,
@@ -194,15 +192,16 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-		/// `PalletId` for the crowdloan pallet. An appropriate value could be `PalletId(*b"py/cfund")`
+		/// `PalletId` for the crowdloan pallet. An appropriate value could be
+		/// `PalletId(*b"py/cfund")`
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
 
 		/// The amount to be held on deposit by the depositor of a crowdloan.
 		type SubmissionDeposit: Get<BalanceOf<Self>>;
 
-		/// The minimum amount that may be contributed into a crowdloan. Should almost certainly be at
-		/// least `ExistentialDeposit`.
+		/// The minimum amount that may be contributed into a crowdloan. Should almost certainly be
+		/// at least `ExistentialDeposit`.
 		#[pallet::constant]
 		type MinContribution: Get<BalanceOf<Self>>;
 
@@ -210,15 +209,15 @@ pub mod pallet {
 		#[pallet::constant]
 		type RemoveKeysLimit: Get<u32>;
 
-		/// The parachain registrar type. We just use this to ensure that only the manager of a para is able to
-		/// start a crowdloan for its slot.
+		/// The parachain registrar type. We just use this to ensure that only the manager of a para
+		/// is able to start a crowdloan for its slot.
 		type Registrar: Registrar<AccountId = Self::AccountId>;
 
 		/// The type representing the auctioning system.
 		type Auctioneer: Auctioneer<
-			Self::BlockNumber,
+			BlockNumberFor<Self>,
 			AccountId = Self::AccountId,
-			LeasePeriod = Self::BlockNumber,
+			LeasePeriod = BlockNumberFor<Self>,
 		>;
 
 		/// The maximum length for the memo attached to a crowdloan contribution.
@@ -235,7 +234,7 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		ParaId,
-		FundInfo<T::AccountId, BalanceOf<T>, T::BlockNumber, LeasePeriodOf<T>>,
+		FundInfo<T::AccountId, BalanceOf<T>, BlockNumberFor<T>, LeasePeriodOf<T>>,
 	>;
 
 	/// The funds that have had additional contributions during the last block. This is used
@@ -316,7 +315,8 @@ pub mod pallet {
 		FundNotEnded,
 		/// There are no contributions stored in this crowdloan.
 		NoContributions,
-		/// The crowdloan is not ready to dissolve. Potentially still has a slot or in retirement period.
+		/// The crowdloan is not ready to dissolve. Potentially still has a slot or in retirement
+		/// period.
 		NotReadyToDissolve,
 		/// Invalid signature.
 		InvalidSignature,
@@ -332,7 +332,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(num: T::BlockNumber) -> frame_support::weights::Weight {
+		fn on_initialize(num: BlockNumberFor<T>) -> frame_support::weights::Weight {
 			if let Some((sample, sub_sample)) = T::Auctioneer::auction_status(num).is_ending() {
 				// This is the very first block in the ending period
 				if sample.is_zero() && sub_sample.is_zero() {
@@ -344,8 +344,9 @@ pub mod pallet {
 				for (fund, para_id) in
 					new_raise.into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i)))
 				{
-					// Care needs to be taken by the crowdloan creator that this function will succeed given
-					// the crowdloaning configuration. We do some checks ahead of time in crowdloan `create`.
+					// Care needs to be taken by the crowdloan creator that this function will
+					// succeed given the crowdloaning configuration. We do some checks ahead of time
+					// in crowdloan `create`.
 					let result = T::Auctioneer::place_bid(
 						Self::fund_account_id(fund.fund_index),
 						para_id,
@@ -365,7 +366,8 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Create a new crowdloaning campaign for a parachain slot with the given lease period range.
+		/// Create a new crowdloaning campaign for a parachain slot with the given lease period
+		/// range.
 		///
 		/// This applies a lock to your parachain configuration, ensuring that it cannot be changed
 		/// by the parachain manager.
@@ -377,7 +379,7 @@ pub mod pallet {
 			#[pallet::compact] cap: BalanceOf<T>,
 			#[pallet::compact] first_period: LeasePeriodOf<T>,
 			#[pallet::compact] last_period: LeasePeriodOf<T>,
-			#[pallet::compact] end: T::BlockNumber,
+			#[pallet::compact] end: BlockNumberFor<T>,
 			verifier: Option<MultiSigner>,
 		) -> DispatchResult {
 			let depositor = ensure_signed(origin)?;
@@ -464,16 +466,16 @@ pub mod pallet {
 		///
 		/// Origin must be signed, but can come from anyone.
 		///
-		/// The fund must be either in, or ready for, retirement. For a fund to be *in* retirement, then the retirement
-		/// flag must be set. For a fund to be ready for retirement, then:
+		/// The fund must be either in, or ready for, retirement. For a fund to be *in* retirement,
+		/// then the retirement flag must be set. For a fund to be ready for retirement, then:
 		/// - it must not already be in retirement;
 		/// - the amount of raised funds must be bigger than the _free_ balance of the account;
 		/// - and either:
 		///   - the block number must be at least `end`; or
 		///   - the current lease period must be greater than the fund's `last_period`.
 		///
-		/// In this case, the fund's retirement flag is set and its `end` is reset to the current block
-		/// number.
+		/// In this case, the fund's retirement flag is set and its `end` is reset to the current
+		/// block number.
 		///
 		/// - `who`: The account whose contribution should be withdrawn.
 		/// - `index`: The parachain to whose crowdloan the contribution was made.
@@ -594,7 +596,7 @@ pub mod pallet {
 			#[pallet::compact] cap: BalanceOf<T>,
 			#[pallet::compact] first_period: LeasePeriodOf<T>,
 			#[pallet::compact] last_period: LeasePeriodOf<T>,
-			#[pallet::compact] end: T::BlockNumber,
+			#[pallet::compact] end: BlockNumberFor<T>,
 			verifier: Option<MultiSigner>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
@@ -655,8 +657,9 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Contribute your entire balance to a crowd sale. This will transfer the entire balance of a user over to fund a parachain
-		/// slot. It will be withdrawable when the crowdloan has ended and the funds are unused.
+		/// Contribute your entire balance to a crowd sale. This will transfer the entire balance of
+		/// a user over to fund a parachain slot. It will be withdrawable when the crowdloan has
+		/// ended and the funds are unused.
 		#[pallet::call_index(8)]
 		#[pallet::weight(T::WeightInfo::contribute())]
 		pub fn contribute_all(
@@ -721,13 +724,13 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// This function checks all conditions which would qualify a crowdloan has ended.
-	/// * If we have reached the `fund.end` block OR the first lease period the fund is
-	///   trying to bid for has started already.
+	/// * If we have reached the `fund.end` block OR the first lease period the fund is trying to
+	///   bid for has started already.
 	/// * And, if the fund has enough free funds to refund full raised amount.
 	fn ensure_crowdloan_ended(
-		now: T::BlockNumber,
+		now: BlockNumberFor<T>,
 		fund_account: &T::AccountId,
-		fund: &FundInfo<T::AccountId, BalanceOf<T>, T::BlockNumber, LeasePeriodOf<T>>,
+		fund: &FundInfo<T::AccountId, BalanceOf<T>, BlockNumberFor<T>, LeasePeriodOf<T>>,
 	) -> sp_runtime::DispatchResult {
 		// `fund.end` can represent the end of a failed crowdloan or the beginning of retirement
 		// If the current lease period is past the first period they are trying to bid for, then
@@ -777,8 +780,8 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::BidOrLeaseActive
 		);
 
-		// We disallow any crowdloan contributions during the VRF Period, so that people do not sneak their
-		// contributions into the auction when it would not impact the outcome.
+		// We disallow any crowdloan contributions during the VRF Period, so that people do not
+		// sneak their contributions into the auction when it would not impact the outcome.
 		ensure!(!T::Auctioneer::auction_status(now).is_vrf(), Error::<T>::VrfDelayInProgress);
 
 		let (old_balance, memo) = Self::contribution_get(fund.fund_index, &who);
@@ -878,21 +881,16 @@ mod tests {
 	use ::test_helpers::{dummy_head_data, dummy_validation_code};
 	use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 	use sp_runtime::{
-		testing::Header,
 		traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
-		DispatchResult,
+		BuildStorage, DispatchResult,
 	};
 
-	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
 
 	frame_support::construct_runtime!(
-		pub enum Test where
-			Block = Block,
-			NodeBlock = Block,
-			UncheckedExtrinsic = UncheckedExtrinsic,
+		pub enum Test
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
 		}
@@ -911,13 +909,12 @@ mod tests {
 		type DbWeight = ();
 		type RuntimeOrigin = RuntimeOrigin;
 		type RuntimeCall = RuntimeCall;
-		type Index = u64;
-		type BlockNumber = BlockNumber;
+		type Nonce = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
-		type Header = Header;
+		type Block = Block;
 		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
@@ -973,16 +970,16 @@ mod tests {
 		ENDING_PERIOD.with(|p| *p.borrow_mut() = ending_period);
 	}
 	fn auction() -> Option<(u64, u64)> {
-		AUCTION.with(|p| p.borrow().clone())
+		AUCTION.with(|p| *p.borrow())
 	}
 	fn ending_period() -> u64 {
-		ENDING_PERIOD.with(|p| p.borrow().clone())
+		ENDING_PERIOD.with(|p| *p.borrow())
 	}
 	fn bids() -> Vec<BidPlaced> {
 		BIDS_PLACED.with(|p| p.borrow().clone())
 	}
 	fn vrf_delay() -> u64 {
-		VRF_DELAY.with(|p| p.borrow().clone())
+		VRF_DELAY.with(|p| *p.borrow())
 	}
 	fn set_vrf_delay(delay: u64) {
 		VRF_DELAY.with(|p| *p.borrow_mut() = delay);
@@ -1110,7 +1107,7 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		pallet_balances::GenesisConfig::<Test> {
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
 		}
@@ -1295,7 +1292,8 @@ mod tests {
 			);
 
 			// Cannot create a crowdloan with nonsense end date
-			// This crowdloan would end in lease period 2, but is bidding for some slot that starts in lease period 1.
+			// This crowdloan would end in lease period 2, but is bidding for some slot that starts
+			// in lease period 1.
 			assert_noop!(
 				Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 4, 41, None),
 				Error::<Test>::EndTooFarInFuture
@@ -1465,7 +1463,8 @@ mod tests {
 			let para_2 = new_para();
 			let index = NextFundIndex::<Test>::get();
 			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para_2, 1000, 1, 4, 40, None));
-			// Emulate a win by leasing out and putting a deposit. Slots pallet would normally do this.
+			// Emulate a win by leasing out and putting a deposit. Slots pallet would normally do
+			// this.
 			let crowdloan_account = Crowdloan::fund_account_id(index);
 			set_winner(para_2, crowdloan_account, true);
 			assert_noop!(
@@ -1473,8 +1472,8 @@ mod tests {
 				Error::<Test>::BidOrLeaseActive
 			);
 
-			// Move past lease period 1, should not be allowed to have further contributions with a crowdloan
-			// that has starting period 1.
+			// Move past lease period 1, should not be allowed to have further contributions with a
+			// crowdloan that has starting period 1.
 			let para_3 = new_para();
 			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para_3, 1000, 1, 4, 40, None));
 			run_to_block(40);
@@ -1968,7 +1967,7 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn create_fund<T: Config + paras::Config>(id: u32, end: T::BlockNumber) -> ParaId {
+	fn create_fund<T: Config + paras::Config>(id: u32, end: BlockNumberFor<T>) -> ParaId {
 		let cap = BalanceOf::<T>::max_value();
 		let (_, offset) = T::Auctioneer::lease_period_length();
 		// Set to the very beginning of lease period index 0.
@@ -2088,7 +2087,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 			let contributor = account("contributor", 0, 0);
 			contribute_fund::<T>(&contributor, fund_index);
-			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
+			frame_system::Pallet::<T>::set_block_number(BlockNumberFor::<T>::max_value());
 		}: _(RawOrigin::Signed(caller), contributor.clone(), fund_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::Withdrew { who: contributor, fund_index, amount: T::MinContribution::get() }.into());
@@ -2108,7 +2107,7 @@ mod benchmarking {
 			}
 
 			let caller: T::AccountId = whitelisted_caller();
-			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
+			frame_system::Pallet::<T>::set_block_number(BlockNumberFor::<T>::max_value());
 		}: _(RawOrigin::Signed(caller), fund_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::AllRefunded { para_id: fund_index }.into());
@@ -2119,7 +2118,7 @@ mod benchmarking {
 			let end = lpl + offset;
 			let fund_index = create_fund::<T>(1337, end);
 			let caller: T::AccountId = whitelisted_caller();
-			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
+			frame_system::Pallet::<T>::set_block_number(BlockNumberFor::<T>::max_value());
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::Dissolved { para_id: fund_index }.into());

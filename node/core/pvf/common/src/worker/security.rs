@@ -94,7 +94,7 @@ pub mod landlock {
 		}
 	}
 
-	/// Basaed on the given `status`, returns a single bool indicating whether the given landlock
+	/// Based on the given `status`, returns a single bool indicating whether the given landlock
 	/// ABI is fully enabled on the current Linux environment.
 	pub fn status_is_fully_enabled(
 		status: &Result<RulesetStatus, Box<dyn std::error::Error>>,
