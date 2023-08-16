@@ -106,7 +106,7 @@ impl MockAuthorityDiscovery {
 			.clone()
 			.into_iter()
 			.map(|(p, a)| {
-				let multiaddr = Multiaddr::empty().with(Protocol::P2p(p));
+				let multiaddr = Multiaddr::empty().with(Protocol::P2p(p.into()));
 				(a, HashSet::from([multiaddr]))
 			})
 			.collect();
@@ -566,11 +566,11 @@ fn test_log_output() {
 	let unconnected_authorities = {
 		let mut m = HashMap::new();
 		let peer_id = PeerId::random();
-		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id));
+		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id.into()));
 		let addrs = HashSet::from([addr.clone(), addr]);
 		m.insert(alice, addrs);
 		let peer_id = PeerId::random();
-		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id));
+		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id.into()));
 		let addrs = HashSet::from([addr.clone(), addr]);
 		m.insert(bob, addrs);
 		m
@@ -643,8 +643,8 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 					let mut expected = get_address_map(AUTHORITIES_WITHOUT_US.clone()).await;
 					expected.remove(&alice);
 					expected.remove(&bob);
-					let expected: HashSet<Multiaddr> = expected.into_iter().map(|(_,v)| v.into_iter()).flatten().collect();
-					assert_eq!(validator_addrs.into_iter().map(|v| v.into_iter()).flatten().collect::<HashSet<_>>(), expected);
+					let expected: HashSet<Multiaddr> = expected.into_values().flat_map(|v| v.into_iter()).collect();
+					assert_eq!(validator_addrs.into_iter().flat_map(|v| v.into_iter()).collect::<HashSet<_>>(), expected);
 					assert_eq!(peer_set, PeerSet::Validation);
 				}
 			);
@@ -707,8 +707,8 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 			}) => {
 				let mut expected = get_address_map(AUTHORITIES_WITHOUT_US.clone()).await;
 				expected.remove(&bob);
-				let expected: HashSet<Multiaddr> = expected.into_iter().map(|(_,v)| v.into_iter()).flatten().collect();
-				assert_eq!(validator_addrs.into_iter().map(|v| v.into_iter()).flatten().collect::<HashSet<_>>(), expected);
+				let expected: HashSet<Multiaddr> = expected.into_values().flat_map(|v| v.into_iter()).collect();
+				assert_eq!(validator_addrs.into_iter().flat_map(|v| v.into_iter()).collect::<HashSet<_>>(), expected);
 				assert_eq!(peer_set, PeerSet::Validation);
 			}
 		);

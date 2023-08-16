@@ -44,7 +44,7 @@ fn make_dummy_comparator(
 fn clone_request(request: &ParticipationRequest) -> ParticipationRequest {
 	ParticipationRequest {
 		candidate_receipt: request.candidate_receipt.clone(),
-		candidate_hash: request.candidate_hash.clone(),
+		candidate_hash: request.candidate_hash,
 		session: request.session,
 		request_timer: None,
 	}

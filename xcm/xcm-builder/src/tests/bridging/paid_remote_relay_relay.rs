@@ -113,7 +113,7 @@ fn sending_to_bridged_chain_without_funds_fails() {
 	let dest: MultiLocation = (Parent, Parent, Remote::get()).into();
 	// Routing won't work if we don't have enough funds.
 	assert_eq!(
-		send_xcm::<LocalRouter>(dest.clone(), Xcm(vec![Trap(1)])),
+		send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])),
 		Err(SendError::Transport("Error executing")),
 	);
 }
@@ -188,7 +188,7 @@ fn sending_to_parachain_of_bridged_chain_without_funds_fails() {
 	let dest: MultiLocation = (Parent, Parent, Remote::get(), Parachain(100)).into();
 	// Routing won't work if we don't have enough funds.
 	assert_eq!(
-		send_xcm::<LocalRouter>(dest.clone(), Xcm(vec![Trap(1)])),
+		send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])),
 		Err(SendError::Transport("Error executing")),
 	);
 }

@@ -76,10 +76,10 @@ pub(crate) struct DisputeValidCandidates {
 }
 
 impl OverseerGen for DisputeValidCandidates {
-	fn generate<'a, Spawner, RuntimeClient>(
+	fn generate<Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+		args: OverseerGenArgs<'_, Spawner, RuntimeClient>,
 	) -> Result<
 		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
 		Error,
