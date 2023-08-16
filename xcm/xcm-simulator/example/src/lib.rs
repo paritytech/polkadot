@@ -17,7 +17,7 @@
 mod parachain;
 mod relay_chain;
 
-use frame_support::sp_tracing;
+use sp_tracing;
 use sp_runtime::BuildStorage;
 use xcm::prelude::*;
 use xcm_executor::traits::ConvertLocation;
