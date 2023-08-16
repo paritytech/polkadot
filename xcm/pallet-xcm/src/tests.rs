@@ -546,7 +546,7 @@ fn reserve_transfer_assets_with_paid_router_works() {
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			RuntimeOrigin::signed(user_account.clone()),
 			Box::new(Parachain(paid_para_id).into()),
-			Box::new(dest.clone().into()),
+			Box::new(dest.into()),
 			Box::new((Here, SEND_AMOUNT).into()),
 			0,
 		));

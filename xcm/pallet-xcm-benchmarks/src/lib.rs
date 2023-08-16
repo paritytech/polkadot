@@ -119,12 +119,14 @@ pub fn account_and_location<T: Config>(index: u32) -> (T::AccountId, MultiLocati
 /// layers.
 pub trait EnsureDelivery {
 	/// Prepare all requirements for successful `XcmSender: SendXcm` passing (accounts, balances,
-	/// channels ...). Returns possible `FeesMode` which is expected to be set to executor.
+	/// channels ...). Returns:
+	/// - possible `FeesMode` which is expected to be set to executor
+	/// - possible `MultiAssets` which are expected to be subsume to the Holding Register
 	fn ensure_successful_delivery(
 		origin_ref: &MultiLocation,
 		dest: &MultiLocation,
 		fee_reason: FeeReason,
-	) -> Option<FeesMode>;
+	) -> (Option<FeesMode>, Option<MultiAssets>);
 }
 
 /// `()` implementation does nothing which means no special requirements for environment.
@@ -133,8 +135,8 @@ impl EnsureDelivery for () {
 		_origin_ref: &MultiLocation,
 		_dest: &MultiLocation,
 		_fee_reason: FeeReason,
-	) -> Option<FeesMode> {
+	) -> (Option<FeesMode>, Option<MultiAssets>) {
 		// doing nothing
-		None
+		(None, None)
 	}
 }

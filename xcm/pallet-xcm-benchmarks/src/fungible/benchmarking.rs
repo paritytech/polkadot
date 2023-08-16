@@ -88,7 +88,11 @@ benchmarks_instance_pallet! {
 		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 
 		use crate::EnsureDelivery;
-		let expected_fees_mode = T::DeliveryHelper::ensure_successful_delivery(&sender_location, &dest_location, FeeReason::TransferReserveAsset);
+		let (expected_fees_mode, expected_assets_in_holding) = T::DeliveryHelper::ensure_successful_delivery(
+			&sender_location,
+			&dest_location,
+			FeeReason::TransferReserveAsset
+		);
 		let sender_account_balance_before = T::TransactAsset::balance(&sender_account);
 
 		let asset = T::get_multi_asset();
@@ -101,6 +105,10 @@ benchmarks_instance_pallet! {
 		if let Some(expected_fees_mode) = expected_fees_mode {
 			executor.set_fees_mode(expected_fees_mode);
 		}
+		if let Some(expected_assets_in_holding) = expected_assets_in_holding {
+			executor.set_holding(expected_assets_in_holding.into());
+		}
+
 		let instruction = Instruction::TransferReserveAsset {
 			assets,
 			dest: dest_location,

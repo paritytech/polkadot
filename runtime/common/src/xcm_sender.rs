@@ -150,7 +150,7 @@ impl<
 		origin_ref: &MultiLocation,
 		_dest: &MultiLocation,
 		fee_reason: xcm_executor::traits::FeeReason,
-	) -> Option<xcm_executor::FeesMode> {
+	) -> (Option<xcm_executor::FeesMode>, Option<MultiAssets>) {
 		use xcm_executor::{
 			traits::{FeeManager, TransactAsset},
 			FeesMode,
@@ -180,10 +180,10 @@ impl<
 			// allow more initialization for target parachain
 			ToParachainHelper::ensure(Parachain::get());
 
-			// expected worst case
+			// expected worst case - direct withdraw
 			fees_mode = Some(FeesMode { jit_withdraw: true });
 		}
-		fees_mode
+		(fees_mode, None)
 	}
 }
 
