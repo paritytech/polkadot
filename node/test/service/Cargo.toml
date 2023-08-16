@@ -1,8 +1,10 @@
 [package]
 name = "polkadot-test-service"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 futures = "0.3.21"

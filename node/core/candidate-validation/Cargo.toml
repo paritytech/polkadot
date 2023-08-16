@@ -1,8 +1,10 @@
 [package]
 name = "polkadot-node-core-candidate-validation"
+description = "Polkadot crate that implements the Candidate Validation subsystem. Handles requests to validate candidates according to a PVF."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 async-trait = "0.1.57"

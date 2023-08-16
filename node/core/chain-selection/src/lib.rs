@@ -44,13 +44,15 @@ mod tree;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::chain-selection";
-/// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
+/// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS
+/// reboots.
 type Timestamp = u64;
 
 // If a block isn't approved in 120 seconds, nodes will abandon it
 // and begin building on another chain.
 const STAGNANT_TIMEOUT: Timestamp = 120;
-// Delay prunning of the stagnant keys in prune only mode by 25 hours to avoid interception with the finality
+// Delay prunning of the stagnant keys in prune only mode by 25 hours to avoid interception with the
+// finality
 const STAGNANT_PRUNE_DELAY: Timestamp = 25 * 60 * 60;
 // Maximum number of stagnant entries cleaned during one `STAGNANT_TIMEOUT` iteration
 const MAX_STAGNANT_ENTRIES: usize = 1000;

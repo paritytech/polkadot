@@ -91,10 +91,10 @@ impl sp_std::fmt::Debug for CandidateHash {
 pub type Nonce = u32;
 
 /// The balance of an account.
-/// 128-bits (or 38 significant decimal figures) will allow for 10 m currency (`10^7`) at a resolution
-/// to all for one second's worth of an annualised 50% reward be paid to a unit holder (`10^11` unit
-/// denomination), or `10^18` total atomic units, to grow at 50%/year for 51 years (`10^9` multiplier)
-/// for an eventual total of `10^27` units (27 significant decimal figures).
+/// 128-bits (or 38 significant decimal figures) will allow for 10 m currency (`10^7`) at a
+/// resolution to all for one second's worth of an annualised 50% reward be paid to a unit holder
+/// (`10^11` unit denomination), or `10^18` total atomic units, to grow at 50%/year for 51 years
+/// (`10^9` multiplier) for an eventual total of `10^27` units (27 significant decimal figures).
 /// We round denomination to `10^12` (12 SDF), and leave the other redundancy at the upper end so
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
@@ -121,8 +121,8 @@ pub type Remark = [u8; 32];
 /// The size of the message is limited by the `config.max_downward_message_size` parameter.
 pub type DownwardMessage = sp_std::vec::Vec<u8>;
 
-/// A wrapped version of `DownwardMessage`. The difference is that it has attached the block number when
-/// the message was sent.
+/// A wrapped version of `DownwardMessage`. The difference is that it has attached the block number
+/// when the message was sent.
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
 pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
 	/// The block number at which these messages were put into the downward message queue.

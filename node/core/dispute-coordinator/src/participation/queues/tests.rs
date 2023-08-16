@@ -53,8 +53,8 @@ fn clone_request(request: &ParticipationRequest) -> ParticipationRequest {
 /// Check that dequeuing acknowledges order.
 ///
 /// Any priority item will be dequeued before any best effort items, priority and best effort with
-/// known parent block number items will be processed in order. Best effort items without known parent
-/// block number should be treated with lowest priority.
+/// known parent block number items will be processed in order. Best effort items without known
+/// parent block number should be treated with lowest priority.
 #[test]
 fn ordering_works_as_expected() {
 	let metrics = Metrics::default();

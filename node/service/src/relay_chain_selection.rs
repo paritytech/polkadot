@@ -472,8 +472,8 @@ where
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
 
-		// Messages sent to `approval-distrbution` are known to have high `ToF`, we need to spawn a task for sending
-		// the message to not block here and delay finality.
+		// Messages sent to `approval-distrbution` are known to have high `ToF`, we need to spawn a
+		// task for sending the message to not block here and delay finality.
 		if let Some(spawn_handle) = &self.spawn_handle {
 			let mut overseer_handle = self.overseer.clone();
 			let lag_update_task = async move {
@@ -537,9 +537,10 @@ where
 							error = ?e,
 							"Call to `DetermineUndisputedChain` failed",
 						);
-						// We need to return a sane finality target. But, we are unable to ensure we are not
-						// finalizing something that is being disputed or has been concluded as invalid. We will be
-						// conservative here and not vote for finality above the ancestor passed in.
+						// We need to return a sane finality target. But, we are unable to ensure we
+						// are not finalizing something that is being disputed or has been concluded
+						// as invalid. We will be conservative here and not vote for finality above
+						// the ancestor passed in.
 						return Ok(target_hash)
 					},
 				};
