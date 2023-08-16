@@ -399,10 +399,10 @@ impl TestState {
 					let mut response = Vec::new();
 					for i in target_header.number.saturating_sub(k as u32)..target_header.number {
 						response.push(
-							self.block_num_to_header
+							*self
+								.block_num_to_header
 								.get(&i)
-								.expect("headers and block_num_to_header should always be in sync")
-								.clone(),
+								.expect("headers and block_num_to_header should always be in sync"),
 						);
 					}
 					let _ = response_channel.send(Ok(response));
@@ -552,7 +552,7 @@ impl TestState {
 		let (ctx, ctx_handle) = make_buffered_subsystem_context(TaskExecutor::new(), 1);
 		let subsystem = DisputeCoordinatorSubsystem::new(
 			self.db.clone(),
-			self.config.clone(),
+			self.config,
 			self.subsystem_keystore.clone(),
 			Metrics::default(),
 		);
@@ -574,27 +574,27 @@ where
 
 	// Add two more blocks after the genesis (which is created in `default()`)
 	let h1 = Header {
-		parent_hash: test_state.last_block.clone(),
+		parent_hash: test_state.last_block,
 		number: 1,
 		digest: dummy_digest(),
 		state_root: dummy_hash(),
 		extrinsics_root: dummy_hash(),
 	};
 	let h1_hash = h1.hash();
-	test_state.headers.insert(h1_hash.clone(), h1);
-	test_state.block_num_to_header.insert(1, h1_hash.clone());
+	test_state.headers.insert(h1_hash, h1);
+	test_state.block_num_to_header.insert(1, h1_hash);
 	test_state.last_block = h1_hash;
 
 	let h2 = Header {
-		parent_hash: test_state.last_block.clone(),
+		parent_hash: test_state.last_block,
 		number: 2,
 		digest: dummy_digest(),
 		state_root: dummy_hash(),
 		extrinsics_root: dummy_hash(),
 	};
 	let h2_hash = h2.hash();
-	test_state.headers.insert(h2_hash.clone(), h2);
-	test_state.block_num_to_header.insert(2, h2_hash.clone());
+	test_state.headers.insert(h2_hash, h2);
+	test_state.block_num_to_header.insert(2, h2_hash);
 	test_state.last_block = h2_hash;
 
 	test_state.resume(test)
@@ -3133,7 +3133,7 @@ fn participation_requests_reprioritized_for_newly_included() {
 				// participation.
 				let parent_block_num: BlockNumber = repetition as BlockNumber - 1;
 				candidate_receipt.descriptor.relay_parent =
-					test_state.block_num_to_header.get(&parent_block_num).unwrap().clone();
+					*test_state.block_num_to_header.get(&parent_block_num).unwrap();
 				receipts.push(candidate_receipt.clone());
 			}
 

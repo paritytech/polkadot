@@ -279,7 +279,6 @@ fn backing_second_works() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 
@@ -369,7 +368,6 @@ fn backing_works() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 
@@ -518,7 +516,6 @@ fn backing_works_while_validation_ongoing() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 
@@ -695,7 +692,6 @@ fn backing_misbehavior_works() {
 			pov_hash,
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
 			head_data: expected_head_data.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -880,7 +876,6 @@ fn backing_dont_second_invalid() {
 			pov_hash: pov_hash_b,
 			erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
 			head_data: expected_head_data.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -1425,7 +1420,6 @@ fn observes_backing_even_if_not_validator() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 

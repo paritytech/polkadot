@@ -984,7 +984,7 @@ fn requests_submit_pvf_check_statement() {
 				),
 			})
 			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), ());
+		let _ = rx.await.unwrap().unwrap();
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
 			.send(FromOrchestra::Communication {
@@ -994,7 +994,7 @@ fn requests_submit_pvf_check_statement() {
 				),
 			})
 			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), ());
+		let _ = rx.await.unwrap().unwrap();
 
 		assert_eq!(
 			&*subsystem_client.submitted_pvf_check_statement.lock().expect("poisened mutex"),
@@ -1061,9 +1061,7 @@ fn requests_validation_code_hash() {
 	let validation_code_hash = dummy_validation_code().hash();
 
 	let mut subsystem_client = MockSubsystemClient::default();
-	subsystem_client
-		.validation_code_hash
-		.insert(para_a, validation_code_hash.clone());
+	subsystem_client.validation_code_hash.insert(para_a, validation_code_hash);
 	let subsystem_client = Arc::new(subsystem_client);
 
 	let subsystem =
