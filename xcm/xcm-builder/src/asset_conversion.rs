@@ -286,11 +286,11 @@ mod tests {
 		struct ClassInstanceIdConverter;
 		impl MaybeEquivalence<AssetInstance, ClassInstanceId> for ClassInstanceIdConverter {
 			fn convert(value: &AssetInstance) -> Option<ClassInstanceId> {
-				value.clone().try_into().ok()
+				(*value).try_into().ok()
 			}
 
 			fn convert_back(value: &ClassInstanceId) -> Option<AssetInstance> {
-				Some(AssetInstance::from(value.clone()))
+				Some(AssetInstance::from(*value))
 			}
 		}
 

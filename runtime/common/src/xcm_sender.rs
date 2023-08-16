@@ -230,26 +230,24 @@ mod tests {
 
 		// F * (B + msg_length * M)
 		// message_length = 1
-		let result: u128 = TestFeeTracker::get_fee_factor(id.clone()).saturating_mul_int(b + m);
+		let result: u128 = TestFeeTracker::get_fee_factor(id).saturating_mul_int(b + m);
 		assert_eq!(
-			TestExponentialPrice::price_for_parachain_delivery(id.clone(), &Xcm(vec![])),
+			TestExponentialPrice::price_for_parachain_delivery(id, &Xcm(vec![])),
 			(FeeAssetId::get(), result).into()
 		);
 
 		// message size = 2
-		let result: u128 =
-			TestFeeTracker::get_fee_factor(id.clone()).saturating_mul_int(b + (2 * m));
+		let result: u128 = TestFeeTracker::get_fee_factor(id).saturating_mul_int(b + (2 * m));
 		assert_eq!(
-			TestExponentialPrice::price_for_parachain_delivery(id.clone(), &Xcm(vec![ClearOrigin])),
+			TestExponentialPrice::price_for_parachain_delivery(id, &Xcm(vec![ClearOrigin])),
 			(FeeAssetId::get(), result).into()
 		);
 
 		// message size = 4
-		let result: u128 =
-			TestFeeTracker::get_fee_factor(id.clone()).saturating_mul_int(b + (4 * m));
+		let result: u128 = TestFeeTracker::get_fee_factor(id).saturating_mul_int(b + (4 * m));
 		assert_eq!(
 			TestExponentialPrice::price_for_parachain_delivery(
-				id.clone(),
+				id,
 				&Xcm(vec![SetAppendix(Xcm(vec![ClearOrigin]))])
 			),
 			(FeeAssetId::get(), result).into()

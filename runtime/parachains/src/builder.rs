@@ -377,8 +377,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	fn signing_context(&self) -> SigningContext<T::Hash> {
 		SigningContext {
-			parent_hash: Self::header(self.block_number.clone()).hash(),
-			session_index: self.session.clone(),
+			parent_hash: Self::header(self.block_number).hash(),
+			session_index: self.session,
 		}
 	}
 
@@ -408,7 +408,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		}
 
 		let block_number = BlockNumberFor::<T>::from(block);
-		let header = Self::header(block_number.clone());
+		let header = Self::header(block_number);
 
 		frame_system::Pallet::<T>::reset_events();
 		frame_system::Pallet::<T>::initialize(
@@ -464,13 +464,13 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		for (seed, _) in concluding_cores.iter() {
 			// make sure the candidates that will be concluding are marked as pending availability.
-			let (para_id, core_idx, group_idx) = self.create_indexes(seed.clone());
+			let (para_id, core_idx, group_idx) = self.create_indexes(*seed);
 			Self::add_availability(
 				para_id,
 				core_idx,
 				group_idx,
 				Self::validator_availability_votes_yes(validators.len()),
-				CandidateHash(H256::from(byte32_slice_from(seed.clone()))),
+				CandidateHash(H256::from(byte32_slice_from(*seed))),
 			);
 		}
 
@@ -496,11 +496,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.iter()
 			.map(|(seed, num_votes)| {
 				assert!(*num_votes <= validators.len() as u32);
-				let (para_id, _core_idx, group_idx) = self.create_indexes(seed.clone());
+				let (para_id, _core_idx, group_idx) = self.create_indexes(*seed);
 
 				// This generates a pair and adds it to the keystore, returning just the public.
 				let collator_public = CollatorId::generate_pair(None);
-				let header = Self::header(self.block_number.clone());
+				let header = Self::header(self.block_number);
 				let relay_parent = header.hash();
 				let head_data = Self::mock_head_data();
 				let persisted_validation_data_hash = PersistedValidationData::<H256> {
@@ -563,7 +563,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						let public = validators.get(*val_idx).unwrap();
 						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
 							public,
-							CompactStatement::Valid(candidate_hash.clone()),
+							CompactStatement::Valid(candidate_hash),
 							&self.signing_context(),
 							*val_idx,
 						)
@@ -632,14 +632,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						} else {
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
-						let data = dispute_statement.payload_data(candidate_hash.clone(), session);
+						let data = dispute_statement.payload_data(candidate_hash, session);
 						let statement_sig = validator_public.sign(&data).unwrap();
 
 						(dispute_statement, ValidatorIndex(validator_index), statement_sig)
 					})
 					.collect();
 
-				DisputeStatementSet { candidate_hash: candidate_hash.clone(), session, statements }
+				DisputeStatementSet { candidate_hash: candidate_hash, session, statements }
 			})
 			.collect()
 	}
@@ -702,7 +702,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				bitfields,
 				backed_candidates,
 				disputes,
-				parent_header: Self::header(builder.block_number.clone()),
+				parent_header: Self::header(builder.block_number),
 			},
 			_session: target_session,
 			_block_number: builder.block_number,
