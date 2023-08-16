@@ -611,27 +611,26 @@ impl<T: Config> Pallet<T> {
 		core_idx: CoreIndex,
 		para_id: ParaId,
 	) -> Result<(PositionInClaimqueue, ParasEntry<BlockNumberFor<T>>), &'static str> {
-		let mut cq = ClaimQueue::<T>::get();
-		let la_vec = cq.get_mut(&core_idx).ok_or("core_idx not found in lookahead")?;
+		ClaimQueue::<T>::mutate(|cq| {
+			let core_claims = cq.get_mut(&core_idx).ok_or("core_idx not found in lookahead")?;
 
-		let pos = la_vec
-			.iter()
-			.position(|a| a.as_ref().map_or(false, |pe| pe.para_id() == para_id))
-			.ok_or("para id not found at core_idx lookahead")?;
+			let pos = core_claims
+				.iter()
+				.position(|a| a.as_ref().map_or(false, |pe| pe.para_id() == para_id))
+				.ok_or("para id not found at core_idx lookahead")?;
 
-		let pe = la_vec
-			.remove(pos)
-			.ok_or("remove returned None")?
-			.ok_or("Element in Claimqueue was None.")?;
+			let pe = core_claims
+				.remove(pos)
+				.ok_or("remove returned None")?
+				.ok_or("Element in Claimqueue was None.")?;
 
-		// Since the core is now occupied, the next entry in the claimqueue in order to achieve 12
-		// second block times needs to be None
-		if la_vec.front() != Some(&None) {
-			la_vec.push_front(None);
-		}
-		ClaimQueue::<T>::set(cq);
-
-		Ok((pos as u32, pe))
+			// Since the core is now occupied, the next entry in the claimqueue in order to achieve
+			// 12 second block times needs to be None
+			if core_claims.front() != Some(&None) {
+				core_claims.push_front(None);
+			}
+			Ok((pos as u32, pe))
+		})
 	}
 
 	// TODO: Temporary to imitate the old schedule() call. Will be adjusted when we make the
