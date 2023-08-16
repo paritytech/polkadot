@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
-lru = "0.9"
+lru = "0.11.0"
 
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 

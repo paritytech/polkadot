@@ -18,7 +18,7 @@ polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
 orchestra = "0.0.5"
 gum = { package = "tracing-gum", path = "../gum" }
-lru = "0.9"
+lru = "0.11.0"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 async-trait = "0.1.57"
 tikv-jemalloc-ctl = { version = "0.5.0", optional = true }

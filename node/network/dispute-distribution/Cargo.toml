@@ -22,7 +22,7 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.31"
 fatality = "0.0.6"
-lru = "0.9.0"
+lru = "0.11.0"
 indexmap = "1.9.1"
 
 [dev-dependencies]
