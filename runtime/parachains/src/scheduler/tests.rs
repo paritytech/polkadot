@@ -119,10 +119,7 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 
 fn genesis_config(config: &HostConfiguration<BlockNumber>) -> MockGenesisConfig {
 	MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: config.clone(),
-			..Default::default()
-		},
+		configuration: crate::configuration::GenesisConfig { config: config.clone() },
 		..Default::default()
 	}
 }
@@ -133,7 +130,7 @@ pub(crate) fn claimqueue_contains_only_none() -> bool {
 		v.retain(|e| e.is_some());
 	}
 
-	cq.iter().map(|(_, v)| v.len()).sum::<usize>() == 0
+	cq.values().map(|v| v.len()).sum::<usize>() == 0
 }
 
 pub(crate) fn claimqueue_contains_para_ids<T: Config>(pids: Vec<ParaId>) -> bool {
@@ -914,7 +911,7 @@ fn schedule_rotates_groups() {
 		run_to_block(now, |_| None);
 
 		let assert_groups_rotated = |rotations: u32, now: &BlockNumberFor<Test>| {
-			let scheduled = Scheduler::scheduled_claimqueue(now.clone());
+			let scheduled = Scheduler::scheduled_claimqueue(*now);
 			assert_eq!(scheduled.len(), 2);
 			assert_eq!(scheduled[0].group_idx, GroupIndex((0u32 + rotations) % on_demand_cores));
 			assert_eq!(scheduled[1].group_idx, GroupIndex((1u32 + rotations) % on_demand_cores));

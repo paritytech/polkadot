@@ -387,7 +387,7 @@ fn affinity_changes_work() {
 		// Affinity count is 1 after popping.
 		assert_eq!(OnDemandAssigner::get_affinity_map(para_a).unwrap().count, 1);
 
-		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a));
 
 		// Affinity count is 1 after popping with a previous para.
 		assert_eq!(OnDemandAssigner::get_affinity_map(para_a).unwrap().count, 1);
@@ -402,7 +402,7 @@ fn affinity_changes_work() {
 		assert_eq!(OnDemandAssigner::queue_size(), 5);
 
 		for _ in 0..5 {
-			OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
+			OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a));
 		}
 
 		// Affinity count should still be 4 but queue should be empty.
@@ -411,12 +411,12 @@ fn affinity_changes_work() {
 
 		// Pop 4 times and get to exactly 0 (None) affinity.
 		for _ in 0..4 {
-			OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
+			OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a));
 		}
 		assert!(OnDemandAssigner::get_affinity_map(para_a).is_none());
 
 		// Decreasing affinity beyond 0 should still be None.
-		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a));
 		assert!(OnDemandAssigner::get_affinity_map(para_a).is_none());
 	});
 }
@@ -465,9 +465,9 @@ fn affinity_prohibits_parallel_scheduling() {
 		);
 
 		// Clear affinity
-		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
-		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a.clone()));
-		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_b.clone()));
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a));
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_a));
+		OnDemandAssigner::pop_assignment_for_core(CoreIndex(0), Some(para_b));
 
 		// Add 2 assignments for para_a for every para_b.
 		OnDemandAssigner::add_on_demand_assignment(assignment_a.clone(), QueuePushDirection::Back)
