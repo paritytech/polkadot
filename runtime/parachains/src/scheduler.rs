@@ -21,19 +21,20 @@
 //!   - Scheduling parachains and parathreads
 //!
 //! It aims to achieve these tasks with these goals in mind:
-//! - It should be possible to know at least a block ahead-of-time, ideally more,
-//!   which validators are going to be assigned to which parachains.
-//! - Parachains that have a candidate pending availability in this fork of the chain
-//!   should not be assigned.
+//! - It should be possible to know at least a block ahead-of-time, ideally more, which validators
+//!   are going to be assigned to which parachains.
+//! - Parachains that have a candidate pending availability in this fork of the chain should not be
+//!   assigned.
 //! - Validator assignments should not be gameable. Malicious cartels should not be able to
 //!   manipulate the scheduler to assign themselves as desired.
-//! - High or close to optimal throughput of parachains and parathreads. Work among validator groups should be balanced.
+//! - High or close to optimal throughput of parachains and parathreads. Work among validator groups
+//!   should be balanced.
 //!
 //! The Scheduler manages resource allocation using the concept of "Availability Cores".
 //! There will be one availability core for each parachain, and a fixed number of cores
 //! used for multiplexing parathreads. Validators will be partitioned into groups, with the same
-//! number of groups as availability cores. Validator groups will be assigned to different availability cores
-//! over time.
+//! number of groups as availability cores. Validator groups will be assigned to different
+//! availability cores over time.
 
 use crate::{configuration, initializer::SessionChangeNotification, paras};
 use frame_support::pallet_prelude::*;
@@ -80,14 +81,15 @@ pub mod pallet {
 	/// broader set of Polkadot validators, but instead just the subset used for parachains during
 	/// this session.
 	///
-	/// Bound: The number of cores is the sum of the numbers of parachains and parathread multiplexers.
-	/// Reasonably, 100-1000. The dominant factor is the number of validators: safe upper bound at 10k.
+	/// Bound: The number of cores is the sum of the numbers of parachains and parathread
+	/// multiplexers. Reasonably, 100-1000. The dominant factor is the number of validators: safe
+	/// upper bound at 10k.
 	#[pallet::storage]
 	#[pallet::getter(fn validator_groups)]
 	pub(crate) type ValidatorGroups<T> = StorageValue<_, Vec<Vec<ValidatorIndex>>, ValueQuery>;
 
-	/// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
-	/// temporarily `Some` if scheduled but not occupied.
+	/// One entry for each availability core. Entries are `None` if the core is not currently
+	/// occupied. Can be temporarily `Some` if scheduled but not occupied.
 	/// The i'th parachain belongs to the i'th core, with the remaining cores all being
 	/// parathread-multiplexers.
 	///
@@ -99,7 +101,8 @@ pub mod pallet {
 	pub(crate) type AvailabilityCores<T: Config> =
 		StorageValue<_, Vec<CoreOccupied<BlockNumberFor<T>>>, ValueQuery>;
 
-	/// The block number where the session start occurred. Used to track how many group rotations have occurred.
+	/// The block number where the session start occurred. Used to track how many group rotations
+	/// have occurred.
 	///
 	/// Note that in the context of parachains modules the session change is signaled during
 	/// the block and enacted at the end of the block (at the finalization stage, to be exact).
@@ -109,10 +112,11 @@ pub mod pallet {
 	#[pallet::getter(fn session_start_block)]
 	pub(crate) type SessionStartBlock<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
-	/// One entry for each availability core. The `VecDeque` represents the assignments to be scheduled on that core.
-	/// `None` is used to signal to not schedule the next para of the core as there is one currently being scheduled.
-	/// Not using `None` here would overwrite the `CoreState` in the runtime API.
-
+	/// One entry for each availability core. The `VecDeque` represents the assignments to be
+	/// scheduled on that core. `None` is used to signal to not schedule the next para of the core
+	/// as there is one currently being scheduled. Not using `None` here would overwrite the
+	/// `CoreState` in the runtime API. The value contained here will not be valid after the end of
+	/// a block. Runtime APIs should be used to determine scheduled cores/ for the upcoming block.
 	// TODO: this is behaviour is likely going to change when adapting for AB
 	#[pallet::storage]
 	#[pallet::getter(fn claimqueue)]
@@ -199,8 +203,8 @@ impl<T: Config> Pallet<T> {
 		<SessionStartBlock<T>>::set(now);
 	}
 
-	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
-	/// for them being freed. Returns a tuple of concluded and timedout paras.
+	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along
+	/// with the reason for them being freed. Returns a tuple of concluded and timedout paras.
 	fn free_cores(
 		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
 	) -> (ConcludedParas, TimedoutParas<T>) {
@@ -316,8 +320,8 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
-	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
-	/// out of bounds will return `None`, as will indices of unassigned cores.
+	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core
+	/// indices out of bounds will return `None`, as will indices of unassigned cores.
 	pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
 		let cores = AvailabilityCores::<T>::get();
 		match cores.get(core_index.0 as usize) {
@@ -331,8 +335,9 @@ impl<T: Config> Pallet<T> {
 		ValidatorGroups::<T>::get().get(group_index.0 as usize).map(|g| g.clone())
 	}
 
-	/// Get the group assigned to a specific core by index at the current block number. Result undefined if the core index is unknown
-	/// or the block number is less than the session start index.
+	/// Get the group assigned to a specific core by index at the current block number. Result
+	/// undefined if the core index is unknown or the block number is less than the session start
+	/// index.
 	pub(crate) fn group_assigned_to_core(
 		core: CoreIndex,
 		at: BlockNumberFor<T>,
@@ -366,10 +371,10 @@ impl<T: Config> Pallet<T> {
 
 	/// Returns an optional predicate that should be used for timing out occupied cores.
 	///
-	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
-	/// block number since which it has been occupied, and the respective parachain timeout, i.e. only within
-	/// `config.paras_availability_period` of the last rotation would this return `Some`,
-	/// unless there are no rotations.
+	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and
+	/// the block number since which it has been occupied, and the respective parachain timeouts,
+	/// i.e. only within `config.paras_availability_period` of the last rotation would this return
+	/// `Some`, unless there are no rotations.
 	///
 	/// The timeout used to depend, but does not depend any more on group rotations. First of all
 	/// it only matters if a para got another chance (a retry). If there is a retry and it happens
@@ -438,7 +443,8 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
 		Self::next_up_on_available(core).or_else(|| {
 			// Or, if none, the claim currently occupying the core,
-			// as it would be put back on the queue after timing out if number of retries is not at the maximum.
+			// as it would be put back on the queue after timing out if number of retries is not at
+			// the maximum.
 			let cores = AvailabilityCores::<T>::get();
 			cores.get(core.0 as usize).and_then(|c| match c {
 				CoreOccupied::Free => None,
@@ -498,7 +504,8 @@ impl<T: Config> Pallet<T> {
 		<configuration::Pallet<T>>::config().scheduling_lookahead
 	}
 
-	/// Updates the claimqueue by moving it to the next paras and filling empty spots with new paras.
+	/// Updates the claimqueue by moving it to the next paras and filling empty spots with new
+	/// paras.
 	pub(crate) fn update_claimqueue(
 		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
 		now: BlockNumberFor<T>,
@@ -531,8 +538,8 @@ impl<T: Config> Pallet<T> {
 	) -> Vec<CoreAssignment<BlockNumberFor<T>>> {
 		let (mut concluded_paras, mut timedout_paras) = Self::free_cores(just_freed_cores);
 
-		// This can only happen on new sessions at which we move all assignments back to the provider.
-		// Hence, there's nothing we need to do here.
+		// This can only happen on new sessions at which we move all assignments back to the
+		// provider. Hence, there's nothing we need to do here.
 		if ValidatorGroups::<T>::get().is_empty() {
 			vec![]
 		} else {
@@ -558,7 +565,8 @@ impl<T: Config> Pallet<T> {
 						// Do not pop another assignment for the core.
 						continue
 					} else {
-						// Consider timed out assignments for on demand parachains as concluded for the assignment provider
+						// Consider timed out assignments for on demand parachains as concluded for
+						// the assignment provider
 						let ret = concluded_paras.insert(core_idx, entry.para_id());
 						debug_assert!(ret.is_none());
 					}
@@ -616,7 +624,8 @@ impl<T: Config> Pallet<T> {
 			.ok_or("remove returned None")?
 			.ok_or("Element in Claimqueue was None.")?;
 
-		// Since the core is now occupied, the next entry in the claimqueue in order to achieve 12 second block times needs to be None
+		// Since the core is now occupied, the next entry in the claimqueue in order to achieve 12
+		// second block times needs to be None
 		if la_vec.front() != Some(&None) {
 			la_vec.push_front(None);
 		}
@@ -625,7 +634,8 @@ impl<T: Config> Pallet<T> {
 		Ok((pos as u32, pe))
 	}
 
-	// TODO: Temporary to imitate the old schedule() call. Will be adjusted when we make the scheduler AB ready
+	// TODO: Temporary to imitate the old schedule() call. Will be adjusted when we make the
+	// scheduler AB ready
 	pub(crate) fn scheduled_claimqueue(
 		now: BlockNumberFor<T>,
 	) -> Vec<CoreAssignment<BlockNumberFor<T>>> {

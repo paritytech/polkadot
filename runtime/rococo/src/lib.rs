@@ -1358,8 +1358,6 @@ impl paras_sudo_wrapper::Config for Runtime {}
 parameter_types! {
 	pub const PermanentSlotLeasePeriodLength: u32 = 365;
 	pub const TemporarySlotLeasePeriodLength: u32 = 5;
-	pub const MaxPermanentSlots: u32 = 100;
-	pub const MaxTemporarySlots: u32 = 100;
 	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
 }
 
@@ -1369,9 +1367,8 @@ impl assigned_slots::Config for Runtime {
 	type Leaser = Slots;
 	type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
 	type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
-	type MaxPermanentSlots = MaxPermanentSlots;
-	type MaxTemporarySlots = MaxTemporarySlots;
 	type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
+	type WeightInfo = weights::runtime_common_assigned_slots::WeightInfo<Runtime>;
 }
 
 impl validator_manager::Config for Runtime {
@@ -1498,7 +1495,7 @@ construct_runtime! {
 		MmrLeaf: pallet_beefy_mmr::{Pallet, Storage} = 242,
 
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 250,
-		AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>} = 251,
+		AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>, Config<T>} = 251,
 
 		// Validator Manager pallet.
 		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>} = 252,
@@ -1553,6 +1550,7 @@ pub mod migrations {
 		pallet_society::migrations::VersionCheckedMigrateToV2<Runtime, (), ()>,
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
+		assigned_slots::migration::v1::VersionCheckedMigrateToV1<Runtime>,
 		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 	);
@@ -1601,6 +1599,7 @@ mod benches {
 		// Polkadot
 		// NOTE: Make sure to prefix these with `runtime_common::` so
 		// the that path resolves correctly in the generated file.
+		[runtime_common::assigned_slots, AssignedSlots]
 		[runtime_common::auctions, Auctions]
 		[runtime_common::crowdloan, Crowdloan]
 		[runtime_common::claims, Claims]

@@ -185,10 +185,12 @@ mod tests {
 		// Steps:
 		// 1. Go to Polkadot.js -> Developer -> Chain state -> Storage: https://polkadot.js.org/apps/#/chainstate
 		// 2. Set these parameters:
-		//   2.1. selected state query: configuration; activeConfig(): PolkadotRuntimeParachainsConfigurationHostConfiguration
-		//   2.2. blockhash to query at: 0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53 (the hash of the block)
-		//   2.3. Note the value of encoded storage key -> 0x06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385 for the referenced block.
-		//   2.4. You'll also need the decoded values to update the test.
+		//   2.1. selected state query: configuration; activeConfig():
+		// PolkadotRuntimeParachainsConfigurationHostConfiguration   2.2. blockhash to query at:
+		// 0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53 (the hash of the
+		// block)   2.3. Note the value of encoded storage key ->
+		// 0x06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385 for the referenced
+		// block.   2.4. You'll also need the decoded values to update the test.
 		// 3. Go to Polkadot.js -> Developer -> Chain state -> Raw storage
 		//   3.1 Enter the encoded storage key and you get the raw config.
 
@@ -199,8 +201,8 @@ mod tests {
 		let v6 =
 			V6HostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..]).unwrap();
 
-		// We check only a sample of the values here. If we missed any fields or messed up data types
-		// that would skew all the fields coming after.
+		// We check only a sample of the values here. If we missed any fields or messed up data
+		// types that would skew all the fields coming after.
 		assert_eq!(v6.max_code_size, 3_145_728);
 		assert_eq!(v6.validation_upgrade_cooldown, 200);
 		assert_eq!(v6.max_pov_size, 5_242_880);
@@ -212,8 +214,8 @@ mod tests {
 
 	#[test]
 	fn test_migrate_to_v7() {
-		// Host configuration has lots of fields. However, in this migration we only remove one field.
-		// The most important part to check are a couple of the last fields. We also pick
+		// Host configuration has lots of fields. However, in this migration we only remove one
+		// field. The most important part to check are a couple of the last fields. We also pick
 		// extra fields to check arbitrarily, e.g. depending on their position (i.e. the middle) and
 		// also their type.
 		//
@@ -291,7 +293,8 @@ mod tests {
 		});
 	}
 
-	// Test that migration doesn't panic in case there're no pending configurations upgrades in pallet's storage.
+	// Test that migration doesn't panic in case there're no pending configurations upgrades in
+	// pallet's storage.
 	#[test]
 	fn test_migrate_to_v7_no_pending() {
 		let v6 = V6HostConfiguration::<primitives::BlockNumber>::default();

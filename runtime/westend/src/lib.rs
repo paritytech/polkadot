@@ -339,8 +339,8 @@ pub struct MaybeSignedPhase;
 
 impl Get<u32> for MaybeSignedPhase {
 	fn get() -> u32 {
-		// 1 day = 4 eras -> 1 week = 28 eras. We want to disable signed phase once a week to test the fallback unsigned
-		// phase is able to compute elections on Westend.
+		// 1 day = 4 eras -> 1 week = 28 eras. We want to disable signed phase once a week to test
+		// the fallback unsigned phase is able to compute elections on Westend.
 		if Staking::current_era().unwrap_or(1) % 28 == 0 {
 			0
 		} else {
@@ -1012,8 +1012,6 @@ impl paras_sudo_wrapper::Config for Runtime {}
 parameter_types! {
 	pub const PermanentSlotLeasePeriodLength: u32 = 26;
 	pub const TemporarySlotLeasePeriodLength: u32 = 1;
-	pub const MaxPermanentSlots: u32 = 5;
-	pub const MaxTemporarySlots: u32 = 20;
 	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
 }
 
@@ -1023,9 +1021,8 @@ impl assigned_slots::Config for Runtime {
 	type Leaser = Slots;
 	type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
 	type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
-	type MaxPermanentSlots = MaxPermanentSlots;
-	type MaxTemporarySlots = MaxTemporarySlots;
 	type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
+	type WeightInfo = weights::runtime_common_assigned_slots::WeightInfo<Runtime>;
 }
 
 impl parachains_disputes::Config for Runtime {
@@ -1237,7 +1234,7 @@ construct_runtime! {
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 62,
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 63,
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 64,
-		AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>} = 65,
+		AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>, Config<T>} = 65,
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config<T>} = 99,
@@ -1291,6 +1288,7 @@ pub mod migrations {
 	pub type Unreleased = (
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
+		assigned_slots::migration::v1::VersionCheckedMigrateToV1<Runtime>,
 		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
 	);
@@ -1317,6 +1315,7 @@ mod benches {
 		// Polkadot
 		// NOTE: Make sure to prefix these with `runtime_common::` so
 		// the that path resolves correctly in the generated file.
+		[runtime_common::assigned_slots, AssignedSlots]
 		[runtime_common::auctions, Auctions]
 		[runtime_common::crowdloan, Crowdloan]
 		[runtime_common::paras_registrar, Registrar]

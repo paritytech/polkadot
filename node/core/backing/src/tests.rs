@@ -84,7 +84,8 @@ impl Default for TestState {
 		];
 
 		let keystore = Arc::new(sc_keystore::LocalKeystore::in_memory());
-		// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain validator.
+		// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain
+		// validator.
 		Keystore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&validators[0].to_seed()))
 			.expect("Insert key into keystore");
 

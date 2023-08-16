@@ -419,7 +419,8 @@ struct CandidateBackingJob<Context> {
 	awaiting_validation: HashSet<CandidateHash>,
 	/// Data needed for retrying in case of `ValidatedCandidateCommand::AttestNoPoV`.
 	fallbacks: HashMap<CandidateHash, (AttestingData, Option<jaeger::Span>)>,
-	/// `Some(h)` if this job has already issued `Seconded` statement for some candidate with `h` hash.
+	/// `Some(h)` if this job has already issued `Seconded` statement for some candidate with `h`
+	/// hash.
 	seconded: Option<CandidateHash>,
 	/// The candidates that are includable, by hash. Each entry here indicates
 	/// that we've sent the provisioner the backed candidate.
@@ -559,9 +560,10 @@ async fn store_available_data(
 	expected_erasure_root: Hash,
 ) -> Result<(), Error> {
 	let (tx, rx) = oneshot::channel();
-	// Important: the `av-store` subsystem will check if the erasure root of the `available_data` matches `expected_erasure_root`
-	// which was provided by the collator in the `CandidateReceipt`. This check is consensus critical and the `backing` subsystem
-	// relies on it for ensuring candidate validity.
+	// Important: the `av-store` subsystem will check if the erasure root of the `available_data`
+	// matches `expected_erasure_root` which was provided by the collator in the `CandidateReceipt`.
+	// This check is consensus critical and the `backing` subsystem relies on it for ensuring
+	// candidate validity.
 	sender
 		.send_message(AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
@@ -579,8 +581,8 @@ async fn store_available_data(
 
 // Make a `PoV` available.
 //
-// This calls the AV store to write the available data to storage. The AV store also checks the erasure root matches
-// the `expected_erasure_root`.
+// This calls the AV store to write the available data to storage. The AV store also checks the
+// erasure root matches the `expected_erasure_root`.
 // This returns `Err()` on erasure root mismatch or due to any AV store subsystem error.
 //
 // Otherwise, it returns either `Ok(())`

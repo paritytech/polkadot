@@ -17,8 +17,8 @@
 //! The inclusion pallet is responsible for inclusion and availability of scheduled parachains
 //! and parathreads.
 //!
-//! It is responsible for carrying candidates from being backable to being backed, and then from backed
-//! to included.
+//! It is responsible for carrying candidates from being backable to being backed, and then from
+//! backed to included.
 
 use crate::{
 	configuration::{self, HostConfiguration},
@@ -76,8 +76,8 @@ impl WeightInfo for () {
 
 /// Maximum value that `config.max_upward_message_size` can be set to.
 ///
-/// This is used for benchmarking sanely bounding relevant storage items. It is expected from the `configuration`
-/// pallet to check these values before setting.
+/// This is used for benchmarking sanely bounding relevant storage items. It is expected from the
+/// `configuration` pallet to check these values before setting.
 pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 128 * 1024;
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
@@ -352,8 +352,8 @@ pub mod pallet {
 		InvalidOutboundHrmp,
 		/// The validation code hash of the candidate is not valid.
 		InvalidValidationCodeHash,
-		/// The `para_head` hash in the candidate descriptor doesn't match the hash of the actual para head in the
-		/// commitments.
+		/// The `para_head` hash in the candidate descriptor doesn't match the hash of the actual
+		/// para head in the commitments.
 		ParaHeadMismatch,
 		/// A bitfield that references a freed core,
 		/// either intentionally or as part of a concluded
@@ -490,8 +490,8 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
 	///
-	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
-	/// and cores free.
+	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became
+	/// available, and cores free.
 	pub(crate) fn update_pending_availability_and_get_freed_cores<F>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
@@ -528,8 +528,8 @@ impl<T: Config> Pallet<T> {
 					continue
 				};
 
-				// defensive check - this is constructed by loading the availability bitfield record,
-				// which is always `Some` if the core is occupied - that's why we're here.
+				// defensive check - this is constructed by loading the availability bitfield
+				// record, which is always `Some` if the core is occupied - that's why we're here.
 				let validator_index = validator_index.0 as usize;
 				if let Some(mut bit) =
 					pending_availability.as_mut().and_then(|candidate_pending_availability| {
@@ -589,8 +589,8 @@ impl<T: Config> Pallet<T> {
 		freed_cores
 	}
 
-	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
-	/// and scheduled cores.
+	/// Process candidates that have been backed. Provide the relay storage root, a set of
+	/// candidates and scheduled cores.
 	///
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
@@ -960,7 +960,8 @@ impl<T: Config> Pallet<T> {
 				})
 			}
 			// make sure that the queue is not overfilled.
-			// we do it here only once since returning false invalidates the whole relay-chain block.
+			// we do it here only once since returning false invalidates the whole relay-chain
+			// block.
 			if para_queue_size.saturating_add(msg_size as u64) > config.max_upward_queue_size as u64
 			{
 				return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {

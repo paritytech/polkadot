@@ -512,6 +512,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 		},
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -526,11 +527,12 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeG
 		hex!["12b782529c22032ed4694e0f6e7d486be7daa6d12088f6bc74d593b3900b8438"].into(),
 	];
 
-	// for i in 1 2 3 4; do for j in stash controller; do subkey inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in babe; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in para_validator para_assignment; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in stash controller; do subkey inspect "$SECRET//$i//$j"; done;
+	// done for i in 1 2 3 4; do for j in babe; do subkey --sr25519 inspect "$SECRET//$i//$j"; done;
+	// done for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j";
+	// done; done for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect
+	// "$SECRET//$i//$j"; done; done for i in 1 2 3 4; do for j in para_validator para_assignment;
+	// do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
 	let initial_authorities: Vec<(
 		AccountId,
 		AccountId,
@@ -1019,6 +1021,7 @@ fn rococo_staging_testnet_config_genesis(
 		},
 		xcm_pallet: Default::default(),
 		nis_counterpart_balances: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -1480,6 +1483,7 @@ pub fn westend_testnet_genesis(
 		},
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -1569,6 +1573,7 @@ pub fn rococo_testnet_genesis(
 		},
 		xcm_pallet: Default::default(),
 		nis_counterpart_balances: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
