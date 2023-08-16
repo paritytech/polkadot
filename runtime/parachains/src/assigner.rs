@@ -48,7 +48,8 @@ type OnDemandAssigner<T> = <T as Config>::OnDemandAssignmentProvider;
 impl<T: Config> Pallet<T> {
 	// Helper fn for the AssignmentProvider implementation.
 	// Assumes that the first allocation of cores is to bulk parachains.
-	// This function will return false if there are no cores assigned to the bulk parachain assigner.
+	// This function will return false if there are no cores assigned to the bulk parachain
+	// assigner.
 	fn is_bulk_core(core_idx: &CoreIndex) -> bool {
 		let parachain_cores =
 			<ParachainAssigner<T> as AssignmentProvider<BlockNumberFor<T>>>::session_core_count();

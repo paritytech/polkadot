@@ -44,7 +44,8 @@ pub struct AssignmentProviderConfig<BlockNumber> {
 	pub availability_period: BlockNumber,
 
 	/// How many times a collation can time out on availability.
-	/// Zero timeouts still means that a collation can be provided as per the slot auction assignment provider.
+	/// Zero timeouts still means that a collation can be provided as per the slot auction
+	/// assignment provider.
 	pub max_availability_timeouts: u32,
 
 	/// How long the collator has to provide a collation to the backing group before being dropped.

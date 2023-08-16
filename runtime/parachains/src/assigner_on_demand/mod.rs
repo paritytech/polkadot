@@ -76,7 +76,8 @@ impl WeightInfo for TestWeightInfo {
 	}
 }
 
-/// Keeps track of how many assignments a scheduler currently has at a specific `CoreIndex` for a specific `ParaId`.
+/// Keeps track of how many assignments a scheduler currently has at a specific `CoreIndex` for a
+/// specific `ParaId`.
 #[derive(Encode, Decode, Default, Clone, Copy, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct CoreAffinityCount {
@@ -143,7 +144,8 @@ pub mod pallet {
 		VecDeque::new()
 	}
 
-	/// Keeps track of the multiplier used to calculate the current spot price for the on demand assigner.
+	/// Keeps track of the multiplier used to calculate the current spot price for the on demand
+	/// assigner.
 	#[pallet::storage]
 	pub(super) type SpotTraffic<T: Config> =
 		StorageValue<_, FixedU128, ValueQuery, SpotTrafficOnEmpty<T>>;
@@ -154,9 +156,9 @@ pub mod pallet {
 	pub type OnDemandQueue<T: Config> =
 		StorageValue<_, VecDeque<Assignment>, ValueQuery, OnDemandQueueOnEmpty<T>>;
 
-	/// Maps a `ParaId` to `CoreIndex` and keeps track of how many assignments the scheduler has in it's
-	/// lookahead. Keeping track of this affinity prevents parallel execution of the same `ParaId` on two or more
-	/// `CoreIndex`es.
+	/// Maps a `ParaId` to `CoreIndex` and keeps track of how many assignments the scheduler has in
+	/// it's lookahead. Keeping track of this affinity prevents parallel execution of the same
+	/// `ParaId` on two or more `CoreIndex`es.
 	#[pallet::storage]
 	pub(super) type ParaIdAffinity<T: Config> =
 		StorageMap<_, Twox256, ParaId, CoreAffinityCount, OptionQuery>;
@@ -172,13 +174,16 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The `ParaId` supplied to the `place_order` call is not a valid `ParaThread`, making the call is invalid.
+		/// The `ParaId` supplied to the `place_order` call is not a valid `ParaThread`, making the
+		/// call is invalid.
 		InvalidParaId,
 		/// The order queue is full, `place_order` will not continue.
 		QueueFull,
-		/// The current spot price is higher than the max amount specified in the `place_order` call, making it invalid.
+		/// The current spot price is higher than the max amount specified in the `place_order`
+		/// call, making it invalid.
 		SpotPriceHigherThanMaxAmount,
-		/// There are no on demand cores available. `place_order` will not add anything to the queue.
+		/// There are no on demand cores available. `place_order` will not add anything to the
+		/// queue.
 		NoOnDemandCores,
 	}
 
@@ -354,13 +359,16 @@ where
 	/// - `traffic`: The previously calculated multiplier, can never go below 1.0.
 	/// - `queue_capacity`: The max size of the order book.
 	/// - `queue_size`: How many orders are currently in the order book.
-	/// - `target_queue_utilisation`: How much of the queue_capacity should be ideally occupied, expressed in percentages(perbill).
-	/// - `variability`: A variability factor, i.e. how quickly the spot price adjusts. This number can be chosen by
-	///                  p/(k*(1-s)) where p is the desired ratio increase in spot price over k number of blocks.
-	///                  s is the target_queue_utilisation. A concrete example: v = 0.05/(20*(1-0.25)) = 0.0033.
+	/// - `target_queue_utilisation`: How much of the queue_capacity should be ideally occupied,
+	///   expressed in percentages(perbill).
+	/// - `variability`: A variability factor, i.e. how quickly the spot price adjusts. This number
+	///   can be chosen by p/(k*(1-s)) where p is the desired ratio increase in spot price over k
+	///   number of blocks. s is the target_queue_utilisation. A concrete example: v =
+	///   0.05/(20*(1-0.25)) = 0.0033.
 	///
 	/// Returns:
-	/// - A `FixedU128` in the range of  `Config::TrafficDefaultValue` - `FixedU128::MAX` on success.
+	/// - A `FixedU128` in the range of  `Config::TrafficDefaultValue` - `FixedU128::MAX` on
+	///   success.
 	///
 	/// Errors:
 	/// - `SpotTrafficCalculationErr::QueueCapacityIsZero`
@@ -419,9 +427,9 @@ where
 	///
 	/// Paramenters:
 	/// - `assignment`: The on demand assignment to add to the queue.
-	/// - `location`: Whether to push this entry to the back or the front of the queue.
-	///               Pushing an entry to the front of the queue is only used when the scheduler
-	///               wants to push back an entry it has already popped.
+	/// - `location`: Whether to push this entry to the back or the front of the queue. Pushing an
+	///   entry to the front of the queue is only used when the scheduler wants to push back an
+	///   entry it has already popped.
 	/// Returns:
 	/// - The unit type on success.
 	///
@@ -477,8 +485,8 @@ where
 	}
 
 	/// Decreases the affinity of a `ParaId` to a specified `CoreIndex`.
-	/// Subtracts from the count of the `CoreAffinityCount` if an entry is found and the core_idx matches.
-	/// When the count reaches 0, the entry is removed.
+	/// Subtracts from the count of the `CoreAffinityCount` if an entry is found and the core_idx
+	/// matches. When the count reaches 0, the entry is removed.
 	/// A non-existant entry is a no-op.
 	fn decrease_affinity(para_id: ParaId, core_idx: CoreIndex) {
 		ParaIdAffinity::<T>::mutate(para_id, |maybe_affinity| {
@@ -497,7 +505,8 @@ where
 
 	/// Increases the affinity of a `ParaId` to a specified `CoreIndex`.
 	/// Adds to the count of the `CoreAffinityCount` if an entry is found and the core_idx matches.
-	/// A non-existant entry will be initialized with a count of 1 and uses the  supplied `CoreIndex`.
+	/// A non-existant entry will be initialized with a count of 1 and uses the  supplied
+	/// `CoreIndex`.
 	fn increase_affinity(para_id: ParaId, core_idx: CoreIndex) {
 		ParaIdAffinity::<T>::mutate(para_id, |maybe_affinity| match maybe_affinity {
 			Some(affinity) =>
@@ -527,8 +536,8 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 	///
 	/// Parameters:
 	/// - `core_idx`: The core index
-	/// - `previous_paraid`: Which paraid was previously processed on the requested core.
-	///    Is None if nothing was processed on the core.
+	/// - `previous_paraid`: Which paraid was previously processed on the requested core. Is None if
+	///   nothing was processed on the core.
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		previous_para: Option<ParaId>,
@@ -544,8 +553,9 @@ impl<T: Config> AssignmentProvider<BlockNumberFor<T>> for Pallet<T> {
 
 		let mut invalidated_para_id_indexes: Vec<usize> = vec![];
 
-		// Get the position of the next `ParaId`. Select either a valid `ParaId` that has an affinity
-		// to the same `CoreIndex` as the scheduler asks for or a valid `ParaId` with no affinity at all.
+		// Get the position of the next `ParaId`. Select either a valid `ParaId` that has an
+		// affinity to the same `CoreIndex` as the scheduler asks for or a valid `ParaId` with no
+		// affinity at all.
 		let pos = queue.iter().enumerate().position(|(index, assignment)| {
 			if <paras::Pallet<T>>::is_parathread(assignment.para_id) {
 				match ParaIdAffinity::<T>::get(&assignment.para_id) {

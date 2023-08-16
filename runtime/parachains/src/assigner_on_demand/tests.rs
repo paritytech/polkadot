@@ -59,7 +59,8 @@ fn run_to_block(
 
 		if let Some(notification) = new_session(b + 1) {
 			let mut notification_with_session_index = notification;
-			// We will make every session change trigger an action queue. Normally this may require 2 or more session changes.
+			// We will make every session change trigger an action queue. Normally this may require
+			// 2 or more session changes.
 			if notification_with_session_index.session_index == SessionIndex::default() {
 				notification_with_session_index.session_index = ParasShared::scheduled_session();
 			}
