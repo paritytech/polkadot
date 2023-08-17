@@ -1101,6 +1101,7 @@ impl parachains_paras::Config for Runtime {
 	type UnsignedPriority = ParasUnsignedPriority;
 	type QueueFootprinter = ParaInclusion;
 	type NextSessionRotation = Babe;
+	type OnNewHead = Registrar;
 }
 
 parameter_types! {
@@ -1523,6 +1524,19 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
 pub type Migrations = (migrations::Unreleased,);
 
+pub struct ParachainsToUnlock;
+impl Contains<ParaId> for ParachainsToUnlock {
+	fn contains(id: &ParaId) -> bool {
+		let id: u32 = (*id).into();
+		// ksuama parachains/parathreads that are locked and never produced block
+		match id {
+			2003 | 2077 | 2089 | 2111 | 2112 | 2127 | 2130 | 2224 | 2231 | 2233 | 2237 | 2256 |
+			2257 | 2258 | 2261 | 2268 | 2274 | 2275 => true,
+			_ => false,
+		}
+	}
+}
+
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
@@ -1538,6 +1552,7 @@ pub mod migrations {
 		>,
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
+		paras_registrar::migration::MigrateToV1<Runtime, ParachainsToUnlock>,
 	);
 }
 

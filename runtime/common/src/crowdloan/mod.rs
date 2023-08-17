@@ -441,8 +441,6 @@ pub mod pallet {
 			);
 
 			NextFundIndex::<T>::put(new_fund_index);
-			// Add a lock to the para so that the configuration cannot be changed.
-			T::Registrar::apply_lock(index);
 
 			Self::deposit_event(Event::<T>::Created { para_id: index });
 			Ok(())

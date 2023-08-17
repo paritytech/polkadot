@@ -204,6 +204,7 @@ impl paras::Config for Test {
 	type UnsignedPriority = ParasUnsignedPriority;
 	type QueueFootprinter = ();
 	type NextSessionRotation = crate::mock::TestNextSessionRotation;
+	type OnNewHead = ();
 }
 
 parameter_types! {

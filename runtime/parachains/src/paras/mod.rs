@@ -480,6 +480,22 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 	}
 }
 
+/// Runtime hook for when a parachain head is updated.
+pub trait OnNewHead {
+	/// Called when a parachain head is updated.
+	/// Returns the weight consumed by this function.
+	fn on_new_head(id: ParaId, head: &HeadData) -> Weight;
+}
+
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl OnNewHead for Tuple {
+	fn on_new_head(id: ParaId, head: &HeadData) -> Weight {
+		let mut weight: Weight = Default::default();
+		for_tuples!( #( weight.saturating_accrue(Tuple::on_new_head(id, head)); )* );
+		weight
+	}
+}
+
 pub trait WeightInfo {
 	fn force_set_current_code(c: u32) -> Weight;
 	fn force_set_current_head(s: u32) -> Weight;
@@ -569,6 +585,9 @@ pub mod pallet {
 		/// This is used to judge whether or not a para-chain can offboard. Per default this should
 		/// be set to the `ParaInclusion` pallet.
 		type QueueFootprinter: QueueFootprinter<Origin = UmpQueueId>;
+
+		/// Runtime hook for when a parachain head is updated.
+		type OnNewHead: OnNewHead;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -1935,9 +1954,9 @@ impl<T: Config> Pallet<T> {
 		new_head: HeadData,
 		execution_context: BlockNumberFor<T>,
 	) -> Weight {
-		Heads::<T>::insert(&id, new_head);
+		Heads::<T>::insert(&id, &new_head);
 
-		if let Some(expected_at) = FutureCodeUpgrades::<T>::get(&id) {
+		let weight = if let Some(expected_at) = FutureCodeUpgrades::<T>::get(&id) {
 			if expected_at <= execution_context {
 				FutureCodeUpgrades::<T>::remove(&id);
 				UpgradeGoAheadSignal::<T>::remove(&id);
@@ -1977,7 +1996,9 @@ impl<T: Config> Pallet<T> {
 			// the `Abort` signal.
 			UpgradeGoAheadSignal::<T>::remove(&id);
 			T::DbWeight::get().reads_writes(1, 2)
-		}
+		};
+
+		weight.saturating_add(T::OnNewHead::on_new_head(id, &new_head))
 	}
 
 	/// Returns the list of PVFs (aka validation code) that require casting a vote by a validator in

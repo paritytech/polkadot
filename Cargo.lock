@@ -8434,6 +8434,7 @@ dependencies = [
  "frame-system",
  "futures",
  "hex-literal 0.4.1",
+ "impl-trait-for-tuples",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",

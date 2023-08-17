@@ -17,6 +17,8 @@
 //! Pallet to handle parathread/parachain registration and related fund management.
 //! In essence this is a simple wrapper around `paras`.
 
+pub mod migration;
+
 use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
@@ -35,7 +37,7 @@ use sp_std::{prelude::*, result};
 use crate::traits::{OnSwap, Registrar};
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
-use runtime_parachains::paras::ParaKind;
+use runtime_parachains::paras::{OnNewHead, ParaKind};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{CheckedSub, Saturating},
@@ -49,7 +51,14 @@ pub struct ParaInfo<Account, Balance> {
 	/// The amount reserved by the `manager` account for the registration.
 	deposit: Balance,
 	/// Whether the para registration should be locked from being controlled by the manager.
-	locked: bool,
+	/// None means the lock is not set, and should be treated as false.
+	locked: Option<bool>,
+}
+
+impl<Account, Balance> ParaInfo<Account, Balance> {
+	pub fn is_locked(&self) -> bool {
+		self.locked.unwrap_or(false)
+	}
 }
 
 type BalanceOf<T> =
@@ -96,8 +105,12 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
+	/// The current storage version.
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -443,12 +456,12 @@ impl<T: Config> Registrar for Pallet<T> {
 
 	// Apply a lock to the parachain.
 	fn apply_lock(id: ParaId) {
-		Paras::<T>::mutate(id, |x| x.as_mut().map(|info| info.locked = true));
+		Paras::<T>::mutate(id, |x| x.as_mut().map(|info| info.locked = Some(true)));
 	}
 
 	// Remove a lock from the parachain.
 	fn remove_lock(id: ParaId) {
-		Paras::<T>::mutate(id, |x| x.as_mut().map(|info| info.locked = false));
+		Paras::<T>::mutate(id, |x| x.as_mut().map(|info| info.locked = Some(false)));
 	}
 
 	// Register a Para ID under control of `manager`.
@@ -478,9 +491,7 @@ impl<T: Config> Registrar for Pallet<T> {
 		);
 		runtime_parachains::schedule_parathread_upgrade::<T>(id)
 			.map_err(|_| Error::<T>::CannotUpgrade)?;
-		// Once a para has upgraded to a parachain, it can no longer be managed by the owner.
-		// Intentionally, the flag stays with the para even after downgrade.
-		Self::apply_lock(id);
+
 		Ok(())
 	}
 
@@ -530,7 +541,7 @@ impl<T: Config> Pallet<T> {
 			.map_err(|e| e.into())
 			.and_then(|who| -> DispatchResult {
 				let para_info = Paras::<T>::get(id).ok_or(Error::<T>::NotRegistered)?;
-				ensure!(!para_info.locked, Error::<T>::ParaLocked);
+				ensure!(!para_info.is_locked(), Error::<T>::ParaLocked);
 				ensure!(para_info.manager == who, Error::<T>::NotOwner);
 				Ok(())
 			})
@@ -563,7 +574,7 @@ impl<T: Config> Pallet<T> {
 
 		let deposit = deposit_override.unwrap_or_else(T::ParaDeposit::get);
 		<T as Config>::Currency::reserve(&who, deposit)?;
-		let info = ParaInfo { manager: who.clone(), deposit, locked: false };
+		let info = ParaInfo { manager: who.clone(), deposit, locked: None };
 
 		Paras::<T>::insert(id, info);
 		Self::deposit_event(Event::<T>::Reserved { para_id: id, who });
@@ -582,7 +593,7 @@ impl<T: Config> Pallet<T> {
 	) -> DispatchResult {
 		let deposited = if let Some(para_data) = Paras::<T>::get(id) {
 			ensure!(para_data.manager == who, Error::<T>::NotOwner);
-			ensure!(!para_data.locked, Error::<T>::ParaLocked);
+			ensure!(!para_data.is_locked(), Error::<T>::ParaLocked);
 			para_data.deposit
 		} else {
 			ensure!(!ensure_reserved, Error::<T>::NotReserved);
@@ -598,7 +609,7 @@ impl<T: Config> Pallet<T> {
 		} else if let Some(rebate) = deposited.checked_sub(&deposit) {
 			<T as Config>::Currency::unreserve(&who, rebate);
 		};
-		let info = ParaInfo { manager: who.clone(), deposit, locked: false };
+		let info = ParaInfo { manager: who.clone(), deposit, locked: None };
 
 		Paras::<T>::insert(id, info);
 		// We check above that para has no lifecycle, so this should not fail.
@@ -658,6 +669,20 @@ impl<T: Config> Pallet<T> {
 		let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(to_upgrade);
 		debug_assert!(res2.is_ok());
 		T::OnSwap::on_swap(to_upgrade, to_downgrade);
+	}
+}
+
+impl<T: Config> OnNewHead for Pallet<T> {
+	fn on_new_head(id: ParaId, _head: &HeadData) -> Weight {
+		// mark the parachain locked if the locked value is not already set
+		Paras::<T>::mutate(id, |info| {
+			if let Some(info) = info {
+				if info.locked.is_none() {
+					info.locked = Some(true);
+				}
+			}
+		});
+		T::DbWeight::get().reads_writes(1, 1)
 	}
 }
 
@@ -780,6 +805,7 @@ mod tests {
 		type UnsignedPriority = ParasUnsignedPriority;
 		type QueueFootprinter = ();
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
+		type OnNewHead = ();
 	}
 
 	impl configuration::Config for Test {
@@ -1266,8 +1292,8 @@ mod tests {
 			));
 
 			assert_noop!(Registrar::add_lock(RuntimeOrigin::signed(2), para_id), BadOrigin);
-			// Once they begin onboarding, we lock them in.
-			assert_ok!(Registrar::add_lock(RuntimeOrigin::signed(1), para_id));
+			// Once they produces new block, we lock them in.
+			Registrar::on_new_head(para_id, &Default::default());
 			// Owner cannot pass origin check when checking lock
 			assert_noop!(
 				Registrar::ensure_root_para_or_owner(RuntimeOrigin::signed(1), para_id),
@@ -1278,6 +1304,11 @@ mod tests {
 			// Para can.
 			assert_ok!(Registrar::remove_lock(para_origin(para_id), para_id));
 			// Owner can pass origin check again
+			assert_ok!(Registrar::ensure_root_para_or_owner(RuntimeOrigin::signed(1), para_id));
+
+			// Won't lock again after it is unlocked
+			Registrar::on_new_head(para_id, &Default::default());
+
 			assert_ok!(Registrar::ensure_root_para_or_owner(RuntimeOrigin::signed(1), para_id));
 		});
 	}

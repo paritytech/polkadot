@@ -46,8 +46,8 @@ use frame_election_provider_support::{
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstU32, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		PrivilegeCmp, ProcessMessage, ProcessMessageError, WithdrawReasons,
+		ConstU32, Contains, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem,
+		LockIdentifier, PrivilegeCmp, ProcessMessage, ProcessMessageError, WithdrawReasons,
 	},
 	weights::{ConstantMultiplier, WeightMeter},
 	PalletId, RuntimeDebug,
@@ -1118,6 +1118,7 @@ impl parachains_paras::Config for Runtime {
 	type UnsignedPriority = ParasUnsignedPriority;
 	type QueueFootprinter = ParaInclusion;
 	type NextSessionRotation = Babe;
+	type OnNewHead = Registrar;
 }
 
 parameter_types! {
@@ -1485,6 +1486,18 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
 pub type Migrations = migrations::Unreleased;
 
+pub struct ParachainsToUnlock;
+impl Contains<ParaId> for ParachainsToUnlock {
+	fn contains(id: &ParaId) -> bool {
+		let id: u32 = (*id).into();
+		// polkadot parachains/parathreads that are locked and never produced block
+		match id {
+			2003 | 2015 | 2036 | 2055 | 2097 | 2106 | 3336 | 3338 => true,
+			_ => false,
+		}
+	}
+}
+
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
@@ -1494,6 +1507,7 @@ pub mod migrations {
 	pub type Unreleased = (
 		pallet_im_online::migration::v1::Migration<Runtime>,
 		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
+		paras_registrar::migration::MigrateToV1<Runtime, ParachainsToUnlock>,
 	);
 }
 
