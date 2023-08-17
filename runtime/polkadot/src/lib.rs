@@ -1808,8 +1808,8 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
-		fn submit_report_equivocation_unsigned_extrinsic(
-			_equivocation_proof: beefy_primitives::VoteEquivocationProof<
+		fn submit_report_vote_equivocation_unsigned_extrinsic(
+			_vote_equivocation_proof: beefy_primitives::VoteEquivocationProof<
 				BlockNumber,
 				BeefyId,
 				BeefySignature,
@@ -1820,8 +1820,8 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
-		fn submit_report_invalid_fork_unsigned_extrinsic(
-			_invalid_fork_proof: beefy_primitives::InvalidForkCommitmentProof<BlockNumber, BeefyId, BeefySignature>,
+		fn submit_report_fork_equivocation_unsigned_extrinsic(
+			_fork_equivocation_proof: beefy_primitives::ForkEquivocationProof<BlockNumber, BeefyId, BeefySignature, Header>,
 			_key_owner_proofs: Vec<beefy_primitives::OpaqueKeyOwnershipProof>,
 		) -> Option<()> {
 			// dummy implementation due to lack of BEEFY pallet.
