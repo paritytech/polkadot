@@ -1270,6 +1270,8 @@ impl pallet_beefy::Config for Runtime {
 	type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, BeefyId)>>::Proof;
 	type EquivocationReportSystem =
 		pallet_beefy::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
+	type InvalidForkReportSystem =
+		pallet_beefy::InvalidForkReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 /// MMR helper types.
@@ -1830,7 +1832,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
-			equivocation_proof: beefy_primitives::EquivocationProof<
+			equivocation_proof: beefy_primitives::VoteEquivocationProof<
 				BlockNumber,
 				BeefyId,
 				BeefySignature,

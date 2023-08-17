@@ -1831,7 +1831,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
-			_equivocation_proof: beefy_primitives::EquivocationProof<
+			_equivocation_proof: beefy_primitives::VoteEquivocationProof<
 				BlockNumber,
 				BeefyId,
 				BeefySignature,
