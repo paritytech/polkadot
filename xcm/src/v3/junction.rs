@@ -288,6 +288,7 @@ pub enum Junction {
 	/// An instanced, indexed pallet that forms a constituent part of the context.
 	///
 	/// Generally used when the context is a Frame-based chain.
+	// TODO XCMv4 inner should be `Compact<u32>`.
 	PalletInstance(u8),
 	/// A non-descript index within the context location.
 	///
