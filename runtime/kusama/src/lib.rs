@@ -1559,7 +1559,6 @@ pub mod migrations {
 		type MaxVotesPerVoter = ConstU32<16>;
 		type PalletId = PhragmenElectionPalletId;
 		type AccountId = AccountId;
-		type BlockNumber = BlockNumberFor<Runtime>;
 		type DbWeight = <Runtime as frame_system::Config>::DbWeight;
 		type PalletName = PhragmenElectionPalletName;
 	}
