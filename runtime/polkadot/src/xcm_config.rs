@@ -42,9 +42,9 @@ use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter,
-	IsConcrete, MintLocation, OriginToPluralityVoice, ProvideWeighableInstructions,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	UniversalWeigherAdapter, UsingComponents, WeightInfoBounds, WithComputedOrigin,
+	IsConcrete, MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UniversalWeigherAdapter,
+	UsingComponents, WeightInfoBounds, WithComputedOrigin,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -397,21 +397,6 @@ pub type LocalPalletOriginToLocation = (
 	FellowshipAdminToPlurality,
 );
 
-/// Helper for adding more instructions to the weight estimation on destination side.
-pub struct DestinationWeigherAddons;
-impl ProvideWeighableInstructions<()> for DestinationWeigherAddons {
-	fn provide_for(
-		_dest: impl Into<MultiLocation>,
-		_message: &Xcm<()>,
-	) -> sp_std::vec::Vec<Instruction<()>> {
-		sp_std::vec![
-			// TODO: when WithUniqueTopic will be added here: https://github.com/paritytech/polkadot/pull/7301
-			// runtime uses `WithUniqueTopic` which (possibly) adds `SetTopic` instruction
-			// SetTopic([3; 32])
-		]
-	}
-}
-
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	// We only allow the root, the council, the fellowship admin and the staking admin to send
@@ -433,7 +418,7 @@ impl pallet_xcm::Config for Runtime {
 	type DestinationWeigher = UniversalWeigherAdapter<
 		// use local weight for remote message and hope for the best.
 		WeightInfoBounds<crate::weights::xcm::PolkadotXcmWeight<()>, (), MaxInstructions>,
-		DestinationWeigherAddons,
+		(XcmRouter,),
 	>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;

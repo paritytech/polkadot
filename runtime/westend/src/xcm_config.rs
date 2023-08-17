@@ -38,9 +38,9 @@ use xcm_builder::{
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, MintLocation,
-	ProvideWeighableInstructions, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UniversalWeigherAdapter,
-	UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
+	TrailingSetTopicAsId, UniversalWeigherAdapter, UsingComponents, WeightInfoBounds,
+	WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
 
@@ -279,20 +279,6 @@ pub type LocalOriginToLocation = (
 	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
 );
 
-/// Helper for adding more instructions to the weight estimation on destination side.
-pub struct DestinationWeigherAddons;
-impl ProvideWeighableInstructions<()> for DestinationWeigherAddons {
-	fn provide_for(
-		_dest: impl Into<MultiLocation>,
-		_message: &Xcm<()>,
-	) -> sp_std::vec::Vec<Instruction<()>> {
-		sp_std::vec![
-			// runtime uses `WithUniqueTopic` which (possibly) adds `SetTopic` instruction
-			SetTopic([3; 32])
-		]
-	}
-}
-
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
@@ -309,7 +295,7 @@ impl pallet_xcm::Config for Runtime {
 	type DestinationWeigher = UniversalWeigherAdapter<
 		// use local weight for remote message and hope for the best.
 		WeightInfoBounds<weights::xcm::WestendXcmWeight<()>, (), MaxInstructions>,
-		DestinationWeigherAddons,
+		(XcmRouter,),
 	>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;

@@ -18,7 +18,7 @@
 
 use frame_system::unique;
 use parity_scale_codec::Encode;
-use sp_std::{marker::PhantomData, result::Result};
+use sp_std::{marker::PhantomData, result::Result, vec, vec::Vec};
 use xcm::prelude::*;
 
 /// Wrapper router which, if the message does not already end with a `SetTopic` instruction,
@@ -58,6 +58,19 @@ impl<Inner: SendXcm> SendXcm for WithUniqueTopic<Inner> {
 		let (ticket, unique_id) = ticket;
 		Inner::deliver(ticket)?;
 		Ok(unique_id)
+	}
+}
+
+/// Implementation of `ProvideWeighableInstructions` for `WithUniqueTopic` which adds additional
+/// `SetTopic` instruction.
+impl<RuntimeCall, Inner> super::ProvideWeighableInstructions<RuntimeCall>
+	for WithUniqueTopic<Inner>
+{
+	fn provide_for(
+		_dest: impl Into<MultiLocation>,
+		message: &Xcm<RuntimeCall>,
+	) -> Vec<Instruction<RuntimeCall>> {
+		vec![SetTopic(unique(message))]
 	}
 }
 

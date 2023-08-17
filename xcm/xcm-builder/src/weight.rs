@@ -24,7 +24,7 @@ use frame_support::{
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
-use sp_std::{marker::PhantomData, result::Result, vec::Vec};
+use sp_std::{marker::PhantomData, result::Result, vec, vec::Vec};
 use xcm::latest::{prelude::*, Weight};
 use xcm_executor::{
 	traits::{UniversalWeigher, WeightBounds, WeightTrader},
@@ -137,12 +137,16 @@ pub trait ProvideWeighableInstructions<RuntimeCall> {
 	) -> Vec<Instruction<RuntimeCall>>;
 }
 
-impl<RuntimeCall> ProvideWeighableInstructions<RuntimeCall> for () {
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl<RuntimeCall> ProvideWeighableInstructions<RuntimeCall> for Tuple {
 	fn provide_for(
-		_dest: impl Into<MultiLocation>,
-		_message: &Xcm<RuntimeCall>,
+		dest: impl Into<MultiLocation>,
+		message: &Xcm<RuntimeCall>,
 	) -> Vec<Instruction<RuntimeCall>> {
-		Vec::new()
+		let dest = dest.into();
+		let mut res = vec![];
+		for_tuples!( #( res.extend_from_slice(&Tuple::provide_for(dest, message)); )* );
+		res
 	}
 }
 
