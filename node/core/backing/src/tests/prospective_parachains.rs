@@ -89,12 +89,7 @@ async fn activate_leaf(
 	let mut requested_len = 0;
 	{
 		let mut ancestry_iter = ancestry_iter.clone();
-		loop {
-			let (hash, number) = match ancestry_iter.next() {
-				Some((hash, number)) => (hash, number),
-				None => break,
-			};
-
+		while let Some((hash, number)) = ancestry_iter.next() {
 			// May be `None` for the last element.
 			let parent_hash =
 				ancestry_iter.peek().map(|(h, _)| *h).unwrap_or_else(|| get_parent_hash(hash));
@@ -360,7 +355,6 @@ fn seconding_sanity_check_allowed() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -516,7 +510,6 @@ fn seconding_sanity_check_disallowed() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -618,7 +611,6 @@ fn seconding_sanity_check_disallowed() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -725,7 +717,6 @@ fn prospective_parachains_reject_candidate() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -909,7 +900,6 @@ fn second_multiple_candidates_per_relay_parent() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		};
 		let mut candidate_b = candidate_a.clone();
 		candidate_b.relay_parent = leaf_grandparent;
@@ -1052,7 +1042,6 @@ fn backing_works() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			validation_code: validation_code.0.clone(),
 			persisted_validation_data_hash: pvd.hash(),
-			..Default::default()
 		}
 		.build();
 
@@ -1234,7 +1223,6 @@ fn concurrent_dependent_candidates() {
 			erasure_root: make_erasure_root(&test_state, pov_a.clone(), pvd_a.clone()),
 			persisted_validation_data_hash: pvd_a.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		}
 		.build();
 		let candidate_b = TestCandidateBuilder {
@@ -1245,7 +1233,6 @@ fn concurrent_dependent_candidates() {
 			erasure_root: make_erasure_root(&test_state, pov_b.clone(), pvd_b.clone()),
 			persisted_validation_data_hash: pvd_b.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		}
 		.build();
 		let candidate_a_hash = candidate_a.hash();
@@ -1455,7 +1442,6 @@ fn seconding_sanity_check_occupy_same_depth() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		};
 
 		let mut candidate_b = candidate_a.clone();
@@ -1485,7 +1471,7 @@ fn seconding_sanity_check_occupy_same_depth() {
 				&pov,
 				&pvd,
 				&validation_code,
-				*expected_head_data,
+				expected_head_data,
 				false,
 			)
 			.await;
@@ -1612,7 +1598,6 @@ fn occupied_core_assignment() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		}
 		.build();
 

@@ -94,8 +94,9 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
 		use ProcessedDownwardMessagesAcceptanceErr::*;
 		match *self {
-			AdvancementRule =>
-				write!(fmt, "DMQ is not empty, but processed_downward_messages is 0",),
+			AdvancementRule => {
+				write!(fmt, "DMQ is not empty, but processed_downward_messages is 0",)
+			},
 			Underflow { processed_downward_messages, dmq_length } => write!(
 				fmt,
 				"processed_downward_messages = {}, but dmq_length is only {}",

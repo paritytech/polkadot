@@ -772,7 +772,7 @@ mod tests {
 
 		// authority 2 votes for validity on 1's candidate.
 		let bad_validity_vote = SignedStatement {
-			statement: Statement::Valid(candidate_a_digest.clone()),
+			statement: Statement::Valid(candidate_a_digest),
 			signature: Signature(2),
 			sender: AuthorityId(2),
 		};
@@ -843,7 +843,7 @@ mod tests {
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
 
 		let extra_vote = SignedStatement {
-			statement: Statement::Valid(candidate_digest.clone()),
+			statement: Statement::Valid(candidate_digest),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -913,7 +913,7 @@ mod tests {
 		assert!(table.attested_candidate(&candidate_digest, &context).is_none());
 
 		let vote = SignedStatement {
-			statement: Statement::Valid(candidate_digest.clone()),
+			statement: Statement::Valid(candidate_digest),
 			signature: Signature(2),
 			sender: AuthorityId(2),
 		};
@@ -972,7 +972,7 @@ mod tests {
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
 
 		let vote = SignedStatement {
-			statement: Statement::Valid(candidate_digest.clone()),
+			statement: Statement::Valid(candidate_digest),
 			signature: Signature(2),
 			sender: AuthorityId(2),
 		};

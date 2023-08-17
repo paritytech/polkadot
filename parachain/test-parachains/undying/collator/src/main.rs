@@ -21,7 +21,6 @@ use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_primitives::Id as ParaId;
 use sc_cli::{Error as SubstrateCliError, SubstrateCli};
-use sc_service::Role;
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_undying_collator::Collator;
 
@@ -54,12 +53,9 @@ fn main() -> Result<()> {
 				)
 			})?;
 
-			runner.run_node_until_exit(|mut config| async move {
+			runner.run_node_until_exit(|config| async move {
 				let collator = Collator::new(cli.run.pov_size, cli.run.pvf_complexity);
 
-				// Zombienet is spawning all collators currently with the same CLI, this means it
-				// sets `--validator` and this is wrong here.
-				config.role = Role::Full;
 				let full_node = polkadot_service::build_full(
 					config,
 					polkadot_service::NewFullParams {

@@ -260,7 +260,7 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// of the para.
 	#[cfg(test)]
 	fn most_recent_change(&self) -> Option<N> {
-		self.upgrade_times.last().map(|x| x.expected_at.clone())
+		self.upgrade_times.last().map(|x| x.expected_at)
 	}
 
 	// prunes all code upgrade logs occurring at or before `max`.

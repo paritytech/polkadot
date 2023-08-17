@@ -153,7 +153,7 @@ impl TestState {
 	fn current_group_validator_peer_ids(&self) -> Vec<PeerId> {
 		self.current_group_validator_indices()
 			.iter()
-			.map(|i| self.validator_peer_id[i.0 as usize].clone())
+			.map(|i| self.validator_peer_id[i.0 as usize])
 			.collect()
 	}
 
@@ -473,7 +473,7 @@ async fn connect_peer(
 	overseer_send(
 		virtual_overseer,
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
-			peer.clone(),
+			peer,
 			polkadot_node_network_protocol::ObservedRole::Authority,
 			version.into(),
 			authority_id.map(|v| HashSet::from([v])),
@@ -605,7 +605,7 @@ async fn send_peer_view_change(
 	overseer_send(
 		virtual_overseer,
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
-			peer.clone(),
+			*peer,
 			View::new(hashes, 0),
 		)),
 	)
@@ -615,7 +615,7 @@ async fn send_peer_view_change(
 #[test]
 fn advertise_and_send_collation() {
 	let mut test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
+	let local_peer_id = test_state.local_peer_id;
 	let collator_pair = test_state.collator_pair.clone();
 
 	test_harness(
@@ -642,13 +642,8 @@ fn advertise_and_send_collation() {
 				.into_iter()
 				.zip(test_state.current_group_validator_peer_ids())
 			{
-				connect_peer(
-					&mut virtual_overseer,
-					peer.clone(),
-					CollationVersion::V1,
-					Some(val.clone()),
-				)
-				.await;
+				connect_peer(&mut virtual_overseer, peer, CollationVersion::V1, Some(val.clone()))
+					.await;
 			}
 
 			// We declare to the connected validators that we are a collator.
@@ -658,7 +653,7 @@ fn advertise_and_send_collation() {
 				expect_declare_msg(&mut virtual_overseer, &test_state, &peer_id).await;
 			}
 
-			let peer = test_state.current_group_validator_peer_ids()[0].clone();
+			let peer = test_state.current_group_validator_peer_ids()[0];
 
 			// Send info about peer's view.
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![test_state.relay_parent])
@@ -740,7 +735,7 @@ fn advertise_and_send_collation() {
 			let old_relay_parent = test_state.relay_parent;
 			test_state.advance_to_new_round(&mut virtual_overseer, false).await;
 
-			let peer = test_state.validator_peer_id[2].clone();
+			let peer = test_state.validator_peer_id[2];
 
 			// Re-request a collation.
 			let (pending_response, rx) = oneshot::channel();
@@ -772,7 +767,7 @@ fn advertise_and_send_collation() {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
-					peer.clone(),
+					peer,
 					view![test_state.relay_parent],
 				)),
 			)
@@ -793,7 +788,7 @@ fn advertise_and_send_collation() {
 #[test]
 fn delay_reputation_change() {
 	let test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
+	let local_peer_id = test_state.local_peer_id;
 	let collator_pair = test_state.collator_pair.clone();
 
 	test_harness(
@@ -820,13 +815,8 @@ fn delay_reputation_change() {
 				.into_iter()
 				.zip(test_state.current_group_validator_peer_ids())
 			{
-				connect_peer(
-					&mut virtual_overseer,
-					peer.clone(),
-					CollationVersion::V1,
-					Some(val.clone()),
-				)
-				.await;
+				connect_peer(&mut virtual_overseer, peer, CollationVersion::V1, Some(val.clone()))
+					.await;
 			}
 
 			// We declare to the connected validators that we are a collator.
@@ -836,7 +826,7 @@ fn delay_reputation_change() {
 				expect_declare_msg(&mut virtual_overseer, &test_state, &peer_id).await;
 			}
 
-			let peer = test_state.current_group_validator_peer_ids()[0].clone();
+			let peer = test_state.current_group_validator_peer_ids()[0];
 
 			// Send info about peer's view.
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![test_state.relay_parent])
@@ -914,7 +904,7 @@ fn delay_reputation_change() {
 #[test]
 fn advertise_collation_vstaging_protocol() {
 	let test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
+	let local_peer_id = test_state.local_peer_id;
 	let collator_pair = test_state.collator_pair.clone();
 
 	test_harness(
@@ -946,7 +936,7 @@ fn advertise_collation_vstaging_protocol() {
 			for (val, peer) in validators.iter().zip(peer_ids.iter()).skip(1) {
 				connect_peer(
 					virtual_overseer,
-					peer.clone(),
+					*peer,
 					CollationVersion::VStaging,
 					Some(val.clone()),
 				)
@@ -993,6 +983,7 @@ fn advertise_collation_vstaging_protocol() {
 }
 
 #[test]
+#[allow(clippy::async_yields_async)]
 fn send_only_one_collation_per_relay_parent_at_a_time() {
 	test_validator_send_sequence(|mut second_response_receiver, feedback_first_tx| async move {
 		Delay::new(Duration::from_millis(100)).await;
@@ -1008,6 +999,7 @@ fn send_only_one_collation_per_relay_parent_at_a_time() {
 }
 
 #[test]
+#[allow(clippy::async_yields_async)]
 fn send_next_collation_after_max_unshared_upload_time() {
 	test_validator_send_sequence(|second_response_receiver, _| async move {
 		Delay::new(MAX_UNSHARED_UPLOAD_TIME + Duration::from_millis(50)).await;
@@ -1018,7 +1010,7 @@ fn send_next_collation_after_max_unshared_upload_time() {
 #[test]
 fn collators_declare_to_connected_peers() {
 	let test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
+	let local_peer_id = test_state.local_peer_id;
 	let collator_pair = test_state.collator_pair.clone();
 
 	test_harness(
@@ -1026,7 +1018,7 @@ fn collators_declare_to_connected_peers() {
 		collator_pair,
 		ReputationAggregator::new(|_| true),
 		|mut test_harness| async move {
-			let peer = test_state.validator_peer_id[0].clone();
+			let peer = test_state.validator_peer_id[0];
 			let validator_id = test_state.current_group_validator_authority_ids()[0].clone();
 
 			setup_system(&mut test_harness.virtual_overseer, &test_state).await;
@@ -1034,7 +1026,7 @@ fn collators_declare_to_connected_peers() {
 			// A validator connected to us
 			connect_peer(
 				&mut test_harness.virtual_overseer,
-				peer.clone(),
+				peer,
 				CollationVersion::V1,
 				Some(validator_id),
 			)
@@ -1048,7 +1040,7 @@ fn collators_declare_to_connected_peers() {
 #[test]
 fn collations_are_only_advertised_to_validators_with_correct_view() {
 	let test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
+	let local_peer_id = test_state.local_peer_id;
 	let collator_pair = test_state.collator_pair.clone();
 
 	test_harness(
@@ -1058,26 +1050,19 @@ fn collations_are_only_advertised_to_validators_with_correct_view() {
 		|mut test_harness| async move {
 			let virtual_overseer = &mut test_harness.virtual_overseer;
 
-			let peer = test_state.current_group_validator_peer_ids()[0].clone();
+			let peer = test_state.current_group_validator_peer_ids()[0];
 			let validator_id = test_state.current_group_validator_authority_ids()[0].clone();
 
-			let peer2 = test_state.current_group_validator_peer_ids()[1].clone();
+			let peer2 = test_state.current_group_validator_peer_ids()[1];
 			let validator_id2 = test_state.current_group_validator_authority_ids()[1].clone();
 
 			setup_system(virtual_overseer, &test_state).await;
 
 			// A validator connected to us
-			connect_peer(virtual_overseer, peer.clone(), CollationVersion::V1, Some(validator_id))
-				.await;
+			connect_peer(virtual_overseer, peer, CollationVersion::V1, Some(validator_id)).await;
 
 			// Connect the second validator
-			connect_peer(
-				virtual_overseer,
-				peer2.clone(),
-				CollationVersion::V1,
-				Some(validator_id2),
-			)
-			.await;
+			connect_peer(virtual_overseer, peer2, CollationVersion::V1, Some(validator_id2)).await;
 
 			expect_declare_msg(virtual_overseer, &test_state, &peer).await;
 			expect_declare_msg(virtual_overseer, &test_state, &peer2).await;
@@ -1105,7 +1090,7 @@ fn collations_are_only_advertised_to_validators_with_correct_view() {
 #[test]
 fn collate_on_two_different_relay_chain_blocks() {
 	let mut test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
+	let local_peer_id = test_state.local_peer_id;
 	let collator_pair = test_state.collator_pair.clone();
 
 	test_harness(
@@ -1115,26 +1100,19 @@ fn collate_on_two_different_relay_chain_blocks() {
 		|mut test_harness| async move {
 			let virtual_overseer = &mut test_harness.virtual_overseer;
 
-			let peer = test_state.current_group_validator_peer_ids()[0].clone();
+			let peer = test_state.current_group_validator_peer_ids()[0];
 			let validator_id = test_state.current_group_validator_authority_ids()[0].clone();
 
-			let peer2 = test_state.current_group_validator_peer_ids()[1].clone();
+			let peer2 = test_state.current_group_validator_peer_ids()[1];
 			let validator_id2 = test_state.current_group_validator_authority_ids()[1].clone();
 
 			setup_system(virtual_overseer, &test_state).await;
 
 			// A validator connected to us
-			connect_peer(virtual_overseer, peer.clone(), CollationVersion::V1, Some(validator_id))
-				.await;
+			connect_peer(virtual_overseer, peer, CollationVersion::V1, Some(validator_id)).await;
 
 			// Connect the second validator
-			connect_peer(
-				virtual_overseer,
-				peer2.clone(),
-				CollationVersion::V1,
-				Some(validator_id2),
-			)
-			.await;
+			connect_peer(virtual_overseer, peer2, CollationVersion::V1, Some(validator_id2)).await;
 
 			expect_declare_msg(virtual_overseer, &test_state, &peer).await;
 			expect_declare_msg(virtual_overseer, &test_state, &peer2).await;
@@ -1166,7 +1144,7 @@ fn collate_on_two_different_relay_chain_blocks() {
 #[test]
 fn validator_reconnect_does_not_advertise_a_second_time() {
 	let test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
+	let local_peer_id = test_state.local_peer_id;
 	let collator_pair = test_state.collator_pair.clone();
 
 	test_harness(
@@ -1176,19 +1154,14 @@ fn validator_reconnect_does_not_advertise_a_second_time() {
 		|mut test_harness| async move {
 			let virtual_overseer = &mut test_harness.virtual_overseer;
 
-			let peer = test_state.current_group_validator_peer_ids()[0].clone();
+			let peer = test_state.current_group_validator_peer_ids()[0];
 			let validator_id = test_state.current_group_validator_authority_ids()[0].clone();
 
 			setup_system(virtual_overseer, &test_state).await;
 
 			// A validator connected to us
-			connect_peer(
-				virtual_overseer,
-				peer.clone(),
-				CollationVersion::V1,
-				Some(validator_id.clone()),
-			)
-			.await;
+			connect_peer(virtual_overseer, peer, CollationVersion::V1, Some(validator_id.clone()))
+				.await;
 			expect_declare_msg(virtual_overseer, &test_state, &peer).await;
 
 			distribute_collation(virtual_overseer, &test_state, test_state.relay_parent, true)
@@ -1199,9 +1172,8 @@ fn validator_reconnect_does_not_advertise_a_second_time() {
 				.await;
 
 			// Disconnect and reconnect directly
-			disconnect_peer(virtual_overseer, peer.clone()).await;
-			connect_peer(virtual_overseer, peer.clone(), CollationVersion::V1, Some(validator_id))
-				.await;
+			disconnect_peer(virtual_overseer, peer).await;
+			connect_peer(virtual_overseer, peer, CollationVersion::V1, Some(validator_id)).await;
 			expect_declare_msg(virtual_overseer, &test_state, &peer).await;
 
 			send_peer_view_change(virtual_overseer, &peer, vec![test_state.relay_parent]).await;
@@ -1215,7 +1187,7 @@ fn validator_reconnect_does_not_advertise_a_second_time() {
 #[test]
 fn collators_reject_declare_messages() {
 	let test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
+	let local_peer_id = test_state.local_peer_id;
 	let collator_pair = test_state.collator_pair.clone();
 	let collator_pair2 = CollatorPair::generate().0;
 
@@ -1226,20 +1198,19 @@ fn collators_reject_declare_messages() {
 		|mut test_harness| async move {
 			let virtual_overseer = &mut test_harness.virtual_overseer;
 
-			let peer = test_state.current_group_validator_peer_ids()[0].clone();
+			let peer = test_state.current_group_validator_peer_ids()[0];
 			let validator_id = test_state.current_group_validator_authority_ids()[0].clone();
 
 			setup_system(virtual_overseer, &test_state).await;
 
 			// A validator connected to us
-			connect_peer(virtual_overseer, peer.clone(), CollationVersion::V1, Some(validator_id))
-				.await;
+			connect_peer(virtual_overseer, peer, CollationVersion::V1, Some(validator_id)).await;
 			expect_declare_msg(virtual_overseer, &test_state, &peer).await;
 
 			overseer_send(
 				virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
-					peer.clone(),
+					peer,
 					Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
 						collator_pair2.public(),
 						ParaId::from(5),
@@ -1276,7 +1247,7 @@ where
 	F: Future<Output = oneshot::Receiver<sc_network::config::OutgoingResponse>>,
 {
 	let test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
+	let local_peer_id = test_state.local_peer_id;
 	let collator_pair = test_state.collator_pair.clone();
 
 	test_harness(
@@ -1298,13 +1269,7 @@ where
 				.into_iter()
 				.zip(test_state.current_group_validator_peer_ids())
 			{
-				connect_peer(
-					virtual_overseer,
-					peer.clone(),
-					CollationVersion::V1,
-					Some(val.clone()),
-				)
-				.await;
+				connect_peer(virtual_overseer, peer, CollationVersion::V1, Some(val.clone())).await;
 			}
 
 			// We declare to the connected validators that we are a collator.
@@ -1314,8 +1279,8 @@ where
 				expect_declare_msg(virtual_overseer, &test_state, &peer_id).await;
 			}
 
-			let validator_0 = test_state.current_group_validator_peer_ids()[0].clone();
-			let validator_1 = test_state.current_group_validator_peer_ids()[1].clone();
+			let validator_0 = test_state.current_group_validator_peer_ids()[0];
+			let validator_1 = test_state.current_group_validator_peer_ids()[1];
 
 			// Send info about peer's view.
 			send_peer_view_change(virtual_overseer, &validator_0, vec![test_state.relay_parent])
@@ -1421,7 +1386,7 @@ where
 #[test]
 fn connect_to_buffered_groups() {
 	let mut test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
+	let local_peer_id = test_state.local_peer_id;
 	let collator_pair = test_state.collator_pair.clone();
 
 	test_harness(
@@ -1459,13 +1424,8 @@ fn connect_to_buffered_groups() {
 			let head_a = test_state.relay_parent;
 
 			for (val, peer) in group_a.iter().zip(&peers_a) {
-				connect_peer(
-					&mut virtual_overseer,
-					peer.clone(),
-					CollationVersion::V1,
-					Some(val.clone()),
-				)
-				.await;
+				connect_peer(&mut virtual_overseer, *peer, CollationVersion::V1, Some(val.clone()))
+					.await;
 			}
 
 			for peer_id in &peers_a {

@@ -22,7 +22,7 @@
 use crate::{
 	configuration::{self, HostConfiguration},
 	disputes, dmp, hrmp, paras,
-	scheduler::{self, CoreAssignment},
+	scheduler::{self, common::CoreAssignment},
 	shared::{self, AllowedRelayParentsTracker},
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
@@ -185,7 +185,7 @@ pub trait RewardValidators {
 #[derive(Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub(crate) struct ProcessedCandidates<H = Hash> {
-	pub(crate) core_indices: Vec<CoreIndex>,
+	pub(crate) core_indices: Vec<(CoreIndex, ParaId)>,
 	pub(crate) candidate_receipt_with_backing_validator_indices:
 		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidityAttestation)>)>,
 }
@@ -329,8 +329,6 @@ pub mod pallet {
 		UnscheduledCandidate,
 		/// Candidate scheduled despite pending candidate already existing for the para.
 		CandidateScheduledBeforeParaFree,
-		/// Candidate included with the wrong collator.
-		WrongCollator,
 		/// Scheduled cores out of order.
 		ScheduledOutOfOrder,
 		/// Head data exceeds the configured maximum.
@@ -610,7 +608,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn process_candidates<GV>(
 		allowed_relay_parents: &AllowedRelayParentsTracker<T::Hash, BlockNumberFor<T>>,
 		candidates: Vec<BackedCandidate<T::Hash>>,
-		scheduled: Vec<CoreAssignment>,
+		scheduled: Vec<CoreAssignment<BlockNumberFor<T>>>,
 		group_validators: GV,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
@@ -636,15 +634,16 @@ impl<T: Config> Pallet<T> {
 			let mut core_indices_and_backers = Vec::with_capacity(candidates.len());
 			let mut last_core = None;
 
-			let mut check_assignment_in_order = |assignment: &CoreAssignment| -> DispatchResult {
-				ensure!(
-					last_core.map_or(true, |core| assignment.core > core),
-					Error::<T>::ScheduledOutOfOrder,
-				);
+			let mut check_assignment_in_order =
+				|assignment: &CoreAssignment<BlockNumberFor<T>>| -> DispatchResult {
+					ensure!(
+						last_core.map_or(true, |core| assignment.core > core),
+						Error::<T>::ScheduledOutOfOrder,
+					);
 
-				last_core = Some(assignment.core);
-				Ok(())
-			};
+					last_core = Some(assignment.core);
+					Ok(())
+				};
 
 			// We combine an outer loop over candidates with an inner loop over the scheduled,
 			// where each iteration of the outer loop picks up at the position
@@ -692,17 +691,10 @@ impl<T: Config> Pallet<T> {
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
-				for (i, assignment) in scheduled[skip..].iter().enumerate() {
-					check_assignment_in_order(assignment)?;
+				for (i, core_assignment) in scheduled[skip..].iter().enumerate() {
+					check_assignment_in_order(core_assignment)?;
 
-					if para_id == assignment.para_id {
-						if let Some(required_collator) = assignment.required_collator() {
-							ensure!(
-								required_collator == &backed_candidate.descriptor().collator,
-								Error::<T>::WrongCollator,
-							);
-						}
-
+					if para_id == core_assignment.paras_entry.para_id() {
 						ensure!(
 							<PendingAvailability<T>>::get(&para_id).is_none() &&
 								<PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),
@@ -716,7 +708,7 @@ impl<T: Config> Pallet<T> {
 						// assigned to core at block `N + 1`. Thus, `relay_parent_number + 1`
 						// will always land in the current session.
 						let group_idx = <scheduler::Pallet<T>>::group_assigned_to_core(
-							assignment.core,
+							core_assignment.core,
 							relay_parent_number + One::one(),
 						)
 						.ok_or_else(|| {
@@ -779,7 +771,7 @@ impl<T: Config> Pallet<T> {
 						}
 
 						core_indices_and_backers.push((
-							assignment.core,
+							(core_assignment.core, core_assignment.paras_entry.para_id()),
 							backers,
 							group_idx,
 							relay_parent_number,
@@ -816,7 +808,7 @@ impl<T: Config> Pallet<T> {
 			Self::deposit_event(Event::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
 				candidate.candidate.commitments.head_data.clone(),
-				core,
+				core.0,
 				group,
 			));
 
@@ -828,7 +820,7 @@ impl<T: Config> Pallet<T> {
 			<PendingAvailability<T>>::insert(
 				&para_id,
 				CandidatePendingAvailability {
-					core,
+					core: core.0,
 					hash: candidate_hash,
 					descriptor,
 					availability_votes,

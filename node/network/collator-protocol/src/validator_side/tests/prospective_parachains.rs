@@ -134,12 +134,7 @@ async fn update_view(
 		let mut requested_len: usize = 0;
 		{
 			let mut ancestry_iter = ancestry_iter.clone();
-			loop {
-				let (hash, number) = match ancestry_iter.next() {
-					Some((hash, number)) => (hash, number),
-					None => break,
-				};
-
+			while let Some((hash, number)) = ancestry_iter.next() {
 				// May be `None` for the last element.
 				let parent_hash =
 					ancestry_iter.peek().map(|(h, _)| *h).unwrap_or_else(|| get_parent_hash(hash));

@@ -414,7 +414,7 @@ fn sends_distribute_collation_message() {
 			let expect_descriptor = {
 				let mut expect_descriptor = expect_descriptor;
 				expect_descriptor.signature = descriptor.signature.clone();
-				expect_descriptor.erasure_root = descriptor.erasure_root.clone();
+				expect_descriptor.erasure_root = descriptor.erasure_root;
 				expect_descriptor
 			};
 			assert_eq!(descriptor, expect_descriptor);

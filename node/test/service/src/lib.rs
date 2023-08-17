@@ -210,7 +210,7 @@ pub fn run_validator_node(
 			.expect("could not create Polkadot test service");
 
 	let overseer_handle = overseer_handle.expect("test node must have an overseer handle");
-	let peer_id = network.local_peer_id().clone();
+	let peer_id = network.local_peer_id();
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
 	PolkadotTestNode { task_manager, client, overseer_handle, addr, rpc_handlers }
@@ -242,7 +242,7 @@ pub fn run_collator_node(
 			.expect("could not create Polkadot test service");
 
 	let overseer_handle = overseer_handle.expect("test node must have an overseer handle");
-	let peer_id = network.local_peer_id().clone();
+	let peer_id = network.local_peer_id();
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
 	PolkadotTestNode { task_manager, client, overseer_handle, addr, rpc_handlers }
@@ -273,7 +273,7 @@ impl PolkadotTestNode {
 	) -> Result<(), RpcTransactionError> {
 		let sudo = SudoCall::sudo { call: Box::new(call.into()) };
 
-		let extrinsic = construct_extrinsic(&*self.client, sudo, caller, nonce);
+		let extrinsic = construct_extrinsic(&self.client, sudo, caller, nonce);
 		self.rpc_handlers.send_transaction(extrinsic.into()).await.map(drop)
 	}
 
@@ -283,7 +283,7 @@ impl PolkadotTestNode {
 		function: impl Into<polkadot_test_runtime::RuntimeCall>,
 		caller: Sr25519Keyring,
 	) -> Result<RpcTransactionOutput, RpcTransactionError> {
-		let extrinsic = construct_extrinsic(&*self.client, function, caller, 0);
+		let extrinsic = construct_extrinsic(&self.client, function, caller, 0);
 
 		self.rpc_handlers.send_transaction(extrinsic.into()).await
 	}

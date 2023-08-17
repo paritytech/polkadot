@@ -314,7 +314,6 @@ fn backing_second_works() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -1003,7 +1002,6 @@ fn backing_dont_second_invalid() {
 			head_data: expected_head_data.clone(),
 			persisted_validation_data_hash: pvd_b.hash(),
 			validation_code: validation_code_b.0.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -1396,129 +1394,6 @@ fn backing_works_after_failed_validation() {
 	});
 }
 
-// Test that a `CandidateBackingMessage::Second` issues validation work
-// and in case validation is successful issues a `StatementDistributionMessage`.
-#[test]
-#[ignore] // `required_collator` is disabled.
-fn backing_doesnt_second_wrong_collator() {
-	let mut test_state = TestState::default();
-	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
-		para_id: ParaId::from(1),
-		collator: Some(Sr25519Keyring::Bob.public().into()),
-	});
-
-	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
-		test_startup(&mut virtual_overseer, &test_state).await;
-
-		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
-		let pvd = dummy_pvd();
-		let validation_code = ValidationCode(vec![1, 2, 3]);
-
-		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
-
-		let pov_hash = pov.hash();
-		let candidate = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
-			relay_parent: test_state.relay_parent,
-			pov_hash,
-			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
-			persisted_validation_data_hash: pvd.hash(),
-			validation_code: validation_code.0.clone(),
-			..Default::default()
-		}
-		.build();
-
-		let second = CandidateBackingMessage::Second(
-			test_state.relay_parent,
-			candidate.to_plain(),
-			pvd.clone(),
-			pov.clone(),
-		);
-
-		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::CollatorProtocol(
-				CollatorProtocolMessage::Invalid(parent, c)
-			) if parent == test_state.relay_parent && c == candidate.to_plain() => {
-			}
-		);
-
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
-			)))
-			.await;
-		virtual_overseer
-	});
-}
-
-#[test]
-#[ignore] // `required_collator` is disabled.
-fn validation_work_ignores_wrong_collator() {
-	let mut test_state = TestState::default();
-	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
-		para_id: ParaId::from(1),
-		collator: Some(Sr25519Keyring::Bob.public().into()),
-	});
-
-	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
-		test_startup(&mut virtual_overseer, &test_state).await;
-
-		let pov = PoV { block_data: BlockData(vec![1, 2, 3]) };
-		let pvd = dummy_pvd();
-		let validation_code = ValidationCode(vec![1, 2, 3]);
-
-		let pov_hash = pov.hash();
-
-		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
-
-		let candidate_a = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
-			relay_parent: test_state.relay_parent,
-			pov_hash,
-			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
-			persisted_validation_data_hash: pvd.hash(),
-			validation_code: validation_code.0.clone(),
-			..Default::default()
-		}
-		.build();
-
-		let public2 = Keystore::sr25519_generate_new(
-			&*test_state.keystore,
-			ValidatorId::ID,
-			Some(&test_state.validators[2].to_seed()),
-		)
-		.expect("Insert key into keystore");
-		let seconding = SignedFullStatementWithPVD::sign(
-			&test_state.keystore,
-			StatementWithPVD::Seconded(candidate_a.clone(), pvd.clone()),
-			&test_state.signing_context,
-			ValidatorIndex(2),
-			&public2.into(),
-		)
-		.ok()
-		.flatten()
-		.expect("should be signed");
-
-		let statement =
-			CandidateBackingMessage::Statement(test_state.relay_parent, seconding.clone());
-
-		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
-
-		// The statement will be ignored because it has the wrong collator.
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
-			)))
-			.await;
-		virtual_overseer
-	});
-}
-
 #[test]
 fn candidate_backing_reorders_votes() {
 	use sp_core::Encode;
@@ -1795,7 +1670,6 @@ fn observes_backing_even_if_not_validator() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -1913,7 +1787,6 @@ fn cannot_second_multiple_candidates_per_parent() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		};
 		let candidate = candidate_builder.clone().build();
 
@@ -2093,7 +1966,6 @@ fn new_leaf_view_doesnt_clobber_old() {
 			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
-			..Default::default()
 		}
 		.build();
 

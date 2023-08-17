@@ -76,12 +76,7 @@ async fn update_view(
 		let ancestry_numbers = (min_number..=leaf_number).rev();
 		let mut ancestry_iter = ancestry_hashes.clone().zip(ancestry_numbers).peekable();
 
-		loop {
-			let (hash, number) = match ancestry_iter.next() {
-				Some((hash, number)) => (hash, number),
-				None => break,
-			};
-
+		while let Some((hash, number)) = ancestry_iter.next() {
 			// May be `None` for the last element.
 			let parent_hash =
 				ancestry_iter.peek().map(|(h, _)| *h).unwrap_or_else(|| get_parent_hash(hash));
@@ -208,13 +203,8 @@ fn distribute_collation_from_implicit_view() {
 				.into_iter()
 				.zip(validator_peer_ids.clone())
 			{
-				connect_peer(
-					virtual_overseer,
-					peer.clone(),
-					CollationVersion::VStaging,
-					Some(val.clone()),
-				)
-				.await;
+				connect_peer(virtual_overseer, peer, CollationVersion::VStaging, Some(val.clone()))
+					.await;
 			}
 
 			// Collator declared itself to each peer.
@@ -440,11 +430,11 @@ fn advertise_and_send_collation_by_hash() {
 				.await;
 			}
 
-			let peer = test_state.validator_peer_id[0].clone();
+			let peer = test_state.validator_peer_id[0];
 			let validator_id = test_state.current_group_validator_authority_ids()[0].clone();
 			connect_peer(
 				&mut virtual_overseer,
-				peer.clone(),
+				peer,
 				CollationVersion::VStaging,
 				Some(validator_id.clone()),
 			)

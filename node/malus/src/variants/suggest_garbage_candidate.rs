@@ -105,7 +105,7 @@ where
 				// equal to `p`. We use `rand::thread_rng` as the source of randomness.
 				let generate_malicious_candidate = distribution.sample(&mut rand::thread_rng());
 
-				if generate_malicious_candidate == true {
+				if generate_malicious_candidate {
 					gum::debug!(target: MALUS, "😈 Suggesting malicious candidate.",);
 
 					let pov = PoV { block_data: BlockData(MALICIOUS_POV.into()) };
@@ -262,10 +262,10 @@ pub(crate) struct SuggestGarbageCandidates {
 }
 
 impl OverseerGen for SuggestGarbageCandidates {
-	fn generate<'a, Spawner, RuntimeClient>(
+	fn generate<Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+		args: OverseerGenArgs<'_, Spawner, RuntimeClient>,
 	) -> Result<
 		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
 		Error,
