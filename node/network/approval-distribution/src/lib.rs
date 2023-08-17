@@ -1340,6 +1340,9 @@ impl State {
 				continue
 			}
 
+			if !topology.map(|topology| topology.is_validator(&peer)).unwrap_or(false) {
+				continue
+			}
 			// Note: at this point, we haven't received the message from any peers
 			// other than the source peer, and we just got it, so we haven't sent it
 			// to any peers either.
@@ -1870,6 +1873,13 @@ impl State {
 								t.local_grid_neighbors().route_to_peer(required_routing, peer_id)
 							});
 							in_topology || {
+								if !topology
+									.map(|topology| topology.is_validator(peer_id))
+									.unwrap_or(false)
+								{
+									return false
+								}
+
 								let route_random = random_routing.sample(total_peers, rng);
 								if route_random {
 									random_routing.inc_sent();
