@@ -33,12 +33,12 @@ variables:
   GIT_STRATEGY: fetch
   GIT_DEPTH: 100
   CI_SERVER_NAME: "GitLab CI"
-  CI_IMAGE: !reference [.ci-unified, variables, CI_IMAGE] 
+  CI_IMAGE: !reference [.ci-unified, variables, CI_IMAGE]
   BUILDAH_IMAGE: "quay.io/buildah/stable:v1.29"
   BUILDAH_COMMAND: "buildah --storage-driver overlay2"
   DOCKER_OS: "debian:stretch"
   ARCH: "x86_64"
-  ZOMBIENET_IMAGE: "docker.io/paritytech/zombienet:v1.3.55"
+  ZOMBIENET_IMAGE: "docker.io/paritytech/zombienet:v1.3.65"
 
 default:
   cache: {}
@@ -233,7 +233,7 @@ include:
     file: /common/timestamp.yml
   - project: parity/infrastructure/ci_cd/shared
     ref: main
-    file: /common/ci-unified.yml   
+    file: /common/ci-unified.yml
 
 
 #### stage:                        .post

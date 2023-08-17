@@ -12,6 +12,7 @@ zombienet-tests-parachains-smoke-test:
     - job: publish-malus-image
     - job: publish-test-collators-image
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
   before_script:
     - echo "Zombie-net Tests Config"
@@ -42,6 +43,7 @@ zombienet-tests-parachains-pvf:
     - job: publish-polkadot-debug-image
     - job: publish-test-collators-image
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
     - echo "Zombie-net Tests Config"
@@ -73,6 +75,7 @@ zombienet-tests-parachains-disputes:
     - job: publish-test-collators-image
     - job: publish-malus-image
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
     - echo "Zombie-net Tests Config"
@@ -104,6 +107,7 @@ zombienet-tests-parachains-disputes-garbage-candidate:
     - job: publish-test-collators-image
     - job: publish-malus-image
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
     - echo "Zombie-net Tests Config"
@@ -135,6 +139,7 @@ zombienet-tests-parachains-disputes-past-session:
     - job: publish-test-collators-image
     - job: publish-malus-image
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
     - echo "Zombie-net Tests Config"
@@ -167,6 +172,7 @@ zombienet-test-parachains-upgrade-smoke-test:
     - job: publish-malus-image
     - job: publish-test-collators-image
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
   before_script:
     - echo "ZombieNet Tests Config"
@@ -197,6 +203,7 @@ zombienet-tests-misc-paritydb:
     - job: publish-test-collators-image
       artifacts: true
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/misc"
   before_script:
     - echo "Zombie-net Tests Config"
@@ -227,7 +234,8 @@ zombienet-tests-misc-upgrade-node:
      - job: build-linux-stable
        artifacts: true
    variables:
-     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/misc"
+    RUN_IN_CONTAINER: "1"
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/misc"
    before_script:
      - echo "Zombie-net Tests Config"
      - echo "${ZOMBIENET_IMAGE_NAME}"
@@ -258,6 +266,7 @@ zombienet-tests-malus-dispute-valid:
     - job: publish-malus-image
     - job: publish-test-collators-image
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/node/malus/integrationtests"
   before_script:
     - echo "Zombie-net Tests Config"
@@ -288,6 +297,7 @@ zombienet-tests-deregister-register-validator:
     - job: publish-polkadot-debug-image
       artifacts: true
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
   before_script:
     - echo "Zombie-net Tests Config"
@@ -315,6 +325,7 @@ zombienet-tests-beefy-and-mmr:
   needs:
     - job: publish-polkadot-debug-image
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
     - echo "Zombie-net Tests Config"

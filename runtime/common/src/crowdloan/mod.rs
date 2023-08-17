@@ -970,16 +970,16 @@ mod tests {
 		ENDING_PERIOD.with(|p| *p.borrow_mut() = ending_period);
 	}
 	fn auction() -> Option<(u64, u64)> {
-		AUCTION.with(|p| p.borrow().clone())
+		AUCTION.with(|p| *p.borrow())
 	}
 	fn ending_period() -> u64 {
-		ENDING_PERIOD.with(|p| p.borrow().clone())
+		ENDING_PERIOD.with(|p| *p.borrow())
 	}
 	fn bids() -> Vec<BidPlaced> {
 		BIDS_PLACED.with(|p| p.borrow().clone())
 	}
 	fn vrf_delay() -> u64 {
-		VRF_DELAY.with(|p| p.borrow().clone())
+		VRF_DELAY.with(|p| *p.borrow())
 	}
 	fn set_vrf_delay(delay: u64) {
 		VRF_DELAY.with(|p| *p.borrow_mut() = delay);

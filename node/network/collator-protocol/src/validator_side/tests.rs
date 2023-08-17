@@ -313,7 +313,7 @@ async fn connect_and_declare_collator(
 	overseer_send(
 		virtual_overseer,
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
-			peer.clone(),
+			peer,
 			ObservedRole::Full,
 			CollationVersion::V1.into(),
 			None,
@@ -324,7 +324,7 @@ async fn connect_and_declare_collator(
 	overseer_send(
 		virtual_overseer,
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
-			peer.clone(),
+			peer,
 			Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
 				collator.public(),
 				para_id,
@@ -376,13 +376,13 @@ fn act_on_advertisement() {
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_b.clone(),
+			peer_b,
 			pair.clone(),
 			test_state.chain_ids[0],
 		)
 		.await;
 
-		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
+		advertise_collation(&mut virtual_overseer, peer_b, test_state.relay_parent).await;
 
 		assert_fetch_collation_request(
 			&mut virtual_overseer,
@@ -418,17 +418,17 @@ fn collator_reporting_works() {
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_b.clone(),
+			peer_b,
 			test_state.collators[0].clone(),
-			test_state.chain_ids[0].clone(),
+			test_state.chain_ids[0],
 		)
 		.await;
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_c.clone(),
+			peer_c,
 			test_state.collators[1].clone(),
-			test_state.chain_ids[0].clone(),
+			test_state.chain_ids[0],
 		)
 		.await;
 
@@ -477,7 +477,7 @@ fn collator_authentication_verification_works() {
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
-				peer_b.clone(),
+				peer_b,
 				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
 					test_state.collators[0].public(),
 					test_state.chain_ids[0],
@@ -529,22 +529,22 @@ fn fetch_one_collation_at_a_time() {
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_b.clone(),
+			peer_b,
 			test_state.collators[0].clone(),
-			test_state.chain_ids[0].clone(),
+			test_state.chain_ids[0],
 		)
 		.await;
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_c.clone(),
+			peer_c,
 			test_state.collators[1].clone(),
-			test_state.chain_ids[0].clone(),
+			test_state.chain_ids[0],
 		)
 		.await;
 
-		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
-		advertise_collation(&mut virtual_overseer, peer_c.clone(), test_state.relay_parent).await;
+		advertise_collation(&mut virtual_overseer, peer_b, test_state.relay_parent).await;
+		advertise_collation(&mut virtual_overseer, peer_c, test_state.relay_parent).await;
 
 		let response_channel = assert_fetch_collation_request(
 			&mut virtual_overseer,
@@ -615,31 +615,31 @@ fn fetches_next_collation() {
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_b.clone(),
+			peer_b,
 			test_state.collators[2].clone(),
-			test_state.chain_ids[0].clone(),
+			test_state.chain_ids[0],
 		)
 		.await;
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_c.clone(),
+			peer_c,
 			test_state.collators[3].clone(),
-			test_state.chain_ids[0].clone(),
+			test_state.chain_ids[0],
 		)
 		.await;
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_d.clone(),
+			peer_d,
 			test_state.collators[4].clone(),
-			test_state.chain_ids[0].clone(),
+			test_state.chain_ids[0],
 		)
 		.await;
 
-		advertise_collation(&mut virtual_overseer, peer_b.clone(), second).await;
-		advertise_collation(&mut virtual_overseer, peer_c.clone(), second).await;
-		advertise_collation(&mut virtual_overseer, peer_d.clone(), second).await;
+		advertise_collation(&mut virtual_overseer, peer_b, second).await;
+		advertise_collation(&mut virtual_overseer, peer_c, second).await;
+		advertise_collation(&mut virtual_overseer, peer_d, second).await;
 
 		// Dropping the response channel should lead to fetching the second collation.
 		assert_fetch_collation_request(&mut virtual_overseer, second, test_state.chain_ids[0])
@@ -708,9 +708,9 @@ fn reject_connection_to_next_group() {
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_b.clone(),
+			peer_b,
 			test_state.collators[0].clone(),
-			test_state.chain_ids[1].clone(), // next, not current `para_id`
+			test_state.chain_ids[1], // next, not current `para_id`
 		)
 		.await;
 
@@ -757,22 +757,22 @@ fn fetch_next_collation_on_invalid_collation() {
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_b.clone(),
+			peer_b,
 			test_state.collators[0].clone(),
-			test_state.chain_ids[0].clone(),
+			test_state.chain_ids[0],
 		)
 		.await;
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_c.clone(),
+			peer_c,
 			test_state.collators[1].clone(),
-			test_state.chain_ids[0].clone(),
+			test_state.chain_ids[0],
 		)
 		.await;
 
-		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
-		advertise_collation(&mut virtual_overseer, peer_c.clone(), test_state.relay_parent).await;
+		advertise_collation(&mut virtual_overseer, peer_b, test_state.relay_parent).await;
+		advertise_collation(&mut virtual_overseer, peer_c, test_state.relay_parent).await;
 
 		let response_channel = assert_fetch_collation_request(
 			&mut virtual_overseer,
@@ -854,12 +854,12 @@ fn inactive_disconnected() {
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_b.clone(),
+			peer_b,
 			pair.clone(),
 			test_state.chain_ids[0],
 		)
 		.await;
-		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
+		advertise_collation(&mut virtual_overseer, peer_b, test_state.relay_parent).await;
 
 		assert_fetch_collation_request(
 			&mut virtual_overseer,
@@ -870,7 +870,7 @@ fn inactive_disconnected() {
 
 		Delay::new(ACTIVITY_TIMEOUT * 3).await;
 
-		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
+		assert_collator_disconnect(&mut virtual_overseer, peer_b).await;
 		virtual_overseer
 	});
 }
@@ -905,7 +905,7 @@ fn activity_extends_life() {
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_b.clone(),
+			peer_b,
 			pair.clone(),
 			test_state.chain_ids[0],
 		)
@@ -913,28 +913,28 @@ fn activity_extends_life() {
 
 		Delay::new(ACTIVITY_TIMEOUT * 2 / 3).await;
 
-		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_a).await;
+		advertise_collation(&mut virtual_overseer, peer_b, hash_a).await;
 
 		assert_fetch_collation_request(&mut virtual_overseer, hash_a, test_state.chain_ids[0])
 			.await;
 
 		Delay::new(ACTIVITY_TIMEOUT * 2 / 3).await;
 
-		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_b).await;
+		advertise_collation(&mut virtual_overseer, peer_b, hash_b).await;
 
 		assert_fetch_collation_request(&mut virtual_overseer, hash_b, test_state.chain_ids[0])
 			.await;
 
 		Delay::new(ACTIVITY_TIMEOUT * 2 / 3).await;
 
-		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_c).await;
+		advertise_collation(&mut virtual_overseer, peer_b, hash_c).await;
 
 		assert_fetch_collation_request(&mut virtual_overseer, hash_c, test_state.chain_ids[0])
 			.await;
 
 		Delay::new(ACTIVITY_TIMEOUT * 3 / 2).await;
 
-		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
+		assert_collator_disconnect(&mut virtual_overseer, peer_b).await;
 
 		virtual_overseer
 	});
@@ -962,7 +962,7 @@ fn disconnect_if_no_declare() {
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
-				peer_b.clone(),
+				peer_b,
 				ObservedRole::Full,
 				CollationVersion::V1.into(),
 				None,
@@ -970,7 +970,7 @@ fn disconnect_if_no_declare() {
 		)
 		.await;
 
-		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
+		assert_collator_disconnect(&mut virtual_overseer, peer_b).await;
 
 		virtual_overseer
 	})
@@ -1000,7 +1000,7 @@ fn disconnect_if_wrong_declare() {
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
-				peer_b.clone(),
+				peer_b,
 				ObservedRole::Full,
 				CollationVersion::V1.into(),
 				None,
@@ -1011,7 +1011,7 @@ fn disconnect_if_wrong_declare() {
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
-				peer_b.clone(),
+				peer_b,
 				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
 					pair.public(),
 					ParaId::from(69),
@@ -1031,7 +1031,7 @@ fn disconnect_if_wrong_declare() {
 			}
 		);
 
-		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
+		assert_collator_disconnect(&mut virtual_overseer, peer_b).await;
 
 		virtual_overseer
 	})
@@ -1061,7 +1061,7 @@ fn delay_reputation_change() {
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
-				peer_b.clone(),
+				peer_b,
 				ObservedRole::Full,
 				CollationVersion::V1.into(),
 				None,
@@ -1072,7 +1072,7 @@ fn delay_reputation_change() {
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
-				peer_b.clone(),
+				peer_b,
 				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
 					pair.public(),
 					ParaId::from(69),
@@ -1085,7 +1085,7 @@ fn delay_reputation_change() {
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
-				peer_b.clone(),
+				peer_b,
 				Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
 					pair.public(),
 					ParaId::from(69),
@@ -1145,7 +1145,7 @@ fn view_change_clears_old_collators() {
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
-			peer_b.clone(),
+			peer_b,
 			pair.clone(),
 			test_state.chain_ids[0],
 		)
@@ -1164,7 +1164,7 @@ fn view_change_clears_old_collators() {
 		test_state.group_rotation_info = test_state.group_rotation_info.bump_rotation();
 		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
 
-		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
+		assert_collator_disconnect(&mut virtual_overseer, peer_b).await;
 
 		virtual_overseer
 	})

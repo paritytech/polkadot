@@ -793,7 +793,7 @@ mod tests {
 					if leases.contains_key(&(para, period)) {
 						return Err(LeaseError::AlreadyLeased)
 					}
-					leases.insert((para, period), LeaseData { leaser: leaser.clone(), amount });
+					leases.insert((para, period), LeaseData { leaser: *leaser, amount });
 				}
 				Ok(())
 			})
@@ -1391,7 +1391,7 @@ mod tests {
 			(1, 2.into(), 53, SlotRange::TwoTwo),
 			(5, 3.into(), 1, SlotRange::ThreeThree),
 		];
-		assert_eq!(Auctions::calculate_winners(winning.clone()), winners);
+		assert_eq!(Auctions::calculate_winners(winning), winners);
 
 		winning[SlotRange::ZeroOne as u8 as usize] = Some((4, 10.into(), 3));
 		let winners = vec![
@@ -1399,11 +1399,11 @@ mod tests {
 			(1, 2.into(), 53, SlotRange::TwoTwo),
 			(5, 3.into(), 1, SlotRange::ThreeThree),
 		];
-		assert_eq!(Auctions::calculate_winners(winning.clone()), winners);
+		assert_eq!(Auctions::calculate_winners(winning), winners);
 
 		winning[SlotRange::ZeroThree as u8 as usize] = Some((1, 100.into(), 100));
 		let winners = vec![(1, 100.into(), 100, SlotRange::ZeroThree)];
-		assert_eq!(Auctions::calculate_winners(winning.clone()), winners);
+		assert_eq!(Auctions::calculate_winners(winning), winners);
 	}
 
 	#[test]
