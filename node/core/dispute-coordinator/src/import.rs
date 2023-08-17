@@ -520,10 +520,6 @@ impl ImportResult {
 		let (mut votes, _) = new_state.into_old_state();
 
 		for (index, (candidate_hashes, sig)) in approval_votes.into_iter() {
-			gum::debug!(
-				target: LOG_TARGET,
-				"Imported votes for {:?}", candidate_hashes
-			);
 			debug_assert!(
 				{
 					let pub_key = &env.session_info().validators.get(index).expect("indices are validated by approval-voting subsystem; qed");

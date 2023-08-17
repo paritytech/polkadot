@@ -2547,8 +2547,7 @@ where
 				?candidate_hash,
 				?block_hash,
 				last_no_shows = ?status.last_no_shows,
-				no_shows_zzz = ?check.known_no_shows(),
-				"Observed no_shows.",
+				"Observed no_shows",
 			);
 		}
 		if is_approved {
@@ -3177,7 +3176,7 @@ async fn issue_approval<Context>(
 		?candidate_hash,
 		?block_hash,
 		validator_index = validator_index.0,
-		"Issuing approval vote",
+		"Ready to issue approval vote",
 	);
 
 	let actions = advance_approval_state(
@@ -3330,7 +3329,7 @@ async fn maybe_create_signature<Context>(
 		.values()
 		.map(|unsigned_approval| db.load_candidate_entry(&unsigned_approval.candidate_hash))
 		.collect::<SubsystemResult<Vec<Option<CandidateEntry>>>>()?;
-	let candidate_indexes: Vec<CandidateIndex> =
+	let candidate_indices: Vec<CandidateIndex> =
 		block_entry.candidates_pending_signature.keys().map(|val| *val).collect();
 	for candidate_entry in candidate_entries {
 		let mut candidate_entry = candidate_entry
@@ -3341,7 +3340,7 @@ async fn maybe_create_signature<Context>(
 		approval_entry.import_approval_sig(OurApproval {
 			signature: signature.clone(),
 			signed_candidates_indices: Some(
-				candidate_indexes
+				candidate_indices
 					.clone()
 					.try_into()
 					.expect("Fails only of array empty, it can't be, qed"),
@@ -3350,14 +3349,14 @@ async fn maybe_create_signature<Context>(
 		db.write_candidate_entry(candidate_entry);
 	}
 
-	metrics.on_approval_coalesce(candidate_indexes.len() as u32);
+	metrics.on_approval_coalesce(candidate_indices.len() as u32);
 
 	metrics.on_approval_produced();
 
 	ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeApproval(
 		IndirectSignedApprovalVoteV2 {
 			block_hash: block_entry.block_hash(),
-			candidate_indices: candidate_indexes
+			candidate_indices: candidate_indices
 				.try_into()
 				.expect("Fails only of array empty, it can't be, qed"),
 			validator: validator_index,
@@ -3368,8 +3367,8 @@ async fn maybe_create_signature<Context>(
 	gum::debug!(
 		target: LOG_TARGET,
 		?block_hash,
-		"Approval entry for num_candidates was sent {:}",
-		block_entry.candidates_pending_signature.len()
+		signed_candidates = ?block_entry.candidates_pending_signature.len(),
+		"Issue approval votes",
 	);
 	block_entry.candidates_pending_signature.clear();
 	db.write_block_entry(block_entry.into());
