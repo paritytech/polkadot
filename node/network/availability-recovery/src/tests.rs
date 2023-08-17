@@ -562,7 +562,7 @@ fn availability_is_recovered_from_chunks_if_no_group_provided() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -648,7 +648,7 @@ fn availability_is_recovered_from_chunks_even_if_backing_group_supplied_if_chunk
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -734,7 +734,7 @@ fn bad_merkle_path_leads_to_recovery_error() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -792,7 +792,7 @@ fn wrong_chunk_index_leads_to_recovery_error() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -817,7 +817,8 @@ fn wrong_chunk_index_leads_to_recovery_error() {
 
 		let candidate_hash = test_state.candidate.hash();
 
-		// These chunks should fail the index check as they don't have the correct index for validator.
+		// These chunks should fail the index check as they don't have the correct index for
+		// validator.
 		test_state.chunks[1] = test_state.chunks[0].clone();
 		test_state.chunks[2] = test_state.chunks[0].clone();
 		test_state.chunks[3] = test_state.chunks[0].clone();
@@ -865,7 +866,7 @@ fn invalid_erasure_coding_leads_to_invalid_error() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -914,7 +915,7 @@ fn fast_path_backing_group_recovers() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -964,7 +965,7 @@ fn recovers_from_only_chunks_if_pov_large() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -1068,7 +1069,7 @@ fn fast_path_backing_group_recovers_if_pov_small() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -1127,7 +1128,7 @@ fn no_answers_in_fast_path_causes_chunk_requests() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -1189,7 +1190,7 @@ fn task_canceled_when_receivers_dropped() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -1231,7 +1232,7 @@ fn chunks_retry_until_all_nodes_respond() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -1292,7 +1293,7 @@ fn not_returning_requests_wont_stall_retrieval() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -1364,7 +1365,7 @@ fn all_not_returning_requests_still_recovers_on_return() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -1441,7 +1442,7 @@ fn returns_early_if_we_have_the_data() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -1478,7 +1479,7 @@ fn does_not_query_local_validator() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
@@ -1537,7 +1538,7 @@ fn invalid_local_chunk_is_ignored() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: test_state.current.clone(),
+				hash: test_state.current,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),

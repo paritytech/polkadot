@@ -284,7 +284,7 @@ fn send_messages_to_peers() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeTxMessage::SendValidationMessage(
-						vec![peer.clone()],
+						vec![peer],
 						Versioned::V1(message_v1.clone()),
 					),
 				})
@@ -299,7 +299,7 @@ fn send_messages_to_peers() {
 					.await
 					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
-					peer.clone(),
+					peer,
 					PeerSet::Validation,
 					WireMessage::ProtocolMessage(message_v1).encode(),
 				)
@@ -321,7 +321,7 @@ fn send_messages_to_peers() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeTxMessage::SendCollationMessage(
-						vec![peer.clone()],
+						vec![peer],
 						Versioned::V1(message_v1.clone()),
 					),
 				})
@@ -334,7 +334,7 @@ fn send_messages_to_peers() {
 					.await
 					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
-					peer.clone(),
+					peer,
 					PeerSet::Collation,
 					WireMessage::ProtocolMessage(message_v1).encode(),
 				)

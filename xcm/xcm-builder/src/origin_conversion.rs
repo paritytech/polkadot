@@ -24,7 +24,8 @@ use sp_std::marker::PhantomData;
 use xcm::latest::{BodyId, BodyPart, Junction, Junctions::*, MultiLocation, NetworkId, OriginKind};
 use xcm_executor::traits::{ConvertLocation, ConvertOrigin};
 
-/// Sovereign accounts use the system's `Signed` origin with an account ID derived from the `LocationConverter`.
+/// Sovereign accounts use the system's `Signed` origin with an account ID derived from the
+/// `LocationConverter`.
 pub struct SovereignSignedViaLocation<LocationConverter, RuntimeOrigin>(
 	PhantomData<(LocationConverter, RuntimeOrigin)>,
 );
@@ -269,10 +270,11 @@ where
 	}
 }
 
-/// `Convert` implementation to convert from some a `Signed` (system) `Origin` into an `AccountId32`.
+/// `Convert` implementation to convert from some a `Signed` (system) `Origin` into an
+/// `AccountId32`.
 ///
-/// Typically used when configuring `pallet-xcm` for allowing normal accounts to dispatch an XCM from an `AccountId32`
-/// origin.
+/// Typically used when configuring `pallet-xcm` for allowing normal accounts to dispatch an XCM
+/// from an `AccountId32` origin.
 pub struct SignedToAccountId32<RuntimeOrigin, AccountId, Network>(
 	PhantomData<(RuntimeOrigin, AccountId, Network)>,
 );
@@ -296,11 +298,11 @@ where
 	}
 }
 
-/// `Convert` implementation to convert from some an origin which implements `Backing` into a corresponding `Plurality`
-/// `MultiLocation`.
+/// `Convert` implementation to convert from some an origin which implements `Backing` into a
+/// corresponding `Plurality` `MultiLocation`.
 ///
-/// Typically used when configuring `pallet-xcm` for allowing a collective's Origin to dispatch an XCM from a
-/// `Plurality` origin.
+/// Typically used when configuring `pallet-xcm` for allowing a collective's Origin to dispatch an
+/// XCM from a `Plurality` origin.
 pub struct BackingToPlurality<RuntimeOrigin, COrigin, Body>(
 	PhantomData<(RuntimeOrigin, COrigin, Body)>,
 );

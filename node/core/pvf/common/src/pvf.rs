@@ -84,7 +84,7 @@ impl PvfPrepData {
 	}
 
 	/// Creates a structure for tests.
-	#[doc(hidden)]
+	#[cfg(feature = "test-utils")]
 	pub fn from_discriminator_and_timeout(num: u32, timeout: Duration) -> Self {
 		let descriminator_buf = num.to_le_bytes().to_vec();
 		Self::from_code(
@@ -96,13 +96,13 @@ impl PvfPrepData {
 	}
 
 	/// Creates a structure for tests.
-	#[doc(hidden)]
+	#[cfg(feature = "test-utils")]
 	pub fn from_discriminator(num: u32) -> Self {
 		Self::from_discriminator_and_timeout(num, crate::tests::TEST_PREPARATION_TIMEOUT)
 	}
 
 	/// Creates a structure for tests.
-	#[doc(hidden)]
+	#[cfg(feature = "test-utils")]
 	pub fn from_discriminator_precheck(num: u32) -> Self {
 		let mut pvf =
 			Self::from_discriminator_and_timeout(num, crate::tests::TEST_PREPARATION_TIMEOUT);

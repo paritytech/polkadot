@@ -1,5 +1,6 @@
 [package]
 name = "polkadot-test-service"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

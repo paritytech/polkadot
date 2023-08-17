@@ -225,8 +225,8 @@ struct State {
 	/// Our validator groups per active leaf.
 	our_validators_groups: HashMap<Hash, ValidatorGroup>,
 
-	/// The mapping from [`PeerId`] to [`HashSet<AuthorityDiscoveryId>`]. This is filled over time as we learn the [`PeerId`]'s
-	/// by `PeerConnected` events.
+	/// The mapping from [`PeerId`] to [`HashSet<AuthorityDiscoveryId>`]. This is filled over time
+	/// as we learn the [`PeerId`]'s by `PeerConnected` events.
 	peer_ids: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 
 	/// Tracks which validators we want to stay connected to.
@@ -241,8 +241,8 @@ struct State {
 
 	/// All collation fetching requests that are still waiting to be answered.
 	///
-	/// They are stored per relay parent, when our view changes and the relay parent moves out, we will cancel the fetch
-	/// request.
+	/// They are stored per relay parent, when our view changes and the relay parent moves out, we
+	/// will cancel the fetch request.
 	waiting_collation_fetches: HashMap<Hash, WaitingCollationFetches>,
 
 	/// Active collation fetches.
@@ -526,8 +526,8 @@ async fn connect_to_validators<Context>(
 
 /// Advertise collation to the given `peer`.
 ///
-/// This will only advertise a collation if there exists one for the given `relay_parent` and the given `peer` is
-/// set as validator for our para at the given `relay_parent`.
+/// This will only advertise a collation if there exists one for the given `relay_parent` and the
+/// given `peer` is set as validator for our para at the given `relay_parent`.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn advertise_collation<Context>(
 	ctx: &mut Context,
@@ -638,7 +638,8 @@ async fn process_msg<Context>(
 			);
 		},
 		NetworkBridgeUpdate(event) => {
-			// We should count only this shoulder in the histogram, as other shoulders are just introducing noise
+			// We should count only this shoulder in the histogram, as other shoulders are just
+			// introducing noise
 			let _ = state.metrics.time_process_msg();
 
 			if let Err(e) = handle_network_msg(ctx, runtime, state, event).await {

@@ -462,7 +462,7 @@ fn send_our_view_upon_connection() {
 		assert_network_actions_contains(
 			&actions,
 			&NetworkAction::WriteNotification(
-				peer.clone(),
+				peer,
 				PeerSet::Validation,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view.clone()).encode(),
 			),
@@ -470,7 +470,7 @@ fn send_our_view_upon_connection() {
 		assert_network_actions_contains(
 			&actions,
 			&NetworkAction::WriteNotification(
-				peer.clone(),
+				peer,
 				PeerSet::Collation,
 				WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(view.clone()).encode(),
 			),
@@ -763,7 +763,7 @@ fn peer_view_updates_sent_via_overseer() {
 		{
 			assert_sends_validation_event_to_all(
 				NetworkBridgeEvent::PeerConnected(
-					peer.clone(),
+					peer,
 					ObservedRole::Full,
 					ValidationVersion::V1.into(),
 					None,
@@ -773,7 +773,7 @@ fn peer_view_updates_sent_via_overseer() {
 			.await;
 
 			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+				NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -781,14 +781,14 @@ fn peer_view_updates_sent_via_overseer() {
 
 		network_handle
 			.peer_message(
-				peer.clone(),
+				peer,
 				PeerSet::Validation,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view.clone()).encode(),
 			)
 			.await;
 
 		assert_sends_validation_event_to_all(
-			NetworkBridgeEvent::PeerViewChange(peer.clone(), view),
+			NetworkBridgeEvent::PeerViewChange(peer, view),
 			&mut virtual_overseer,
 		)
 		.await;
@@ -818,7 +818,7 @@ fn peer_messages_sent_via_overseer() {
 		{
 			assert_sends_validation_event_to_all(
 				NetworkBridgeEvent::PeerConnected(
-					peer.clone(),
+					peer,
 					ObservedRole::Full,
 					ValidationVersion::V1.into(),
 					None,
@@ -828,7 +828,7 @@ fn peer_messages_sent_via_overseer() {
 			.await;
 
 			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+				NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -843,16 +843,17 @@ fn peer_messages_sent_via_overseer() {
 
 		network_handle
 			.peer_message(
-				peer.clone(),
+				peer,
 				PeerSet::Validation,
 				WireMessage::ProtocolMessage(message_v1.clone()).encode(),
 			)
 			.await;
 
-		network_handle.disconnect_peer(peer.clone(), PeerSet::Validation).await;
+		network_handle.disconnect_peer(peer, PeerSet::Validation).await;
 
-		// Approval distribution message comes first, and the message is only sent to that subsystem.
-		// then a disconnection event arises that is sent to all validation networking subsystems.
+		// Approval distribution message comes first, and the message is only sent to that
+		// subsystem. then a disconnection event arises that is sent to all validation networking
+		// subsystems.
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -905,7 +906,7 @@ fn peer_disconnect_from_just_one_peerset() {
 		{
 			assert_sends_validation_event_to_all(
 				NetworkBridgeEvent::PeerConnected(
-					peer.clone(),
+					peer,
 					ObservedRole::Full,
 					ValidationVersion::V1.into(),
 					None,
@@ -915,7 +916,7 @@ fn peer_disconnect_from_just_one_peerset() {
 			.await;
 
 			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+				NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -924,7 +925,7 @@ fn peer_disconnect_from_just_one_peerset() {
 		{
 			assert_sends_collation_event_to_all(
 				NetworkBridgeEvent::PeerConnected(
-					peer.clone(),
+					peer,
 					ObservedRole::Full,
 					ValidationVersion::V1.into(),
 					None,
@@ -934,16 +935,16 @@ fn peer_disconnect_from_just_one_peerset() {
 			.await;
 
 			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+				NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 				&mut virtual_overseer,
 			)
 			.await;
 		}
 
-		network_handle.disconnect_peer(peer.clone(), PeerSet::Validation).await;
+		network_handle.disconnect_peer(peer, PeerSet::Validation).await;
 
 		assert_sends_validation_event_to_all(
-			NetworkBridgeEvent::PeerDisconnected(peer.clone()),
+			NetworkBridgeEvent::PeerDisconnected(peer),
 			&mut virtual_overseer,
 		)
 		.await;
@@ -969,11 +970,7 @@ fn peer_disconnect_from_just_one_peerset() {
 
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::WriteNotification(
-				peer.clone(),
-				PeerSet::Collation,
-				wire_message.clone(),
-			),
+			&NetworkAction::WriteNotification(peer, PeerSet::Collation, wire_message.clone()),
 		);
 		virtual_overseer
 	});
@@ -1010,7 +1007,7 @@ fn relays_collation_protocol_messages() {
 		{
 			assert_sends_validation_event_to_all(
 				NetworkBridgeEvent::PeerConnected(
-					peer_a.clone(),
+					peer_a,
 					ObservedRole::Full,
 					ValidationVersion::V1.into(),
 					None,
@@ -1020,7 +1017,7 @@ fn relays_collation_protocol_messages() {
 			.await;
 
 			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer_a.clone(), View::default()),
+				NetworkBridgeEvent::PeerViewChange(peer_a, View::default()),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -1029,7 +1026,7 @@ fn relays_collation_protocol_messages() {
 		{
 			assert_sends_collation_event_to_all(
 				NetworkBridgeEvent::PeerConnected(
-					peer_b.clone(),
+					peer_b,
 					ObservedRole::Full,
 					ValidationVersion::V1.into(),
 					None,
@@ -1039,7 +1036,7 @@ fn relays_collation_protocol_messages() {
 			.await;
 
 			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer_b.clone(), View::default()),
+				NetworkBridgeEvent::PeerViewChange(peer_b, View::default()),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -1058,7 +1055,7 @@ fn relays_collation_protocol_messages() {
 
 		network_handle
 			.peer_message(
-				peer_a.clone(),
+				peer_a,
 				PeerSet::Collation,
 				WireMessage::ProtocolMessage(message_v1.clone()).encode(),
 			)
@@ -1067,14 +1064,14 @@ fn relays_collation_protocol_messages() {
 		let actions = network_handle.next_network_actions(3).await;
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::ReputationChange(peer_a.clone(), UNCONNECTED_PEERSET_COST.into()),
+			&NetworkAction::ReputationChange(peer_a, UNCONNECTED_PEERSET_COST.into()),
 		);
 
 		// peer B has the message relayed.
 
 		network_handle
 			.peer_message(
-				peer_b.clone(),
+				peer_b,
 				PeerSet::Collation,
 				WireMessage::ProtocolMessage(message_v1.clone()).encode(),
 			)
@@ -1125,7 +1122,7 @@ fn different_views_on_different_peer_sets() {
 		{
 			assert_sends_validation_event_to_all(
 				NetworkBridgeEvent::PeerConnected(
-					peer.clone(),
+					peer,
 					ObservedRole::Full,
 					ValidationVersion::V1.into(),
 					None,
@@ -1135,7 +1132,7 @@ fn different_views_on_different_peer_sets() {
 			.await;
 
 			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+				NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -1144,7 +1141,7 @@ fn different_views_on_different_peer_sets() {
 		{
 			assert_sends_collation_event_to_all(
 				NetworkBridgeEvent::PeerConnected(
-					peer.clone(),
+					peer,
 					ObservedRole::Full,
 					ValidationVersion::V1.into(),
 					None,
@@ -1154,7 +1151,7 @@ fn different_views_on_different_peer_sets() {
 			.await;
 
 			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+				NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -1165,7 +1162,7 @@ fn different_views_on_different_peer_sets() {
 
 		network_handle
 			.peer_message(
-				peer.clone(),
+				peer,
 				PeerSet::Validation,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view_a.clone()).encode(),
 			)
@@ -1173,20 +1170,20 @@ fn different_views_on_different_peer_sets() {
 
 		network_handle
 			.peer_message(
-				peer.clone(),
+				peer,
 				PeerSet::Collation,
 				WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(view_b.clone()).encode(),
 			)
 			.await;
 
 		assert_sends_validation_event_to_all(
-			NetworkBridgeEvent::PeerViewChange(peer.clone(), view_a.clone()),
+			NetworkBridgeEvent::PeerViewChange(peer, view_a.clone()),
 			&mut virtual_overseer,
 		)
 		.await;
 
 		assert_sends_collation_event_to_all(
-			NetworkBridgeEvent::PeerViewChange(peer.clone(), view_b.clone()),
+			NetworkBridgeEvent::PeerViewChange(peer, view_b.clone()),
 			&mut virtual_overseer,
 		)
 		.await;
@@ -1236,11 +1233,7 @@ fn sent_views_include_finalized_number_update() {
 
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::WriteNotification(
-				peer_a.clone(),
-				PeerSet::Validation,
-				wire_message.clone(),
-			),
+			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, wire_message.clone()),
 		);
 		virtual_overseer
 	});
@@ -1266,7 +1259,7 @@ fn view_finalized_number_can_not_go_down() {
 
 		network_handle
 			.peer_message(
-				peer_a.clone(),
+				peer_a,
 				PeerSet::Validation,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(View::new(
 					vec![Hash::repeat_byte(0x01)],
@@ -1278,7 +1271,7 @@ fn view_finalized_number_can_not_go_down() {
 
 		network_handle
 			.peer_message(
-				peer_a.clone(),
+				peer_a,
 				PeerSet::Validation,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(View::new(vec![], 0))
 					.encode(),
@@ -1288,7 +1281,7 @@ fn view_finalized_number_can_not_go_down() {
 		let actions = network_handle.next_network_actions(2).await;
 		assert_network_actions_contains(
 			&actions,
-			&NetworkAction::ReputationChange(peer_a.clone(), MALFORMED_VIEW_COST.into()),
+			&NetworkAction::ReputationChange(peer_a, MALFORMED_VIEW_COST.into()),
 		);
 		virtual_overseer
 	});

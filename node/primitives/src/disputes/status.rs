@@ -16,7 +16,8 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-/// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
+/// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS
+/// reboots.
 pub type Timestamp = u64;
 
 /// The status of dispute.
@@ -88,8 +89,8 @@ impl DisputeStatus {
 		}
 	}
 
-	/// Transition the status to a new status after observing the dispute has concluded for the candidate.
-	/// This may be a no-op if the status was already concluded.
+	/// Transition the status to a new status after observing the dispute has concluded for the
+	/// candidate. This may be a no-op if the status was already concluded.
 	pub fn conclude_for(self, now: Timestamp) -> DisputeStatus {
 		match self {
 			DisputeStatus::Active | DisputeStatus::Confirmed => DisputeStatus::ConcludedFor(now),
@@ -98,8 +99,8 @@ impl DisputeStatus {
 		}
 	}
 
-	/// Transition the status to a new status after observing the dispute has concluded against the candidate.
-	/// This may be a no-op if the status was already concluded.
+	/// Transition the status to a new status after observing the dispute has concluded against the
+	/// candidate. This may be a no-op if the status was already concluded.
 	pub fn conclude_against(self, now: Timestamp) -> DisputeStatus {
 		match self {
 			DisputeStatus::Active | DisputeStatus::Confirmed =>

@@ -1,0 +1,132 @@
+name: Release - Publish RC Container image
+# see https://github.com/paritytech/release-engineering/issues/97#issuecomment-1651372277
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: |
+          Release ID.
+          You can find it using the command:
+            curl -s \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" https://api.github.com/repos/$OWNER/$REPO/releases | \
+              jq '.[] | { name: .name, id: .id }'
+        required: true
+        type: string
+      registry:
+        description: "Container registry"
+        required: true
+        type: string
+        default: docker.io
+      owner:
+        description: Owner of the container image repo
+        required: true
+        type: string
+        default: parity
+
+env:
+  RELEASE_ID: ${{ inputs.release_id }}
+  ENGINE: docker
+  REGISTRY: ${{ inputs.registry }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  DOCKER_OWNER: ${{ inputs.owner || github.repository_owner }}
+  REPO: ${{ github.repository }}
+
+jobs:
+  fetch-artifacts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Fetch all artifacts
+        run: |
+          . ./scripts/ci/common/lib.sh
+          fetch_release_artifacts
+
+      - name: Cache the artifacts
+        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        with:
+          key: artifacts-${{ github.sha }}
+          path: |
+            ./release-artifacts/**/*
+
+  build-container:
+    runs-on: ubuntu-latest
+    needs: fetch-artifacts
+
+    strategy:
+      matrix:
+        binary: ["polkadot", "staking-miner"]
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Get artifacts from cache
+        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        with:
+          key: artifacts-${{ github.sha }}
+          fail-on-cache-miss: true
+          path: |
+            ./release-artifacts/**/*
+
+      - name: Check sha256 ${{ matrix.binary }}
+        working-directory: ./release-artifacts
+        run: |
+          . ../scripts/ci/common/lib.sh
+
+          echo "Checking binary ${{ matrix.binary }}"
+          check_sha256 ${{ matrix.binary }} && echo "OK" || echo "ERR"
+
+      - name: Check GPG ${{ matrix.binary }}
+        working-directory: ./release-artifacts
+        run: |
+          . ../scripts/ci/common/lib.sh
+          import_gpg_keys
+          check_gpg ${{ matrix.binary }}
+
+      - name: Fetch commit and tag
+        id: fetch_refs
+        run: |
+          release=release-${{ inputs.release_id }} && \
+          echo "release=${release}" >> $GITHUB_OUTPUT
+
+          commit=$(git rev-parse --short HEAD) && \
+          echo "commit=${commit}" >> $GITHUB_OUTPUT
+
+          tag=$(git name-rev --tags --name-only $(git rev-parse HEAD)) && \
+          [ "${tag}" != "undefined" ] && echo "tag=${tag}" >> $GITHUB_OUTPUT || \
+          echo "No tag, doing without"
+
+      - name: Build Injected Container image for ${{ matrix.binary }}
+        env:
+            BIN_FOLDER: ./release-artifacts
+            BINARY: ${{ matrix.binary }}
+            TAGS: ${{join(steps.fetch_refs.outputs.*, ',')}}
+        run: |
+          echo "Building container for ${{ matrix.binary }}"
+          ./scripts/ci/dockerfiles/build-injected.sh
+
+      - name: Login to Dockerhub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push Container image for ${{ matrix.binary }}
+        id: docker_push
+        env:
+          BINARY: ${{ matrix.binary }}
+        run: |
+          $ENGINE images | grep ${BINARY}
+          $ENGINE push --all-tags ${REGISTRY}/${DOCKER_OWNER}/${BINARY}
+
+      - name: Check version for the published image for ${{ matrix.binary }}
+        env:
+          BINARY: ${{ matrix.binary }}
+          RELEASE_TAG: ${{ steps.fetch_refs.outputs.release }}
+        run: |
+          echo "Checking tag ${RELEASE_TAG} for image ${REGISTRY}/${DOCKER_OWNER}/${BINARY}"
+          $ENGINE run -i ${REGISTRY}/${DOCKER_OWNER}/${BINARY}:${RELEASE_TAG} --version

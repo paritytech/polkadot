@@ -161,7 +161,8 @@ pub fn canonicalize(
 		}
 	}
 
-	// Update all blocks-at-height keys, deleting all those which now have empty `block_assignments`.
+	// Update all blocks-at-height keys, deleting all those which now have empty
+	// `block_assignments`.
 	for (h, at) in visited_heights.into_iter() {
 		if at.is_empty() {
 			overlay_db.delete_blocks_at_height(h);
@@ -170,8 +171,8 @@ pub fn canonicalize(
 		}
 	}
 
-	// due to the fork pruning, this range actually might go too far above where our actual highest block is,
-	// if a relatively short fork is canonicalized.
+	// due to the fork pruning, this range actually might go too far above where our actual highest
+	// block is, if a relatively short fork is canonicalized.
 	// TODO https://github.com/paritytech/polkadot/issues/3389
 	let new_range = StoredBlockRange(canon_number + 1, std::cmp::max(range.1, canon_number + 2));
 

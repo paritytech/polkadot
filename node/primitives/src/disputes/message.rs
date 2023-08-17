@@ -105,8 +105,8 @@ impl DisputeMessage {
 	/// - the invalid statement is indeed an invalid one
 	/// - the valid statement is indeed a valid one
 	/// - The passed `CandidateReceipt` has the correct hash (as signed in the statements).
-	/// - the given validator indices match with the given `ValidatorId`s in the statements,
-	///   given a `SessionInfo`.
+	/// - the given validator indices match with the given `ValidatorId`s in the statements, given a
+	///   `SessionInfo`.
 	///
 	/// We don't check whether the given `SessionInfo` matches the `SessionIndex` in the
 	/// statements, because we can't without doing a runtime query. Nevertheless this smart

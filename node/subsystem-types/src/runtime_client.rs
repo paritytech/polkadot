@@ -139,7 +139,7 @@ pub trait RuntimeApiSubsystemClient {
 	async fn on_chain_votes(&self, at: Hash)
 		-> Result<Option<ScrapedOnChainVotes<Hash>>, ApiError>;
 
-	/***** Added in v2 *****/
+	/***** Added in v2 **** */
 
 	/// Get the session info for the given session, if stored.
 	///
@@ -165,7 +165,8 @@ pub trait RuntimeApiSubsystemClient {
 	/// NOTE: This function is only available since parachain host version 2.
 	async fn pvfs_require_precheck(&self, at: Hash) -> Result<Vec<ValidationCodeHash>, ApiError>;
 
-	/// Fetch the hash of the validation code used by a para, making the given `OccupiedCoreAssumption`.
+	/// Fetch the hash of the validation code used by a para, making the given
+	/// `OccupiedCoreAssumption`.
 	///
 	/// NOTE: This function is only available since parachain host version 2.
 	async fn validation_code_hash(
@@ -175,7 +176,7 @@ pub trait RuntimeApiSubsystemClient {
 		assumption: OccupiedCoreAssumption,
 	) -> Result<Option<ValidationCodeHash>, ApiError>;
 
-	/***** Added in v3 *****/
+	/***** Added in v3 **** */
 
 	/// Returns all onchain disputes.
 	/// This is a staging method! Do not use on production runtimes!
