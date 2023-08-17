@@ -1184,11 +1184,7 @@ impl<T: Config> Pallet<T> {
 
 		let egress_cnt = HrmpEgressChannelsIndex::<T>::decode_len(&origin).unwrap_or(0) as u32;
 		let open_req_cnt = HrmpOpenChannelRequestCount::<T>::get(&origin);
-		let channel_num_limit = if <paras::Pallet<T>>::is_parathread(origin) {
-			config.hrmp_max_parathread_outbound_channels
-		} else {
-			config.hrmp_max_parachain_outbound_channels
-		};
+		let channel_num_limit = config.hrmp_max_parachain_outbound_channels;
 		ensure!(
 			egress_cnt + open_req_cnt < channel_num_limit,
 			Error::<T>::OpenHrmpChannelLimitExceeded,
@@ -1254,11 +1250,7 @@ impl<T: Config> Pallet<T> {
 		// check if by accepting this open channel request, this parachain would exceed the
 		// number of inbound channels.
 		let config = <configuration::Pallet<T>>::config();
-		let channel_num_limit = if <paras::Pallet<T>>::is_parathread(origin) {
-			config.hrmp_max_parathread_inbound_channels
-		} else {
-			config.hrmp_max_parachain_inbound_channels
-		};
+		let channel_num_limit = config.hrmp_max_parachain_inbound_channels;
 		let ingress_cnt = HrmpIngressChannelsIndex::<T>::decode_len(&origin).unwrap_or(0) as u32;
 		let accepted_cnt = HrmpAcceptedChannelRequestCount::<T>::get(&origin);
 		ensure!(
