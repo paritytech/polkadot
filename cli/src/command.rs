@@ -148,8 +148,8 @@ impl SubstrateCli for Cli {
 				let chain_spec = Box::new(service::PolkadotChainSpec::from_json_file(path.clone())?)
 					as Box<dyn service::ChainSpec>;
 
-				// When `force_*` is given or the file name starts with the name of one of the known chains,
-				// we use the chain spec for the specific chain.
+				// When `force_*` is given or the file name starts with the name of one of the known
+				// chains, we use the chain spec for the specific chain.
 				if self.run.force_rococo ||
 					chain_spec.is_rococo() ||
 					chain_spec.is_wococo() ||
@@ -287,7 +287,7 @@ where
 		let task_manager = service::build_full(
 			config,
 			service::NewFullParams {
-				is_collator: service::IsCollator::No,
+				is_parachain_node: service::IsParachainNode::No,
 				grandpa_pause,
 				enable_beefy,
 				jaeger_agent,
@@ -295,7 +295,6 @@ where
 				node_version,
 				workers_path: cli.run.workers_path,
 				workers_names: None,
-				overseer_enable_anyways: false,
 				overseer_gen,
 				overseer_message_channel_capacity_override: cli
 					.run
@@ -532,68 +531,12 @@ pub fn run() -> Result<()> {
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
-		Some(Subcommand::TryRuntime(cmd)) => {
-			use sc_service::TaskManager;
-			use try_runtime_cli::block_building_info::timestamp_with_babe_info;
-
-			let runner = cli.create_runner(cmd)?;
-			let chain_spec = &runner.config().chain_spec;
-			set_default_ss58_version(chain_spec);
-
-			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
-			let task_manager = TaskManager::new(runner.config().tokio_handle.clone(), *registry)
-				.map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
-
-			ensure_dev(chain_spec).map_err(Error::Other)?;
-
-			#[cfg(feature = "kusama-native")]
-			if chain_spec.is_kusama() {
-				return runner.async_run(|_| {
-					Ok((
-						cmd.run::<service::kusama_runtime::Block, sp_io::SubstrateHostFunctions, _>(
-							Some(timestamp_with_babe_info(service::kusama_runtime_constants::time::MILLISECS_PER_BLOCK))
-						)
-						.map_err(Error::SubstrateCli),
-						task_manager,
-					))
-				})
-			}
-
-			#[cfg(feature = "westend-native")]
-			if chain_spec.is_westend() {
-				return runner.async_run(|_| {
-					Ok((
-						cmd.run::<service::westend_runtime::Block, sp_io::SubstrateHostFunctions, _>(
-							Some(timestamp_with_babe_info(service::westend_runtime_constants::time::MILLISECS_PER_BLOCK))
-						)
-						.map_err(Error::SubstrateCli),
-						task_manager,
-					))
-				})
-			}
-			// else we assume it is polkadot.
-			#[cfg(feature = "polkadot-native")]
-			{
-				return runner.async_run(|_| {
-					Ok((
-						cmd.run::<service::polkadot_runtime::Block, sp_io::SubstrateHostFunctions, _>(
-							Some(timestamp_with_babe_info(service::polkadot_runtime_constants::time::MILLISECS_PER_BLOCK))
-						)
-						.map_err(Error::SubstrateCli),
-						task_manager,
-					))
-				})
-			}
-			#[cfg(not(feature = "polkadot-native"))]
-			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
-		},
+		Some(Subcommand::TryRuntime) => Err(try_runtime_cli::DEPRECATION_NOTICE.to_owned().into()),
 		#[cfg(not(feature = "try-runtime"))]
-		Some(Subcommand::TryRuntime) => Err(Error::Other(
-			"TryRuntime wasn't enabled when building the node. \
+		Some(Subcommand::TryRuntime) => Err("TryRuntime wasn't enabled when building the node. \
 				You can enable it with `--features try-runtime`."
-				.into(),
-		)
-		.into()),
+			.to_owned()
+			.into()),
 		Some(Subcommand::ChainInfo(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run::<service::Block>(&config))?)

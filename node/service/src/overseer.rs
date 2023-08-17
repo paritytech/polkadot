@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsCollator, Registry};
+use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsParachainNode, Registry};
 use polkadot_node_subsystem_types::DefaultSubsystemClient;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_core::traits::SpawnNamed;
@@ -108,7 +108,7 @@ where
 	/// Task spawner to be used throughout the overseer and the APIs it provides.
 	pub spawner: Spawner,
 	/// Determines the behavior of the collator.
-	pub is_collator: IsCollator,
+	pub is_parachain_node: IsParachainNode,
 	/// Configuration for the approval voting subsystem.
 	pub approval_voting_config: ApprovalVotingConfig,
 	/// Configuration for the availability store subsystem.
@@ -149,7 +149,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		dispute_req_receiver,
 		registry,
 		spawner,
-		is_collator,
+		is_parachain_node,
 		approval_voting_config,
 		availability_config,
 		candidate_validation_config,
@@ -266,14 +266,15 @@ where
 		.chain_api(ChainApiSubsystem::new(runtime_client.clone(), Metrics::register(registry)?))
 		.collation_generation(CollationGenerationSubsystem::new(Metrics::register(registry)?))
 		.collator_protocol({
-			let side = match is_collator {
-				IsCollator::Yes(collator_pair) => ProtocolSide::Collator(
+			let side = match is_parachain_node {
+				IsParachainNode::Collator(collator_pair) => ProtocolSide::Collator(
 					network_service.local_peer_id(),
 					collator_pair,
 					collation_req_receiver,
 					Metrics::register(registry)?,
 				),
-				IsCollator::No => ProtocolSide::Validator {
+				IsParachainNode::FullNode => ProtocolSide::None,
+				IsParachainNode::No => ProtocolSide::Validator {
 					keystore: keystore.clone(),
 					eviction_policy: Default::default(),
 					metrics: Metrics::register(registry)?,

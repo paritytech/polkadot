@@ -382,11 +382,11 @@ where
 				if let Err(pending_response) = batch_result {
 					// We don't expect honest peers to send redundant votes within a single batch,
 					// as the timeout for retry is much higher. Still we don't want to punish the
-					// node as it might not be the node's fault. Some other (malicious) node could have been
-					// faster sending the same votes in order to harm the reputation of that honest
-					// node. Given that we already have a rate limit, if a validator chooses to
-					// waste available rate with redundant votes - so be it. The actual dispute
-					// resolution is unaffected.
+					// node as it might not be the node's fault. Some other (malicious) node could
+					// have been faster sending the same votes in order to harm the reputation of
+					// that honest node. Given that we already have a rate limit, if a validator
+					// chooses to waste available rate with redundant votes - so be it. The actual
+					// dispute resolution is unaffected.
 					gum::debug!(
 						target: LOG_TARGET,
 						?peer,

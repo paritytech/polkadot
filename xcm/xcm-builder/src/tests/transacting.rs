@@ -66,11 +66,11 @@ fn transacting_should_refund_weight() {
 #[test]
 fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let one: MultiLocation = AccountIndex64 { index: 1, network: None }.into();
-	AllowPaidFrom::set(vec![one.clone()]);
+	AllowPaidFrom::set(vec![one]);
 	add_asset(AccountIndex64 { index: 1, network: None }, (Parent, 200u128));
 	WeightPrice::set((Parent.into(), 1_000_000_000_000, 1024 * 1024));
 
-	let origin = one.clone();
+	let origin = one;
 	let fees = (Parent, 200u128).into();
 	let message = Xcm::<TestCall>(vec![
 		WithdrawAsset((Parent, 200u128).into()), // enough for 200 units of weight.
@@ -84,7 +84,7 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 				.into(),
 		},
 		RefundSurplus,
-		DepositAsset { assets: AllCounted(1).into(), beneficiary: one.clone() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: one },
 	]);
 	let hash = fake_message_hash(&message);
 	let weight_limit = Weight::from_parts(100, 100);

@@ -23,9 +23,9 @@
 //! We keep a simple FIFO buffer of N validator groups and a bitvec for each advertisement,
 //! 1 indicating we want to be connected to i-th validator in a buffer, 0 otherwise.
 //!
-//! The bit is set to 1 for the whole **group** whenever it's inserted into the buffer. Given a relay
-//! parent, one can reset a bit back to 0 for particular **validator**. For example, if a collation
-//! was fetched or some timeout has been hit.
+//! The bit is set to 1 for the whole **group** whenever it's inserted into the buffer. Given a
+//! relay parent, one can reset a bit back to 0 for particular **validator**. For example, if a
+//! collation was fetched or some timeout has been hit.
 //!
 //! The bitwise OR over known advertisements gives us validators indices for connection request.
 

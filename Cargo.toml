@@ -39,7 +39,7 @@ polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" 
 polkadot-overseer = { path = "node/overseer" }
 
 # Needed for worker binaries.
-polkadot-node-core-pvf-common = { path = "node/core/pvf/common" }
+polkadot-node-core-pvf-common = { path = "node/core/pvf/common", features = ["test-utils"] }
 polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
 
 [dev-dependencies]
@@ -166,7 +166,6 @@ crossbeam-deque = { opt-level = 3 }
 crypto-mac = { opt-level = 3 }
 curve25519-dalek = { opt-level = 3 }
 ed25519-dalek = { opt-level = 3 }
-flate2 = { opt-level = 3 }
 futures-channel = { opt-level = 3 }
 hash-db = { opt-level = 3 }
 hashbrown = { opt-level = 3 }

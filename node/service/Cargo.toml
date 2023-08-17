@@ -53,7 +53,6 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -87,7 +86,7 @@ parity-db = { version = "0.4.8", optional = true }
 codec = { package = "parity-scale-codec", version = "3.6.1" }
 
 async-trait = "0.1.57"
-lru = "0.11"
+lru = "0.11.0"
 log = "0.4.17"
 is_executable = "1.0.1"
 

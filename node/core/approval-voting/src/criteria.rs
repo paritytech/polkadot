@@ -302,13 +302,14 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 }
 
 /// Compute the assignments for a given block. Returns a map containing all assignments to cores in
-/// the block. If more than one assignment targets the given core, only the earliest assignment is kept.
+/// the block. If more than one assignment targets the given core, only the earliest assignment is
+/// kept.
 ///
-/// The `leaving_cores` parameter indicates all cores within the block where a candidate was included,
-/// as well as the group index backing those.
+/// The `leaving_cores` parameter indicates all cores within the block where a candidate was
+/// included, as well as the group index backing those.
 ///
-/// The current description of the protocol assigns every validator to check every core. But at different times.
-/// The idea is that most assignments are never triggered and fall by the wayside.
+/// The current description of the protocol assigns every validator to check every core. But at
+/// different times. The idea is that most assignments are never triggered and fall by the wayside.
 ///
 /// This will not assign to anything the local validator was part of the backing group for.
 pub(crate) fn compute_assignments(
@@ -640,8 +641,8 @@ pub(crate) enum InvalidAssignmentReason {
 ///   * Sample is out of bounds
 ///   * Validator is present in backing group.
 ///
-/// This function does not check whether the core is actually a valid assignment or not. That should be done
-/// outside the scope of this function.
+/// This function does not check whether the core is actually a valid assignment or not. That should
+/// be done outside the scope of this function.
 pub(crate) fn check_assignment_cert(
 	claimed_core_indices: CoreBitfield,
 	validator_index: ValidatorIndex,

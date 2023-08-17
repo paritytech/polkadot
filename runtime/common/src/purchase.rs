@@ -82,7 +82,8 @@ pub struct AccountStatus<Balance> {
 	locked_balance: Balance,
 	/// Their sr25519/ed25519 signature verifying they have signed our required statement.
 	signature: Vec<u8>,
-	/// The percentage of VAT the purchaser is responsible for. This is already factored into account balance.
+	/// The percentage of VAT the purchaser is responsible for. This is already factored into
+	/// account balance.
 	vat: Permill,
 }
 
@@ -333,12 +334,14 @@ pub mod pallet {
 
 					if !status.locked_balance.is_zero() {
 						let unlock_block = UnlockBlock::<T>::get();
-						// We allow some configurable portion of the purchased locked DOTs to be unlocked for basic usage.
+						// We allow some configurable portion of the purchased locked DOTs to be
+						// unlocked for basic usage.
 						let unlocked = (T::UnlockedProportion::get() * status.locked_balance)
 							.min(T::MaxUnlocked::get());
 						let locked = status.locked_balance.saturating_sub(unlocked);
-						// We checked that this account has no existing vesting schedule. So this function should
-						// never fail, however if it does, not much we can do about it at this point.
+						// We checked that this account has no existing vesting schedule. So this
+						// function should never fail, however if it does, not much we can do about
+						// it at this point.
 						let _ = T::VestingSchedule::add_vesting_schedule(
 							// Apply vesting schedule to this user
 							&who,
@@ -351,7 +354,8 @@ pub mod pallet {
 						);
 					}
 
-					// Setting the user account to `Completed` ends the purchase process for this user.
+					// Setting the user account to `Completed` ends the purchase process for this
+					// user.
 					status.validity = AccountValidity::Completed;
 					Self::deposit_event(Event::<T>::PaymentComplete {
 						who: who.clone(),
@@ -645,17 +649,20 @@ mod tests {
 	}
 
 	fn alice_signature() -> [u8; 64] {
-		// echo -n "Hello, World" | subkey -s sign "bottom drive obey lake curtain smoke basket hold race lonely fit walk//Alice"
+		// echo -n "Hello, World" | subkey -s sign "bottom drive obey lake curtain smoke basket hold
+		// race lonely fit walk//Alice"
 		hex_literal::hex!("20e0faffdf4dfe939f2faa560f73b1d01cde8472e2b690b7b40606a374244c3a2e9eb9c8107c10b605138374003af8819bd4387d7c24a66ee9253c2e688ab881")
 	}
 
 	fn bob_signature() -> [u8; 64] {
-		// echo -n "Hello, World" | subkey -s sign "bottom drive obey lake curtain smoke basket hold race lonely fit walk//Bob"
+		// echo -n "Hello, World" | subkey -s sign "bottom drive obey lake curtain smoke basket hold
+		// race lonely fit walk//Bob"
 		hex_literal::hex!("d6d460187ecf530f3ec2d6e3ac91b9d083c8fbd8f1112d92a82e4d84df552d18d338e6da8944eba6e84afaacf8a9850f54e7b53a84530d649be2e0119c7ce889")
 	}
 
 	fn alice_signature_ed25519() -> [u8; 64] {
-		// echo -n "Hello, World" | subkey -e sign "bottom drive obey lake curtain smoke basket hold race lonely fit walk//Alice"
+		// echo -n "Hello, World" | subkey -e sign "bottom drive obey lake curtain smoke basket hold
+		// race lonely fit walk//Alice"
 		hex_literal::hex!("ee3f5a6cbfc12a8f00c18b811dc921b550ddf272354cda4b9a57b1d06213fcd8509f5af18425d39a279d13622f14806c3e978e2163981f2ec1c06e9628460b0e")
 	}
 

@@ -182,8 +182,7 @@ where
 	}
 
 	/// 1. Determine if the current session index has changed.
-	/// 2. If it has, determine relevant validators
-	///    and issue a connection request.
+	/// 2. If it has, determine relevant validators and issue a connection request.
 	async fn handle_active_leaves(
 		&mut self,
 		sender: &mut impl overseer::GossipSupportSenderTrait,
@@ -245,7 +244,8 @@ where
 				{
 					let mut connections = authorities_past_present_future(sender, leaf).await?;
 
-					// Remove all of our locally controlled validator indices so we don't connect to ourself.
+					// Remove all of our locally controlled validator indices so we don't connect to
+					// ourself.
 					let connections =
 						if remove_all_controlled(&self.keystore, &mut connections) != 0 {
 							connections

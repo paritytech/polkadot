@@ -161,12 +161,12 @@ macro_rules! decl_test_relay_chain {
 ///
 /// ```ignore
 /// decl_test_parachain! {
-///	    pub struct ParaA {
-///	        Runtime = parachain::Runtime,
-///	        XcmpMessageHandler = parachain::MsgQueue,
-///	        DmpMessageHandler = parachain::MsgQueue,
-///	        new_ext = para_ext(),
-///	    }
+/// 	    pub struct ParaA {
+/// 	        Runtime = parachain::Runtime,
+/// 	        XcmpMessageHandler = parachain::MsgQueue,
+/// 	        DmpMessageHandler = parachain::MsgQueue,
+/// 	        new_ext = para_ext(),
+/// 	    }
 /// }
 /// ```
 #[macro_export]
@@ -272,13 +272,13 @@ thread_local! {
 ///
 /// ```ignore
 /// decl_test_network! {
-///	    pub struct ExampleNet {
-///	        relay_chain = Relay,
-///	        parachains = vec![
-///	            (1, ParaA),
-///	            (2, ParaB),
-///	        ],
-///	    }
+/// 	    pub struct ExampleNet {
+/// 	        relay_chain = Relay,
+/// 	        parachains = vec![
+/// 	            (1, ParaA),
+/// 	            (2, ParaB),
+/// 	        ],
+/// 	    }
 /// }
 /// ```
 #[macro_export]

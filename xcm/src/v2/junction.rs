@@ -32,13 +32,13 @@ pub enum Junction {
 	///
 	/// Generally used when the context is a Polkadot Relay-chain.
 	Parachain(#[codec(compact)] u32),
-	/// A 32-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
-	/// the context.
+	/// A 32-byte identifier for an account of a specific network that is respected as a sovereign
+	/// endpoint within the context.
 	///
 	/// Generally used when the context is a Substrate-based chain.
 	AccountId32 { network: NetworkId, id: [u8; 32] },
-	/// An 8-byte index for an account of a specific network that is respected as a sovereign endpoint within
-	/// the context.
+	/// An 8-byte index for an account of a specific network that is respected as a sovereign
+	/// endpoint within the context.
 	///
 	/// May be used when the context is a Frame-based chain and includes e.g. an indices pallet.
 	AccountIndex64 {
@@ -46,8 +46,8 @@ pub enum Junction {
 		#[codec(compact)]
 		index: u64,
 	},
-	/// A 20-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
-	/// the context.
+	/// A 20-byte identifier for an account of a specific network that is respected as a sovereign
+	/// endpoint within the context.
 	///
 	/// May be used when the context is an Ethereum or Bitcoin chain or smart-contract.
 	AccountKey20 { network: NetworkId, key: [u8; 20] },
@@ -73,8 +73,8 @@ pub enum Junction {
 	OnlyChild,
 	/// A pluralistic body existing within consensus.
 	///
-	/// Typical to be used to represent a governance origin of a chain, but could in principle be used to represent
-	/// things such as multisigs also.
+	/// Typical to be used to represent a governance origin of a chain, but could in principle be
+	/// used to represent things such as multisigs also.
 	Plurality { id: BodyId, part: BodyPart },
 }
 

@@ -28,7 +28,8 @@ use crate::{
 	inclusion::CandidateCheckContext,
 	initializer,
 	metrics::METRICS,
-	scheduler::{self, CoreAssignment, FreedReason},
+	scheduler,
+	scheduler::common::{CoreAssignment, FreedReason},
 	shared, ParaId,
 };
 use bitvec::prelude::BitVec;
@@ -285,8 +286,9 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in [`Self::create_inherent`].
-	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
+	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in
+	/// [`Self::create_inherent`]. This code is pulled out of [`Self::create_inherent`] so it can be
+	/// unit tested.
 	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<HeaderFor<T>>> {
 		let parachains_inherent_data = match data.get_data(&Self::INHERENT_IDENTIFIER) {
 			Ok(Some(d)) => d,
@@ -313,11 +315,11 @@ impl<T: Config> Pallet<T> {
 	/// The given inherent data is processed and state is altered accordingly. If any data could
 	/// not be applied (inconsitencies, weight limit, ...) it is removed.
 	///
-	/// When called from `create_inherent` the `context` must be set to `ProcessInherentDataContext::ProvideInherent`
-	/// so it guarantees the invariant that inherent is not overweight.
-	///  
-	/// It is **mandatory** that calls from `enter` set `context` to `ProcessInherentDataContext::Enter` to ensure
-	/// the weight invariant is checked.
+	/// When called from `create_inherent` the `context` must be set to
+	/// `ProcessInherentDataContext::ProvideInherent` so it guarantees the invariant that inherent
+	/// is not overweight.  
+	/// It is **mandatory** that calls from `enter` set `context` to
+	/// `ProcessInherentDataContext::Enter` to ensure the weight invariant is checked.
 	///
 	/// Returns: Result containing processed inherent data and weight, the processed inherent would
 	/// consume.
@@ -379,8 +381,8 @@ impl<T: Config> Pallet<T> {
 			let dispatch_class = DispatchClass::Mandatory;
 			let max_block_weight_full = <T as frame_system::Config>::BlockWeights::get();
 			log::debug!(target: LOG_TARGET, "Max block weight: {}", max_block_weight_full.max_block);
-			// Get max block weight for the mandatory class if defined, otherwise total max weight of
-			// the block.
+			// Get max block weight for the mandatory class if defined, otherwise total max weight
+			// of the block.
 			let max_weight = max_block_weight_full
 				.per_class
 				.get(dispatch_class)
@@ -412,7 +414,8 @@ impl<T: Config> Pallet<T> {
 			T::DisputesHandler::filter_dispute_data(set, post_conclusion_acceptance_period)
 		};
 
-		// Limit the disputes first, since the following statements depend on the votes include here.
+		// Limit the disputes first, since the following statements depend on the votes include
+		// here.
 		let (checked_disputes_sets, checked_disputes_sets_consumed_weight) =
 			limit_and_sanitize_disputes::<T, _>(
 				disputes,
@@ -449,8 +452,8 @@ impl<T: Config> Pallet<T> {
 			}
 			all_weight_after
 		} else {
-			// This check is performed in the context of block execution. Ensures inherent weight invariants guaranteed
-			// by `create_inherent_data` for block authorship.
+			// This check is performed in the context of block execution. Ensures inherent weight
+			// invariants guaranteed by `create_inherent_data` for block authorship.
 			if all_weight_before.any_gt(max_block_weight) {
 				log::error!(
 					"Overweight para inherent data reached the runtime {:?}: {} > {}",
@@ -516,7 +519,7 @@ impl<T: Config> Pallet<T> {
 			.map(|(_session, candidate)| candidate)
 			.collect::<BTreeSet<CandidateHash>>();
 
-		let mut freed_disputed: Vec<_> =
+		let freed_disputed: BTreeMap<CoreIndex, FreedReason> =
 			<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
 				.into_iter()
 				.map(|core| (core, FreedReason::Concluded))
@@ -526,16 +529,10 @@ impl<T: Config> Pallet<T> {
 		// a core index that was freed due to a dispute.
 		//
 		// I.e. 010100 would indicate, the candidates on Core 1 and 3 would be disputed.
-		let disputed_bitfield = create_disputed_bitfield(
-			expected_bits,
-			freed_disputed.iter().map(|(core_index, _)| core_index),
-		);
+		let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_disputed.keys());
 
 		if !freed_disputed.is_empty() {
-			// unstable sort is fine, because core indices are unique
-			// i.e. the same candidate can't occupy 2 cores at once.
-			freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
-			<scheduler::Pallet<T>>::free_cores(freed_disputed.clone());
+			<scheduler::Pallet<T>>::update_claimqueue(freed_disputed.clone(), now);
 		}
 
 		let bitfields = sanitize_bitfields::<T>(
@@ -567,10 +564,7 @@ impl<T: Config> Pallet<T> {
 
 		let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
-		<scheduler::Pallet<T>>::clear();
-		<scheduler::Pallet<T>>::schedule(freed, now);
-
-		let scheduled = <scheduler::Pallet<T>>::scheduled();
+		let scheduled = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
 
 		let relay_parent_number = now - One::one();
 		let parent_storage_root = *parent_header.state_root();
@@ -612,7 +606,7 @@ impl<T: Config> Pallet<T> {
 			<scheduler::Pallet<T>>::group_validators,
 		)?;
 		// Note which of the scheduled cores were actually occupied by a backed candidate.
-		<scheduler::Pallet<T>>::occupied(&occupied);
+		<scheduler::Pallet<T>>::occupied(occupied.into_iter().map(|e| (e.0, e.1)).collect());
 
 		set_scrapable_on_chain_backings::<T>(
 			current_session,
@@ -714,13 +708,14 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 /// If there is sufficient space, all bitfields and all candidates
 /// will be included.
 ///
-/// Otherwise tries to include all disputes, and then tries to fill the remaining space with bitfields and then candidates.
+/// Otherwise tries to include all disputes, and then tries to fill the remaining space with
+/// bitfields and then candidates.
 ///
-/// The selection process is random. For candidates, there is an exception for code upgrades as they are preferred.
-/// And for disputes, local and older disputes are preferred (see `limit_and_sanitize_disputes`).
-/// for backed candidates, since with a increasing number of parachains their chances of
-/// inclusion become slim. All backed candidates  are checked beforehands in `fn create_inherent_inner`
-/// which guarantees sanity.
+/// The selection process is random. For candidates, there is an exception for code upgrades as they
+/// are preferred. And for disputes, local and older disputes are preferred (see
+/// `limit_and_sanitize_disputes`). for backed candidates, since with a increasing number of
+/// parachains their chances of inclusion become slim. All backed candidates  are checked
+/// beforehands in `fn create_inherent_inner` which guarantees sanity.
 ///
 /// Assumes disputes are already filtered by the time this is called.
 ///
@@ -905,7 +900,7 @@ fn sanitize_backed_candidates<
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	scheduled: &[CoreAssignment],
+	scheduled: &[CoreAssignment<BlockNumberFor<T>>],
 ) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
 	// This does not assume sorting.
@@ -915,7 +910,7 @@ fn sanitize_backed_candidates<
 
 	let scheduled_paras_to_core_idx = scheduled
 		.into_iter()
-		.map(|core_assignment| (core_assignment.para_id, core_assignment.core))
+		.map(|core_assignment| (core_assignment.paras_entry.para_id(), core_assignment.core))
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
 
 	// Assure the backed candidate's `ParaId`'s core is free.
@@ -974,10 +969,11 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 /// 2. If exceeded:
 ///   1. Check validity of all dispute statements sequentially
 /// 2. If not exceeded:
-///   1. If weight is exceeded by locals, pick the older ones (lower indices)
-///      until the weight limit is reached.
+///   1. If weight is exceeded by locals, pick the older ones (lower indices) until the weight limit
+///      is reached.
 ///
-/// Returns the consumed weight amount, that is guaranteed to be less than the provided `max_consumable_weight`.
+/// Returns the consumed weight amount, that is guaranteed to be less than the provided
+/// `max_consumable_weight`.
 fn limit_and_sanitize_disputes<
 	T: Config,
 	CheckValidityFn: FnMut(DisputeStatementSet) -> Option<CheckedDisputeStatementSet>,

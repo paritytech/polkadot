@@ -166,6 +166,7 @@ struct MetricsInner {
 	time_db_transaction: prometheus::Histogram,
 	time_recover_and_approve: prometheus::Histogram,
 	candidate_signatures_requests_total: prometheus::Counter<prometheus::U64>,
+	unapproved_candidates_in_unfinalized_chain: prometheus::Gauge<prometheus::U64>,
 }
 
 /// Approval Voting metrics.
@@ -251,6 +252,12 @@ impl Metrics {
 
 	fn time_recover_and_approve(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.time_recover_and_approve.start_timer())
+	}
+
+	fn on_unapproved_candidates_in_unfinalized_chain(&self, count: usize) {
+		if let Some(metrics) = &self.0 {
+			metrics.unapproved_candidates_in_unfinalized_chain.set(count as u64);
+		}
 	}
 }
 
@@ -339,6 +346,13 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"polkadot_parachain_approval_candidate_signatures_requests_total",
 					"Number of times signatures got requested by other subsystems",
+				)?,
+				registry,
+			)?,
+			unapproved_candidates_in_unfinalized_chain: prometheus::register(
+				prometheus::Gauge::new(
+					"polkadot_parachain_approval_unapproved_candidates_in_unfinalized_chain",
+					"Number of unapproved candidates in unfinalized chain",
 				)?,
 				registry,
 			)?,
@@ -1077,9 +1091,9 @@ fn cores_to_candidate_indices(
 	CandidateBitfield::try_from(candidate_indices)
 }
 
-// Returns the claimed core bitfield from the assignment cert, the candidate hash and a `BlockEntry`.
-// Can fail only for VRF Delay assignments for which we cannot find the candidate hash in the block entry which
-// indicates a bug or corrupted storage.
+// Returns the claimed core bitfield from the assignment cert, the candidate hash and a
+// `BlockEntry`. Can fail only for VRF Delay assignments for which we cannot find the candidate hash
+// in the block entry which indicates a bug or corrupted storage.
 fn get_assignment_core_indices(
 	assignment: &AssignmentCertKindV2,
 	candidate_hash: &CandidateHash,
@@ -1184,7 +1198,8 @@ fn distribution_messages_for_activation(
 										),
 									),
 									Err(err) => {
-										// Should never happen. If we fail here it means the assignment is null (no cores claimed).
+										// Should never happen. If we fail here it means the
+										// assignment is null (no cores claimed).
 										gum::warn!(
 											target: LOG_TARGET,
 											?block_hash,
@@ -1332,8 +1347,8 @@ async fn handle_from_overseer<Context>(
 									);
 
 									// Our first wakeup will just be the tranche of our assignment,
-									// if any. This will likely be superseded by incoming assignments
-									// and approvals which trigger rescheduling.
+									// if any. This will likely be superseded by incoming
+									// assignments and approvals which trigger rescheduling.
 									actions.push(Action::ScheduleWakeup {
 										block_hash: block_batch.block_hash,
 										block_number: block_batch.block_number,
@@ -1356,12 +1371,14 @@ async fn handle_from_overseer<Context>(
 			crate::ops::canonicalize(db, block_number, block_hash)
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
 
-			// `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans accordingly.
+			// `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans
+			// accordingly.
 			wakeups.prune_finalized_wakeups(block_number, &mut state.spans);
 
-			// // `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans accordingly.
-			// let hash_set = wakeups.block_numbers.values().flatten().collect::<HashSet<_>>();
-			// state.spans.retain(|hash, _| hash_set.contains(hash));
+			// // `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans
+			// accordingly. let hash_set =
+			// wakeups.block_numbers.values().flatten().collect::<HashSet<_>>(); state.spans.
+			// retain(|hash, _| hash_set.contains(hash));
 
 			Vec::new()
 		},
@@ -1412,6 +1429,7 @@ async fn handle_from_overseer<Context>(
 					lower_bound,
 					wakeups,
 					&mut approved_ancestor_span,
+					&metrics,
 				)
 				.await
 				{
@@ -1502,8 +1520,8 @@ async fn get_approval_signatures_for_candidate<Context>(
 			tx_distribution,
 		));
 
-		// Because of the unbounded sending and the nature of the call (just fetching data from state),
-		// this should not block long:
+		// Because of the unbounded sending and the nature of the call (just fetching data from
+		// state), this should not block long:
 		match rx_distribution.timeout(WAIT_FOR_SIGS_TIMEOUT).await {
 			None => {
 				gum::warn!(
@@ -1537,9 +1555,11 @@ async fn handle_approved_ancestor<Context>(
 	lower_bound: BlockNumber,
 	wakeups: &Wakeups,
 	span: &mut jaeger::Span,
+	metrics: &Metrics,
 ) -> SubsystemResult<Option<HighestApprovedAncestorBlock>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
+	const LOGGING_DEPTH_THRESHOLD: usize = 10;
 
 	let mut span = span
 		.child("handle-approved-ancestor")
@@ -1585,6 +1605,7 @@ async fn handle_approved_ancestor<Context>(
 	} else {
 		Vec::new()
 	};
+	let ancestry_len = ancestry.len();
 
 	let mut block_descriptions = Vec::new();
 
@@ -1648,6 +1669,17 @@ async fn handle_approved_ancestor<Context>(
 				unapproved.len(),
 				entry.candidates().len(),
 			);
+			if ancestry_len >= LOGGING_DEPTH_THRESHOLD && i > ancestry_len - LOGGING_DEPTH_THRESHOLD
+			{
+				gum::trace!(
+					target: LOG_TARGET,
+					?block_hash,
+					"Unapproved candidates at depth {}: {:?}",
+					bits.len(),
+					unapproved
+				)
+			}
+			metrics.on_unapproved_candidates_in_unfinalized_chain(unapproved.len());
 			entry_span.add_uint_tag("unapproved-candidates", unapproved.len() as u64);
 			for candidate_hash in unapproved {
 				match db.load_candidate_entry(&candidate_hash)? {
@@ -2075,7 +2107,8 @@ where
 			approval_entry.import_assignment(tranche, assignment.validator, tick_now);
 			check_and_import_assignment_span.add_uint_tag("tranche", tranche as u64);
 
-			// We've imported a new assignment, so we need to schedule a wake-up for when that might no-show.
+			// We've imported a new assignment, so we need to schedule a wake-up for when that might
+			// no-show.
 			if let Some((approval_entry, status)) = state
 				.approval_status(sender, session_info_provider, &block_entry, &candidate_entry)
 				.await
@@ -2095,10 +2128,11 @@ where
 			db.write_candidate_entry(candidate_entry.into());
 		}
 
-		// Since we don't account for tranche in distribution message fingerprinting, some validators
-		// can be assigned to the same core (VRF modulo vs VRF delay). These can be safely ignored ignored.
-		// However, if an assignment is for multiple cores (these are only tranche0), we cannot ignore it,
-		// because it would mean ignoring other non duplicate assignments.
+		// Since we don't account for tranche in distribution message fingerprinting, some
+		// validators can be assigned to the same core (VRF modulo vs VRF delay). These can be
+		// safely ignored ignored. However, if an assignment is for multiple cores (these are only
+		// tranche0), we cannot ignore it, because it would mean ignoring other non duplicate
+		// assignments.
 		if is_duplicate {
 			AssignmentCheckResult::AcceptedDuplicate
 		} else if candidate_indices.count_ones() > 1 {
@@ -2293,9 +2327,10 @@ impl ApprovalStateTransition {
 	}
 }
 
-// Advance the approval state, either by importing an approval vote which is already checked to be valid and corresponding to an assigned
-// validator on the candidate and block, or by noting that there are no further wakeups or tranches needed. This updates the block entry and candidate entry as
-// necessary and schedules any further wakeups.
+// Advance the approval state, either by importing an approval vote which is already checked to be
+// valid and corresponding to an assigned validator on the candidate and block, or by noting that
+// there are no further wakeups or tranches needed. This updates the block entry and candidate entry
+// as necessary and schedules any further wakeups.
 async fn advance_approval_state<Sender>(
 	sender: &mut Sender,
 	state: &State,
@@ -2426,8 +2461,9 @@ where
 		//
 		// 1. This is not a local approval, as we don't store anything new in the approval entry.
 		// 2. The candidate is not newly approved, as we haven't altered the approval entry's
-		//	  approved flag with `mark_approved` above.
-		// 3. The approver, if any, had already approved the candidate, as we haven't altered the bitfield.
+		//    approved flag with `mark_approved` above.
+		// 3. The approver, if any, had already approved the candidate, as we haven't altered the
+		// bitfield.
 		if transition.is_local_approval() || newly_approved || !already_approved_by.unwrap_or(true)
 		{
 			// In all other cases, we need to write the candidate entry.
@@ -2455,7 +2491,8 @@ fn should_trigger_assignment(
 					&approval_entry,
 					RequiredTranches::All,
 				)
-				.is_approved(Tick::max_value()), // when all are required, we are just waiting for the first 1/3+
+				// when all are required, we are just waiting for the first 1/3+
+				.is_approved(Tick::max_value()),
 				RequiredTranches::Pending { maximum_broadcast, clock_drift, .. } => {
 					let drifted_tranche_now =
 						tranche_now.saturating_sub(clock_drift as DelayTranche);
@@ -2818,8 +2855,8 @@ async fn launch_approval<Context>(
 		match val_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
 			Ok(Ok(ValidationResult::Valid(_, _))) => {
-				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
-				// then there isn't anything we can do.
+				// Validation checked out. Issue an approval command. If the underlying service is
+				// unreachable, then there isn't anything we can do.
 
 				gum::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Candidate Valid");
 

@@ -412,82 +412,6 @@ mod tests {
 	use polkadot_node_core_approval_voting::approval_db::v2::migration_helpers::v1_to_v2_fill_test_data;
 
 	#[test]
-	fn test_paritydb_migrate_0_to_1() {
-		use parity_db::Db;
-
-		let db_dir = tempfile::tempdir().unwrap();
-		let path = db_dir.path();
-		{
-			let db = Db::open_or_create(&paritydb_version_0_config(&path)).unwrap();
-
-			db.commit(vec![(
-				COL_AVAILABILITY_META as u8,
-				b"5678".to_vec(),
-				Some(b"somevalue".to_vec()),
-			)])
-			.unwrap();
-		}
-
-		try_upgrade_db(&path, DatabaseKind::ParityDB, 1).unwrap();
-
-		let db = Db::open(&paritydb_version_1_config(&path)).unwrap();
-		assert_eq!(
-			db.get(COL_AVAILABILITY_META as u8, b"5678").unwrap(),
-			Some("somevalue".as_bytes().to_vec())
-		);
-	}
-
-	#[test]
-	fn test_paritydb_migrate_1_to_2() {
-		use parity_db::Db;
-
-		let db_dir = tempfile::tempdir().unwrap();
-		let path = db_dir.path();
-
-		// We need to properly set db version for upgrade to work.
-		fs::write(version_file_path(path), "1").expect("Failed to write DB version");
-
-		{
-			let db = Db::open_or_create(&paritydb_version_1_config(&path)).unwrap();
-
-			// Write some dummy data
-			db.commit(vec![(
-				COL_DISPUTE_COORDINATOR_DATA as u8,
-				b"1234".to_vec(),
-				Some(b"somevalue".to_vec()),
-			)])
-			.unwrap();
-
-			assert_eq!(db.num_columns(), columns::v1::NUM_COLUMNS as u8);
-		}
-
-		try_upgrade_db(&path, DatabaseKind::ParityDB, 2).unwrap();
-
-		let db = Db::open(&paritydb_version_2_config(&path)).unwrap();
-
-		assert_eq!(db.num_columns(), columns::v2::NUM_COLUMNS as u8);
-
-		assert_eq!(
-			db.get(COL_DISPUTE_COORDINATOR_DATA as u8, b"1234").unwrap(),
-			Some("somevalue".as_bytes().to_vec())
-		);
-
-		// Test we can write the new column.
-		db.commit(vec![(
-			COL_SESSION_WINDOW_DATA as u8,
-			b"1337".to_vec(),
-			Some(b"0xdeadb00b".to_vec()),
-		)])
-		.unwrap();
-
-		// Read back data from new column.
-		assert_eq!(
-			db.get(COL_SESSION_WINDOW_DATA as u8, b"1337").unwrap(),
-			Some("0xdeadb00b".as_bytes().to_vec())
-		);
-	}
-
-	#[test]
 	fn test_rocksdb_migrate_1_to_2() {
 		use kvdb::{DBKey, DBOp};
 		use kvdb_rocksdb::{Database, DatabaseConfig};
@@ -615,38 +539,6 @@ mod tests {
 
 		let db = Db::open(&paritydb_version_3_config(&path)).unwrap();
 		assert_eq!(db.num_columns(), columns::v4::NUM_COLUMNS as u8);
-	}
-
-	#[test]
-	fn test_paritydb_migrate_2_to_3() {
-		use parity_db::Db;
-
-		let db_dir = tempfile::tempdir().unwrap();
-		let path = db_dir.path();
-		let test_key = b"1337";
-
-		// We need to properly set db version for upgrade to work.
-		fs::write(version_file_path(path), "2").expect("Failed to write DB version");
-
-		{
-			let db = Db::open_or_create(&paritydb_version_2_config(&path)).unwrap();
-
-			// Write some dummy data
-			db.commit(vec![(
-				COL_SESSION_WINDOW_DATA as u8,
-				test_key.to_vec(),
-				Some(b"0xdeadb00b".to_vec()),
-			)])
-			.unwrap();
-
-			assert_eq!(db.num_columns(), columns::v2::NUM_COLUMNS as u8);
-		}
-
-		try_upgrade_db(&path, DatabaseKind::ParityDB, 3).unwrap();
-
-		let db = Db::open(&paritydb_version_3_config(&path)).unwrap();
-
-		assert_eq!(db.num_columns(), columns::v3::NUM_COLUMNS as u8);
 	}
 
 	#[test]
