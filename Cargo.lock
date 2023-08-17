@@ -14126,6 +14126,7 @@ dependencies = [
  "frame-system",
  "futures",
  "pallet-xcm",
+ "parity-scale-codec",
  "polkadot-test-client",
  "polkadot-test-runtime",
  "polkadot-test-service",
