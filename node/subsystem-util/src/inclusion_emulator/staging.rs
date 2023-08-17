@@ -1226,7 +1226,7 @@ mod tests {
 		let constraints = make_constraints();
 		let mut candidate = make_candidate(&constraints, &relay_parent);
 
-		let expected_code = constraints.validation_code_hash.clone();
+		let expected_code = constraints.validation_code_hash;
 		let got_code = ValidationCode(vec![9, 9, 9]).hash();
 
 		candidate.validation_code_hash = got_code;
