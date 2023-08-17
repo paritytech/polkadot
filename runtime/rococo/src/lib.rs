@@ -30,7 +30,8 @@ use primitives::{
 	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
 };
 use runtime_common::{
-	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights, impls::ToAuthor,
+	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights,
+	impls::{LocatableAssetId, LocatableAssetIdConverter, ToAuthor},
 	paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BlockHashCount, BlockLength,
 	SlowAdjustingFeeUpdate,
 };
@@ -66,7 +67,7 @@ use frame_support::{
 	weights::{ConstantMultiplier, WeightMeter},
 	PalletId, RuntimeDebug,
 };
-use frame_system::EnsureRoot;
+use frame_system::{EnsureRoot, EnsureRootWithSuccess};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
@@ -75,8 +76,9 @@ use sp_core::{ConstU128, OpaqueMetadata, H256};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, ConstU32, ConvertInto,
-		Extrinsic as ExtrinsicT, Keccak256, OpaqueKeys, SaturatedConversion, Verify,
+		AccountIdLookup, BlakeTwo256, Block as BlockT, CloneIdentity, ConstU32, ConvertInto,
+		Extrinsic as ExtrinsicT, IdentityLookup, Keccak256, OpaqueKeys, SaturatedConversion,
+		Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
@@ -86,7 +88,8 @@ use sp_staking::SessionIndex;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
-use xcm::latest::Junction;
+use xcm::latest::{InteriorMultiLocation, Junction, Junction::PalletInstance, MultiLocation};
+use xcm_builder::PayOverXcm;
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -544,6 +547,10 @@ parameter_types! {
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	pub const Burn: Permill = Permill::from_perthousand(2);
 	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
+	pub const PayoutSpendPeriod: BlockNumber = 30 * DAYS;
+	// The asset's interior location for the paying account. This is the Treasury
+	// pallet instance (which sits at index 18).
+	pub TreasuryInteriorLocation: InteriorMultiLocation = PalletInstance(18).into();
 
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
@@ -553,6 +560,7 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxKeys: u32 = 10_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
+	pub const MaxBalance: Balance = Balance::max_value();
 }
 
 type ApproveOrigin = EitherOfDiverse<
@@ -576,7 +584,24 @@ impl pallet_treasury::Config for Runtime {
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
-	type SpendOrigin = frame_support::traits::NeverEnsureOrigin<Balance>;
+	type SpendOrigin = EnsureRootWithSuccess<AccountId, MaxBalance>;
+	type AssetKind = LocatableAssetId;
+	type Beneficiary = MultiLocation;
+	type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
+	type Paymaster = PayOverXcm<
+		TreasuryInteriorLocation,
+		crate::xcm_config::XcmRouter,
+		crate::XcmPallet,
+		ConstU32<{ 6 * HOURS }>,
+		Self::Beneficiary,
+		Self::AssetKind,
+		LocatableAssetIdConverter,
+		CloneIdentity,
+	>;
+	type BalanceConverter = AssetRate;
+	type PayoutPeriod = PayoutSpendPeriod;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = runtime_common::impls::benchmarks::TreasuryArguments;
 }
 
 parameter_types! {
@@ -1382,6 +1407,18 @@ impl pallet_sudo::Config for Runtime {
 	type WeightInfo = weights::pallet_sudo::WeightInfo<Runtime>;
 }
 
+impl pallet_asset_rate::Config for Runtime {
+	type WeightInfo = weights::pallet_asset_rate::WeightInfo<Runtime>;
+	type RuntimeEvent = RuntimeEvent;
+	type CreateOrigin = EnsureRoot<AccountId>;
+	type RemoveOrigin = EnsureRoot<AccountId>;
+	type UpdateOrigin = EnsureRoot<AccountId>;
+	type Currency = Balances;
+	type AssetKind = <Runtime as pallet_treasury::Config>::AssetKind;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = runtime_common::impls::benchmarks::AssetRateArguments;
+}
+
 construct_runtime! {
 	pub enum Runtime
 	{
@@ -1447,6 +1484,9 @@ construct_runtime! {
 
 		// Preimage registrar.
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 32,
+
+		// Asset rate.
+		AssetRate: pallet_asset_rate::{Pallet, Call, Storage, Event<T>} = 39,
 
 		// Bounties modules.
 		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 35,
@@ -1641,6 +1681,7 @@ mod benches {
 		[pallet_treasury, Treasury]
 		[pallet_utility, Utility]
 		[pallet_vesting, Vesting]
+		[pallet_asset_rate, AssetRate]
 		// XCM
 		[pallet_xcm, XcmPallet]
 		[pallet_xcm_benchmarks::fungible, pallet_xcm_benchmarks::fungible::Pallet::<Runtime>]

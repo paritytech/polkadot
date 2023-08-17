@@ -81,6 +81,7 @@ pallet-whitelist = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-asset-rate = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false, features=["experimental"] }
 pallet-xcm-benchmarks = { path = "../../xcm/pallet-xcm-benchmarks", default-features = false, optional = true }
 
@@ -196,6 +197,7 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",
+	"pallet-asset-rate/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -243,6 +245,7 @@ runtime-benchmarks = [
 	"xcm-builder/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
+	"pallet-asset-rate/runtime-benchmarks",
 	"pallet-xcm-benchmarks/runtime-benchmarks",
 ]
 try-runtime = [
@@ -286,6 +289,7 @@ try-runtime = [
 	"pallet-whitelist/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-xcm/try-runtime",
+	"pallet-asset-rate/try-runtime",
 ]
 # When enabled, the runtime API will not be build.
 #

@@ -22,8 +22,10 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, impl_runtime_weights,
+	impls::{DealWithFees, LocatableAssetId, LocatableAssetIdConverter},
+	paras_registrar, prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote,
+	SlowAdjustingFeeUpdate,
 };
 
 use runtime_parachains::{
@@ -74,8 +76,8 @@ use sp_runtime::{
 	curve::PiecewiseLinear,
 	generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT,
-		OpaqueKeys, SaturatedConversion, Verify,
+		AccountIdLookup, BlakeTwo256, Block as BlockT, CloneIdentity, ConvertInto,
+		Extrinsic as ExtrinsicT, IdentityLookup, OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
@@ -86,7 +88,8 @@ use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
-use xcm::latest::Junction;
+use xcm::latest::{InteriorMultiLocation, Junction, Junction::PalletInstance, MultiLocation};
+use xcm_builder::PayOverXcm;
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -648,6 +651,10 @@ parameter_types! {
 	pub const SpendPeriod: BlockNumber = 24 * DAYS;
 	pub const Burn: Permill = Permill::from_percent(1);
 	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
+	pub const PayoutSpendPeriod: BlockNumber = 30 * DAYS;
+	// The asset's interior location for the paying account. This is the Treasury
+	// pallet instance (which sits at index 19).
+	pub TreasuryInteriorLocation: InteriorMultiLocation = PalletInstance(19).into();
 
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
@@ -678,6 +685,23 @@ impl pallet_treasury::Config for Runtime {
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendOrigin = TreasurySpender;
+	type AssetKind = LocatableAssetId;
+	type Beneficiary = MultiLocation;
+	type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
+	type Paymaster = PayOverXcm<
+		TreasuryInteriorLocation,
+		crate::xcm_config::XcmRouter,
+		crate::XcmPallet,
+		ConstU32<{ 6 * HOURS }>,
+		Self::Beneficiary,
+		Self::AssetKind,
+		LocatableAssetIdConverter,
+		CloneIdentity,
+	>;
+	type BalanceConverter = AssetRate;
+	type PayoutPeriod = PayoutSpendPeriod;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = runtime_common::impls::benchmarks::TreasuryArguments;
 }
 
 parameter_types! {
@@ -1347,6 +1371,18 @@ impl frame_support::traits::OnRuntimeUpgrade for InitiateNominationPools {
 	}
 }
 
+impl pallet_asset_rate::Config for Runtime {
+	type WeightInfo = weights::pallet_asset_rate::WeightInfo<Runtime>;
+	type RuntimeEvent = RuntimeEvent;
+	type CreateOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
+	type RemoveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
+	type UpdateOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
+	type Currency = Balances;
+	type AssetKind = <Runtime as pallet_treasury::Config>::AssetKind;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = runtime_common::impls::benchmarks::AssetRateArguments;
+}
+
 construct_runtime! {
 	pub enum Runtime
 	{
@@ -1423,6 +1459,9 @@ construct_runtime! {
 
 		// Fast unstake pallet: extension to staking.
 		FastUnstake: pallet_fast_unstake = 40,
+
+		// Asset rate.
+		AssetRate: pallet_asset_rate::{Pallet, Call, Storage, Event<T>} = 41,
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
@@ -1575,6 +1614,7 @@ mod benches {
 		[pallet_conviction_voting, ConvictionVoting]
 		[pallet_referenda, Referenda]
 		[pallet_whitelist, Whitelist]
+		[pallet_asset_rate, AssetRate]
 		// XCM
 		[pallet_xcm, XcmPallet]
 		[pallet_xcm_benchmarks::fungible, pallet_xcm_benchmarks::fungible::Pallet::<Runtime>]

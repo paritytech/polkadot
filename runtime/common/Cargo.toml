@@ -38,6 +38,7 @@ pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-asset-rate = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
@@ -50,6 +51,7 @@ runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parac
 
 slot-range-helper = { path = "slot_range_helper", default-features = false }
 xcm = { path = "../../xcm", default-features = false }
+xcm-builder = { path = "../../xcm/xcm-builder", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.4.1"
@@ -101,7 +103,9 @@ std = [
 	"libsecp256k1/std",
 	"runtime-parachains/std",
 	"xcm/std",
+	"xcm-builder/std",
 	"sp-npos-elections/std",
+	"pallet-asset-rate/std",
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
@@ -111,7 +115,10 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
-	"pallet-fast-unstake/runtime-benchmarks"
+	"pallet-fast-unstake/runtime-benchmarks",
+	"pallet-treasury/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
+	"pallet-asset-rate/runtime-benchmarks",
 ]
 try-runtime = [
 	"runtime-parachains/try-runtime",
@@ -124,4 +131,5 @@ try-runtime = [
 	"pallet-transaction-payment/try-runtime",
 	"pallet-treasury/try-runtime",
 	"pallet-fast-unstake/try-runtime",
+	"pallet-asset-rate/try-runtime",
 ]

@@ -6809,6 +6809,7 @@ name = "pallet-treasury"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#ecd503d49029236cc43d6de8c5068188c0fc1ef8"
 dependencies = [
+ "docify",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -6817,6 +6818,7 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "sp-core",
  "sp-runtime",
  "sp-std",
 ]

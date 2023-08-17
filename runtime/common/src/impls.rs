@@ -18,8 +18,10 @@
 
 use crate::NegativeImbalance;
 use frame_support::traits::{Currency, Imbalance, OnUnbalanced};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::Balance;
-use sp_runtime::Perquintill;
+use sp_runtime::{traits::Convert, Perquintill, RuntimeDebug};
+use xcm::latest::{AssetId, MultiLocation};
 
 /// Logic for the author to get a portion of fees.
 pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
@@ -98,13 +100,78 @@ pub fn era_payout(
 	(staking_payout, rest)
 }
 
+/// Simple struct which contains both an XCM `location` and `asset_id` to identify an asset which
+/// exists on some chain.
+#[derive(
+	Encode, Decode, Eq, PartialEq, Clone, RuntimeDebug, scale_info::TypeInfo, MaxEncodedLen,
+)]
+pub struct LocatableAssetId {
+	/// The (relative) location in which the asset ID is meaningful.
+	pub location: MultiLocation,
+	/// The asset's ID.
+	pub asset_id: AssetId,
+}
+
+impl LocatableAssetId {
+	pub fn new(location: MultiLocation, asset_id: AssetId) -> Self {
+		LocatableAssetId { location, asset_id }
+	}
+}
+
+/// Converts the [`LocatableAssetId`] to the [`xcm_builder::LocatableAssetId`].
+pub struct LocatableAssetIdConverter;
+impl Convert<LocatableAssetId, xcm_builder::LocatableAssetId> for LocatableAssetIdConverter {
+	fn convert(a: LocatableAssetId) -> xcm_builder::LocatableAssetId {
+		xcm_builder::LocatableAssetId { asset_id: a.asset_id, location: a.location }
+	}
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarks {
+	use super::LocatableAssetId;
+	use pallet_asset_rate::AssetKindFactory;
+	use pallet_treasury::ArgumentsFactory as TreasuryArgumentsFactory;
+	use xcm::prelude::*;
+
+	/// Provides a factory method for the [`LocatableAssetId`].
+	/// The location of the asset is determined as a Parachain with an ID equal to the passed seed.
+	pub struct AssetRateArguments;
+	impl AssetKindFactory<LocatableAssetId> for AssetRateArguments {
+		fn create_asset_kind(seed: u32) -> LocatableAssetId {
+			LocatableAssetId {
+				location: MultiLocation::new(0, X1(Parachain(seed))),
+				asset_id: MultiLocation::new(
+					0,
+					X2(PalletInstance(seed.try_into().unwrap()), GeneralIndex(seed.into())),
+				)
+				.into(),
+			}
+		}
+	}
+
+	/// Provide factory methods for the [`LocatableAssetId`] and the `Beneficiary` of the [`MultiLocation`].
+	/// The location of the asset is determined as a Parachain with an ID equal to the passed seed.
+	pub struct TreasuryArguments;
+	impl TreasuryArgumentsFactory<LocatableAssetId, MultiLocation> for TreasuryArguments {
+		fn create_asset_kind(seed: u32) -> LocatableAssetId {
+			AssetRateArguments::create_asset_kind(seed)
+		}
+		fn create_beneficiary(seed: [u8; 32]) -> MultiLocation {
+			MultiLocation::new(0, X1(AccountId32 { network: None, id: seed }))
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use frame_support::{
 		dispatch::DispatchClass,
 		parameter_types,
-		traits::{ConstU32, FindAuthor},
+		traits::{
+			tokens::{PayFromAccount, UnityAssetBalanceConversion},
+			ConstU32, FindAuthor,
+		},
 		weights::Weight,
 		PalletId,
 	};
@@ -189,6 +256,7 @@ mod tests {
 	parameter_types! {
 		pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 		pub const MaxApprovals: u32 = 100;
+		pub TreasuryAccount: AccountId = Treasury::account_id();
 	}
 
 	impl pallet_treasury::Config for Test {
@@ -208,6 +276,14 @@ mod tests {
 		type MaxApprovals = MaxApprovals;
 		type WeightInfo = ();
 		type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u64>;
+		type AssetKind = ();
+		type Beneficiary = Self::AccountId;
+		type BeneficiaryLookup = IdentityLookup<Self::AccountId>;
+		type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
+		type BalanceConverter = UnityAssetBalanceConversion;
+		type PayoutPeriod = ConstU64<0>;
+		#[cfg(feature = "runtime-benchmarks")]
+		type BenchmarkHelper = ();
 	}
 
 	pub struct OneAuthor;
