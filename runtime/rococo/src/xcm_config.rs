@@ -36,8 +36,8 @@ use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
-	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
-	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
+	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
 	TakeWeightCredit, TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin,
@@ -322,25 +322,15 @@ impl xcm_executor::Config for XcmConfig {
 	type Aliasers = Nothing;
 }
 
-parameter_types! {
-	pub const GeneralAdminBodyId: BodyId = BodyId::Administration;
-}
-
 #[cfg(feature = "runtime-benchmarks")]
 parameter_types! {
 	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
 }
 
-/// Type to convert the `GeneralAdmin` origin to a Plurality `MultiLocation` value.
-pub type GeneralAdminToPlurality =
-	OriginToPluralityVoice<RuntimeOrigin, GeneralAdmin, GeneralAdminBodyId>;
-
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior
 /// location of this chain.
 pub type LocalOriginToLocation = (
-	// GeneralAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value
-	GeneralAdminToPlurality,
-	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
+	// A usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
 );
 impl pallet_xcm::Config for Runtime {
