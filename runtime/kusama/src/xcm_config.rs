@@ -39,7 +39,7 @@ use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
+	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete,
 	MintLocation, OriginToPluralityVoice, ProvideWeighableInstructions, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId,
 	UniversalWeigherAdapter, UsingComponents, WeightInfoBounds, WithComputedOrigin,
