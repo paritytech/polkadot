@@ -166,6 +166,10 @@ struct MetricsInner {
 	assignments_produced: prometheus::Histogram,
 	approvals_produced_total: prometheus::CounterVec<prometheus::U64>,
 	no_shows_total: prometheus::Counter<prometheus::U64>,
+	// The difference is that this counts all observed no-shows.
+	// approvals might arrive late and `no_shows_total` wouldn't catch
+	// that number.
+	observed_no_shows: prometheus::Counter<prometheus::U64>,
 	approved_by_one_third: prometheus::Counter<prometheus::U64>,
 	wakeups_triggered_total: prometheus::Counter<prometheus::U64>,
 	coalesced_approvals_buckets: prometheus::Histogram,
@@ -235,6 +239,12 @@ impl Metrics {
 	fn on_no_shows(&self, n: usize) {
 		if let Some(metrics) = &self.0 {
 			metrics.no_shows_total.inc_by(n as u64);
+		}
+	}
+
+	fn on_observed_no_shows(&self, n: usize) {
+		if let Some(metrics) = &self.0 {
+			metrics.observed_no_shows.inc_by(n as u64);
 		}
 	}
 
@@ -312,6 +322,13 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"polkadot_parachain_approvals_no_shows_total",
 					"Number of assignments which became no-shows in the approval voting subsystem",
+				)?,
+				registry,
+			)?,
+			observed_no_shows: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_approvals_observed_no_shows_total",
+					"Number of observed no shows",
 				)?,
 				registry,
 			)?,
@@ -586,6 +603,7 @@ struct ApprovalStatus {
 	required_tranches: RequiredTranches,
 	tranche_now: DelayTranche,
 	block_tick: Tick,
+	last_no_shows: usize,
 }
 
 #[derive(Copy, Clone)]
@@ -745,7 +763,7 @@ impl State {
 		);
 
 		if let Some(approval_entry) = candidate_entry.approval_entry(&block_hash) {
-			let required_tranches = approval_checking::tranches_to_approve(
+			let (required_tranches, last_no_shows) = approval_checking::tranches_to_approve(
 				approval_entry,
 				candidate_entry.approvals(),
 				tranche_now,
@@ -754,7 +772,8 @@ impl State {
 				session_info.needed_approvals as _,
 			);
 
-			let status = ApprovalStatus { required_tranches, block_tick, tranche_now };
+			let status =
+				ApprovalStatus { required_tranches, block_tick, tranche_now, last_no_shows };
 
 			Some((approval_entry, status))
 		} else {
@@ -2521,7 +2540,17 @@ where
 		// assignment tick of `now - APPROVAL_DELAY` - that is, that
 		// all counted assignments are at least `APPROVAL_DELAY` ticks old.
 		let is_approved = check.is_approved(tick_now.saturating_sub(APPROVAL_DELAY));
-
+		if status.last_no_shows != 0 {
+			metrics.on_observed_no_shows(status.last_no_shows);
+			gum::debug!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?block_hash,
+				last_no_shows = ?status.last_no_shows,
+				no_shows_zzz = ?check.known_no_shows(),
+				"Observed no_shows.",
+			);
+		}
 		if is_approved {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -2707,7 +2736,7 @@ async fn process_wakeup<Context>(
 			None => return Ok(Vec::new()),
 		};
 
-		let tranches_to_approve = approval_checking::tranches_to_approve(
+		let (tranches_to_approve, _last_no_shows) = approval_checking::tranches_to_approve(
 			&approval_entry,
 			candidate_entry.approvals(),
 			tranche_now,

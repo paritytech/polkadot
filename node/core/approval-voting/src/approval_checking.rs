@@ -372,19 +372,22 @@ pub fn tranches_to_approve(
 	block_tick: Tick,
 	no_show_duration: Tick,
 	needed_approvals: usize,
-) -> RequiredTranches {
+) -> (RequiredTranches, usize) {
 	let tick_now = tranche_now as Tick + block_tick;
 	let n_validators = approval_entry.n_validators();
 
-	let initial_state = State {
-		assignments: 0,
-		depth: 0,
-		covered: 0,
-		covering: needed_approvals,
-		uncovered: 0,
-		next_no_show: None,
-		last_assignment_tick: None,
-	};
+	let initial_state = (
+		State {
+			assignments: 0,
+			depth: 0,
+			covered: 0,
+			covering: needed_approvals,
+			uncovered: 0,
+			next_no_show: None,
+			last_assignment_tick: None,
+		},
+		0usize,
+	);
 
 	// The `ApprovalEntry` doesn't have any data for empty tranches. We still want to iterate over
 	// these empty tranches, so we create an iterator to fill the gaps.
@@ -395,7 +398,7 @@ pub fn tranches_to_approve(
 	tranches_with_gaps_filled
 		.scan(Some(initial_state), |state, (tranche, assignments)| {
 			// The `Option` here is used for early exit.
-			let s = state.take()?;
+			let (s, prev_no_shows) = state.take()?;
 
 			let clock_drift = s.clock_drift(no_show_duration);
 			let drifted_tick_now = tick_now.saturating_sub(clock_drift);
@@ -444,11 +447,11 @@ pub fn tranches_to_approve(
 				RequiredTranches::Pending { .. } => {
 					// Pending results are only interesting when they are the last result of the iterator
 					// i.e. we never achieve a satisfactory level of assignment.
-					Some(s)
+					Some((s, no_shows + prev_no_shows))
 				}
 			};
 
-			Some(output)
+			Some((output, no_shows + prev_no_shows))
 		})
 		.last()
 		.expect("the underlying iterator is infinite, starts at 0, and never exits early before tranche 1; qed")
@@ -675,7 +678,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Exact {
 				needed: 1,
 				tolerated_missing: 0,
@@ -715,7 +719,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 2,
 				next_no_show: Some(block_tick + no_show_duration),
@@ -759,7 +764,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 11,
 				next_no_show: None,
@@ -807,7 +813,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 1,
 				next_no_show: None,
@@ -826,7 +833,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 1,
 				next_no_show: None,
@@ -879,7 +887,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Exact {
 				needed: 1,
 				tolerated_missing: 0,
@@ -898,7 +907,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Exact {
 				needed: 2,
 				tolerated_missing: 1,
@@ -917,7 +927,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 2,
 				next_no_show: None,
@@ -970,7 +981,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Exact {
 				needed: 2,
 				tolerated_missing: 1,
@@ -992,7 +1004,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 2,
 				next_no_show: None,
@@ -1013,7 +1026,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Exact {
 				needed: 3,
 				tolerated_missing: 2,
@@ -1068,7 +1082,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 10,
 				next_no_show: None,
