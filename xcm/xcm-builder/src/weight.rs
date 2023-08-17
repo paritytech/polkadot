@@ -24,10 +24,10 @@ use frame_support::{
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
-use sp_std::{marker::PhantomData, result::Result};
+use sp_std::{marker::PhantomData, result::Result, vec, vec::Vec};
 use xcm::latest::{prelude::*, Weight};
 use xcm_executor::{
-	traits::{WeightBounds, WeightTrader},
+	traits::{UniversalWeigher, WeightBounds, WeightTrader},
 	Assets,
 };
 
@@ -111,6 +111,42 @@ where
 			_ => Weight::zero(),
 		};
 		instruction.weight().checked_add(&instr_weight).ok_or(())
+	}
+}
+
+/// Adapter for `UniversalWeigher` which can estimate weights for an XCM program,
+/// that is executed on destination with possibility to add additional instructions on the way (e.g.
+/// SetTopic, UniversalOrigin, ...).
+pub struct UniversalWeigherAdapter<Weigher, AdditionalInstructions>(
+	PhantomData<(Weigher, AdditionalInstructions)>,
+);
+impl<Weigher: WeightBounds<()>, AdditionalInstructions: ProvideWeighableInstructions<()>>
+	UniversalWeigher for UniversalWeigherAdapter<Weigher, AdditionalInstructions>
+{
+	fn weigh(dest: impl Into<MultiLocation>, mut message: Xcm<()>) -> Result<Weight, ()> {
+		message.0.extend(AdditionalInstructions::provide_for(dest, &message));
+		Weigher::weight(&mut message)
+	}
+}
+
+/// Function trait for generating instruction for (dest, message).
+pub trait ProvideWeighableInstructions<RuntimeCall> {
+	fn provide_for(
+		dest: impl Into<MultiLocation>,
+		message: &Xcm<RuntimeCall>,
+	) -> Vec<Instruction<RuntimeCall>>;
+}
+
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl<RuntimeCall> ProvideWeighableInstructions<RuntimeCall> for Tuple {
+	fn provide_for(
+		dest: impl Into<MultiLocation>,
+		message: &Xcm<RuntimeCall>,
+	) -> Vec<Instruction<RuntimeCall>> {
+		let dest = dest.into();
+		let mut res = vec![];
+		for_tuples!( #( res.extend_from_slice(&Tuple::provide_for(dest, message)); )* );
+		res
 	}
 }
 

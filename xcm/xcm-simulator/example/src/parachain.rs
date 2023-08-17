@@ -43,7 +43,7 @@ use xcm_builder::{
 	CurrencyAdapter as XcmCurrencyAdapter, EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds,
 	IsConcrete, NativeAsset, NoChecking, NonFungiblesAdapter, ParentIsPreset,
 	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation,
+	SovereignSignedViaLocation, UniversalWeigherAdapter,
 };
 use xcm_executor::{
 	traits::{ConvertLocation, JustTry},
@@ -429,6 +429,8 @@ impl pallet_xcm::Config for Runtime {
 	type XcmTeleportFilter = Nothing;
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
+	type DestinationWeigher =
+		UniversalWeigherAdapter<FixedWeightBounds<UnitWeightCost, (), MaxInstructions>, ()>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;

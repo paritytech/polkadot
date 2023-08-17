@@ -38,7 +38,7 @@ use xcm_builder::{
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	ConvertedConcreteId, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible,
 	FixedWeightBounds, IsConcrete, NoChecking, NonFungiblesAdapter, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation,
+	SignedToAccountId32, SovereignSignedViaLocation, UniversalWeigherAdapter,
 };
 use xcm_executor::{traits::JustTry, Config, XcmExecutor};
 
@@ -214,6 +214,8 @@ impl pallet_xcm::Config for Runtime {
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
+	type DestinationWeigher =
+		UniversalWeigherAdapter<FixedWeightBounds<BaseXcmWeight, (), MaxInstructions>, ()>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;

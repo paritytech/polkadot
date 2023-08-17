@@ -23,7 +23,7 @@ use frame_system::EnsureRoot;
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds, SignedAccountId32AsNative,
-	SignedToAccountId32,
+	SignedToAccountId32, UniversalWeigherAdapter,
 };
 use xcm_executor::{
 	traits::{TransactAsset, WeightTrader},
@@ -132,21 +132,24 @@ impl pallet_xcm::Config for crate::Runtime {
 	// The config types here are entirely configurable, since the only one that is sorely needed
 	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
 	type RuntimeEvent = crate::RuntimeEvent;
-	type ExecuteXcmOrigin = EnsureXcmOrigin<crate::RuntimeOrigin, LocalOriginToLocation>;
-	type UniversalLocation = UniversalLocation;
+	type Currency = crate::Balances;
+	type CurrencyMatcher = ();
 	type SendXcmOrigin = EnsureXcmOrigin<crate::RuntimeOrigin, LocalOriginToLocation>;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, crate::RuntimeCall, MaxInstructions>;
 	type XcmRouter = DoNothingRouter;
+	type ExecuteXcmOrigin = EnsureXcmOrigin<crate::RuntimeOrigin, LocalOriginToLocation>;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, crate::RuntimeCall, MaxInstructions>;
+	type DestinationWeigher =
+		UniversalWeigherAdapter<FixedWeightBounds<BaseXcmWeight, (), MaxInstructions>, ()>;
+	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = crate::RuntimeOrigin;
 	type RuntimeCall = crate::RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
-	type Currency = crate::Balances;
-	type CurrencyMatcher = ();
+	type AdminOrigin = EnsureRoot<crate::AccountId>;
 	type TrustedLockers = ();
 	type SovereignAccountOf = ();
 	type MaxLockers = frame_support::traits::ConstU32<8>;
@@ -155,5 +158,4 @@ impl pallet_xcm::Config for crate::Runtime {
 	type WeightInfo = pallet_xcm::TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
-	type AdminOrigin = EnsureRoot<crate::AccountId>;
 }

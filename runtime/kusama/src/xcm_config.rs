@@ -41,8 +41,8 @@ use xcm_builder::{
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, MintLocation,
 	OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
-	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UniversalWeigherAdapter,
+	UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -405,6 +405,11 @@ impl pallet_xcm::Config for Runtime {
 		crate::weights::xcm::KusamaXcmWeight<RuntimeCall>,
 		RuntimeCall,
 		MaxInstructions,
+	>;
+	type DestinationWeigher = UniversalWeigherAdapter<
+		// use local weight for remote message and hope for the best.
+		WeightInfoBounds<crate::weights::xcm::KusamaXcmWeight<()>, (), MaxInstructions>,
+		(XcmRouter,),
 	>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;

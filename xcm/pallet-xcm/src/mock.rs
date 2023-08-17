@@ -31,8 +31,8 @@ use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, Case, ChildParachainAsNative, ChildParachainConvertsVia,
 	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible,
-	FixedWeightBounds, IsConcrete, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit,
+	FixedWeightBounds, IsConcrete, ProvideWeighableInstructions, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UniversalWeigherAdapter,
 };
 use xcm_executor::XcmExecutor;
 
@@ -319,6 +319,13 @@ parameter_types! {
 	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
 }
 
+pub struct AdditionalDestinationInstructions;
+impl ProvideWeighableInstructions<()> for AdditionalDestinationInstructions {
+	fn provide_for(_dest: impl Into<MultiLocation>, _message: &Xcm<()>) -> Vec<Instruction<()>> {
+		sp_std::vec![SetTopic([13; 32])]
+	}
+}
+
 impl pallet_xcm::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
@@ -329,6 +336,10 @@ impl pallet_xcm::Config for Test {
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
+	type DestinationWeigher = UniversalWeigherAdapter<
+		FixedWeightBounds<BaseXcmWeight, (), MaxInstructions>,
+		AdditionalDestinationInstructions,
+	>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
