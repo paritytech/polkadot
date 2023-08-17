@@ -76,7 +76,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV8<T> {
 			let weight_consumed = migrate_to_v8::<T>();
 
 			log::info!(target: configuration::LOG_TARGET, "HostConfiguration MigrateToV8 executed successfully");
-			StorageVersion::new(7).put::<Pallet<T>>();
+			StorageVersion::new(8).put::<Pallet<T>>();
 
 			weight_consumed
 		} else {
