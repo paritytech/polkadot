@@ -46,7 +46,7 @@ pub const LOG_TARGET: &str = "staking-miner";
 pub use pallet_election_provider_multi_phase as EPM;
 
 /// The externalities type.
-pub type Ext = sp_state_machine::TestExternalities<sp_runtime::traits::HashFor<Block>>;
+pub type Ext = sp_state_machine::TestExternalities<sp_runtime::traits::HashingFor<Block>>;
 
 /// The key pair type being used. We "strongly" assume sr25519 for simplicity.
 pub type Pair = sp_core::sr25519::Pair;

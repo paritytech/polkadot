@@ -320,7 +320,7 @@ where
 		}))
 		.build()
 		.await
-		.map_err(|why| Error::RemoteExternalities(why))
+		.map_err(|why| Error::<T>::RemoteExternalities(why))
 		.map(|rx| rx.inner_ext)
 }
 
