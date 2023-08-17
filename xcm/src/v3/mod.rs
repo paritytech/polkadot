@@ -42,7 +42,7 @@ pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use junctions::Junctions;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
-	WildFungibility, WildMultiAsset,
+	WildFungibility, WildMultiAsset, MAX_ITEMS_IN_MULTIASSETS,
 };
 pub use multilocation::{
 	Ancestor, AncestorThen, InteriorMultiLocation, MultiLocation, Parent, ParentThen,
@@ -188,7 +188,7 @@ pub mod prelude {
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
-			XcmContext, XcmHash, XcmWeightInfo, VERSION as XCM_VERSION,
+			XcmContext, XcmHash, XcmWeightInfo, MAX_ITEMS_IN_MULTIASSETS, VERSION as XCM_VERSION,
 		};
 	}
 	pub use super::{Instruction, Xcm};

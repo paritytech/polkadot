@@ -508,7 +508,7 @@ pub struct MultiAssets(Vec<MultiAsset>);
 
 /// Maximum number of items we expect in a single `MultiAssets` value. Note this is not (yet)
 /// enforced, and just serves to provide a sensible `max_encoded_len` for `MultiAssets`.
-const MAX_ITEMS_IN_MULTIASSETS: usize = 20;
+pub const MAX_ITEMS_IN_MULTIASSETS: usize = 20;
 
 impl MaxEncodedLen for MultiAssets {
 	fn max_encoded_len() -> usize {

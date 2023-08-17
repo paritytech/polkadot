@@ -479,6 +479,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			WithdrawAsset(assets) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
+				if assets.len() > MAX_ITEMS_IN_MULTIASSETS {
+					return Err(XcmError::TooManyAssets)
+				}
 				for asset in assets.into_inner().into_iter() {
 					Config::AssetTransactor::withdraw_asset(&asset, &origin, Some(&self.context))?;
 					self.subsume_asset(asset)?;
@@ -488,6 +491,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ReserveAssetDeposited(assets) => {
 				// check whether we trust origin to be our reserve location for this asset.
 				let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
+				if assets.len() > MAX_ITEMS_IN_MULTIASSETS {
+					return Err(XcmError::TooManyAssets)
+				}
 				for asset in assets.into_inner().into_iter() {
 					// Must ensure that we recognise the asset as being managed by the origin.
 					ensure!(
@@ -526,6 +532,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			ReceiveTeleportedAsset(assets) => {
 				let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
+				if assets.len() > MAX_ITEMS_IN_MULTIASSETS {
+					return Err(XcmError::TooManyAssets)
+				}
 				// check whether we trust origin to teleport this asset to us via config trait.
 				for asset in assets.inner() {
 					// We only trust the origin to send us assets that they identify as their
@@ -719,6 +728,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			ClaimAsset { assets, ticket } => {
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
+				if assets.len() > MAX_ITEMS_IN_MULTIASSETS {
+					return Err(XcmError::TooManyAssets)
+				}
 				let ok = Config::AssetClaims::claim_assets(origin, &ticket, &assets, &self.context);
 				ensure!(ok, XcmError::UnknownClaim);
 				for asset in assets.into_inner().into_iter() {

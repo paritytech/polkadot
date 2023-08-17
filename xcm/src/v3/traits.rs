@@ -157,6 +157,9 @@ pub enum Error {
 	WeightNotComputable,
 	/// Recursion stack limit reached
 	ExceedsStackLimit,
+	/// Assets exceeded maximum
+	// TODO (XCMv4): Add to spec
+	TooManyAssets,
 }
 
 impl MaxEncodedLen for Error {

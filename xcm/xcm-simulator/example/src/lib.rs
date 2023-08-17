@@ -145,7 +145,7 @@ mod tests {
 	use codec::Encode;
 	use frame_support::{assert_ok, weights::Weight};
 	use xcm::latest::QueryResponseInfo;
-	use xcm_simulator::TestExt;
+	use xcm_simulator::{fake_message_hash, TestExt, XcmExecutor};
 
 	// Helper function for forming buy execution message
 	fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {
@@ -648,5 +648,58 @@ mod tests {
 				}])],
 			);
 		});
+	}
+
+	#[test]
+	fn too_many_assets_throws_error() {
+		use crate::Outcome::Incomplete;
+		use xcm_simulator::XcmError::TooManyAssets;
+
+		let assets = MultiAssets::from(vec![
+			(Here, 1).into(),
+			(Parent, 1).into(),
+			(MultiLocation::new(2, Here), 1).into(),
+			(MultiLocation::new(3, Here), 1).into(),
+			(MultiLocation::new(4, Here), 1).into(),
+			(MultiLocation::new(5, Here), 1).into(),
+			(MultiLocation::new(6, Here), 1).into(),
+			(MultiLocation::new(7, Here), 1).into(),
+			(MultiLocation::new(8, Here), 1).into(),
+			(MultiLocation::new(9, Here), 1).into(),
+			(MultiLocation::new(10, Here), 1).into(),
+			(MultiLocation::new(11, Here), 1).into(),
+			(MultiLocation::new(12, Here), 1).into(),
+			(MultiLocation::new(13, Here), 1).into(),
+			(MultiLocation::new(14, Here), 1).into(),
+			(MultiLocation::new(15, Here), 1).into(),
+			(MultiLocation::new(16, Here), 1).into(),
+			(MultiLocation::new(17, Here), 1).into(),
+			(MultiLocation::new(18, Here), 1).into(),
+			(MultiLocation::new(19, Here), 1).into(),
+			(MultiLocation::new(20, Here), 1).into(),
+		]);
+		let message = Xcm(vec![WithdrawAsset(assets.clone())]);
+		let hash = fake_message_hash(&message);
+		let result =
+			XcmExecutor::<parachain::XcmConfig>::execute_xcm(Here, message, hash, Weight::MAX);
+		assert!(matches!(result, Incomplete(_, TooManyAssets)));
+
+		let message = Xcm(vec![ReserveAssetDeposited(assets.clone())]);
+		let hash = fake_message_hash(&message);
+		let result =
+			XcmExecutor::<parachain::XcmConfig>::execute_xcm(Here, message, hash, Weight::MAX);
+		assert!(matches!(result, Incomplete(_, TooManyAssets)));
+
+		let message = Xcm(vec![ReceiveTeleportedAsset(assets.clone())]);
+		let hash = fake_message_hash(&message);
+		let result =
+			XcmExecutor::<parachain::XcmConfig>::execute_xcm(Here, message, hash, Weight::MAX);
+		assert!(matches!(result, Incomplete(_, TooManyAssets)));
+
+		let message = Xcm(vec![ClaimAsset { assets: assets.clone(), ticket: Here.into() }]);
+		let hash = fake_message_hash(&message);
+		let result =
+			XcmExecutor::<parachain::XcmConfig>::execute_xcm(Here, message, hash, Weight::MAX);
+		assert!(matches!(result, Incomplete(_, TooManyAssets)));
 	}
 }
