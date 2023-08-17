@@ -39,11 +39,7 @@ const SESSION_INDEX: SessionIndex = 1;
 // Initialize a parathread for benchmarking.
 pub fn init_parathread<T>(para_id: ParaId)
 where
-	T: Config
-		+ crate::paras::Config
-		+ crate::shared::Config
-		+ crate::paras::Config
-		+ crate::shared::Config,
+	T: Config + crate::paras::Config + crate::shared::Config,
 {
 	ParasShared::<T>::set_session_index(SESSION_INDEX);
 	let mut config = HostConfiguration::default();
