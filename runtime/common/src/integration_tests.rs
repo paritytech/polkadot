@@ -471,7 +471,8 @@ fn basic_end_to_end_works() {
 			);
 			assert_eq!(
 				slots::Leases::<Test>::get(ParaId::from(para_2)),
-				// -- 1 --- 2 --- 3 --- 4 --- 5 ---------------- 6 --------------------------- 7 ----------------
+				// -- 1 --- 2 --- 3 --- 4 --- 5 ---------------- 6 --------------------------- 7
+				// ----------------
 				vec![
 					None,
 					None,
@@ -599,7 +600,8 @@ fn basic_errors_fail() {
 
 #[test]
 fn competing_slots() {
-	// This test will verify that competing slots, from different sources will resolve appropriately.
+	// This test will verify that competing slots, from different sources will resolve
+	// appropriately.
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one());
 		let max_bids = 10u32;
@@ -789,7 +791,8 @@ fn competing_bids() {
 		let crowdloan_1 = Crowdloan::fund_account_id(fund_1.fund_index);
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
-			// -- 1 --- 2 --- 3 --- 4 --- 5 ------------- 6 ------------------------ 7 -------------
+			// -- 1 --- 2 --- 3 --- 4 --- 5 ------------- 6 ------------------------ 7
+			// -------------
 			vec![
 				None,
 				None,

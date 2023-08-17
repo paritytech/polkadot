@@ -300,7 +300,8 @@ pub trait HaulBlob {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HaulBlobError {
-	/// Represents point-to-point link failure with a human-readable explanation of the specific issue is provided.
+	/// Represents point-to-point link failure with a human-readable explanation of the specific
+	/// issue is provided.
 	Transport(&'static str),
 }
 
@@ -361,8 +362,9 @@ impl<
 			message.try_into().map_err(|_| DispatchBlobError::UnsupportedXcmVersion)?;
 
 		// Prepend our bridge instance discriminator.
-		// Can be used for fine-grained control of origin on destination in case of multiple bridge instances,
-		// e.g. restrict `type UniversalAliases` and `UniversalOrigin` instruction to trust just particular bridge instance for `NetworkId`.
+		// Can be used for fine-grained control of origin on destination in case of multiple bridge
+		// instances, e.g. restrict `type UniversalAliases` and `UniversalOrigin` instruction to
+		// trust just particular bridge instance for `NetworkId`.
 		if let Some(bridge_instance) = OurPlaceBridgeInstance::get() {
 			message.0.insert(0, DescendOrigin(bridge_instance));
 		}

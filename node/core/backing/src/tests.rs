@@ -84,7 +84,8 @@ impl Default for TestState {
 		];
 
 		let keystore = Arc::new(sc_keystore::LocalKeystore::in_memory());
-		// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain validator.
+		// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain
+		// validator.
 		Keystore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&validators[0].to_seed()))
 			.expect("Insert key into keystore");
 
@@ -282,7 +283,6 @@ fn backing_second_works() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 
@@ -372,7 +372,6 @@ fn backing_works() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 
@@ -521,7 +520,6 @@ fn backing_works_while_validation_ongoing() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 
@@ -698,7 +696,6 @@ fn backing_misbehavior_works() {
 			pov_hash,
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
 			head_data: expected_head_data.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -883,7 +880,6 @@ fn backing_dont_second_invalid() {
 			pov_hash: pov_hash_b,
 			erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
 			head_data: expected_head_data.clone(),
-			..Default::default()
 		}
 		.build();
 
@@ -1214,7 +1210,6 @@ fn backing_doesnt_second_wrong_collator() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 
@@ -1266,7 +1261,6 @@ fn validation_work_ignores_wrong_collator() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 
@@ -1540,7 +1534,6 @@ fn observes_backing_even_if_not_validator() {
 			pov_hash,
 			head_data: expected_head_data.clone(),
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
-			..Default::default()
 		}
 		.build();
 

@@ -62,8 +62,8 @@ pub mod pallet {
 	pub(super) type ActiveValidatorIndices<T: Config> =
 		StorageValue<_, Vec<ValidatorIndex>, ValueQuery>;
 
-	/// The parachain attestation keys of the validators actively participating in parachain consensus.
-	/// This should be the same length as `ActiveValidatorIndices`.
+	/// The parachain attestation keys of the validators actively participating in parachain
+	/// consensus. This should be the same length as `ActiveValidatorIndices`.
 	#[pallet::storage]
 	#[pallet::getter(fn active_validator_keys)]
 	pub(super) type ActiveValidatorKeys<T: Config> = StorageValue<_, Vec<ValidatorId>, ValueQuery>;

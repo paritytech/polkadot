@@ -4,6 +4,7 @@ rust-version = "1.60"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 # Substrate Client
@@ -86,7 +87,7 @@ parity-db = { version = "0.4.8", optional = true }
 codec = { package = "parity-scale-codec", version = "3.6.1" }
 
 async-trait = "0.1.57"
-lru = "0.11"
+lru = "0.11.0"
 log = "0.4.17"
 is_executable = "1.0.1"
 

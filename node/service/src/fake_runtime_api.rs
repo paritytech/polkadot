@@ -16,9 +16,10 @@
 
 //! Provides "fake" runtime API implementations
 //!
-//! These are used to provide a type that implements these runtime APIs without requiring to import the native runtimes.
+//! These are used to provide a type that implements these runtime APIs without requiring to import
+//! the native runtimes.
 
-use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
+use beefy_primitives::ecdsa_crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
 use grandpa_primitives::AuthorityId as GrandpaId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_primitives::{
@@ -230,7 +231,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl beefy_primitives::BeefyApi<Block> for Runtime {
+	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
 		fn beefy_genesis() -> Option<BlockNumber> {
 			unimplemented!()
 		}

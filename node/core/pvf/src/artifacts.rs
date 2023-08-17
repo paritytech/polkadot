@@ -224,7 +224,8 @@ impl Artifacts {
 			.is_none());
 	}
 
-	/// Remove and retrieve the artifacts from the table that are older than the supplied Time-To-Live.
+	/// Remove and retrieve the artifacts from the table that are older than the supplied
+	/// Time-To-Live.
 	pub fn prune(&mut self, artifact_ttl: Duration) -> Vec<ArtifactId> {
 		let now = SystemTime::now();
 

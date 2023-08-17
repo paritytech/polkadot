@@ -203,9 +203,9 @@ mod handle_new_activations {
 			.into_inner();
 
 		// the only activated hash should be from the 4 hash:
-		// each activated hash generates two scheduled cores: one with its value * 4, one with its value * 5
-		// given that the test configuration has a `para_id` of 16, there's only one way to get that value: with the 4
-		// hash.
+		// each activated hash generates two scheduled cores: one with its value * 4, one with its
+		// value * 5 given that the test configuration has a `para_id` of 16, there's only one way
+		// to get that value: with the 4 hash.
 		assert_eq!(requested_validation_data, vec![[4; 32].into()]);
 	}
 
@@ -301,8 +301,8 @@ mod handle_new_activations {
 			.into_inner();
 
 		// we expect a single message to be sent, containing a candidate receipt.
-		// we don't care too much about the `commitments_hash` right now, but let's ensure that we've calculated the
-		// correct descriptor
+		// we don't care too much about the `commitments_hash` right now, but let's ensure that
+		// we've calculated the correct descriptor
 		let expect_pov_hash =
 			test_collation_compressed().proof_of_validity.into_compressed().hash();
 		let expect_validation_data_hash = test_validation_data().hash();
@@ -353,7 +353,7 @@ mod handle_new_activations {
 				let expect_descriptor = {
 					let mut expect_descriptor = expect_descriptor;
 					expect_descriptor.signature = descriptor.signature.clone();
-					expect_descriptor.erasure_root = descriptor.erasure_root.clone();
+					expect_descriptor.erasure_root = descriptor.erasure_root;
 					expect_descriptor
 				};
 				assert_eq!(descriptor, expect_descriptor);
