@@ -104,7 +104,8 @@ enum ImportedBlockInfoError {
 	VrfInfoUnavailable,
 }
 
-/// Computes information about the imported block. Returns an error if the info couldn't be extracted.
+/// Computes information about the imported block. Returns an error if the info couldn't be
+/// extracted.
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 async fn imported_block_info<Context>(
 	ctx: &mut Context,
@@ -181,20 +182,21 @@ async fn imported_block_info<Context>(
 		// It's not obvious whether to use the hash or the parent hash for this, intuitively. We
 		// want to use the block hash itself, and here's why:
 		//
-		// First off, 'epoch' in BABE means 'session' in other places. 'epoch' is the terminology from
-		// the paper, which we fulfill using 'session's, which are a Substrate consensus concept.
+		// First off, 'epoch' in BABE means 'session' in other places. 'epoch' is the terminology
+		// from the paper, which we fulfill using 'session's, which are a Substrate consensus
+		// concept.
 		//
-		// In BABE, the on-chain and off-chain view of the current epoch can differ at epoch boundaries
-		// because epochs change precisely at a slot. When a block triggers a new epoch, the state of
-		// its parent will still have the old epoch. Conversely, we have the invariant that every
-		// block in BABE has the epoch _it was authored in_ within its post-state. So we use the
-		// block, and not its parent.
+		// In BABE, the on-chain and off-chain view of the current epoch can differ at epoch
+		// boundaries because epochs change precisely at a slot. When a block triggers a new epoch,
+		// the state of its parent will still have the old epoch. Conversely, we have the invariant
+		// that every block in BABE has the epoch _it was authored in_ within its post-state. So we
+		// use the block, and not its parent.
 		//
-		// It's worth nothing that Polkadot session changes, at least for the purposes of parachains,
-		// would function the same way, except for the fact that they're always delayed by one block.
-		// This gives us the opposite invariant for sessions - the parent block's post-state gives
-		// us the canonical information about the session index for any of its children, regardless
-		// of which slot number they might be produced at.
+		// It's worth nothing that Polkadot session changes, at least for the purposes of
+		// parachains, would function the same way, except for the fact that they're always delayed
+		// by one block. This gives us the opposite invariant for sessions - the parent block's
+		// post-state gives us the canonical information about the session index for any of its
+		// children, regardless of which slot number they might be produced at.
 		ctx.send_message(RuntimeApiMessage::Request(
 			block_hash,
 			RuntimeApiRequest::CurrentBabeEpoch(s_tx),

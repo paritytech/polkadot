@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::{
 	request_validators, Validator,
 };
 use polkadot_primitives::{
-	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
+	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PvfExecTimeoutKind,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
@@ -354,7 +354,7 @@ async fn handle_active_leaves_update<Context>(
 			let group_index = group_rotation_info.group_for_core(core_index, n_cores);
 			if let Some(g) = validator_groups.get(group_index.0 as usize) {
 				if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
-					assignment = Some((scheduled.para_id, scheduled.collator));
+					assignment = Some(scheduled.para_id);
 				}
 				groups.insert(scheduled.para_id, g.clone());
 			}
@@ -363,15 +363,15 @@ async fn handle_active_leaves_update<Context>(
 
 	let table_context = TableContext { groups, validators, validator };
 
-	let (assignment, required_collator) = match assignment {
+	let assignment = match assignment {
 		None => {
 			assignments_span.add_string_tag("assigned", "false");
-			(None, None)
+			None
 		},
-		Some((assignment, required_collator)) => {
+		Some(assignment) => {
 			assignments_span.add_string_tag("assigned", "true");
 			assignments_span.add_para_id(assignment);
-			(Some(assignment), required_collator)
+			Some(assignment)
 		},
 	};
 
@@ -381,7 +381,6 @@ async fn handle_active_leaves_update<Context>(
 	let job = CandidateBackingJob {
 		parent,
 		assignment,
-		required_collator,
 		issued_statements: HashSet::new(),
 		awaiting_validation: HashSet::new(),
 		fallbacks: HashMap::new(),
@@ -412,8 +411,6 @@ struct CandidateBackingJob<Context> {
 	parent: Hash,
 	/// The `ParaId` assigned to this validator
 	assignment: Option<ParaId>,
-	/// The collator required to author the candidate, if any.
-	required_collator: Option<CollatorId>,
 	/// Spans for all candidates that are not yet backable.
 	unbacked_candidates: HashMap<CandidateHash, jaeger::Span>,
 	/// We issued `Seconded`, `Valid` or `Invalid` statements on about these candidates.
@@ -422,7 +419,8 @@ struct CandidateBackingJob<Context> {
 	awaiting_validation: HashSet<CandidateHash>,
 	/// Data needed for retrying in case of `ValidatedCandidateCommand::AttestNoPoV`.
 	fallbacks: HashMap<CandidateHash, (AttestingData, Option<jaeger::Span>)>,
-	/// `Some(h)` if this job has already issued `Seconded` statement for some candidate with `h` hash.
+	/// `Some(h)` if this job has already issued `Seconded` statement for some candidate with `h`
+	/// hash.
 	seconded: Option<CandidateHash>,
 	/// The candidates that are includable, by hash. Each entry here indicates
 	/// that we've sent the provisioner the backed candidate.
@@ -562,9 +560,10 @@ async fn store_available_data(
 	expected_erasure_root: Hash,
 ) -> Result<(), Error> {
 	let (tx, rx) = oneshot::channel();
-	// Important: the `av-store` subsystem will check if the erasure root of the `available_data` matches `expected_erasure_root`
-	// which was provided by the collator in the `CandidateReceipt`. This check is consensus critical and the `backing` subsystem
-	// relies on it for ensuring candidate validity.
+	// Important: the `av-store` subsystem will check if the erasure root of the `available_data`
+	// matches `expected_erasure_root` which was provided by the collator in the `CandidateReceipt`.
+	// This check is consensus critical and the `backing` subsystem relies on it for ensuring
+	// candidate validity.
 	sender
 		.send_message(AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
@@ -582,8 +581,8 @@ async fn store_available_data(
 
 // Make a `PoV` available.
 //
-// This calls the AV store to write the available data to storage. The AV store also checks the erasure root matches
-// the `expected_erasure_root`.
+// This calls the AV store to write the available data to storage. The AV store also checks the
+// erasure root matches the `expected_erasure_root`.
 // This returns `Err()` on erasure root mismatch or due to any AV store subsystem error.
 //
 // Otherwise, it returns either `Ok(())`
@@ -911,21 +910,6 @@ impl<Context> CandidateBackingJob<Context> {
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
-		// Check that candidate is collated by the right collator.
-		if self
-			.required_collator
-			.as_ref()
-			.map_or(false, |c| c != &candidate.descriptor().collator)
-		{
-			// Break cycle - bounded as there is only one candidate to
-			// second per block.
-			ctx.send_unbounded_message(CollatorProtocolMessage::Invalid(
-				self.parent,
-				candidate.clone(),
-			));
-			return Ok(())
-		}
-
 		let candidate_hash = candidate.hash();
 		let mut span = self.get_unbacked_validation_child(
 			root_span,
@@ -1169,24 +1153,12 @@ impl<Context> CandidateBackingJob<Context> {
 			return Ok(())
 		}
 
-		let descriptor = attesting.candidate.descriptor().clone();
-
 		gum::debug!(
 			target: LOG_TARGET,
 			candidate_hash = ?candidate_hash,
 			candidate_receipt = ?attesting.candidate,
 			"Kicking off validation",
 		);
-
-		// Check that candidate is collated by the right collator.
-		if self.required_collator.as_ref().map_or(false, |c| c != &descriptor.collator) {
-			// If not, we've got the statement in the table but we will
-			// not issue validation work for it.
-			//
-			// Act as though we've issued a statement.
-			self.issued_statements.insert(candidate_hash);
-			return Ok(())
-		}
 
 		let bg_sender = ctx.sender().clone();
 		let pov = PoVData::FetchFromValidator {

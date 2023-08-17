@@ -568,7 +568,7 @@ fn assert_backend_contains<'a>(
 
 fn assert_backend_contains_chains(backend: &TestBackend, chains: Vec<Vec<(Header, BlockWeight)>>) {
 	for chain in chains {
-		assert_backend_contains(backend, chain.iter().map(|&(ref hdr, _)| hdr))
+		assert_backend_contains(backend, chain.iter().map(|(hdr, _)| hdr))
 	}
 }
 
@@ -688,7 +688,7 @@ fn import_chain_on_finalized_incrementally() {
 		.await;
 
 		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 1);
-		assert_backend_contains(&backend, chain.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![head_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![head_hash]).await;
 
@@ -721,8 +721,8 @@ fn import_two_subtrees_on_finalized() {
 		import_blocks_into(&mut virtual_overseer, &backend, None, chain_b.clone()).await;
 
 		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 1);
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
-		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![b_hash, a_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![b_hash, a_hash]).await;
 
@@ -755,8 +755,8 @@ fn import_two_subtrees_on_nonzero_finalized() {
 		import_blocks_into(&mut virtual_overseer, &backend, None, chain_b.clone()).await;
 
 		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 101);
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
-		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![b_hash, a_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![b_hash, a_hash]).await;
 
@@ -799,9 +799,9 @@ fn leaves_ordered_by_weight_and_then_number() {
 		.await;
 
 		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 1);
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
-		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
-		assert_backend_contains(&backend, chain_c.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|(h, _)| h));
+		assert_backend_contains(&backend, chain_c.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![c2_hash, a3_hash, b2_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![c2_hash, a3_hash, b2_hash]).await;
 		virtual_overseer
@@ -844,8 +844,8 @@ fn subtrees_imported_even_with_gaps() {
 		.await;
 
 		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 1);
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
-		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![b5_hash, a3_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![b5_hash, a3_hash]).await;
 
@@ -878,7 +878,7 @@ fn reversion_removes_viability_of_chain() {
 		)
 		.await;
 
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![]);
 		assert_finalized_leaves_query(&mut virtual_overseer, finalized_number, finalized_hash)
 			.await;
@@ -914,7 +914,7 @@ fn reversion_removes_viability_and_finds_ancestor_as_leaf() {
 		)
 		.await;
 
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![a1_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![a1_hash]).await;
 
@@ -954,15 +954,15 @@ fn ancestor_of_unviable_is_not_leaf_if_has_children() {
 
 		import_blocks_into(&mut virtual_overseer, &backend, None, chain_b.clone()).await;
 
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
-		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![a2_hash, b2_hash]);
 
 		import_blocks_into(&mut virtual_overseer, &backend, None, chain_a_ext.clone()).await;
 
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
-		assert_backend_contains(&backend, chain_a_ext.iter().map(|&(ref h, _)| h));
-		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
+		assert_backend_contains(&backend, chain_a_ext.iter().map(|(h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![b2_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![b2_hash]).await;
 
@@ -995,7 +995,7 @@ fn self_and_future_reversions_are_ignored() {
 		)
 		.await;
 
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![a3_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![a3_hash]).await;
 
@@ -1028,7 +1028,7 @@ fn revert_finalized_is_ignored() {
 		)
 		.await;
 
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![a3_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![a3_hash]).await;
 
@@ -1072,8 +1072,8 @@ fn reversion_affects_viability_of_all_subtrees() {
 
 		import_blocks_into(&mut virtual_overseer, &backend, None, chain_b.clone()).await;
 
-		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
-		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a.iter().map(|(h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![a1_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![a1_hash]).await;
 
@@ -2034,12 +2034,12 @@ fn revert_blocks_message_triggers_proper_reversion() {
 		.await;
 
 		// Checking mini chain
-		assert_backend_contains(&backend, built_chain.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, built_chain.iter().map(|(h, _)| h));
 		assert_leaves(&backend, vec![head_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![head_hash]).await;
 
-		let block_1_hash = backend.load_blocks_by_number(1).unwrap().get(0).unwrap().clone();
-		let block_2_hash = backend.load_blocks_by_number(2).unwrap().get(0).unwrap().clone();
+		let block_1_hash = *backend.load_blocks_by_number(1).unwrap().get(0).unwrap();
+		let block_2_hash = *backend.load_blocks_by_number(2).unwrap().get(0).unwrap();
 
 		// Sending revert blocks message
 		let (_, write_rx) = backend.await_next_write();
@@ -2098,7 +2098,7 @@ fn revert_blocks_against_finalized_is_ignored() {
 		.await;
 
 		// Checking mini chain
-		assert_backend_contains(&backend, built_chain.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, built_chain.iter().map(|(h, _)| h));
 
 		// Sending dispute concluded against message
 		virtual_overseer

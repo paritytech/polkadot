@@ -17,13 +17,13 @@
 //! The inclusion pallet is responsible for inclusion and availability of scheduled parachains
 //! and parathreads.
 //!
-//! It is responsible for carrying candidates from being backable to being backed, and then from backed
-//! to included.
+//! It is responsible for carrying candidates from being backable to being backed, and then from
+//! backed to included.
 
 use crate::{
 	configuration::{self, HostConfiguration},
 	disputes, dmp, hrmp, paras,
-	scheduler::CoreAssignment,
+	scheduler::common::CoreAssignment,
 	shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
@@ -76,8 +76,8 @@ impl WeightInfo for () {
 
 /// Maximum value that `config.max_upward_message_size` can be set to.
 ///
-/// This is used for benchmarking sanely bounding relevant storage items. It is expected from the `configuration`
-/// pallet to check these values before setting.
+/// This is used for benchmarking sanely bounding relevant storage items. It is expected from the
+/// `configuration` pallet to check these values before setting.
 pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 128 * 1024;
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
@@ -178,7 +178,7 @@ pub trait RewardValidators {
 #[derive(Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub(crate) struct ProcessedCandidates<H = Hash> {
-	pub(crate) core_indices: Vec<CoreIndex>,
+	pub(crate) core_indices: Vec<(CoreIndex, ParaId)>,
 	pub(crate) candidate_receipt_with_backing_validator_indices:
 		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidityAttestation)>)>,
 }
@@ -322,8 +322,6 @@ pub mod pallet {
 		UnscheduledCandidate,
 		/// Candidate scheduled despite pending candidate already existing for the para.
 		CandidateScheduledBeforeParaFree,
-		/// Candidate included with the wrong collator.
-		WrongCollator,
 		/// Scheduled cores out of order.
 		ScheduledOutOfOrder,
 		/// Head data exceeds the configured maximum.
@@ -354,8 +352,8 @@ pub mod pallet {
 		InvalidOutboundHrmp,
 		/// The validation code hash of the candidate is not valid.
 		InvalidValidationCodeHash,
-		/// The `para_head` hash in the candidate descriptor doesn't match the hash of the actual para head in the
-		/// commitments.
+		/// The `para_head` hash in the candidate descriptor doesn't match the hash of the actual
+		/// para head in the commitments.
 		ParaHeadMismatch,
 		/// A bitfield that references a freed core,
 		/// either intentionally or as part of a concluded
@@ -492,8 +490,8 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
 	///
-	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
-	/// and cores free.
+	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became
+	/// available, and cores free.
 	pub(crate) fn update_pending_availability_and_get_freed_cores<F>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
@@ -530,8 +528,8 @@ impl<T: Config> Pallet<T> {
 					continue
 				};
 
-				// defensive check - this is constructed by loading the availability bitfield record,
-				// which is always `Some` if the core is occupied - that's why we're here.
+				// defensive check - this is constructed by loading the availability bitfield
+				// record, which is always `Some` if the core is occupied - that's why we're here.
 				let validator_index = validator_index.0 as usize;
 				if let Some(mut bit) =
 					pending_availability.as_mut().and_then(|candidate_pending_availability| {
@@ -591,15 +589,15 @@ impl<T: Config> Pallet<T> {
 		freed_cores
 	}
 
-	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
-	/// and scheduled cores.
+	/// Process candidates that have been backed. Provide the relay storage root, a set of
+	/// candidates and scheduled cores.
 	///
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
 	pub(crate) fn process_candidates<GV>(
 		parent_storage_root: T::Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
-		scheduled: Vec<CoreAssignment>,
+		scheduled: Vec<CoreAssignment<BlockNumberFor<T>>>,
 		group_validators: GV,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
@@ -630,15 +628,16 @@ impl<T: Config> Pallet<T> {
 			let mut core_indices_and_backers = Vec::with_capacity(candidates.len());
 			let mut last_core = None;
 
-			let mut check_assignment_in_order = |assignment: &CoreAssignment| -> DispatchResult {
-				ensure!(
-					last_core.map_or(true, |core| assignment.core > core),
-					Error::<T>::ScheduledOutOfOrder,
-				);
+			let mut check_assignment_in_order =
+				|assignment: &CoreAssignment<BlockNumberFor<T>>| -> DispatchResult {
+					ensure!(
+						last_core.map_or(true, |core| assignment.core > core),
+						Error::<T>::ScheduledOutOfOrder,
+					);
 
-				last_core = Some(assignment.core);
-				Ok(())
-			};
+					last_core = Some(assignment.core);
+					Ok(())
+				};
 
 			let signing_context =
 				SigningContext { parent_hash, session_index: shared::Pallet::<T>::session_index() };
@@ -680,17 +679,10 @@ impl<T: Config> Pallet<T> {
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
-				for (i, assignment) in scheduled[skip..].iter().enumerate() {
-					check_assignment_in_order(assignment)?;
+				for (i, core_assignment) in scheduled[skip..].iter().enumerate() {
+					check_assignment_in_order(core_assignment)?;
 
-					if para_id == assignment.para_id {
-						if let Some(required_collator) = assignment.required_collator() {
-							ensure!(
-								required_collator == &backed_candidate.descriptor().collator,
-								Error::<T>::WrongCollator,
-							);
-						}
-
+					if para_id == core_assignment.paras_entry.para_id() {
 						ensure!(
 							<PendingAvailability<T>>::get(&para_id).is_none() &&
 								<PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),
@@ -700,7 +692,7 @@ impl<T: Config> Pallet<T> {
 						// account for already skipped, and then skip this one.
 						skip = i + skip + 1;
 
-						let group_vals = group_validators(assignment.group_idx)
+						let group_vals = group_validators(core_assignment.group_idx)
 							.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
 
 						// check the signatures in the backing and that it is a majority.
@@ -752,9 +744,9 @@ impl<T: Config> Pallet<T> {
 						}
 
 						core_indices_and_backers.push((
-							assignment.core,
+							(core_assignment.core, core_assignment.paras_entry.para_id()),
 							backers,
-							assignment.group_idx,
+							core_assignment.group_idx,
 						));
 						continue 'next_backed_candidate
 					}
@@ -788,7 +780,7 @@ impl<T: Config> Pallet<T> {
 			Self::deposit_event(Event::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
 				candidate.candidate.commitments.head_data.clone(),
-				core,
+				core.0,
 				group,
 			));
 
@@ -800,7 +792,7 @@ impl<T: Config> Pallet<T> {
 			<PendingAvailability<T>>::insert(
 				&para_id,
 				CandidatePendingAvailability {
-					core,
+					core: core.0,
 					hash: candidate_hash,
 					descriptor,
 					availability_votes,
@@ -968,7 +960,8 @@ impl<T: Config> Pallet<T> {
 				})
 			}
 			// make sure that the queue is not overfilled.
-			// we do it here only once since returning false invalidates the whole relay-chain block.
+			// we do it here only once since returning false invalidates the whole relay-chain
+			// block.
 			if para_queue_size.saturating_add(msg_size as u64) > config.max_upward_queue_size as u64
 			{
 				return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {

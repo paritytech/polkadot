@@ -53,7 +53,7 @@ struct TestClock {
 
 impl TestClock {
 	fn now(&self) -> Duration {
-		self.inner.lock().clone()
+		*self.inner.lock()
 	}
 
 	fn inc(&self, by: Duration) {

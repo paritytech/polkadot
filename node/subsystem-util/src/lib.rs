@@ -20,7 +20,8 @@
 //! or determining what their validator ID is. These common interests are factored into
 //! this module.
 //!
-//! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
+//! This crate also reexports Prometheus metric types which are expected to be implemented by
+//! subsystems.
 
 #![warn(missing_docs)]
 
@@ -60,7 +61,8 @@ pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
 pub use determine_new_blocks::determine_new_blocks;
 
-/// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
+/// These reexports are required so that external crates can use the `delegated_subsystem` macro
+/// properly.
 pub mod reexports {
 	pub use polkadot_overseer::gen::{SpawnedSubsystem, Spawner, Subsystem, SubsystemContext};
 }
@@ -367,7 +369,8 @@ pub struct Validator {
 }
 
 impl Validator {
-	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
+	/// Get a struct representing this node's validator if this node is in fact a validator in the
+	/// context of the given block.
 	pub async fn new<S>(parent: Hash, keystore: KeystorePtr, sender: &mut S) -> Result<Self, Error>
 	where
 		S: SubsystemSender<RuntimeApiMessage>,

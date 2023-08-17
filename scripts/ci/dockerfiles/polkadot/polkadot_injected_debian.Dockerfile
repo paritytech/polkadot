@@ -11,7 +11,7 @@ LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
 	io.parity.image.title="parity/polkadot" \
 	io.parity.image.description="Polkadot: a platform for web3. This is the official Parity image with an injected binary." \
-	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/ci/dockerfiles/polkadot_injected_release.Dockerfile" \
+	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/ci/dockerfiles/polkadot/polkadot_injected_debian.Dockerfile" \
 	io.parity.image.revision="${VCS_REF}" \
 	io.parity.image.created="${BUILD_DATE}" \
 	io.parity.image.documentation="https://github.com/paritytech/polkadot/"
@@ -44,6 +44,8 @@ USER polkadot
 
 # check if executable works in this container
 RUN /usr/bin/polkadot --version
+RUN /usr/bin/polkadot-execute-worker --version
+RUN /usr/bin/polkadot-prepare-worker --version
 
 EXPOSE 30333 9933 9944
 VOLUME ["/polkadot"]

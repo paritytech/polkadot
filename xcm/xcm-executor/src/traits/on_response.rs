@@ -107,11 +107,14 @@ impl VersionChangeNotifier for () {
 /// The possible state of an XCM query response.
 #[derive(Debug, PartialEq, Eq)]
 pub enum QueryResponseStatus<BlockNumber> {
-	/// The response has arrived, and includes the inner Response and the block number it arrived at.
+	/// The response has arrived, and includes the inner Response and the block number it arrived
+	/// at.
 	Ready { response: Response, at: BlockNumber },
-	/// The response has not yet arrived, the XCM might still be executing or the response might be in transit.
+	/// The response has not yet arrived, the XCM might still be executing or the response might be
+	/// in transit.
 	Pending { timeout: BlockNumber },
-	/// No response with the given `QueryId` was found, or the response was already queried and removed from local storage.
+	/// No response with the given `QueryId` was found, or the response was already queried and
+	/// removed from local storage.
 	NotFound,
 	/// Got an unexpected XCM version.
 	UnexpectedVersion,
@@ -144,7 +147,8 @@ pub trait QueryHandler {
 	///
 	/// - `message`: The message whose outcome should be reported.
 	/// - `responder`: The origin from which a response should be expected.
-	/// - `timeout`: The block number after which it is permissible to return `NotFound` from `take_response`.
+	/// - `timeout`: The block number after which it is permissible to return `NotFound` from
+	///   `take_response`.
 	///
 	/// `report_outcome` may return an error if the `responder` is not invertible.
 	///

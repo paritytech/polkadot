@@ -17,7 +17,8 @@
 //! This module is responsible for maintaining a consistent initialization order for all other
 //! parachains modules. It's also responsible for finalization and session change notifications.
 //!
-//! This module can throw fatal errors if session-change notifications are received after initialization.
+//! This module can throw fatal errors if session-change notifications are received after
+//! initialization.
 
 use crate::{
 	configuration::{self, HostConfiguration},
@@ -128,9 +129,9 @@ pub mod pallet {
 	/// Semantically a `bool`, but this guarantees it should never hit the trie,
 	/// as this is cleared in `on_finalize` and Frame optimizes `None` values to be empty values.
 	///
-	/// As a `bool`, `set(false)` and `remove()` both lead to the next `get()` being false, but one of
-	/// them writes to the trie and one does not. This confusion makes `Option<()>` more suitable for
-	/// the semantics of this variable.
+	/// As a `bool`, `set(false)` and `remove()` both lead to the next `get()` being false, but one
+	/// of them writes to the trie and one does not. This confusion makes `Option<()>` more suitable
+	/// for the semantics of this variable.
 	#[pallet::storage]
 	pub(super) type HasInitialized<T: Config> = StorageValue<_, ()>;
 
@@ -190,7 +191,8 @@ pub mod pallet {
 			// Apply buffered session changes as the last thing. This way the runtime APIs and the
 			// next block will observe the next session.
 			//
-			// Note that we only apply the last session as all others lasted less than a block (weirdly).
+			// Note that we only apply the last session as all others lasted less than a block
+			// (weirdly).
 			if let Some(BufferedSessionChange { session_index, validators, queued }) =
 				BufferedSessionChanges::<T>::take().pop()
 			{
@@ -237,6 +239,9 @@ impl<T: Config> Pallet<T> {
 			buf[..len].copy_from_slice(&random_hash.as_ref()[..len]);
 			buf
 		};
+
+		// inform about upcoming new session
+		scheduler::Pallet::<T>::pre_new_session();
 
 		let configuration::SessionChangeOutcome { prev_config, new_config } =
 			configuration::Pallet::<T>::initializer_on_new_session(&session_index);

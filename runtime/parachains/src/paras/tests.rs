@@ -280,7 +280,6 @@ fn para_past_code_pruning_in_initialize() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -333,7 +332,6 @@ fn note_new_head_sets_head() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -375,7 +373,6 @@ fn note_past_code_sets_up_pruning_correctly() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -424,7 +421,6 @@ fn code_upgrade_applied_after_delay() {
 				validation_upgrade_cooldown,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -537,7 +533,6 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 				validation_upgrade_cooldown,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -620,7 +615,6 @@ fn submit_code_change_when_not_allowed_is_err() {
 				validation_upgrade_cooldown,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -649,7 +643,8 @@ fn submit_code_change_when_not_allowed_is_err() {
 		Paras::schedule_code_upgrade(para_id, newer_code.clone(), 2, &Configuration::config());
 		assert_eq!(
 			FutureCodeUpgrades::<Test>::get(&para_id),
-			Some(1 + validation_upgrade_delay), // did not change since the same assertion from the last time.
+			Some(1 + validation_upgrade_delay), /* did not change since the same assertion from
+			                                     * the last time. */
 		);
 		assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 		check_code_is_not_stored(&newer_code);
@@ -690,7 +685,6 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 				validation_upgrade_cooldown,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -752,11 +746,9 @@ fn full_parachain_cleanup_storage() {
 				minimum_validation_upgrade_delay: 2,
 				// Those are not relevant to this test. However, HostConfiguration is still a
 				// subject for the consistency check.
-				chain_availability_period: 1,
-				thread_availability_period: 1,
+				paras_availability_period: 1,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1012,7 +1004,6 @@ fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 				validation_upgrade_delay,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1103,7 +1094,6 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { validation_upgrade_delay, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1168,7 +1158,6 @@ fn pvf_check_onboarding_reject_on_expiry() {
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { pvf_voting_ttl, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1554,8 +1543,9 @@ fn increase_code_ref_doesnt_have_allergy_on_add_trusted_validation_code() {
 
 #[test]
 fn add_trusted_validation_code_insta_approval() {
-	// In particular, this tests that `kick_off_pvf_check` reacts to the `add_trusted_validation_code`
-	// and uses the `CodeByHash::contains_key` which is what `add_trusted_validation_code` uses.
+	// In particular, this tests that `kick_off_pvf_check` reacts to the
+	// `add_trusted_validation_code` and uses the `CodeByHash::contains_key` which is what
+	// `add_trusted_validation_code` uses.
 	let para_id = 100.into();
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	let validation_upgrade_delay = 25;
@@ -1567,7 +1557,6 @@ fn add_trusted_validation_code_insta_approval() {
 				minimum_validation_upgrade_delay,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1609,7 +1598,6 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 				minimum_validation_upgrade_delay,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};

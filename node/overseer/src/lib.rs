@@ -211,10 +211,10 @@ impl Handle {
 
 	/// Wait for a block with the given hash to be in the active-leaves set.
 	///
-	/// The response channel responds if the hash was activated and is closed if the hash was deactivated.
-	/// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
-	/// the response channel may never return if the hash was deactivated before this call.
-	/// In this case, it's the caller's responsibility to ensure a timeout is set.
+	/// The response channel responds if the hash was activated and is closed if the hash was
+	/// deactivated. Note that due the fact the overseer doesn't store the whole active-leaves set,
+	/// only deltas, the response channel may never return if the hash was deactivated before this
+	/// call. In this case, it's the caller's responsibility to ensure a timeout is set.
 	pub async fn wait_for_activation(
 		&mut self,
 		hash: Hash,
@@ -355,7 +355,6 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 ///                         +-----------+
 ///                         |           |
 ///                         +-----------+
-///
 /// ```
 ///
 /// [`Subsystem`]: trait.Subsystem.html
@@ -363,8 +362,8 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # Example
 ///
 /// The [`Subsystems`] may be any type as long as they implement an expected interface.
-/// Here, we create a mock validation subsystem and a few dummy ones and start the `Overseer` with them.
-/// For the sake of simplicity the termination of the example is done with a timeout.
+/// Here, we create a mock validation subsystem and a few dummy ones and start the `Overseer` with
+/// them. For the sake of simplicity the termination of the example is done with a timeout.
 /// ```
 /// # use std::time::Duration;
 /// # use futures::{executor, pin_mut, select, FutureExt};
@@ -394,11 +393,11 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// impl<Ctx> overseer::Subsystem<Ctx, SubsystemError> for ValidationSubsystem
 /// where
 ///     Ctx: overseer::SubsystemContext<
-///				Message=CandidateValidationMessage,
-///				AllMessages=AllMessages,
-///				Signal=OverseerSignal,
-///				Error=SubsystemError,
-///			>,
+/// 				Message=CandidateValidationMessage,
+/// 				AllMessages=AllMessages,
+/// 				Signal=OverseerSignal,
+/// 				Error=SubsystemError,
+/// 			>,
 /// {
 ///     fn start(
 ///         self,
@@ -426,10 +425,10 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 ///
 /// let spawner = sp_core::testing::TaskExecutor::new();
 /// let (overseer, _handle) = dummy_overseer_builder(spawner, AlwaysSupportsParachains, None)
-///		.unwrap()
-///		.replace_candidate_validation(|_| ValidationSubsystem)
-///		.build()
-///		.unwrap();
+/// 		.unwrap()
+/// 		.replace_candidate_validation(|_| ValidationSubsystem)
+/// 		.build()
+/// 		.unwrap();
 ///
 /// let timer = Delay::new(Duration::from_millis(50)).fuse();
 ///
@@ -825,7 +824,8 @@ where
 
 		// If there are no leaves being deactivated, we don't need to send an update.
 		//
-		// Our peers will be informed about our finalized block the next time we activating/deactivating some leaf.
+		// Our peers will be informed about our finalized block the next time we
+		// activating/deactivating some leaf.
 		if !update.is_empty() {
 			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 		}

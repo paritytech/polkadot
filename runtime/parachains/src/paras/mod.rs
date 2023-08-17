@@ -43,10 +43,10 @@
 //!
 //! The conditions that must be met before the para can use the new validation code are:
 //!
-//! 1. The validation code should have been "soaked" in the storage for a given number of blocks. That
-//!    is, the validation code should have been stored in on-chain storage for some time, so that in
-//!    case of a revert with a non-extreme height difference, that validation code can still be
-//!    found on-chain.
+//! 1. The validation code should have been "soaked" in the storage for a given number of blocks.
+//! That    is, the validation code should have been stored in on-chain storage for some time, so
+//! that in    case of a revert with a non-extreme height difference, that validation code can still
+//! be    found on-chain.
 //!
 //! 2. The validation code was vetted by the validators and declared as non-malicious in a processes
 //!    known as PVF pre-checking.
@@ -105,7 +105,6 @@
 //! start──────▶│reset│
 //!             └─────┘
 //! ```
-//!
 
 use crate::{
 	configuration,
@@ -152,8 +151,8 @@ pub struct ReplacementTimes<N> {
 	/// first parablock included with a relay-parent with number >= this value.
 	expected_at: N,
 	/// The relay-chain block number at which the parablock activating the code upgrade was
-	/// actually included. This means considered included and available, so this is the time at which
-	/// that parablock enters the acceptance period in this fork of the relay-chain.
+	/// actually included. This means considered included and available, so this is the time at
+	/// which that parablock enters the acceptance period in this fork of the relay-chain.
 	activated_at: N,
 }
 
@@ -260,7 +259,7 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// of the para.
 	#[cfg(test)]
 	fn most_recent_change(&self) -> Option<N> {
-		self.upgrade_times.last().map(|x| x.expected_at.clone())
+		self.upgrade_times.last().map(|x| x.expected_at)
 	}
 
 	// prunes all code upgrade logs occurring at or before `max`.
@@ -332,7 +331,8 @@ impl<'de> Deserialize<'de> for ParaKind {
 	}
 }
 
-// Manual encoding, decoding, and TypeInfo as the parakind field in ParaGenesisArgs used to be a bool
+// Manual encoding, decoding, and TypeInfo as the parakind field in ParaGenesisArgs used to be a
+// bool
 impl Encode for ParaKind {
 	fn size_hint(&self) -> usize {
 		true.size_hint()
@@ -373,12 +373,15 @@ pub(crate) enum PvfCheckCause<BlockNumber> {
 	Onboarding(ParaId),
 	/// PVF vote was initiated by signalling of an upgrade by the given para.
 	Upgrade {
-		/// The ID of the parachain that initiated or is waiting for the conclusion of pre-checking.
+		/// The ID of the parachain that initiated or is waiting for the conclusion of
+		/// pre-checking.
 		id: ParaId,
-		/// The relay-chain block number of **inclusion** of candidate that that initiated the upgrade.
+		/// The relay-chain block number of **inclusion** of candidate that that initiated the
+		/// upgrade.
 		///
-		/// It's important to count upgrade enactment delay from the inclusion of this candidate instead
-		/// of its relay parent -- in order to keep PVF available in case of chain reversions.
+		/// It's important to count upgrade enactment delay from the inclusion of this candidate
+		/// instead of its relay parent -- in order to keep PVF available in case of chain
+		/// reversions.
 		///
 		/// See https://github.com/paritytech/polkadot/issues/4601 for detailed explanation.
 		included_at: BlockNumber,
@@ -681,11 +684,11 @@ pub mod pallet {
 	pub(super) type PastCodeMeta<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ParaPastCodeMeta<BlockNumberFor<T>>, ValueQuery>;
 
-	/// Which paras have past code that needs pruning and the relay-chain block at which the code was replaced.
-	/// Note that this is the actual height of the included block, not the expected height at which the
-	/// code upgrade would be applied, although they may be equal.
-	/// This is to ensure the entire acceptance period is covered, not an offset acceptance period starting
-	/// from the time at which the parachain perceives a code upgrade as having occurred.
+	/// Which paras have past code that needs pruning and the relay-chain block at which the code
+	/// was replaced. Note that this is the actual height of the included block, not the expected
+	/// height at which the code upgrade would be applied, although they may be equal.
+	/// This is to ensure the entire acceptance period is covered, not an offset acceptance period
+	/// starting from the time at which the parachain perceives a code upgrade as having occurred.
 	/// Multiple entries for a single para are permitted. Ordered ascending by block number.
 	#[pallet::storage]
 	pub(super) type PastCodePruning<T: Config> =
@@ -706,12 +709,13 @@ pub mod pallet {
 	pub(super) type FutureCodeHash<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ValidationCodeHash>;
 
-	/// This is used by the relay-chain to communicate to a parachain a go-ahead with in the upgrade procedure.
+	/// This is used by the relay-chain to communicate to a parachain a go-ahead with in the upgrade
+	/// procedure.
 	///
 	/// This value is absent when there are no upgrades scheduled or during the time the relay chain
-	/// performs the checks. It is set at the first relay-chain block when the corresponding parachain
-	/// can switch its upgrade function. As soon as the parachain's block is included, the value
-	/// gets reset to `None`.
+	/// performs the checks. It is set at the first relay-chain block when the corresponding
+	/// parachain can switch its upgrade function. As soon as the parachain's block is included, the
+	/// value gets reset to `None`.
 	///
 	/// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
 	/// the format will require migration of parachains.
@@ -896,8 +900,9 @@ pub mod pallet {
 		/// Otherwise, the code will be added into the storage. Note that the code will be added
 		/// into storage with reference count 0. This is to account the fact that there are no users
 		/// for this code yet. The caller will have to make sure that this code eventually gets
-		/// used by some parachain or removed from the storage to avoid storage leaks. For the latter
-		/// prefer to use the `poke_unused_validation_code` dispatchable to raw storage manipulation.
+		/// used by some parachain or removed from the storage to avoid storage leaks. For the
+		/// latter prefer to use the `poke_unused_validation_code` dispatchable to raw storage
+		/// manipulation.
 		///
 		/// This function is mainly meant to be used for upgrading parachains that do not follow
 		/// the go-ahead signal while the PVF pre-checking feature is enabled.
@@ -1569,10 +1574,11 @@ impl<T: Config> Pallet<T> {
 
 			match cause {
 				PvfCheckCause::Onboarding(id) => {
-					// Here we need to undo everything that was done during `schedule_para_initialize`.
-					// Essentially, the logic is similar to offboarding, with exception that before
-					// actual onboarding the parachain did not have a chance to reach to upgrades.
-					// Therefore we can skip all the upgrade related storage items here.
+					// Here we need to undo everything that was done during
+					// `schedule_para_initialize`. Essentially, the logic is similar to offboarding,
+					// with exception that before actual onboarding the parachain did not have a
+					// chance to reach to upgrades. Therefore we can skip all the upgrade related
+					// storage items here.
 					weight += T::DbWeight::get().writes(3);
 					UpcomingParasGenesis::<T>::remove(&id);
 					CurrentCodeHash::<T>::remove(&id);
@@ -1629,8 +1635,8 @@ impl<T: Config> Pallet<T> {
 		//
 		// - Doing it within the context of the PR that introduces this change is undesirable, since
 		//   it is already a big change, and that change would require a migration. Moreover, if we
-		//   run the new version of the runtime, there will be less things to worry about during
-		//   the eventual proper migration.
+		//   run the new version of the runtime, there will be less things to worry about during the
+		//   eventual proper migration.
 		//
 		// - This data type already is used for generating genesis, and changing it will probably
 		//   introduce some unnecessary burden.
@@ -1641,8 +1647,8 @@ impl<T: Config> Pallet<T> {
 		//   get rid of hashing of the validation code when onboarding.
 		//
 		// - Replace `validation_code` with a sentinel value: an empty vector. This should be fine
-		//   as long we do not allow registering parachains with empty code. At the moment of writing
-		//   this should already be the case.
+		//   as long we do not allow registering parachains with empty code. At the moment of
+		//   writing this should already be the case.
 		//
 		// - Empty value is treated as the current code is already inserted during the onboarding.
 		//
@@ -1670,7 +1676,8 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Will return error if either is true:
 	///
-	/// - para is not a stable parachain or parathread (i.e. [`ParaLifecycle::is_stable`] is `false`)
+	/// - para is not a stable parachain or parathread (i.e. [`ParaLifecycle::is_stable`] is
+	///   `false`)
 	/// - para has a pending upgrade.
 	/// - para has unprocessed messages in its UMP queue.
 	///
@@ -1683,7 +1690,8 @@ impl<T: Config> Pallet<T> {
 		// ongoing PVF pre-checking votes. It also removes some nasty edge cases.
 		//
 		// However, an upcoming upgrade on its own imposes no restrictions. An upgrade is enacted
-		// with a new para head, so if a para never progresses we still should be able to offboard it.
+		// with a new para head, so if a para never progresses we still should be able to offboard
+		// it.
 		//
 		// This implicitly assumes that the given para exists, i.e. it's lifecycle != None.
 		if let Some(future_code_hash) = FutureCodeHash::<T>::get(&id) {
@@ -1768,13 +1776,14 @@ impl<T: Config> Pallet<T> {
 	/// the relay-chain block number will be determined at which the upgrade will take place. We
 	/// call that block `expected_at`.
 	///
-	/// Once the candidate with the relay-parent >= `expected_at` is enacted, the new validation code
-	/// will be applied. Therefore, the new code will be used to validate the next candidate.
+	/// Once the candidate with the relay-parent >= `expected_at` is enacted, the new validation
+	/// code will be applied. Therefore, the new code will be used to validate the next candidate.
 	///
 	/// The new code should not be equal to the current one, otherwise the upgrade will be aborted.
 	/// If there is already a scheduled code upgrade for the para, this is a no-op.
 	///
-	/// Inclusion block number specifies relay parent which enacted candidate initiating the upgrade.
+	/// Inclusion block number specifies relay parent which enacted candidate initiating the
+	/// upgrade.
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
 		new_code: ValidationCode,
@@ -1905,8 +1914,8 @@ impl<T: Config> Pallet<T> {
 		// We increase the code RC here in any case. Intuitively the parachain that requested this
 		// action is now a user of that PVF.
 		//
-		// If the result of the pre-checking is reject, then we would decrease the RC for each cause,
-		// including the current.
+		// If the result of the pre-checking is reject, then we would decrease the RC for each
+		// cause, including the current.
 		//
 		// If the result of the pre-checking is accept, then we do nothing to the RC because the PVF
 		// will continue be used by the same users.
@@ -1918,9 +1927,9 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
-	/// Note that a para has progressed to a new head, where the new head was executed in the context
-	/// of a relay-chain block with given number. This will apply pending code upgrades based
-	/// on the relay-parent block number provided.
+	/// Note that a para has progressed to a new head, where the new head was executed in the
+	/// context of a relay-chain block with given number. This will apply pending code upgrades
+	/// based on the relay-parent block number provided.
 	pub(crate) fn note_new_head(
 		id: ParaId,
 		new_head: HeadData,

@@ -110,8 +110,8 @@ impl PerLeafSpan {
 	/// Creates a new instance.
 	///
 	/// Takes the `leaf_span` that is created by the overseer per leaf and a name for a child span.
-	/// Both will be stored in this object, while the child span is implicitly accessible by using the
-	/// [`Deref`](std::ops::Deref) implementation.
+	/// Both will be stored in this object, while the child span is implicitly accessible by using
+	/// the [`Deref`](std::ops::Deref) implementation.
 	pub fn new(leaf_span: Arc<Span>, name: &'static str) -> Self {
 		let span = leaf_span.child(name);
 

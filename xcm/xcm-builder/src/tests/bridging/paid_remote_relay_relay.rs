@@ -80,7 +80,8 @@ fn sending_to_bridged_chain_works() {
 		)];
 		assert_eq!(take_received_remote_messages(), expected);
 
-		// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of balance).
+		// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of
+		// balance).
 		assert_eq!(asset_list(Parachain(100)), vec![(Here, 1000u128 - price).into()]);
 
 		let entry = LogEntry {
@@ -112,7 +113,7 @@ fn sending_to_bridged_chain_without_funds_fails() {
 	let dest: MultiLocation = (Parent, Parent, Remote::get()).into();
 	// Routing won't work if we don't have enough funds.
 	assert_eq!(
-		send_xcm::<LocalRouter>(dest.clone(), Xcm(vec![Trap(1)])),
+		send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])),
 		Err(SendError::Transport("Error executing")),
 	);
 }
@@ -154,7 +155,8 @@ fn sending_to_parachain_of_bridged_chain_works() {
 		)];
 		assert_eq!(take_received_remote_messages(), expected);
 
-		// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of balance).
+		// The export cost 50 ref time and 50 proof size weight units (and thus 100 units of
+		// balance).
 		assert_eq!(asset_list(Parachain(100)), vec![(Here, 1000u128 - price).into()]);
 
 		let entry = LogEntry {
@@ -186,7 +188,7 @@ fn sending_to_parachain_of_bridged_chain_without_funds_fails() {
 	let dest: MultiLocation = (Parent, Parent, Remote::get(), Parachain(100)).into();
 	// Routing won't work if we don't have enough funds.
 	assert_eq!(
-		send_xcm::<LocalRouter>(dest.clone(), Xcm(vec![Trap(1)])),
+		send_xcm::<LocalRouter>(dest, Xcm(vec![Trap(1)])),
 		Err(SendError::Transport("Error executing")),
 	);
 }

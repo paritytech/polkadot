@@ -58,16 +58,25 @@ fn main() -> Result<()> {
 
 				let full_node = polkadot_service::build_full(
 					config,
-					polkadot_service::IsCollator::Yes(collator.collator_key()),
-					None,
-					false,
-					None,
-					None,
-					false,
-					polkadot_service::RealOverseerGen,
-					None,
-					None,
-					None,
+					polkadot_service::NewFullParams {
+						is_parachain_node: polkadot_service::IsParachainNode::Collator(
+							collator.collator_key(),
+						),
+						grandpa_pause: None,
+						enable_beefy: false,
+						jaeger_agent: None,
+						telemetry_worker_handle: None,
+
+						// Collators don't spawn PVF workers, so we can disable version checks.
+						node_version: None,
+						workers_path: None,
+						workers_names: None,
+
+						overseer_gen: polkadot_service::RealOverseerGen,
+						overseer_message_channel_capacity_override: None,
+						malus_finality_delay: None,
+						hwbench: None,
+					},
 				)
 				.map_err(|e| e.to_string())?;
 				let mut overseer_handle = full_node

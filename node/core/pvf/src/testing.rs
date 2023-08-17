@@ -19,7 +19,6 @@
 //! N.B. This is not guarded with some feature flag. Overexposing items here may affect the final
 //!      artifact even for production builds.
 
-#[doc(hidden)]
 pub use crate::worker_intf::{spawn_with_program_path, SpawnErr};
 
 use polkadot_primitives::ExecutorParams;
@@ -58,37 +57,35 @@ macro_rules! decl_puppet_worker_main {
 			$crate::sp_tracing::try_init_simple();
 
 			let args = std::env::args().collect::<Vec<_>>();
-			if args.len() < 3 {
+			if args.len() == 1 {
 				panic!("wrong number of arguments");
 			}
 
-			let mut version = None;
-			let mut socket_path: &str = "";
-
-			for i in 2..args.len() {
-				match args[i].as_ref() {
-					"--socket-path" => socket_path = args[i + 1].as_str(),
-					"--node-version" => version = Some(args[i + 1].as_str()),
-					_ => (),
-				}
-			}
-
-			let subcommand = &args[1];
-			match subcommand.as_ref() {
+			let entrypoint = match args[1].as_ref() {
 				"exit" => {
 					std::process::exit(1);
 				},
 				"sleep" => {
 					std::thread::sleep(std::time::Duration::from_secs(5));
+					return
 				},
-				"prepare-worker" => {
-					$crate::prepare_worker_entrypoint(&socket_path, version);
-				},
-				"execute-worker" => {
-					$crate::execute_worker_entrypoint(&socket_path, version);
-				},
+				"prepare-worker" => $crate::prepare_worker_entrypoint,
+				"execute-worker" => $crate::execute_worker_entrypoint,
 				other => panic!("unknown subcommand: {}", other),
+			};
+
+			let mut node_version = None;
+			let mut socket_path: &str = "";
+
+			for i in (2..args.len()).step_by(2) {
+				match args[i].as_ref() {
+					"--socket-path" => socket_path = args[i + 1].as_str(),
+					"--node-impl-version" => node_version = Some(args[i + 1].as_str()),
+					arg => panic!("Unexpected argument found: {}", arg),
+				}
 			}
+
+			entrypoint(&socket_path, node_version, None);
 		}
 	};
 }
