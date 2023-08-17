@@ -219,7 +219,7 @@ pub mod pallet {
 		/// Means of measuring the weight consumed by an XCM message locally.
 		type Weigher: WeightBounds<<Self as SysConfig>::RuntimeCall>;
 
-		/// Means of approximating the weight consumed by an XCM message on destination.
+		/// Means of approximating the weight consumed by an XCM program at the destination.
 		type DestinationWeigher: UniversalWeigher;
 
 		/// This chain's Universal Location.
