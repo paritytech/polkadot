@@ -174,7 +174,7 @@ fn report_holding_works() {
 }
 
 /// Scenario:
-/// A parachain wants to move KSM from Kusama to Statemine.
+/// A parachain wants to move KSM from Kusama to Asset Hub.
 /// The parachain sends an XCM to withdraw funds combined with a teleport to the destination.
 ///
 /// This way of moving funds from a relay to a parachain will only work for trusted chains.
@@ -182,12 +182,12 @@ fn report_holding_works() {
 ///
 /// Asserts that the balances are updated accordingly and the correct XCM is sent.
 #[test]
-fn teleport_to_statemine_works() {
+fn teleport_to_asset_hub_works() {
 	use xcm::opaque::latest::prelude::*;
 	let para_acc: AccountId = ParaId::from(PARA_ID).into_account_truncating();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
-		let statemine_id = 1000;
+		let asset_hub_id = 1000;
 		let other_para_id = 3000;
 		let amount = REGISTER_AMOUNT;
 		let teleport_effects = vec![
@@ -222,13 +222,13 @@ fn teleport_to_statemine_works() {
 			vec![(Parachain(other_para_id).into(), expected_msg, expected_hash,)]
 		);
 
-		// teleports are allowed from statemine to kusama.
+		// teleports are allowed from asset hub to kusama.
 		let message = Xcm(vec![
 			WithdrawAsset((Here, amount).into()),
 			buy_execution(),
 			InitiateTeleport {
 				assets: All.into(),
-				dest: Parachain(statemine_id).into(),
+				dest: Parachain(asset_hub_id).into(),
 				xcm: Xcm(teleport_effects.clone()),
 			},
 		]);
@@ -246,7 +246,7 @@ fn teleport_to_statemine_works() {
 			mock::sent_xcm(),
 			vec![
 				(Parachain(other_para_id).into(), expected_msg.clone(), expected_hash,),
-				(Parachain(statemine_id).into(), expected_msg, expected_hash,)
+				(Parachain(asset_hub_id).into(), expected_msg, expected_hash,)
 			]
 		);
 	});

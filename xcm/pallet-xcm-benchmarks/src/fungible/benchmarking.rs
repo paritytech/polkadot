@@ -44,15 +44,7 @@ benchmarks_instance_pallet! {
 		let worst_case_holding = T::worst_case_holding(0);
 		let asset = T::get_multi_asset();
 
-		<AssetTransactorOf<T>>::deposit_asset(
-			&asset,
-			&sender_location,
-			&XcmContext {
-				origin: Some(sender_location.clone()),
-				message_id: [0; 32],
-				topic: None,
-			},
-		).unwrap();
+		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location, None).unwrap();
 		// check the assets of origin.
 		assert!(!T::TransactAsset::balance(&sender_account).is_zero());
 
@@ -77,15 +69,7 @@ benchmarks_instance_pallet! {
 		let dest_location = T::valid_destination()?;
 		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 
-		<AssetTransactorOf<T>>::deposit_asset(
-			&asset,
-			&sender_location,
-			&XcmContext {
-				origin: Some(sender_location.clone()),
-				message_id: [0; 32],
-				topic: None,
-			},
-		).unwrap();
+		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location, None).unwrap();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let mut executor = new_executor::<T>(sender_location);
@@ -104,15 +88,7 @@ benchmarks_instance_pallet! {
 		let dest_account = T::AccountIdConverter::convert_location(&dest_location).unwrap();
 
 		let asset = T::get_multi_asset();
-		<AssetTransactorOf<T>>::deposit_asset(
-			&asset,
-			&sender_location,
-			&XcmContext {
-				origin: Some(sender_location.clone()),
-				message_id: [0; 32],
-				topic: None,
-			},
-		).unwrap();
+		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location, None).unwrap();
 		let assets: MultiAssets = vec![ asset ].into();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 

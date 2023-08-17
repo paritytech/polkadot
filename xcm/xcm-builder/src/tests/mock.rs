@@ -252,7 +252,7 @@ impl TransactAsset for TestAssetTransactor {
 	fn deposit_asset(
 		what: &MultiAsset,
 		who: &MultiLocation,
-		_context: &XcmContext,
+		_context: Option<&XcmContext>,
 	) -> Result<(), XcmError> {
 		add_asset(*who, what.clone());
 		Ok(())
@@ -468,7 +468,7 @@ impl FeeManager for TestFeeManager {
 	fn is_waived(_: Option<&MultiLocation>, r: FeeReason) -> bool {
 		IS_WAIVED.with(|l| l.borrow().contains(&r))
 	}
-	fn handle_fee(_: MultiAssets) {}
+	fn handle_fee(_: MultiAssets, _: Option<&XcmContext>) {}
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]

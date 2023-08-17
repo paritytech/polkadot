@@ -31,7 +31,7 @@ use runtime_common::{
 	ToAuthor,
 };
 use sp_core::ConstU32;
-use westend_runtime_constants::currency::CENTS;
+use westend_runtime_constants::{currency::CENTS, system_parachain::*};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
@@ -90,22 +90,27 @@ pub type XcmRouter = WithUniqueTopic<(
 )>;
 
 parameter_types! {
-	pub const Westmint: MultiLocation = Parachain(1000).into_location();
-	pub const Collectives: MultiLocation = Parachain(1001).into_location();
+	pub const AssetHub: MultiLocation = Parachain(ASSET_HUB_ID).into_location();
+	pub const Collectives: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
+	pub const BridgeHub: MultiLocation = Parachain(BRIDGE_HUB_ID).into_location();
 	pub const Wnd: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const WndForWestmint: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Westmint::get());
+	pub const WndForAssetHub: (MultiAssetFilter, MultiLocation) = (Wnd::get(), AssetHub::get());
 	pub const WndForCollectives: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Collectives::get());
+	pub const WndForBridgeHub: (MultiAssetFilter, MultiLocation) = (Wnd::get(), BridgeHub::get());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
 parameter_types! {
-	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(ASSET_HUB_ID).into());
 }
 
-pub type TrustedTeleporters =
-	(xcm_builder::Case<WndForWestmint>, xcm_builder::Case<WndForCollectives>);
+pub type TrustedTeleporters = (
+	xcm_builder::Case<WndForAssetHub>,
+	xcm_builder::Case<WndForCollectives>,
+	xcm_builder::Case<WndForBridgeHub>,
+);
 
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = TrailingSetTopicAsId<(

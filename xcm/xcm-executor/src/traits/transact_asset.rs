@@ -87,7 +87,11 @@ pub trait TransactAsset {
 	/// Deposit the `what` asset into the account of `who`.
 	///
 	/// Implementations should return `XcmError::FailedToTransactAsset` if deposit failed.
-	fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation, _context: &XcmContext) -> XcmResult {
+	fn deposit_asset(
+		_what: &MultiAsset,
+		_who: &MultiLocation,
+		_context: Option<&XcmContext>,
+	) -> XcmResult {
 		Err(XcmError::Unimplemented)
 	}
 
@@ -139,7 +143,7 @@ pub trait TransactAsset {
 			Err(XcmError::AssetNotFound | XcmError::Unimplemented) => {
 				let assets = Self::withdraw_asset(asset, from, Some(context))?;
 				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
-				Self::deposit_asset(asset, to, context)?;
+				Self::deposit_asset(asset, to, Some(context))?;
 				Ok(assets)
 			},
 			result => result,
@@ -195,7 +199,11 @@ impl TransactAsset for Tuple {
 		)* );
 	}
 
-	fn deposit_asset(what: &MultiAsset, who: &MultiLocation, context: &XcmContext) -> XcmResult {
+	fn deposit_asset(
+		what: &MultiAsset,
+		who: &MultiLocation,
+		context: Option<&XcmContext>,
+	) -> XcmResult {
 		for_tuples!( #(
 			match Tuple::deposit_asset(what, who, context) {
 				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
@@ -286,7 +294,7 @@ mod tests {
 		fn deposit_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: &XcmContext,
+			_context: Option<&XcmContext>,
 		) -> XcmResult {
 			Err(XcmError::AssetNotFound)
 		}
@@ -330,7 +338,7 @@ mod tests {
 		fn deposit_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: &XcmContext,
+			_context: Option<&XcmContext>,
 		) -> XcmResult {
 			Err(XcmError::Overflow)
 		}
@@ -374,7 +382,7 @@ mod tests {
 		fn deposit_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
-			_context: &XcmContext,
+			_context: Option<&XcmContext>,
 		) -> XcmResult {
 			Ok(())
 		}
@@ -406,7 +414,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				&XcmContext::with_message_id([0; 32]),
+				Some(&XcmContext::with_message_id([0; 32])),
 			),
 			Err(XcmError::AssetNotFound)
 		);
@@ -420,7 +428,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				&XcmContext::with_message_id([0; 32]),
+				Some(&XcmContext::with_message_id([0; 32])),
 			),
 			Ok(())
 		);
@@ -434,7 +442,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				&XcmContext::with_message_id([0; 32]),
+				Some(&XcmContext::with_message_id([0; 32])),
 			),
 			Err(XcmError::Overflow)
 		);
@@ -448,7 +456,7 @@ mod tests {
 			MultiTransactor::deposit_asset(
 				&(Here, 1u128).into(),
 				&Here.into(),
-				&XcmContext::with_message_id([0; 32]),
+				Some(&XcmContext::with_message_id([0; 32])),
 			),
 			Ok(()),
 		);

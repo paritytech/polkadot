@@ -79,7 +79,11 @@ impl frame_system::Config for Test {
 /// The benchmarks in this pallet should never need an asset transactor to begin with.
 pub struct NoAssetTransactor;
 impl xcm_executor::traits::TransactAsset for NoAssetTransactor {
-	fn deposit_asset(_: &MultiAsset, _: &MultiLocation, _: &XcmContext) -> Result<(), XcmError> {
+	fn deposit_asset(
+		_: &MultiAsset,
+		_: &MultiLocation,
+		_: Option<&XcmContext>,
+	) -> Result<(), XcmError> {
 		unreachable!();
 	}
 

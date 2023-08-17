@@ -15,6 +15,8 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", default-features
 sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
+xcm = { package = "xcm", path = "../../../xcm", default-features = false }
+
 [features]
 default = ["std"]
 std = [
@@ -23,5 +25,6 @@ std = [
 	"runtime-common/std",
 	"sp-core/std",
 	"sp-runtime/std",
-	"sp-weights/std"
+	"sp-weights/std",
+	"xcm/std",
 ]

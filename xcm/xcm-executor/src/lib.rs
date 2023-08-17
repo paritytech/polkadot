@@ -248,7 +248,7 @@ impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Con
 			for asset in fees.inner() {
 				Config::AssetTransactor::withdraw_asset(&asset, &origin, None)?;
 			}
-			Config::FeeManager::handle_fee(fees);
+			Config::FeeManager::handle_fee(fees, None);
 		}
 		Ok(())
 	}
@@ -407,7 +407,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let (ticket, fee) = validate_send::<Config::XcmSender>(dest, msg)?;
 		if !Config::FeeManager::is_waived(self.origin_ref(), reason) {
 			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
-			Config::FeeManager::handle_fee(paid.into());
+			Config::FeeManager::handle_fee(paid.into(), Some(&self.context));
 		}
 		Config::XcmSender::deliver(ticket).map_err(Into::into)
 	}
@@ -618,14 +618,18 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			DepositAsset { assets, beneficiary } => {
 				let deposited = self.holding.saturating_take(assets);
 				for asset in deposited.into_assets_iter() {
-					Config::AssetTransactor::deposit_asset(&asset, &beneficiary, &self.context)?;
+					Config::AssetTransactor::deposit_asset(
+						&asset,
+						&beneficiary,
+						Some(&self.context),
+					)?;
 				}
 				Ok(())
 			},
 			DepositReserveAsset { assets, dest, xcm } => {
 				let deposited = self.holding.saturating_take(assets);
 				for asset in deposited.assets_iter() {
-					Config::AssetTransactor::deposit_asset(&asset, &dest, &self.context)?;
+					Config::AssetTransactor::deposit_asset(&asset, &dest, Some(&self.context))?;
 				}
 				// Note that we pass `None` as `maybe_failed_bin` and drop any assets which cannot
 				// be reanchored  because we have already called `deposit_asset` on all assets.
@@ -953,7 +957,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		} else {
 			self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?.into()
 		};
-		Config::FeeManager::handle_fee(paid);
+		Config::FeeManager::handle_fee(paid, Some(&self.context));
 		Ok(())
 	}
 
@@ -988,7 +992,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let (ticket, fee) = validate_send::<Config::XcmSender>(destination, message)?;
 		if !Config::FeeManager::is_waived(self.origin_ref(), fee_reason) {
 			let paid = self.holding.try_take(fee.into()).map_err(|_| XcmError::NotHoldingFees)?;
-			Config::FeeManager::handle_fee(paid.into());
+			Config::FeeManager::handle_fee(paid.into(), Some(&self.context));
 		}
 		Config::XcmSender::deliver(ticket).map_err(Into::into)
 	}

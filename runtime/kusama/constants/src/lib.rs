@@ -97,6 +97,24 @@ pub mod fee {
 	}
 }
 
+/// System Parachains.
+pub mod system_parachain {
+	use xcm::latest::prelude::*;
+
+	/// Network's Asset Hub parachain ID.
+	pub const ASSET_HUB_ID: u32 = 1000;
+	/// Encointer parachain ID.
+	pub const ENCOINTER_ID: u32 = 1001;
+	/// BridgeHub parachain ID.
+	pub const BRIDGE_HUB_ID: u32 = 1002;
+
+	frame_support::match_types! {
+		pub type SystemParachains: impl Contains<MultiLocation> = {
+			MultiLocation { parents: 0, interior: X1(Parachain(ASSET_HUB_ID | ENCOINTER_ID | BRIDGE_HUB_ID)) }
+		};
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::{

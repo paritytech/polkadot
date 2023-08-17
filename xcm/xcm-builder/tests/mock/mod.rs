@@ -169,13 +169,13 @@ pub type Barrier = (
 );
 
 parameter_types! {
-	pub KusamaForStatemine: (MultiAssetFilter, MultiLocation) =
+	pub KusamaForAssetHub: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { id: Concrete(Here.into()), fun: WildFungible }), Parachain(1000).into());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 4;
 }
 
-pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemine>,);
+pub type TrustedTeleporters = (xcm_builder::Case<KusamaForAssetHub>,);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
