@@ -32,6 +32,8 @@ pub type Nonce = core_primitives::Nonce;
 pub type Hash = core_primitives::Hash;
 /// The header type. We re-export it here, but we can easily get it from block as well.
 pub type Header = core_primitives::Header;
+/// The block type.
+pub type Block = core_primitives::Block;
 
 pub use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 
@@ -44,7 +46,7 @@ pub const LOG_TARGET: &str = "staking-miner";
 pub use pallet_election_provider_multi_phase as EPM;
 
 /// The externalities type.
-pub type Ext = sp_io::TestExternalities;
+pub type Ext = sp_state_machine::TestExternalities<sp_runtime::traits::HashingFor<Block>>;
 
 /// The key pair type being used. We "strongly" assume sr25519 for simplicity.
 pub type Pair = sp_core::sr25519::Pair;

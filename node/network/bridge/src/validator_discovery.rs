@@ -157,7 +157,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 fn extract_peer_ids(multiaddr: impl Iterator<Item = Multiaddr>) -> HashSet<PeerId> {
 	multiaddr
 		.filter_map(|mut addr| match addr.pop() {
-			Some(multiaddr::Protocol::P2p(peer_id)) => Some(peer_id),
+			Some(multiaddr::Protocol::P2p(key)) => PeerId::from_multihash(key).ok(),
 			_ => None,
 		})
 		.collect()
@@ -208,7 +208,7 @@ mod tests {
 			let authorities = known_authorities();
 			let multiaddr = known_multiaddr().into_iter().zip(peer_ids.iter().cloned()).map(
 				|(mut addr, peer_id)| {
-					addr.push(multiaddr::Protocol::P2p(peer_id));
+					addr.push(multiaddr::Protocol::P2p(peer_id.into()));
 					HashSet::from([addr])
 				},
 			);
@@ -311,7 +311,7 @@ mod tests {
 		let (ns, ads) = new_network();
 
 		let authority_ids: Vec<_> =
-			ads.by_peer_id.values().map(|v| v.iter()).flatten().cloned().collect();
+			ads.by_peer_id.values().flat_map(|v| v.iter()).cloned().collect();
 
 		futures::executor::block_on(async move {
 			let (failed, _) = oneshot::channel();
@@ -344,7 +344,7 @@ mod tests {
 		let (ns, ads) = new_network();
 
 		let authority_ids: Vec<_> =
-			ads.by_peer_id.values().map(|v| v.iter()).flatten().cloned().collect();
+			ads.by_peer_id.values().flat_map(|v| v.iter()).cloned().collect();
 
 		futures::executor::block_on(async move {
 			let (failed, failed_rx) = oneshot::channel();
