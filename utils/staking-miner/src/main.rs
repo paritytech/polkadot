@@ -56,7 +56,6 @@ use runtime_versions::RuntimeVersions;
 use signal_hook::consts::signal::*;
 use signal_hook_tokio::Signals;
 use sp_npos_elections::BalancingConfig;
-use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use std::{ops::Deref, sync::Arc, time::Duration};
 use tracing_subscriber::{fmt, EnvFilter};
 
@@ -295,15 +294,13 @@ frame_support::parameter_types! {
 
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
-async fn create_election_ext<T, B>(
+async fn create_election_ext<T>(
 	client: SharedRpcClient,
-	at: Option<B::Hash>,
+	at: Option<Hash>,
 	additional: Vec<String>,
 ) -> Result<Ext, Error<T>>
 where
 	T: EPM::Config,
-	B: BlockT + DeserializeOwned,
-	B::Header: DeserializeOwned,
 {
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
 	use sp_core::hashing::twox_128;
@@ -312,7 +309,7 @@ where
 		.expect("Pallet always has name; qed.")
 		.to_string()];
 	pallets.extend(additional);
-	Builder::<B>::new()
+	Builder::<Block>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: Transport::Uri(client.uri().to_owned()),
 			at,
@@ -323,7 +320,7 @@ where
 		}))
 		.build()
 		.await
-		.map_err(|why| Error::RemoteExternalities(why))
+		.map_err(|why| Error::<T>::RemoteExternalities(why))
 		.map(|rx| rx.inner_ext)
 }
 
