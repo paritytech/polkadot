@@ -188,7 +188,7 @@ impl TestState {
 
 		let activated = if let Some(activated_leaf) = fake_leaf {
 			self.leaves.insert(
-				activated_leaf.block_hash.clone(),
+				activated_leaf.block_hash,
 				LeafState {
 					session_index: self.last_session_index,
 					pvfs: activated_leaf.pvfs.clone(),
@@ -497,9 +497,9 @@ fn reactivating_pvf_leads_to_second_check() {
 	test_harness(|mut test_state, mut handle| {
 		async move {
 			let pvf = dummy_validation_code_hash(1);
-			let block_1 = FakeLeaf::new(dummy_hash(), 1, vec![pvf.clone()]);
+			let block_1 = FakeLeaf::new(dummy_hash(), 1, vec![pvf]);
 			let block_2 = block_1.descendant(vec![]);
-			let block_3 = block_2.descendant(vec![pvf.clone()]);
+			let block_3 = block_2.descendant(vec![pvf]);
 
 			test_state
 				.activate_leaf_with_session(
@@ -552,9 +552,9 @@ fn dont_double_vote_for_pvfs_in_view() {
 	test_harness(|mut test_state, mut handle| {
 		async move {
 			let pvf = dummy_validation_code_hash(1);
-			let block_1_1 = FakeLeaf::new([1; 32].into(), 1, vec![pvf.clone()]);
-			let block_2_1 = FakeLeaf::new([2; 32].into(), 1, vec![pvf.clone()]);
-			let block_1_2 = block_1_1.descendant(vec![pvf.clone()]);
+			let block_1_1 = FakeLeaf::new([1; 32].into(), 1, vec![pvf]);
+			let block_2_1 = FakeLeaf::new([2; 32].into(), 1, vec![pvf]);
+			let block_1_2 = block_1_1.descendant(vec![pvf]);
 
 			test_state
 				.activate_leaf_with_session(
@@ -605,8 +605,8 @@ fn judgements_come_out_of_order() {
 			let pvf_1 = dummy_validation_code_hash(1);
 			let pvf_2 = dummy_validation_code_hash(2);
 
-			let block_1 = FakeLeaf::new([1; 32].into(), 1, vec![pvf_1.clone()]);
-			let block_2 = FakeLeaf::new([2; 32].into(), 1, vec![pvf_2.clone()]);
+			let block_1 = FakeLeaf::new([1; 32].into(), 1, vec![pvf_1]);
+			let block_2 = FakeLeaf::new([2; 32].into(), 1, vec![pvf_2]);
 
 			test_state
 				.activate_leaf_with_session(
