@@ -355,6 +355,7 @@ zombienet-tests-async-backing-compatibility:
     - job:                         build-linux-stable
       artifacts:                   true
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/async_backing"
   before_script:
     - echo "Zombie-net Tests Config"
@@ -387,6 +388,7 @@ zombienet-tests-async-backing-runtime-upgrade:
     - job:                         build-linux-stable
       artifacts:                   true
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/async_backing"
   before_script:
     - echo "Zombie-net Tests Config"
@@ -407,7 +409,7 @@ zombienet-tests-async-backing-runtime-upgrade:
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
-  
+
 zombienet-tests-async-backing-collator-mix:
   stage:                             zombienet
   extends:
@@ -420,6 +422,7 @@ zombienet-tests-async-backing-collator-mix:
     - job:                         build-linux-stable
       artifacts:                   true
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/async_backing"
   before_script:
     - echo "Zombie-net Tests Config"
