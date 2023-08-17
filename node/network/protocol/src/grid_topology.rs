@@ -32,7 +32,6 @@
 use crate::PeerId;
 use polkadot_primitives::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
 use rand::{CryptoRng, Rng};
-use sc_network::network_state::Peer;
 use std::{
 	collections::{hash_map, HashMap, HashSet},
 	fmt::Debug,
