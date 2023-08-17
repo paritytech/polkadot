@@ -876,10 +876,7 @@ pub enum CoreOccupied<N> {
 impl<N> CoreOccupied<N> {
 	/// Is core free?
 	pub fn is_free(&self) -> bool {
-		match self {
-			Self::Free => true,
-			Self::Paras(_) => false,
-		}
+		matches!(self, Self::Free)
 	}
 }
 
