@@ -1331,8 +1331,8 @@ parameter_types! {
 	pub LeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
 }
 
-pub struct ParasProvider;
-impl BeefyDataProvider<H256> for ParasProvider {
+pub struct ParaHeadsRootProvider;
+impl BeefyDataProvider<H256> for ParaHeadsRootProvider {
 	fn extra_data() -> H256 {
 		let mut para_heads: Vec<(u32, Vec<u8>)> = Paras::parachains()
 			.into_iter()
@@ -1350,7 +1350,7 @@ impl pallet_beefy_mmr::Config for Runtime {
 	type LeafVersion = LeafVersion;
 	type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
 	type LeafExtra = H256;
-	type BeefyDataProvider = ParasProvider;
+	type BeefyDataProvider = ParaHeadsRootProvider;
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}
