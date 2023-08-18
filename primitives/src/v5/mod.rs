@@ -385,6 +385,11 @@ pub const MAX_HEAD_DATA_SIZE: u32 = 1 * 1024 * 1024;
 // NOTE: This value is used in the runtime so be careful when changing it.
 pub const MAX_POV_SIZE: u32 = 5 * 1024 * 1024;
 
+/// Default queue size we use for the on-demand order book.
+///
+/// Can be adjusted in configuration.
+pub const ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE: u32 = 10_000;
+
 // The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
 mod assignment_app {
@@ -809,28 +814,70 @@ impl TypeIndex for GroupIndex {
 }
 
 /// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
-pub struct ParathreadClaim(pub Id, pub CollatorId);
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
+pub struct ParathreadClaim(pub Id, pub Option<CollatorId>);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
 pub struct ParathreadEntry {
 	/// The claim.
 	pub claim: ParathreadClaim,
-	/// Number of retries.
+	/// Number of retries
 	pub retries: u32,
+}
+
+/// An assignment for a parachain scheduled to be backed and included in a relay chain block.
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
+pub struct Assignment {
+	/// Assignment's ParaId
+	pub para_id: Id,
+}
+
+impl Assignment {
+	/// Create a new `Assignment`.
+	pub fn new(para_id: Id) -> Self {
+		Self { para_id }
+	}
+}
+
+/// An entry tracking a paras
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
+pub struct ParasEntry<N = BlockNumber> {
+	/// The `Assignment`
+	pub assignment: Assignment,
+	/// The number of times the entry has timed out in availability.
+	pub availability_timeouts: u32,
+	/// The block height where this entry becomes invalid.
+	pub ttl: N,
+}
+
+impl<N> ParasEntry<N> {
+	/// Return `Id` from the underlying `Assignment`.
+	pub fn para_id(&self) -> Id {
+		self.assignment.para_id
+	}
+
+	/// Create a new `ParasEntry`.
+	pub fn new(assignment: Assignment, now: N) -> Self {
+		ParasEntry { assignment, availability_timeouts: 0, ttl: now }
+	}
 }
 
 /// What is occupying a specific availability core.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
-pub enum CoreOccupied {
-	/// A parathread.
-	Parathread(ParathreadEntry),
-	/// A parachain.
-	Parachain,
+pub enum CoreOccupied<N> {
+	/// The core is not occupied.
+	Free,
+	/// A paras.
+	Paras(ParasEntry<N>),
+}
+
+impl<N> CoreOccupied<N> {
+	/// Is core free?
+	pub fn is_free(&self) -> bool {
+		matches!(self, Self::Free)
+	}
 }
 
 /// A helper data-type for tracking validator-group rotations.
@@ -962,7 +1009,9 @@ impl<H, N> OccupiedCore<H, N> {
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
-	/// The collator required to author the block, if any.
+	/// DEPRECATED: see: https://github.com/paritytech/polkadot/issues/7575
+	///
+	/// Will be removed in a future version.
 	pub collator: Option<CollatorId>,
 }
 
@@ -992,7 +1041,7 @@ impl<N> CoreState<N> {
 	pub fn para_id(&self) -> Option<Id> {
 		match self {
 			Self::Occupied(ref core) => Some(core.para_id()),
-			Self::Scheduled(ScheduledCore { para_id, .. }) => Some(*para_id),
+			Self::Scheduled(core) => Some(core.para_id),
 			Self::Free => None,
 		}
 	}
