@@ -20,13 +20,9 @@ use super::{mock::*, *};
 
 use frame_support::{
 	assert_ok,
-	traits::{
-		fungibles::{Create, Mutate},
-		tokens::GetSalary,
-		RankedMembers,
-	},
+	traits::{tokens::GetSalary, RankedMembers},
 };
-use sp_runtime::{traits::ConvertToValue, BuildStorage, DispatchResult};
+use sp_runtime::{traits::ConvertToValue, DispatchResult};
 
 parameter_types! {
 	pub Interior: InteriorMultiLocation = Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into();
@@ -97,7 +93,7 @@ fn set_rank(who: AccountId, rank: u128) {
 parameter_types! {
 	pub const RegistrationPeriod: BlockNumber = 2;
 	pub const PayoutPeriod: BlockNumber = 2;
-	pub const FixedSalaryAmount: Balance = 10_000;
+	pub const FixedSalaryAmount: Balance = 10 * UNITS;
 	pub static Budget: Balance = FixedSalaryAmount::get();
 }
 
@@ -119,61 +115,29 @@ impl pallet_salary::Config for Test {
 	type Budget = Budget;
 }
 
-fn new_test_ext() -> sp_io::TestExternalities {
-	let t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
-	let mut ext = sp_io::TestExternalities::new(t);
-	ext.execute_with(|| System::set_block_number(1));
-	ext
-}
-
-fn next_block() {
-	System::set_block_number(System::block_number() + 1);
-}
-
-fn run_to(block_number: BlockNumber) {
-	while System::block_number() < block_number {
-		next_block();
-	}
-}
-
 /// Scenario:
 /// The salary pallet is used to pay a member over XCM.
 /// The correct XCM message is generated and when executed in the remote chain,
 /// the member receives the salary.
 #[test]
 fn salary_pay_over_xcm_works() {
-	let admin_account_id = AccountId::new([0u8; 32]);
-	let account_id = AccountId::new([1u8; 32]);
-	let asset_id: u128 = 100;
+	let recipient = AccountId::new([1u8; 32]);
 
 	new_test_ext().execute_with(|| {
-		// Create the asset and give enought to the sender
-		assert_ok!(<mock::Assets as Create<_>>::create(
-			asset_id,
-			admin_account_id.clone(),
-			true,
-			FixedSalaryAmount::get() / 2,
-		));
-		assert_ok!(<mock::Assets as Mutate<_>>::mint_into(
-			asset_id,
-			&TreasuryAccountId::get(),
-			FixedSalaryAmount::get() * 2
-		));
-
 		// Set the recipient as a member of a ranked collective
-		set_rank(account_id.clone(), 1);
+		set_rank(recipient.clone(), 1);
 
 		// Check starting balance
-		assert_eq!(mock::Assets::balance(AssetIdGeneralIndex::get(), &account_id), 0);
+		assert_eq!(mock::Assets::balance(AssetIdGeneralIndex::get(), &recipient.clone()), 0);
 
 		// Use salary pallet to call `PayOverXcm::pay`
-		assert_ok!(Salary::init(RuntimeOrigin::signed(account_id.clone())));
+		assert_ok!(Salary::init(RuntimeOrigin::signed(recipient.clone())));
 		run_to(5);
-		assert_ok!(Salary::induct(RuntimeOrigin::signed(account_id.clone())));
-		assert_ok!(Salary::bump(RuntimeOrigin::signed(account_id.clone())));
-		assert_ok!(Salary::register(RuntimeOrigin::signed(account_id.clone())));
+		assert_ok!(Salary::induct(RuntimeOrigin::signed(recipient.clone())));
+		assert_ok!(Salary::bump(RuntimeOrigin::signed(recipient.clone())));
+		assert_ok!(Salary::register(RuntimeOrigin::signed(recipient.clone())));
 		run_to(7);
-		assert_ok!(Salary::payout(RuntimeOrigin::signed(account_id.clone())));
+		assert_ok!(Salary::payout(RuntimeOrigin::signed(recipient.clone())));
 
 		// Get message from mock transport layer
 		let (_, message, hash) = sent_xcm()[0].clone();
@@ -191,7 +155,7 @@ fn salary_pay_over_xcm_works() {
 			})])),
 			TransferAsset {
 				assets: (AssetHubAssetId::get(), FixedSalaryAmount::get()).into(),
-				beneficiary: AccountId32 { id: account_id.clone().into(), network: None }.into(),
+				beneficiary: AccountId32 { id: [1u8; 32], network: None }.into(),
 			},
 		]);
 		assert_eq!(message, expected_message);
@@ -201,7 +165,7 @@ fn salary_pay_over_xcm_works() {
 
 		// Recipient receives the payment
 		assert_eq!(
-			mock::Assets::balance(AssetIdGeneralIndex::get(), &account_id),
+			mock::Assets::balance(AssetIdGeneralIndex::get(), &recipient),
 			FixedSalaryAmount::get()
 		);
 	});

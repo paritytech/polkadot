@@ -14,13 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Tests for making sure `PayOverXcm::pay` generates the correct message and sends it to the correct destination
+//! Tests for making sure `PayOverXcm::pay` generates the correct message and sends it to the
+//! correct destination
 
-use super::*;
+use super::{mock::*, *};
 use frame_support::{assert_ok, traits::tokens::Pay};
-
-type AccountId = u64;
-type BlockNumber = u64;
 
 /// Type representing both a location and an asset that is held at that location.
 /// The id of the held asset is relative to the location where it is being held.
@@ -37,94 +35,124 @@ impl sp_runtime::traits::Convert<AssetKind, LocatableAssetId> for LocatableAsset
 	}
 }
 
-/// Simple converter to turn a u64 into a MultiLocation using the AccountIndex64 junction and no parents
-pub struct AliasesIntoAccountIndex64;
-impl<'a> sp_runtime::traits::Convert<&'a AccountId, MultiLocation> for AliasesIntoAccountIndex64 {
-	fn convert(who: &AccountId) -> MultiLocation {
-		AccountIndex64 { network: None, index: who.clone().into() }.into()
-	}
-}
-
 parameter_types! {
-	pub InteriorAccount: InteriorMultiLocation = AccountIndex64 { index: 3u64, network: None }.into();
+	pub SenderAccount: AccountId = AccountId::new([3u8; 32]);
+	pub InteriorAccount: InteriorMultiLocation = AccountId32 { id: SenderAccount::get().into(), network: None }.into();
 	pub InteriorBody: InteriorMultiLocation = Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into();
 	pub Timeout: BlockNumber = 5; // 5 blocks
-	pub Beneficiary: AccountId = 5;
 }
 
 /// Scenario:
-/// Account #3 on the local chain, Parachain(42), controls an amount of funds on Parachain(2).
-/// `PayOverXcm::pay` creates the correct message for account #3 to pay another account, account #5, on Parachain(2), remotely, in its native token.
+/// Account #3 on the local chain, parachain 42, controls an amount of funds on parachain 2.
+/// [`PayOverXcm::pay`] creates the correct message for account #3 to pay another account, account
+/// #5, on parachain 2, remotely, in its native token.
 #[test]
 fn pay_over_xcm_works() {
-	let who = 5u64;
+	let recipient = AccountId::new([5u8; 32]);
 	let asset_kind =
 		AssetKind { destination: (Parent, Parachain(2)).into(), asset_id: Here.into() };
-	let amount = 1000u128;
+	let amount = 10 * UNITS;
 
-	assert_ok!(PayOverXcm::<
-		InteriorAccount,
-		TestMessageSender,
-		TestQueryHandler<TestConfig, BlockNumber>,
-		Timeout,
-		AccountId,
-		AssetKind,
-		LocatableAssetKindConverter,
-		AliasesIntoAccountIndex64,
-	>::pay(&who, asset_kind, amount));
+	new_test_ext().execute_with(|| {
+		// Check starting balance
+		assert_eq!(mock::Assets::balance(0, &recipient), 0);
 
-	let expected_message = Xcm(vec![
-		DescendOrigin(AccountIndex64 { index: 3, network: None }.into()),
-		UnpaidExecution { weight_limit: Unlimited, check_origin: None },
-		SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
-			destination: (Parent, Parachain(42)).into(),
-			query_id: 1,
-			max_weight: Weight::zero(),
-		})])),
-		TransferAsset {
-			assets: (Here, 1000u128).into(),
-			beneficiary: AccountIndex64 { index: 5, network: None }.into(),
-		},
-	]);
+		assert_ok!(PayOverXcm::<
+			InteriorAccount,
+			TestMessageSender,
+			TestQueryHandler<TestConfig, BlockNumber>,
+			Timeout,
+			AccountId,
+			AssetKind,
+			LocatableAssetKindConverter,
+			AliasesIntoAccountId32<AnyNetwork, AccountId>,
+		>::pay(&recipient, asset_kind, amount));
 
-	let expected_hash = fake_message_hash(&expected_message);
-	assert_eq!(sent_xcm(), vec![((Parent, Parachain(2)).into(), expected_message, expected_hash)]);
+		let expected_message = Xcm(vec![
+			DescendOrigin(AccountId32 { id: [3u8; 32], network: None }.into()),
+			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
+				destination: (Parent, Parachain(42)).into(),
+				query_id: 1,
+				max_weight: Weight::zero(),
+			})])),
+			TransferAsset {
+				assets: (Here, amount).into(),
+				beneficiary: AccountId32 { id: [5u8; 32], network: None }.into(),
+			},
+		]);
+		let expected_hash = fake_message_hash(&expected_message);
+
+		assert_eq!(
+			sent_xcm(),
+			vec![((Parent, Parachain(2)).into(), expected_message, expected_hash)]
+		);
+
+		let (_, message, hash) = sent_xcm()[0].clone();
+		let message =
+			Xcm::<<XcmConfig as xcm_executor::Config>::RuntimeCall>::from(message.clone());
+
+		// Execute message in parachain 2 with parachain 42's origin
+		let origin = (Parent, Parachain(42));
+		XcmExecutor::<XcmConfig>::execute_xcm(origin, message, hash, Weight::MAX);
+		assert_eq!(mock::Assets::balance(0, &recipient), amount);
+	});
 }
 
 /// Scenario:
-/// A pluralistic body, a Treasury, on the local chain, Parachain(42), controls an amount of funds on Parachain(2).
-/// `PayOverXcm::pay` creates the correct message for the treasury to pay another account, account #7, on Parachain(2), remotely, in the relay's token.
+/// A pluralistic body, a Treasury, on the local chain, parachain 42, controls an amount of funds
+/// on parachain 2. [`PayOverXcm::pay`] creates the correct message for the treasury to pay
+/// another account, account #7, on parachain 2, remotely, in the relay's token.
 #[test]
 fn pay_over_xcm_governance_body() {
-	let who = 7u64;
+	let recipient = AccountId::new([7u8; 32]);
 	let asset_kind =
 		AssetKind { destination: (Parent, Parachain(2)).into(), asset_id: Parent.into() };
-	let amount = 500u128;
+	let amount = 10 * UNITS;
 
-	assert_ok!(PayOverXcm::<
-		InteriorBody,
-		TestMessageSender,
-		TestQueryHandler<TestConfig, BlockNumber>,
-		Timeout,
-		AccountId,
-		AssetKind,
-		LocatableAssetKindConverter,
-		AliasesIntoAccountIndex64,
-	>::pay(&who, asset_kind, amount));
+	let relay_asset_index = 1;
 
-	let expected_message = Xcm(vec![
-		DescendOrigin(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into()),
-		UnpaidExecution { weight_limit: Unlimited, check_origin: None },
-		SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
-			destination: (Parent, Parachain(42)).into(),
-			query_id: 1,
-			max_weight: Weight::zero(),
-		})])),
-		TransferAsset {
-			assets: (Parent, 500u128).into(),
-			beneficiary: AccountIndex64 { index: 7, network: None }.into(),
-		},
-	]);
-	let expected_hash = fake_message_hash(&expected_message);
-	assert_eq!(sent_xcm(), vec![((Parent, Parachain(2)).into(), expected_message, expected_hash)]);
+	new_test_ext().execute_with(|| {
+		// Check starting balance
+		assert_eq!(mock::Assets::balance(relay_asset_index, &recipient), 0);
+
+		assert_ok!(PayOverXcm::<
+			InteriorBody,
+			TestMessageSender,
+			TestQueryHandler<TestConfig, BlockNumber>,
+			Timeout,
+			AccountId,
+			AssetKind,
+			LocatableAssetKindConverter,
+			AliasesIntoAccountId32<AnyNetwork, AccountId>,
+		>::pay(&recipient, asset_kind, amount));
+
+		let expected_message = Xcm(vec![
+			DescendOrigin(Plurality { id: BodyId::Treasury, part: BodyPart::Voice }.into()),
+			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
+				destination: (Parent, Parachain(42)).into(),
+				query_id: 1,
+				max_weight: Weight::zero(),
+			})])),
+			TransferAsset {
+				assets: (Parent, 10 * UNITS).into(),
+				beneficiary: AccountId32 { id: [7u8; 32], network: None }.into(),
+			},
+		]);
+		let expected_hash = fake_message_hash(&expected_message);
+		assert_eq!(
+			sent_xcm(),
+			vec![((Parent, Parachain(2)).into(), expected_message, expected_hash)]
+		);
+
+		let (_, message, hash) = sent_xcm()[0].clone();
+		let message =
+			Xcm::<<XcmConfig as xcm_executor::Config>::RuntimeCall>::from(message.clone());
+
+		// Execute message in parachain 2 with parachain 42's origin
+		let origin = (Parent, Parachain(42));
+		XcmExecutor::<XcmConfig>::execute_xcm(origin, message, hash, Weight::MAX);
+		assert_eq!(mock::Assets::balance(relay_asset_index, &recipient), amount);
+	});
 }

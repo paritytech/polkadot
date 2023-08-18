@@ -27,7 +27,7 @@ use frame_support::{
 use frame_system::{EnsureRoot, EnsureSigned};
 use polkadot_test_runtime::SignedExtra;
 use primitives::{AccountIndex, BlakeTwo256, Signature};
-use sp_runtime::{generic, traits::MaybeEquivalence, AccountId32};
+use sp_runtime::{generic, traits::MaybeEquivalence, AccountId32, BuildStorage};
 use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 
 pub type Address = sp_runtime::MultiAddress<AccountId, AccountIndex>;
@@ -146,7 +146,9 @@ impl MaybeEquivalence<MultiLocation, AssetIdForAssets>
 	fn convert(value: &MultiLocation) -> Option<AssetIdForAssets> {
 		match value {
 			MultiLocation { parents: 0, interior: Here } => Some(0 as AssetIdForAssets),
-			MultiLocation { parents: 0, interior: X2(PalletInstance(1), GeneralIndex(index)) } =>
+			MultiLocation { parents: 1, interior: Here } => Some(1 as AssetIdForAssets),
+			MultiLocation { parents: 0, interior: X2(PalletInstance(1), GeneralIndex(index)) }
+				if ![0, 1].contains(index) =>
 				Some(*index as AssetIdForAssets),
 			_ => None,
 		}
@@ -176,6 +178,7 @@ pub type LocalAssetsTransactor = FungiblesAdapter<
 	NoChecking,
 	CheckingAccount,
 >;
+
 type OriginConverter = (
 	pallet_xcm::XcmPassthrough<RuntimeOrigin>,
 	SignedAccountId32AsNative<AnyNetwork, RuntimeOrigin>,
@@ -192,6 +195,7 @@ impl WeightTrader for DummyWeightTrader {
 		&mut self,
 		_weight: Weight,
 		_payment: xcm_executor::Assets,
+		_context: &XcmContext,
 	) -> Result<xcm_executor::Assets, XcmError> {
 		Ok(xcm_executor::Assets::default())
 	}
@@ -243,7 +247,11 @@ impl ConvertLocation<AccountId> for TreasuryToAccount {
 	}
 }
 
-type SovereignAccountOf = (AccountId32Aliases<(), AccountId>, TreasuryToAccount);
+type SovereignAccountOf = (
+	AccountId32Aliases<AnyNetwork, AccountId>,
+	TreasuryToAccount,
+	HashedDescription<AccountId, DescribeFamily<DescribeAllTerminal>>,
+);
 
 #[cfg(feature = "runtime-benchmarks")]
 parameter_types! {
@@ -276,4 +284,51 @@ impl pallet_xcm::Config for Test {
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
 	type AdminOrigin = EnsureRoot<AccountId>;
+}
+
+pub const UNITS: Balance = 1_000_000_000_000;
+pub const INITIAL_BALANCE: Balance = 100 * UNITS;
+pub const MINIMUM_BALANCE: Balance = 1 * UNITS;
+
+pub fn sibling_chain_account_id(para_id: u32, account: [u8; 32]) -> AccountId {
+	let location: MultiLocation =
+		(Parent, Parachain(para_id), Junction::AccountId32 { id: account, network: None }).into();
+	SovereignAccountOf::convert_location(&location).unwrap()
+}
+
+pub fn new_test_ext() -> sp_io::TestExternalities {
+	let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
+	let admin_account: AccountId = AccountId::new([0u8; 32]);
+	pallet_assets::GenesisConfig::<Test> {
+		assets: vec![
+			(0, admin_account.clone(), true, MINIMUM_BALANCE),
+			(1, admin_account.clone(), true, MINIMUM_BALANCE),
+			(100, admin_account.clone(), true, MINIMUM_BALANCE),
+		],
+		metadata: vec![
+			(0, "Native token".encode(), "NTV".encode(), 12),
+			(1, "Relay token".encode(), "RLY".encode(), 12),
+			(100, "Test token".encode(), "TST".encode(), 12),
+		],
+		accounts: vec![
+			(0, sibling_chain_account_id(42, [3u8; 32]), INITIAL_BALANCE),
+			(1, TreasuryAccountId::get(), INITIAL_BALANCE),
+			(100, TreasuryAccountId::get(), INITIAL_BALANCE),
+		],
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| System::set_block_number(1));
+	ext
+}
+
+pub fn next_block() {
+	System::set_block_number(System::block_number() + 1);
+}
+
+pub fn run_to(block_number: BlockNumber) {
+	while System::block_number() < block_number {
+		next_block();
+	}
 }
