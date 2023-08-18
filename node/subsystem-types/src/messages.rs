@@ -740,6 +740,8 @@ pub enum ProvisionerMessage {
 pub enum CollationGenerationMessage {
 	/// Initialize the collation generation subsystem
 	Initialize(CollationGenerationConfig),
+	/// Reinitialize the collation generation subsystem
+	Reinitialize(CollationGenerationConfig),
 }
 
 /// The result type of [`ApprovalVotingMessage::CheckAndImportAssignment`] request.
