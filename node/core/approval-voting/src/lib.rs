@@ -837,7 +837,7 @@ impl State {
 	#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 	async fn get_approval_voting_params_or_default<Context>(
 		&mut self,
-		ctx: &mut Context,
+		_ctx: &mut Context,
 		block_hash: Hash,
 	) -> ApprovalVotingParams {
 		if let Some(params) = self
@@ -847,29 +847,30 @@ impl State {
 		{
 			*params
 		} else {
-			let (s_tx, s_rx) = oneshot::channel();
+			// let (s_tx, s_rx) = oneshot::channel();
 
-			ctx.send_message(RuntimeApiMessage::Request(
-				block_hash,
-				RuntimeApiRequest::ApprovalVotingParams(s_tx),
-			))
-			.await;
+			// ctx.send_message(RuntimeApiMessage::Request(
+			// 	block_hash,
+			// 	RuntimeApiRequest::ApprovalVotingParams(s_tx),
+			// ))
+			// .await;
 
-			match s_rx.await {
-				Ok(Ok(params)) => {
-					self.approval_voting_params_cache
-						.as_mut()
-						.map(|cache| cache.put(block_hash, params));
-					params
-				},
-				_ => {
-					gum::error!(
-						target: LOG_TARGET,
-						"Could not request approval voting params from runtime using defaults"
-					);
-					ApprovalVotingParams { max_approval_coalesce_count: 1 }
-				},
-			}
+			// match s_rx.await {
+			// 	Ok(Ok(params)) => {
+			// 		self.approval_voting_params_cache
+			// 			.as_mut()
+			// 			.map(|cache| cache.put(block_hash, params));
+			// 		params
+			// 	},
+			// 	_ => {
+			// 		gum::error!(
+			// 			target: LOG_TARGET,
+			// 			"Could not request approval voting params from runtime using defaults"
+			// 		);
+			// 		ApprovalVotingParams { max_approval_coalesce_count: 1 }
+			// 	},
+			// }
+			ApprovalVotingParams { max_approval_coalesce_count: 6 }
 		}
 	}
 }
@@ -2682,9 +2683,9 @@ where
 				metrics.on_no_shows(no_shows);
 			}
 			if check == Check::ApprovedOneThird {
-				// No-shows are not counted when more than one third of validators approve a candidate,
-				// so count candidates where more than one third of validators had to approve it,
-				// this is indicative of something breaking.
+				// No-shows are not counted when more than one third of validators approve a
+				// candidate, so count candidates where more than one third of validators had to
+				// approve it, this is indicative of something breaking.
 				metrics.on_approved_by_one_third()
 			}
 
@@ -3367,7 +3368,8 @@ async fn maybe_create_signature<Context>(
 	let oldest_candidate_to_sign = match block_entry.longest_waiting_candidate_signature() {
 		Some(candidate) => candidate,
 		// No cached candidates, nothing to do here, this just means the timer fired,
-		// but the signatures were already sent because we gathered more than max_approval_coalesce_count.
+		// but the signatures were already sent because we gathered more than
+		// max_approval_coalesce_count.
 		None => return Ok(None),
 	};
 
