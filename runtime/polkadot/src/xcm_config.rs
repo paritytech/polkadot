@@ -44,7 +44,7 @@ use xcm_builder::{
 	ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter, IsConcrete, MintLocation,
 	OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
-  WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::traits::WithOriginFilter;
 
