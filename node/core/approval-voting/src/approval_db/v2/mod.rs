@@ -203,9 +203,10 @@ pub struct TrancheEntry {
 /// Metadata about our approval signature
 #[derive(Encode, Decode, Debug, Clone, PartialEq)]
 pub struct OurApproval {
-	/// The
+	/// The signature for the candidates hashes pointed by indices.
 	pub signature: ValidatorSignature,
-	// The hashes of the candidates signed in this approval
+	/// The indices of the candidates signed in this approval, an empty value means only
+	/// the candidate referred by this approval entry was signed.
 	pub signed_candidates_indices: Option<CandidateBitfield>,
 }
 
@@ -266,7 +267,9 @@ pub struct BlockEntry {
 
 /// Context needed for creating an approval signature  for a given candidate.
 pub struct CandidateSigningContext {
+	/// The candidate hash, to be included in the signature.
 	pub candidate_hash: CandidateHash,
+	/// The latest tick we have to create and send the approval.
 	pub send_no_later_than_tick: Tick,
 }
 

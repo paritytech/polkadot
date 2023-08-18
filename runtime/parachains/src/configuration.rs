@@ -291,10 +291,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
 			executor_params: Default::default(),
-			approval_voting_params: ApprovalVotingParams {
-				max_approval_coalesce_count: 1,
-				max_approval_coalesce_wait_ticks: 0,
-			},
+			approval_voting_params: ApprovalVotingParams { max_approval_coalesce_count: 1 },
 		}
 	}
 }

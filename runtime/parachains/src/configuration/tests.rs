@@ -324,10 +324,7 @@ fn setting_pending_config_members() {
 			pvf_voting_ttl: 3,
 			minimum_validation_upgrade_delay: 20,
 			executor_params: Default::default(),
-			approval_voting_params: ApprovalVotingParams {
-				max_approval_coalesce_count: 1,
-				max_approval_coalesce_wait_ticks: 0,
-			},
+			approval_voting_params: ApprovalVotingParams { max_approval_coalesce_count: 1 },
 		};
 
 		Configuration::set_validation_upgrade_cooldown(

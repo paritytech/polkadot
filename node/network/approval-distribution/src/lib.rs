@@ -1907,7 +1907,7 @@ impl State {
 
 					// Filter approval votes.
 					for approval_message in approval_messages {
-						let (should_forward_approval, covered_approvals) =
+						let (should_forward_approval, candidates_covered_by_approvals) =
 							approval_message.candidate_indices.iter_ones().fold(
 								(true, Vec::new()),
 								|(should_forward_approval, mut new_covered_approvals),
@@ -1931,7 +1931,7 @@ impl State {
 							);
 						if should_forward_approval {
 							approvals_to_send.push(approval_message);
-							covered_approvals.into_iter().for_each(
+							candidates_covered_by_approvals.into_iter().for_each(
 								|(approval_knowledge, message_kind)| {
 									peer_knowledge.sent.insert(approval_knowledge, message_kind);
 								},

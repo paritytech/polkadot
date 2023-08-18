@@ -539,7 +539,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let subsystem = run(
 		context,
-		ApprovalVotingSubsystem::with_config(
+		ApprovalVotingSubsystem::with_config_and_cache(
 			Config {
 				col_approval_data: test_constants::TEST_CONFIG.col_approval_data,
 				slot_duration_millis: SLOT_DURATION_MILLIS,
@@ -548,6 +548,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 			Arc::new(keystore),
 			sync_oracle,
 			Metrics::default(),
+			None,
 		),
 		clock.clone(),
 		assignment_criteria,
@@ -2805,7 +2806,6 @@ async fn handle_double_assignment_import(
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
 			let _ = sender.send(Ok(ApprovalVotingParams {
 				max_approval_coalesce_count: 1,
-				max_approval_coalesce_wait_ticks: 0,
 			}));
 		}
 	);
@@ -2820,7 +2820,6 @@ async fn handle_double_assignment_import(
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
 			let _ = sender.send(Ok(ApprovalVotingParams {
 				max_approval_coalesce_count: 1,
-				max_approval_coalesce_wait_ticks: 0,
 			}));
 		}
 	);
@@ -3744,7 +3743,6 @@ async fn handle_approval_on_max_coalesce_count(
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
 			let _ = sender.send(Ok(ApprovalVotingParams {
 				max_approval_coalesce_count: 2,
-				max_approval_coalesce_wait_ticks: 10000,
 			}));
 		}
 	);
@@ -3754,7 +3752,6 @@ async fn handle_approval_on_max_coalesce_count(
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
 			let _ = sender.send(Ok(ApprovalVotingParams {
 				max_approval_coalesce_count: 2,
-				max_approval_coalesce_wait_ticks: 10000,
 			}));
 		}
 	);
@@ -3777,7 +3774,6 @@ async fn handle_approval_on_max_wait_time(
 ) {
 	const TICK_NOW_BEGIN: u64 = 1;
 	const MAX_COALESCE_COUNT: u32 = 3;
-	const MAX_APPROVAL_COALESCE_WAIT_TICKS: u32 = 4;
 
 	clock.inner.lock().set_tick(TICK_NOW_BEGIN);
 
@@ -3812,7 +3808,6 @@ async fn handle_approval_on_max_wait_time(
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
 			let _ = sender.send(Ok(ApprovalVotingParams {
 				max_approval_coalesce_count: MAX_COALESCE_COUNT,
-				max_approval_coalesce_wait_ticks: MAX_APPROVAL_COALESCE_WAIT_TICKS,
 			}));
 		}
 	);
@@ -3823,7 +3818,6 @@ async fn handle_approval_on_max_wait_time(
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
 			let _ = sender.send(Ok(ApprovalVotingParams {
 				max_approval_coalesce_count: MAX_COALESCE_COUNT,
-				max_approval_coalesce_wait_ticks: MAX_APPROVAL_COALESCE_WAIT_TICKS,
 			}));
 		}
 	);
@@ -3850,7 +3844,6 @@ async fn handle_approval_on_max_wait_time(
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
 			let _ = sender.send(Ok(ApprovalVotingParams {
 				max_approval_coalesce_count: 3,
-				max_approval_coalesce_wait_ticks: 4,
 			}));
 		}
 	);

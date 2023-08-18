@@ -12,7 +12,6 @@ chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default
 
 [relaychain.genesis.runtime.runtime_genesis_config.configuration.config.approval_voting_params]
   max_approval_coalesce_count = {{MAX_APPROVAL_COALESCE_COUNT}}
-  max_approval_coalesce_wait_ticks = {{MAX_APPROVAL_COALESCE_WAIT_TICKS}}
 
 [relaychain.default_resources]
 limits = { memory = "4G", cpu = "2" }
