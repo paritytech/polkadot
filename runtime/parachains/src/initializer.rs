@@ -240,6 +240,9 @@ impl<T: Config> Pallet<T> {
 			buf
 		};
 
+		// inform about upcoming new session
+		scheduler::Pallet::<T>::pre_new_session();
+
 		let configuration::SessionChangeOutcome { prev_config, new_config } =
 			configuration::Pallet::<T>::initializer_on_new_session(&session_index);
 		let new_config = new_config.unwrap_or_else(|| prev_config.clone());

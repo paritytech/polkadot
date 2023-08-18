@@ -28,7 +28,8 @@ use crate::{
 	inclusion::CandidateCheckContext,
 	initializer,
 	metrics::METRICS,
-	scheduler::{self, CoreAssignment, FreedReason},
+	scheduler,
+	scheduler::common::{CoreAssignment, FreedReason},
 	shared, ParaId,
 };
 use bitvec::prelude::BitVec;
@@ -518,7 +519,7 @@ impl<T: Config> Pallet<T> {
 			.map(|(_session, candidate)| candidate)
 			.collect::<BTreeSet<CandidateHash>>();
 
-		let mut freed_disputed: Vec<_> =
+		let freed_disputed: BTreeMap<CoreIndex, FreedReason> =
 			<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
 				.into_iter()
 				.map(|core| (core, FreedReason::Concluded))
@@ -528,16 +529,10 @@ impl<T: Config> Pallet<T> {
 		// a core index that was freed due to a dispute.
 		//
 		// I.e. 010100 would indicate, the candidates on Core 1 and 3 would be disputed.
-		let disputed_bitfield = create_disputed_bitfield(
-			expected_bits,
-			freed_disputed.iter().map(|(core_index, _)| core_index),
-		);
+		let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_disputed.keys());
 
 		if !freed_disputed.is_empty() {
-			// unstable sort is fine, because core indices are unique
-			// i.e. the same candidate can't occupy 2 cores at once.
-			freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
-			<scheduler::Pallet<T>>::free_cores(freed_disputed.clone());
+			<scheduler::Pallet<T>>::update_claimqueue(freed_disputed.clone(), now);
 		}
 
 		let bitfields = sanitize_bitfields::<T>(
@@ -569,10 +564,7 @@ impl<T: Config> Pallet<T> {
 
 		let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
-		<scheduler::Pallet<T>>::clear();
-		<scheduler::Pallet<T>>::schedule(freed, now);
-
-		let scheduled = <scheduler::Pallet<T>>::scheduled();
+		let scheduled = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
 
 		let relay_parent_number = now - One::one();
 		let parent_storage_root = *parent_header.state_root();
@@ -614,7 +606,7 @@ impl<T: Config> Pallet<T> {
 			<scheduler::Pallet<T>>::group_validators,
 		)?;
 		// Note which of the scheduled cores were actually occupied by a backed candidate.
-		<scheduler::Pallet<T>>::occupied(&occupied);
+		<scheduler::Pallet<T>>::occupied(occupied.into_iter().map(|e| (e.0, e.1)).collect());
 
 		set_scrapable_on_chain_backings::<T>(
 			current_session,
@@ -908,7 +900,7 @@ fn sanitize_backed_candidates<
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	scheduled: &[CoreAssignment],
+	scheduled: &[CoreAssignment<BlockNumberFor<T>>],
 ) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
 	// This does not assume sorting.
@@ -918,7 +910,7 @@ fn sanitize_backed_candidates<
 
 	let scheduled_paras_to_core_idx = scheduled
 		.into_iter()
-		.map(|core_assignment| (core_assignment.para_id, core_assignment.core))
+		.map(|core_assignment| (core_assignment.paras_entry.para_id(), core_assignment.core))
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
 
 	// Assure the backed candidate's `ParaId`'s core is free.

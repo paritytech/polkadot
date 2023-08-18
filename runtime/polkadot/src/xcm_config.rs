@@ -17,8 +17,8 @@
 //! XCM configuration for Polkadot.
 
 use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, Dmp,
-	FellowshipAdmin, ParaId, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Dmp, FellowshipAdmin,
+	GeneralAdmin, ParaId, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin,
 	TransactionByteFee, WeightToFee, XcmPallet,
 };
 use frame_support::{
@@ -40,11 +40,11 @@ use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
-	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
-	ChildParachainAsNative, ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter,
-	IsConcrete, MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
-	WeightInfoBounds, WithComputedOrigin,
+	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
+	ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter, IsConcrete, MintLocation,
+	OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
+	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -120,14 +120,14 @@ parameter_types! {
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
-pub type XcmRouter = (
+pub type XcmRouter = WithUniqueTopic<(
 	// Only one router so far - use DMP to communicate with child parachains.
 	ChildParachainRouter<
 		Runtime,
 		XcmPallet,
 		ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, Dmp>,
 	>,
-);
+)>;
 
 parameter_types! {
 	pub const Dot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
@@ -153,7 +153,7 @@ match_types! {
 }
 
 /// The barriers one of which must be passed for an XCM message to be executed.
-pub type Barrier = (
+pub type Barrier = TrailingSetTopicAsId<(
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// Expected responses are OK.
@@ -170,7 +170,7 @@ pub type Barrier = (
 		UniversalLocation,
 		ConstU32<8>,
 	>,
-);
+)>;
 
 /// A call filter for the XCM Transact instruction. This is a temporary measure until we
 /// properly account for proof size weights.
@@ -350,7 +350,8 @@ impl xcm_executor::Config for XcmConfig {
 }
 
 parameter_types! {
-	pub const CouncilBodyId: BodyId = BodyId::Executive;
+	// `GeneralAdmin` pluralistic body.
+	pub const GeneralAdminBodyId: BodyId = BodyId::Administration;
 	// StakingAdmin pluralistic body.
 	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
 	// FellowshipAdmin pluralistic body.
@@ -362,17 +363,14 @@ parameter_types! {
 	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
 }
 
-/// Type to convert a council origin to a Plurality `MultiLocation` value.
-pub type CouncilToPlurality = BackingToPlurality<
-	RuntimeOrigin,
-	pallet_collective::Origin<Runtime, CouncilCollective>,
-	CouncilBodyId,
->;
+/// Type to convert the `GeneralAdmin` origin to a Plurality `MultiLocation` value.
+pub type GeneralAdminToPlurality =
+	OriginToPluralityVoice<RuntimeOrigin, GeneralAdmin, GeneralAdminBodyId>;
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior
 /// location of this chain.
 pub type LocalOriginToLocation = (
-	CouncilToPlurality,
+	GeneralAdminToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
 );
@@ -381,16 +379,15 @@ pub type LocalOriginToLocation = (
 pub type StakingAdminToPlurality =
 	OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, StakingAdminBodyId>;
 
-/// Type to convert the FellowshipAdmin origin to a Plurality `MultiLocation` value.
+/// Type to convert the `FellowshipAdmin` origin to a Plurality `MultiLocation` value.
 pub type FellowshipAdminToPlurality =
 	OriginToPluralityVoice<RuntimeOrigin, FellowshipAdmin, FellowshipAdminBodyId>;
 
 /// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an
 /// interior location of this chain for a destination chain.
 pub type LocalPalletOriginToLocation = (
-	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality
-	// of the `Unit` body.
-	CouncilToPlurality,
+	// GeneralAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	GeneralAdminToPlurality,
 	// StakingAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
 	StakingAdminToPlurality,
 	// FellowshipAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
@@ -399,7 +396,7 @@ pub type LocalPalletOriginToLocation = (
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	// We only allow the root, the council, the fellowship admin and the staking admin to send
+	// We only allow the root, the general admin, the fellowship admin and the staking admin to send
 	// messages.
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalPalletOriginToLocation>;
 	type XcmRouter = XcmRouter;
