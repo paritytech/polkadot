@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice};
 use polkadot_node_primitives::approval::DelayTranche;
-use polkadot_primitives::v2::ValidatorIndex;
+use polkadot_primitives::ValidatorIndex;
 
 use crate::{
 	persisted_entries::{ApprovalEntry, CandidateEntry, TrancheEntry},
@@ -42,8 +42,8 @@ pub enum RequiredTranches {
 		/// assignments that are before the local time.
 		maximum_broadcast: DelayTranche,
 		/// The clock drift, in ticks, to apply to the local clock when determining whether
-		/// to broadcast an assignment or when to schedule a wakeup. The local clock should be treated
-		/// as though it is `clock_drift` ticks earlier.
+		/// to broadcast an assignment or when to schedule a wakeup. The local clock should be
+		/// treated as though it is `clock_drift` ticks earlier.
 		clock_drift: Tick,
 	},
 	/// An exact number of required tranches and a number of no-shows. This indicates that
@@ -55,8 +55,8 @@ pub enum RequiredTranches {
 		/// The amount of missing votes that should be tolerated.
 		tolerated_missing: usize,
 		/// When the next no-show would be, if any. This is used to schedule the next wakeup in the
-		/// event that there are some assignments that don't have corresponding approval votes. If this
-		/// is `None`, all assignments have approvals.
+		/// event that there are some assignments that don't have corresponding approval votes. If
+		/// this is `None`, all assignments have approvals.
 		next_no_show: Option<Tick>,
 		/// The last tick at which a needed assignment was received.
 		last_assignment_tick: Option<Tick>,
@@ -282,8 +282,8 @@ impl State {
 
 /// Constructs an infinite iterator from an array of `TrancheEntry` values. Any missing tranches
 /// are filled with empty assignments, as they are needed to compute the approved tranches.
-fn filled_tranche_iterator<'a>(
-	tranches: &'a [TrancheEntry],
+fn filled_tranche_iterator(
+	tranches: &[TrancheEntry],
 ) -> impl Iterator<Item = (DelayTranche, &[(ValidatorIndex, Tick)])> {
 	let mut gap_end = None;
 
@@ -460,7 +460,7 @@ mod tests {
 	use crate::{approval_db, BTreeMap};
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0, vec::BitVec};
-	use polkadot_primitives::v2::GroupIndex;
+	use polkadot_primitives::GroupIndex;
 
 	#[test]
 	fn pending_is_not_approved() {

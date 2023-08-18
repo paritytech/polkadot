@@ -1,0 +1,20 @@
+pathprepend() {
+  for ((i=$#; i>0; i--));
+  do
+    ARG="$@[$i]"
+    if [ -d "$ARG" ] && [[ ":$PATH:" != *":$ARG:"* ]]; then
+        PATH="$ARG${PATH:+":$PATH"}"
+    fi
+  done
+}
+
+# paths are prepend in order, so you can manage with version will run
+# by the order of this array
+CUSTOM_PATHS=(
+  "~/polkadot/target/release"
+  "~/polkadot/target/testnet"
+  "~/cumulus/target/release"
+)
+
+pathprepend $CUSTOM_PATHS
+export PATH=$PATH

@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,16 +18,15 @@
 //! All of the metrics have a correspondent runtime metric definition.
 
 use crate::runtime::RuntimeMetricsProvider;
-use primitives::v2::metric_definitions::{
+use primitives::metric_definitions::{
 	PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS,
 	PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED, PARACHAIN_INHERENT_DATA_CANDIDATES_PROCESSED,
-	PARACHAIN_INHERENT_DATA_DISPUTE_SETS_INCLUDED, PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED,
-	PARACHAIN_INHERENT_DATA_WEIGHT,
+	PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED, PARACHAIN_INHERENT_DATA_WEIGHT,
+	PARACHAIN_VERIFY_DISPUTE_SIGNATURE,
 };
 
 /// Register the parachain runtime metrics.
 pub fn register_metrics(runtime_metrics_provider: &RuntimeMetricsProvider) {
-	runtime_metrics_provider.register_counter(PARACHAIN_INHERENT_DATA_DISPUTE_SETS_INCLUDED);
 	runtime_metrics_provider.register_counter(PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED);
 
 	runtime_metrics_provider.register_countervec(PARACHAIN_INHERENT_DATA_WEIGHT);
@@ -35,4 +34,5 @@ pub fn register_metrics(runtime_metrics_provider: &RuntimeMetricsProvider) {
 	runtime_metrics_provider.register_countervec(PARACHAIN_INHERENT_DATA_CANDIDATES_PROCESSED);
 	runtime_metrics_provider
 		.register_countervec(PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS);
+	runtime_metrics_provider.register_histogram(PARACHAIN_VERIFY_DISPUTE_SIGNATURE);
 }

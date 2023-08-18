@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -23,7 +23,6 @@
 //! was almost done, thus we would have wasted time with our impatience. By simply making them
 //! not count towards length, we can make sure to have enough "live" requests ongoing, while at the
 //! same time taking advantage of some maybe "late" response from the undead.
-//!
 
 use std::{
 	pin::Pin,

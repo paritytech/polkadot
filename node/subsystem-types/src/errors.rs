@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -75,11 +75,20 @@ pub enum RecoveryError {
 
 	/// A requested chunk is unavailable.
 	Unavailable,
+
+	/// Erasure task channel closed, usually means node is shutting down.
+	ChannelClosed,
 }
 
 impl std::fmt::Display for RecoveryError {
 	fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
-		write!(f, "{}", self)
+		let msg = match self {
+			RecoveryError::Invalid => "Invalid",
+			RecoveryError::Unavailable => "Unavailable",
+			RecoveryError::ChannelClosed => "ChannelClosed",
+		};
+
+		write!(f, "{}", msg)
 	}
 }
 

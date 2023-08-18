@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -25,8 +25,10 @@ use polkadot_cli::{
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
 		ProvideRuntimeApi,
 	},
+	Cli,
 };
 use polkadot_node_subsystem::SpawnGlue;
+use polkadot_node_subsystem_types::DefaultSubsystemClient;
 use sp_core::traits::SpawnNamed;
 
 use crate::{
@@ -36,16 +38,35 @@ use crate::{
 
 use std::sync::Arc;
 
+#[derive(Debug, clap::Parser)]
+#[clap(rename_all = "kebab-case")]
+#[allow(missing_docs)]
+pub struct BackGarbageCandidateOptions {
+	/// Determines the percentage of garbage candidates that should be backed.
+	/// Defaults to 100% of garbage candidates being backed.
+	#[clap(short, long, ignore_case = true, default_value_t = 100, value_parser = clap::value_parser!(u8).range(0..=100))]
+	pub percentage: u8,
+
+	#[clap(flatten)]
+	pub cli: Cli,
+}
+
 /// Generates an overseer that replaces the candidate validation subsystem with our malicious
 /// variant.
-pub(crate) struct BackGarbageCandidate;
+pub(crate) struct BackGarbageCandidates {
+	/// The probability of behaving maliciously.
+	pub percentage: u8,
+}
 
-impl OverseerGen for BackGarbageCandidate {
-	fn generate<'a, Spawner, RuntimeClient>(
+impl OverseerGen for BackGarbageCandidates {
+	fn generate<Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
+		args: OverseerGenArgs<'_, Spawner, RuntimeClient>,
+	) -> Result<
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		Error,
+	>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -55,6 +76,7 @@ impl OverseerGen for BackGarbageCandidate {
 		let validation_filter = ReplaceValidationResult::new(
 			FakeCandidateValidation::BackingAndApprovalValid,
 			FakeCandidateValidationError::InvalidOutputs,
+			f64::from(self.percentage),
 			SpawnGlue(spawner),
 		);
 

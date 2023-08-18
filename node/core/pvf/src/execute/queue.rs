@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,46 +16,66 @@
 
 //! A queue that handles requests for PVF execution.
 
-use super::worker::Outcome;
+use super::worker_intf::Outcome;
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId},
 	host::ResultSender,
 	metrics::Metrics,
-	worker_common::{IdleWorker, WorkerHandle},
+	worker_intf::{IdleWorker, WorkerHandle},
 	InvalidCandidate, ValidationError, LOG_TARGET,
 };
-use async_std::path::PathBuf;
 use futures::{
 	channel::mpsc,
 	future::BoxFuture,
 	stream::{FuturesUnordered, StreamExt as _},
 	Future, FutureExt,
 };
+use polkadot_primitives::{ExecutorParams, ExecutorParamsHash};
 use slotmap::HopSlotMap;
-use std::{collections::VecDeque, fmt, time::Duration};
+use std::{
+	collections::VecDeque,
+	fmt,
+	path::PathBuf,
+	time::{Duration, Instant},
+};
+
+/// The amount of time a job for which the queue does not have a compatible worker may wait in the
+/// queue. After that time passes, the queue will kill the first worker which becomes idle to
+/// re-spawn a new worker to execute the job immediately.
+/// To make any sense and not to break things, the value should be greater than minimal execution
+/// timeout in use, and less than the block time.
+const MAX_KEEP_WAITING: Duration = Duration::from_secs(4);
 
 slotmap::new_key_type! { struct Worker; }
 
 #[derive(Debug)]
 pub enum ToQueue {
-	Enqueue {
-		artifact: ArtifactPathId,
-		execution_timeout: Duration,
-		params: Vec<u8>,
-		result_tx: ResultSender,
-	},
+	Enqueue { artifact: ArtifactPathId, pending_execution_request: PendingExecutionRequest },
+}
+
+/// An execution request that should execute the PVF (known in the context) and send the results
+/// to the given result sender.
+#[derive(Debug)]
+pub struct PendingExecutionRequest {
+	pub exec_timeout: Duration,
+	pub params: Vec<u8>,
+	pub executor_params: ExecutorParams,
+	pub result_tx: ResultSender,
 }
 
 struct ExecuteJob {
 	artifact: ArtifactPathId,
-	execution_timeout: Duration,
+	exec_timeout: Duration,
 	params: Vec<u8>,
+	executor_params: ExecutorParams,
 	result_tx: ResultSender,
+	waiting_since: Instant,
 }
 
 struct WorkerData {
 	idle: Option<IdleWorker>,
 	handle: WorkerHandle,
+	executor_params_hash: ExecutorParamsHash,
 }
 
 impl fmt::Debug for WorkerData {
@@ -80,7 +100,17 @@ impl Workers {
 		self.spawn_inflight + self.running.len() < self.capacity
 	}
 
-	fn find_available(&self) -> Option<Worker> {
+	fn find_available(&self, executor_params_hash: ExecutorParamsHash) -> Option<Worker> {
+		self.running.iter().find_map(|d| {
+			if d.1.idle.is_some() && d.1.executor_params_hash == executor_params_hash {
+				Some(d.0)
+			} else {
+				None
+			}
+		})
+	}
+
+	fn find_idle(&self) -> Option<Worker> {
 		self.running
 			.iter()
 			.find_map(|d| if d.1.idle.is_some() { Some(d.0) } else { None })
@@ -95,7 +125,7 @@ impl Workers {
 }
 
 enum QueueEvent {
-	Spawn(IdleWorker, WorkerHandle),
+	Spawn(IdleWorker, WorkerHandle, ExecuteJob),
 	StartWork(Worker, Outcome, ArtifactId, ResultSender),
 }
 
@@ -107,8 +137,10 @@ struct Queue {
 	/// The receiver that receives messages to the pool.
 	to_queue_rx: mpsc::Receiver<ToQueue>,
 
+	// Some variables related to the current session.
 	program_path: PathBuf,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
 
 	/// The queue of jobs that are waiting for a worker to pick up.
 	queue: VecDeque<ExecuteJob>,
@@ -122,12 +154,14 @@ impl Queue {
 		program_path: PathBuf,
 		worker_capacity: usize,
 		spawn_timeout: Duration,
+		node_version: Option<String>,
 		to_queue_rx: mpsc::Receiver<ToQueue>,
 	) -> Self {
 		Self {
 			metrics,
 			program_path,
 			spawn_timeout,
+			node_version,
 			to_queue_rx,
 			queue: VecDeque::new(),
 			mux: Mux::new(),
@@ -155,6 +189,66 @@ impl Queue {
 			purge_dead(&self.metrics, &mut self.workers).await;
 		}
 	}
+
+	/// Tries to assign a job in the queue to a worker. If an idle worker is provided, it does its
+	/// best to find a job with a compatible execution environment unless there are jobs in the
+	/// queue waiting too long. In that case, it kills an existing idle worker and spawns a new
+	/// one. It may spawn an additional worker if that is affordable.
+	/// If all the workers are busy or the queue is empty, it does nothing.
+	/// Should be called every time a new job arrives to the queue or a job finishes.
+	fn try_assign_next_job(&mut self, finished_worker: Option<Worker>) {
+		// New jobs are always pushed to the tail of the queue; the one at its head is always
+		// the eldest one.
+		let eldest = if let Some(eldest) = self.queue.get(0) { eldest } else { return };
+
+		// By default, we're going to execute the eldest job on any worker slot available, even if
+		// we have to kill and re-spawn a worker
+		let mut worker = None;
+		let mut job_index = 0;
+
+		// But if we're not pressed for time, we can try to find a better job-worker pair not
+		// requiring the expensive kill-spawn operation
+		if eldest.waiting_since.elapsed() < MAX_KEEP_WAITING {
+			if let Some(finished_worker) = finished_worker {
+				if let Some(worker_data) = self.workers.running.get(finished_worker) {
+					for (i, job) in self.queue.iter().enumerate() {
+						if worker_data.executor_params_hash == job.executor_params.hash() {
+							(worker, job_index) = (Some(finished_worker), i);
+							break
+						}
+					}
+				}
+			}
+		}
+
+		if worker.is_none() {
+			// Try to obtain a worker for the job
+			worker = self.workers.find_available(self.queue[job_index].executor_params.hash());
+		}
+
+		if worker.is_none() {
+			if let Some(idle) = self.workers.find_idle() {
+				// No available workers of required type but there are some idle ones of other
+				// types, have to kill one and re-spawn with the correct type
+				if self.workers.running.remove(idle).is_some() {
+					self.metrics.execute_worker().on_retired();
+				}
+			}
+		}
+
+		if worker.is_none() && !self.workers.can_afford_one_more() {
+			// Bad luck, no worker slot can be used to execute the job
+			return
+		}
+
+		let job = self.queue.remove(job_index).expect("Job is just checked to be in queue; qed");
+
+		if let Some(worker) = worker {
+			assign(self, worker, job);
+		} else {
+			spawn_extra_worker(self, job);
+		}
+	}
 }
 
 async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
@@ -173,29 +267,31 @@ async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 }
 
 fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
-	let ToQueue::Enqueue { artifact, execution_timeout, params, result_tx } = to_queue;
+	let ToQueue::Enqueue { artifact, pending_execution_request } = to_queue;
+	let PendingExecutionRequest { exec_timeout, params, executor_params, result_tx } =
+		pending_execution_request;
 	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact.id.code_hash,
 		"enqueueing an artifact for execution",
 	);
 	queue.metrics.execute_enqueued();
-	let job = ExecuteJob { artifact, execution_timeout, params, result_tx };
-
-	if let Some(available) = queue.workers.find_available() {
-		assign(queue, available, job);
-	} else {
-		if queue.workers.can_afford_one_more() {
-			spawn_extra_worker(queue);
-		}
-		queue.queue.push_back(job);
-	}
+	let job = ExecuteJob {
+		artifact,
+		exec_timeout,
+		params,
+		executor_params,
+		result_tx,
+		waiting_since: Instant::now(),
+	};
+	queue.queue.push_back(job);
+	queue.try_assign_next_job(None);
 }
 
 async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
 	match event {
-		QueueEvent::Spawn(idle, handle) => {
-			handle_worker_spawned(queue, idle, handle);
+		QueueEvent::Spawn(idle, handle, job) => {
+			handle_worker_spawned(queue, idle, handle, job);
 		},
 		QueueEvent::StartWork(worker, outcome, artifact_id, result_tx) => {
 			handle_job_finish(queue, worker, outcome, artifact_id, result_tx);
@@ -203,16 +299,23 @@ async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
 	}
 }
 
-fn handle_worker_spawned(queue: &mut Queue, idle: IdleWorker, handle: WorkerHandle) {
+fn handle_worker_spawned(
+	queue: &mut Queue,
+	idle: IdleWorker,
+	handle: WorkerHandle,
+	job: ExecuteJob,
+) {
 	queue.metrics.execute_worker().on_spawned();
 	queue.workers.spawn_inflight -= 1;
-	let worker = queue.workers.running.insert(WorkerData { idle: Some(idle), handle });
+	let worker = queue.workers.running.insert(WorkerData {
+		idle: Some(idle),
+		handle,
+		executor_params_hash: job.executor_params.hash(),
+	});
 
 	gum::debug!(target: LOG_TARGET, ?worker, "execute worker spawned");
 
-	if let Some(job) = queue.queue.pop_front() {
-		assign(queue, worker, job);
-	}
+	assign(queue, worker, job);
 }
 
 /// If there are pending jobs in the queue, schedules the next of them onto the just freed up
@@ -224,36 +327,53 @@ fn handle_job_finish(
 	artifact_id: ArtifactId,
 	result_tx: ResultSender,
 ) {
-	let (idle_worker, result) = match outcome {
-		Outcome::Ok { result_descriptor, duration_ms, idle_worker } => {
+	let (idle_worker, result, duration) = match outcome {
+		Outcome::Ok { result_descriptor, duration, idle_worker } => {
 			// TODO: propagate the soft timeout
-			drop(duration_ms);
 
-			(Some(idle_worker), Ok(result_descriptor))
+			(Some(idle_worker), Ok(result_descriptor), Some(duration))
 		},
 		Outcome::InvalidCandidate { err, idle_worker } => (
 			Some(idle_worker),
 			Err(ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(err))),
+			None,
 		),
-		Outcome::InternalError { err, idle_worker } =>
-			(Some(idle_worker), Err(ValidationError::InternalError(err))),
+		Outcome::InternalError { err } => (None, Err(ValidationError::InternalError(err)), None),
 		Outcome::HardTimeout =>
-			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout))),
-		Outcome::IoErr =>
-			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))),
+			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)), None),
+		// "Maybe invalid" errors (will retry).
+		Outcome::IoErr => (
+			None,
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)),
+			None,
+		),
+		Outcome::Panic { err } =>
+			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::Panic(err))), None),
 	};
 
 	queue.metrics.execute_finished();
-	gum::debug!(
-		target: LOG_TARGET,
-		validation_code_hash = ?artifact_id.code_hash,
-		worker_rip = idle_worker.is_none(),
-		?result,
-		"job finished.",
-	);
+	if let Err(ref err) = result {
+		gum::warn!(
+			target: LOG_TARGET,
+			?artifact_id,
+			?worker,
+			worker_rip = idle_worker.is_none(),
+			"execution worker concluded, error occurred: {:?}",
+			err
+		);
+	} else {
+		gum::trace!(
+			target: LOG_TARGET,
+			?artifact_id,
+			?worker,
+			worker_rip = idle_worker.is_none(),
+			?duration,
+			"execute worker concluded successfully",
+		);
+	}
 
-	// First we send the result. It may fail due the other end of the channel being dropped, that's
-	// legitimate and we don't treat that as an error.
+	// First we send the result. It may fail due to the other end of the channel being dropped,
+	// that's legitimate and we don't treat that as an error.
 	let _ = result_tx.send(result);
 
 	// Then, we should deal with the worker:
@@ -266,46 +386,63 @@ fn handle_job_finish(
 	if let Some(idle_worker) = idle_worker {
 		if let Some(data) = queue.workers.running.get_mut(worker) {
 			data.idle = Some(idle_worker);
-
-			if let Some(job) = queue.queue.pop_front() {
-				assign(queue, worker, job);
-			}
+			return queue.try_assign_next_job(Some(worker))
 		}
 	} else {
 		// Note it's possible that the worker was purged already by `purge_dead`
 		if queue.workers.running.remove(worker).is_some() {
 			queue.metrics.execute_worker().on_retired();
 		}
-
-		if !queue.queue.is_empty() {
-			// The worker has died and we still have work we have to do. Request an extra worker.
-			//
-			// That can potentially overshoot, but that should be OK.
-			spawn_extra_worker(queue);
-		}
 	}
+
+	queue.try_assign_next_job(None);
 }
 
-fn spawn_extra_worker(queue: &mut Queue) {
+fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
 	queue.metrics.execute_worker().on_begin_spawn();
 	gum::debug!(target: LOG_TARGET, "spawning an extra worker");
 
-	queue
-		.mux
-		.push(spawn_worker_task(queue.program_path.clone(), queue.spawn_timeout).boxed());
+	queue.mux.push(
+		spawn_worker_task(
+			queue.program_path.clone(),
+			job,
+			queue.spawn_timeout,
+			queue.node_version.clone(),
+		)
+		.boxed(),
+	);
 	queue.workers.spawn_inflight += 1;
 }
 
-async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> QueueEvent {
+/// Spawns a new worker to execute a pre-assigned job.
+/// A worker is never spawned as idle; a job to be executed by the worker has to be determined
+/// beforehand. In such a way, a race condition is avoided: during the worker being spawned,
+/// another job in the queue, with an incompatible execution environment, may become stale, and
+/// the queue would have to kill a newly started worker and spawn another one.
+/// Nevertheless, if the worker finishes executing the job, it becomes idle and may be used to
+/// execute other jobs with a compatible execution environment.
+async fn spawn_worker_task(
+	program_path: PathBuf,
+	job: ExecuteJob,
+	spawn_timeout: Duration,
+	node_version: Option<String>,
+) -> QueueEvent {
 	use futures_timer::Delay;
 
 	loop {
-		match super::worker::spawn(&program_path, spawn_timeout).await {
-			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle),
+		match super::worker_intf::spawn(
+			&program_path,
+			job.executor_params.clone(),
+			spawn_timeout,
+			node_version.as_deref(),
+		)
+		.await
+		{
+			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle, job),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn an execute worker: {:?}", err);
 
-				// Assume that the failure intermittent and retry after a delay.
+				// Assume that the failure is intermittent and retry after a delay.
 				Delay::new(Duration::from_secs(3)).await;
 			},
 		}
@@ -314,13 +451,24 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Qu
 
 /// Ask the given worker to perform the given job.
 ///
-/// The worker must be running and idle.
+/// The worker must be running and idle. The job and the worker must share the same execution
+/// environment parameter set.
 fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?job.artifact.id,
 		?worker,
 		"assigning the execute worker",
+	);
+
+	debug_assert_eq!(
+		queue
+			.workers
+			.running
+			.get(worker)
+			.expect("caller must provide existing worker; qed")
+			.executor_params_hash,
+		job.executor_params.hash()
 	);
 
 	let idle = queue.workers.claim_idle(worker).expect(
@@ -332,10 +480,10 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 	queue.mux.push(
 		async move {
 			let _timer = execution_timer;
-			let outcome = super::worker::start_work(
+			let outcome = super::worker_intf::start_work(
 				idle,
 				job.artifact.clone(),
-				job.execution_timeout,
+				job.exec_timeout,
 				job.params,
 			)
 			.await;
@@ -350,8 +498,17 @@ pub fn start(
 	program_path: PathBuf,
 	worker_capacity: usize,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
 ) -> (mpsc::Sender<ToQueue>, impl Future<Output = ()>) {
 	let (to_queue_tx, to_queue_rx) = mpsc::channel(20);
-	let run = Queue::new(metrics, program_path, worker_capacity, spawn_timeout, to_queue_rx).run();
+	let run = Queue::new(
+		metrics,
+		program_path,
+		worker_capacity,
+		spawn_timeout,
+		node_version,
+		to_queue_rx,
+	)
+	.run();
 	(to_queue_tx, run)
 }

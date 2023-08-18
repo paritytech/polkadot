@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Substrate.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -36,7 +36,7 @@ async fn purge_chain_rocksdb_works() {
 	let mut cmd = Command::new(cargo_bin("polkadot"))
 		.stdout(process::Stdio::piped())
 		.stderr(process::Stdio::piped())
-		.args(&["--dev", "-d"])
+		.args(["--dev", "-d"])
 		.arg(tmpdir.path())
 		.arg("--port")
 		.arg("33034")
@@ -55,13 +55,13 @@ async fn purge_chain_rocksdb_works() {
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();
 	// Wait for the node to handle it and exit.
 	assert!(common::wait_for(&mut cmd, 30).map(|x| x.success()).unwrap_or_default());
-	assert!(tmpdir.path().join("chains/dev").exists());
-	assert!(tmpdir.path().join("chains/dev/db/full").exists());
-	assert!(tmpdir.path().join("chains/dev/db/full/parachains").exists());
+	assert!(tmpdir.path().join("chains/polkadot_dev").exists());
+	assert!(tmpdir.path().join("chains/polkadot_dev/db/full").exists());
+	assert!(tmpdir.path().join("chains/polkadot_dev/db/full/parachains").exists());
 
 	// Purge chain
 	let status = Command::new(cargo_bin("polkadot"))
-		.args(&["purge-chain", "--dev", "-d"])
+		.args(["purge-chain", "--dev", "-d"])
 		.arg(tmpdir.path())
 		.arg("-y")
 		.status()
@@ -69,8 +69,8 @@ async fn purge_chain_rocksdb_works() {
 	assert!(status.success());
 
 	// Make sure that the chain folder exists, but `db/full` is deleted.
-	assert!(tmpdir.path().join("chains/dev").exists());
-	assert!(!tmpdir.path().join("chains/dev/db/full").exists());
+	assert!(tmpdir.path().join("chains/polkadot_dev").exists());
+	assert!(!tmpdir.path().join("chains/polkadot_dev/db/full").exists());
 }
 
 #[tokio::test]
@@ -86,7 +86,7 @@ async fn purge_chain_paritydb_works() {
 	let mut cmd = Command::new(cargo_bin("polkadot"))
 		.stdout(process::Stdio::piped())
 		.stderr(process::Stdio::piped())
-		.args(&["--dev", "-d"])
+		.args(["--dev", "-d"])
 		.arg(tmpdir.path())
 		.arg("--database")
 		.arg("paritydb-experimental")
@@ -105,13 +105,13 @@ async fn purge_chain_paritydb_works() {
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();
 	// Wait for the node to handle it and exit.
 	assert!(common::wait_for(&mut cmd, 30).map(|x| x.success()).unwrap_or_default());
-	assert!(tmpdir.path().join("chains/dev").exists());
-	assert!(tmpdir.path().join("chains/dev/paritydb/full").exists());
-	assert!(tmpdir.path().join("chains/dev/paritydb/parachains").exists());
+	assert!(tmpdir.path().join("chains/polkadot_dev").exists());
+	assert!(tmpdir.path().join("chains/polkadot_dev/paritydb/full").exists());
+	assert!(tmpdir.path().join("chains/polkadot_dev/paritydb/parachains").exists());
 
 	// Purge chain
 	let status = Command::new(cargo_bin("polkadot"))
-		.args(&["purge-chain", "--dev", "-d"])
+		.args(["purge-chain", "--dev", "-d"])
 		.arg(tmpdir.path())
 		.arg("--database")
 		.arg("paritydb-experimental")
@@ -121,8 +121,8 @@ async fn purge_chain_paritydb_works() {
 	assert!(status.success());
 
 	// Make sure that the chain folder exists, but `db/full` is deleted.
-	assert!(tmpdir.path().join("chains/dev").exists());
-	assert!(!tmpdir.path().join("chains/dev/paritydb/full").exists());
+	assert!(tmpdir.path().join("chains/polkadot_dev").exists());
+	assert!(!tmpdir.path().join("chains/polkadot_dev/paritydb/full").exists());
 	// Parachains removal requires calling "purge-chain --parachains".
-	assert!(tmpdir.path().join("chains/dev/paritydb/parachains").exists());
+	assert!(tmpdir.path().join("chains/polkadot_dev/paritydb/parachains").exists());
 }

@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -21,21 +21,23 @@
 #![deny(unused_crate_dependencies)]
 #![recursion_limit = "256"]
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use futures::{FutureExt, TryFutureExt};
+use futures::{
+	stream::{FusedStream, StreamExt},
+	FutureExt, TryFutureExt,
+};
 
-use sp_keystore::SyncCryptoStorePtr;
+use polkadot_node_subsystem_util::reputation::ReputationAggregator;
+use sp_keystore::KeystorePtr;
 
 use polkadot_node_network_protocol::{
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v2::CollatorPair;
+use polkadot_primitives::CollatorPair;
 
-use polkadot_node_subsystem::{
-	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, SpawnedSubsystem,
-};
+use polkadot_node_subsystem::{errors::SubsystemError, overseer, DummySubsystem, SpawnedSubsystem};
 
 mod error;
 
@@ -67,7 +69,7 @@ pub enum ProtocolSide {
 	/// Validators operate on the relay chain.
 	Validator {
 		/// The keystore holding validator keys.
-		keystore: SyncCryptoStorePtr,
+		keystore: KeystorePtr,
 		/// An eviction policy for inactive peers or validators.
 		eviction_policy: CollatorEvictionPolicy,
 		/// Prometheus metrics for validators.
@@ -80,6 +82,8 @@ pub enum ProtocolSide {
 		IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
 		collator_side::Metrics,
 	),
+	/// No protocol side, just disable it.
+	None,
 }
 
 /// The collator protocol subsystem.
@@ -96,24 +100,22 @@ impl CollatorProtocolSubsystem {
 	pub fn new(protocol_side: ProtocolSide) -> Self {
 		Self { protocol_side }
 	}
-
-	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError> {
-		match self.protocol_side {
-			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
-				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
-			ProtocolSide::Collator(local_peer_id, collator_pair, req_receiver, metrics) =>
-				collator_side::run(ctx, local_peer_id, collator_pair, req_receiver, metrics).await,
-		}
-	}
 }
 
 #[overseer::subsystem(CollatorProtocol, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CollatorProtocolSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = self
-			.run(ctx)
-			.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
-			.boxed();
+		let future = match self.protocol_side {
+			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
+				validator_side::run(ctx, keystore, eviction_policy, metrics)
+					.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
+					.boxed(),
+			ProtocolSide::Collator(local_peer_id, collator_pair, req_receiver, metrics) =>
+				collator_side::run(ctx, local_peer_id, collator_pair, req_receiver, metrics)
+					.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
+					.boxed(),
+			ProtocolSide::None => return DummySubsystem.start(ctx),
+		};
 
 		SpawnedSubsystem { name: "collator-protocol-subsystem", future }
 	}
@@ -121,6 +123,7 @@ impl<Context> CollatorProtocolSubsystem {
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
 	peer: PeerId,
 	rep: Rep,
@@ -132,5 +135,25 @@ async fn modify_reputation(
 		"reputation change for peer",
 	);
 
-	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await;
+	reputation.modify(sender, peer, rep).await;
+}
+
+/// Wait until tick and return the timestamp for the following one.
+async fn wait_until_next_tick(last_poll: Instant, period: Duration) -> Instant {
+	let now = Instant::now();
+	let next_poll = last_poll + period;
+
+	if next_poll > now {
+		futures_timer::Delay::new(next_poll - now).await
+	}
+
+	Instant::now()
+}
+
+/// Returns an infinite stream that yields with an interval of `period`.
+fn tick_stream(period: Duration) -> impl FusedStream<Item = ()> {
+	futures::stream::unfold(Instant::now(), move |next_check| async move {
+		Some(((), wait_until_next_tick(next_check, period).await))
+	})
+	.fuse()
 }

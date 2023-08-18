@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -73,7 +73,8 @@ impl<T> DoubleEncoded<T> {
 
 impl<T: Decode> DoubleEncoded<T> {
 	/// Decode the inner encoded value and store it.
-	/// Returns a reference to the value in case of success and `Err(())` in case the decoding fails.
+	/// Returns a reference to the value in case of success and `Err(())` in case the decoding
+	/// fails.
 	pub fn ensure_decoded(&mut self) -> Result<&T, ()> {
 		if self.decoded.is_none() {
 			self.decoded =
@@ -92,8 +93,9 @@ impl<T: Decode> DoubleEncoded<T> {
 			.ok_or(())
 	}
 
-	/// Provides an API similar to `TryInto` that allows fallible conversion to the inner value type.
-	/// `TryInto` implementation would collide with std blanket implementation based on `TryFrom`.
+	/// Provides an API similar to `TryInto` that allows fallible conversion to the inner value
+	/// type. `TryInto` implementation would collide with std blanket implementation based on
+	/// `TryFrom`.
 	pub fn try_into(mut self) -> Result<T, ()> {
 		self.ensure_decoded()?;
 		self.decoded.ok_or(())

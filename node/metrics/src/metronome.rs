@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -49,7 +49,7 @@ impl futures::Stream for Metronome {
 		loop {
 			match self.state {
 				MetronomeState::SetAlarm => {
-					let val = self.period.clone();
+					let val = self.period;
 					self.delay.reset(val);
 					self.state = MetronomeState::Snooze;
 				},

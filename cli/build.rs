@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,4 +19,7 @@ fn main() {
 		println!("cargo:rustc-cfg=build_type=\"{}\"", profile);
 	}
 	substrate_build_script_utils::generate_cargo_keys();
+	// For the node/worker version check, make sure we always rebuild the node when the version
+	// changes.
+	substrate_build_script_utils::rerun_if_git_head_changed();
 }

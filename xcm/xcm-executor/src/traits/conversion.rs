@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,129 +14,35 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use parity_scale_codec::{Decode, Encode};
-use sp_std::{borrow::Borrow, prelude::*, result::Result};
-use xcm::latest::{MultiLocation, OriginKind};
+use frame_support::traits::{Contains, OriginTrait};
+use sp_runtime::{traits::Dispatchable, DispatchErrorWithPostInfo};
+use sp_std::{marker::PhantomData, result::Result};
+use xcm::latest::prelude::*;
 
-/// Generic third-party conversion trait. Use this when you don't want to force the user to use default
-/// implementations of `From` and `Into` for the types you wish to convert between.
-///
-/// One of `convert`/`convert_ref` and `reverse`/`reverse_ref` MUST be implemented. If possible, implement
-/// `convert_ref`, since this will never result in a clone. Use `convert` when you definitely need to consume
-/// the source value.
-///
-/// Can be amalgamated into tuples. If any of the tuple elements converts into `Ok(_)` it short circuits. Otherwise returns
-/// the `Err(_)` of the last failing conversion (or `Err(())` for ref conversions).
-pub trait Convert<A: Clone, B: Clone> {
-	/// Convert from `value` (of type `A`) into an equivalent value of type `B`, `Err` if not possible.
-	fn convert(value: A) -> Result<B, A> {
-		Self::convert_ref(&value).map_err(|_| value)
-	}
-	fn convert_ref(value: impl Borrow<A>) -> Result<B, ()> {
-		Self::convert(value.borrow().clone()).map_err(|_| ())
-	}
-	/// Convert from `value` (of type `B`) into an equivalent value of type `A`, `Err` if not possible.
-	fn reverse(value: B) -> Result<A, B> {
-		Self::reverse_ref(&value).map_err(|_| value)
-	}
-	fn reverse_ref(value: impl Borrow<B>) -> Result<A, ()> {
-		Self::reverse(value.borrow().clone()).map_err(|_| ())
-	}
+/// Means of converting a location into an account identifier.
+pub trait ConvertLocation<AccountId> {
+	/// Convert the `location` into `Some` account ID, or `None` if not possible.
+	fn convert_location(location: &MultiLocation) -> Option<AccountId>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
-impl<A: Clone, B: Clone> Convert<A, B> for Tuple {
-	fn convert(value: A) -> Result<B, A> {
+impl<AccountId> ConvertLocation<AccountId> for Tuple {
+	fn convert_location(l: &MultiLocation) -> Option<AccountId> {
 		for_tuples!( #(
-			let value = match Tuple::convert(value) {
-				Ok(result) => return Ok(result),
-				Err(v) => v,
-			};
-		)* );
-		Err(value)
-	}
-	fn reverse(value: B) -> Result<A, B> {
-		for_tuples!( #(
-			let value = match Tuple::reverse(value) {
-				Ok(result) => return Ok(result),
-				Err(v) => v,
-			};
-		)* );
-		Err(value)
-	}
-	fn convert_ref(value: impl Borrow<A>) -> Result<B, ()> {
-		let value = value.borrow();
-		for_tuples!( #(
-			match Tuple::convert_ref(value) {
-				Ok(result) => return Ok(result),
-				Err(_) => (),
+			match Tuple::convert_location(l) {
+				Some(result) => return Some(result),
+				None => {},
 			}
 		)* );
-		Err(())
-	}
-	fn reverse_ref(value: impl Borrow<B>) -> Result<A, ()> {
-		let value = value.borrow();
-		for_tuples!( #(
-			match Tuple::reverse_ref(value.clone()) {
-				Ok(result) => return Ok(result),
-				Err(_) => (),
-			}
-		)* );
-		Err(())
-	}
-}
-
-/// Simple pass-through which implements `BytesConversion` while not doing any conversion.
-pub struct Identity;
-impl<T: Clone> Convert<T, T> for Identity {
-	fn convert(value: T) -> Result<T, T> {
-		Ok(value)
-	}
-	fn reverse(value: T) -> Result<T, T> {
-		Ok(value)
-	}
-}
-
-/// Implementation of `Convert` trait using `TryFrom`.
-pub struct JustTry;
-impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> Convert<Source, Dest>
-	for JustTry
-{
-	fn convert(value: Source) -> Result<Dest, Source> {
-		Dest::try_from(value.clone()).map_err(|_| value)
-	}
-	fn reverse(value: Dest) -> Result<Source, Dest> {
-		Source::try_from(value.clone()).map_err(|_| value)
-	}
-}
-
-/// Implementation of `Convert<_, Vec<u8>>` using the parity scale codec.
-pub struct Encoded;
-impl<T: Clone + Encode + Decode> Convert<T, Vec<u8>> for Encoded {
-	fn convert_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> {
-		Ok(value.borrow().encode())
-	}
-	fn reverse_ref(bytes: impl Borrow<Vec<u8>>) -> Result<T, ()> {
-		T::decode(&mut &bytes.borrow()[..]).map_err(|_| ())
-	}
-}
-
-/// Implementation of `Convert<Vec<u8>, _>` using the parity scale codec.
-pub struct Decoded;
-impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
-	fn convert_ref(bytes: impl Borrow<Vec<u8>>) -> Result<T, ()> {
-		T::decode(&mut &bytes.borrow()[..]).map_err(|_| ())
-	}
-	fn reverse_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> {
-		Ok(value.borrow().encode())
+		None
 	}
 }
 
 /// A converter `trait` for origin types.
 ///
-/// Can be amalgamated into tuples. If any of the tuple elements returns `Ok(_)`, it short circuits. Else, the `Err(_)`
-/// of the last tuple item is returned. Each intermediate `Err(_)` might return a different `origin` of type `Origin`
-/// which is passed to the next convert item.
+/// Can be amalgamated into tuples. If any of the tuple elements returns `Ok(_)`, it short circuits.
+/// Else, the `Err(_)` of the last tuple item is returned. Each intermediate `Err(_)` might return a
+/// different `origin` of type `Origin` which is passed to the next convert item.
 ///
 /// ```rust
 /// # use xcm::latest::{MultiLocation, Junctions, Junction, OriginKind};
@@ -204,9 +110,43 @@ impl<O> ConvertOrigin<O> for Tuple {
 	}
 }
 
-/// Means of inverting a location: given a location which describes a `target` interpreted from the
-/// `source`, this will provide the corresponding location which describes the `source`.
-pub trait InvertLocation {
-	fn ancestry() -> MultiLocation;
-	fn invert_location(l: &MultiLocation) -> Result<MultiLocation, ()>;
+/// Defines how a call is dispatched with given origin.
+/// Allows to customize call dispatch, such as adapting the origin based on the call
+/// or modifying the call.
+pub trait CallDispatcher<Call: Dispatchable> {
+	fn dispatch(
+		call: Call,
+		origin: Call::RuntimeOrigin,
+	) -> Result<Call::PostInfo, DispatchErrorWithPostInfo<Call::PostInfo>>;
+}
+
+pub struct WithOriginFilter<Filter>(PhantomData<Filter>);
+impl<Call, Filter> CallDispatcher<Call> for WithOriginFilter<Filter>
+where
+	Call: Dispatchable,
+	Call::RuntimeOrigin: OriginTrait,
+	<<Call as Dispatchable>::RuntimeOrigin as OriginTrait>::Call: 'static,
+	Filter: Contains<<<Call as Dispatchable>::RuntimeOrigin as OriginTrait>::Call> + 'static,
+{
+	fn dispatch(
+		call: Call,
+		mut origin: <Call as Dispatchable>::RuntimeOrigin,
+	) -> Result<
+		<Call as Dispatchable>::PostInfo,
+		DispatchErrorWithPostInfo<<Call as Dispatchable>::PostInfo>,
+	> {
+		origin.add_filter(Filter::contains);
+		call.dispatch(origin)
+	}
+}
+
+// We implement it for every calls so they can dispatch themselves
+// (without any change).
+impl<Call: Dispatchable> CallDispatcher<Call> for Call {
+	fn dispatch(
+		call: Call,
+		origin: Call::RuntimeOrigin,
+	) -> Result<Call::PostInfo, DispatchErrorWithPostInfo<Call::PostInfo>> {
+		call.dispatch(origin)
+	}
 }

@@ -1,9 +1,9 @@
 {% import "change.md.tera" as m_c %}
 {%- set_global db_migration_count = 0 -%}
 {%- for pr in changes -%}
-    {%- if pr.meta.B and pr.meta.B.value == 0 %}
+    {%- if pr.meta.B and pr.meta.B.B0 %}
         {#- We skip silent ones -#}
-    {%- elif pr.meta.E and pr.meta.E.value == 2 -%}
+    {%- elif pr.meta.E and pr.meta.E.E1 -%}
         {%- set_global db_migration_count = db_migration_count + 1 -%}
     {%- endif -%}
 {%- endfor %}
@@ -22,9 +22,9 @@ Some migrations may break compatibility, making a backup of your database is hig
 {%- endif %}
 {% for pr in changes | sort(attribute="merged_at") -%}
 
-{%- if pr.meta.B and pr.meta.B.value == 0 %}
+{%- if pr.meta.B and pr.meta.B.B0 %}
 {#- We skip silent ones -#}
-{%- elif pr.meta.E and pr.meta.E.value == 2 -%}
+{%- elif pr.meta.E and pr.meta.E.E1 -%}
 - {{ m_c::change(c=pr) }}
 {% endif -%}
 {% endfor -%}

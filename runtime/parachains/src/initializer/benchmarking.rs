@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 use super::*;
 use frame_benchmarking::benchmarks;
 use frame_system::RawOrigin;
-use primitives::v2::ConsensusLog;
+use primitives::ConsensusLog;
 use sp_runtime::DigestItem;
 
 // Random large number for the digest

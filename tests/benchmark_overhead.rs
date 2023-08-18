@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@ use assert_cmd::cargo::cargo_bin;
 use std::{process::Command, result::Result};
 use tempfile::tempdir;
 
-static RUNTIMES: [&'static str; 4] = ["polkadot", "kusama", "westend", "rococo"];
+static RUNTIMES: [&str; 4] = ["polkadot", "kusama", "westend", "rococo"];
 
 /// `benchmark overhead` works for all dev runtimes.
 #[test]

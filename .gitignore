@@ -8,7 +8,9 @@ runtime/wasm/target/
 .vscode
 polkadot.*
 !polkadot.service
-!.rpm/*
 .DS_Store
-.cargo
 .env
+
+artifacts
+release-artifacts
+release.json

@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -57,7 +57,7 @@ pub mod constants {
 			///   99th: 14_451
 			///   95th: 12_588
 			///   75th: 11_200
-			read: 11_826 * constants::WEIGHT_PER_NANOS.ref_time(),
+			read: 11_826 * constants::WEIGHT_REF_TIME_PER_NANOS,
 
 			/// Time to write one storage item.
 			/// Calculated by multiplying the *Average* of all values with `1.1` and adding `0`.
@@ -72,7 +72,7 @@ pub mod constants {
 			///   99th: 69_379
 			///   95th: 47_168
 			///   75th: 35_252
-			write: 38_052 * constants::WEIGHT_PER_NANOS.ref_time(),
+			write: 38_052 * constants::WEIGHT_REF_TIME_PER_NANOS,
 		};
 	}
 
@@ -88,20 +88,20 @@ pub mod constants {
 		fn bound() {
 			// At least 1 µs.
 			assert!(
-				W::get().reads(1) >= constants::WEIGHT_PER_MICROS,
+				W::get().reads(1).ref_time() >= constants::WEIGHT_REF_TIME_PER_MICROS,
 				"Read weight should be at least 1 µs."
 			);
 			assert!(
-				W::get().writes(1) >= constants::WEIGHT_PER_MICROS,
+				W::get().writes(1).ref_time() >= constants::WEIGHT_REF_TIME_PER_MICROS,
 				"Write weight should be at least 1 µs."
 			);
 			// At most 1 ms.
 			assert!(
-				W::get().reads(1) <= constants::WEIGHT_PER_MILLIS,
+				W::get().reads(1).ref_time() <= constants::WEIGHT_REF_TIME_PER_MILLIS,
 				"Read weight should be at most 1 ms."
 			);
 			assert!(
-				W::get().writes(1) <= constants::WEIGHT_PER_MILLIS,
+				W::get().writes(1).ref_time() <= constants::WEIGHT_REF_TIME_PER_MILLIS,
 				"Write weight should be at most 1 ms."
 			);
 		}

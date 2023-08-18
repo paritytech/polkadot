@@ -1,0 +1,16 @@
+{# This is a helper template to get the FULL PR list #}
+{# It is not used in the release notes #}
+
+# PR list
+
+## substrate
+
+{%- for change in  substrate.changes %}
+ - [S] [`{{ change.number }}`]({{ change.html_url }}) - {{ change.title }}
+{%- endfor %}
+
+## polkadot
+
+{%- for change in  polkadot.changes %}
+ - [P] [`{{ change.number }}`]({{ change.html_url }}) - {{ change.title }}
+{%- endfor %}

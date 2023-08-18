@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Substrate.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_core_primitives::Block;
-use remote_externalities::rpc_api::get_finalized_head;
+use polkadot_core_primitives::{Block, Hash, Header};
 use std::{
 	io::{BufRead, BufReader, Read},
 	process::{Child, ExitStatus},
 	thread,
 	time::Duration,
 };
+use substrate_rpc_client::{ws_client, ChainApi};
 use tokio::time::timeout;
 
 /// Wait for the given `child` the given amount of `secs`.
@@ -56,7 +56,12 @@ async fn wait_n_finalized_blocks_from(n: usize, url: &str) {
 	let mut interval = tokio::time::interval(Duration::from_secs(6));
 
 	loop {
-		if let Ok(block) = get_finalized_head::<Block, _>(url).await {
+		let rpc = match ws_client(url).await {
+			Ok(rpc_service) => rpc_service,
+			Err(_) => continue,
+		};
+
+		if let Ok(block) = ChainApi::<(), Hash, Header, Block>::finalized_head(&rpc).await {
 			built_blocks.insert(block);
 			if built_blocks.len() > n {
 				break
@@ -71,7 +76,8 @@ async fn wait_n_finalized_blocks_from(n: usize, url: &str) {
 /// This is hack to get the actual binded sockaddr because
 /// polkadot assigns a random port if the specified port was already binded.
 ///
-/// You must call `Command::new("cmd").stdout(process::Stdio::piped()).stderr(process::Stdio::piped())`
+/// You must call
+/// `Command::new("cmd").stdout(process::Stdio::piped()).stderr(process::Stdio::piped())`
 /// for this to work.
 pub fn find_ws_url_from_output(read: impl Read + Send) -> (String, String) {
 	let mut data = String::new();
@@ -84,13 +90,13 @@ pub fn find_ws_url_from_output(read: impl Read + Send) -> (String, String) {
 			data.push_str(&line);
 
 			// does the line contain our port (we expect this specific output from substrate).
-			let sock_addr = match line.split_once("Running JSON-RPC WS server: addr=") {
+			let sock_addr = match line.split_once("Running JSON-RPC server: addr=") {
 				None => return None,
-				Some((_, after)) => after.split_once(",").unwrap().0,
+				Some((_, after)) => after.split_once(',').unwrap().0,
 			};
 
 			Some(format!("ws://{}", sock_addr))
 		})
-		.expect(&format!("Could not find WebSocket address in process output:\n{}", &data));
+		.unwrap_or_else(|| panic!("Could not find address in process output:\n{}", &data));
 	(ws_url, data)
 }

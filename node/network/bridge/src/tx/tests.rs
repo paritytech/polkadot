@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,9 +20,9 @@ use polkadot_node_subsystem_util::TimeoutExt;
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
-use std::{borrow::Cow, collections::HashSet};
+use std::collections::HashSet;
 
-use sc_network::{Event as NetworkEvent, IfDisconnected};
+use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName, ReputationChange};
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSetProtocolNames,
@@ -32,19 +32,19 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem::{FromOrchestra, OverseerSignal};
 use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
 use polkadot_node_subsystem_util::metered;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash};
+use polkadot_primitives::{AuthorityDiscoveryId, Hash};
 use polkadot_primitives_test_helpers::dummy_collator_signature;
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
 
 const TIMEOUT: std::time::Duration = polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle::<NetworkBridgeTxMessage>::TIMEOUT;
 
-use crate::{network::Network, validator_discovery::AuthorityDiscovery, Rep};
+use crate::{network::Network, validator_discovery::AuthorityDiscovery};
 
 #[derive(Debug, PartialEq)]
 pub enum NetworkAction {
 	/// Note a change in reputation for a peer.
-	ReputationChange(PeerId, Rep),
+	ReputationChange(PeerId, ReputationChange),
 	/// Disconnect a peer from the given peer-set.
 	DisconnectPeer(PeerId, PeerSet),
 	/// Write a notification to a given peer on the given peer-set.
@@ -99,13 +99,19 @@ impl Network for TestNetwork {
 
 	async fn set_reserved_peers(
 		&mut self,
-		_protocol: Cow<'static, str>,
+		_protocol: ProtocolName,
 		_: HashSet<Multiaddr>,
 	) -> Result<(), String> {
 		Ok(())
 	}
 
-	async fn remove_from_peers_set(&mut self, _protocol: Cow<'static, str>, _: Vec<PeerId>) {}
+	async fn remove_from_peers_set(
+		&mut self,
+		_protocol: ProtocolName,
+		_: Vec<PeerId>,
+	) -> Result<(), String> {
+		Ok(())
+	}
 
 	async fn start_request<AD: AuthorityDiscovery>(
 		&self,
@@ -116,14 +122,14 @@ impl Network for TestNetwork {
 	) {
 	}
 
-	fn report_peer(&self, who: PeerId, cost_benefit: Rep) {
+	fn report_peer(&self, who: PeerId, rep: ReputationChange) {
 		self.action_tx
 			.lock()
-			.unbounded_send(NetworkAction::ReputationChange(who, cost_benefit))
+			.unbounded_send(NetworkAction::ReputationChange(who, rep))
 			.unwrap();
 	}
 
-	fn disconnect_peer(&self, who: PeerId, protocol: Cow<'static, str>) {
+	fn disconnect_peer(&self, who: PeerId, protocol: ProtocolName) {
 		let (peer_set, version) = self.peerset_protocol_names.try_get_protocol(&protocol).unwrap();
 		assert_eq!(version, peer_set.get_main_version());
 
@@ -133,7 +139,7 @@ impl Network for TestNetwork {
 			.unwrap();
 	}
 
-	fn write_notification(&self, who: PeerId, protocol: Cow<'static, str>, message: Vec<u8>) {
+	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>) {
 		let (peer_set, version) = self.peerset_protocol_names.try_get_protocol(&protocol).unwrap();
 		assert_eq!(version, peer_set.get_main_version());
 
@@ -173,6 +179,7 @@ impl TestNetworkHandle {
 			protocol: self.peerset_protocol_names.get_main_name(peer_set),
 			negotiated_fallback: None,
 			role: role.into(),
+			received_handshake: vec![],
 		})
 		.await;
 	}
@@ -235,7 +242,7 @@ fn send_messages_to_peers() {
 		let peer = PeerId::random();
 
 		network_handle
-			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
+			.connect_peer(peer, PeerSet::Validation, ObservedRole::Full)
 			.timeout(TIMEOUT)
 			.await
 			.expect("Timeout does not occur");
@@ -244,7 +251,7 @@ fn send_messages_to_peers() {
 		// so the single item sink has to be free explicitly
 
 		network_handle
-			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
+			.connect_peer(peer, PeerSet::Collation, ObservedRole::Full)
 			.timeout(TIMEOUT)
 			.await
 			.expect("Timeout does not occur");
@@ -262,7 +269,7 @@ fn send_messages_to_peers() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeTxMessage::SendValidationMessage(
-						vec![peer.clone()],
+						vec![peer],
 						Versioned::V1(message_v1.clone()),
 					),
 				})
@@ -277,7 +284,7 @@ fn send_messages_to_peers() {
 					.await
 					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
-					peer.clone(),
+					peer,
 					PeerSet::Validation,
 					WireMessage::ProtocolMessage(message_v1).encode(),
 				)
@@ -299,7 +306,7 @@ fn send_messages_to_peers() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeTxMessage::SendCollationMessage(
-						vec![peer.clone()],
+						vec![peer],
 						Versioned::V1(message_v1.clone()),
 					),
 				})
@@ -312,7 +319,7 @@ fn send_messages_to_peers() {
 					.await
 					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
-					peer.clone(),
+					peer,
 					PeerSet::Collation,
 					WireMessage::ProtocolMessage(message_v1).encode(),
 				)

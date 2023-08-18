@@ -1,0 +1,35 @@
+[package]
+name = "polkadot-node-core-pvf-prepare-worker"
+description = "Polkadot crate that contains the logic for preparing PVFs. Used by the polkadot-prepare-worker binary."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+futures = "0.3.21"
+gum = { package = "tracing-gum", path = "../../../gum" }
+libc = "0.2.139"
+rayon = "1.5.1"
+tikv-jemalloc-ctl = { version = "0.5.0", optional = true }
+tokio = { version = "1.24.2", features = ["fs", "process"] }
+
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
+
+polkadot-node-core-pvf-common = { path = "../common" }
+polkadot-parachain = { path = "../../../../parachain" }
+polkadot-primitives = { path = "../../../../primitives" }
+
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tikv-jemalloc-ctl = "0.5.0"
+
+[features]
+builder = []
+jemalloc-allocator = ["dep:tikv-jemalloc-ctl"]

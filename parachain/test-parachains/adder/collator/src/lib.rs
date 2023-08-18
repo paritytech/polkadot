@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@ use polkadot_node_primitives::{
 	Collation, CollationResult, CollationSecondedSignal, CollatorFn, MaybeCompressedPoV, PoV,
 	Statement,
 };
-use polkadot_primitives::v2::{CollatorId, CollatorPair};
+use polkadot_primitives::{CollatorId, CollatorPair};
 use sp_core::{traits::SpawnNamed, Pair};
 use std::{
 	collections::HashMap,
@@ -147,7 +147,8 @@ impl Collator {
 
 	/// Create the collation function.
 	///
-	/// This collation function can be plugged into the overseer to generate collations for the adder parachain.
+	/// This collation function can be plugged into the overseer to generate collations for the
+	/// adder parachain.
 	pub fn create_collation_function(
 		&self,
 		spawner: impl SpawnNamed + Clone + 'static,
@@ -172,8 +173,8 @@ impl Collator {
 			let pov = PoV { block_data: block_data.encode().into() };
 
 			let collation = Collation {
-				upward_messages: Vec::new(),
-				horizontal_messages: Vec::new(),
+				upward_messages: Default::default(),
+				horizontal_messages: Default::default(),
 				new_validation_code: None,
 				head_data: head_data.encode().into(),
 				proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),
@@ -228,8 +229,9 @@ impl Collator {
 
 	/// Wait until `seconded` collations of this collator are seconded by a parachain validator.
 	///
-	/// The internal counter isn't de-duplicating the collations when counting the number of seconded collations. This
-	/// means when one collation is seconded by X validators, we record X seconded messages.
+	/// The internal counter isn't de-duplicating the collations when counting the number of
+	/// seconded collations. This means when one collation is seconded by X validators, we record X
+	/// seconded messages.
 	pub async fn wait_for_seconded_collations(&self, seconded: u32) {
 		let seconded_collations = self.seconded_collations.clone();
 		loop {
@@ -248,7 +250,7 @@ mod tests {
 
 	use futures::executor::block_on;
 	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
-	use polkadot_primitives::v2::PersistedValidationData;
+	use polkadot_primitives::PersistedValidationData;
 
 	#[test]
 	fn collator_works() {

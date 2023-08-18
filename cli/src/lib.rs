@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -27,8 +27,6 @@ mod error;
 #[cfg(all(feature = "hostperfcheck", build_type = "release"))]
 mod host_perf_check;
 
-#[cfg(feature = "full-node")]
-pub use service::RuntimeApiCollection;
 #[cfg(feature = "service")]
 pub use service::{self, Block, CoreApi, IdentifyVariant, ProvideRuntimeApi, TFullClient};
 

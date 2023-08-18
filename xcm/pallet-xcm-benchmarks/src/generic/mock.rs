@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,32 +19,27 @@
 use crate::{generic, mock::*, *};
 use codec::Decode;
 use frame_support::{
-	parameter_types,
+	match_types, parameter_types,
 	traits::{Everything, OriginTrait},
 	weights::Weight,
 };
 use sp_core::H256;
-use sp_runtime::{
-	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
-	BuildStorage,
-};
+use sp_runtime::traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput};
 use xcm_builder::{
-	test_utils::{Assets, TestAssetTrap, TestSubscriptionService},
-	AllowUnpaidExecutionFrom,
+	test_utils::{
+		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
+		TestUniversalAliases,
+	},
+	AliasForeignAccountId32, AllowUnpaidExecutionFrom,
 };
 use xcm_executor::traits::ConvertOrigin;
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
+	pub enum Test
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 		XcmGenericBenchmarks: generic::{Pallet},
 	}
 );
@@ -52,7 +47,7 @@ frame_support::construct_runtime!(
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1024));
+		frame_system::limits::BlockWeights::simple_max(Weight::from_parts(1024, u64::MAX));
 }
 
 impl frame_system::Config for Test {
@@ -60,16 +55,15 @@ impl frame_system::Config for Test {
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
-	type Origin = Origin;
-	type Index = u64;
-	type BlockNumber = u64;
+	type RuntimeOrigin = RuntimeOrigin;
+	type Nonce = u64;
 	type Hash = H256;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
-	type Event = Event;
+	type Block = Block;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
@@ -85,35 +79,58 @@ impl frame_system::Config for Test {
 /// The benchmarks in this pallet should never need an asset transactor to begin with.
 pub struct NoAssetTransactor;
 impl xcm_executor::traits::TransactAsset for NoAssetTransactor {
-	fn deposit_asset(_: &MultiAsset, _: &MultiLocation) -> Result<(), XcmError> {
+	fn deposit_asset(_: &MultiAsset, _: &MultiLocation, _: &XcmContext) -> Result<(), XcmError> {
 		unreachable!();
 	}
 
-	fn withdraw_asset(_: &MultiAsset, _: &MultiLocation) -> Result<Assets, XcmError> {
+	fn withdraw_asset(
+		_: &MultiAsset,
+		_: &MultiLocation,
+		_: Option<&XcmContext>,
+	) -> Result<Assets, XcmError> {
 		unreachable!();
 	}
 }
 
 parameter_types! {
 	pub const MaxInstructions: u32 = 100;
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
+match_types! {
+	pub type OnlyParachains: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+}
+
+type Aliasers = AliasForeignAccountId32<OnlyParachains>;
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type XcmSender = DevNull;
 	type AssetTransactor = NoAssetTransactor;
-	type OriginConverter = AlwaysSignedByDefault<Origin>;
+	type OriginConverter = AlwaysSignedByDefault<RuntimeOrigin>;
 	type IsReserve = AllAssetLocationsPass;
 	type IsTeleporter = ();
-	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
+	type UniversalLocation = UniversalLocation;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
-	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
+	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 	type AssetTrap = TestAssetTrap;
+	type AssetLocker = TestAssetLocker;
+	type AssetExchanger = TestAssetExchanger;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
+	type PalletInstancesInfo = AllPalletsWithSystem;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type FeeManager = ();
+	// No bridges yet...
+	type MessageExporter = ();
+	type UniversalAliases = TestUniversalAliases;
+	type CallDispatcher = RuntimeCall;
+	type SafeCallFilter = Everything;
+	type Aliasers = Aliasers;
 }
 
 impl crate::Config for Test {
@@ -121,25 +138,37 @@ impl crate::Config for Test {
 	type AccountIdConverter = AccountIdConverter;
 	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
-			Junction::AccountId32 { network: NetworkId::Any, id: [0u8; 32] }.into();
+			Junction::AccountId32 { network: None, id: [0u8; 32] }.into();
 
 		Ok(valid_destination)
 	}
-	fn worst_case_holding() -> MultiAssets {
-		crate::mock_worst_case_holding()
+	fn worst_case_holding(depositable_count: u32) -> MultiAssets {
+		crate::mock_worst_case_holding(
+			depositable_count,
+			<XcmConfig as xcm_executor::Config>::MaxAssetsIntoHolding::get(),
+		)
 	}
 }
 
 impl generic::Config for Test {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 
 	fn worst_case_response() -> (u64, Response) {
 		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
 		(0, Response::Assets(assets))
 	}
 
-	fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
+	fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError> {
 		Ok(Default::default())
+	}
+
+	fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError> {
+		Ok((Here.into(), GlobalConsensus(ByGenesis([0; 32]))))
+	}
+
+	fn transact_origin_and_runtime_call(
+	) -> Result<(MultiLocation, <Self as generic::Config>::RuntimeCall), BenchmarkError> {
+		Ok((Default::default(), frame_system::Call::remark_with_event { remark: vec![] }.into()))
 	}
 
 	fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
@@ -151,26 +180,46 @@ impl generic::Config for Test {
 		let ticket = MultiLocation { parents: 0, interior: X1(GeneralIndex(0)) };
 		Ok((Default::default(), ticket, assets))
 	}
+
+	fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
+		let assets: MultiAsset = (Concrete(Here.into()), 100).into();
+		Ok((Default::default(), Default::default(), assets))
+	}
+
+	fn export_message_origin_and_destination(
+	) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError> {
+		// No MessageExporter in tests
+		Err(BenchmarkError::Skip)
+	}
+
+	fn alias_origin() -> Result<(MultiLocation, MultiLocation), BenchmarkError> {
+		let origin: MultiLocation =
+			(Parachain(1), AccountId32 { network: None, id: [0; 32] }).into();
+		let target: MultiLocation = AccountId32 { network: None, id: [0; 32] }.into();
+		Ok((origin, target))
+	}
 }
 
+#[cfg(feature = "runtime-benchmarks")]
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
+	use sp_runtime::BuildStorage;
+	let t = RuntimeGenesisConfig { ..Default::default() }.build_storage().unwrap();
 	sp_tracing::try_init_simple();
 	t.into()
 }
 
-pub struct AlwaysSignedByDefault<Origin>(core::marker::PhantomData<Origin>);
-impl<Origin> ConvertOrigin<Origin> for AlwaysSignedByDefault<Origin>
+pub struct AlwaysSignedByDefault<RuntimeOrigin>(core::marker::PhantomData<RuntimeOrigin>);
+impl<RuntimeOrigin> ConvertOrigin<RuntimeOrigin> for AlwaysSignedByDefault<RuntimeOrigin>
 where
-	Origin: OriginTrait,
-	<Origin as OriginTrait>::AccountId: Decode,
+	RuntimeOrigin: OriginTrait,
+	<RuntimeOrigin as OriginTrait>::AccountId: Decode,
 {
 	fn convert_origin(
 		_origin: impl Into<MultiLocation>,
 		_kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
-		Ok(Origin::signed(
-			<Origin as OriginTrait>::AccountId::decode(&mut TrailingZeroInput::zeroes())
+	) -> Result<RuntimeOrigin, MultiLocation> {
+		Ok(RuntimeOrigin::signed(
+			<RuntimeOrigin as OriginTrait>::AccountId::decode(&mut TrailingZeroInput::zeroes())
 				.expect("infinite length input; no invalid inputs for type; qed"),
 		))
 	}

@@ -1,9 +1,11 @@
 [package]
 name = "polkadot-node-subsystem-test-helpers"
-version = "0.9.28"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 description = "Subsystem traits and message definitions"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 async-trait = "0.1.57"

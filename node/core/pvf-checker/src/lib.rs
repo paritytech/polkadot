@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -26,11 +26,11 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 	SubsystemResult, SubsystemSender,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash, ValidatorId,
 	ValidatorIndex,
 };
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 use std::collections::HashSet;
 
 const LOG_TARGET: &str = "parachain::pvf-checker";
@@ -50,12 +50,12 @@ use self::{
 /// PVF pre-checking subsystem.
 pub struct PvfCheckerSubsystem {
 	enabled: bool,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 }
 
 impl PvfCheckerSubsystem {
-	pub fn new(enabled: bool, keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+	pub fn new(enabled: bool, keystore: KeystorePtr, metrics: Metrics) -> Self {
 		PvfCheckerSubsystem { enabled, keystore, metrics }
 	}
 }
@@ -110,8 +110,8 @@ struct State {
 	///
 	/// Here are some fun facts about these futures:
 	///
-	/// - Pre-checking can take quite some time, in the matter of tens of seconds, so the futures here
-	///   can soak for quite some time.
+	/// - Pre-checking can take quite some time, in the matter of tens of seconds, so the futures
+	///   here can soak for quite some time.
 	/// - Pre-checking of one PVF can take drastically more time than pre-checking of another PVF.
 	///   This leads to results coming out of order.
 	///
@@ -123,7 +123,7 @@ struct State {
 #[overseer::contextbounds(PvfChecker, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 ) -> SubsystemResult<()> {
 	let mut state = State {
@@ -174,7 +174,7 @@ async fn run<Context>(
 async fn handle_pvf_check(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	metrics: &Metrics,
 	outcome: PreCheckOutcome,
 	validation_code_hash: ValidationCodeHash,
@@ -190,16 +190,18 @@ async fn handle_pvf_check(
 		PreCheckOutcome::Valid => Judgement::Valid,
 		PreCheckOutcome::Invalid => Judgement::Invalid,
 		PreCheckOutcome::Failed => {
-			// Abstain.
+			// Always vote against in case of failures. Voting against a PVF when encountering a
+			// timeout (or an unlikely node-specific issue) can be considered safe, since
+			// there is no slashing for being on the wrong side on a pre-check vote.
 			//
-			// Returning here will leave the PVF in the view dangling. Since it is there, no new
-			// pre-checking request will be sent.
+			// Also, by being more strict here, we can safely be more lenient during preparation and
+			// avoid the risk of getting slashed there.
 			gum::info!(
 				target: LOG_TARGET,
 				?validation_code_hash,
-				"Pre-check failed, abstaining from voting",
+				"Pre-check failed, voting against",
 			);
-			return
+			Judgement::Invalid
 		},
 	};
 
@@ -242,7 +244,7 @@ struct Conclude;
 async fn handle_from_overseer(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	metrics: &Metrics,
 	from_overseer: FromOrchestra<PvfCheckerMessage>,
 ) -> Option<Conclude> {
@@ -268,7 +270,7 @@ async fn handle_from_overseer(
 async fn handle_leaves_update(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	metrics: &Metrics,
 	update: ActiveLeavesUpdate,
 ) {
@@ -295,7 +297,7 @@ async fn handle_leaves_update(
 		metrics.on_pvf_observed(outcome.newcomers.len());
 		metrics.on_pvf_left(outcome.left_num);
 		for newcomer in outcome.newcomers {
-			initiate_precheck(state, sender, recent_block_hash, newcomer, metrics).await;
+			initiate_precheck(state, sender, activated.hash, newcomer, metrics).await;
 		}
 
 		if let Some((new_session_index, credentials)) = new_session_index {
@@ -350,7 +352,7 @@ struct ActivationEffect {
 async fn examine_activation(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	leaf_hash: Hash,
 	leaf_number: BlockNumber,
 ) -> Option<ActivationEffect> {
@@ -409,7 +411,7 @@ async fn examine_activation(
 /// returns the [`SigningCredentials`].
 async fn check_signing_credentials(
 	sender: &mut impl SubsystemSender<RuntimeApiMessage>,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	leaf: Hash,
 ) -> Option<SigningCredentials> {
 	let validators = match runtime_api::validators(sender, leaf).await {
@@ -425,12 +427,9 @@ async fn check_signing_credentials(
 		},
 	};
 
-	polkadot_node_subsystem_util::signing_key_and_index(&validators, keystore)
-		.await
-		.map(|(validator_key, validator_index)| SigningCredentials {
-			validator_key,
-			validator_index,
-		})
+	polkadot_node_subsystem_util::signing_key_and_index(&validators, keystore).map(
+		|(validator_key, validator_index)| SigningCredentials { validator_key, validator_index },
+	)
 }
 
 /// Signs and submits a vote for or against a given validation code.
@@ -438,7 +437,7 @@ async fn check_signing_credentials(
 /// If the validator already voted for the given code, this function does nothing.
 async fn sign_and_submit_pvf_check_statement(
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	voted: &mut HashSet<ValidationCodeHash>,
 	credentials: &SigningCredentials,
 	metrics: &Metrics,
@@ -480,9 +479,7 @@ async fn sign_and_submit_pvf_check_statement(
 		keystore,
 		&credentials.validator_key,
 		&stmt.signing_payload(),
-	)
-	.await
-	{
+	) {
 		Ok(Some(signature)) => signature,
 		Ok(None) => {
 			gum::warn!(

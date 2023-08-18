@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,10 +17,6 @@
 //! Basic parachain that adds a number as part of its state.
 
 #![no_std]
-#![cfg_attr(
-	not(feature = "std"),
-	feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)
-)]
 
 use parity_scale_codec::{Decode, Encode};
 use tiny_keccak::{Hasher as _, Keccak};

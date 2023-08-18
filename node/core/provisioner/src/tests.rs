@@ -1,7 +1,23 @@
+// Copyright (C) Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use super::*;
 use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use bitvec::bitvec;
-use polkadot_primitives::v2::{OccupiedCore, ScheduledCore};
+use polkadot_primitives::{OccupiedCore, ScheduledCore};
 
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
@@ -40,19 +56,17 @@ pub fn scheduled_core(id: u32) -> ScheduledCore {
 
 mod select_availability_bitfields {
 	use super::{super::*, default_bitvec, occupied_core};
-	use futures::executor::block_on;
-	use polkadot_primitives::v2::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
-	use sp_application_crypto::AppKey;
-	use sp_keystore::{testing::KeyStore, CryptoStore, SyncCryptoStorePtr};
+	use polkadot_primitives::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
+	use sp_application_crypto::AppCrypto;
+	use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 	use std::sync::Arc;
 
-	async fn signed_bitfield(
-		keystore: &SyncCryptoStorePtr,
+	fn signed_bitfield(
+		keystore: &KeystorePtr,
 		field: CoreAvailability,
 		validator_idx: ValidatorIndex,
 	) -> SignedAvailabilityBitfield {
-		let public = CryptoStore::sr25519_generate_new(&**keystore, ValidatorId::ID, None)
-			.await
+		let public = Keystore::sr25519_generate_new(&**keystore, ValidatorId::ID, None)
 			.expect("generated sr25519 key");
 		SignedAvailabilityBitfield::sign(
 			&keystore,
@@ -61,7 +75,6 @@ mod select_availability_bitfields {
 			validator_idx,
 			&public.into(),
 		)
-		.await
 		.ok()
 		.flatten()
 		.expect("Should be signed")
@@ -69,7 +82,7 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn not_more_than_one_per_validator() {
-		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
 		let mut bitvec = default_bitvec(2);
 		bitvec.set(0, true);
 		bitvec.set(1, true);
@@ -77,11 +90,12 @@ mod select_availability_bitfields {
 		let cores = vec![occupied_core(0), occupied_core(1)];
 
 		// we pass in three bitfields with two validators
-		// this helps us check the postcondition that we get two bitfields back, for which the validators differ
+		// this helps us check the postcondition that we get two bitfields back, for which the
+		// validators differ
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(0))),
-			block_on(signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(1))),
-			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
+			signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(0)),
+			signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(1)),
+			signed_bitfield(&keystore, bitvec, ValidatorIndex(1)),
 		];
 
 		let mut selected_bitfields =
@@ -96,7 +110,7 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn each_corresponds_to_an_occupied_core() {
-		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
 		let bitvec = default_bitvec(3);
 
 		// invalid: bit on free core
@@ -118,9 +132,9 @@ mod select_availability_bitfields {
 		];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec0, ValidatorIndex(0))),
-			block_on(signed_bitfield(&keystore, bitvec1, ValidatorIndex(1))),
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
+			signed_bitfield(&keystore, bitvec0, ValidatorIndex(0)),
+			signed_bitfield(&keystore, bitvec1, ValidatorIndex(1)),
+			signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2)),
 		];
 
 		let selected_bitfields =
@@ -133,7 +147,7 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn more_set_bits_win_conflicts() {
-		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
 		let mut bitvec = default_bitvec(2);
 		bitvec.set(0, true);
 
@@ -143,8 +157,8 @@ mod select_availability_bitfields {
 		let cores = vec![occupied_core(0), occupied_core(1)];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
-			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
+			signed_bitfield(&keystore, bitvec, ValidatorIndex(1)),
+			signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1)),
 		];
 
 		let selected_bitfields =
@@ -155,7 +169,7 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn more_complex_bitfields() {
-		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
 
 		let cores = vec![occupied_core(0), occupied_core(1), occupied_core(2), occupied_core(3)];
 
@@ -178,11 +192,11 @@ mod select_availability_bitfields {
 		// these are out of order but will be selected in order. The better
 		// bitfield for 3 will be selected.
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(3))),
-			block_on(signed_bitfield(&keystore, bitvec3.clone(), ValidatorIndex(3))),
-			block_on(signed_bitfield(&keystore, bitvec0.clone(), ValidatorIndex(0))),
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
-			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
+			signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(3)),
+			signed_bitfield(&keystore, bitvec3.clone(), ValidatorIndex(3)),
+			signed_bitfield(&keystore, bitvec0.clone(), ValidatorIndex(0)),
+			signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2)),
+			signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1)),
 		];
 
 		let selected_bitfields =
@@ -195,7 +209,7 @@ mod select_availability_bitfields {
 	}
 }
 
-mod common {
+pub(crate) mod common {
 	use super::super::*;
 	use futures::channel::mpsc;
 	use polkadot_node_subsystem::messages::AllMessages;
@@ -234,7 +248,7 @@ mod select_candidates {
 		},
 	};
 	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
-	use polkadot_primitives::v2::{
+	use polkadot_primitives::{
 		BlockNumber, CandidateCommitments, CommittedCandidateReceipt, PersistedValidationData,
 	};
 
@@ -495,405 +509,5 @@ mod select_candidates {
 				});
 			},
 		)
-	}
-}
-
-mod select_disputes {
-	use super::{super::*, common::test_harness};
-	use futures::channel::mpsc;
-	use polkadot_node_subsystem::{
-		messages::{AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest},
-		RuntimeApiError,
-	};
-	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
-	use polkadot_primitives::v2::DisputeState;
-	use std::sync::Arc;
-	use test_helpers;
-
-	// Global Test Data
-	fn recent_disputes(len: usize) -> Vec<(SessionIndex, CandidateHash)> {
-		let mut res = Vec::with_capacity(len);
-		for _ in 0..len {
-			res.push((0, CandidateHash(Hash::random())));
-		}
-
-		res
-	}
-
-	// same as recent_disputes() but with SessionIndex set to 1
-	fn active_disputes(len: usize) -> Vec<(SessionIndex, CandidateHash)> {
-		let mut res = Vec::with_capacity(len);
-		for _ in 0..len {
-			res.push((1, CandidateHash(Hash::random())));
-		}
-
-		res
-	}
-
-	fn leaf() -> ActivatedLeaf {
-		ActivatedLeaf {
-			hash: Hash::repeat_byte(0xAA),
-			number: 0xAA,
-			status: LeafStatus::Fresh,
-			span: Arc::new(jaeger::Span::Disabled),
-		}
-	}
-
-	async fn mock_overseer(
-		leaf: ActivatedLeaf,
-		mut receiver: mpsc::UnboundedReceiver<AllMessages>,
-		onchain_disputes: Result<Vec<(SessionIndex, CandidateHash, DisputeState)>, RuntimeApiError>,
-		recent_disputes: Vec<(SessionIndex, CandidateHash)>,
-		active_disputes: Vec<(SessionIndex, CandidateHash)>,
-	) {
-		while let Some(from_job) = receiver.next().await {
-			match from_job {
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					_,
-					RuntimeApiRequest::StagingDisputes(sender),
-				)) => {
-					let _ = sender.send(onchain_disputes.clone());
-				},
-				AllMessages::RuntimeApi(_) => panic!("Unexpected RuntimeApi request"),
-				AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::RecentDisputes(
-					sender,
-				)) => {
-					let _ = sender.send(recent_disputes.clone());
-				},
-				AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ActiveDisputes(
-					sender,
-				)) => {
-					let _ = sender.send(active_disputes.clone());
-				},
-				AllMessages::DisputeCoordinator(
-					DisputeCoordinatorMessage::QueryCandidateVotes(disputes, sender),
-				) => {
-					let mut res = Vec::new();
-					let v = CandidateVotes {
-						candidate_receipt: test_helpers::dummy_candidate_receipt(leaf.hash.clone()),
-						valid: BTreeMap::new(),
-						invalid: BTreeMap::new(),
-					};
-					for r in disputes.iter() {
-						res.push((r.0, r.1, v.clone()));
-					}
-
-					let _ = sender.send(res);
-				},
-				_ => panic!("Unexpected message: {:?}", from_job),
-			}
-		}
-	}
-
-	#[test]
-	fn recent_disputes_are_withing_onchain_limit() {
-		const RECENT_DISPUTES_SIZE: usize = 10;
-		let metrics = metrics::Metrics::new_dummy();
-		let onchain_disputes = Ok(Vec::new());
-		let active_disputes = Vec::new();
-		let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
-
-		let recent_disputes_overseer = recent_disputes.clone();
-		test_harness(
-			|r| {
-				mock_overseer(
-					leaf(),
-					r,
-					onchain_disputes,
-					recent_disputes_overseer,
-					active_disputes,
-				)
-			},
-			|mut tx: TestSubsystemSender| async move {
-				let lf = leaf();
-				let disputes = select_disputes(&mut tx, &metrics, &lf).await.unwrap();
-
-				assert!(!disputes.is_empty());
-
-				let result = disputes.iter().zip(recent_disputes.iter());
-				// We should get all recent disputes.
-				for (d, r) in result {
-					assert_eq!(d.session, r.0);
-					assert_eq!(d.candidate_hash, r.1);
-				}
-			},
-		)
-	}
-
-	#[test]
-	fn recent_disputes_are_too_much_but_active_are_within_limit() {
-		const RECENT_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 10;
-		const ACTIVE_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME;
-		let metrics = metrics::Metrics::new_dummy();
-		let onchain_disputes = Ok(Vec::new());
-		let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
-		let active_disputes = active_disputes(ACTIVE_DISPUTES_SIZE);
-
-		let active_disputes_overseer = active_disputes.clone();
-		test_harness(
-			|r| {
-				mock_overseer(
-					leaf(),
-					r,
-					onchain_disputes,
-					recent_disputes,
-					active_disputes_overseer,
-				)
-			},
-			|mut tx: TestSubsystemSender| async move {
-				let lf = leaf();
-				let disputes = select_disputes(&mut tx, &metrics, &lf).await.unwrap();
-
-				assert!(!disputes.is_empty());
-
-				let result = disputes.iter().zip(active_disputes.iter());
-				// We should get all active disputes.
-				for (d, r) in result {
-					assert_eq!(d.session, r.0);
-					assert_eq!(d.candidate_hash, r.1);
-				}
-			},
-		)
-	}
-
-	#[test]
-	fn recent_disputes_are_too_much_but_active_are_less_than_the_limit() {
-		// In this case all active disputes + a random set of recent disputes should be returned
-		const RECENT_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 10;
-		const ACTIVE_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME - 10;
-		let metrics = metrics::Metrics::new_dummy();
-		let onchain_disputes = Ok(Vec::new());
-		let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
-		let active_disputes = active_disputes(ACTIVE_DISPUTES_SIZE);
-
-		let active_disputes_overseer = active_disputes.clone();
-		test_harness(
-			|r| {
-				mock_overseer(
-					leaf(),
-					r,
-					onchain_disputes,
-					recent_disputes,
-					active_disputes_overseer,
-				)
-			},
-			|mut tx: TestSubsystemSender| async move {
-				let lf = leaf();
-				let disputes = select_disputes(&mut tx, &metrics, &lf).await.unwrap();
-
-				assert!(!disputes.is_empty());
-
-				// Recent disputes are generated with `SessionIndex` = 0
-				let (res_recent, res_active): (Vec<DisputeStatementSet>, Vec<DisputeStatementSet>) =
-					disputes.into_iter().partition(|d| d.session == 0);
-
-				// It should be good enough the count the number of active disputes and not compare them one by one. Checking the exact values is already covered by the previous tests.
-				assert_eq!(res_active.len(), active_disputes.len()); // We have got all active disputes
-				assert_eq!(res_active.len() + res_recent.len(), MAX_DISPUTES_FORWARDED_TO_RUNTIME);
-				// And some recent ones.
-			},
-		)
-	}
-
-	//These tests rely on staging Runtime functions so they are separated and compiled conditionally.
-	#[cfg(feature = "staging-client")]
-	mod staging_tests {
-		use super::*;
-
-		fn dummy_dispute_state() -> DisputeState {
-			DisputeState {
-				validators_for: BitVec::new(),
-				validators_against: BitVec::new(),
-				start: 0,
-				concluded_at: None,
-			}
-		}
-
-		#[test]
-		fn recent_disputes_are_too_much_active_fits_test_recent_prioritisation() {
-			// In this case recent disputes are above `MAX_DISPUTES_FORWARDED_TO_RUNTIME` limit and the active ones are below it.
-			// The expected behaviour is to send all active disputes and extend the set with recent ones. During the extension the disputes unknown for the Runtime are added with priority.
-			const RECENT_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 10;
-			const ACTIVE_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME - 10;
-			const ONCHAIN_DISPUTE_SIZE: usize = RECENT_DISPUTES_SIZE - 9;
-			let metrics = metrics::Metrics::new_dummy();
-			let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
-			let active_disputes = active_disputes(ACTIVE_DISPUTES_SIZE);
-			let onchain_disputes: Result<
-				Vec<(SessionIndex, CandidateHash, DisputeState)>,
-				RuntimeApiError,
-			> = Ok(Vec::from(&recent_disputes[0..ONCHAIN_DISPUTE_SIZE])
-				.iter()
-				.map(|(session_index, candidate_hash)| {
-					(*session_index, candidate_hash.clone(), dummy_dispute_state())
-				})
-				.collect());
-			let active_disputes_overseer = active_disputes.clone();
-			let recent_disputes_overseer = recent_disputes.clone();
-			test_harness(
-				|r| {
-					mock_overseer(
-						leaf(),
-						r,
-						onchain_disputes,
-						recent_disputes_overseer,
-						active_disputes_overseer,
-					)
-				},
-				|mut tx: TestSubsystemSender| async move {
-					let lf = leaf();
-					let disputes = select_disputes(&mut tx, &metrics, &lf).await.unwrap();
-
-					assert!(!disputes.is_empty());
-
-					// Recent disputes are generated with `SessionIndex` = 0
-					let (res_recent, res_active): (
-						Vec<DisputeStatementSet>,
-						Vec<DisputeStatementSet>,
-					) = disputes.into_iter().partition(|d| d.session == 0);
-
-					// It should be good enough the count the number of the disputes and not compare them one by one as this was already covered in other tests.
-					assert_eq!(res_active.len(), active_disputes.len()); // We've got all active disputes.
-					assert_eq!(
-						res_recent.len(),
-						MAX_DISPUTES_FORWARDED_TO_RUNTIME - active_disputes.len()
-					); // And some recent ones.
-
-					// Check if the recent disputes were unknown for the Runtime.
-					let expected_recent_disputes =
-						Vec::from(&recent_disputes[ONCHAIN_DISPUTE_SIZE..]);
-					let res_recent_set: HashSet<(SessionIndex, CandidateHash)> = HashSet::from_iter(
-						res_recent.iter().map(|d| (d.session, d.candidate_hash)),
-					);
-
-					// Explicitly check that all unseen disputes are sent to the Runtime.
-					for d in &expected_recent_disputes {
-						assert_eq!(res_recent_set.contains(d), true);
-					}
-				},
-			)
-		}
-
-		#[test]
-		fn active_disputes_are_too_much_test_active_prioritisation() {
-			// In this case the active disputes are above the `MAX_DISPUTES_FORWARDED_TO_RUNTIME` limit so the unseen ones should be prioritised.
-			const RECENT_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 10;
-			const ACTIVE_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 10;
-			const ONCHAIN_DISPUTE_SIZE: usize = ACTIVE_DISPUTES_SIZE - 9;
-
-			let metrics = metrics::Metrics::new_dummy();
-			let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
-			let active_disputes = active_disputes(ACTIVE_DISPUTES_SIZE);
-			let onchain_disputes: Result<
-				Vec<(SessionIndex, CandidateHash, DisputeState)>,
-				RuntimeApiError,
-			> = Ok(Vec::from(&active_disputes[0..ONCHAIN_DISPUTE_SIZE])
-				.iter()
-				.map(|(session_index, candidate_hash)| {
-					(*session_index, candidate_hash.clone(), dummy_dispute_state())
-				})
-				.collect());
-			let active_disputes_overseer = active_disputes.clone();
-			let recent_disputes_overseer = recent_disputes.clone();
-			test_harness(
-				|r| {
-					mock_overseer(
-						leaf(),
-						r,
-						onchain_disputes,
-						recent_disputes_overseer,
-						active_disputes_overseer,
-					)
-				},
-				|mut tx: TestSubsystemSender| async move {
-					let lf = leaf();
-					let disputes = select_disputes(&mut tx, &metrics, &lf).await.unwrap();
-
-					assert!(!disputes.is_empty());
-
-					// Recent disputes are generated with `SessionIndex` = 0
-					let (res_recent, res_active): (
-						Vec<DisputeStatementSet>,
-						Vec<DisputeStatementSet>,
-					) = disputes.into_iter().partition(|d| d.session == 0);
-
-					// It should be good enough the count the number of the disputes and not compare them one by one
-					assert_eq!(res_recent.len(), 0); // We expect no recent disputes
-					assert_eq!(res_active.len(), MAX_DISPUTES_FORWARDED_TO_RUNTIME);
-
-					let expected_active_disputes =
-						Vec::from(&active_disputes[ONCHAIN_DISPUTE_SIZE..]);
-					let res_active_set: HashSet<(SessionIndex, CandidateHash)> = HashSet::from_iter(
-						res_active.iter().map(|d| (d.session, d.candidate_hash)),
-					);
-
-					// Explicitly check that the unseen disputes are delivered to the Runtime.
-					for d in &expected_active_disputes {
-						assert_eq!(res_active_set.contains(d), true);
-					}
-				},
-			)
-		}
-
-		#[test]
-		fn active_disputes_are_too_much_and_are_all_unseen() {
-			// In this case there are a lot of active disputes unseen by the Runtime. The focus of the test is to verify that in such cases known disputes are NOT sent to the Runtime.
-			const RECENT_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 10;
-			const ACTIVE_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 5;
-			const ONCHAIN_DISPUTE_SIZE: usize = 5;
-
-			let metrics = metrics::Metrics::new_dummy();
-			let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
-			let active_disputes = active_disputes(ACTIVE_DISPUTES_SIZE);
-			let onchain_disputes: Result<
-				Vec<(SessionIndex, CandidateHash, DisputeState)>,
-				RuntimeApiError,
-			> = Ok(Vec::from(&active_disputes[0..ONCHAIN_DISPUTE_SIZE])
-				.iter()
-				.map(|(session_index, candidate_hash)| {
-					(*session_index, candidate_hash.clone(), dummy_dispute_state())
-				})
-				.collect());
-			let active_disputes_overseer = active_disputes.clone();
-			let recent_disputes_overseer = recent_disputes.clone();
-			test_harness(
-				|r| {
-					mock_overseer(
-						leaf(),
-						r,
-						onchain_disputes,
-						recent_disputes_overseer,
-						active_disputes_overseer,
-					)
-				},
-				|mut tx: TestSubsystemSender| async move {
-					let lf = leaf();
-					let disputes = select_disputes(&mut tx, &metrics, &lf).await.unwrap();
-					assert!(!disputes.is_empty());
-
-					// Recent disputes are generated with `SessionIndex` = 0
-					let (res_recent, res_active): (
-						Vec<DisputeStatementSet>,
-						Vec<DisputeStatementSet>,
-					) = disputes.into_iter().partition(|d| d.session == 0);
-
-					// It should be good enough the count the number of the disputes and not compare them one by one
-					assert_eq!(res_recent.len(), 0);
-					assert_eq!(res_active.len(), MAX_DISPUTES_FORWARDED_TO_RUNTIME);
-
-					// For sure we don't want to see any of this disputes in the result
-					let unexpected_active_disputes =
-						Vec::from(&active_disputes[0..ONCHAIN_DISPUTE_SIZE]);
-					let res_active_set: HashSet<(SessionIndex, CandidateHash)> = HashSet::from_iter(
-						res_active.iter().map(|d| (d.session, d.candidate_hash)),
-					);
-
-					// Verify that the result DOESN'T contain known disputes (because there is an excessive number of unknown onces).
-					for d in &unexpected_active_disputes {
-						assert_eq!(res_active_set.contains(d), false);
-					}
-				},
-			)
-		}
 	}
 }

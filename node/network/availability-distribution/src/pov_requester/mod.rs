@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,7 +30,9 @@ use polkadot_node_subsystem::{
 	overseer,
 };
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
+use polkadot_primitives::{
+	AuthorityDiscoveryId, CandidateHash, Hash, Id as ParaId, ValidatorIndex,
+};
 
 use crate::{
 	error::{Error, FatalError, JfyiError, Result},
@@ -45,11 +47,23 @@ pub async fn fetch_pov<Context>(
 	runtime: &mut RuntimeInfo,
 	parent: Hash,
 	from_validator: ValidatorIndex,
+	para_id: ParaId,
 	candidate_hash: CandidateHash,
 	pov_hash: Hash,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
+	span: &jaeger::Span,
 ) -> Result<()> {
+	let _span = span
+		.child("fetch-pov")
+		.with_trace_id(candidate_hash)
+		.with_validator_index(from_validator)
+		.with_candidate(candidate_hash)
+		.with_para_id(para_id)
+		.with_relay_parent(parent)
+		.with_string_tag("pov-hash", format!("{:?}", pov_hash))
+		.with_stage(jaeger::Stage::AvailabilityDistribution);
+
 	let info = &runtime.get_session_info(ctx.sender(), parent).await?.session_info;
 	let authority_id = info
 		.discovery_keys
@@ -68,12 +82,10 @@ pub async fn fetch_pov<Context>(
 	))
 	.await;
 
-	let span = jaeger::Span::new(candidate_hash, "fetch-pov")
-		.with_validator_index(from_validator)
-		.with_relay_parent(parent);
 	ctx.spawn(
 		"pov-fetcher",
-		fetch_pov_job(pov_hash, authority_id, pending_response.boxed(), span, tx, metrics).boxed(),
+		fetch_pov_job(para_id, pov_hash, authority_id, pending_response.boxed(), tx, metrics)
+			.boxed(),
 	)
 	.map_err(|e| FatalError::SpawnTask(e))?;
 	Ok(())
@@ -81,15 +93,15 @@ pub async fn fetch_pov<Context>(
 
 /// Future to be spawned for taking care of handling reception and sending of PoV.
 async fn fetch_pov_job(
+	para_id: ParaId,
 	pov_hash: Hash,
 	authority_id: AuthorityDiscoveryId,
 	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
-	span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
 ) {
-	if let Err(err) = do_fetch_pov(pov_hash, pending_response, span, tx, metrics).await {
-		gum::warn!(target: LOG_TARGET, ?err, ?pov_hash, ?authority_id, "fetch_pov_job");
+	if let Err(err) = do_fetch_pov(pov_hash, pending_response, tx, metrics).await {
+		gum::warn!(target: LOG_TARGET, ?err, ?para_id, ?pov_hash, ?authority_id, "fetch_pov_job");
 	}
 }
 
@@ -97,7 +109,6 @@ async fn fetch_pov_job(
 async fn do_fetch_pov(
 	pov_hash: Hash,
 	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
-	_span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
 ) -> Result<()> {
@@ -135,7 +146,7 @@ mod tests {
 		AllMessages, AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
-	use polkadot_primitives::v2::{CandidateHash, Hash, ValidatorIndex};
+	use polkadot_primitives::{CandidateHash, Hash, ValidatorIndex};
 	use test_helpers::mock::make_ferdie_keystore;
 
 	use super::*;
@@ -171,10 +182,12 @@ mod tests {
 				&mut runtime,
 				Hash::default(),
 				ValidatorIndex(0),
+				ParaId::default(),
 				CandidateHash::default(),
 				pov_hash,
 				tx,
 				Metrics::new_dummy(),
+				&jaeger::Span::Disabled,
 			)
 			.await
 			.expect("Should succeed");

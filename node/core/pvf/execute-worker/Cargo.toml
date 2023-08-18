@@ -1,0 +1,31 @@
+[package]
+name = "polkadot-node-core-pvf-execute-worker"
+description = "Polkadot crate that contains the logic for executing PVFs. Used by the polkadot-execute-worker binary."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cpu-time = "1.0.0"
+futures = "0.3.21"
+gum = { package = "tracing-gum", path = "../../../gum" }
+rayon = "1.5.1"
+tikv-jemalloc-ctl = { version = "0.5.0", optional = true }
+tokio = { version = "1.24.2", features = ["fs", "process"] }
+
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
+
+polkadot-node-core-pvf-common = { path = "../common" }
+polkadot-parachain = { path = "../../../../parachain" }
+polkadot-primitives = { path = "../../../../primitives" }
+
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tikv-jemalloc-ctl = "0.5.0"
+
+[features]
+builder = []

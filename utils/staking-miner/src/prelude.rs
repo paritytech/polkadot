@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -26,12 +26,14 @@ pub type AccountId = core_primitives::AccountId;
 pub type BlockNumber = core_primitives::BlockNumber;
 /// The balance type.
 pub type Balance = core_primitives::Balance;
-/// The index of an account.
-pub type Index = core_primitives::AccountIndex;
+/// Index of a transaction in the chain.
+pub type Nonce = core_primitives::Nonce;
 /// The hash type. We re-export it here, but we can easily get it from block as well.
 pub type Hash = core_primitives::Hash;
 /// The header type. We re-export it here, but we can easily get it from block as well.
 pub type Header = core_primitives::Header;
+/// The block type.
+pub type Block = core_primitives::Block;
 
 pub use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 
@@ -44,7 +46,7 @@ pub const LOG_TARGET: &str = "staking-miner";
 pub use pallet_election_provider_multi_phase as EPM;
 
 /// The externalities type.
-pub type Ext = sp_io::TestExternalities;
+pub type Ext = sp_state_machine::TestExternalities<sp_runtime::traits::HashingFor<Block>>;
 
 /// The key pair type being used. We "strongly" assume sr25519 for simplicity.
 pub type Pair = sp_core::sr25519::Pair;

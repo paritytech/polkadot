@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,10 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{
-	collections::{HashMap, HashSet},
-	convert::TryFrom,
-};
+use std::{collections::HashSet, convert::TryFrom};
 
 pub use sc_network::{PeerId, ReputationChange};
 
@@ -25,27 +22,17 @@ use polkadot_node_network_protocol::{
 	grid_topology::SessionGridTopology, peer_set::ProtocolVersion, ObservedRole, OurView, View,
 	WrongVariant,
 };
-use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
-
-/// Information about a peer in the gossip topology for a session.
-#[derive(Debug, Clone, PartialEq)]
-pub struct TopologyPeerInfo {
-	/// The validator's known peer IDs.
-	pub peer_ids: Vec<PeerId>,
-	/// The index of the validator in the discovery keys of the corresponding
-	/// `SessionInfo`. This can extend _beyond_ the set of active parachain validators.
-	pub validator_index: ValidatorIndex,
-}
+use polkadot_primitives::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
 
 /// A struct indicating new gossip topology.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NewGossipTopology {
 	/// The session index this topology corresponds to.
 	pub session: SessionIndex,
-	/// Neighbors in the 'X' dimension of the grid.
-	pub our_neighbors_x: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
-	/// Neighbors in the 'Y' dimension of the grid.
-	pub our_neighbors_y: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+	/// The topology itself.
+	pub topology: SessionGridTopology,
+	/// The local validator index, if any.
+	pub local_index: Option<ValidatorIndex>,
 }
 
 /// Events from network.
@@ -74,6 +61,9 @@ pub enum NetworkBridgeEvent<M> {
 
 	/// Our view has changed.
 	OurViewChange(OurView),
+
+	/// The authority discovery session key has been rotated.
+	UpdatedAuthorityIds(PeerId, HashSet<AuthorityDiscoveryId>),
 }
 
 impl<M> NetworkBridgeEvent<M> {
@@ -99,42 +89,23 @@ impl<M> NetworkBridgeEvent<M> {
 	{
 		Ok(match *self {
 			NetworkBridgeEvent::PeerMessage(ref peer, ref msg) =>
-				NetworkBridgeEvent::PeerMessage(peer.clone(), T::try_from(msg)?),
+				NetworkBridgeEvent::PeerMessage(*peer, T::try_from(msg)?),
 			NetworkBridgeEvent::PeerConnected(
 				ref peer,
 				ref role,
 				ref version,
 				ref authority_id,
-			) => NetworkBridgeEvent::PeerConnected(
-				peer.clone(),
-				role.clone(),
-				*version,
-				authority_id.clone(),
-			),
+			) => NetworkBridgeEvent::PeerConnected(*peer, *role, *version, authority_id.clone()),
 			NetworkBridgeEvent::PeerDisconnected(ref peer) =>
-				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
+				NetworkBridgeEvent::PeerDisconnected(*peer),
 			NetworkBridgeEvent::NewGossipTopology(ref topology) =>
 				NetworkBridgeEvent::NewGossipTopology(topology.clone()),
 			NetworkBridgeEvent::PeerViewChange(ref peer, ref view) =>
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
+				NetworkBridgeEvent::PeerViewChange(*peer, view.clone()),
 			NetworkBridgeEvent::OurViewChange(ref view) =>
 				NetworkBridgeEvent::OurViewChange(view.clone()),
+			NetworkBridgeEvent::UpdatedAuthorityIds(ref peer, ref authority_ids) =>
+				NetworkBridgeEvent::UpdatedAuthorityIds(*peer, authority_ids.clone()),
 		})
-	}
-}
-
-impl From<NewGossipTopology> for SessionGridTopology {
-	fn from(topology: NewGossipTopology) -> Self {
-		let peers_x =
-			topology.our_neighbors_x.values().flat_map(|p| &p.peer_ids).cloned().collect();
-		let peers_y =
-			topology.our_neighbors_y.values().flat_map(|p| &p.peer_ids).cloned().collect();
-
-		let validator_indices_x =
-			topology.our_neighbors_x.values().map(|p| p.validator_index.clone()).collect();
-		let validator_indices_y =
-			topology.our_neighbors_y.values().map(|p| p.validator_index.clone()).collect();
-
-		SessionGridTopology { peers_x, peers_y, validator_indices_x, validator_indices_y }
 	}
 }

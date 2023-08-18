@@ -1,0 +1,12 @@
+{%- import "change.md.tera" as m_c -%}
+
+{% for pr in changes | sort(attribute="merged_at") -%}
+
+{%- if pr.meta.B and pr.meta.B.B0 -%}
+{#- We skip silent ones -#}
+{%- else -%}
+    {%- if pr.meta.E and pr.meta.E.E3 -%}
+- {{ m_c::change(c=pr) }}
+    {% endif -%}
+{% endif -%}
+{%- endfor -%}

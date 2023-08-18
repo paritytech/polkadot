@@ -96,7 +96,7 @@ structure_message() {
 # access_token: see https://matrix.org/docs/guides/client-server-api/
 # Usage: send_message $body (json formatted) $room_id $access_token
 send_message() {
-curl -XPOST -d "$1" "https://matrix.parity.io/_matrix/client/r0/rooms/$2/send/m.room.message?access_token=$3"
+  curl -XPOST -d "$1" "https://m.parity.io/_matrix/client/r0/rooms/$2/send/m.room.message?access_token=$3"
 }
 
 # Pretty-printing functions
@@ -138,4 +138,128 @@ has_runtime_changes() {
   else
     return 1
   fi
+}
+
+# given a bootnode and the path to a chainspec file, this function will create a new chainspec file
+# with only the bootnode specified and test whether that bootnode provides peers
+# The optional third argument is the index of the bootnode in the list of bootnodes, this is just used to pick an ephemeral
+# port for the node to run on. If you're only testing one, it'll just use the first ephemeral port
+# BOOTNODE: /dns/polkadot-connect-0.parity.io/tcp/443/wss/p2p/12D3KooWEPmjoRpDSUuiTjvyNDd8fejZ9eNWH5bE965nyBMDrB4o
+# CHAINSPEC_FILE: /path/to/polkadot.json
+check_bootnode(){
+    BOOTNODE=$1
+    BASE_CHAINSPEC=$2
+    RUNTIME=$(basename "$BASE_CHAINSPEC" | cut -d '.' -f 1)
+    MIN_PEERS=1
+
+    # Generate a temporary chainspec file containing only the bootnode we care about
+    TMP_CHAINSPEC_FILE="$RUNTIME.$(echo "$BOOTNODE" | tr '/' '_').tmp.json"
+    jq ".bootNodes = [\"$BOOTNODE\"] " < "$CHAINSPEC_FILE" > "$TMP_CHAINSPEC_FILE"
+
+    # Grab an unused port by binding to port 0 and then immediately closing the socket
+    # This is a bit of a hack, but it's the only way to do it in the shell
+    RPC_PORT=$(python -c "import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()")
+
+    echo "[+] Checking bootnode $BOOTNODE"
+    polkadot --chain "$TMP_CHAINSPEC_FILE" --no-mdns --rpc-port="$RPC_PORT" --tmp > /dev/null 2>&1 &
+    # Wait a few seconds for the node to start up
+    sleep 5
+    POLKADOT_PID=$!
+
+    MAX_POLLS=10
+    TIME_BETWEEN_POLLS=3
+    for _ in $(seq 1 "$MAX_POLLS"); do
+    # Check the health endpoint of the RPC node
+      PEERS="$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"system_health","params":[],"id":1}' http://localhost:"$RPC_PORT" | jq -r '.result.peers')"
+      # Sometimes due to machine load or other reasons, we don't get a response from the RPC node
+      # If $PEERS is an empty variable, make it 0 so we can still do the comparison
+      if [ -z "$PEERS" ]; then
+        PEERS=0
+      fi
+      if [ "$PEERS" -ge $MIN_PEERS ]; then
+        echo "[+] $PEERS peers found for $BOOTNODE"
+        echo "    Bootnode appears contactable"
+        kill $POLKADOT_PID
+        # Delete the temporary chainspec file now we're done running the node
+        rm "$TMP_CHAINSPEC_FILE"
+        return 0
+      fi
+      sleep "$TIME_BETWEEN_POLLS"
+    done
+    kill $POLKADOT_PID
+    # Delete the temporary chainspec file now we're done running the node
+    rm "$TMP_CHAINSPEC_FILE"
+    echo "[!] No peers found for $BOOTNODE"
+    echo "    Bootnode appears unreachable"
+    return 1
+}
+
+# Assumes the ENV are set:
+# - RELEASE_ID
+# - GITHUB_TOKEN
+# - REPO in the form paritytech/polkadot
+fetch_release_artifacts() {
+  echo "Release ID : $RELEASE_ID"
+  echo "Repo       : $REPO"
+
+  curl -L -s \
+    -H "Accept: application/vnd.github+json" \
+    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    https://api.github.com/repos/${REPO}/releases/${RELEASE_ID} > release.json
+
+  # Get Asset ids
+  ids=($(jq -r '.assets[].id' < release.json ))
+  count=$(jq '.assets|length' < release.json )
+
+  # Fetch artifacts
+  mkdir -p "./release-artifacts"
+  pushd "./release-artifacts" > /dev/null
+
+  iter=1
+  for id in "${ids[@]}"
+  do
+      echo " - $iter/$count: downloading asset id: $id..."
+      curl -s -OJ -L -H "Accept: application/octet-stream" \
+          -H "Authorization: Token ${GITHUB_TOKEN}" \
+          "https://api.github.com/repos/${REPO}/releases/assets/$id"
+      iter=$((iter + 1))
+  done
+
+  pwd
+  ls -al --color
+  popd > /dev/null
+}
+
+# Check the checksum for a given binary
+function check_sha256() {
+    echo "Checking SHA256 for $1"
+    shasum -qc $1.sha256
+}
+
+# Import GPG keys of the release team members
+# This is done in parallel as it can take a while sometimes
+function import_gpg_keys() {
+  GPG_KEYSERVER=${GPG_KEYSERVER:-"keyserver.ubuntu.com"}
+  SEC="9D4B2B6EB8F97156D19669A9FF0812D491B96798"
+  WILL="2835EAF92072BC01D188AF2C4A092B93E97CE1E2"
+  EGOR="E6FC4D4782EB0FA64A4903CCDB7D3555DD3932D3"
+  MARA="533C920F40E73A21EEB7E9EBF27AEA7E7594C9CF"
+  MORGAN="2E92A9D8B15D7891363D1AE8AF9E6C43F7F8C4CF"
+
+  echo "Importing GPG keys from $GPG_KEYSERVER in parallel"
+  for key in $SEC $WILL $EGOR $MARA $MORGAN; do
+    (
+      echo "Importing GPG key $key"
+      gpg --no-tty --quiet --keyserver $GPG_KEYSERVER --recv-keys $key
+      echo -e "5\ny\n" | gpg --no-tty --command-fd 0 --expert --edit-key $key trust;
+    ) &
+  done
+  wait
+}
+
+# Check the GPG signature for a given binary
+function check_gpg() {
+    echo "Checking GPG Signature for $1"
+    gpg --no-tty --verify -q $1.asc $1
 }

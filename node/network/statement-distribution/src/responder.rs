@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
@@ -29,7 +29,7 @@ use polkadot_node_network_protocol::{
 	},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v2::{CandidateHash, CommittedCandidateReceipt, Hash};
+use polkadot_primitives::{CandidateHash, CommittedCandidateReceipt, Hash};
 
 use crate::LOG_TARGET;
 
@@ -62,8 +62,8 @@ pub async fn respond(
 		//
 		// 1. We want some requesters to have full data fast, rather then lots of them having them
 		//    late, as each requester having the data will help distributing it.
-		// 2. If we take too long, the requests timing out will not yet have had any data sent,
-		//    thus we wasted no bandwidth.
+		// 2. If we take too long, the requests timing out will not yet have had any data sent, thus
+		//    we wasted no bandwidth.
 		// 3. If the queue is full, requestes will get an immediate error instead of running in a
 		//    timeout, thus requesters can immediately try another peer and be faster.
 		//

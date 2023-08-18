@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -25,13 +25,15 @@ use futures::{
 #[cfg(test)]
 use futures_timer::Delay;
 
-use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
+use polkadot_node_primitives::ValidationResult;
 use polkadot_node_subsystem::{
 	messages::{AvailabilityRecoveryMessage, CandidateValidationMessage},
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
-use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
+use polkadot_primitives::{
+	BlockNumber, CandidateHash, CandidateReceipt, Hash, PvfExecTimeoutKind, SessionIndex,
+};
 
 use crate::LOG_TARGET;
 
@@ -46,12 +48,18 @@ mod queues;
 use queues::Queues;
 pub use queues::{ParticipationPriority, ParticipationRequest, QueueError};
 
+use crate::metrics::Metrics;
+use polkadot_node_subsystem_util::metrics::prometheus::prometheus;
+
 /// How many participation processes do we want to run in parallel the most.
 ///
 /// This should be a relatively low value, while we might have a speedup once we fetched the data,
 /// due to multi-core architectures, but the fetching itself can not be improved by parallel
 /// requests. This means that higher numbers make it harder for a single dispute to resolve fast.
+#[cfg(not(test))]
 const MAX_PARALLEL_PARTICIPATIONS: usize = 3;
+#[cfg(test)]
+pub(crate) const MAX_PARALLEL_PARTICIPATIONS: usize = 1;
 
 /// Keep track of disputes we need to participate in.
 ///
@@ -66,6 +74,8 @@ pub struct Participation {
 	worker_sender: WorkerMessageSender,
 	/// Some recent block for retrieving validation code from chain.
 	recent_block: Option<(BlockNumber, Hash)>,
+	/// Metrics handle cloned from Initialized
+	metrics: Metrics,
 }
 
 /// Message from worker tasks.
@@ -130,12 +140,13 @@ impl Participation {
 	/// The passed in sender will be used by background workers to communicate back their results.
 	/// The calling context should make sure to call `Participation::on_worker_message()` for the
 	/// received messages.
-	pub fn new(sender: WorkerMessageSender) -> Self {
+	pub fn new(sender: WorkerMessageSender, metrics: Metrics) -> Self {
 		Self {
 			running_participations: HashSet::new(),
-			queue: Queues::new(),
+			queue: Queues::new(metrics.clone()),
 			worker_sender: sender,
 			recent_block: None,
+			metrics,
 		}
 	}
 
@@ -149,10 +160,11 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		priority: ParticipationPriority,
-		req: ParticipationRequest,
+		mut req: ParticipationRequest,
 	) -> Result<()> {
-		// Participation already running - we can ignore that request:
+		// Participation already running - we can ignore that request, discarding its timer:
 		if self.running_participations.contains(req.candidate_hash()) {
+			req.discard_timer();
 			return Ok(())
 		}
 		// Available capacity - participate right away (if we already have a recent block):
@@ -212,6 +224,19 @@ impl Participation {
 		Ok(())
 	}
 
+	/// Moving any request concerning the given candidates from best-effort to
+	/// priority, ignoring any candidates that don't have any queued participation requests.
+	pub async fn bump_to_priority_for_candidates<Context>(
+		&mut self,
+		ctx: &mut Context,
+		included_receipts: &Vec<CandidateReceipt>,
+	) -> Result<()> {
+		for receipt in included_receipts {
+			self.queue.prioritize_if_present(ctx.sender(), receipt).await?;
+		}
+		Ok(())
+	}
+
 	/// Dequeue until `MAX_PARALLEL_PARTICIPATIONS` is reached.
 	async fn dequeue_until_capacity<Context>(
 		&mut self,
@@ -235,11 +260,19 @@ impl Participation {
 		req: ParticipationRequest,
 		recent_head: Hash,
 	) -> FatalResult<()> {
-		if self.running_participations.insert(req.candidate_hash().clone()) {
+		let participation_timer = self.metrics.time_participation();
+		if self.running_participations.insert(*req.candidate_hash()) {
 			let sender = ctx.sender().clone();
 			ctx.spawn(
 				"participation-worker",
-				participate(self.worker_sender.clone(), sender, recent_head, req).boxed(),
+				participate(
+					self.worker_sender.clone(),
+					sender,
+					recent_head,
+					req,
+					participation_timer,
+				)
+				.boxed(),
 			)
 			.map_err(FatalError::SpawnFailed)?;
 		}
@@ -251,7 +284,8 @@ async fn participate(
 	mut result_sender: WorkerMessageSender,
 	mut sender: impl overseer::DisputeCoordinatorSenderTrait,
 	block_hash: Hash,
-	req: ParticipationRequest,
+	req: ParticipationRequest, // Sends metric data via request_timer field when dropped
+	_participation_timer: Option<prometheus::HistogramTimer>, // Sends metric data when dropped
 ) {
 	#[cfg(test)]
 	// Hack for tests, so we get recovery messages not too early.
@@ -285,7 +319,7 @@ async fn participate(
 			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 			return
 		},
-		Ok(Err(RecoveryError::Unavailable)) => {
+		Ok(Err(RecoveryError::Unavailable)) | Ok(Err(RecoveryError::ChannelClosed)) => {
 			send_result(&mut result_sender, req, ParticipationOutcome::Unavailable).await;
 			return
 		},
@@ -332,7 +366,7 @@ async fn participate(
 			validation_code,
 			req.candidate_receipt().clone(),
 			available_data.pov,
-			APPROVAL_EXECUTION_TIMEOUT,
+			PvfExecTimeoutKind::Approval,
 			validation_tx,
 		))
 		.await;
@@ -357,7 +391,7 @@ async fn participate(
 				err,
 			);
 
-			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
 		},
 
 		Ok(Ok(ValidationResult::Invalid(invalid))) => {

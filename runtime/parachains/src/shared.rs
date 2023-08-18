@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,7 +20,8 @@
 //! dependent on any of the other pallets.
 
 use frame_support::pallet_prelude::*;
-use primitives::v2::{SessionIndex, ValidatorId, ValidatorIndex};
+use frame_system::pallet_prelude::BlockNumberFor;
+use primitives::{SessionIndex, ValidatorId, ValidatorIndex};
 use sp_std::vec::Vec;
 
 use rand::{seq::SliceRandom, SeedableRng};
@@ -43,7 +44,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -62,8 +62,8 @@ pub mod pallet {
 	pub(super) type ActiveValidatorIndices<T: Config> =
 		StorageValue<_, Vec<ValidatorIndex>, ValueQuery>;
 
-	/// The parachain attestation keys of the validators actively participating in parachain consensus.
-	/// This should be the same length as `ActiveValidatorIndices`.
+	/// The parachain attestation keys of the validators actively participating in parachain
+	/// consensus. This should be the same length as `ActiveValidatorIndices`.
 	#[pallet::storage]
 	#[pallet::getter(fn active_validator_keys)]
 	pub(super) type ActiveValidatorKeys<T: Config> = StorageValue<_, Vec<ValidatorId>, ValueQuery>;
@@ -74,7 +74,7 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -87,7 +87,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		session_index: SessionIndex,
 		random_seed: [u8; 32],
-		new_config: &HostConfiguration<T::BlockNumber>,
+		new_config: &HostConfiguration<BlockNumberFor<T>>,
 		all_validators: Vec<ValidatorId>,
 	) -> Vec<ValidatorId> {
 		CurrentSessionIndex::<T>::set(session_index);
@@ -124,8 +124,8 @@ impl<T: Config> Pallet<T> {
 		CurrentSessionIndex::<T>::set(index);
 	}
 
-	#[cfg(any(feature = "runtime-benchmarks", test))]
-	pub(crate) fn set_active_validators_ascending(active: Vec<ValidatorId>) {
+	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
+	pub fn set_active_validators_ascending(active: Vec<ValidatorId>) {
 		ActiveValidatorIndices::<T>::set(
 			(0..active.len()).map(|i| ValidatorIndex(i as _)).collect(),
 		);

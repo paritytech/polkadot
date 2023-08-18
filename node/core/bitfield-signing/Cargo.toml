@@ -1,8 +1,9 @@
 [package]
 name = "polkadot-node-core-bitfield-signing"
-version = "0.9.28"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 futures = "0.3.21"

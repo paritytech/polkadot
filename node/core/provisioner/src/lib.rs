@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -25,29 +25,27 @@ use futures::{
 };
 use futures_timer::Delay;
 
-use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		CandidateBackingMessage, ChainApiMessage, DisputeCoordinatorMessage, ProvisionableData,
-		ProvisionerInherentData, ProvisionerMessage,
+		CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
+		ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
-	PerLeafSpan, SpawnedSubsystem, SubsystemError,
+	PerLeafSpan, RuntimeApiError, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, TimeoutExt,
 };
-use polkadot_primitives::v2::{
-	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeState,
-	DisputeStatement, DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	SessionIndex, SignedAvailabilityBitfield, ValidatorIndex,
+use polkadot_primitives::{
+	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
+	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
+mod disputes;
 mod error;
 mod metrics;
-mod onchain_disputes;
 
 pub use self::metrics::*;
 use error::{Error, FatalResult};
@@ -61,6 +59,9 @@ const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_mill
 const SEND_INHERENT_DATA_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(500);
 
 const LOG_TARGET: &str = "parachain::provisioner";
+
+const PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT: u32 =
+	RuntimeApiRequest::DISPUTES_RUNTIME_REQUIREMENT;
 
 /// The provisioner subsystem.
 pub struct ProvisionerSubsystem {
@@ -143,7 +144,8 @@ async fn run_iteration<Context>(
 	loop {
 		futures::select! {
 			from_overseer = ctx.recv().fuse() => {
-				match from_overseer? {
+				// Map the error to ensure that the subsystem exits when the overseer is gone.
+				match from_overseer.map_err(Error::OverseerExited)? {
 					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) =>
 						handle_active_leaves_update(update, per_relay_parent, inherent_delays),
 					FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
@@ -178,11 +180,13 @@ fn handle_active_leaves_update(
 	per_relay_parent: &mut HashMap<Hash, PerRelayParent>,
 	inherent_delays: &mut InherentDelays,
 ) {
+	gum::trace!(target: LOG_TARGET, "Handle ActiveLeavesUpdate");
 	for deactivated in &update.deactivated {
 		per_relay_parent.remove(deactivated);
 	}
 
-	for leaf in update.activated {
+	if let Some(leaf) = update.activated {
+		gum::trace!(target: LOG_TARGET, leaf_hash=?leaf.hash, "Adding delay");
 		let delay_fut = Delay::new(PRE_PROPOSE_TIMEOUT).map(move |_| leaf.hash).boxed();
 		per_relay_parent.insert(leaf.hash, PerRelayParent::new(leaf));
 		inherent_delays.push(delay_fut);
@@ -270,7 +274,15 @@ async fn send_inherent_data_bg<Context>(
 
 		match send_result.await {
 			Err(err) => {
-				gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+				if let Error::CanceledBackedCandidates(_) = err {
+					gum::debug!(
+						target: LOG_TARGET,
+						err = ?err,
+						"Failed to assemble or send inherent data - block got likely obsoleted already."
+					);
+				} else {
+					gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+				}
 				metrics.on_inherent_data_request(Err(()));
 			},
 			Ok(()) => {
@@ -315,7 +327,26 @@ fn note_provisionable_data(
 				.with_para_id(backed_candidate.descriptor().para_id);
 			per_relay_parent.backed_candidates.push(backed_candidate)
 		},
-		_ => {},
+		// We choose not to punish these forms of misbehavior for the time being.
+		// Risks from misbehavior are sufficiently mitigated at the protocol level
+		// via reputation changes. Punitive actions here may become desirable
+		// enough to dedicate time to in the future.
+		ProvisionableData::MisbehaviorReport(_, _, _) => {},
+		// We wait and do nothing here, preferring to initiate a dispute after the
+		// parablock candidate is included for the following reasons:
+		//
+		// 1. A dispute for a candidate triggered at any point before the candidate
+		// has been made available, including the backing stage, can't be
+		// guaranteed to conclude. Non-concluding disputes are unacceptable.
+		// 2. Candidates which haven't been made available don't pose a security
+		// risk as they can not be included, approved, or finalized.
+		//
+		// Currently we rely on approval checkers to trigger disputes for bad
+		// parablocks once they are included. But we can do slightly better by
+		// allowing disagreeing backers to record their disagreement and initiate a
+		// dispute once the parablock in question has been included. This potential
+		// change is tracked by: https://github.com/paritytech/polkadot/issues/3232
+		ProvisionableData::Dispute(_, _) => {},
 	}
 }
 
@@ -361,7 +392,19 @@ async fn send_inherent_data(
 		relay_parent = ?leaf.hash,
 		"Selecting disputes"
 	);
-	let disputes = select_disputes(from_job, metrics, leaf).await?;
+
+	debug_assert!(
+		has_required_runtime(
+			from_job,
+			leaf.hash,
+			PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
+		)
+		.await,
+		"randomized selection no longer supported, please upgrade your runtime!"
+	);
+
+	let disputes = disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await;
+
 	gum::trace!(
 		target: LOG_TARGET,
 		relay_parent = ?leaf.hash,
@@ -423,11 +466,11 @@ async fn send_inherent_data(
 /// - not more than one per validator
 /// - each 1 bit must correspond to an occupied core
 ///
-/// If we have too many, an arbitrary selection policy is fine. For purposes of maximizing availability,
-/// we pick the one with the greatest number of 1 bits.
+/// If we have too many, an arbitrary selection policy is fine. For purposes of maximizing
+/// availability, we pick the one with the greatest number of 1 bits.
 ///
-/// Note: This does not enforce any sorting precondition on the output; the ordering there will be unrelated
-/// to the sorting of the input.
+/// Note: This does not enforce any sorting precondition on the output; the ordering there will be
+/// unrelated to the sorting of the input.
 fn select_availability_bitfields(
 	cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
@@ -486,10 +529,11 @@ fn select_availability_bitfields(
 		bitfields.len()
 	);
 
-	selected.into_iter().map(|(_, b)| b).collect()
+	selected.into_values().collect()
 }
 
-/// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
+/// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to
+/// each free core.
 async fn select_candidates(
 	availability_cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
@@ -550,7 +594,8 @@ async fn select_candidates(
 
 		let computed_validation_data_hash = validation_data.hash();
 
-		// we arbitrarily pick the first of the backed candidates which match the appropriate selection criteria
+		// we arbitrarily pick the first of the backed candidates which match the appropriate
+		// selection criteria
 		if let Some(candidate) = candidates.iter().find(|backed_candidate| {
 			let descriptor = &backed_candidate.descriptor;
 			descriptor.para_id == scheduled_core.para_id &&
@@ -570,6 +615,10 @@ async fn select_candidates(
 		}
 	}
 
+	gum::trace!(target: LOG_TARGET,
+		leaf_hash=?relay_parent,
+		"before GetBackedCandidates");
+
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
 	sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
@@ -578,13 +627,15 @@ async fn select_candidates(
 		tx,
 	));
 	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
+	gum::trace!(target: LOG_TARGET, leaf_hash=?relay_parent,
+				"Got {} backed candidates", candidates.len());
 
-	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
-	// _should_ preserve that property, but let's just make sure.
+	// `selected_candidates` is generated in ascending order by core index, and
+	// `GetBackedCandidates` _should_ preserve that property, but let's just make sure.
 	//
-	// We can't easily map from `BackedCandidate` to `core_idx`, but we know that every selected candidate
-	// maps to either 0 or 1 backed candidate, and the hashes correspond. Therefore, by checking them
-	// in order, we can ensure that the backed candidates are also in order.
+	// We can't easily map from `BackedCandidate` to `core_idx`, but we know that every selected
+	// candidate maps to either 0 or 1 backed candidate, and the hashes correspond. Therefore, by
+	// checking them in order, we can ensure that the backed candidates are also in order.
 	let mut backed_idx = 0;
 	for selected in selected_candidates {
 		if selected ==
@@ -656,8 +707,9 @@ fn bitfields_indicate_availability(
 		let validator_idx = bitfield.validator_index().0 as usize;
 		match availability.get_mut(validator_idx) {
 			None => {
-				// in principle, this function might return a `Result<bool, Error>` so that we can more clearly express this error condition
-				// however, in practice, that would just push off an error-handling routine which would look a whole lot like this one.
+				// in principle, this function might return a `Result<bool, Error>` so that we can
+				// more clearly express this error condition however, in practice, that would just
+				// push off an error-handling routine which would look a whole lot like this one.
 				// simpler to just handle the error internally here.
 				gum::warn!(
 					target: LOG_TARGET,
@@ -677,275 +729,55 @@ fn bitfields_indicate_availability(
 	3 * availability.count_ones() >= 2 * availability.len()
 }
 
-#[derive(Debug)]
-enum RequestType {
-	/// Query recent disputes, could be an excessive amount.
-	Recent,
-	/// Query the currently active and very recently concluded disputes.
-	Active,
-}
-
-/// Request open disputes identified by `CandidateHash` and the `SessionIndex`.
-async fn request_disputes(
+// If we have to be absolutely precise here, this method gets the version of the `ParachainHost`
+// api. For brevity we'll just call it 'runtime version'.
+async fn has_required_runtime(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
-	active_or_recent: RequestType,
-) -> Vec<(SessionIndex, CandidateHash)> {
+	relay_parent: Hash,
+	required_runtime_version: u32,
+) -> bool {
+	gum::trace!(target: LOG_TARGET, ?relay_parent, "Fetching ParachainHost runtime api version");
+
 	let (tx, rx) = oneshot::channel();
-	let msg = match active_or_recent {
-		RequestType::Recent => DisputeCoordinatorMessage::RecentDisputes(tx),
-		RequestType::Active => DisputeCoordinatorMessage::ActiveDisputes(tx),
-	};
-	// Bounded by block production - `ProvisionerMessage::RequestInherentData`.
-	sender.send_unbounded_message(msg);
-
-	let recent_disputes = match rx.await {
-		Ok(r) => r,
-		Err(oneshot::Canceled) => {
-			gum::warn!(target: LOG_TARGET, "Unable to gather {:?} disputes", active_or_recent);
-			Vec::new()
-		},
-	};
-	recent_disputes
-}
-
-/// Request the relevant dispute statements for a set of disputes identified by `CandidateHash` and the `SessionIndex`.
-async fn request_votes(
-	sender: &mut impl overseer::ProvisionerSenderTrait,
-	disputes_to_query: Vec<(SessionIndex, CandidateHash)>,
-) -> Vec<(SessionIndex, CandidateHash, CandidateVotes)> {
-	// No need to send dummy request, if nothing to request:
-	if disputes_to_query.is_empty() {
-		gum::trace!(target: LOG_TARGET, "No disputes, nothing to request - returning empty `Vec`.");
-
-		return Vec::new()
-	}
-	let (tx, rx) = oneshot::channel();
-	// Bounded by block production - `ProvisionerMessage::RequestInherentData`.
-	sender.send_unbounded_message(DisputeCoordinatorMessage::QueryCandidateVotes(
-		disputes_to_query,
-		tx,
-	));
+	sender
+		.send_message(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::Version(tx)))
+		.await;
 
 	match rx.await {
-		Ok(v) => v,
-		Err(oneshot::Canceled) => {
-			gum::warn!(target: LOG_TARGET, "Unable to query candidate votes");
-			Vec::new()
-		},
-	}
-}
-
-/// Extend `acc` by `n` random, picks of not-yet-present in `acc` items of `recent` without repetition and additions of recent.
-fn extend_by_random_subset_without_repetition(
-	acc: &mut Vec<(SessionIndex, CandidateHash)>,
-	extension: Vec<(SessionIndex, CandidateHash)>,
-	n: usize,
-) {
-	use rand::Rng;
-
-	let lut = acc.iter().cloned().collect::<HashSet<(SessionIndex, CandidateHash)>>();
-
-	let mut unique_new =
-		extension.into_iter().filter(|recent| !lut.contains(recent)).collect::<Vec<_>>();
-
-	// we can simply add all
-	if unique_new.len() <= n {
-		acc.extend(unique_new)
-	} else {
-		acc.reserve(n);
-		let mut rng = rand::thread_rng();
-		for _ in 0..n {
-			let idx = rng.gen_range(0..unique_new.len());
-			acc.push(unique_new.swap_remove(idx));
-		}
-	}
-	// assure sorting stays candid according to session index
-	acc.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-}
-
-/// The maximum number of disputes Provisioner will include in the inherent data.
-/// Serves as a protection not to flood the Runtime with excessive data.
-const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
-
-async fn select_disputes(
-	sender: &mut impl overseer::ProvisionerSenderTrait,
-	metrics: &metrics::Metrics,
-	_leaf: &ActivatedLeaf,
-) -> Result<MultiDisputeStatementSet, Error> {
-	// Helper lambda
-	// Gets the active disputes as input and partitions it in seen and unseen disputes by the Runtime
-	// Returns as much unseen disputes as possible and optionally some seen disputes up to `MAX_DISPUTES_FORWARDED_TO_RUNTIME` limit.
-	let generate_unseen_active_subset =
-		|active: Vec<(SessionIndex, CandidateHash)>,
-		 onchain: HashMap<(SessionIndex, CandidateHash), DisputeState>|
-		 -> Vec<(SessionIndex, CandidateHash)> {
-			let (seen_onchain, mut unseen_onchain): (
-				Vec<(SessionIndex, CandidateHash)>,
-				Vec<(SessionIndex, CandidateHash)>,
-			) = active.into_iter().partition(|d| onchain.contains_key(d));
-
-			if unseen_onchain.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-				// Even unseen on-chain don't fit within the limit. Add as many as possible.
-				let mut unseen_subset = Vec::with_capacity(MAX_DISPUTES_FORWARDED_TO_RUNTIME);
-				extend_by_random_subset_without_repetition(
-					&mut unseen_subset,
-					unseen_onchain,
-					MAX_DISPUTES_FORWARDED_TO_RUNTIME,
-				);
-				unseen_subset
-			} else {
-				// Add all unseen onchain disputes and as much of the seen ones as there is space.
-				let n_unseen_onchain = unseen_onchain.len();
-				extend_by_random_subset_without_repetition(
-					&mut unseen_onchain,
-					seen_onchain,
-					MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_unseen_onchain),
-				);
-				unseen_onchain
-			}
-		};
-
-	// Helper lambda
-	// Extends the active disputes with recent ones up to `MAX_DISPUTES_FORWARDED_TO_RUNTIME` limit. Unseen recent disputes are prioritised.
-	let generate_active_and_unseen_recent_subset =
-		|recent: Vec<(SessionIndex, CandidateHash)>,
-		 mut active: Vec<(SessionIndex, CandidateHash)>,
-		 onchain: HashMap<(SessionIndex, CandidateHash), DisputeState>|
-		 -> Vec<(SessionIndex, CandidateHash)> {
-			let mut n_active = active.len();
-			// All active disputes can be sent. Fill the rest of the space with recent ones.
-			// We assume there is not enough space for all recent disputes. So we prioritise the unseen ones.
-			let (seen_onchain, unseen_onchain): (
-				Vec<(SessionIndex, CandidateHash)>,
-				Vec<(SessionIndex, CandidateHash)>,
-			) = recent.into_iter().partition(|d| onchain.contains_key(d));
-
-			extend_by_random_subset_without_repetition(
-				&mut active,
-				unseen_onchain,
-				MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_active),
-			);
-			n_active = active.len();
-
-			if n_active < MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-				// Looks like we can add some of the seen disputes too
-				extend_by_random_subset_without_repetition(
-					&mut active,
-					seen_onchain,
-					MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_active),
-				);
-			}
-			active
-		};
-
-	gum::trace!(
-		target: LOG_TARGET,
-		relay_parent = ?_leaf.hash,
-		"Request recent disputes"
-	);
-
-	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
-	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute
-	// window gets on-chain, unlike `ActiveDisputes`.
-	// In case of an overload condition, we limit ourselves to active disputes, and fill up to the
-	// upper bound of disputes to pass to wasm `fn create_inherent_data`.
-	// If the active ones are already exceeding the bounds, randomly select a subset.
-	let recent = request_disputes(sender, RequestType::Recent).await;
-
-	gum::trace!(
-		target: LOG_TARGET,
-		relay_paent = ?_leaf.hash,
-		"Received recent disputes"
-	);
-
-	gum::trace!(
-		target: LOG_TARGET,
-		relay_paent = ?_leaf.hash,
-		"Request on chain disputes"
-	);
-
-	// On chain disputes are fetched from the runtime. We want to prioritise the inclusion of unknown
-	// disputes in the inherent data. The call relies on staging Runtime API. If the staging API is not
-	// enabled in the binary an empty set is generated which doesn't affect the rest of the logic.
-	let onchain = match onchain_disputes::get_onchain_disputes(sender, _leaf.hash.clone()).await {
-		Ok(r) => r,
-		Err(e) => {
-			gum::debug!(
+		Result::Ok(Ok(runtime_version)) => {
+			gum::trace!(
 				target: LOG_TARGET,
-				?e,
-				"Can't fetch onchain disputes. Will continue with empty onchain disputes set.",
+				?relay_parent,
+				?runtime_version,
+				?required_runtime_version,
+				"Fetched  ParachainHost runtime api version"
 			);
-			HashMap::new()
+			runtime_version >= required_runtime_version
 		},
-	};
-
-	gum::trace!(
-		target: LOG_TARGET,
-		relay_paent = ?_leaf.hash,
-		"Received on chain disputes"
-	);
-
-	gum::trace!(
-		target: LOG_TARGET,
-		relay_paent = ?_leaf.hash,
-		"Filtering disputes"
-	);
-
-	let disputes = if recent.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-		gum::warn!(
-			target: LOG_TARGET,
-			"Recent disputes are excessive ({} > {}), reduce to active ones, and selected",
-			recent.len(),
-			MAX_DISPUTES_FORWARDED_TO_RUNTIME
-		);
-		let active = request_disputes(sender, RequestType::Active).await;
-		if active.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-			generate_unseen_active_subset(active, onchain)
-		} else {
-			generate_active_and_unseen_recent_subset(recent, active, onchain)
-		}
-	} else {
-		recent
-	};
-
-	gum::trace!(
-		target: LOG_TARGET,
-		relay_paent = ?_leaf.hash,
-		"Calling `request_votes`"
-	);
-
-	// Load all votes for all disputes from the coordinator.
-	let dispute_candidate_votes = request_votes(sender, disputes).await;
-
-	gum::trace!(
-		target: LOG_TARGET,
-		relay_paent = ?_leaf.hash,
-		"Finished `request_votes`"
-	);
-
-	// Transform all `CandidateVotes` into `MultiDisputeStatementSet`.
-	Ok(dispute_candidate_votes
-		.into_iter()
-		.map(|(session_index, candidate_hash, votes)| {
-			let valid_statements = votes
-				.valid
-				.into_iter()
-				.map(|(i, (s, sig))| (DisputeStatement::Valid(s), i, sig));
-
-			let invalid_statements = votes
-				.invalid
-				.into_iter()
-				.map(|(i, (s, sig))| (DisputeStatement::Invalid(s), i, sig));
-
-			metrics.inc_valid_statements_by(valid_statements.len());
-			metrics.inc_invalid_statements_by(invalid_statements.len());
-			metrics.inc_dispute_statement_sets_by(1);
-
-			DisputeStatementSet {
-				candidate_hash,
-				session: session_index,
-				statements: valid_statements.chain(invalid_statements).collect(),
-			}
-		})
-		.collect())
+		Result::Ok(Err(RuntimeApiError::Execution { source: error, .. })) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?error,
+				"Execution error while fetching ParachainHost runtime api version"
+			);
+			false
+		},
+		Result::Ok(Err(RuntimeApiError::NotSupported { .. })) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"NotSupported error while fetching ParachainHost runtime api version"
+			);
+			false
+		},
+		Result::Err(_) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"Cancelled error while fetching ParachainHost runtime api version"
+			);
+			false
+		},
+	}
 }

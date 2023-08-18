@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,10 +16,11 @@
 
 use super::{metrics::Metrics, *};
 use assert_matches::assert_matches;
-use futures::executor::{self, block_on};
+use futures::executor;
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_network_protocol::{
+	grid_topology::{SessionGridTopology, TopologyPeerInfo},
 	peer_set::ValidationVersion,
 	request_response::{
 		v1::{StatementFetchingRequest, StatementFetchingResponse},
@@ -30,20 +31,25 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{network_bridge_event, AllMessages, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{
+		network_bridge_event, AllMessages, ReportPeerMessage, RuntimeApiMessage, RuntimeApiRequest,
+	},
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v2::{Hash, Id as ParaId, SessionInfo, ValidationCode};
+use polkadot_primitives::{
+	GroupIndex, Hash, Id as ParaId, IndexedVec, SessionInfo, ValidationCode, ValidatorId,
+};
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
 };
 use sc_keystore::LocalKeystore;
-use sp_application_crypto::{sr25519::Pair, AppKey, Pair as TraitPair};
+use sp_application_crypto::{sr25519::Pair, AppCrypto, Pair as TraitPair};
 use sp_authority_discovery::AuthorityPair;
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
+use util::reputation::add_reputation;
 
 // Some deterministic genesis hash for protocol names
 const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
@@ -82,19 +88,19 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	};
 
 	let mut head_data = ActiveHeadData::new(
-		validators,
+		IndexedVec::<ValidatorIndex, ValidatorId>::from(validators),
 		session_index,
 		PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 	);
 
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-	let alice_public = SyncCryptoStore::sr25519_generate_new(
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+	let alice_public = Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Alice.to_seed()),
 	)
 	.unwrap();
-	let bob_public = SyncCryptoStore::sr25519_generate_new(
+	let bob_public = Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Bob.to_seed()),
@@ -102,13 +108,13 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.unwrap();
 
 	// note A
-	let a_seconded_val_0 = block_on(SignedFullStatement::sign(
+	let a_seconded_val_0 = SignedFullStatement::sign(
 		&keystore,
 		Statement::Seconded(candidate_a.clone()),
 		&signing_context,
 		ValidatorIndex(0),
 		&alice_public.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -129,13 +135,13 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	assert_matches!(noted, NotedStatement::UsefulButKnown);
 
 	// note B
-	let statement = block_on(SignedFullStatement::sign(
+	let statement = SignedFullStatement::sign(
 		&keystore,
 		Statement::Seconded(candidate_b.clone()),
 		&signing_context,
 		ValidatorIndex(0),
 		&alice_public.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -146,13 +152,13 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	assert_matches!(noted, NotedStatement::Fresh(_));
 
 	// note C (beyond 2 - ignored)
-	let statement = block_on(SignedFullStatement::sign(
+	let statement = SignedFullStatement::sign(
 		&keystore,
 		Statement::Seconded(candidate_c.clone()),
 		&signing_context,
 		ValidatorIndex(0),
 		&alice_public.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -164,13 +170,13 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	assert_matches!(noted, NotedStatement::NotUseful);
 
 	// note B (new validator)
-	let statement = block_on(SignedFullStatement::sign(
+	let statement = SignedFullStatement::sign(
 		&keystore,
 		Statement::Seconded(candidate_b.clone()),
 		&signing_context,
 		ValidatorIndex(1),
 		&bob_public.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -181,13 +187,13 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	assert_matches!(noted, NotedStatement::Fresh(_));
 
 	// note C (new validator)
-	let statement = block_on(SignedFullStatement::sign(
+	let statement = SignedFullStatement::sign(
 		&keystore,
 		Statement::Seconded(candidate_c.clone()),
 		&signing_context,
 		ValidatorIndex(1),
 		&bob_public.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -204,8 +210,8 @@ fn note_local_works() {
 	let hash_b = CandidateHash([2; 32].into());
 
 	let mut per_peer_tracker = VcPerPeerTracker::default();
-	per_peer_tracker.note_local(hash_a.clone());
-	per_peer_tracker.note_local(hash_b.clone());
+	per_peer_tracker.note_local(hash_a);
+	per_peer_tracker.note_local(hash_b);
 
 	assert!(per_peer_tracker.local_observed.contains(&hash_a));
 	assert!(per_peer_tracker.local_observed.contains(&hash_b));
@@ -221,9 +227,9 @@ fn note_remote_works() {
 	let hash_c = CandidateHash([3; 32].into());
 
 	let mut per_peer_tracker = VcPerPeerTracker::default();
-	assert!(per_peer_tracker.note_remote(hash_a.clone()));
-	assert!(per_peer_tracker.note_remote(hash_b.clone()));
-	assert!(!per_peer_tracker.note_remote(hash_c.clone()));
+	assert!(per_peer_tracker.note_remote(hash_a));
+	assert!(per_peer_tracker.note_remote(hash_b));
+	assert!(!per_peer_tracker.note_remote(hash_c));
 
 	assert!(per_peer_tracker.remote_observed.contains(&hash_a));
 	assert!(per_peer_tracker.remote_observed.contains(&hash_b));
@@ -405,21 +411,21 @@ fn peer_view_update_sends_messages() {
 	let session_index = 1;
 	let signing_context = SigningContext { parent_hash: hash_c, session_index };
 
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 
-	let alice_public = SyncCryptoStore::sr25519_generate_new(
+	let alice_public = Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Alice.to_seed()),
 	)
 	.unwrap();
-	let bob_public = SyncCryptoStore::sr25519_generate_new(
+	let bob_public = Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Bob.to_seed()),
 	)
 	.unwrap();
-	let charlie_public = SyncCryptoStore::sr25519_generate_new(
+	let charlie_public = Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Charlie.to_seed()),
@@ -428,18 +434,18 @@ fn peer_view_update_sends_messages() {
 
 	let new_head_data = {
 		let mut data = ActiveHeadData::new(
-			validators,
+			IndexedVec::<ValidatorIndex, ValidatorId>::from(validators),
 			session_index,
 			PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 		);
 
-		let statement = block_on(SignedFullStatement::sign(
+		let statement = SignedFullStatement::sign(
 			&keystore,
 			Statement::Seconded(candidate.clone()),
 			&signing_context,
 			ValidatorIndex(0),
 			&alice_public.into(),
-		))
+		)
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -450,13 +456,13 @@ fn peer_view_update_sends_messages() {
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
-		let statement = block_on(SignedFullStatement::sign(
+		let statement = SignedFullStatement::sign(
 			&keystore,
 			Statement::Valid(candidate_hash),
 			&signing_context,
 			ValidatorIndex(1),
 			&bob_public.into(),
-		))
+		)
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -467,13 +473,13 @@ fn peer_view_update_sends_messages() {
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
-		let statement = block_on(SignedFullStatement::sign(
+		let statement = SignedFullStatement::sign(
 			&keystore,
 			Statement::Valid(candidate_hash),
 			&signing_context,
 			ValidatorIndex(2),
 			&charlie_public.into(),
-		))
+		)
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -509,10 +515,10 @@ fn peer_view_update_sends_messages() {
 	let peer = PeerId::random();
 
 	executor::block_on(async move {
-		let mut topology: SessionGridTopology = Default::default();
-		topology.peers_x = HashSet::from_iter(vec![peer.clone()].into_iter());
+		let mut topology = GridNeighbors::empty();
+		topology.peers_x = HashSet::from_iter(vec![peer].into_iter());
 		update_peer_view_and_maybe_send_unlocked(
-			peer.clone(),
+			peer,
 			&topology,
 			&mut peer_data,
 			&mut ctx,
@@ -547,7 +553,7 @@ fn peer_view_update_sends_messages() {
 		// it will not change between runs of the program.
 		for statement in active_head.statements_about(candidate_hash) {
 			let message = handle.recv().await;
-			let expected_to = vec![peer.clone()];
+			let expected_to = vec![peer];
 			let expected_payload =
 				statement_message(hash_c, statement.statement.clone(), &Metrics::default());
 
@@ -590,14 +596,14 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 
 	let peer_data_from_view = |view: View| PeerData {
 		view: view.clone(),
-		view_knowledge: view.iter().map(|v| (v.clone(), Default::default())).collect(),
+		view_knowledge: view.iter().map(|v| (*v, Default::default())).collect(),
 		maybe_authority: None,
 	};
 
 	let mut peer_data: HashMap<_, _> = vec![
-		(peer_a.clone(), peer_data_from_view(peer_a_view)),
-		(peer_b.clone(), peer_data_from_view(peer_b_view)),
-		(peer_c.clone(), peer_data_from_view(peer_c_view)),
+		(peer_a, peer_data_from_view(peer_a_view)),
+		(peer_b, peer_data_from_view(peer_b_view)),
+		(peer_c, peer_data_from_view(peer_c_view)),
 	]
 	.into_iter()
 	.collect();
@@ -611,13 +617,12 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 	executor::block_on(async move {
 		let signing_context = SigningContext { parent_hash: hash_b, session_index };
 
-		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-		let alice_public = CryptoStore::sr25519_generate_new(
+		let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+		let alice_public = Keystore::sr25519_generate_new(
 			&*keystore,
 			ValidatorId::ID,
 			Some(&Sr25519Keyring::Alice.to_seed()),
 		)
-		.await
 		.unwrap();
 
 		let statement = SignedFullStatement::sign(
@@ -627,7 +632,6 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 			ValidatorIndex(0),
 			&alice_public.into(),
 		)
-		.await
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -639,9 +643,8 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 		};
 		let statement = StoredStatement { comparator: &comparator, statement: &statement };
 
-		let mut topology: SessionGridTopology = Default::default();
-		topology.peers_x =
-			HashSet::from_iter(vec![peer_a.clone(), peer_b.clone(), peer_c.clone()].into_iter());
+		let mut topology = GridNeighbors::empty();
+		topology.peers_x = HashSet::from_iter(vec![peer_a, peer_b, peer_c].into_iter());
 		let needs_dependents = circulate_statement(
 			RequiredRouting::GridXY,
 			&topology,
@@ -732,12 +735,13 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
-			Arc::new(LocalKeystore::in_memory()),
-			statement_req_receiver,
-			Default::default(),
-			AlwaysZeroRng,
-		);
+		let s = StatementDistributionSubsystem {
+			keystore: Arc::new(LocalKeystore::in_memory()),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| true),
+		};
 		s.run(ctx).await.unwrap();
 	};
 
@@ -781,7 +785,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_a.clone(),
+						peer_a,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						None,
@@ -794,7 +798,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_b.clone(),
+						peer_b,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						None,
@@ -806,7 +810,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_a, view![hash_a]),
 				),
 			})
 			.await;
@@ -814,23 +818,22 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_b, view![hash_a]),
 				),
 			})
 			.await;
 
-		// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
-		// candidate backing.
+		// receive a seconded statement from peer A. it should be propagated onwards to peer B and
+		// to candidate backing.
 		let statement = {
 			let signing_context = SigningContext { parent_hash: hash_a, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let alice_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -840,7 +843,6 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -850,7 +852,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
-						peer_a.clone(),
+						peer_a,
 						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							hash_a,
 							statement.clone().into(),
@@ -863,8 +865,8 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => {}
 		);
 
 		assert_matches!(
@@ -884,7 +886,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 					)),
 				)
 			) => {
-				assert_eq!(recipients, vec![peer_b.clone()]);
+				assert_eq!(recipients, vec![peer_b]);
 				assert_eq!(r, hash_a);
 				assert_eq!(s, statement.into());
 			}
@@ -937,12 +939,13 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
-			make_ferdie_keystore(),
-			statement_req_receiver,
-			Default::default(),
-			AlwaysZeroRng,
-		);
+		let s = StatementDistributionSubsystem {
+			keystore: make_ferdie_keystore(),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| true),
+		};
 		s.run(ctx).await.unwrap();
 	};
 
@@ -986,7 +989,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_a.clone(),
+						peer_a,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
@@ -999,7 +1002,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_b.clone(),
+						peer_b,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
@@ -1011,7 +1014,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_c.clone(),
+						peer_c,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
@@ -1023,7 +1026,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_bad.clone(),
+						peer_bad,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						None,
@@ -1035,7 +1038,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_a, view![hash_a]),
 				),
 			})
 			.await;
@@ -1043,21 +1046,21 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_b, view![hash_a]),
 				),
 			})
 			.await;
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_c.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_c, view![hash_a]),
 				),
 			})
 			.await;
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_bad, view![hash_a]),
 				),
 			})
 			.await;
@@ -1068,13 +1071,12 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		let statement = {
 			let signing_context = SigningContext { parent_hash: hash_a, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let alice_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -1084,7 +1086,6 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -1096,7 +1097,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
-						peer_a.clone(),
+						peer_a,
 						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
 							metadata.clone(),
 						)),
@@ -1134,7 +1135,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
-						peer_c.clone(),
+						peer_c,
 						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
 							metadata.clone(),
 						)),
@@ -1148,7 +1149,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
-						peer_bad.clone(),
+						peer_bad,
 						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
 							metadata.clone(),
 						)),
@@ -1229,8 +1230,8 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_bad && r == COST_WRONG_HASH => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_bad && r == COST_WRONG_HASH.into() => {}
 		);
 
 		// a is tried again (retried in reverse order):
@@ -1280,22 +1281,22 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r == COST_FETCH_FAIL => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_a && r == COST_FETCH_FAIL.into() => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_c && r == BENEFIT_VALID_RESPONSE => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_c && r == BENEFIT_VALID_RESPONSE.into() => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
-			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
+			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => {}
 		);
 
 		assert_matches!(
@@ -1396,6 +1397,441 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 }
 
 #[test]
+fn delay_reputation_changes() {
+	sp_tracing::try_init_simple();
+	let hash_a = Hash::repeat_byte(1);
+
+	let candidate = {
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
+		c.descriptor.relay_parent = hash_a;
+		c.descriptor.para_id = 1.into();
+		c.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
+		c
+	};
+
+	let peer_a = PeerId::random(); // Alice
+	let peer_b = PeerId::random(); // Bob
+	let peer_c = PeerId::random(); // Charlie
+	let peer_bad = PeerId::random(); // No validator
+
+	let validators = vec![
+		Sr25519Keyring::Alice.pair(),
+		Sr25519Keyring::Bob.pair(),
+		Sr25519Keyring::Charlie.pair(),
+		// We:
+		Sr25519Keyring::Ferdie.pair(),
+	];
+
+	let session_info = make_session_info(validators, vec![vec![0, 1, 2, 4], vec![3]]);
+
+	let session_index = 1;
+
+	let pool = sp_core::testing::TaskExecutor::new();
+	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+
+	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
+	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+
+	let reputation_interval = Duration::from_millis(100);
+
+	let bg = async move {
+		let s = StatementDistributionSubsystem {
+			keystore: make_ferdie_keystore(),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| false),
+		};
+		s.run_inner(ctx, reputation_interval).await.unwrap();
+	};
+
+	let test_fut = async move {
+		// register our active heads.
+		handle
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
+				ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: hash_a,
+					number: 1,
+					status: LeafStatus::Fresh,
+					span: Arc::new(jaeger::Span::Disabled),
+				}),
+			)))
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Ok(session_index));
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionInfo(sess_index, tx))
+			)
+				if r == hash_a && sess_index == session_index
+			=> {
+				let _ = tx.send(Ok(Some(session_info)));
+			}
+		);
+
+		// notify of peers and view
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(
+						peer_a,
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
+					),
+				),
+			})
+			.await;
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(
+						peer_b,
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
+					),
+				),
+			})
+			.await;
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(
+						peer_c,
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
+					),
+				),
+			})
+			.await;
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(
+						peer_bad,
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						None,
+					),
+				),
+			})
+			.await;
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_a, view![hash_a]),
+				),
+			})
+			.await;
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_b, view![hash_a]),
+				),
+			})
+			.await;
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_c, view![hash_a]),
+				),
+			})
+			.await;
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_bad, view![hash_a]),
+				),
+			})
+			.await;
+
+		// receive a seconded statement from peer A, which does not provide the request data,
+		// then get that data from peer C. It should be propagated onwards to peer B and to
+		// candidate backing.
+		let statement = {
+			let signing_context = SigningContext { parent_hash: hash_a, session_index };
+
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
+				&*keystore,
+				ValidatorId::ID,
+				Some(&Sr25519Keyring::Alice.to_seed()),
+			)
+			.unwrap();
+
+			SignedFullStatement::sign(
+				&keystore,
+				Statement::Seconded(candidate.clone()),
+				&signing_context,
+				ValidatorIndex(0),
+				&alice_public.into(),
+			)
+			.ok()
+			.flatten()
+			.expect("should be signed")
+		};
+
+		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a,
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
+					),
+				),
+			})
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+				// Just drop request - should trigger error.
+			}
+		);
+
+		// There is a race between request handler asking for more peers and processing of the
+		// coming `PeerMessage`s, we want the request handler to ask first here for better test
+		// coverage:
+		Delay::new(Duration::from_millis(20)).await;
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_c,
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
+					),
+				),
+			})
+			.await;
+
+		// Malicious peer:
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_bad,
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
+					),
+				),
+			})
+			.await;
+
+		// Let c fail once too:
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_c));
+			}
+		);
+
+		// a fails again:
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				// On retry, we should have reverse order:
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+			}
+		);
+
+		// Send invalid response (all other peers have been tried now):
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_bad));
+				let bad_candidate = {
+					let mut bad = candidate.clone();
+					bad.descriptor.para_id = 0xeadbeaf.into();
+					bad
+				};
+				let response = StatementFetchingResponse::Statement(bad_candidate);
+				outgoing.pending_response.send(Ok(response.encode())).unwrap();
+			}
+		);
+
+		// a is tried again (retried in reverse order):
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				// On retry, we should have reverse order:
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+			}
+		);
+
+		// c succeeds now:
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
+					mut reqs, IfDisconnected::ImmediateError
+				)
+			) => {
+				let reqs = reqs.pop().unwrap();
+				let outgoing = match reqs {
+					Requests::StatementFetchingV1(outgoing) => outgoing,
+					_ => panic!("Unexpected request"),
+				};
+				let req = outgoing.payload;
+				assert_eq!(req.relay_parent, metadata.relay_parent);
+				assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				// On retry, we should have reverse order:
+				assert_eq!(outgoing.peer, Recipient::Peer(peer_c));
+				let response = StatementFetchingResponse::Statement(candidate.clone());
+				outgoing.pending_response.send(Ok(response.encode())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::Statement(r, s)
+			) if r == hash_a && s == statement => {}
+		);
+
+		// Now messages should go out:
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(
+					mut recipients,
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
+						protocol_v1::StatementDistributionMessage::LargeStatement(meta)
+					)),
+				)
+			) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					?recipients,
+					"Recipients received"
+				);
+				recipients.sort();
+				let mut expected = vec![peer_b, peer_c, peer_bad];
+				expected.sort();
+				assert_eq!(recipients, expected);
+				assert_eq!(meta.relay_parent, hash_a);
+				assert_eq!(meta.candidate_hash, statement.payload().candidate_hash());
+				assert_eq!(meta.signed_by, statement.validator_index());
+				assert_eq!(&meta.signature, statement.signature());
+			}
+		);
+
+		// Wait enough to fire reputation delay
+		futures_timer::Delay::new(reputation_interval).await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Batch(v))
+			) => {
+				let mut expected_change = HashMap::new();
+				for rep in vec![COST_FETCH_FAIL, BENEFIT_VALID_STATEMENT_FIRST] {
+					add_reputation(&mut expected_change, peer_a, rep)
+				}
+				for rep in vec![BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT] {
+					add_reputation(&mut expected_change, peer_c, rep)
+				}
+				for rep in vec![COST_WRONG_HASH, BENEFIT_VALID_STATEMENT] {
+					add_reputation(&mut expected_change, peer_bad, rep)
+				}
+				assert_eq!(v, expected_change);
+			}
+		);
+
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(bg);
+
+	executor::block_on(future::join(test_fut, bg));
+}
+
+#[test]
 fn share_prioritizes_backing_group() {
 	sp_tracing::try_init_simple();
 	let hash_a = Hash::repeat_byte(1);
@@ -1451,12 +1887,13 @@ fn share_prioritizes_backing_group() {
 		IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
-			make_ferdie_keystore(),
-			statement_req_receiver,
-			Default::default(),
-			AlwaysZeroRng,
-		);
+		let s = StatementDistributionSubsystem {
+			keystore: make_ferdie_keystore(),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| true),
+		};
 		s.run(ctx).await.unwrap();
 	};
 
@@ -1524,7 +1961,7 @@ fn share_prioritizes_backing_group() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_a.clone(),
+						peer_a,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
@@ -1536,7 +1973,7 @@ fn share_prioritizes_backing_group() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_b.clone(),
+						peer_b,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
@@ -1548,7 +1985,7 @@ fn share_prioritizes_backing_group() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_c.clone(),
+						peer_c,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
@@ -1560,7 +1997,7 @@ fn share_prioritizes_backing_group() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_bad.clone(),
+						peer_bad,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						None,
@@ -1572,7 +2009,7 @@ fn share_prioritizes_backing_group() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_other_group.clone(),
+						peer_other_group,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Dave.public().into()])),
@@ -1584,7 +2021,7 @@ fn share_prioritizes_backing_group() {
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_a, view![hash_a]),
 				),
 			})
 			.await;
@@ -1592,28 +2029,28 @@ fn share_prioritizes_backing_group() {
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_b, view![hash_a]),
 				),
 			})
 			.await;
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_c.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_c, view![hash_a]),
 				),
 			})
 			.await;
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_bad, view![hash_a]),
 				),
 			})
 			.await;
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_other_group.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_other_group, view![hash_a]),
 				),
 			})
 			.await;
@@ -1624,13 +2061,12 @@ fn share_prioritizes_backing_group() {
 		let statement = {
 			let signing_context = SigningContext { parent_hash: hash_a, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let ferdie_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let ferdie_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Ferdie.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -1640,7 +2076,6 @@ fn share_prioritizes_backing_group() {
 				ValidatorIndex(4),
 				&ferdie_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -1746,12 +2181,13 @@ fn peer_cant_flood_with_large_statements() {
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	let bg = async move {
-		let s = StatementDistributionSubsystem::new(
-			make_ferdie_keystore(),
-			statement_req_receiver,
-			Default::default(),
-			AlwaysZeroRng,
-		);
+		let s = StatementDistributionSubsystem {
+			keystore: make_ferdie_keystore(),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| true),
+		};
 		s.run(ctx).await.unwrap();
 	};
 
@@ -1795,7 +2231,7 @@ fn peer_cant_flood_with_large_statements() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
-						peer_a.clone(),
+						peer_a,
 						ObservedRole::Full,
 						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
@@ -1807,7 +2243,7 @@ fn peer_cant_flood_with_large_statements() {
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
+					NetworkBridgeEvent::PeerViewChange(peer_a, view![hash_a]),
 				),
 			})
 			.await;
@@ -1816,13 +2252,12 @@ fn peer_cant_flood_with_large_statements() {
 		let statement = {
 			let signing_context = SigningContext { parent_hash: hash_a, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let alice_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -1832,7 +2267,6 @@ fn peer_cant_flood_with_large_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -1845,7 +2279,7 @@ fn peer_cant_flood_with_large_statements() {
 				.send(FromOrchestra::Communication {
 					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerMessage(
-							peer_a.clone(),
+							peer_a,
 							Versioned::V1(
 								protocol_v1::StatementDistributionMessage::LargeStatement(
 									metadata.clone(),
@@ -1880,9 +2314,9 @@ fn peer_cant_flood_with_large_statements() {
 					requested = true;
 				},
 
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == COST_APPARENT_FLOOD =>
-				{
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
+					ReportPeerMessage::Single(p, r),
+				)) if p == peer_a && r == COST_APPARENT_FLOOD.into() => {
 					punished = true;
 				},
 
@@ -1920,8 +2354,8 @@ fn handle_multiple_seconded_statements() {
 	for _ in 0..MIN_GOSSIP_PEERS + 2 {
 		all_peers.push(PeerId::random());
 	}
-	all_peers.push(peer_a.clone());
-	all_peers.push(peer_b.clone());
+	all_peers.push(peer_a);
+	all_peers.push(peer_b);
 
 	let mut lucky_peers = all_peers.clone();
 	util::choose_random_subset_with_rng(
@@ -1952,12 +2386,13 @@ fn handle_multiple_seconded_statements() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let virtual_overseer_fut = async move {
-		let s = StatementDistributionSubsystem::new(
-			Arc::new(LocalKeystore::in_memory()),
-			statement_req_receiver,
-			Default::default(),
-			AlwaysZeroRng,
-		);
+		let s = StatementDistributionSubsystem {
+			keystore: Arc::new(LocalKeystore::in_memory()),
+			req_receiver: Some(statement_req_receiver),
+			metrics: Default::default(),
+			rng: AlwaysZeroRng,
+			reputation: ReputationAggregator::new(|_| true),
+		};
 		s.run(ctx).await.unwrap();
 	};
 
@@ -2002,7 +2437,7 @@ fn handle_multiple_seconded_statements() {
 				.send(FromOrchestra::Communication {
 					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerConnected(
-							peer.clone(),
+							*peer,
 							ObservedRole::Full,
 							ValidationVersion::V1.into(),
 							None,
@@ -2013,48 +2448,83 @@ fn handle_multiple_seconded_statements() {
 			handle
 				.send(FromOrchestra::Communication {
 					msg: StatementDistributionMessage::NetworkBridgeUpdate(
-						NetworkBridgeEvent::PeerViewChange(peer.clone(), view![relay_parent_hash]),
+						NetworkBridgeEvent::PeerViewChange(*peer, view![relay_parent_hash]),
 					),
 				})
 				.await;
 		}
 
-		// Explicitly add all `lucky` peers to the gossip peers to ensure that neither `peerA` not `peerB`
-		// receive statements
+		// Set up a topology which puts peers a & b in a column together.
 		let gossip_topology = {
-			let mut t = network_bridge_event::NewGossipTopology {
-				session: 1,
-				our_neighbors_x: HashMap::new(),
-				our_neighbors_y: HashMap::new(),
-			};
+			// create a lucky_peers+1 * lucky_peers+1 grid topology where we are at index 2, sharing
+			// a row with peer_a (0) and peer_b (1) and a column with all the lucky peers.
+			// the rest is filled with junk.
+			// This is an absolute garbage hack depending on quirks of the implementation
+			// and not on sound architecture.
 
-			// Create a topology to ensure that we send messages not to `peer_a`/`peer_b`
-			for (i, peer) in lucky_peers.iter().enumerate() {
-				let authority_id = AuthorityPair::generate().0.public();
-				t.our_neighbors_y.insert(
-					authority_id,
-					network_bridge_event::TopologyPeerInfo {
-						peer_ids: vec![peer.clone()],
-						validator_index: (i as u32 + 2_u32).into(),
-					},
-				);
+			let n_lucky = lucky_peers.len();
+			let dim = n_lucky + 1;
+			let grid_size = dim * dim;
+			let topology_peer_info: Vec<_> = (0..grid_size)
+				.map(|i| {
+					if i == 0 {
+						TopologyPeerInfo {
+							peer_ids: vec![peer_a],
+							validator_index: ValidatorIndex(0),
+							discovery_id: AuthorityPair::generate().0.public(),
+						}
+					} else if i == 1 {
+						TopologyPeerInfo {
+							peer_ids: vec![peer_b],
+							validator_index: ValidatorIndex(1),
+							discovery_id: AuthorityPair::generate().0.public(),
+						}
+					} else if i == 2 {
+						TopologyPeerInfo {
+							peer_ids: vec![],
+							validator_index: ValidatorIndex(2),
+							discovery_id: AuthorityPair::generate().0.public(),
+						}
+					} else if (i - 2) % dim == 0 {
+						let lucky_index = ((i - 2) / dim) - 1;
+						TopologyPeerInfo {
+							peer_ids: vec![lucky_peers[lucky_index]],
+							validator_index: ValidatorIndex(i as _),
+							discovery_id: AuthorityPair::generate().0.public(),
+						}
+					} else {
+						TopologyPeerInfo {
+							peer_ids: vec![PeerId::random()],
+							validator_index: ValidatorIndex(i as _),
+							discovery_id: AuthorityPair::generate().0.public(),
+						}
+					}
+				})
+				.collect();
+
+			// also a hack: this is only required to be accurate for
+			// the validator indices we compute grid neighbors for.
+			let mut shuffled_indices = vec![0; grid_size];
+			shuffled_indices[2] = 2;
+
+			// Some sanity checking to make sure this hack is set up correctly.
+			let topology = SessionGridTopology::new(shuffled_indices, topology_peer_info);
+			let grid_neighbors = topology.compute_grid_neighbors_for(ValidatorIndex(2)).unwrap();
+			assert_eq!(grid_neighbors.peers_x.len(), 25);
+			assert!(grid_neighbors.peers_x.contains(&peer_a));
+			assert!(grid_neighbors.peers_x.contains(&peer_b));
+			assert!(!grid_neighbors.peers_y.contains(&peer_b));
+			assert!(!grid_neighbors.route_to_peer(RequiredRouting::GridY, &peer_b));
+			assert_eq!(grid_neighbors.peers_y.len(), lucky_peers.len());
+			for lucky in &lucky_peers {
+				assert!(grid_neighbors.peers_y.contains(lucky));
 			}
-			t.our_neighbors_x.insert(
-				AuthorityPair::generate().0.public(),
-				network_bridge_event::TopologyPeerInfo {
-					peer_ids: vec![peer_a.clone()],
-					validator_index: 0_u32.into(),
-				},
-			);
-			t.our_neighbors_x.insert(
-				AuthorityPair::generate().0.public(),
-				network_bridge_event::TopologyPeerInfo {
-					peer_ids: vec![peer_b.clone()],
-					validator_index: 1_u32.into(),
-				},
-			);
 
-			t
+			network_bridge_event::NewGossipTopology {
+				session: 1,
+				topology,
+				local_index: Some(ValidatorIndex(2)),
+			}
 		};
 
 		handle
@@ -2065,18 +2535,17 @@ fn handle_multiple_seconded_statements() {
 			})
 			.await;
 
-		// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
-		// candidate backing.
+		// receive a seconded statement from peer A. it should be propagated onwards to peer B and
+		// to candidate backing.
 		let statement = {
 			let signing_context = SigningContext { parent_hash: relay_parent_hash, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let alice_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -2086,7 +2555,6 @@ fn handle_multiple_seconded_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -2097,7 +2565,7 @@ fn handle_multiple_seconded_statements() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
-						peer_a.clone(),
+						peer_a,
 						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							relay_parent_hash,
 							statement.clone().into(),
@@ -2110,10 +2578,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_a);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST.into());
 			}
 		);
 
@@ -2149,7 +2617,7 @@ fn handle_multiple_seconded_statements() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
-						peer_b.clone(),
+						peer_b,
 						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							relay_parent_hash,
 							statement.clone().into(),
@@ -2162,10 +2630,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_b);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT.into());
 			}
 		);
 
@@ -2173,13 +2641,12 @@ fn handle_multiple_seconded_statements() {
 		let statement = {
 			let signing_context = SigningContext { parent_hash: relay_parent_hash, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let alice_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -2189,7 +2656,6 @@ fn handle_multiple_seconded_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -2200,7 +2666,7 @@ fn handle_multiple_seconded_statements() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
-						peer_a.clone(),
+						peer_a,
 						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							relay_parent_hash,
 							statement.clone().into(),
@@ -2213,10 +2679,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_a);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST.into());
 			}
 		);
 
@@ -2251,7 +2717,7 @@ fn handle_multiple_seconded_statements() {
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
-						peer_b.clone(),
+						peer_b,
 						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							relay_parent_hash,
 							statement.clone().into(),
@@ -2266,10 +2732,10 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
-				NetworkBridgeTxMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) => {
 				assert_eq!(p, peer_b);
-				assert_eq!(r, BENEFIT_VALID_STATEMENT);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT.into());
 			}
 		);
 
@@ -2283,7 +2749,7 @@ fn handle_multiple_seconded_statements() {
 }
 
 fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInfo {
-	let validator_groups: Vec<Vec<ValidatorIndex>> = groups
+	let validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>> = groups
 		.iter()
 		.map(|g| g.into_iter().map(|v| ValidatorIndex(*v)).collect())
 		.collect();

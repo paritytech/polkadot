@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,17 +17,17 @@
 //! Polkadot CLI library.
 
 use clap::Parser;
-use sc_cli::{RuntimeVersion, SubstrateCli};
+use sc_cli::SubstrateCli;
 
 /// Sub-commands supported by the collator.
 #[derive(Debug, Parser)]
 pub enum Subcommand {
 	/// Export the genesis state of the parachain.
-	#[clap(name = "export-genesis-state")]
+	#[command(name = "export-genesis-state")]
 	ExportGenesisState(ExportGenesisStateCommand),
 
 	/// Export the genesis wasm of the parachain.
-	#[clap(name = "export-genesis-wasm")]
+	#[command(name = "export-genesis-wasm")]
 	ExportGenesisWasm(ExportGenesisWasmCommand),
 }
 
@@ -41,20 +41,21 @@ pub struct ExportGenesisWasmCommand {}
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
+#[group(skip)]
 pub struct RunCmd {
 	#[allow(missing_docs)]
 	#[clap(flatten)]
 	pub base: sc_cli::RunCmd,
 
 	/// Id of the parachain this collator collates for.
-	#[clap(long)]
+	#[arg(long)]
 	pub parachain_id: Option<u32>,
 }
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
 pub struct Cli {
-	#[clap(subcommand)]
+	#[command(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
 	#[clap(flatten)]
@@ -103,11 +104,5 @@ impl SubstrateCli for Cli {
 				Box::new(polkadot_service::RococoChainSpec::from_json_file(path)?)
 			},
 		})
-	}
-
-	fn native_runtime_version(
-		_spec: &Box<dyn polkadot_service::ChainSpec>,
-	) -> &'static RuntimeVersion {
-		&polkadot_service::rococo_runtime::VERSION
 	}
 }

@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,10 +17,12 @@
 use super::*;
 use crate::mock::{
 	new_test_ext, Configuration, Dmp, Initializer, MockGenesisConfig, Paras, SessionInfo, System,
+	Test,
 };
-use primitives::v2::{HeadData, Id as ParaId};
+use primitives::{HeadData, Id as ParaId};
 use test_helpers::dummy_validation_code;
 
+use crate::paras::ParaKind;
 use frame_support::{
 	assert_ok,
 	traits::{OnFinalize, OnInitialize},
@@ -31,7 +33,7 @@ fn session_0_is_instantly_applied() {
 	new_test_ext(Default::default()).execute_with(|| {
 		Initializer::on_new_session(false, 0, Vec::new().into_iter(), Some(Vec::new().into_iter()));
 
-		let v = <Initializer as Store>::BufferedSessionChanges::get();
+		let v = BufferedSessionChanges::<Test>::get();
 		assert!(v.is_empty());
 
 		assert_eq!(SessionInfo::earliest_stored_session(), 0);
@@ -47,7 +49,7 @@ fn session_change_before_initialize_is_still_buffered_after() {
 		let now = System::block_number();
 		Initializer::on_initialize(now);
 
-		let v = <Initializer as Store>::BufferedSessionChanges::get();
+		let v = BufferedSessionChanges::<Test>::get();
 		assert_eq!(v.len(), 1);
 	});
 }
@@ -60,7 +62,7 @@ fn session_change_applied_on_finalize() {
 
 		Initializer::on_finalize(1);
 
-		assert!(<Initializer as Store>::BufferedSessionChanges::get().is_empty());
+		assert!(BufferedSessionChanges::<Test>::get().is_empty());
 	});
 }
 
@@ -69,7 +71,7 @@ fn sets_flag_on_initialize() {
 	new_test_ext(Default::default()).execute_with(|| {
 		Initializer::on_initialize(1);
 
-		assert!(<Initializer as Store>::HasInitialized::get().is_some());
+		assert!(HasInitialized::<Test>::get().is_some());
 	})
 }
 
@@ -79,7 +81,7 @@ fn clears_flag_on_finalize() {
 		Initializer::on_initialize(1);
 		Initializer::on_finalize(1);
 
-		assert!(<Initializer as Store>::HasInitialized::get().is_none());
+		assert!(HasInitialized::<Test>::get().is_none());
 	})
 }
 
@@ -90,7 +92,7 @@ fn scheduled_cleanup_performed() {
 	let c = ParaId::from(123);
 
 	let mock_genesis = crate::paras::ParaGenesisArgs {
-		parachain: true,
+		para_kind: ParaKind::Parachain,
 		genesis_head: HeadData(vec![4, 5, 6]),
 		validation_code: dummy_validation_code(),
 	};

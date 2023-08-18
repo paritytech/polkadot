@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -26,9 +26,6 @@ use sc_transaction_pool_api::TransactionStatus;
 use sp_core::{storage::StorageKey, Bytes};
 use sp_version::RuntimeVersion;
 use std::{future::Future, time::Duration};
-
-const MAX_CONNECTION_DURATION: Duration = Duration::from_secs(20);
-const MAX_REQUEST_DURATION: Duration = Duration::from_secs(60);
 
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 pub(crate) enum RpcHelperError {
@@ -64,7 +61,8 @@ pub trait RpcApi {
 		at: Option<&Hash>,
 	) -> RpcResult<RuntimeDispatchInfo<Balance>>;
 
-	/// Dry run an extrinsic at a given block. Return SCALE encoded [`sp_runtime::ApplyExtrinsicResult`].
+	/// Dry run an extrinsic at a given block. Return SCALE encoded
+	/// [`sp_runtime::ApplyExtrinsicResult`].
 	#[method(name = "system_dryRun")]
 	async fn dry_run(&self, extrinsic: &Bytes, at: Option<Hash>) -> RpcResult<Bytes>;
 
@@ -106,9 +104,11 @@ pub trait RpcApi {
 	fn subscribe_finalized_heads(&self);
 }
 
+type Uri = String;
+
 /// Wraps a shared web-socket JSON-RPC client that can be cloned.
 #[derive(Clone, Debug)]
-pub(crate) struct SharedRpcClient(Arc<WsClient>);
+pub(crate) struct SharedRpcClient(Arc<WsClient>, Uri);
 
 impl Deref for SharedRpcClient {
 	type Target = WsClient;
@@ -119,20 +119,25 @@ impl Deref for SharedRpcClient {
 }
 
 impl SharedRpcClient {
-	/// Consume and extract the inner client.
-	pub fn into_inner(self) -> Arc<WsClient> {
-		self.0
+	/// Get the URI of the client.
+	pub fn uri(&self) -> &str {
+		&self.1
 	}
 
 	/// Create a new shared JSON-RPC web-socket client.
-	pub(crate) async fn new(uri: &str) -> Result<Self, RpcError> {
+	pub(crate) async fn new(
+		uri: &str,
+		connection_timeout: Duration,
+		request_timeout: Duration,
+	) -> Result<Self, RpcError> {
 		let client = WsClientBuilder::default()
-			.connection_timeout(MAX_CONNECTION_DURATION)
+			.connection_timeout(connection_timeout)
 			.max_request_body_size(u32::MAX)
-			.request_timeout(MAX_REQUEST_DURATION)
+			.request_timeout(request_timeout)
+			.max_concurrent_requests(u32::MAX as usize)
 			.build(uri)
 			.await?;
-		Ok(Self(Arc::new(client)))
+		Ok(Self(Arc::new(client), uri.to_owned()))
 	}
 
 	/// Get a storage item and decode it as `T`.

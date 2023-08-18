@@ -1,9 +1,9 @@
 {%- import "change.md.tera" as m_c %}
 {%- set_global runtime_migration_count = 0 -%}
 {%- for pr in changes -%}
-    {%- if pr.meta.B and pr.meta.B.value == 0 %}
+    {%- if pr.meta.B and pr.meta.B.B0 %}
         {#- We skip silent ones -#}
-    {%- elif pr.meta.E and pr.meta.E.value == 1 -%}
+    {%- elif pr.meta.E and pr.meta.E.E0 -%}
         {%- set_global runtime_migration_count = runtime_migration_count + 1 -%}
     {%- endif -%}
 {%- endfor %}
@@ -21,9 +21,9 @@ Runtime migrations are operations running once during a runtime upgrade.
 {%- endif %}
 {% for pr in changes | sort(attribute="merged_at") -%}
 
-{%- if pr.meta.B and pr.meta.B.value == 0 %}
+{%- if pr.meta.B and pr.meta.B.B0 %}
 {#- We skip silent ones -#}
-{%- elif pr.meta.E and pr.meta.E.value == 1 -%}
+{%- elif pr.meta.E and pr.meta.E.E0 -%}
 - {{ m_c::change(c=pr) }}
 {% endif -%}
 {% endfor -%}

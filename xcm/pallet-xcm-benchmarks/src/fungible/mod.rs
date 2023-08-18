@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,6 +18,7 @@
 
 pub use pallet::*;
 
+#[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 #[cfg(test)]
 mod mock;
@@ -33,7 +34,7 @@ pub mod pallet {
 		type TransactAsset: frame_support::traits::fungible::Mutate<Self::AccountId>;
 
 		/// The account used to check assets being teleported.
-		type CheckedAccount: Get<Option<Self::AccountId>>;
+		type CheckedAccount: Get<Option<(Self::AccountId, xcm_builder::MintLocation)>>;
 
 		/// A trusted location which we allow teleports from, and the asset we allow to teleport.
 		type TrustedTeleporter: Get<Option<(xcm::latest::MultiLocation, xcm::latest::MultiAsset)>>;

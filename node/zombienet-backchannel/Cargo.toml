@@ -1,21 +1,21 @@
 [package]
 name = "zombienet-backchannel"
 description = "Zombienet backchannel to notify test runner and coordinate with malus actors."
-license = "GPL-3.0-only"
-version = "0.9.28"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 readme = "README.md"
 publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-tokio = { version = "1.19.2", default-features = false, features = ["macros", "net", "rt-multi-thread", "sync"] }
-url = "2.0.0"
+tokio = { version = "1.24.2", default-features = false, features = ["macros", "net", "rt-multi-thread", "sync"] }
+url = "2.3.1"
 tokio-tungstenite = "0.17"
 futures-util = "0.3.23"
 lazy_static = "1.4.0"
-parity-scale-codec = { version = "3.1.5", features = ["derive"] }
-reqwest = "0.11"
+parity-scale-codec = { version = "3.6.1", features = ["derive"] }
+reqwest = { version = "0.11", features = ["rustls-tls"], default-features = false }
 thiserror = "1.0.31"
 gum = { package = "tracing-gum", path = "../gum/" }
 serde = { version = "1.0", features = ["derive"] }

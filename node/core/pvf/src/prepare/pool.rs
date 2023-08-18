@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,21 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::worker::{self, Outcome};
+use super::worker_intf::{self, Outcome};
 use crate::{
-	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
-	worker_common::{IdleWorker, WorkerHandle},
+	worker_intf::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
 };
 use always_assert::never;
-use assert_matches::assert_matches;
-use async_std::path::{Path, PathBuf};
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
 };
+use polkadot_node_core_pvf_common::{
+	error::{PrepareError, PrepareResult},
+	pvf::PvfPrepData,
+};
 use slotmap::HopSlotMap;
-use std::{fmt, sync::Arc, task::Poll, time::Duration};
+use std::{
+	fmt,
+	path::{Path, PathBuf},
+	task::Poll,
+	time::Duration,
+};
 
 slotmap::new_key_type! { pub struct Worker; }
 
@@ -55,13 +61,13 @@ pub enum ToPool {
 
 	/// Request the given worker to start working on the given code.
 	///
-	/// Once the job either succeeded or failed, a [`FromPool::Concluded`] message will be sent back.
-	/// It's also possible that the worker dies before handling the message in which case [`FromPool::Rip`]
-	/// will be sent back.
+	/// Once the job either succeeded or failed, a [`FromPool::Concluded`] message will be sent
+	/// back. It's also possible that the worker dies before handling the message in which case
+	/// [`FromPool::Rip`] will be sent back.
 	///
 	/// In either case, the worker is considered busy and no further `StartWork` messages should be
 	/// sent until either `Concluded` or `Rip` message is received.
-	StartWork { worker: Worker, code: Arc<Vec<u8>>, artifact_path: PathBuf },
+	StartWork { worker: Worker, pvf: PvfPrepData, artifact_path: PathBuf },
 }
 
 /// A message sent from pool to its client.
@@ -107,10 +113,13 @@ struct Pool {
 	program_path: PathBuf,
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
+
 	to_pool: mpsc::Receiver<ToPool>,
 	from_pool: mpsc::UnboundedSender<FromPool>,
 	spawned: HopSlotMap<Worker, WorkerData>,
 	mux: Mux,
+
 	metrics: Metrics,
 }
 
@@ -122,6 +131,7 @@ async fn run(
 		program_path,
 		cache_path,
 		spawn_timeout,
+		node_version,
 		to_pool,
 		mut from_pool,
 		mut spawned,
@@ -149,6 +159,7 @@ async fn run(
 					&program_path,
 					&cache_path,
 					spawn_timeout,
+					node_version.clone(),
 					&mut spawned,
 					&mut mux,
 					to_pool,
@@ -195,6 +206,7 @@ fn handle_to_pool(
 	program_path: &Path,
 	cache_path: &Path,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
 	spawned: &mut HopSlotMap<Worker, WorkerData>,
 	mux: &mut Mux,
 	to_pool: ToPool,
@@ -203,17 +215,20 @@ fn handle_to_pool(
 		ToPool::Spawn => {
 			gum::debug!(target: LOG_TARGET, "spawning a new prepare worker");
 			metrics.prepare_worker().on_begin_spawn();
-			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
+			mux.push(
+				spawn_worker_task(program_path.to_owned(), spawn_timeout, node_version).boxed(),
+			);
 		},
-		ToPool::StartWork { worker, code, artifact_path } => {
+		ToPool::StartWork { worker, pvf, artifact_path } => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					let preparation_timer = metrics.time_preparation();
 					mux.push(
 						start_work_task(
+							metrics.clone(),
 							worker,
 							idle,
-							code,
+							pvf,
 							cache_path.to_owned(),
 							artifact_path,
 							preparation_timer,
@@ -222,11 +237,11 @@ fn handle_to_pool(
 					);
 				} else {
 					// idle token is present after spawn and after a job is concluded;
-					// the precondition for `StartWork` is it should be sent only if all previous work
-					// items concluded;
+					// the precondition for `StartWork` is it should be sent only if all previous
+					// work items concluded;
 					// thus idle token is Some;
 					// qed.
-					never!("unexpected abscence of the idle token in prepare pool");
+					never!("unexpected absence of the idle token in prepare pool");
 				}
 			} else {
 				// That's a relatively normal situation since the queue may send `start_work` and
@@ -241,11 +256,15 @@ fn handle_to_pool(
 	}
 }
 
-async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> PoolEvent {
+async fn spawn_worker_task(
+	program_path: PathBuf,
+	spawn_timeout: Duration,
+	node_version: Option<String>,
+) -> PoolEvent {
 	use futures_timer::Delay;
 
 	loop {
-		match worker::spawn(&program_path, spawn_timeout).await {
+		match worker_intf::spawn(&program_path, spawn_timeout, node_version.as_deref()).await {
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err);
@@ -258,14 +277,15 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 }
 
 async fn start_work_task<Timer>(
+	metrics: Metrics,
 	worker: Worker,
 	idle: IdleWorker,
-	code: Arc<Vec<u8>>,
+	pvf: PvfPrepData,
 	cache_path: PathBuf,
 	artifact_path: PathBuf,
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
-	let outcome = worker::start_work(idle, code, &cache_path, artifact_path).await;
+	let outcome = worker_intf::start_work(&metrics, idle, pvf, &cache_path, artifact_path).await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
@@ -286,26 +306,30 @@ fn handle_mux(
 			Ok(())
 		},
 		PoolEvent::StartWork(worker, outcome) => {
+			// If we receive an outcome that the worker is unreachable or that an error occurred on
+			// the worker, we attempt to kill the worker process.
 			match outcome {
-				Outcome::Concluded { worker: idle, result } => {
-					let data = match spawned.get_mut(worker) {
-						None => {
-							// Perhaps the worker was killed meanwhile and the result is no longer
-							// relevant.
-							return Ok(())
-						},
-						Some(data) => data,
-					};
-
-					// We just replace the idle worker that was loaned from this option during
-					// the work starting.
-					let old = data.idle.replace(idle);
-					assert_matches!(old, None, "attempt to overwrite an idle worker");
-
-					reply(from_pool, FromPool::Concluded { worker, rip: false, result })?;
-
-					Ok(())
-				},
+				Outcome::Concluded { worker: idle, result } =>
+					handle_concluded_no_rip(from_pool, spawned, worker, idle, result),
+				// Return `Concluded`, but do not kill the worker since the error was on the host
+				// side.
+				Outcome::CreateTmpFileErr { worker: idle, err } => handle_concluded_no_rip(
+					from_pool,
+					spawned,
+					worker,
+					idle,
+					Err(PrepareError::CreateTmpFileErr(err)),
+				),
+				// Return `Concluded`, but do not kill the worker since the error was on the host
+				// side.
+				Outcome::RenameTmpFileErr { worker: idle, result: _, err } =>
+					handle_concluded_no_rip(
+						from_pool,
+						spawned,
+						worker,
+						idle,
+						Err(PrepareError::RenameTmpFileErr(err)),
+					),
 				Outcome::Unreachable => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(from_pool, FromPool::Rip(worker))?;
@@ -313,14 +337,14 @@ fn handle_mux(
 
 					Ok(())
 				},
-				Outcome::DidNotMakeIt => {
+				Outcome::IoErr(err) => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
 							from_pool,
 							FromPool::Concluded {
 								worker,
 								rip: true,
-								result: Err(PrepareError::DidNotMakeIt),
+								result: Err(PrepareError::IoErr(err)),
 							},
 						)?;
 					}
@@ -369,12 +393,47 @@ fn attempt_retire(
 	}
 }
 
+/// Handles the case where we received a response. There potentially was an error, but not the fault
+/// of the worker as far as we know, so the worker should not be killed.
+///
+/// This function tries to put the idle worker back into the pool and then replies with
+/// `FromPool::Concluded` with `rip: false`.
+fn handle_concluded_no_rip(
+	from_pool: &mut mpsc::UnboundedSender<FromPool>,
+	spawned: &mut HopSlotMap<Worker, WorkerData>,
+	worker: Worker,
+	idle: IdleWorker,
+	result: PrepareResult,
+) -> Result<(), Fatal> {
+	let data = match spawned.get_mut(worker) {
+		None => {
+			// Perhaps the worker was killed meanwhile and the result is no longer relevant. We
+			// already send `Rip` when purging if we detect that the worker is dead.
+			return Ok(())
+		},
+		Some(data) => data,
+	};
+
+	// We just replace the idle worker that was loaned from this option during
+	// the work starting.
+	let old = data.idle.replace(idle);
+	never!(
+		old.is_some(),
+		"old idle worker was taken out when starting work; we only replace it here; qed"
+	);
+
+	reply(from_pool, FromPool::Concluded { worker, rip: false, result })?;
+
+	Ok(())
+}
+
 /// Spins up the pool and returns the future that should be polled to make the pool functional.
 pub fn start(
 	metrics: Metrics,
 	program_path: PathBuf,
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
+	node_version: Option<String>,
 ) -> (mpsc::Sender<ToPool>, mpsc::UnboundedReceiver<FromPool>, impl Future<Output = ()>) {
 	let (to_pool_tx, to_pool_rx) = mpsc::channel(10);
 	let (from_pool_tx, from_pool_rx) = mpsc::unbounded();
@@ -384,6 +443,7 @@ pub fn start(
 		program_path,
 		cache_path,
 		spawn_timeout,
+		node_version,
 		to_pool: to_pool_rx,
 		from_pool: from_pool_tx,
 		spawned: HopSlotMap::with_capacity_and_key(20),

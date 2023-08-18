@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-pub use polkadot_primitives::v2::{CandidateHash, Hash};
+pub use polkadot_primitives::{CandidateHash, Hash};
 
 #[derive(Default, Debug)]
 struct Y {
@@ -32,7 +32,7 @@ fn plain() {
 fn wo_alias() {
 	let a: i32 = 7;
 	error!(target: "foo",
-		"Something something {}, {:?}, or maybe {}",
+		"Something something {}, {b:?}, or maybe {c}",
 		a,
 		b = Y::default(),
 		c = a
@@ -43,6 +43,21 @@ fn wo_alias() {
 fn wo_unnecessary() {
 	let a: i32 = 7;
 	warn!(target: "bar",
+		a = a,
+		b = ?Y::default(),
+		"fff {c}",
+		c = a,
+	);
+}
+
+#[test]
+fn if_frequent() {
+	let a: i32 = 7;
+	let mut f = Freq::new();
+	warn_if_frequent!(
+		freq: f,
+		max_rate: Times::PerSecond(1),
+		target: "bar",
 		a = a,
 		b = ?Y::default(),
 		"fff {c}",
@@ -101,4 +116,51 @@ fn w_candidate_hash_aliased_unnecessary() {
 		c = a,
 		"xxx",
 	);
+}
+
+#[test]
+fn frequent_at_fourth_time() {
+	let mut freq = Freq::new();
+
+	assert!(!freq.is_frequent(Times::PerSecond(1)));
+	assert!(!freq.is_frequent(Times::PerSecond(1)));
+	assert!(!freq.is_frequent(Times::PerSecond(1)));
+
+	assert!(freq.is_frequent(Times::PerSecond(1)));
+}
+
+#[test]
+fn not_frequent_at_fourth_time_if_slow() {
+	let mut freq = Freq::new();
+
+	assert!(!freq.is_frequent(Times::PerSecond(1000)));
+	assert!(!freq.is_frequent(Times::PerSecond(1000)));
+	assert!(!freq.is_frequent(Times::PerSecond(1000)));
+
+	std::thread::sleep(std::time::Duration::from_millis(10));
+	assert!(!freq.is_frequent(Times::PerSecond(1000)));
+}
+
+#[test]
+fn calculate_rate_per_second() {
+	let rate: f32 = Times::PerSecond(100).into();
+	assert_eq!(rate, 100.0)
+}
+
+#[test]
+fn calculate_rate_per_minute() {
+	let rate: f32 = Times::PerMinute(100).into();
+	assert_eq!(rate, 1.6666666)
+}
+
+#[test]
+fn calculate_rate_per_hour() {
+	let rate: f32 = Times::PerHour(100).into();
+	assert_eq!(rate, 0.027777778)
+}
+
+#[test]
+fn calculate_rate_per_day() {
+	let rate: f32 = Times::PerDay(100).into();
+	assert_eq!(rate, 0.0011574074)
 }

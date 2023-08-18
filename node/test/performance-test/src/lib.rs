@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 //! A Polkadot performance tests utilities.
 
 use polkadot_erasure_coding::{obtain_chunks, reconstruct};
-use polkadot_node_core_pvf::{sc_executor_common, sp_maybe_compressed_blob};
+use polkadot_primitives::ExecutorParams;
 use std::time::{Duration, Instant};
 
 mod constants;
@@ -35,9 +35,6 @@ pub use kusama_runtime::WASM_BINARY;
 pub enum PerfCheckError {
 	#[error("This subcommand is only available in release mode")]
 	WrongBuildType,
-
-	#[error("This subcommand is only available when compiled with `{feature}`")]
-	FeatureNotEnabled { feature: &'static str },
 
 	#[error("No wasm code found for running the performance test")]
 	WasmBinaryMissing,
@@ -68,8 +65,10 @@ pub fn measure_pvf_prepare(wasm_code: &[u8]) -> Result<Duration, PerfCheckError>
 		.or(Err(PerfCheckError::CodeDecompressionFailed))?;
 
 	// Recreate the pipeline from the pvf prepare worker.
-	let blob = polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
-	polkadot_node_core_pvf::prepare(blob).map_err(PerfCheckError::from)?;
+	let blob = polkadot_node_core_pvf_prepare_worker::prevalidate(code.as_ref())
+		.map_err(PerfCheckError::from)?;
+	polkadot_node_core_pvf_prepare_worker::prepare(blob, &ExecutorParams::default())
+		.map_err(PerfCheckError::from)?;
 
 	Ok(start.elapsed())
 }

@@ -21,20 +21,29 @@ jobs:
           - name: '#polkadot-announcements:matrix.parity.io'
             room: '!UqHPWiCBGZWxrmYBkF:matrix.parity.io'
             pre-release: false
-          - name: 'Internal release-notes channel'
-            room: '!NTogofoetwjbTwOoPi:matrix.parity.io'
+          - name: "RelEng: Polkadot Release Coordination"
+            room: '!cqAmzdIcbOFwrdrubV:parity.io'
             pre-release: true
           - name: 'Ledger <> Polkadot Coordination'
             room: '!EoIhaKfGPmFOBrNSHT:web3.foundation'
             pre-release: true
-    
+          - name: 'General: Rust, Polkadot, Substrate'
+            room: '!aJymqQYtCjjqImFLSb:parity.io'
+            pre-release: false
+          - name: 'Team: DevOps'
+            room: '!lUslSijLMgNcEKcAiE:parity.io'
+            pre-release: true
+
     runs-on: ubuntu-latest
     steps:
       - name: Send Matrix message to ${{ matrix.channel.name }}
         if: github.event.release.prerelease == false || matrix.channel.pre-release
-        uses: s3krit/matrix-message-action@v0.0.3
+        uses: s3krit/matrix-message-action@70ad3fb812ee0e45ff8999d6af11cafad11a6ecf # v0.0.3
         with:
           room_id: ${{ matrix.channel.room }}
-          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
-          server: "matrix.parity.io"
-          message: "***Polkadot ${{github.event.release.tag_name}} has been released!***<br/>${{github.event.release.html_url}}<br/><br/>${{github.event.release.body}}<br/>"
+          access_token: ${{ secrets.RELEASENOTES_MATRIX_V2_ACCESS_TOKEN }}
+          server: m.parity.io
+          message: |
+            ***Polkadot ${{github.event.release.tag_name}} has been released!***<br/>
+            ${{github.event.release.html_url}}<br/><br/>
+            ${{github.event.release.body}}<br/>

@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -129,10 +129,11 @@ impl Jaeger {
 			"jaeger-collector",
 			Some("jaeger"),
 			Box::pin(async move {
-				match async_std::net::UdpSocket::bind("0.0.0.0:0").await {
+				match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
 					Ok(udp_socket) => loop {
 						let buf = traces_out.next().await;
-						// UDP sending errors happen only either if the API is misused or in case of missing privilege.
+						// UDP sending errors happen only either if the API is misused or in case of
+						// missing privilege.
 						if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await {
 							log::debug!(target: "jaeger", "UDP send error: {}", e);
 						}

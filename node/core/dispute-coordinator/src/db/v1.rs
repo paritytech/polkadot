@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -15,10 +15,16 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! `V1` database for the dispute coordinator.
+//!
+//! Note that the version here differs from the actual version of the parachains
+//! database (check `CURRENT_VERSION` in `node/service/src/parachains_db/upgrade.rs`).
+//! The code in this module implements the way dispute coordinator works with
+//! the dispute data in the database. Any breaking changes here will still
+//! require a db migration (check `node/service/src/parachains_db/upgrade.rs`).
 
-use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
+use polkadot_node_primitives::DisputeStatus;
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CandidateReceipt, Hash, InvalidDisputeStatementKind, SessionIndex,
 	ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature,
 };
@@ -31,8 +37,7 @@ use crate::{
 	backend::{Backend, BackendWriteOp, OverlayedBackend},
 	error::{FatalError, FatalResult},
 	metrics::Metrics,
-	status::DisputeStatus,
-	DISPUTE_WINDOW, LOG_TARGET,
+	LOG_TARGET,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
@@ -47,8 +52,8 @@ const CLEANED_VOTES_WATERMARK_KEY: &[u8; 23] = b"cleaned-votes-watermark";
 /// this should not be done at once, but rather in smaller batches so nodes won't get stalled by
 /// this.
 ///
-/// 300 is with session duration of 1 hour and 30 parachains around <3_000_000 key purges in the worst
-/// case. Which is already quite a lot, at the same time we have around 21_000 sessions on
+/// 300 is with session duration of 1 hour and 30 parachains around <3_000_000 key purges in the
+/// worst case. Which is already quite a lot, at the same time we have around 21_000 sessions on
 /// Kusama. This means at 300 purged sessions per session, cleaning everything up will take
 /// around 3 days. Depending on how severe disk usage becomes, we might want to bump the batch
 /// size, at the cost of risking issues at session boundaries (performance).
@@ -99,22 +104,22 @@ impl DbBackend {
 			encoded = ?candidate_votes_session_prefix(index),
 			"Cleaning votes for session index"
 			);
-			tx.delete_prefix(self.config.col_data, &candidate_votes_session_prefix(index));
+			tx.delete_prefix(self.config.col_dispute_data, &candidate_votes_session_prefix(index));
 		}
 		// New watermark:
-		tx.put_vec(self.config.col_data, CLEANED_VOTES_WATERMARK_KEY, clean_until.encode());
+		tx.put_vec(self.config.col_dispute_data, CLEANED_VOTES_WATERMARK_KEY, clean_until.encode());
 		Ok(())
 	}
 }
 
 impl Backend for DbBackend {
 	/// Load the earliest session, if any.
-	fn load_earliest_session(&self) -> SubsystemResult<Option<SessionIndex>> {
+	fn load_earliest_session(&self) -> FatalResult<Option<SessionIndex>> {
 		load_earliest_session(&*self.inner, &self.config)
 	}
 
 	/// Load the recent disputes, if any.
-	fn load_recent_disputes(&self) -> SubsystemResult<Option<RecentDisputes>> {
+	fn load_recent_disputes(&self) -> FatalResult<Option<RecentDisputes>> {
 		load_recent_disputes(&*self.inner, &self.config)
 	}
 
@@ -123,7 +128,7 @@ impl Backend for DbBackend {
 		&self,
 		session: SessionIndex,
 		candidate_hash: &CandidateHash,
-	) -> SubsystemResult<Option<CandidateVotes>> {
+	) -> FatalResult<Option<CandidateVotes>> {
 		load_candidate_votes(&*self.inner, &self.config, session, candidate_hash)
 	}
 
@@ -148,21 +153,32 @@ impl Backend for DbBackend {
 					self.add_vote_cleanup_tx(&mut tx, session)?;
 
 					// Actually write the earliest session.
-					tx.put_vec(self.config.col_data, EARLIEST_SESSION_KEY, session.encode());
+					tx.put_vec(
+						self.config.col_dispute_data,
+						EARLIEST_SESSION_KEY,
+						session.encode(),
+					);
 				},
 				BackendWriteOp::WriteRecentDisputes(recent_disputes) => {
-					tx.put_vec(self.config.col_data, RECENT_DISPUTES_KEY, recent_disputes.encode());
+					tx.put_vec(
+						self.config.col_dispute_data,
+						RECENT_DISPUTES_KEY,
+						recent_disputes.encode(),
+					);
 				},
 				BackendWriteOp::WriteCandidateVotes(session, candidate_hash, votes) => {
 					gum::trace!(target: LOG_TARGET, ?session, "Writing candidate votes");
 					tx.put_vec(
-						self.config.col_data,
+						self.config.col_dispute_data,
 						&candidate_votes_key(session, &candidate_hash),
 						votes.encode(),
 					);
 				},
 				BackendWriteOp::DeleteCandidateVotes(session, candidate_hash) => {
-					tx.delete(self.config.col_data, &candidate_votes_key(session, &candidate_hash));
+					tx.delete(
+						self.config.col_dispute_data,
+						&candidate_votes_key(session, &candidate_hash),
+					);
 				},
 			}
 		}
@@ -195,7 +211,7 @@ fn candidate_votes_session_prefix(session: SessionIndex) -> [u8; 15 + 4] {
 #[derive(Debug, Clone)]
 pub struct ColumnConfiguration {
 	/// The column in the key-value DB where data is stored.
-	pub col_data: u32,
+	pub col_dispute_data: u32,
 }
 
 /// Tracked votes on candidates, for the purposes of dispute resolution.
@@ -257,8 +273,12 @@ impl From<Error> for crate::error::Error {
 /// Result alias for DB errors.
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn load_decode<D: Decode>(db: &dyn Database, col_data: u32, key: &[u8]) -> Result<Option<D>> {
-	match db.get(col_data, key)? {
+fn load_decode<D: Decode>(
+	db: &dyn Database,
+	col_dispute_data: u32,
+	key: &[u8],
+) -> Result<Option<D>> {
+	match db.get(col_dispute_data, key)? {
 		None => Ok(None),
 		Some(raw) => D::decode(&mut &raw[..]).map(Some).map_err(Into::into),
 	}
@@ -270,27 +290,27 @@ pub(crate) fn load_candidate_votes(
 	config: &ColumnConfiguration,
 	session: SessionIndex,
 	candidate_hash: &CandidateHash,
-) -> SubsystemResult<Option<CandidateVotes>> {
-	load_decode(db, config.col_data, &candidate_votes_key(session, candidate_hash))
-		.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
+) -> FatalResult<Option<CandidateVotes>> {
+	load_decode(db, config.col_dispute_data, &candidate_votes_key(session, candidate_hash))
+		.map_err(|e| FatalError::DbReadFailed(e))
 }
 
 /// Load the earliest session, if any.
 pub(crate) fn load_earliest_session(
 	db: &dyn Database,
 	config: &ColumnConfiguration,
-) -> SubsystemResult<Option<SessionIndex>> {
-	load_decode(db, config.col_data, EARLIEST_SESSION_KEY)
-		.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
+) -> FatalResult<Option<SessionIndex>> {
+	load_decode(db, config.col_dispute_data, EARLIEST_SESSION_KEY)
+		.map_err(|e| FatalError::DbReadFailed(e))
 }
 
 /// Load the recent disputes, if any.
 pub(crate) fn load_recent_disputes(
 	db: &dyn Database,
 	config: &ColumnConfiguration,
-) -> SubsystemResult<Option<RecentDisputes>> {
-	load_decode(db, config.col_data, RECENT_DISPUTES_KEY)
-		.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
+) -> FatalResult<Option<RecentDisputes>> {
+	load_decode(db, config.col_dispute_data, RECENT_DISPUTES_KEY)
+		.map_err(|e| FatalError::DbReadFailed(e))
 }
 
 /// Maybe prune data in the DB based on the provided session index.
@@ -301,25 +321,24 @@ pub(crate) fn load_recent_disputes(
 ///
 /// If one or more ancient sessions are pruned, all metadata on candidates within the ancient
 /// session will be deleted.
-pub(crate) fn note_current_session(
+pub(crate) fn note_earliest_session(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
-	current_session: SessionIndex,
-) -> SubsystemResult<()> {
-	let new_earliest = current_session.saturating_sub(DISPUTE_WINDOW.get());
+	new_earliest_session: SessionIndex,
+) -> FatalResult<()> {
 	match overlay_db.load_earliest_session()? {
 		None => {
 			// First launch - write new-earliest.
-			overlay_db.write_earliest_session(new_earliest);
+			overlay_db.write_earliest_session(new_earliest_session);
 		},
-		Some(prev_earliest) if new_earliest > prev_earliest => {
+		Some(prev_earliest) if new_earliest_session > prev_earliest => {
 			// Prune all data in the outdated sessions.
-			overlay_db.write_earliest_session(new_earliest);
+			overlay_db.write_earliest_session(new_earliest_session);
 
 			// Clear recent disputes metadata.
 			{
 				let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
 
-				let lower_bound = (new_earliest, CandidateHash(Hash::repeat_byte(0x00)));
+				let lower_bound = (new_earliest_session, CandidateHash(Hash::repeat_byte(0x00)));
 
 				let new_recent_disputes = recent_disputes.split_off(&lower_bound);
 				// Any remanining disputes are considered ancient and must be pruned.
@@ -327,7 +346,8 @@ pub(crate) fn note_current_session(
 
 				if pruned_disputes.len() != 0 {
 					overlay_db.write_recent_disputes(new_recent_disputes);
-					// Note: Deleting old candidate votes is handled in `write` based on the earliest session.
+					// Note: Deleting old candidate votes is handled in `write` based on the
+					// earliest session.
 				}
 			}
 		},
@@ -347,7 +367,7 @@ fn load_cleaned_votes_watermark(
 	db: &dyn Database,
 	config: &ColumnConfiguration,
 ) -> FatalResult<Option<SessionIndex>> {
-	load_decode(db, config.col_data, CLEANED_VOTES_WATERMARK_KEY)
+	load_decode(db, config.col_dispute_data, CLEANED_VOTES_WATERMARK_KEY)
 		.map_err(|e| FatalError::DbReadFailed(e))
 }
 
@@ -356,13 +376,14 @@ mod tests {
 
 	use super::*;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
-	use polkadot_primitives::v2::{Hash, Id as ParaId};
+	use polkadot_node_primitives::DISPUTE_WINDOW;
+	use polkadot_primitives::{Hash, Id as ParaId};
 
 	fn make_db() -> DbBackend {
 		let db = kvdb_memorydb::create(1);
 		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[0]);
 		let store = Arc::new(db);
-		let config = ColumnConfiguration { col_data: 0 };
+		let config = ColumnConfiguration { col_dispute_data: 0 };
 		DbBackend::new(store, config, Metrics::default())
 	}
 
@@ -405,7 +426,7 @@ mod tests {
 		let mut overlay_db = OverlayedBackend::new(&backend);
 
 		gum::trace!(target: LOG_TARGET, ?current_session, "Noting current session");
-		note_current_session(&mut overlay_db, current_session).unwrap();
+		note_earliest_session(&mut overlay_db, earliest_session).unwrap();
 
 		let write_ops = overlay_db.into_write_ops();
 		backend.write(write_ops).unwrap();
@@ -425,7 +446,7 @@ mod tests {
 		let current_session = current_session + 1;
 		let earliest_session = earliest_session + 1;
 
-		note_current_session(&mut overlay_db, current_session).unwrap();
+		note_earliest_session(&mut overlay_db, earliest_session).unwrap();
 
 		let write_ops = overlay_db.into_write_ops();
 		backend.write(write_ops).unwrap();
@@ -582,7 +603,7 @@ mod tests {
 	}
 
 	#[test]
-	fn note_current_session_prunes_old() {
+	fn note_earliest_session_prunes_old() {
 		let mut backend = make_db();
 
 		let hash_a = CandidateHash(Hash::repeat_byte(0x0a));
@@ -631,7 +652,7 @@ mod tests {
 		backend.write(write_ops).unwrap();
 
 		let mut overlay_db = OverlayedBackend::new(&backend);
-		note_current_session(&mut overlay_db, current_session).unwrap();
+		note_earliest_session(&mut overlay_db, new_earliest_session).unwrap();
 
 		assert_eq!(overlay_db.load_earliest_session().unwrap(), Some(new_earliest_session));
 

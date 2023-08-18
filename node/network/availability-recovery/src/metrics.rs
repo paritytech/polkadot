@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -45,6 +45,10 @@ struct MetricsInner {
 
 	/// The duration between the pure recovery and verification.
 	time_erasure_recovery: Histogram,
+
+	/// How much time it takes to re-encode the data into erasure chunks in order to verify
+	/// the root hash of the provided Merkle tree. See `reconstructed_data_matches_root`.
+	time_reencode_chunks: Histogram,
 
 	/// Time of a full recovery, including erasure decoding or until we gave
 	/// up.
@@ -118,6 +122,11 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| metrics.time_erasure_recovery.start_timer())
 	}
 
+	/// Get a timer to time chunk encoding.
+	pub fn time_reencode_chunks(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_reencode_chunks.start_timer())
+	}
+
 	/// Get a timer to measure the time of the complete recovery process.
 	pub fn time_full_recovery(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.time_full_recovery.start_timer())
@@ -183,6 +192,13 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_availability_recovery_time_erasure_recovery",
 					"Time spent to recover the erasure code and verify the merkle root by re-encoding as erasure chunks",
+				))?,
+				registry,
+			)?,
+			time_reencode_chunks: prometheus::register(
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"polkadot_parachain_availability_reencode_chunks",
+					"Time spent re-encoding the data as erasure chunks",
 				))?,
 				registry,
 			)?,

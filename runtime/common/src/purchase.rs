@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -82,7 +82,8 @@ pub struct AccountStatus<Balance> {
 	locked_balance: Balance,
 	/// Their sr25519/ed25519 signature verifying they have signed our required statement.
 	signature: Vec<u8>,
-	/// The percentage of VAT the purchaser is responsible for. This is already factored into account balance.
+	/// The percentage of VAT the purchaser is responsible for. This is already factored into
+	/// account balance.
 	vat: Permill,
 }
 
@@ -91,14 +92,13 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Balances Pallet
 		type Currency: Currency<Self::AccountId>;
@@ -106,15 +106,15 @@ pub mod pallet {
 		/// Vesting Pallet
 		type VestingSchedule: VestingSchedule<
 			Self::AccountId,
-			Moment = Self::BlockNumber,
+			Moment = BlockNumberFor<Self>,
 			Currency = Self::Currency,
 		>;
 
 		/// The origin allowed to set account status.
-		type ValidityOrigin: EnsureOrigin<Self::Origin>;
+		type ValidityOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
 		/// The origin allowed to make configurations to the pallet.
-		type ConfigurationOrigin: EnsureOrigin<Self::Origin>;
+		type ConfigurationOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
 		/// The maximum statement length for the statement users to sign when creating an account.
 		#[pallet::constant]
@@ -145,7 +145,7 @@ pub mod pallet {
 		/// A new statement was set.
 		StatementUpdated,
 		/// A new statement was set. `[block_number]`
-		UnlockBlockUpdated { block_number: T::BlockNumber },
+		UnlockBlockUpdated { block_number: BlockNumberFor<T> },
 	}
 
 	#[pallet::error]
@@ -183,7 +183,7 @@ pub mod pallet {
 
 	// The block where all locked dots will unlock.
 	#[pallet::storage]
-	pub(super) type UnlockBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+	pub(super) type UnlockBlock<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -195,7 +195,8 @@ pub mod pallet {
 		/// We check that the account does not exist at this stage.
 		///
 		/// Origin must match the `ValidityOrigin`.
-		#[pallet::weight(Weight::from_ref_time(200_000_000) + T::DbWeight::get().reads_writes(4, 1))]
+		#[pallet::call_index(0)]
+		#[pallet::weight(Weight::from_parts(200_000_000, 0) + T::DbWeight::get().reads_writes(4, 1))]
 		pub fn create_account(
 			origin: OriginFor<T>,
 			who: T::AccountId,
@@ -232,6 +233,7 @@ pub mod pallet {
 		/// We check that the account exists at this stage, but has not completed the process.
 		///
 		/// Origin must match the `ValidityOrigin`.
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
 		pub fn update_validity_status(
 			origin: OriginFor<T>,
@@ -260,6 +262,7 @@ pub mod pallet {
 		/// We check that the account is valid for a balance transfer at this point.
 		///
 		/// Origin must match the `ValidityOrigin`.
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::DbWeight::get().reads_writes(2, 1))]
 		pub fn update_balance(
 			origin: OriginFor<T>,
@@ -297,6 +300,7 @@ pub mod pallet {
 		///
 		/// Origin must match the configured `PaymentAccount` (if it is not configured then this
 		/// will always fail with `BadOrigin`).
+		#[pallet::call_index(3)]
 		#[pallet::weight(T::DbWeight::get().reads_writes(4, 2))]
 		pub fn payout(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
 			// Payments must be made directly by the `PaymentAccount`.
@@ -330,12 +334,14 @@ pub mod pallet {
 
 					if !status.locked_balance.is_zero() {
 						let unlock_block = UnlockBlock::<T>::get();
-						// We allow some configurable portion of the purchased locked DOTs to be unlocked for basic usage.
+						// We allow some configurable portion of the purchased locked DOTs to be
+						// unlocked for basic usage.
 						let unlocked = (T::UnlockedProportion::get() * status.locked_balance)
 							.min(T::MaxUnlocked::get());
 						let locked = status.locked_balance.saturating_sub(unlocked);
-						// We checked that this account has no existing vesting schedule. So this function should
-						// never fail, however if it does, not much we can do about it at this point.
+						// We checked that this account has no existing vesting schedule. So this
+						// function should never fail, however if it does, not much we can do about
+						// it at this point.
 						let _ = T::VestingSchedule::add_vesting_schedule(
 							// Apply vesting schedule to this user
 							&who,
@@ -348,7 +354,8 @@ pub mod pallet {
 						);
 					}
 
-					// Setting the user account to `Completed` ends the purchase process for this user.
+					// Setting the user account to `Completed` ends the purchase process for this
+					// user.
 					status.validity = AccountValidity::Completed;
 					Self::deposit_event(Event::<T>::PaymentComplete {
 						who: who.clone(),
@@ -366,6 +373,7 @@ pub mod pallet {
 		/// Set the account that will be used to payout users in the DOT purchase process.
 		///
 		/// Origin must match the `ConfigurationOrigin`
+		#[pallet::call_index(4)]
 		#[pallet::weight(T::DbWeight::get().writes(1))]
 		pub fn set_payment_account(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
@@ -378,6 +386,7 @@ pub mod pallet {
 		/// Set the statement that must be signed for a user to participate on the DOT sale.
 		///
 		/// Origin must match the `ConfigurationOrigin`
+		#[pallet::call_index(5)]
 		#[pallet::weight(T::DbWeight::get().writes(1))]
 		pub fn set_statement(origin: OriginFor<T>, statement: Vec<u8>) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
@@ -394,10 +403,11 @@ pub mod pallet {
 		/// Set the block where locked DOTs will become unlocked.
 		///
 		/// Origin must match the `ConfigurationOrigin`
+		#[pallet::call_index(6)]
 		#[pallet::weight(T::DbWeight::get().writes(1))]
 		pub fn set_unlock_block(
 			origin: OriginFor<T>,
-			unlock_block: T::BlockNumber,
+			unlock_block: BlockNumberFor<T>,
 		) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			ensure!(
@@ -474,26 +484,22 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use crate::purchase;
 	use frame_support::{
-		assert_noop, assert_ok, dispatch::DispatchError::BadOrigin, ord_parameter_types,
-		parameter_types, traits::Currency,
+		assert_noop, assert_ok,
+		dispatch::DispatchError::BadOrigin,
+		ord_parameter_types, parameter_types,
+		traits::{Currency, WithdrawReasons},
 	};
-	use pallet_balances::Error as BalancesError;
 	use sp_runtime::{
-		testing::Header,
 		traits::{BlakeTwo256, Dispatchable, IdentifyAccount, Identity, IdentityLookup, Verify},
-		MultiSignature,
+		ArithmeticError, BuildStorage, MultiSignature,
 	};
 
-	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
 
 	frame_support::construct_runtime!(
-		pub enum Test where
-			Block = Block,
-			NodeBlock = Block,
-			UncheckedExtrinsic = UncheckedExtrinsic,
+		pub enum Test
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Vesting: pallet_vesting::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Purchase: purchase::{Pallet, Call, Storage, Event<T>},
@@ -510,16 +516,15 @@ mod tests {
 		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
-		type Origin = Origin;
-		type Call = Call;
-		type Index = u64;
-		type BlockNumber = u64;
+		type RuntimeOrigin = RuntimeOrigin;
+		type RuntimeCall = RuntimeCall;
+		type Nonce = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<AccountId>;
-		type Header = Header;
-		type Event = Event;
+		type Block = Block;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
 		type PalletInfo = PalletInfo;
@@ -538,7 +543,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -546,18 +551,25 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type RuntimeHoldReason = RuntimeHoldReason;
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	parameter_types! {
 		pub const MinVestedTransfer: u64 = 1;
+		pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
+			WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
 	}
 
 	impl pallet_vesting::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
 		type WeightInfo = ();
+		type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
 		const MAX_VESTING_SCHEDULES: u32 = 28;
 	}
 
@@ -574,7 +586,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type Currency = Balances;
 		type VestingSchedule = Vesting;
 		type ValidityOrigin = frame_system::EnsureSignedBy<ValidityOrigin, AccountId>;
@@ -587,7 +599,7 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup. It also executes our `setup` function which sets up this pallet for use.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		let mut ext = sp_io::TestExternalities::new(t);
 		ext.execute_with(|| setup());
 		ext
@@ -596,10 +608,14 @@ mod tests {
 	fn setup() {
 		let statement = b"Hello, World".to_vec();
 		let unlock_block = 100;
-		Purchase::set_statement(Origin::signed(configuration_origin()), statement).unwrap();
-		Purchase::set_unlock_block(Origin::signed(configuration_origin()), unlock_block).unwrap();
-		Purchase::set_payment_account(Origin::signed(configuration_origin()), payment_account())
+		Purchase::set_statement(RuntimeOrigin::signed(configuration_origin()), statement).unwrap();
+		Purchase::set_unlock_block(RuntimeOrigin::signed(configuration_origin()), unlock_block)
 			.unwrap();
+		Purchase::set_payment_account(
+			RuntimeOrigin::signed(configuration_origin()),
+			payment_account(),
+		)
+		.unwrap();
 		Balances::make_free_balance_be(&payment_account(), 100_000);
 	}
 
@@ -633,17 +649,20 @@ mod tests {
 	}
 
 	fn alice_signature() -> [u8; 64] {
-		// echo -n "Hello, World" | subkey -s sign "bottom drive obey lake curtain smoke basket hold race lonely fit walk//Alice"
+		// echo -n "Hello, World" | subkey -s sign "bottom drive obey lake curtain smoke basket hold
+		// race lonely fit walk//Alice"
 		hex_literal::hex!("20e0faffdf4dfe939f2faa560f73b1d01cde8472e2b690b7b40606a374244c3a2e9eb9c8107c10b605138374003af8819bd4387d7c24a66ee9253c2e688ab881")
 	}
 
 	fn bob_signature() -> [u8; 64] {
-		// echo -n "Hello, World" | subkey -s sign "bottom drive obey lake curtain smoke basket hold race lonely fit walk//Bob"
+		// echo -n "Hello, World" | subkey -s sign "bottom drive obey lake curtain smoke basket hold
+		// race lonely fit walk//Bob"
 		hex_literal::hex!("d6d460187ecf530f3ec2d6e3ac91b9d083c8fbd8f1112d92a82e4d84df552d18d338e6da8944eba6e84afaacf8a9850f54e7b53a84530d649be2e0119c7ce889")
 	}
 
 	fn alice_signature_ed25519() -> [u8; 64] {
-		// echo -n "Hello, World" | subkey -e sign "bottom drive obey lake curtain smoke basket hold race lonely fit walk//Alice"
+		// echo -n "Hello, World" | subkey -e sign "bottom drive obey lake curtain smoke basket hold
+		// race lonely fit walk//Alice"
 		hex_literal::hex!("ee3f5a6cbfc12a8f00c18b811dc921b550ddf272354cda4b9a57b1d06213fcd8509f5af18425d39a279d13622f14806c3e978e2163981f2ec1c06e9628460b0e")
 	}
 
@@ -665,18 +684,21 @@ mod tests {
 			let statement = b"Test Set Statement".to_vec();
 			// Invalid origin
 			assert_noop!(
-				Purchase::set_statement(Origin::signed(alice()), statement.clone()),
+				Purchase::set_statement(RuntimeOrigin::signed(alice()), statement.clone()),
 				BadOrigin,
 			);
 			// Too Long
 			let long_statement = [0u8; 10_000].to_vec();
 			assert_noop!(
-				Purchase::set_statement(Origin::signed(configuration_origin()), long_statement),
+				Purchase::set_statement(
+					RuntimeOrigin::signed(configuration_origin()),
+					long_statement
+				),
 				Error::<Test>::InvalidStatement,
 			);
 			// Just right...
 			assert_ok!(Purchase::set_statement(
-				Origin::signed(configuration_origin()),
+				RuntimeOrigin::signed(configuration_origin()),
 				statement.clone()
 			));
 			assert_eq!(Statement::<Test>::get(), statement);
@@ -689,7 +711,7 @@ mod tests {
 			let unlock_block = 69;
 			// Invalid origin
 			assert_noop!(
-				Purchase::set_unlock_block(Origin::signed(alice()), unlock_block),
+				Purchase::set_unlock_block(RuntimeOrigin::signed(alice()), unlock_block),
 				BadOrigin,
 			);
 			// Block Number in Past
@@ -697,14 +719,14 @@ mod tests {
 			System::set_block_number(bad_unlock_block);
 			assert_noop!(
 				Purchase::set_unlock_block(
-					Origin::signed(configuration_origin()),
+					RuntimeOrigin::signed(configuration_origin()),
 					bad_unlock_block
 				),
 				Error::<Test>::InvalidUnlockBlock,
 			);
 			// Just right...
 			assert_ok!(Purchase::set_unlock_block(
-				Origin::signed(configuration_origin()),
+				RuntimeOrigin::signed(configuration_origin()),
 				unlock_block
 			));
 			assert_eq!(UnlockBlock::<Test>::get(), unlock_block);
@@ -717,12 +739,15 @@ mod tests {
 			let payment_account: AccountId = [69u8; 32].into();
 			// Invalid Origin
 			assert_noop!(
-				Purchase::set_payment_account(Origin::signed(alice()), payment_account.clone()),
+				Purchase::set_payment_account(
+					RuntimeOrigin::signed(alice()),
+					payment_account.clone()
+				),
 				BadOrigin,
 			);
 			// Just right...
 			assert_ok!(Purchase::set_payment_account(
-				Origin::signed(configuration_origin()),
+				RuntimeOrigin::signed(configuration_origin()),
 				payment_account.clone()
 			));
 			assert_eq!(PaymentAccount::<Test>::get(), Some(payment_account));
@@ -753,7 +778,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert!(!Accounts::<Test>::contains_key(alice()));
 			assert_ok!(Purchase::create_account(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				alice_signature().to_vec(),
 			));
@@ -776,7 +801,7 @@ mod tests {
 			// Wrong Origin
 			assert_noop!(
 				Purchase::create_account(
-					Origin::signed(alice()),
+					RuntimeOrigin::signed(alice()),
 					alice(),
 					alice_signature().to_vec()
 				),
@@ -786,7 +811,7 @@ mod tests {
 			// Wrong Account/Signature
 			assert_noop!(
 				Purchase::create_account(
-					Origin::signed(validity_origin()),
+					RuntimeOrigin::signed(validity_origin()),
 					alice(),
 					bob_signature().to_vec()
 				),
@@ -794,6 +819,7 @@ mod tests {
 			);
 
 			// Account with vesting
+			Balances::make_free_balance_be(&alice(), 100);
 			assert_ok!(<Test as Config>::VestingSchedule::add_vesting_schedule(
 				&alice(),
 				100,
@@ -802,7 +828,7 @@ mod tests {
 			));
 			assert_noop!(
 				Purchase::create_account(
-					Origin::signed(validity_origin()),
+					RuntimeOrigin::signed(validity_origin()),
 					alice(),
 					alice_signature().to_vec()
 				),
@@ -811,13 +837,13 @@ mod tests {
 
 			// Duplicate Purchasing Account
 			assert_ok!(Purchase::create_account(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				bob(),
 				bob_signature().to_vec()
 			));
 			assert_noop!(
 				Purchase::create_account(
-					Origin::signed(validity_origin()),
+					RuntimeOrigin::signed(validity_origin()),
 					bob(),
 					bob_signature().to_vec()
 				),
@@ -831,19 +857,19 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Alice account is created.
 			assert_ok!(Purchase::create_account(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				alice_signature().to_vec(),
 			));
 			// She submits KYC, and we update the status to `Pending`.
 			assert_ok!(Purchase::update_validity_status(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				AccountValidity::Pending,
 			));
 			// KYC comes back negative, so we mark the account invalid.
 			assert_ok!(Purchase::update_validity_status(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				AccountValidity::Invalid,
 			));
@@ -859,7 +885,7 @@ mod tests {
 			);
 			// She fixes it, we mark her account valid.
 			assert_ok!(Purchase::update_validity_status(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				AccountValidity::ValidLow,
 			));
@@ -882,7 +908,7 @@ mod tests {
 			// Wrong Origin
 			assert_noop!(
 				Purchase::update_validity_status(
-					Origin::signed(alice()),
+					RuntimeOrigin::signed(alice()),
 					alice(),
 					AccountValidity::Pending,
 				),
@@ -891,7 +917,7 @@ mod tests {
 			// Inactive Account
 			assert_noop!(
 				Purchase::update_validity_status(
-					Origin::signed(validity_origin()),
+					RuntimeOrigin::signed(validity_origin()),
 					alice(),
 					AccountValidity::Pending,
 				),
@@ -899,18 +925,18 @@ mod tests {
 			);
 			// Already Completed
 			assert_ok!(Purchase::create_account(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				alice_signature().to_vec(),
 			));
 			assert_ok!(Purchase::update_validity_status(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				AccountValidity::Completed,
 			));
 			assert_noop!(
 				Purchase::update_validity_status(
-					Origin::signed(validity_origin()),
+					RuntimeOrigin::signed(validity_origin()),
 					alice(),
 					AccountValidity::Pending,
 				),
@@ -924,19 +950,19 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Alice account is created
 			assert_ok!(Purchase::create_account(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				alice_signature().to_vec()
 			));
 			// And approved for basic contribution
 			assert_ok!(Purchase::update_validity_status(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				AccountValidity::ValidLow,
 			));
 			// We set a balance on the user based on the payment they made. 50 locked, 50 free.
 			assert_ok!(Purchase::update_balance(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				50,
 				50,
@@ -954,7 +980,7 @@ mod tests {
 			);
 			// We can update the balance based on new information.
 			assert_ok!(Purchase::update_balance(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				25,
 				50,
@@ -978,13 +1004,19 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Wrong Origin
 			assert_noop!(
-				Purchase::update_balance(Origin::signed(alice()), alice(), 50, 50, Permill::zero(),),
+				Purchase::update_balance(
+					RuntimeOrigin::signed(alice()),
+					alice(),
+					50,
+					50,
+					Permill::zero(),
+				),
 				BadOrigin
 			);
 			// Inactive Account
 			assert_noop!(
 				Purchase::update_balance(
-					Origin::signed(validity_origin()),
+					RuntimeOrigin::signed(validity_origin()),
 					alice(),
 					50,
 					50,
@@ -995,7 +1027,7 @@ mod tests {
 			// Overflow
 			assert_noop!(
 				Purchase::update_balance(
-					Origin::signed(validity_origin()),
+					RuntimeOrigin::signed(validity_origin()),
 					alice(),
 					u64::MAX,
 					u64::MAX,
@@ -1011,45 +1043,45 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Alice and Bob accounts are created
 			assert_ok!(Purchase::create_account(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				alice_signature().to_vec()
 			));
 			assert_ok!(Purchase::create_account(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				bob(),
 				bob_signature().to_vec()
 			));
 			// Alice is approved for basic contribution
 			assert_ok!(Purchase::update_validity_status(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				AccountValidity::ValidLow,
 			));
 			// Bob is approved for high contribution
 			assert_ok!(Purchase::update_validity_status(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				bob(),
 				AccountValidity::ValidHigh,
 			));
 			// We set a balance on the users based on the payment they made. 50 locked, 50 free.
 			assert_ok!(Purchase::update_balance(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				50,
 				50,
 				Permill::zero(),
 			));
 			assert_ok!(Purchase::update_balance(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				bob(),
 				100,
 				150,
 				Permill::zero(),
 			));
 			// Now we call payout for Alice and Bob.
-			assert_ok!(Purchase::payout(Origin::signed(payment_account()), alice(),));
-			assert_ok!(Purchase::payout(Origin::signed(payment_account()), bob(),));
+			assert_ok!(Purchase::payout(RuntimeOrigin::signed(payment_account()), alice(),));
+			assert_ok!(Purchase::payout(RuntimeOrigin::signed(payment_account()), bob(),));
 			// Payment is made.
 			assert_eq!(<Test as Config>::Currency::free_balance(&payment_account()), 99_650);
 			assert_eq!(<Test as Config>::Currency::free_balance(&alice()), 100);
@@ -1081,14 +1113,14 @@ mod tests {
 			);
 			// Vesting lock is removed in whole on block 101 (100 blocks after block 1)
 			System::set_block_number(100);
-			let vest_call = Call::Vesting(pallet_vesting::Call::<Test>::vest {});
-			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
-			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
+			let vest_call = RuntimeCall::Vesting(pallet_vesting::Call::<Test>::vest {});
+			assert_ok!(vest_call.clone().dispatch(RuntimeOrigin::signed(alice())));
+			assert_ok!(vest_call.clone().dispatch(RuntimeOrigin::signed(bob())));
 			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&alice()), Some(45));
 			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&bob()), Some(140));
 			System::set_block_number(101);
-			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
-			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
+			assert_ok!(vest_call.clone().dispatch(RuntimeOrigin::signed(alice())));
+			assert_ok!(vest_call.clone().dispatch(RuntimeOrigin::signed(bob())));
 			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&alice()), None);
 			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&bob()), None);
 		});
@@ -1098,46 +1130,47 @@ mod tests {
 	fn payout_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Wrong Origin
-			assert_noop!(Purchase::payout(Origin::signed(alice()), alice(),), BadOrigin);
+			assert_noop!(Purchase::payout(RuntimeOrigin::signed(alice()), alice(),), BadOrigin);
 			// Account with Existing Vesting Schedule
+			Balances::make_free_balance_be(&bob(), 100);
 			assert_ok!(
 				<Test as Config>::VestingSchedule::add_vesting_schedule(&bob(), 100, 1, 50,)
 			);
 			assert_noop!(
-				Purchase::payout(Origin::signed(payment_account()), bob(),),
+				Purchase::payout(RuntimeOrigin::signed(payment_account()), bob(),),
 				Error::<Test>::VestingScheduleExists
 			);
 			// Invalid Account (never created)
 			assert_noop!(
-				Purchase::payout(Origin::signed(payment_account()), alice(),),
+				Purchase::payout(RuntimeOrigin::signed(payment_account()), alice(),),
 				Error::<Test>::InvalidAccount
 			);
 			// Invalid Account (created, but not valid)
 			assert_ok!(Purchase::create_account(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				alice_signature().to_vec()
 			));
 			assert_noop!(
-				Purchase::payout(Origin::signed(payment_account()), alice(),),
+				Purchase::payout(RuntimeOrigin::signed(payment_account()), alice(),),
 				Error::<Test>::InvalidAccount
 			);
 			// Not enough funds in payment account
 			assert_ok!(Purchase::update_validity_status(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				AccountValidity::ValidHigh,
 			));
 			assert_ok!(Purchase::update_balance(
-				Origin::signed(validity_origin()),
+				RuntimeOrigin::signed(validity_origin()),
 				alice(),
 				100_000,
 				100_000,
 				Permill::zero(),
 			));
 			assert_noop!(
-				Purchase::payout(Origin::signed(payment_account()), alice(),),
-				BalancesError::<Test, _>::InsufficientBalance
+				Purchase::payout(RuntimeOrigin::signed(payment_account()), alice()),
+				ArithmeticError::Underflow
 			);
 		});
 	}

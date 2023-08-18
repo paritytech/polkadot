@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -24,7 +24,7 @@ pub enum Priority {
 	Normal,
 	/// This priority is used for requests that are required to be processed as soon as possible.
 	///
-	/// For example, backing is on critical path and require execution as soon as possible.
+	/// For example, backing is on a critical path and requires execution as soon as possible.
 	Critical,
 }
 

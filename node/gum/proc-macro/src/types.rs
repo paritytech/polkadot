@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -23,6 +23,8 @@ use syn::{
 
 pub(crate) mod kw {
 	syn::custom_keyword!(target);
+	syn::custom_keyword!(freq);
+	syn::custom_keyword!(max_rate);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -245,6 +247,50 @@ impl ToTokens for FmtGroup {
 		let rest = &self.rest;
 
 		tokens.extend(quote! { #format_str #maybe_comma #rest });
+	}
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Freq {
+	kw: kw::freq,
+	colon: Token![:],
+	pub expr: syn::Expr,
+}
+
+impl Parse for Freq {
+	fn parse(input: ParseStream) -> Result<Self> {
+		Ok(Self { kw: input.parse()?, colon: input.parse()?, expr: input.parse()? })
+	}
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MaxRate {
+	kw: kw::max_rate,
+	colon: Token![:],
+	pub expr: syn::Expr,
+}
+
+impl Parse for MaxRate {
+	fn parse(input: ParseStream) -> Result<Self> {
+		Ok(Self { kw: input.parse()?, colon: input.parse()?, expr: input.parse()? })
+	}
+}
+
+pub(crate) struct ArgsIfFrequent {
+	pub freq: Freq,
+	pub max_rate: MaxRate,
+	pub rest: TokenStream,
+}
+
+impl Parse for ArgsIfFrequent {
+	fn parse(input: ParseStream) -> Result<Self> {
+		let freq = input.parse()?;
+		let _: Token![,] = input.parse()?;
+		let max_rate = input.parse()?;
+		let _: Token![,] = input.parse()?;
+		let rest = input.parse()?;
+
+		Ok(Self { freq, max_rate, rest })
 	}
 }
 

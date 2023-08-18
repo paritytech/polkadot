@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -36,15 +36,15 @@ pub use sp_std::{ops::Add, result};
 ///
 /// This will generate an enum `SlotRange` with the following properties:
 ///
-/// * Enum variants will range from all consecutive combinations of inputs, i.e.
-///   `ZeroZero`, `ZeroOne`, `ZeroTwo`, `ZeroThree`, `OneOne`, `OneTwo`, `OneThree`...
+/// * Enum variants will range from all consecutive combinations of inputs, i.e. `ZeroZero`,
+///   `ZeroOne`, `ZeroTwo`, `ZeroThree`, `OneOne`, `OneTwo`, `OneThree`...
 /// * A constant `LEASE_PERIODS_PER_SLOT` will count the number of lease periods.
 /// * A constant `SLOT_RANGE_COUNT` will count the total number of enum variants.
 /// * A function `as_pair` will return a tuple representation of the `SlotRange`.
 /// * A function `intersects` will tell you if two slot ranges intersect with one another.
 /// * A function `len` will tell you the length of occupying a `SlotRange`.
-/// * A function `new_bounded` will generate a `SlotRange` from an input of the current
-///   lease period, the starting lease period, and the final lease period.
+/// * A function `new_bounded` will generate a `SlotRange` from an input of the current lease
+///   period, the starting lease period, and the final lease period.
 #[macro_export]
 macro_rules! generate_slot_range{
 	// Entry point

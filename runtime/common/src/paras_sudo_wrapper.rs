@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,11 +20,11 @@ use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use parity_scale_codec::Encode;
-use primitives::v2::Id as ParaId;
+use primitives::Id as ParaId;
 use runtime_parachains::{
 	configuration, dmp, hrmp,
 	paras::{self, ParaGenesisArgs},
-	ump, ParaLifecycle,
+	ParaLifecycle,
 };
 use sp_std::boxed::Box;
 
@@ -33,15 +33,11 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config:
-		configuration::Config + paras::Config + dmp::Config + ump::Config + hrmp::Config
-	{
-	}
+	pub trait Config: configuration::Config + paras::Config + dmp::Config + hrmp::Config {}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -49,8 +45,8 @@ pub mod pallet {
 		ParaDoesntExist,
 		/// The specified parachain or parathread is already registered.
 		ParaAlreadyExists,
-		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
-		/// message.
+		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a
+		/// downward message.
 		ExceedsMaxMessageSize,
 		/// Could not schedule para cleanup.
 		CouldntCleanup,
@@ -70,6 +66,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Schedule a para to be initialized at the start of the next session.
+		#[pallet::call_index(0)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_para_initialize(
 			origin: OriginFor<T>,
@@ -83,6 +80,7 @@ pub mod pallet {
 		}
 
 		/// Schedule a para to be cleaned up at the start of the next session.
+		#[pallet::call_index(1)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_para_cleanup(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
@@ -92,6 +90,7 @@ pub mod pallet {
 		}
 
 		/// Upgrade a parathread to a parachain
+		#[pallet::call_index(2)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_parathread_upgrade(
 			origin: OriginFor<T>,
@@ -109,6 +108,7 @@ pub mod pallet {
 		}
 
 		/// Downgrade a parachain to a parathread
+		#[pallet::call_index(3)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_parachain_downgrade(
 			origin: OriginFor<T>,
@@ -127,8 +127,9 @@ pub mod pallet {
 
 		/// Send a downward XCM to the given para.
 		///
-		/// The given parachain should exist and the payload should not exceed the preconfigured size
-		/// `config.max_downward_message_size`.
+		/// The given parachain should exist and the payload should not exceed the preconfigured
+		/// size `config.max_downward_message_size`.
+		#[pallet::call_index(4)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_queue_downward_xcm(
 			origin: OriginFor<T>,
@@ -149,6 +150,7 @@ pub mod pallet {
 		///
 		/// This is equivalent to sending an `Hrmp::hrmp_init_open_channel` extrinsic followed by
 		/// `Hrmp::hrmp_accept_open_channel`.
+		#[pallet::call_index(5)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_establish_hrmp_channel(
 			origin: OriginFor<T>,

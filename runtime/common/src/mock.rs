@@ -1,4 +1,4 @@
-// Copyright 2019-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -21,8 +21,11 @@ use frame_support::{
 	dispatch::{DispatchError, DispatchResult},
 	weights::Weight,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{HeadData, Id as ParaId, ValidationCode};
+use primitives::{HeadData, Id as ParaId, PvfCheckStatement, SessionIndex, ValidationCode};
+use runtime_parachains::paras;
+use sp_keyring::Sr25519Keyring;
 use sp_runtime::{traits::SaturatedConversion, Permill};
 use std::{cell::RefCell, collections::HashMap};
 
@@ -190,7 +193,7 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 }
 
 impl<T: frame_system::Config> TestRegistrar<T> {
-	pub fn operations() -> Vec<(ParaId, T::BlockNumber, bool)> {
+	pub fn operations() -> Vec<(ParaId, BlockNumberFor<T>, bool)> {
 		OPERATIONS
 			.with(|x| x.borrow().iter().map(|(p, b, c)| (*p, (*b).into(), *c)).collect::<Vec<_>>())
 	}
@@ -230,4 +233,31 @@ impl frame_support::traits::EstimateNextSessionRotation<u32> for TestNextSession
 	fn estimate_next_session_rotation(_now: u32) -> (Option<u32>, Weight) {
 		(None, Weight::zero())
 	}
+}
+
+pub fn validators_public_keys(validators: &[Sr25519Keyring]) -> Vec<primitives::ValidatorId> {
+	validators.iter().map(|v| v.public().into()).collect()
+}
+
+pub fn conclude_pvf_checking<T: paras::Config>(
+	validation_code: &ValidationCode,
+	validators: &[Sr25519Keyring],
+	session_index: SessionIndex,
+) {
+	let num_required = primitives::supermajority_threshold(validators.len());
+	validators.iter().enumerate().take(num_required).for_each(|(idx, key)| {
+		let validator_index = idx as u32;
+		let statement = PvfCheckStatement {
+			accept: true,
+			subject: validation_code.hash(),
+			session_index,
+			validator_index: validator_index.into(),
+		};
+		let signature = key.sign(&statement.signing_payload());
+		let _ = paras::Pallet::<T>::include_pvf_check_statement(
+			frame_system::Origin::<T>::None.into(),
+			statement,
+			signature.into(),
+		);
+	});
 }

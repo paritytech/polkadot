@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,6 +30,18 @@ struct MetricsInner {
 	queued_participations: prometheus::CounterVec<prometheus::U64>,
 	/// How long vote cleanup batches take.
 	vote_cleanup_time: prometheus::Histogram,
+	/// Number of refrained participations.
+	refrained_participations: prometheus::Counter<prometheus::U64>,
+	/// Distribution of participation durations.
+	participation_durations: prometheus::Histogram,
+	/// Measures the duration of the full participation pipeline: From when
+	/// a participation request is first queued to when participation in the
+	/// requested dispute is complete.
+	participation_pipeline_durations: prometheus::Histogram,
+	/// Size of participation priority queue
+	participation_priority_queue_size: prometheus::Gauge<prometheus::U64>,
+	/// Size of participation best effort queue
+	participation_best_effort_queue_size: prometheus::Gauge<prometheus::U64>,
 }
 
 /// Candidate validation metrics.
@@ -88,6 +100,42 @@ impl Metrics {
 	pub(crate) fn time_vote_cleanup(&self) -> Option<prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.vote_cleanup_time.start_timer())
 	}
+
+	pub(crate) fn on_refrained_participation(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.refrained_participations.inc();
+		}
+	}
+
+	/// Provide a timer for participation durations which updates on drop.
+	pub(crate) fn time_participation(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.participation_durations.start_timer())
+	}
+
+	/// Provide a timer for participation pipeline durations which updates on drop.
+	pub(crate) fn time_participation_pipeline(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.participation_pipeline_durations.start_timer())
+	}
+
+	/// Set the `priority_queue_size` metric
+	pub fn report_priority_queue_size(&self, size: u64) {
+		if let Some(metrics) = &self.0 {
+			metrics.participation_priority_queue_size.set(size);
+		}
+	}
+
+	/// Set the `best_effort_queue_size` metric
+	pub fn report_best_effort_queue_size(&self, size: u64) {
+		if let Some(metrics) = &self.0 {
+			metrics.participation_best_effort_queue_size.set(size);
+		}
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -145,6 +193,42 @@ impl metrics::Metrics for Metrics {
 					)
 					.buckets([0.01, 0.1, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0].into()),
 				)?,
+				registry,
+			)?,
+			refrained_participations: prometheus::register(
+			prometheus::Counter::with_opts(
+				prometheus::Opts::new(
+					"polkadot_parachain_dispute_refrained_participations",
+					"Number of refrained participations. We refrain from participation if all of the following conditions are met: disputed candidate is not included, not backed and not confirmed.",
+				))?,
+				registry,
+			)?,
+			participation_durations: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_dispute_participation_durations",
+						"Time spent within fn Participation::participate",
+					)
+				)?,
+				registry,
+			)?,
+			participation_pipeline_durations: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_dispute_participation_pipeline_durations",
+						"Measures the duration of the full participation pipeline: From when a participation request is first queued to when participation in the requested dispute is complete.",
+					)
+				)?,
+				registry,
+			)?,
+			participation_priority_queue_size: prometheus::register(
+				prometheus::Gauge::new("polkadot_parachain_dispute_participation_priority_queue_size", 
+				"Number of disputes waiting for local participation in the priority queue.")?,
+				registry,
+			)?,
+			participation_best_effort_queue_size: prometheus::register(
+				prometheus::Gauge::new("polkadot_parachain_dispute_participation_best_effort_queue_size", 
+				"Number of disputes waiting for local participation in the best effort queue.")?,
 				registry,
 			)?,
 		};

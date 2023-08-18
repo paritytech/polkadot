@@ -1,0 +1,40 @@
+[package]
+name = "polkadot-node-core-pvf-common"
+description = "Polkadot crate that contains functionality related to PVFs that is shared by the PVF host and the PVF workers."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cpu-time = "1.0.0"
+futures = "0.3.21"
+gum = { package = "tracing-gum", path = "../../../gum" }
+libc = "0.2.139"
+tokio = { version = "1.24.2", features = ["fs", "process", "io-util"] }
+
+parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
+
+polkadot-parachain = { path = "../../../../parachain" }
+polkadot-primitives = { path = "../../../../primitives" }
+
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.2.0"
+
+[dev-dependencies]
+assert_matches = "1.4.0"
+tempfile = "3.3.0"
+
+[features]
+# This feature is used to export test code to other crates without putting it in the production build.
+# Also used for building the puppet worker.
+test-utils = ["sp-tracing"]

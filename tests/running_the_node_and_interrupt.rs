@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Substrate.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -40,7 +40,7 @@ async fn running_the_node_works_and_can_be_interrupted() {
 		let mut cmd = Command::new(cargo_bin("polkadot"))
 			.stdout(process::Stdio::piped())
 			.stderr(process::Stdio::piped())
-			.args(&["--dev", "-d"])
+			.args(["--dev", "-d"])
 			.arg(tmpdir.path())
 			.arg("--no-hardware-benchmarks")
 			.spawn()

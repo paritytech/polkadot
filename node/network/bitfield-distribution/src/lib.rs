@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use futures::{channel::oneshot, FutureExt};
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{
-		RandomRouting, RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology,
+		GridNeighbors, RandomRouting, RequiredRouting, SessionBoundGridTopologyStorage,
 	},
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
@@ -35,11 +35,18 @@ use polkadot_node_subsystem::{
 	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan,
 	SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
-use polkadot_node_subsystem_util::{self as util};
+use polkadot_node_subsystem_util::{
+	self as util,
+	reputation::{ReputationAggregator, REPUTATION_CHANGE_INTERVAL},
+};
 
-use polkadot_primitives::v2::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
+use futures::select;
+use polkadot_primitives::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use rand::{CryptoRng, Rng, SeedableRng};
-use std::collections::{HashMap, HashSet};
+use std::{
+	collections::{HashMap, HashSet},
+	time::Duration,
+};
 
 use self::metrics::Metrics;
 
@@ -97,6 +104,9 @@ struct ProtocolState {
 
 	/// Additional data particular to a relay parent.
 	per_relay_parent: HashMap<Hash, PerRelayParentData>,
+
+	/// Aggregated reputation change
+	reputation: ReputationAggregator,
 }
 
 /// Data for a particular relay parent.
@@ -178,95 +188,107 @@ impl BitfieldDistribution {
 	async fn run<Context>(self, ctx: Context) {
 		let mut state = ProtocolState::default();
 		let mut rng = rand::rngs::StdRng::from_entropy();
-		self.run_inner(ctx, &mut state, &mut rng).await
+		self.run_inner(ctx, &mut state, REPUTATION_CHANGE_INTERVAL, &mut rng).await
 	}
 
 	async fn run_inner<Context>(
 		self,
 		mut ctx: Context,
 		state: &mut ProtocolState,
+		reputation_interval: Duration,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
 		// work: process incoming messages from the overseer and process accordingly.
 
+		let new_reputation_delay = || futures_timer::Delay::new(reputation_interval).fuse();
+		let mut reputation_delay = new_reputation_delay();
+
 		loop {
-			let message = match ctx.recv().await {
-				Ok(message) => message,
-				Err(err) => {
-					gum::error!(
-						target: LOG_TARGET,
-						?err,
-						"Failed to receive a message from Overseer, exiting"
-					);
-					return
+			select! {
+				_ = reputation_delay => {
+					state.reputation.send(ctx.sender()).await;
+					reputation_delay = new_reputation_delay();
 				},
-			};
-			match message {
-				FromOrchestra::Communication {
-					msg:
-						BitfieldDistributionMessage::DistributeBitfield(
-							relay_parent,
-							signed_availability,
-						),
-				} => {
-					gum::trace!(target: LOG_TARGET, ?relay_parent, "Processing DistributeBitfield");
-					handle_bitfield_distribution(
-						&mut ctx,
-						state,
-						&self.metrics,
-						relay_parent,
-						signed_availability,
-						rng,
-					)
-					.await;
-				},
-				FromOrchestra::Communication {
-					msg: BitfieldDistributionMessage::NetworkBridgeUpdate(event),
-				} => {
-					gum::trace!(target: LOG_TARGET, "Processing NetworkMessage");
-					// a network message was received
-					handle_network_msg(&mut ctx, state, &self.metrics, event, rng).await;
-				},
-				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated,
-					..
-				})) => {
-					let _timer = self.metrics.time_active_leaves_update();
-
-					for activated in activated {
-						let relay_parent = activated.hash;
-
-						gum::trace!(target: LOG_TARGET, ?relay_parent, "activated");
-						let span = PerLeafSpan::new(activated.span, "bitfield-distribution");
-						let _span = span.child("query-basics");
-
-						// query validator set and signing context per relay_parent once only
-						match query_basics(&mut ctx, relay_parent).await {
-							Ok(Some((validator_set, signing_context))) => {
-								// If our runtime API fails, we don't take down the node,
-								// but we might alter peers' reputations erroneously as a result
-								// of not having the correct bookkeeping. If we have lost a race
-								// with state pruning, it is unlikely that peers will be sending
-								// us anything to do with this relay-parent anyway.
-								let _ = state.per_relay_parent.insert(
+				message = ctx.recv().fuse() => {
+					let message = match message {
+						Ok(message) => message,
+						Err(err) => {
+							gum::error!(
+								target: LOG_TARGET,
+								?err,
+								"Failed to receive a message from Overseer, exiting"
+							);
+							return
+						},
+					};
+					match message {
+						FromOrchestra::Communication {
+							msg:
+								BitfieldDistributionMessage::DistributeBitfield(
 									relay_parent,
-									PerRelayParentData::new(signing_context, validator_set, span),
-								);
-							},
-							Err(err) => {
-								gum::warn!(target: LOG_TARGET, ?err, "query_basics has failed");
-							},
-							_ => {},
-						}
+									signed_availability,
+								),
+						} => {
+							gum::trace!(target: LOG_TARGET, ?relay_parent, "Processing DistributeBitfield");
+							handle_bitfield_distribution(
+								&mut ctx,
+								state,
+								&self.metrics,
+								relay_parent,
+								signed_availability,
+								rng,
+							)
+							.await;
+						},
+						FromOrchestra::Communication {
+							msg: BitfieldDistributionMessage::NetworkBridgeUpdate(event),
+						} => {
+							gum::trace!(target: LOG_TARGET, "Processing NetworkMessage");
+							// a network message was received
+							handle_network_msg(&mut ctx, state, &self.metrics, event, rng).await;
+						},
+						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+							activated,
+							..
+						})) => {
+							let _timer = self.metrics.time_active_leaves_update();
+
+							if let Some(activated) = activated {
+								let relay_parent = activated.hash;
+
+								gum::trace!(target: LOG_TARGET, ?relay_parent, "activated");
+								let span = PerLeafSpan::new(activated.span, "bitfield-distribution");
+								let _span = span.child("query-basics");
+
+								// query validator set and signing context per relay_parent once only
+								match query_basics(&mut ctx, relay_parent).await {
+									Ok(Some((validator_set, signing_context))) => {
+										// If our runtime API fails, we don't take down the node,
+										// but we might alter peers' reputations erroneously as a result
+										// of not having the correct bookkeeping. If we have lost a race
+										// with state pruning, it is unlikely that peers will be sending
+										// us anything to do with this relay-parent anyway.
+										let _ = state.per_relay_parent.insert(
+											relay_parent,
+											PerRelayParentData::new(signing_context, validator_set, span),
+										);
+									},
+									Err(err) => {
+										gum::warn!(target: LOG_TARGET, ?err, "query_basics has failed");
+									},
+									_ => {},
+								}
+							}
+						},
+						FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+							gum::trace!(target: LOG_TARGET, ?hash, %number, "block finalized");
+						},
+						FromOrchestra::Signal(OverseerSignal::Conclude) => {
+							gum::info!(target: LOG_TARGET, "Conclude");
+							return
+						},
 					}
-				},
-				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
-					gum::trace!(target: LOG_TARGET, ?hash, %number, "block finalized");
-				},
-				FromOrchestra::Signal(OverseerSignal::Conclude) => {
-					gum::info!(target: LOG_TARGET, "Conclude");
-					return
-				},
+				}
 			}
 		}
 	}
@@ -274,6 +296,7 @@ impl BitfieldDistribution {
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation(
+	reputation: &mut ReputationAggregator,
 	sender: &mut impl overseer::BitfieldDistributionSenderTrait,
 	relay_parent: Hash,
 	peer: PeerId,
@@ -281,7 +304,7 @@ async fn modify_reputation(
 ) {
 	gum::trace!(target: LOG_TARGET, ?relay_parent, ?rep, %peer, "reputation change");
 
-	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
+	reputation.modify(sender, peer, rep).await;
 }
 /// Distribute a given valid and signature checked bitfield message.
 ///
@@ -319,7 +342,7 @@ async fn handle_bitfield_distribution<Context>(
 	}
 
 	let validator_index = signed_availability.validator_index();
-	let validator = if let Some(validator) = validator_set.get(*&validator_index.0 as usize) {
+	let validator = if let Some(validator) = validator_set.get(validator_index.0 as usize) {
 		validator.clone()
 	} else {
 		gum::debug!(target: LOG_TARGET, validator_index = ?validator_index.0, "Could not find a validator for index");
@@ -327,7 +350,7 @@ async fn handle_bitfield_distribution<Context>(
 	};
 
 	let msg = BitfieldGossipMessage { relay_parent, signed_availability };
-	let topology = state.topologies.get_topology_or_fallback(session_idx);
+	let topology = state.topologies.get_topology_or_fallback(session_idx).local_grid_neighbors();
 	let required_routing = topology.required_routing_by_index(validator_index, true);
 
 	relay_message(
@@ -352,7 +375,7 @@ async fn handle_bitfield_distribution<Context>(
 async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
-	topology: &SessionGridTopology,
+	topology_neighbors: &GridNeighbors,
 	peer_views: &mut HashMap<PeerId, View>,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
@@ -384,7 +407,7 @@ async fn relay_message<Context>(
 				let message_needed =
 					job_data.message_from_validator_needed_by_peer(&peer, &validator);
 				if message_needed {
-					let in_topology = topology.route_to_peer(required_routing, &peer);
+					let in_topology = topology_neighbors.route_to_peer(required_routing, &peer);
 					let need_routing = in_topology || {
 						let route_random = random_routing.sample(total_peers, rng);
 						if route_random {
@@ -395,7 +418,7 @@ async fn relay_message<Context>(
 					};
 
 					if need_routing {
-						Some(peer.clone())
+						Some(*peer)
 					} else {
 						None
 					}
@@ -412,7 +435,7 @@ async fn relay_message<Context>(
 		// track the message as sent for this peer
 		job_data
 			.message_sent_to_peer
-			.entry(peer.clone())
+			.entry(*peer)
 			.or_default()
 			.insert(validator.clone());
 	});
@@ -454,7 +477,14 @@ async fn process_incoming_peer_message<Context>(
 	);
 	// we don't care about this, not part of our view.
 	if !state.view.contains(&relay_parent) {
-		modify_reputation(ctx.sender(), relay_parent, origin, COST_NOT_IN_VIEW).await;
+		modify_reputation(
+			&mut state.reputation,
+			ctx.sender(),
+			relay_parent,
+			origin,
+			COST_NOT_IN_VIEW,
+		)
+		.await;
 		return
 	}
 
@@ -463,7 +493,14 @@ async fn process_incoming_peer_message<Context>(
 	let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
 		job_data
 	} else {
-		modify_reputation(ctx.sender(), relay_parent, origin, COST_NOT_IN_VIEW).await;
+		modify_reputation(
+			&mut state.reputation,
+			ctx.sender(),
+			relay_parent,
+			origin,
+			COST_NOT_IN_VIEW,
+		)
+		.await;
 		return
 	};
 
@@ -480,7 +517,14 @@ async fn process_incoming_peer_message<Context>(
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
 		gum::trace!(target: LOG_TARGET, ?relay_parent, ?origin, "Validator set is empty",);
-		modify_reputation(ctx.sender(), relay_parent, origin, COST_MISSING_PEER_SESSION_KEY).await;
+		modify_reputation(
+			&mut state.reputation,
+			ctx.sender(),
+			relay_parent,
+			origin,
+			COST_MISSING_PEER_SESSION_KEY,
+		)
+		.await;
 		return
 	}
 
@@ -490,20 +534,34 @@ async fn process_incoming_peer_message<Context>(
 	let validator = if let Some(validator) = validator_set.get(validator_index.0 as usize) {
 		validator.clone()
 	} else {
-		modify_reputation(ctx.sender(), relay_parent, origin, COST_VALIDATOR_INDEX_INVALID).await;
+		modify_reputation(
+			&mut state.reputation,
+			ctx.sender(),
+			relay_parent,
+			origin,
+			COST_VALIDATOR_INDEX_INVALID,
+		)
+		.await;
 		return
 	};
 
 	// Check if the peer already sent us a message for the validator denoted in the message earlier.
 	// Must be done after validator index verification, in order to avoid storing an unbounded
 	// number of set entries.
-	let received_set = job_data.message_received_from_peer.entry(origin.clone()).or_default();
+	let received_set = job_data.message_received_from_peer.entry(origin).or_default();
 
 	if !received_set.contains(&validator) {
 		received_set.insert(validator.clone());
 	} else {
 		gum::trace!(target: LOG_TARGET, ?validator_index, ?origin, "Duplicate message");
-		modify_reputation(ctx.sender(), relay_parent, origin, COST_PEER_DUPLICATE_MESSAGE).await;
+		modify_reputation(
+			&mut state.reputation,
+			ctx.sender(),
+			relay_parent,
+			origin,
+			COST_PEER_DUPLICATE_MESSAGE,
+		)
+		.await;
 		return
 	};
 
@@ -517,13 +575,27 @@ async fn process_incoming_peer_message<Context>(
 			"already received a message for validator",
 		);
 		if old_message.signed_availability.as_unchecked() == &bitfield {
-			modify_reputation(ctx.sender(), relay_parent, origin, BENEFIT_VALID_MESSAGE).await;
+			modify_reputation(
+				&mut state.reputation,
+				ctx.sender(),
+				relay_parent,
+				origin,
+				BENEFIT_VALID_MESSAGE,
+			)
+			.await;
 		}
 		return
 	}
 	let signed_availability = match bitfield.try_into_checked(&signing_context, &validator) {
 		Err(_) => {
-			modify_reputation(ctx.sender(), relay_parent, origin, COST_SIGNATURE_INVALID).await;
+			modify_reputation(
+				&mut state.reputation,
+				ctx.sender(),
+				relay_parent,
+				origin,
+				COST_SIGNATURE_INVALID,
+			)
+			.await;
 			return
 		},
 		Ok(bitfield) => bitfield,
@@ -533,7 +605,8 @@ async fn process_incoming_peer_message<Context>(
 
 	let topology = state
 		.topologies
-		.get_topology_or_fallback(job_data.signing_context.session_index);
+		.get_topology_or_fallback(job_data.signing_context.session_index)
+		.local_grid_neighbors();
 	let required_routing = topology.required_routing_by_index(validator_index, false);
 
 	metrics.on_bitfield_received();
@@ -551,7 +624,14 @@ async fn process_incoming_peer_message<Context>(
 	)
 	.await;
 
-	modify_reputation(ctx.sender(), relay_parent, origin, BENEFIT_VALID_MESSAGE_FIRST).await
+	modify_reputation(
+		&mut state.reputation,
+		ctx.sender(),
+		relay_parent,
+		origin,
+		BENEFIT_VALID_MESSAGE_FIRST,
+	)
+	.await
 }
 
 /// Deal with network bridge updates and track what needs to be tracked
@@ -579,14 +659,24 @@ async fn handle_network_msg<Context>(
 		},
 		NetworkBridgeEvent::NewGossipTopology(gossip_topology) => {
 			let session_index = gossip_topology.session;
-			let new_topology = SessionGridTopology::from(gossip_topology);
-			let newly_added = new_topology.peers_diff(&new_topology);
-			state.topologies.update_topology(session_index, new_topology);
+			let new_topology = gossip_topology.topology;
+			let prev_neighbors =
+				state.topologies.get_current_topology().local_grid_neighbors().clone();
+
+			state.topologies.update_topology(
+				session_index,
+				new_topology,
+				gossip_topology.local_index,
+			);
+			let current_topology = state.topologies.get_current_topology();
+
+			let newly_added = current_topology.local_grid_neighbors().peers_diff(&prev_neighbors);
+
 			gum::debug!(
 				target: LOG_TARGET,
 				?session_index,
-				"New gossip topology received {} unseen peers",
-				newly_added.len()
+				newly_added_peers = ?newly_added.len(),
+				"New gossip topology received",
 			);
 
 			for new_peer in newly_added {
@@ -608,6 +698,9 @@ async fn handle_network_msg<Context>(
 		},
 		NetworkBridgeEvent::PeerMessage(remote, Versioned::V1(message)) =>
 			process_incoming_peer_message(ctx, state, metrics, remote, message, rng).await,
+		NetworkBridgeEvent::UpdatedAuthorityIds { .. } => {
+			// The bitfield-distribution subsystem doesn't deal with `AuthorityDiscoveryId`s.
+		},
 	}
 }
 
@@ -645,13 +738,13 @@ async fn handle_peer_view_change<Context>(
 ) {
 	let added = state
 		.peer_views
-		.entry(origin.clone())
+		.entry(origin)
 		.or_default()
 		.replace_difference(view)
 		.cloned()
 		.collect::<Vec<_>>();
 
-	let topology = state.topologies.get_current_topology();
+	let topology = state.topologies.get_current_topology().local_grid_neighbors();
 	let is_gossip_peer = topology.route_to_peer(RequiredRouting::GridXY, &origin);
 	let lucky = is_gossip_peer ||
 		util::gen_ratio_rng(
@@ -670,11 +763,10 @@ async fn handle_peer_view_change<Context>(
 	let delta_set: Vec<(ValidatorId, BitfieldGossipMessage)> = added
 		.into_iter()
 		.filter_map(|new_relay_parent_interest| {
-			if let Some(job_data) = (&*state).per_relay_parent.get(&new_relay_parent_interest) {
+			if let Some(job_data) = state.per_relay_parent.get(&new_relay_parent_interest) {
 				// Send all jointly known messages for a validator (given the current relay parent)
 				// to the peer `origin`...
 				let one_per_validator = job_data.one_per_validator.clone();
-				let origin = origin.clone();
 				Some(one_per_validator.into_iter().filter(move |(validator, _message)| {
 					// ..except for the ones the peer already has.
 					job_data.message_from_validator_needed_by_peer(&origin, validator)
@@ -688,7 +780,7 @@ async fn handle_peer_view_change<Context>(
 		.collect();
 
 	for (validator, message) in delta_set.into_iter() {
-		send_tracked_gossip_message(ctx, state, origin.clone(), validator, message).await;
+		send_tracked_gossip_message(ctx, state, origin, validator, message).await;
 	}
 }
 
@@ -716,11 +808,7 @@ async fn send_tracked_gossip_message<Context>(
 		"Sending gossip message"
 	);
 
-	job_data
-		.message_sent_to_peer
-		.entry(dest.clone())
-		.or_default()
-		.insert(validator.clone());
+	job_data.message_sent_to_peer.entry(dest).or_default().insert(validator.clone());
 
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 		vec![dest],
@@ -749,14 +837,14 @@ async fn query_basics<Context>(
 
 	// query validators
 	ctx.send_message(RuntimeApiMessage::Request(
-		relay_parent.clone(),
+		relay_parent,
 		RuntimeApiRequest::Validators(validators_tx),
 	))
 	.await;
 
 	// query signing context
 	ctx.send_message(RuntimeApiMessage::Request(
-		relay_parent.clone(),
+		relay_parent,
 		RuntimeApiRequest::SessionIndexForChild(session_tx),
 	))
 	.await;

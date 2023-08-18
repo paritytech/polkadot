@@ -51,6 +51,7 @@ Debian/M
 decodable/MS
 decrement
 deduplicated
+deduplication
 deinitializing
 dequeue/SD
 dequeuing
@@ -137,6 +138,7 @@ KYC/M
 lib
 libp2p
 lifecycle/MS
+liveness
 lookahead/MS
 lookup/MS
 LRU
@@ -161,6 +163,7 @@ MQC/SM
 msg
 multisig/S
 multivalidator/SM
+mutators
 mutex
 natively
 NFA
@@ -202,10 +205,12 @@ PoV/MS
 PoW/MS
 PR
 precheck
+prechecking
 preconfigured
 preimage/MS
 preopen
 prepend/G
+prevalidating
 prevalidation
 preverify/G
 programmatically
@@ -216,15 +221,18 @@ proxy/G
 proxying
 PRs
 PVF/S
+querier
 README/MS
 redhat/M
 register/CD
 relayer
 repo/MS
+requesters
 reservable
 responder/SM
 retriability
 reverify
+ROC
 roundtrip/MS
 routable
 rpc
@@ -248,6 +256,7 @@ SS58
 SSL
 startup/MS
 stateful
+Statemine
 str
 struct/MS
 subcommand/SM
@@ -282,8 +291,10 @@ typesystem
 ubuntu/M
 UDP
 UI
+unapplied
 unassign
 unconcluded
+unexpectable
 unfinalize/B
 unfinalized
 union/MSG

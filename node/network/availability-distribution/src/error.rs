@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 
 use fatality::Nested;
 use polkadot_node_network_protocol::request_response::outgoing::RequestError;
-use polkadot_primitives::v2::SessionIndex;
+use polkadot_primitives::SessionIndex;
 
 use futures::channel::oneshot;
 
@@ -91,7 +91,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them
-pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), FatalError> {
+pub fn log_error(
+	result: Result<()>,
+	ctx: &'static str,
+	warn_freq: &mut gum::Freq,
+) -> std::result::Result<(), FatalError> {
 	match result.into_nested()? {
 		Ok(()) => Ok(()),
 		Err(jfyi) => {
@@ -104,7 +108,8 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 				JfyiError::FetchPoV(_) |
 				JfyiError::SendResponse |
 				JfyiError::NoSuchPoV |
-				JfyiError::Runtime(_) => gum::debug!(target: LOG_TARGET, error = ?jfyi, ctx),
+				JfyiError::Runtime(_) =>
+					gum::warn_if_frequent!(freq: warn_freq, max_rate: gum::Times::PerHour(100), target: LOG_TARGET, error = ?jfyi, ctx),
 			}
 			Ok(())
 		},

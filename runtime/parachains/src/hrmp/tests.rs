@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,14 +16,15 @@
 
 use super::*;
 use crate::mock::{
-	new_test_ext, Configuration, Event as MockEvent, Hrmp, MockGenesisConfig, Paras, ParasShared,
-	System, Test,
+	deregister_parachain, new_test_ext, register_parachain, register_parachain_with_balance,
+	Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared, RuntimeEvent as MockEvent,
+	RuntimeOrigin, System, Test,
 };
-use frame_support::{assert_noop, assert_ok, traits::Currency as _};
-use primitives::v2::BlockNumber;
+use frame_support::assert_noop;
+use primitives::BlockNumber;
 use std::collections::BTreeMap;
 
-fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 	let config = Configuration::config();
 	while System::block_number() < to {
 		let b = System::block_number();
@@ -68,10 +69,8 @@ fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 pub(super) struct GenesisConfigBuilder {
 	hrmp_channel_max_capacity: u32,
 	hrmp_channel_max_message_size: u32,
-	hrmp_max_parathread_outbound_channels: u32,
-	hrmp_max_parachain_outbound_channels: u32,
-	hrmp_max_parathread_inbound_channels: u32,
-	hrmp_max_parachain_inbound_channels: u32,
+	hrmp_max_paras_outbound_channels: u32,
+	hrmp_max_paras_inbound_channels: u32,
 	hrmp_max_message_num_per_candidate: u32,
 	hrmp_channel_max_total_size: u32,
 	hrmp_sender_deposit: Balance,
@@ -83,10 +82,8 @@ impl Default for GenesisConfigBuilder {
 		Self {
 			hrmp_channel_max_capacity: 2,
 			hrmp_channel_max_message_size: 8,
-			hrmp_max_parathread_outbound_channels: 1,
-			hrmp_max_parachain_outbound_channels: 2,
-			hrmp_max_parathread_inbound_channels: 1,
-			hrmp_max_parachain_inbound_channels: 2,
+			hrmp_max_paras_outbound_channels: 2,
+			hrmp_max_paras_inbound_channels: 2,
 			hrmp_max_message_num_per_candidate: 2,
 			hrmp_channel_max_total_size: 16,
 			hrmp_sender_deposit: 100,
@@ -101,10 +98,8 @@ impl GenesisConfigBuilder {
 		let config = &mut genesis.configuration.config;
 		config.hrmp_channel_max_capacity = self.hrmp_channel_max_capacity;
 		config.hrmp_channel_max_message_size = self.hrmp_channel_max_message_size;
-		config.hrmp_max_parathread_outbound_channels = self.hrmp_max_parathread_outbound_channels;
-		config.hrmp_max_parachain_outbound_channels = self.hrmp_max_parachain_outbound_channels;
-		config.hrmp_max_parathread_inbound_channels = self.hrmp_max_parathread_inbound_channels;
-		config.hrmp_max_parachain_inbound_channels = self.hrmp_max_parachain_inbound_channels;
+		config.hrmp_max_parachain_outbound_channels = self.hrmp_max_paras_outbound_channels;
+		config.hrmp_max_parachain_inbound_channels = self.hrmp_max_paras_inbound_channels;
 		config.hrmp_max_message_num_per_candidate = self.hrmp_max_message_num_per_candidate;
 		config.hrmp_channel_max_total_size = self.hrmp_channel_max_total_size;
 		config.hrmp_sender_deposit = self.hrmp_sender_deposit;
@@ -118,7 +113,6 @@ fn default_genesis_config() -> MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: crate::configuration::HostConfiguration {
 				max_downward_message_size: 1024,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
 		},
@@ -126,28 +120,8 @@ fn default_genesis_config() -> MockGenesisConfig {
 	}
 }
 
-fn register_parachain_with_balance(id: ParaId, balance: Balance) {
-	assert_ok!(Paras::schedule_para_initialize(
-		id,
-		crate::paras::ParaGenesisArgs {
-			parachain: true,
-			genesis_head: vec![1].into(),
-			validation_code: vec![1].into(),
-		},
-	));
-	<Test as Config>::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
-}
-
-fn register_parachain(id: ParaId) {
-	register_parachain_with_balance(id, 1000);
-}
-
-fn deregister_parachain(id: ParaId) {
-	assert_ok!(Paras::schedule_para_cleanup(id));
-}
-
 fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
-	<Hrmp as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }).is_some()
+	HrmpChannels::<Test>::get(&HrmpChannelId { sender, recipient }).is_some()
 }
 
 #[test]
@@ -181,6 +155,78 @@ fn open_channel_works() {
 			.iter()
 			.any(|record| record.event ==
 				MockEvent::Hrmp(Event::OpenChannelAccepted(para_a, para_b))));
+
+		// Advance to a block 6, but without session change. That means that the channel has
+		// not been created yet.
+		run_to_block(6, None);
+		assert!(!channel_exists(para_a, para_b));
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// Now let the session change happen and thus open the channel.
+		run_to_block(8, Some(vec![8]));
+		assert!(channel_exists(para_a, para_b));
+	});
+}
+
+#[test]
+fn force_open_channel_works() {
+	let para_a = 1.into();
+	let para_b = 3.into();
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		// We need both A & B to be registered and live parachains.
+		register_parachain(para_a);
+		register_parachain(para_b);
+
+		run_to_block(5, Some(vec![4, 5]));
+		Hrmp::force_open_hrmp_channel(RuntimeOrigin::root(), para_a, para_b, 2, 8).unwrap();
+		Hrmp::assert_storage_consistency_exhaustive();
+		assert!(System::events().iter().any(|record| record.event ==
+			MockEvent::Hrmp(Event::HrmpChannelForceOpened(para_a, para_b, 2, 8))));
+
+		// Advance to a block 6, but without session change. That means that the channel has
+		// not been created yet.
+		run_to_block(6, None);
+		assert!(!channel_exists(para_a, para_b));
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// Now let the session change happen and thus open the channel.
+		run_to_block(8, Some(vec![8]));
+		assert!(channel_exists(para_a, para_b));
+	});
+}
+
+#[test]
+fn force_open_channel_works_with_existing_request() {
+	let para_a = 1.into();
+	let para_a_origin: crate::Origin = 1.into();
+	let para_b = 3.into();
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		// We need both A & B to be registered and live parachains.
+		register_parachain(para_a);
+		register_parachain(para_b);
+
+		// Request a channel from `a` to `b`.
+		run_to_block(3, Some(vec![2, 3]));
+		Hrmp::hrmp_init_open_channel(para_a_origin.into(), para_b, 2, 8).unwrap();
+		Hrmp::assert_storage_consistency_exhaustive();
+		assert!(System::events().iter().any(|record| record.event ==
+			MockEvent::Hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8))));
+
+		run_to_block(5, Some(vec![4, 5]));
+		// the request exists, but no channel.
+		assert!(HrmpOpenChannelRequests::<Test>::get(&HrmpChannelId {
+			sender: para_a,
+			recipient: para_b
+		})
+		.is_some());
+		assert!(!channel_exists(para_a, para_b));
+		// now force open it.
+		Hrmp::force_open_hrmp_channel(RuntimeOrigin::root(), para_a, para_b, 2, 8).unwrap();
+		Hrmp::assert_storage_consistency_exhaustive();
+		assert!(System::events().iter().any(|record| record.event ==
+			MockEvent::Hrmp(Event::HrmpChannelForceOpened(para_a, para_b, 2, 8))));
 
 		// Advance to a block 6, but without session change. That means that the channel has
 		// not been created yet.
@@ -247,8 +293,10 @@ fn send_recv_messages() {
 		// A sends a message to B
 		run_to_block(6, Some(vec![6]));
 		assert!(channel_exists(para_a, para_b));
-		let msgs =
-			vec![OutboundHrmpMessage { recipient: para_b, data: b"this is an emergency".to_vec() }];
+		let msgs: HorizontalMessages =
+			vec![OutboundHrmpMessage { recipient: para_b, data: b"this is an emergency".to_vec() }]
+				.try_into()
+				.unwrap();
 		let config = Configuration::config();
 		assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
 		let _ = Hrmp::queue_outbound_hrmp(para_a, msgs);
@@ -282,13 +330,17 @@ fn hrmp_mqc_head_fixture() {
 		run_to_block(3, Some(vec![3]));
 		let _ = Hrmp::queue_outbound_hrmp(
 			para_a,
-			vec![OutboundHrmpMessage { recipient: para_b, data: vec![1, 2, 3] }],
+			vec![OutboundHrmpMessage { recipient: para_b, data: vec![1, 2, 3] }]
+				.try_into()
+				.unwrap(),
 		);
 
 		run_to_block(4, None);
 		let _ = Hrmp::queue_outbound_hrmp(
 			para_a,
-			vec![OutboundHrmpMessage { recipient: para_b, data: vec![4, 5, 6] }],
+			vec![OutboundHrmpMessage { recipient: para_b, data: vec![4, 5, 6] }]
+				.try_into()
+				.unwrap(),
 		);
 
 		assert_eq!(
@@ -350,7 +402,10 @@ fn check_sent_messages() {
 		run_to_block(6, Some(vec![6]));
 		assert!(Paras::is_valid_para(para_a));
 
-		let msgs = vec![OutboundHrmpMessage { recipient: para_b, data: b"knock".to_vec() }];
+		let msgs: HorizontalMessages =
+			vec![OutboundHrmpMessage { recipient: para_b, data: b"knock".to_vec() }]
+				.try_into()
+				.unwrap();
 		let config = Configuration::config();
 		assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
 		let _ = Hrmp::queue_outbound_hrmp(para_a, msgs.clone());
@@ -387,7 +442,7 @@ fn check_sent_messages() {
 
 #[test]
 fn verify_externally_accessible() {
-	use primitives::v2::{well_known_keys, AbridgedHrmpChannel};
+	use primitives::{well_known_keys, AbridgedHrmpChannel};
 
 	let para_a = 20.into();
 	let para_b = 21.into();
@@ -614,6 +669,51 @@ fn cancel_pending_open_channel_request() {
 
 		run_to_block(10, Some(vec![10]));
 		assert!(!channel_exists(para_a, para_b));
+		Hrmp::assert_storage_consistency_exhaustive();
+	});
+}
+
+#[test]
+fn watermark_maxed_out_at_relay_parent() {
+	let para_a = 32.into();
+	let para_b = 64.into();
+
+	let mut genesis = GenesisConfigBuilder::default();
+	genesis.hrmp_channel_max_message_size = 20;
+	genesis.hrmp_channel_max_total_size = 20;
+	new_test_ext(genesis.build()).execute_with(|| {
+		register_parachain(para_a);
+		register_parachain(para_b);
+
+		run_to_block(5, Some(vec![4, 5]));
+		Hrmp::init_open_channel(para_a, para_b, 2, 20).unwrap();
+		Hrmp::accept_open_channel(para_b, para_a).unwrap();
+
+		// On Block 6:
+		// A sends a message to B
+		run_to_block(6, Some(vec![6]));
+		assert!(channel_exists(para_a, para_b));
+		let msgs: HorizontalMessages =
+			vec![OutboundHrmpMessage { recipient: para_b, data: b"this is an emergency".to_vec() }]
+				.try_into()
+				.unwrap();
+		let config = Configuration::config();
+		assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
+		let _ = Hrmp::queue_outbound_hrmp(para_a, msgs);
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// On block 8:
+		// B receives the message sent by A. B sets the watermark to 7.
+		run_to_block(8, None);
+		assert!(Hrmp::check_hrmp_watermark(para_b, 7, 7).is_ok());
+		let _ = Hrmp::prune_hrmp(para_b, 7);
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// On block 9:
+		// B includes a candidate with the same relay parent as before.
+		run_to_block(9, None);
+		assert!(Hrmp::check_hrmp_watermark(para_b, 7, 7).is_ok());
+		let _ = Hrmp::prune_hrmp(para_b, 7);
 		Hrmp::assert_storage_consistency_exhaustive();
 	});
 }

@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,8 @@ pub mod constants {
 
 	parameter_types! {
 		/// Importing a block with 0 Extrinsics.
-		pub const BlockExecutionWeight: Weight = constants::WEIGHT_PER_NANOS.saturating_mul(5_000_000);
+		pub const BlockExecutionWeight: Weight =
+			Weight::from_parts(constants::WEIGHT_REF_TIME_PER_NANOS.saturating_mul(5_000_000), 0);
 	}
 
 	#[cfg(test)]
@@ -39,11 +40,14 @@ pub mod constants {
 
 			// At least 100 µs.
 			assert!(
-				w >= 100u64 * constants::WEIGHT_PER_MICROS,
+				w.ref_time() >= 100u64 * constants::WEIGHT_REF_TIME_PER_MICROS,
 				"Weight should be at least 100 µs."
 			);
 			// At most 50 ms.
-			assert!(w <= 50u64 * constants::WEIGHT_PER_MILLIS, "Weight should be at most 50 ms.");
+			assert!(
+				w.ref_time() <= 50u64 * constants::WEIGHT_REF_TIME_PER_MILLIS,
+				"Weight should be at most 50 ms."
+			);
 		}
 	}
 }

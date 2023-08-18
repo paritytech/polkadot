@@ -1,3 +1,19 @@
+// Copyright (C) Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 pub use sc_network::ReputationChange;
 
 /// Unified annoyance cost and good behavior benefits.
@@ -26,7 +42,7 @@ impl UnifiedReputationChange {
 	///
 	/// The whole range of an `i32` should be used, so order of magnitude of
 	/// something malicious should be `1<<20` (give or take).
-	const fn cost_or_benefit(&self) -> i32 {
+	pub const fn cost_or_benefit(&self) -> i32 {
 		match self {
 			Self::CostMinor(_) => -100_000,
 			Self::CostMajor(_) => -300_000,
@@ -65,9 +81,10 @@ impl UnifiedReputationChange {
 			_ => false,
 		}
 	}
+}
 
-	/// Convert into a base reputation as used with substrate.
-	pub const fn into_base_rep(self) -> ReputationChange {
-		ReputationChange::new(self.cost_or_benefit(), self.description())
+impl From<UnifiedReputationChange> for ReputationChange {
+	fn from(value: UnifiedReputationChange) -> Self {
+		ReputationChange::new(value.cost_or_benefit(), value.description())
 	}
 }

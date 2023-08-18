@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,20 +19,13 @@
 
 use sp_std::vec::Vec;
 
+use bounded_collections::{BoundedVec, ConstU32};
 use frame_support::weights::Weight;
 use parity_scale_codec::{CompactAs, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use sp_core::{RuntimeDebug, TypeId};
-use sp_runtime::traits::Hash as _;
-
-#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
-
-#[cfg(feature = "std")]
-use sp_core::bytes;
-
-#[cfg(feature = "std")]
-use parity_util_mem::MallocSizeOf;
+use sp_core::{bytes, RuntimeDebug, TypeId};
+use sp_runtime::traits::Hash as _;
 
 use polkadot_core_primitives::{Hash, OutboundHrmpMessage};
 
@@ -41,10 +34,21 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(
-	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
+	PartialEq,
+	Eq,
+	Clone,
+	PartialOrd,
+	Ord,
+	Encode,
+	Decode,
+	RuntimeDebug,
+	derive_more::From,
+	TypeInfo,
+	Serialize,
+	Deserialize,
 )]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf, Default))]
-pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
+#[cfg_attr(feature = "std", derive(Hash, Default))]
+pub struct HeadData(#[serde(with = "bytes")] pub Vec<u8>);
 
 impl HeadData {
 	/// Returns the hash of this head data.
@@ -54,9 +58,20 @@ impl HeadData {
 }
 
 /// Parachain validation code.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
-pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
+#[derive(
+	PartialEq,
+	Eq,
+	Clone,
+	Encode,
+	Decode,
+	RuntimeDebug,
+	derive_more::From,
+	TypeInfo,
+	Serialize,
+	Deserialize,
+)]
+#[cfg_attr(feature = "std", derive(Hash))]
+pub struct ValidationCode(#[serde(with = "bytes")] pub Vec<u8>);
 
 impl ValidationCode {
 	/// Get the blake2-256 hash of the validation code bytes.
@@ -71,7 +86,6 @@ impl ValidationCode {
 ///
 /// This type makes it easy to enforce that a hash is a validation code hash on the type level.
 #[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct ValidationCodeHash(Hash);
 
 impl sp_std::fmt::Display for ValidationCodeHash {
@@ -114,7 +128,7 @@ impl sp_std::fmt::LowerHex for ValidationCodeHash {
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 /// Unique identifier of a parachain.
@@ -132,12 +146,11 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec
 	PartialEq,
 	PartialOrd,
 	RuntimeDebug,
+	serde::Serialize,
+	serde::Deserialize,
 	TypeInfo,
 )]
-#[cfg_attr(
-	feature = "std",
-	derive(serde::Serialize, serde::Deserialize, derive_more::Display, MallocSizeOf)
-)]
+#[cfg_attr(feature = "std", derive(derive_more::Display))]
 pub struct Id(u32);
 
 impl TypeId for Id {
@@ -274,13 +287,13 @@ impl IsSystem for Sibling {
 	}
 }
 
-/// A type that uniquely identifies an HRMP channel. An HRMP channel is established between two paras.
-/// In text, we use the notation `(A, B)` to specify a channel between A and B. The channels are
-/// unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
-/// that we use the first item tuple for the sender and the second for the recipient. Only one channel
-/// is allowed between two participants in one direction, i.e. there cannot be 2 different channels
-/// identified by `(A, B)`. A channel with the same para id in sender and recipient is invalid. That
-/// is, however, not enforced.
+/// A type that uniquely identifies an HRMP channel. An HRMP channel is established between two
+/// paras. In text, we use the notation `(A, B)` to specify a channel between A and B. The channels
+/// are unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The
+/// convention is that we use the first item tuple for the sender and the second for the recipient.
+/// Only one channel is allowed between two participants in one direction, i.e. there cannot be 2
+/// different channels identified by `(A, B)`. A channel with the same para id in sender and
+/// recipient is invalid. That is, however, not enforced.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct HrmpChannelId {
@@ -368,6 +381,22 @@ pub struct ValidationParams {
 	pub relay_parent_storage_root: Hash,
 }
 
+/// Maximum number of HRMP messages allowed per candidate.
+///
+/// We also use this as a generous limit, which still prevents possible memory exhaustion, from
+/// malicious parachains that may otherwise return a huge amount of messages in `ValidationResult`.
+pub const MAX_HORIZONTAL_MESSAGE_NUM: u32 = 16 * 1024;
+/// Maximum number of UMP messages allowed per candidate.
+///
+/// We also use this as a generous limit, which still prevents possible memory exhaustion, from
+/// malicious parachains that may otherwise return a huge amount of messages in `ValidationResult`.
+pub const MAX_UPWARD_MESSAGE_NUM: u32 = 16 * 1024;
+
+pub type UpwardMessages = BoundedVec<UpwardMessage, ConstU32<MAX_UPWARD_MESSAGE_NUM>>;
+
+pub type HorizontalMessages =
+	BoundedVec<OutboundHrmpMessage<Id>, ConstU32<MAX_HORIZONTAL_MESSAGE_NUM>>;
+
 /// The result of parachain validation.
 // TODO: balance uploads (https://github.com/paritytech/polkadot/issues/220)
 #[derive(PartialEq, Eq, Clone, Encode)]
@@ -378,13 +407,14 @@ pub struct ValidationResult {
 	/// An update to the validation code that should be scheduled in the relay chain.
 	pub new_validation_code: Option<ValidationCode>,
 	/// Upward messages send by the Parachain.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: UpwardMessages,
 	/// Outbound horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
+	pub horizontal_messages: HorizontalMessages,
 	/// Number of downward messages that were processed by the Parachain.
 	///
 	/// It is expected that the Parachain processes them from first to last.
 	pub processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	/// The mark which specifies the block number up to which all inbound HRMP messages are
+	/// processed.
 	pub hrmp_watermark: RelayChainBlockNumber,
 }

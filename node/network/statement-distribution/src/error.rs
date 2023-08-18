@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 use polkadot_node_network_protocol::PeerId;
 use polkadot_node_subsystem::SubsystemError;
 use polkadot_node_subsystem_util::runtime;
-use polkadot_primitives::v2::{CandidateHash, Hash};
+use polkadot_primitives::{CandidateHash, Hash};
 
 use crate::LOG_TARGET;
 
@@ -82,13 +82,18 @@ pub enum Error {
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them.
-pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), FatalError> {
+pub fn log_error(
+	result: Result<()>,
+	ctx: &'static str,
+	warn_freq: &mut gum::Freq,
+) -> std::result::Result<(), FatalError> {
 	match result.into_nested()? {
 		Err(jfyi) => {
 			match jfyi {
 				JfyiError::RequestedUnannouncedCandidate(_, _) =>
 					gum::warn!(target: LOG_TARGET, error = %jfyi, ctx),
-				_ => gum::debug!(target: LOG_TARGET, error = %jfyi, ctx),
+				_ =>
+					gum::warn_if_frequent!(freq: warn_freq, max_rate: gum::Times::PerHour(100), target: LOG_TARGET, error = %jfyi, ctx),
 			}
 			Ok(())
 		},

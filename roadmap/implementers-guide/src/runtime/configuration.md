@@ -28,7 +28,7 @@ The session change routine works as follows:
 ## Routines
 
 ```rust
-enum InconsistentErrror {
+enum InconsistentError {
   // ...
 }
 
@@ -56,7 +56,7 @@ pub fn configuration() -> HostConfiguration {
 ///
 /// If there is already a pending update for the current session index + 1, then it won't be touched. Otherwise,
 /// that would violate the promise of this function that changes will be applied on the second session change (cur + 2).
-fn schedule_config_update(updater: impl FnOnce(&mut HostConfiguration<T::BlockNumber>)) -> DispatchResult
+fn schedule_config_update(updater: impl FnOnce(&mut HostConfiguration<BlockNumberFor<T>>)) -> DispatchResult
 ```
 
 ## Entry-points

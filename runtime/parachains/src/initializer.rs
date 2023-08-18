@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,12 +17,13 @@
 //! This module is responsible for maintaining a consistent initialization order for all other
 //! parachains modules. It's also responsible for finalization and session change notifications.
 //!
-//! This module can throw fatal errors if session-change notifications are received after initialization.
+//! This module can throw fatal errors if session-change notifications are received after
+//! initialization.
 
 use crate::{
 	configuration::{self, HostConfiguration},
-	disputes::DisputesHandler,
-	dmp, hrmp, inclusion, paras, scheduler, session_info, shared, ump,
+	disputes::{self, DisputesHandler as _, SlashingHandler as _},
+	dmp, hrmp, inclusion, paras, scheduler, session_info, shared,
 };
 use frame_support::{
 	traits::{OneSessionHandler, Randomness},
@@ -30,7 +31,7 @@ use frame_support::{
 };
 use frame_system::limits::BlockWeights;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
+use primitives::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
@@ -58,6 +59,9 @@ pub struct SessionChangeNotification<BlockNumber> {
 	/// New session index.
 	pub session_index: SessionIndex,
 }
+
+/// Number of validators (not only parachain) in a session.
+pub type ValidatorSetCount = u32;
 
 impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
 	fn default() -> Self {
@@ -96,7 +100,6 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -109,14 +112,14 @@ pub mod pallet {
 		+ scheduler::Config
 		+ inclusion::Config
 		+ session_info::Config
+		+ disputes::Config
 		+ dmp::Config
-		+ ump::Config
 		+ hrmp::Config
 	{
 		/// A randomness beacon.
-		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type Randomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 		/// An origin which is allowed to force updates to parachains.
-		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 	}
@@ -126,9 +129,9 @@ pub mod pallet {
 	/// Semantically a `bool`, but this guarantees it should never hit the trie,
 	/// as this is cleared in `on_finalize` and Frame optimizes `None` values to be empty values.
 	///
-	/// As a `bool`, `set(false)` and `remove()` both lead to the next `get()` being false, but one of
-	/// them writes to the trie and one does not. This confusion makes `Option<()>` more suitable for
-	/// the semantics of this variable.
+	/// As a `bool`, `set(false)` and `remove()` both lead to the next `get()` being false, but one
+	/// of them writes to the trie and one does not. This confusion makes `Option<()>` more suitable
+	/// for the semantics of this variable.
 	#[pallet::storage]
 	pub(super) type HasInitialized<T: Config> = StorageValue<_, ()>;
 
@@ -145,7 +148,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(now: T::BlockNumber) -> Weight {
+		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
 			// The other modules are initialized in this order:
 			// - Configuration
 			// - Paras
@@ -163,8 +166,8 @@ pub mod pallet {
 				inclusion::Pallet::<T>::initializer_initialize(now) +
 				session_info::Pallet::<T>::initializer_initialize(now) +
 				T::DisputesHandler::initializer_initialize(now) +
+				T::SlashingHandler::initializer_initialize(now) +
 				dmp::Pallet::<T>::initializer_initialize(now) +
-				ump::Pallet::<T>::initializer_initialize(now) +
 				hrmp::Pallet::<T>::initializer_initialize(now);
 
 			HasInitialized::<T>::set(Some(()));
@@ -172,11 +175,11 @@ pub mod pallet {
 			total_weight
 		}
 
-		fn on_finalize(now: T::BlockNumber) {
+		fn on_finalize(now: BlockNumberFor<T>) {
 			// reverse initialization order.
 			hrmp::Pallet::<T>::initializer_finalize();
-			ump::Pallet::<T>::initializer_finalize();
 			dmp::Pallet::<T>::initializer_finalize();
+			T::SlashingHandler::initializer_finalize();
 			T::DisputesHandler::initializer_finalize();
 			session_info::Pallet::<T>::initializer_finalize();
 			inclusion::Pallet::<T>::initializer_finalize();
@@ -188,7 +191,8 @@ pub mod pallet {
 			// Apply buffered session changes as the last thing. This way the runtime APIs and the
 			// next block will observe the next session.
 			//
-			// Note that we only apply the last session as all others lasted less than a block (weirdly).
+			// Note that we only apply the last session as all others lasted less than a block
+			// (weirdly).
 			if let Some(BufferedSessionChange { session_index, validators, queued }) =
 				BufferedSessionChanges::<T>::take().pop()
 			{
@@ -204,6 +208,7 @@ pub mod pallet {
 		/// Issue a signal to the consensus engine to forcibly act as though all parachain
 		/// blocks in all relay chain blocks up to and including the given number in the current
 		/// chain are valid and should be finalized.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			<T as Config>::WeightInfo::force_approve(
 				frame_system::Pallet::<T>::digest().logs.len() as u32,
@@ -235,13 +240,16 @@ impl<T: Config> Pallet<T> {
 			buf
 		};
 
+		// inform about upcoming new session
+		scheduler::Pallet::<T>::pre_new_session();
+
 		let configuration::SessionChangeOutcome { prev_config, new_config } =
 			configuration::Pallet::<T>::initializer_on_new_session(&session_index);
 		let new_config = new_config.unwrap_or_else(|| prev_config.clone());
 
 		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
-			random_seed.clone(),
+			random_seed,
 			&new_config,
 			all_validators,
 		);
@@ -257,11 +265,11 @@ impl<T: Config> Pallet<T> {
 
 		let outgoing_paras = paras::Pallet::<T>::initializer_on_new_session(&notification);
 		scheduler::Pallet::<T>::initializer_on_new_session(&notification);
-		inclusion::Pallet::<T>::initializer_on_new_session(&notification);
+		inclusion::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		session_info::Pallet::<T>::initializer_on_new_session(&notification);
 		T::DisputesHandler::initializer_on_new_session(&notification);
+		T::SlashingHandler::initializer_on_new_session(session_index);
 		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}
 

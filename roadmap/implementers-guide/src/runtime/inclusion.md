@@ -1,6 +1,6 @@
 # Inclusion Module
 
-The inclusion module is responsible for inclusion and availability of scheduled parachains and parathreads.
+The inclusion module is responsible for inclusion and availability of scheduled parachains and parathreads. It also manages the UMP dispatch queue of each parachain/thread.
 
 ## Storage
 
@@ -35,10 +35,26 @@ PendingAvailability: map ParaId => CandidatePendingAvailability;
 PendingAvailabilityCommitments: map ParaId => CandidateCommitments;
 ```
 
+## Config Dependencies
+
+* `MessageQueue`:
+  The message queue provides general queueing and processing functionality. Currently it
+  replaces the old `UMP` dispatch queue. Other use-cases can be implemented as well by
+  adding new variants to `AggregateMessageOrigin`. Normally it should be set to an instance
+  of the `MessageQueue` pallet.
+
 ## Session Change
 
 1. Clear out all candidates pending availability.
 1. Clear out all validator bitfields.
+
+Optional:
+1. The UMP queue of all outgoing paras can be "swept". This would prevent the dispatch queue from automatically being serviced. It is a consideration for the chain and specific behaviour is not defined.
+
+## Initialization
+
+No initialization routine runs for this module. However, the initialization of the `MessageQueue` pallet will attempt to process any pending UMP messages.
+
 
 ## Routines
 
@@ -88,7 +104,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_cooldown` of `Paras::last_code_upgrade(para_id, true)`, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
   1. Check the collator's signature on the candidate data.
   1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
-  1. call `Ump::check_upward_messages(para, commitments.upward_messages)` to check that the upward messages are valid.
+  1. call `check_upward_messages(config, para, commitments.upward_messages)` to check that the upward messages are valid.
   1. call `Dmp::check_processed_downward_messages(para, commitments.processed_downward_messages)` to check that the DMQ is properly drained.
   1. call `Hrmp::check_hrmp_watermark(para, commitments.hrmp_watermark)` for each candidate to check rules of processing the HRMP watermark.
   1. using `Hrmp::check_outbound_hrmp(sender, commitments.horizontal_messages)` ensure that the each candidate sent a valid set of horizontal messages
@@ -99,7 +115,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. If the receipt contains a code upgrade, Call `Paras::schedule_code_upgrade(para_id, code, relay_parent_number, config)`.
     > TODO: Note that this is safe as long as we never enact candidates where the relay parent is across a session boundary. In that case, which we should be careful to avoid with contextual execution, the configuration might have changed and the para may de-sync from the host's understanding of it.
   1. Reward all backing validators of each candidate, contained within the `backers` field.
-  1. call `Ump::receive_upward_messages` for each backed candidate, using the [`UpwardMessage`s](../types/messages.md#upward-message) from the [`CandidateCommitments`](../types/candidate.md#candidate-commitments).
+  1. call `receive_upward_messages` for each backed candidate, using the [`UpwardMessage`s](../types/messages.md#upward-message) from the [`CandidateCommitments`](../types/candidate.md#candidate-commitments).
   1. call `Dmp::prune_dmq` with the para id of the candidate and the candidate's `processed_downward_messages`.
   1. call `Hrmp::prune_hrmp` with the para id of the candiate and the candidate's `hrmp_watermark`.
   1. call `Hrmp::queue_outbound_hrmp` with the para id of the candidate and the list of horizontal messages taken from the commitment,
@@ -118,3 +134,20 @@ All failed checks should lead to an unrecoverable error making the block invalid
 * `candidate_pending_availability(ParaId) -> Option<CommittedCandidateReceipt>`: returns the `CommittedCandidateReceipt` pending availability for the para provided, if any.
 * `pending_availability(ParaId) -> Option<CandidatePendingAvailability>`: returns the metadata around the candidate pending availability for the para, if any.
 * `collect_disputed(disputed: Vec<CandidateHash>) -> Vec<CoreIndex>`: Sweeps through all paras pending availability. If the candidate hash is one of the disputed candidates, then clean up the corresponding storage for that candidate and the commitments. Return a vector of cleaned-up core IDs.
+
+These functions were formerly part of the UMP pallet:
+
+* `check_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
+    1. Checks that the parachain is not currently offboarding and error otherwise. 
+    1. Checks that there are at most `config.max_upward_message_num_per_candidate` messages to be enqueued.
+    1. Checks that no message exceeds `config.max_upward_message_size`.
+    1. Checks that the total resulting queue size would not exceed `co`.
+    1. Verify that queuing up the messages could not result in exceeding the queue's footprint
+    according to the config items `config.max_upward_queue_count` and `config.max_upward_queue_size`. The queue's current footprint is provided in `well_known_keys`
+    in order to facilitate oraclisation on to the para.
+
+Candidate Enactment:
+
+* `receive_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
+    1. Process each upward message `M` in order:
+        1. Place in the dispatch queue according to its para ID (or handle it immediately).

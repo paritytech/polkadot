@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,10 +16,7 @@
 
 use std::marker::PhantomData;
 
-use futures::{
-	channel::{mpsc, oneshot},
-	StreamExt,
-};
+use futures::{channel::oneshot, StreamExt};
 
 use parity_scale_codec::{Decode, Encode};
 
@@ -81,8 +78,8 @@ where
 	/// reputation changes in that case.
 	///
 	/// Params:
-	///		- The raw request to decode
-	///		- Reputation changes to apply for the peer in case decoding fails.
+	/// 		- The raw request to decode
+	/// 		- Reputation changes to apply for the peer in case decoding fails.
 	fn try_from_raw(
 		raw: sc_network::config::IncomingRequest,
 		reputation_changes: Vec<UnifiedReputationChange>,
@@ -91,8 +88,7 @@ where
 		let payload = match Req::decode(&mut payload.as_ref()) {
 			Ok(payload) => payload,
 			Err(err) => {
-				let reputation_changes =
-					reputation_changes.into_iter().map(|r| r.into_base_rep()).collect();
+				let reputation_changes = reputation_changes.into_iter().map(|r| r.into()).collect();
 				let response = sc_network::config::OutgoingResponse {
 					result: Err(()),
 					reputation_changes,
@@ -178,7 +174,7 @@ where
 
 		let response = netconfig::OutgoingResponse {
 			result: result.map(|v| v.encode()),
-			reputation_changes: reputation_changes.into_iter().map(|c| c.into_base_rep()).collect(),
+			reputation_changes: reputation_changes.into_iter().map(|c| c.into()).collect(),
 			sent_feedback,
 		};
 
@@ -208,7 +204,7 @@ pub struct OutgoingResponse<Response> {
 ///
 /// Takes care of decoding and handling of invalid encoded requests.
 pub struct IncomingRequestReceiver<Req> {
-	raw: mpsc::Receiver<netconfig::IncomingRequest>,
+	raw: async_channel::Receiver<netconfig::IncomingRequest>,
 	phantom: PhantomData<Req>,
 }
 

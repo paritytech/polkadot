@@ -4,17 +4,32 @@ The collation generation subsystem is executed on collator nodes and produces ca
 
 ## Protocol
 
-Input: `CollationGenerationMessage`
+Collation generation for Parachains currently works in the following way:
 
-```rust
-enum CollationGenerationMessage {
-  Initialize(CollationGenerationConfig),
-}
-```
+1.  A new relay chain block is imported.
+2.  The collation generation subsystem checks if the core associated to
+    the parachain is free and if yes, continues.
+3.  Collation generation calls our collator callback to generate a PoV.
+4.  Authoring logic determines if the current node should build a PoV.
+5.  Build new PoV and give it back to collation generation.
 
-No more than one initialization message should ever be sent to the collation generation subsystem.
+## Messages
 
-Output: `CollationDistributionMessage`
+### Incoming
+
+- `ActiveLeaves`
+  - Notification of a change in the set of active leaves.
+  - Triggers collation generation procedure outlined in "Protocol" section.
+- `CollationGenerationMessage::Initialize`
+  - Initializes the subsystem. Carries a config.
+  - No more than one initialization message should ever be sent to the collation
+    generation subsystem.
+  - Sent by a collator to initialize this subsystem.
+
+### Outgoing
+
+- `CollatorProtocolMessage::DistributeCollation`
+  - Provides a generated collation to distribute to validators.
 
 ## Functionality
 
@@ -94,16 +109,34 @@ pub struct CollationGenerationConfig {
 
 The configuration should be optional, to allow for the case where the node is not run with the capability to collate.
 
-On `ActiveLeavesUpdate`:
+### Summary in plain English
 
-* If there is no collation generation config, ignore.
-* Otherwise, for each `activated` head in the update:
-  * Determine if the para is scheduled on any core by fetching the `availability_cores` Runtime API.
-    > TODO: figure out what to do in the case of occupied cores; see [this issue](https://github.com/paritytech/polkadot/issues/1573).
-  * Determine an occupied core assumption to make about the para. Scheduled cores can make `OccupiedCoreAssumption::Free`.
-  * Use the Runtime API subsystem to fetch the full validation data.
-  * Invoke the `collator`, and use its outputs to produce a `CandidateReceipt`, signed with the configuration's `key`.
-  * Dispatch a [`CollatorProtocolMessage`][CPM]`::DistributeCollation(receipt, pov)`.
+- **Collation (output of a collator)**
+
+  - Contains the PoV (proof to verify the state transition of the
+    parachain) and other data.
+
+- **Collation result**
+
+  - Contains the collation, and an optional result sender for a
+    collation-seconded signal.
+
+- **Collation seconded signal**
+
+  - The signal that is returned when a collation was seconded by a
+    validator.
+
+- **Collation function**
+
+  - Called with the relay chain block the parablock will be built on top
+    of.
+  - Called with the validation data.
+    - Provides information about the state of the parachain on the relay
+      chain.
+
+- **Collation generation config**
+
+  - Contains collator's authentication key, collator function, and
+    parachain ID.
 
 [CP]: collator-protocol.md
-[CPM]: ../../types/overseer-protocol.md#collatorprotocolmessage

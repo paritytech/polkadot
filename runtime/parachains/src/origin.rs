@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 //! Declaration of the parachain specific origin and a pallet that hosts it.
 
-use primitives::v2::Id as ParaId;
+use primitives::Id as ParaId;
 use sp_runtime::traits::BadOrigin;
 use sp_std::result;
 
@@ -38,7 +38,6 @@ where
 /// belongs to.
 ///
 /// This module fulfills only the single purpose of housing the `Origin` in `construct_runtime`.
-///
 // ideally, though, the `construct_runtime` should support a free-standing origin.
 #[frame_support::pallet]
 pub mod pallet {
@@ -46,7 +45,6 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]

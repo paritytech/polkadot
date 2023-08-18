@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -36,8 +36,8 @@ use polkadot_node_subsystem::{
 	SpawnedSubsystem, SubsystemError, SubsystemResult, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{self as util, Validator};
-use polkadot_primitives::v2::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
-use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
+use polkadot_primitives::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
+use sp_keystore::{Error as KeystoreError, KeystorePtr};
 use std::{collections::HashMap, iter::FromIterator, time::Duration};
 use wasm_timer::{Delay, Instant};
 
@@ -83,7 +83,7 @@ async fn get_core_availability(
 	sender: &Mutex<&mut impl SubsystemSender<overseer::BitfieldSigningOutgoingMessages>>,
 	span: &jaeger::Span,
 ) -> Result<bool, Error> {
-	if let &CoreState::Occupied(ref core) = core {
+	if let CoreState::Occupied(core) = core {
 		let _span = span.child("query-chunk-availability");
 
 		let (tx, rx) = oneshot::channel();
@@ -137,8 +137,8 @@ async fn get_availability_cores(
 
 /// - get the list of core states from the runtime
 /// - for each core, concurrently determine chunk availability (see `get_core_availability`)
-/// - return the bitfield if there were no errors at any point in this process
-///   (otherwise, it's prone to false negatives)
+/// - return the bitfield if there were no errors at any point in this process (otherwise, it's
+///   prone to false negatives)
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
 	span: &jaeger::Span,
@@ -181,13 +181,13 @@ async fn construct_availability_bitfield(
 
 /// The bitfield signing subsystem.
 pub struct BitfieldSigningSubsystem {
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 }
 
 impl BitfieldSigningSubsystem {
 	/// Create a new instance of the `BitfieldSigningSubsystem`.
-	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+	pub fn new(keystore: KeystorePtr, metrics: Metrics) -> Self {
 		Self { keystore, metrics }
 	}
 }
@@ -209,7 +209,7 @@ impl<Context> BitfieldSigningSubsystem {
 #[overseer::contextbounds(BitfieldSigning, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 ) -> SubsystemResult<()> {
 	// Track spawned jobs per active leaf.
@@ -225,7 +225,7 @@ async fn run<Context>(
 					}
 				}
 
-				for leaf in update.activated {
+				if let Some(leaf) = update.activated {
 					let sender = ctx.sender().clone();
 					let leaf_hash = leaf.hash;
 
@@ -251,7 +251,7 @@ async fn run<Context>(
 async fn handle_active_leaves_update<Sender>(
 	mut sender: Sender,
 	leaf: ActivatedLeaf,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 ) -> Result<(), Error>
 where
@@ -310,7 +310,7 @@ where
 	let span_signing = span.child("signing");
 
 	let signed_bitfield =
-		match validator.sign(keystore, bitfield).await.map_err(|e| Error::Keystore(e))? {
+		match validator.sign(keystore, bitfield).map_err(|e| Error::Keystore(e))? {
 			Some(b) => b,
 			None => {
 				gum::error!(

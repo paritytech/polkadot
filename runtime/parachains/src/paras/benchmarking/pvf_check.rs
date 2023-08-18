@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,8 +17,9 @@
 //! This module focuses on the benchmarking of the `include_pvf_check_statement` dispatchable.
 
 use crate::{configuration, paras::*, shared::Pallet as ParasShared};
+use frame_support::assert_ok;
 use frame_system::RawOrigin;
-use primitives::v2::{HeadData, Id as ParaId, ValidationCode, ValidatorId, ValidatorIndex};
+use primitives::{HeadData, Id as ParaId, ValidationCode, ValidatorId, ValidatorIndex};
 use sp_application_crypto::RuntimeAppPublic;
 
 // Constants for the benchmarking
@@ -43,7 +44,7 @@ where
 {
 	initialize::<T>();
 	// we do not plan to trigger finalization, thus the cause is inconsequential.
-	initialize_pvf_active_vote::<T>(VoteCause::Onboarding);
+	initialize_pvf_active_vote::<T>(VoteCause::Onboarding, CAUSES_NUM);
 
 	// `unwrap` cannot panic here since the `initialize` function should initialize validators count
 	// to be more than 0.
@@ -68,7 +69,7 @@ where
 	T: Config + shared::Config,
 {
 	initialize::<T>();
-	initialize_pvf_active_vote::<T>(cause);
+	initialize_pvf_active_vote::<T>(cause, CAUSES_NUM);
 
 	let mut stmts = generate_statements::<T>(outcome).collect::<Vec<_>>();
 	// this should be ensured by the `initialize` function.
@@ -83,6 +84,29 @@ where
 	}
 
 	stmt_n_sig
+}
+
+/// Prepares storage for invoking `add_trusted_validation_code` with several paras initializing to
+/// the same code.
+pub fn prepare_bypassing_bench<T>(validation_code: ValidationCode)
+where
+	T: Config + shared::Config,
+{
+	// Suppose a sensible number of paras initialize to the same code.
+	const PARAS_NUM: usize = 10;
+
+	initialize::<T>();
+	for i in 0..PARAS_NUM {
+		let id = ParaId::from(i as u32);
+		assert_ok!(Pallet::<T>::schedule_para_initialize(
+			id,
+			ParaGenesisArgs {
+				para_kind: ParaKind::Parachain,
+				genesis_head: HeadData(vec![1, 2, 3, 4]),
+				validation_code: validation_code.clone(),
+			},
+		));
+	}
 }
 
 /// What caused the PVF pre-checking vote?
@@ -109,8 +133,7 @@ where
 		.collect::<Vec<_>>();
 
 	// 1. Make sure PVF pre-checking is enabled in the config.
-	let mut config = configuration::Pallet::<T>::config();
-	config.pvf_checking_enabled = true;
+	let config = configuration::Pallet::<T>::config();
 	configuration::Pallet::<T>::force_set_active_config(config.clone());
 
 	// 2. initialize a new session with deterministic validator set.
@@ -122,11 +145,11 @@ where
 ///
 /// The subject of the vote (i.e. validation code) and the cause (upgrade/onboarding) is specified
 /// by the test setup.
-fn initialize_pvf_active_vote<T>(vote_cause: VoteCause)
+fn initialize_pvf_active_vote<T>(vote_cause: VoteCause, causes_num: usize)
 where
 	T: Config + shared::Config,
 {
-	for i in 0..CAUSES_NUM {
+	for i in 0..causes_num {
 		let id = ParaId::from(i as u32);
 
 		if vote_cause == VoteCause::Upgrade {
@@ -140,7 +163,7 @@ where
 				&mut parachains,
 				id,
 				&ParaGenesisArgs {
-					parachain: true,
+					para_kind: ParaKind::Parachain,
 					genesis_head: HeadData(vec![1, 2, 3, 4]),
 					validation_code: old_validation_code,
 				},
@@ -159,7 +182,7 @@ where
 			let r = Pallet::<T>::schedule_para_initialize(
 				id,
 				ParaGenesisArgs {
-					parachain: true,
+					para_kind: ParaKind::Parachain,
 					genesis_head: HeadData(vec![1, 2, 3, 4]),
 					validation_code: validation_code(),
 				},
@@ -170,7 +193,8 @@ where
 }
 
 /// Generates a list of votes combined with signatures for the active validator set. The number of
-/// votes is equal to the minimum number of votes required to reach the supermajority.
+/// votes is equal to the minimum number of votes required to reach the threshold for either accept
+/// or reject.
 fn generate_statements<T>(
 	vote_outcome: VoteOutcome,
 ) -> impl Iterator<Item = (PvfCheckStatement, ValidatorSignature)>
@@ -179,7 +203,11 @@ where
 {
 	let validators = ParasShared::<T>::active_validator_keys();
 
-	let required_votes = primitives::v2::supermajority_threshold(validators.len());
+	let accept_threshold = primitives::supermajority_threshold(validators.len());
+	let required_votes = match vote_outcome {
+		VoteOutcome::Accept => accept_threshold,
+		VoteOutcome::Reject => validators.len() - accept_threshold,
+	};
 	(0..required_votes).map(move |validator_index| {
 		let stmt = PvfCheckStatement {
 			accept: vote_outcome == VoteOutcome::Accept,

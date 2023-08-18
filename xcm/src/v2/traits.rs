@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Cumulus.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -16,6 +16,7 @@
 
 //! Cross-Consensus Message format data structures.
 
+use crate::v3::Error as NewError;
 use core::result;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -80,7 +81,8 @@ pub enum Error {
 	/// Used by `Transact` when the functor cannot be decoded.
 	#[codec(index = 17)]
 	FailedToDecode,
-	/// Used by `Transact` to indicate that the given weight limit could be breached by the functor.
+	/// Used by `Transact` to indicate that the given weight limit could be breached by the
+	/// functor.
 	#[codec(index = 18)]
 	MaxWeightInvalid,
 	/// Used by `BuyExecution` when the Holding Register does not contain payable fees.
@@ -93,7 +95,8 @@ pub enum Error {
 	#[codec(index = 21)]
 	Trap(u64),
 
-	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
+	// Errors that happen prior to instructions being executed. These fall outside of the XCM
+	// spec.
 	/// XCM version not able to be handled.
 	UnhandledXcmVersion,
 	/// Execution of the XCM would potentially result in a greater weight used than weight limit.
@@ -110,10 +113,42 @@ pub enum Error {
 	WeightNotComputable,
 }
 
+impl TryFrom<NewError> for Error {
+	type Error = ();
+	fn try_from(new_error: NewError) -> result::Result<Error, ()> {
+		use NewError::*;
+		Ok(match new_error {
+			Overflow => Self::Overflow,
+			Unimplemented => Self::Unimplemented,
+			UntrustedReserveLocation => Self::UntrustedReserveLocation,
+			UntrustedTeleportLocation => Self::UntrustedTeleportLocation,
+			LocationFull => Self::MultiLocationFull,
+			LocationNotInvertible => Self::MultiLocationNotInvertible,
+			BadOrigin => Self::BadOrigin,
+			InvalidLocation => Self::InvalidLocation,
+			AssetNotFound => Self::AssetNotFound,
+			FailedToTransactAsset(s) => Self::FailedToTransactAsset(s),
+			NotWithdrawable => Self::NotWithdrawable,
+			LocationCannotHold => Self::LocationCannotHold,
+			ExceedsMaxMessageSize => Self::ExceedsMaxMessageSize,
+			DestinationUnsupported => Self::DestinationUnsupported,
+			Transport(s) => Self::Transport(s),
+			Unroutable => Self::Unroutable,
+			UnknownClaim => Self::UnknownClaim,
+			FailedToDecode => Self::FailedToDecode,
+			MaxWeightInvalid => Self::MaxWeightInvalid,
+			NotHoldingFees => Self::NotHoldingFees,
+			TooExpensive => Self::TooExpensive,
+			Trap(i) => Self::Trap(i),
+			_ => return Err(()),
+		})
+	}
+}
+
 impl From<SendError> for Error {
 	fn from(e: SendError) -> Self {
 		match e {
-			SendError::CannotReachDestination(..) | SendError::Unroutable => Error::Unroutable,
+			SendError::NotApplicable(..) | SendError::Unroutable => Error::Unroutable,
 			SendError::Transport(s) => Error::Transport(s),
 			SendError::DestinationUnsupported => Error::DestinationUnsupported,
 			SendError::ExceedsMaxMessageSize => Error::ExceedsMaxMessageSize,
@@ -128,7 +163,8 @@ pub type Result = result::Result<(), Error>;
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
 	Complete(Weight),
-	/// Execution started, but did not complete successfully due to the given error; given weight was used.
+	/// Execution started, but did not complete successfully due to the given error; given weight
+	/// was used.
 	Incomplete(Weight, Error),
 	/// Execution did not start due to the given error.
 	Error(Error),
@@ -160,13 +196,13 @@ impl Outcome {
 }
 
 /// Type of XCM message executor.
-pub trait ExecuteXcm<Call> {
-	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
-	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
-	/// other aspects.
+pub trait ExecuteXcm<RuntimeCall> {
+	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The
+	/// weight limit is a basic hard-limit and the implementation may place further restrictions or
+	/// requirements on weight and other aspects.
 	fn execute_xcm(
 		origin: impl Into<MultiLocation>,
-		message: Xcm<Call>,
+		message: Xcm<RuntimeCall>,
 		weight_limit: Weight,
 	) -> Outcome {
 		let origin = origin.into();
@@ -182,11 +218,11 @@ pub trait ExecuteXcm<Call> {
 
 	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight.
 	///
-	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
-	/// execution without associated payment.
+	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may
+	/// allow execution without associated payment.
 	fn execute_xcm_in_credit(
 		origin: impl Into<MultiLocation>,
-		message: Xcm<Call>,
+		message: Xcm<RuntimeCall>,
 		weight_limit: Weight,
 		weight_credit: Weight,
 	) -> Outcome;
@@ -210,7 +246,7 @@ pub enum SendError {
 	///
 	/// This is not considered fatal: if there are alternative transport routes available, then
 	/// they may be attempted. For this reason, the destination and message are contained.
-	CannotReachDestination(MultiLocation, Xcm<()>),
+	NotApplicable(MultiLocation, Xcm<()>),
 	/// Destination is routable, but there is some issue with the transport mechanism. This is
 	/// considered fatal.
 	/// A human-readable explanation of the specific issue is provided.
@@ -230,9 +266,9 @@ pub type SendResult = result::Result<(), SendError>;
 
 /// Utility for sending an XCM message.
 ///
-/// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
-/// `CannotReachDestination` to pass the execution to the next sender item. Note that each `CannotReachDestination`
-/// might alter the destination and the XCM message for to the next router.
+/// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each
+/// router might return `NotApplicable` to pass the execution to the next sender item. Note that
+/// each `NotApplicable` might alter the destination and the XCM message for to the next router.
 ///
 ///
 /// # Example
@@ -244,7 +280,7 @@ pub type SendResult = result::Result<(), SendError>;
 /// struct Sender1;
 /// impl SendXcm for Sender1 {
 ///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-///         return Err(SendError::CannotReachDestination(destination.into(), message))
+///         return Err(SendError::NotApplicable(destination.into(), message))
 ///     }
 /// }
 ///
@@ -267,7 +303,7 @@ pub type SendResult = result::Result<(), SendError>;
 ///         let destination = destination.into();
 ///         match destination {
 ///             MultiLocation { parents: 1, interior: Here } => Ok(()),
-///             _ => Err(SendError::CannotReachDestination(destination, message)),
+///             _ => Err(SendError::NotApplicable(destination, message)),
 ///         }
 ///     }
 /// }
@@ -297,9 +333,9 @@ pub type SendResult = result::Result<(), SendError>;
 pub trait SendXcm {
 	/// Send an XCM `message` to a given `destination`.
 	///
-	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
-	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
-	/// trying other type fields.
+	/// If it is not a destination which can be reached with this type but possibly could by others,
+	/// then it *MUST* return `NotApplicable`. Any other error will cause the tuple implementation
+	/// to exit early without trying other type fields.
 	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult;
 }
 
@@ -309,10 +345,10 @@ impl SendXcm for Tuple {
 		for_tuples!( #(
 			// we shadow `destination` and `message` in each expansion for the next one.
 			let (destination, message) = match Tuple::send_xcm(destination, message) {
-				Err(SendError::CannotReachDestination(d, m)) => (d, m),
+				Err(SendError::NotApplicable(d, m)) => (d, m),
 				o @ _ => return o,
 			};
 		)* );
-		Err(SendError::CannotReachDestination(destination.into(), message))
+		Err(SendError::NotApplicable(destination.into(), message))
 	}
 }

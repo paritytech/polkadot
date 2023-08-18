@@ -19,7 +19,7 @@ either run the latest binary from our
 [releases](https://github.com/paritytech/polkadot/releases) page, or install
 Polkadot from one of our package repositories.
 
-Installation from the Debian or rpm repositories will create a `systemd`
+Installation from the Debian repository will create a `systemd`
 service that can be used to run a Polkadot node. This is disabled by default,
 and can be started by running `systemctl start polkadot` on demand (use
 `systemctl enable polkadot` to make it auto-start after reboot). By default, it
@@ -48,21 +48,6 @@ apt install polkadot
 
 ```
 
-### RPM-based (Fedora, CentOS)
-
-Currently supports Fedora 32 and CentOS 8, and derivatives.
-
-```bash
-# Install dnf-plugins-core (This might already be installed)
-dnf install dnf-plugins-core
-# Add the repository and enable it
-dnf config-manager --add-repo https://releases.parity.io/rpm/polkadot.repo
-dnf config-manager --set-enabled polkadot
-# Install polkadot (You may have to confirm the import of the GPG key, which
-# should have the following fingerprint: 9D4B2B6EB8F97156D19669A9FF0812D491B96798)
-dnf install polkadot
-```
-
 ## Building
 
 ### Install via Cargo
@@ -70,7 +55,7 @@ dnf install polkadot
 Make sure you have the support software installed from the **Build from Source** section
 below this section.
 
-If you want to install Polkadot in your PATH, you can do so with with:
+If you want to install Polkadot in your PATH, you can do so with:
 
 ```bash
 cargo install --git https://github.com/paritytech/polkadot --tag <version> polkadot --locked
@@ -106,7 +91,13 @@ git checkout <latest tagged release>
 cargo build --release
 ```
 
-Note that compilation is a memory intensive process. We recommend having 4 GiB of physical RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
+**Note:** compilation is a memory intensive process. We recommend having 4 GiB of physical RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
+
+**Note:** if you want to move the built `polkadot` binary somewhere (e.g. into $PATH) you will also need to move `polkadot-execute-worker` and `polkadot-prepare-worker`. You can let cargo do all this for you by running:
+
+```sh
+cargo install --path . --locked
+```
 
 #### Build from Source with Docker
 
@@ -200,12 +191,13 @@ cargo build # Builds all native code
 You can run the tests if you like:
 
 ```bash
-cargo test --all --release
+cargo test --workspace --release
 ```
 
 You can start a development chain with:
 
 ```bash
+cargo build
 cargo run -- --dev
 ```
 

@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,32 +22,33 @@
 
 #![deny(missing_docs)]
 
-use std::{pin::Pin, time::Duration};
+use std::{num::NonZeroUsize, pin::Pin};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use polkadot_primitives::v2::{
-	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
-	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
-	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
-	ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+use polkadot_primitives::{
+	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CollatorPair,
+	CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId,
+	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, ValidationCode, ValidatorIndex,
+	MAX_CODE_SIZE, MAX_POV_SIZE,
 };
 pub use sp_consensus_babe::{
 	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 };
 
-pub use polkadot_parachain::primitives::BlockData;
+pub use polkadot_parachain::primitives::{BlockData, HorizontalMessages, UpwardMessages};
 
 pub mod approval;
 
 /// Disputes related types.
 pub mod disputes;
 pub use disputes::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, InvalidDisputeVote,
-	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
+	dispute_is_inactive, CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
+	InvalidDisputeVote, SignedDisputeStatement, Timestamp, UncheckedDisputeMessage,
+	ValidDisputeVote, ACTIVE_DURATION_SECS,
 };
 
 // For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node
@@ -63,16 +64,28 @@ pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
 /// The bomb limit for decompressing PoV blobs.
 pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
 
-/// The amount of time to spend on execution during backing.
-pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
-
-/// The amount of time to spend on execution during approval or disputes.
+/// How many blocks after finalization an information about backed/included candidate should be
+/// pre-loaded (when scraoing onchain votes) and kept locally (when pruning).
 ///
-/// This is deliberately much longer than the backing execution timeout to
-/// ensure that in the absence of extremely large disparities between hardware,
-/// blocks that pass backing are considerd executable by approval checkers or
-/// dispute participants.
-pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
+/// We don't want to remove scraped candidates on finalization because we want to
+/// be sure that disputes will conclude on abandoned forks.
+/// Removing the candidate on finalization creates a possibility for an attacker to
+/// avoid slashing. If a bad fork is abandoned too quickly because another
+/// better one gets finalized the entries for the bad fork will be pruned and we
+/// might never participate in a dispute for it.
+///
+/// Why pre-load finalized blocks? I dispute might be raised against finalized candidate. In most
+/// of the cases it will conclude valid (otherwise we are in big trouble) but never the less the
+/// node must participate. It's possible to see a vote for such dispute onchain before we have it
+/// imported by `dispute-distribution`. In this case we won't have `CandidateReceipt` and the import
+/// will fail unless we keep them preloaded.
+///
+/// This value should consider the timeout we allow for participation in approval-voting. In
+/// particular, the following condition should hold:
+///
+/// slot time * `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` > `APPROVAL_EXECUTION_TIMEOUT`
+/// + slot time
+pub const DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION: BlockNumber = 10;
 
 /// Linked to `MAX_FINALITY_LAG` in relay chain selection,
 /// `MAX_HEADS_LOOK_BACK` in `approval-voting` and
@@ -89,9 +102,7 @@ pub const MAX_FINALITY_LAG: u32 = 500;
 pub struct SessionWindowSize(SessionIndex);
 
 #[macro_export]
-/// Create a new checked `SessionWindowSize`
-///
-/// which cannot be 0.
+/// Create a new checked `SessionWindowSize` which cannot be 0.
 macro_rules! new_session_window_size {
 	(0) => {
 		compile_error!("Must be non zero");
@@ -132,6 +143,12 @@ impl SessionWindowSize {
 	}
 }
 
+impl From<SessionWindowSize> for NonZeroUsize {
+	fn from(value: SessionWindowSize) -> Self {
+		NonZeroUsize::new(value.get() as usize).expect("SessionWindowSize can't be 0. qed.")
+	}
+}
+
 /// The cumulative weight of a block in a fork-choice rule.
 pub type BlockWeight = u32;
 
@@ -163,8 +180,8 @@ impl std::fmt::Debug for Statement {
 impl Statement {
 	/// Get the candidate hash referenced by this statement.
 	///
-	/// If this is a `Statement::Seconded`, this does hash the candidate receipt, which may be expensive
-	/// for large candidates.
+	/// If this is a `Statement::Seconded`, this does hash the candidate receipt, which may be
+	/// expensive for large candidates.
 	pub fn candidate_hash(&self) -> CandidateHash {
 		match *self {
 			Statement::Valid(ref h) => *h,
@@ -198,8 +215,8 @@ impl EncodeAs<CompactStatement> for Statement {
 ///
 /// Signing context and validator set should be apparent from context.
 ///
-/// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
-/// Only the compact `SignedStatement` is suitable for submission to the chain.
+/// This statement is "full" in the sense that the `Seconded` variant includes the candidate
+/// receipt. Only the compact `SignedStatement` is suitable for submission to the chain.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
 
 /// Variant of `SignedFullStatement` where the signature has not yet been verified.
@@ -208,7 +225,7 @@ pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatem
 /// Candidate invalidity details
 #[derive(Debug)]
 pub enum InvalidCandidate {
-	/// Failed to execute.`validate_block`. This includes function panicking.
+	/// Failed to execute `validate_block`. This includes function panicking.
 	ExecutionError(String),
 	/// Validation outputs check doesn't pass.
 	InvalidOutputs,
@@ -218,8 +235,6 @@ pub enum InvalidCandidate {
 	ParamsTooLarge(u64),
 	/// Code size is over the limit.
 	CodeTooLarge(u64),
-	/// Code does not decompress correctly.
-	CodeDecompressionFailure,
 	/// PoV does not decompress correctly.
 	PoVDecompressionFailure,
 	/// Validation function returned invalid data.
@@ -241,8 +256,8 @@ pub enum InvalidCandidate {
 /// Result of the validation of the candidate.
 #[derive(Debug)]
 pub enum ValidationResult {
-	/// Candidate is valid. The validation process yields these outputs and the persisted validation
-	/// data used to form inputs.
+	/// Candidate is valid. The validation process yields these outputs and the persisted
+	/// validation data used to form inputs.
 	Valid(CandidateCommitments, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid(InvalidCandidate),
@@ -293,11 +308,11 @@ impl MaybeCompressedPoV {
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
 #[cfg(not(target_os = "unknown"))]
-pub struct Collation<BlockNumber = polkadot_primitives::v2::BlockNumber> {
+pub struct Collation<BlockNumber = polkadot_primitives::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: UpwardMessages,
 	/// The horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<ParaId>>,
+	pub horizontal_messages: HorizontalMessages,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
@@ -306,7 +321,8 @@ pub struct Collation<BlockNumber = polkadot_primitives::v2::BlockNumber> {
 	pub proof_of_validity: MaybeCompressedPoV,
 	/// The number of messages processed from the DMQ.
 	pub processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	/// The mark which specifies the block number up to which all inbound HRMP messages are
+	/// processed.
 	pub hrmp_watermark: BlockNumber,
 }
 
@@ -329,9 +345,9 @@ pub struct CollationResult {
 	pub collation: Collation,
 	/// An optional result sender that should be informed about a successfully seconded collation.
 	///
-	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
-	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
-	/// collation.
+	/// There is no guarantee that this sender is informed ever about any result, it is completely
+	/// okay to just drop it. However, if it is called, it should be called with the signed
+	/// statement of a parachain validator seconding the collation.
 	pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
 }
 
@@ -347,8 +363,9 @@ impl CollationResult {
 
 /// Collation function.
 ///
-/// Will be called with the hash of the relay chain block the parachain block should be build on and the
-/// [`ValidationData`] that provides information about the state of the parachain on the relay chain.
+/// Will be called with the hash of the relay chain block the parachain block should be build on and
+/// the [`ValidationData`] that provides information about the state of the parachain on the relay
+/// chain.
 ///
 /// Returns an optional [`CollationResult`].
 #[cfg(not(target_os = "unknown"))]
@@ -384,7 +401,7 @@ impl std::fmt::Debug for CollationGenerationConfig {
 pub struct AvailableData {
 	/// The Proof-of-Validation of the candidate.
 	pub pov: std::sync::Arc<PoV>,
-	/// The persisted validation data needed for secondary checks.
+	/// The persisted validation data needed for approval checks.
 	pub validation_data: PersistedValidationData,
 }
 

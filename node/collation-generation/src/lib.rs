@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -15,6 +15,19 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The collation generation subsystem is the interface between polkadot and the collators.
+//!
+//! # Protocol
+//!
+//! On every `ActiveLeavesUpdate`:
+//!
+//! * If there is no collation generation config, ignore.
+//! * Otherwise, for each `activated` head in the update:
+//!   * Determine if the para is scheduled on any core by fetching the `availability_cores` Runtime
+//!     API.
+//!   * Use the Runtime API subsystem to fetch the full validation data.
+//!   * Invoke the `collator`, and use its outputs to produce a [`CandidateReceipt`], signed with
+//!     the configuration's `key`.
+//!   * Dispatch a [`CollatorProtocolMessage::DistributeCollation`]`(receipt, pov)`.
 
 #![deny(missing_docs)]
 
@@ -30,7 +43,7 @@ use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
 	request_validation_code_hash, request_validators,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
 	CoreState, Hash, Id as ParaId, OccupiedCoreAssumption, PersistedValidationData,
 	ValidationCodeHash,
@@ -66,8 +79,8 @@ impl CollationGenerationSubsystem {
 	/// Conceptually, this is very simple: it just loops forever.
 	///
 	/// - On incoming overseer messages, it starts or stops jobs as appropriate.
-	/// - On other incoming messages, if they can be converted into `Job::ToJob` and
-	///   include a hash, then they're forwarded to the appropriate individual job.
+	/// - On other incoming messages, if they can be converted into `Job::ToJob` and include a hash,
+	///   then they're forwarded to the appropriate individual job.
 	/// - On outgoing messages from the jobs, it forwards them to the overseer.
 	///
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
@@ -98,9 +111,10 @@ impl CollationGenerationSubsystem {
 	}
 
 	// handle an incoming message. return true if we should break afterwards.
-	// note: this doesn't strictly need to be a separate function; it's more an administrative function
-	// so that we don't clutter the run loop. It could in principle be inlined directly into there.
-	// it should hopefully therefore be ok that it's an async function mutably borrowing self.
+	// note: this doesn't strictly need to be a separate function; it's more an administrative
+	// function so that we don't clutter the run loop. It could in principle be inlined directly
+	// into there. it should hopefully therefore be ok that it's an async function mutably borrowing
+	// self.
 	async fn handle_incoming<Context>(
 		&mut self,
 		incoming: SubsystemResult<FromOrchestra<<Context as SubsystemContext>::Message>>,
@@ -177,7 +191,7 @@ async fn handle_new_activations<Context>(
 	sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 ) -> crate::error::Result<()> {
 	// follow the procedure from the guide:
-	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
+	// https://paritytech.github.io/polkadot/book/node/collators/collation-generation.html
 
 	let _overall_timer = metrics.time_new_activations();
 
@@ -308,8 +322,9 @@ async fn handle_new_activations<Context>(
 						// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
 						// that honest collators never produce a PoV which is uncompressed.
 						//
-						// As such, honest collators never produce an uncompressed PoV which starts with
-						// a compression magic number, which would lead validators to reject the collation.
+						// As such, honest collators never produce an uncompressed PoV which starts
+						// with a compression magic number, which would lead validators to reject
+						// the collation.
 						if encoded_size > validation_data.max_pov_size as usize {
 							gum::debug!(
 								target: LOG_TARGET,

@@ -21,7 +21,14 @@ transform_regex = [
 # single char `=` `>` `%` ..
 	"^=|>|<|%$",
 # 22_100
-	"^(?:[0-9]+_)+[0-9]+$"
+	"^(?:[0-9]+_)+[0-9]+$",
+# V5, v5, P1.2, etc
+	"[A-Za-z][0-9]",
+# ~50
+	"~[0-9]+",
+	"ABI",
+	"bool",
+	"sigil",
 ]
 allow_concatenation = true
 allow_dashes = true

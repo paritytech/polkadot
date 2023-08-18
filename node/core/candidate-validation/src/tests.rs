@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,9 +22,40 @@ use polkadot_node_core_pvf::PrepareError;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::reexports::SubsystemContext;
-use polkadot_primitives::v2::{HeadData, Id as ParaId, UpwardMessage};
+use polkadot_primitives::{HeadData, Id as ParaId, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
+
+fn test_with_executor_params<T: futures::Future<Output = R>, R, M>(
+	mut ctx_handle: test_helpers::TestSubsystemContextHandle<M>,
+	test: impl FnOnce() -> T,
+) -> R {
+	let test_fut = test();
+
+	let overseer = async move {
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(_, tx))
+			) => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+			}
+		);
+	};
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(overseer);
+	let v = executor::block_on(future::join(test_fut, overseer));
+	v.0
+}
 
 #[test]
 fn correctly_checks_included_assumption() {
@@ -345,12 +376,19 @@ fn check_does_not_match() {
 }
 
 struct MockValidateCandidateBackend {
-	result: Result<WasmValidationResult, ValidationError>,
+	result_list: Vec<Result<WasmValidationResult, ValidationError>>,
+	num_times_called: usize,
 }
 
 impl MockValidateCandidateBackend {
 	fn with_hardcoded_result(result: Result<WasmValidationResult, ValidationError>) -> Self {
-		Self { result }
+		Self { result_list: vec![result], num_times_called: 0 }
+	}
+
+	fn with_hardcoded_result_list(
+		result_list: Vec<Result<WasmValidationResult, ValidationError>>,
+	) -> Self {
+		Self { result_list, num_times_called: 0 }
 	}
 }
 
@@ -358,14 +396,19 @@ impl MockValidateCandidateBackend {
 impl ValidationBackend for MockValidateCandidateBackend {
 	async fn validate_candidate(
 		&mut self,
-		_raw_validation_code: Vec<u8>,
+		_pvf: PvfPrepData,
 		_timeout: Duration,
-		_params: ValidationParams,
+		_encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError> {
-		self.result.clone()
+		// This is expected to panic if called more times than expected, indicating an error in the
+		// test.
+		let result = self.result_list[self.num_times_called].clone();
+		self.num_times_called += 1;
+
+		result
 	}
 
-	async fn precheck_pvf(&mut self, _pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, _pvf: PvfPrepData) -> Result<PrepareStats, PrepareError> {
 		unreachable!()
 	}
 }
@@ -400,8 +443,8 @@ fn candidate_validation_ok_is_ok() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: Some(vec![2, 2, 2].into()),
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 0,
 	};
@@ -417,15 +460,23 @@ fn candidate_validation_ok_is_ok() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
 
-	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
-		validation_data.clone(),
-		validation_code,
-		candidate_receipt,
-		Arc::new(pov),
-		Duration::from_secs(0),
-		&Default::default(),
-	))
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
+			validation_data.clone(),
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	})
 	.unwrap();
 
 	assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
@@ -466,20 +517,272 @@ fn candidate_validation_bad_return_is_invalid() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
-	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidateCandidateBackend::with_hardcoded_result(Err(
-			ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath),
-		)),
-		validation_data,
-		validation_code,
-		candidate_receipt,
-		Arc::new(pov),
-		Duration::from_secs(0),
-		&Default::default(),
-	))
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result(Err(
+				ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
+			)),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	});
+
+	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
+}
+
+// Test that we vote valid if we get `AmbiguousWorkerDeath`, retry, and then succeed.
+#[test]
+fn candidate_validation_one_ambiguous_error_is_valid() {
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+	let pov = PoV { block_data: BlockData(vec![1; 32]) };
+	let head_data = HeadData(vec![1, 1, 1]);
+	let validation_code = ValidationCode(vec![2; 16]);
+
+	let descriptor = make_valid_candidate_descriptor(
+		ParaId::from(1_u32),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		head_data.hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice,
+	);
+
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
+	assert!(check.is_ok());
+
+	let validation_result = WasmValidationResult {
+		head_data,
+		new_validation_code: Some(vec![2, 2, 2].into()),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
+		processed_downward_messages: 0,
+		hrmp_watermark: 0,
+	};
+
+	let commitments = CandidateCommitments {
+		head_data: validation_result.head_data.clone(),
+		upward_messages: validation_result.upward_messages.clone(),
+		horizontal_messages: validation_result.horizontal_messages.clone(),
+		new_validation_code: validation_result.new_validation_code.clone(),
+		processed_downward_messages: validation_result.processed_downward_messages,
+		hrmp_watermark: validation_result.hrmp_watermark,
+	};
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result_list(vec![
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
+				Ok(validation_result),
+			]),
+			validation_data.clone(),
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	})
+	.unwrap();
+
+	assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
+		assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
+		assert_eq!(outputs.upward_messages, Vec::<UpwardMessage>::new());
+		assert_eq!(outputs.horizontal_messages, Vec::new());
+		assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
+		assert_eq!(outputs.hrmp_watermark, 0);
+		assert_eq!(used_validation_data, validation_data);
+	});
+}
+
+#[test]
+fn candidate_validation_multiple_ambiguous_errors_is_invalid() {
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+	let pov = PoV { block_data: BlockData(vec![1; 32]) };
+	let validation_code = ValidationCode(vec![2; 16]);
+
+	let descriptor = make_valid_candidate_descriptor(
+		ParaId::from(1_u32),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice,
+	);
+
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
+	assert!(check.is_ok());
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result_list(vec![
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
+			]),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	})
 	.unwrap();
 
 	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::ExecutionError(_)));
+}
+
+// Test that we retry on internal errors.
+#[test]
+fn candidate_validation_retry_internal_errors() {
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+	let pov = PoV { block_data: BlockData(vec![1; 32]) };
+	let validation_code = ValidationCode(vec![2; 16]);
+
+	let descriptor = make_valid_candidate_descriptor(
+		ParaId::from(1_u32),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice,
+	);
+
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
+	assert!(check.is_ok());
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result_list(vec![
+				Err(InternalValidationError::HostCommunication("foo".into()).into()),
+				// Throw an AWD error, we should still retry again.
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
+				// Throw another internal error.
+				Err(InternalValidationError::HostCommunication("bar".into()).into()),
+			]),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	});
+
+	assert_matches!(v, Err(ValidationFailed(s)) if s.contains("bar"));
+}
+
+// Test that we retry on panic errors.
+#[test]
+fn candidate_validation_retry_panic_errors() {
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+	let pov = PoV { block_data: BlockData(vec![1; 32]) };
+	let validation_code = ValidationCode(vec![2; 16]);
+
+	let descriptor = make_valid_candidate_descriptor(
+		ParaId::from(1_u32),
+		dummy_hash(),
+		validation_data.hash(),
+		pov.hash(),
+		validation_code.hash(),
+		dummy_hash(),
+		dummy_hash(),
+		Sr25519Keyring::Alice,
+	);
+
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
+	assert!(check.is_ok());
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result_list(vec![
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Panic("foo".into()))),
+				// Throw an AWD error, we should still retry again.
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
+				// Throw another panic error.
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Panic("bar".into()))),
+			]),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	});
+
+	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(s))) if s == "bar".to_string());
 }
 
 #[test]
@@ -510,17 +813,25 @@ fn candidate_validation_timeout_is_internal_error() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
-	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidateCandidateBackend::with_hardcoded_result(Err(
-			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
-		)),
-		validation_data,
-		validation_code,
-		candidate_receipt,
-		Arc::new(pov),
-		Duration::from_secs(0),
-		&Default::default(),
-	));
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result(Err(
+				ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
+			)),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	});
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
 }
@@ -550,21 +861,29 @@ fn candidate_validation_commitment_hash_mismatch_is_invalid() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: None,
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 12345,
 	};
 
-	let result = executor::block_on(validate_candidate_exhaustive(
-		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
-		validation_data,
-		validation_code,
-		candidate_receipt,
-		Arc::new(pov),
-		Duration::from_secs(0),
-		&Default::default(),
-	))
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let result = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	})
 	.unwrap();
 
 	// Ensure `post validation` check on the commitments hash works as expected.
@@ -599,7 +918,12 @@ fn candidate_validation_code_mismatch_is_invalid() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Err(
 			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
 		)),
@@ -607,7 +931,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Duration::from_secs(0),
+		PvfExecTimeoutKind::Backing,
 		&Default::default(),
 	))
 	.unwrap();
@@ -640,8 +964,8 @@ fn compressed_code_works() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: None,
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 0,
 	};
@@ -657,21 +981,29 @@ fn compressed_code_works() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
 
-	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
-		validation_data,
-		validation_code,
-		candidate_receipt,
-		Arc::new(pov),
-		Duration::from_secs(0),
-		&Default::default(),
-	));
+	let pool = TaskExecutor::new();
+	let (mut ctx, ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
+
+	let v = test_with_executor_params(ctx_handle, || {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			PvfExecTimeoutKind::Backing,
+			&metrics,
+		)
+	});
 
 	assert_matches!(v, Ok(ValidationResult::Valid(_, _)));
 }
 
 #[test]
-fn code_decompression_failure_is_invalid() {
+fn code_decompression_failure_is_error() {
 	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let head_data = HeadData(vec![1, 1, 1]);
@@ -696,25 +1028,30 @@ fn code_decompression_failure_is_invalid() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: None,
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 0,
 	};
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Duration::from_secs(0),
+		PvfExecTimeoutKind::Backing,
 		&Default::default(),
 	));
 
-	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)));
+	assert_matches!(v, Err(_));
 }
 
 #[test]
@@ -744,21 +1081,26 @@ fn pov_decompression_failure_is_invalid() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: None,
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 0,
 	};
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Duration::from_secs(0),
+		PvfExecTimeoutKind::Backing,
 		&Default::default(),
 	));
 
@@ -766,11 +1108,11 @@ fn pov_decompression_failure_is_invalid() {
 }
 
 struct MockPreCheckBackend {
-	result: Result<(), PrepareError>,
+	result: Result<PrepareStats, PrepareError>,
 }
 
 impl MockPreCheckBackend {
-	fn with_hardcoded_result(result: Result<(), PrepareError>) -> Self {
+	fn with_hardcoded_result(result: Result<PrepareStats, PrepareError>) -> Self {
 		Self { result }
 	}
 }
@@ -779,14 +1121,14 @@ impl MockPreCheckBackend {
 impl ValidationBackend for MockPreCheckBackend {
 	async fn validate_candidate(
 		&mut self,
-		_raw_validation_code: Vec<u8>,
+		_pvf: PvfPrepData,
 		_timeout: Duration,
-		_params: ValidationParams,
+		_encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError> {
 		unreachable!()
 	}
 
-	async fn precheck_pvf(&mut self, _pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, _pvf: PvfPrepData) -> Result<PrepareStats, PrepareError> {
 		self.result.clone()
 	}
 }
@@ -803,7 +1145,7 @@ fn precheck_works() {
 
 	let (check_fut, check_result) = precheck_pvf(
 		ctx.sender(),
-		MockPreCheckBackend::with_hardcoded_result(Ok(())),
+		MockPreCheckBackend::with_hardcoded_result(Ok(PrepareStats::default())),
 		relay_parent,
 		validation_code_hash,
 	)
@@ -823,6 +1165,22 @@ fn precheck_works() {
 				assert_eq!(rp, relay_parent);
 
 				let _ = tx.send(Ok(Some(validation_code.clone())));
+			}
+		);
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(_, tx))
+			) => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
 			}
 		);
 		assert_matches!(check_result.await, PreCheckOutcome::Valid);
@@ -849,7 +1207,7 @@ fn precheck_invalid_pvf_blob_compression() {
 
 	let (check_fut, check_result) = precheck_pvf(
 		ctx.sender(),
-		MockPreCheckBackend::with_hardcoded_result(Ok(())),
+		MockPreCheckBackend::with_hardcoded_result(Ok(PrepareStats::default())),
 		relay_parent,
 		validation_code_hash,
 	)
@@ -869,6 +1227,22 @@ fn precheck_invalid_pvf_blob_compression() {
 				assert_eq!(rp, relay_parent);
 
 				let _ = tx.send(Ok(Some(validation_code.clone())));
+			}
+		);
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(_, tx))
+			) => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
 			}
 		);
 		assert_matches!(check_result.await, PreCheckOutcome::Invalid);
@@ -913,6 +1287,22 @@ fn precheck_properly_classifies_outcomes() {
 					let _ = tx.send(Ok(Some(validation_code.clone())));
 				}
 			);
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+				) => {
+					tx.send(Ok(1u32.into())).unwrap();
+				}
+			);
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(_, tx))
+				) => {
+					tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+				}
+			);
 			assert_eq!(check_result.await, precheck_outcome);
 		};
 
@@ -925,5 +1315,5 @@ fn precheck_properly_classifies_outcomes() {
 	inner(Err(PrepareError::Panic("baz".to_owned())), PreCheckOutcome::Invalid);
 
 	inner(Err(PrepareError::TimedOut), PreCheckOutcome::Failed);
-	inner(Err(PrepareError::DidNotMakeIt), PreCheckOutcome::Failed);
+	inner(Err(PrepareError::IoErr("fizz".to_owned())), PreCheckOutcome::Failed);
 }

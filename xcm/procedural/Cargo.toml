@@ -1,14 +1,15 @@
 [package]
-authors = ["Parity Technologies <admin@parity.io>"]
 name = "xcm-procedural"
-version = "0.9.28"
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+version.workspace = true
 
 [lib]
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1.0.43"
-quote = "1.0.20"
-syn = "1.0.95"
+proc-macro2 = "1.0.56"
+quote = "1.0.28"
+syn = "2.0.15"
 Inflector = "0.11.4"

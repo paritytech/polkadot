@@ -2,34 +2,63 @@
 name = "polkadot"
 path = "src/main.rs"
 
+[[bin]]
+name = "polkadot-execute-worker"
+path = "src/bin/execute-worker.rs"
+
+[[bin]]
+name = "polkadot-prepare-worker"
+path = "src/bin/prepare-worker.rs"
+
 [package]
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
-license = "GPL-3.0-only"
-version = "0.9.28"
+rust-version = "1.64.0" # workspace properties
+readme = "README.md"
+default-run = "polkadot"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[workspace.package]
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-rust-version = "1.57.0" # custom profiles
-readme = "README.md"
+license = "GPL-3.0-only"
+repository = "https://github.com/paritytech/polkadot.git"
+version = "0.9.43"
 
 [dependencies]
-polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
 color-eyre = { version = "0.6.1", default-features = false }
-parity-util-mem = { version = "0.11.0", default-features = false, features = ["jemalloc-global"] }
+tikv-jemallocator = "0.5.0"
+
+# Crates in our workspace, defined as dependencies so we can pass them feature flags.
+polkadot-cli = { path = "cli", features = [ "polkadot-native", "kusama-native", "westend-native", "rococo-native" ]  }
+polkadot-node-core-pvf = { path = "node/core/pvf" }
+polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
+polkadot-overseer = { path = "node/overseer" }
+
+# Needed for worker binaries.
+polkadot-node-core-pvf-common = { path = "node/core/pvf/common", features = ["test-utils"] }
+polkadot-node-core-pvf-execute-worker = { path = "node/core/pvf/execute-worker" }
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
-nix = "0.24.1"
+nix = { version = "0.26.1", features = ["signal"] }
 tempfile = "3.2.0"
-tokio = "1.19.2"
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tokio = "1.24.2"
+substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
+
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [workspace]
 members = [
 	"cli",
 	"core-primitives",
 	"erasure-coding",
+	"erasure-coding/fuzzer",
 	"primitives",
 	"primitives/test-helpers",
 	"runtime/common",
@@ -57,7 +86,6 @@ members = [
 	"xcm/pallet-xcm",
 	"xcm/pallet-xcm-benchmarks",
 	"xcm/procedural",
-	"node/client",
 	"node/collation-generation",
 	"node/core/approval-voting",
 	"node/core/av-store",
@@ -70,6 +98,9 @@ members = [
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
+	"node/core/pvf/common",
+	"node/core/pvf/execute-worker",
+	"node/core/pvf/prepare-worker",
 	"node/core/pvf-checker",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
@@ -83,8 +114,6 @@ members = [
 	"node/network/gossip-support",
 	"node/network/dispute-distribution",
 	"node/overseer",
-	"node/orchestra",
-	"node/orchestra/proc-macro",
 	"node/malus",
 	"node/primitives",
 	"node/service",
@@ -96,7 +125,6 @@ members = [
 	"node/gum",
 	"node/gum/proc-macro",
 	"node/metrics",
-	"node/metered-channel",
 	"node/test/client",
 	"node/test/performance-test",
 	"node/test/service",
@@ -128,9 +156,8 @@ maintenance = { status = "actively-developed" }
 #
 # This list is ordered alphabetically.
 [profile.dev.package]
-blake2b_simd = { opt-level = 3 }
 blake2 = { opt-level = 3 }
-blake2-rfc = { opt-level = 3 }
+blake2b_simd = { opt-level = 3 }
 chacha20poly1305 = { opt-level = 3 }
 cranelift-codegen = { opt-level = 3 }
 cranelift-wasm = { opt-level = 3 }
@@ -139,10 +166,9 @@ crossbeam-deque = { opt-level = 3 }
 crypto-mac = { opt-level = 3 }
 curve25519-dalek = { opt-level = 3 }
 ed25519-dalek = { opt-level = 3 }
-flate2 = { opt-level = 3 }
 futures-channel = { opt-level = 3 }
-hashbrown = { opt-level = 3 }
 hash-db = { opt-level = 3 }
+hashbrown = { opt-level = 3 }
 hmac = { opt-level = 3 }
 httparse = { opt-level = 3 }
 integer-sqrt = { opt-level = 3 }
@@ -154,8 +180,8 @@ libz-sys = { opt-level = 3 }
 mio = { opt-level = 3 }
 nalgebra = { opt-level = 3 }
 num-bigint = { opt-level = 3 }
-parking_lot_core = { opt-level = 3 }
 parking_lot = { opt-level = 3 }
+parking_lot_core = { opt-level = 3 }
 percent-encoding = { opt-level = 3 }
 primitive-types = { opt-level = 3 }
 reed-solomon-novelpoly = { opt-level = 3 }
@@ -165,9 +191,9 @@ sha2 = { opt-level = 3 }
 sha3 = { opt-level = 3 }
 smallvec = { opt-level = 3 }
 snow = { opt-level = 3 }
+substrate-bip39 = {opt-level = 3}
 twox-hash = { opt-level = 3 }
 uint = { opt-level = 3 }
-wasmi = { opt-level = 3 }
 x25519-dalek = { opt-level = 3 }
 yamux = { opt-level = 3 }
 zeroize = { opt-level = 3 }
@@ -199,37 +225,29 @@ try-runtime = [ "polkadot-cli/try-runtime" ]
 fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
-staging-client = ["polkadot-cli/staging-client"]
+jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
+# Enables timeout-based tests supposed to be run only in CI environment as they may be flaky
+# when run locally depending on system load
+ci-only-tests = ["polkadot-node-core-pvf/ci-only-tests"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
 name = "polkadot"
 extended-description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 section = "misc"
-maintainer = "martin@parity.io"
+maintainer = "security@parity.io"
 license-file = ["LICENSE", "0"]
 # https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html
 maintainer-scripts = "scripts/packaging/deb-maintainer-scripts"
 assets = [
 	["target/release/polkadot", "/usr/bin/", "755"],
+	["target/release/polkadot-prepare-worker", "/usr/lib/polkadot/", "755"],
+	["target/release/polkadot-execute-worker", "/usr/lib/polkadot/", "755"],
 	["scripts/packaging/polkadot.service", "/lib/systemd/system/", "644"]
 ]
 conf-files = [
 	"/etc/default/polkadot"
 ]
-
-# Configuration for building an .rpm package - for use with `cargo-rpm`
-[package.metadata.rpm]
-package = "polkadot"
-
-[package.metadata.rpm.cargo]
-buildflags = ["--release"]
-
-[package.metadata.rpm.targets]
-polkadot = { path = "/usr/bin/polkadot" }
-
-[package.metadata.rpm.files]
-"../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
 
 [package.metadata.spellcheck]
 config = "./scripts/ci/gitlab/spellcheck.toml"

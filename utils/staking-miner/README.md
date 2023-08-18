@@ -16,7 +16,7 @@ staking-miner --help
 
 You can build from the root of the Polkadot repository using:
 ```
-cargo build --release --locked --package staking-miner
+cargo build --profile production --locked --package staking-miner --bin staking-miner
 ```
 
 ## Docker
@@ -28,8 +28,9 @@ There are 2 options to build a staking-miner Docker image:
 ### Building the injected image
 
 First build the binary as documented [above](#building).
-You may then inject the binary into a Docker base image from the root of the Polkadot repository:
+You may then inject the binary into a Docker base image: `parity/base-bin` (running the command from the root of the Polkadot repository):
 ```
+TODO: UPDATE THAT
 docker build -t staking-miner -f scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile target/release
 ```
 
@@ -39,6 +40,7 @@ Unlike the injected image that requires a Linux pre-built binary, this option do
 The trade-off however is that it takes a little longer to build and this option is less ideal for CI tasks.
 You may build the multi-stage image the root of the Polkadot repository with:
 ```
+TODO: UPDATE THAT
 docker build -t staking-miner -f scripts/ci/dockerfiles/staking-miner/staking-miner_builder.Dockerfile .
 ```
 
@@ -51,7 +53,7 @@ While it won't prevent a malicious actor to read your `SEED` if they gain access
 # The following line starts with an extra space on purpose:
  SEED=0x1234...
 
-docker run --rm -it \
+docker run --rm -i \
     --name staking-miner \
     --read-only \
     -e RUST_LOG=info \
@@ -62,7 +64,7 @@ docker run --rm -it \
 
 ### Test locally
 
-1. Modify `EPOCH_DURATION_IN_SLOTS` and `SessionsPerEra` to force an election
-   more often than once per day.
-2. $ polkadot --chain polkadot-dev --tmp --alice --execution Native -lruntime=debug --offchain-worker=Always --ws-port 9999
-3. $ staking-miner --uri ws://localhost:9999 --seed //Alice monitor phrag-mms
+Make sure you've built Polkadot, then:
+
+1. `cargo run -p polkadot --features fast-runtime -- --chain polkadot-dev --tmp --alice -lruntime=debug`
+2. `cargo run -p staking-miner -- --uri ws://localhost:9944 monitor --seed-or-path //Alice phrag-mms`

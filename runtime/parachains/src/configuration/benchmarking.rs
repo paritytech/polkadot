@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,6 +17,7 @@
 use crate::configuration::*;
 use frame_benchmarking::{benchmarks, BenchmarkError, BenchmarkResult};
 use frame_system::RawOrigin;
+use primitives::{ExecutorParam, ExecutorParams, PvfExecTimeoutKind, PvfPrepTimeoutKind};
 use sp_runtime::traits::One;
 
 benchmarks! {
@@ -26,8 +27,6 @@ benchmarks! {
 
 	set_config_with_option_u32 {}: set_max_validators(RawOrigin::Root, Some(10))
 
-	set_config_with_weight {}: set_ump_service_total_weight(RawOrigin::Root, Weight::from_ref_time(3_000_000))
-
 	set_hrmp_open_request_ttl {}: {
 		Err(BenchmarkError::Override(
 			BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
@@ -35,6 +34,20 @@ benchmarks! {
 	}
 
 	set_config_with_balance {}: set_hrmp_sender_deposit(RawOrigin::Root, 100_000_000_000)
+
+	set_config_with_executor_params {}: set_executor_params(RawOrigin::Root, ExecutorParams::from(&[
+		ExecutorParam::MaxMemoryPages(2080),
+		ExecutorParam::StackLogicalMax(65536),
+		ExecutorParam::StackNativeMax(256 * 1024 * 1024),
+		ExecutorParam::WasmExtBulkMemory,
+		ExecutorParam::PrecheckingMaxMemory(2 * 1024 * 1024 * 1024),
+		ExecutorParam::PvfPrepTimeout(PvfPrepTimeoutKind::Precheck, 60_000),
+		ExecutorParam::PvfPrepTimeout(PvfPrepTimeoutKind::Lenient, 360_000),
+		ExecutorParam::PvfExecTimeout(PvfExecTimeoutKind::Backing, 2_000),
+		ExecutorParam::PvfExecTimeout(PvfExecTimeoutKind::Approval, 12_000),
+	][..]))
+
+	set_config_with_perbill {}: set_on_demand_fee_variability(RawOrigin::Root, Perbill::from_percent(100))
 
 	impl_benchmark_test_suite!(
 		Pallet,

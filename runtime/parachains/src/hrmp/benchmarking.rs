@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 use crate::{
 	configuration::Pallet as Configuration,
 	hrmp::{Pallet as Hrmp, *},
-	paras::{Pallet as Paras, ParachainsCache},
+	paras::{Pallet as Paras, ParaKind, ParachainsCache},
 	shared::Pallet as Shared,
 };
 use frame_support::{assert_ok, traits::Currency};
@@ -31,7 +31,7 @@ fn register_parachain_with_balance<T: Config>(id: ParaId, balance: BalanceOf<T>)
 		&mut parachains,
 		id,
 		&crate::paras::ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
 			validation_code: vec![1].into(),
 		},
@@ -39,9 +39,9 @@ fn register_parachain_with_balance<T: Config>(id: ParaId, balance: BalanceOf<T>)
 	T::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
 }
 
-fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 	let events = frame_system::Pallet::<T>::events();
-	let system_event: <T as frame_system::Config>::Event = generic_event.into();
+	let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);
@@ -66,9 +66,10 @@ fn establish_para_connection<T: Config>(
 	until: ParachainSetupStep,
 ) -> [(ParaId, crate::Origin); 2]
 where
-	<T as frame_system::Config>::Origin: From<crate::Origin>,
+	<T as frame_system::Config>::RuntimeOrigin: From<crate::Origin>,
 {
 	let config = Configuration::<T>::config();
+	let ed = T::Currency::minimum_balance();
 	let deposit: BalanceOf<T> = config.hrmp_sender_deposit.unique_saturated_into();
 	let capacity = config.hrmp_channel_max_capacity;
 	let message_size = config.hrmp_channel_max_message_size;
@@ -83,10 +84,10 @@ where
 
 	// Make both a parachain if they are already not.
 	if !Paras::<T>::is_parachain(sender) {
-		register_parachain_with_balance::<T>(sender, deposit);
+		register_parachain_with_balance::<T>(sender, deposit + ed);
 	}
 	if !Paras::<T>::is_parachain(recipient) {
-		register_parachain_with_balance::<T>(recipient, deposit);
+		register_parachain_with_balance::<T>(recipient, deposit + ed);
 	}
 
 	assert_ok!(Hrmp::<T>::hrmp_init_open_channel(
@@ -138,7 +139,7 @@ static_assertions::const_assert!(HRMP_MAX_INBOUND_CHANNELS_BOUND < PREFIX_0);
 static_assertions::const_assert!(HRMP_MAX_OUTBOUND_CHANNELS_BOUND < PREFIX_0);
 
 frame_benchmarking::benchmarks! {
-	where_clause { where <T as frame_system::Config>::Origin: From<crate::Origin> }
+	where_clause { where <T as frame_system::Config>::RuntimeOrigin: From<crate::Origin> }
 
 	hrmp_init_open_channel {
 		let sender_id: ParaId = 1u32.into();
@@ -147,9 +148,10 @@ frame_benchmarking::benchmarks! {
 		let recipient_id: ParaId = 2u32.into();
 
 		// make sure para is registered, and has enough balance.
+		let ed = T::Currency::minimum_balance();
 		let deposit: BalanceOf<T> = Configuration::<T>::config().hrmp_sender_deposit.unique_saturated_into();
-		register_parachain_with_balance::<T>(sender_id, deposit);
-		register_parachain_with_balance::<T>(recipient_id, deposit);
+		register_parachain_with_balance::<T>(sender_id, deposit + ed);
+		register_parachain_with_balance::<T>(recipient_id, deposit + ed);
 
 		let capacity = Configuration::<T>::config().hrmp_channel_max_capacity;
 		let message_size = Configuration::<T>::config().hrmp_channel_max_message_size;
@@ -295,6 +297,59 @@ frame_benchmarking::benchmarks! {
 		Hrmp::<T>::clean_open_channel_requests(&config, &outgoing);
 	} verify {
 		assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, 0);
+	}
+
+	force_open_hrmp_channel {
+		let sender_id: ParaId = 1u32.into();
+		let sender_origin: crate::Origin = 1u32.into();
+		let recipient_id: ParaId = 2u32.into();
+
+		// make sure para is registered, and has enough balance.
+		let ed = T::Currency::minimum_balance();
+		let sender_deposit: BalanceOf<T> =
+			Configuration::<T>::config().hrmp_sender_deposit.unique_saturated_into();
+		let recipient_deposit: BalanceOf<T> =
+			Configuration::<T>::config().hrmp_recipient_deposit.unique_saturated_into();
+		register_parachain_with_balance::<T>(sender_id, sender_deposit + ed);
+		register_parachain_with_balance::<T>(recipient_id, recipient_deposit + ed);
+
+		let capacity = Configuration::<T>::config().hrmp_channel_max_capacity;
+		let message_size = Configuration::<T>::config().hrmp_channel_max_message_size;
+
+		// Weight parameter only accepts `u32`, `0` and `1` used to represent `false` and `true`,
+		// respectively.
+		let c = [0, 1];
+		let channel_id = HrmpChannelId { sender: sender_id, recipient: recipient_id };
+		for channels_to_close in c {
+			if channels_to_close == 1 {
+				// this will consume more weight if a channel _request_ already exists, because it
+				// will need to clear the request.
+				assert_ok!(Hrmp::<T>::hrmp_init_open_channel(
+					sender_origin.clone().into(),
+					recipient_id,
+					capacity,
+					message_size
+				));
+				assert!(HrmpOpenChannelRequests::<T>::get(&channel_id).is_some());
+			} else {
+				if HrmpOpenChannelRequests::<T>::get(&channel_id).is_some() {
+					assert_ok!(Hrmp::<T>::hrmp_cancel_open_request(
+						sender_origin.clone().into(),
+						channel_id.clone(),
+						MAX_UNIQUE_CHANNELS,
+					));
+				}
+				assert!(HrmpOpenChannelRequests::<T>::get(&channel_id).is_none());
+			}
+		}
+
+		// but the _channel_ should not exist
+		assert!(HrmpChannels::<T>::get(&channel_id).is_none());
+	}: _(frame_system::Origin::<T>::Root, sender_id, recipient_id, capacity, message_size)
+	verify {
+		assert_last_event::<T>(
+			Event::<T>::HrmpChannelForceOpened(sender_id, recipient_id, capacity, message_size).into()
+		);
 	}
 }
 

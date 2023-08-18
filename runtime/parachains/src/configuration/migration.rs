@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,10 +16,6 @@
 
 //! A module that is responsible for migration of storage.
 
-use frame_support::traits::StorageVersion;
-
-/// The current storage version.
-///
-/// v0-v1: <https://github.com/paritytech/polkadot/pull/3575>
-/// v1-v2: <https://github.com/paritytech/polkadot/pull/4420>
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+pub mod v6;
+pub mod v7;
+pub mod v8;

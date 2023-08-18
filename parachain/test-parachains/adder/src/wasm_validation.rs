@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -37,8 +37,10 @@ pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
 	parachain::write_result(&ValidationResult {
 		head_data: GenericHeadData(new_head.encode()),
 		new_validation_code: None,
-		upward_messages: sp_std::vec::Vec::new(),
-		horizontal_messages: sp_std::vec::Vec::new(),
+		upward_messages: sp_std::vec::Vec::new().try_into().expect("empty vec fits into bounds"),
+		horizontal_messages: sp_std::vec::Vec::new()
+			.try_into()
+			.expect("empty vec fits into bounds"),
 		processed_downward_messages: 0,
 		hrmp_watermark: params.relay_parent_number,
 	})

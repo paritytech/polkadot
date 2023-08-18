@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -120,7 +120,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		} else {
 			Default::default()
 		};
-		let mut ext = crate::create_election_ext::<Runtime, Block>(rpc.clone(), config.at, pallets).await?;
+		let mut ext = crate::create_election_ext::<Runtime>(rpc.clone(), config.at, pallets).await?;
 		if config.force_snapshot {
 			force_create_snapshot::<Runtime>(&mut ext)?;
 		};

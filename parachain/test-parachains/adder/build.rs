@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,5 +17,9 @@
 use substrate_wasm_builder::WasmBuilder;
 
 fn main() {
-	WasmBuilder::new().with_current_project().export_heap_base().build()
+	WasmBuilder::new()
+		.with_current_project()
+		.export_heap_base()
+		.disable_runtime_version_section_check()
+		.build()
 }

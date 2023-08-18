@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -24,14 +24,14 @@
 
 use std::{fmt, sync::Arc};
 
-pub use polkadot_primitives::v2::{BlockNumber, Hash};
+pub use polkadot_primitives::{BlockNumber, Hash};
 use smallvec::SmallVec;
 
 pub mod errors;
 pub mod messages;
 
 mod runtime_client;
-pub use runtime_client::RuntimeApiSubsystemClient;
+pub use runtime_client::{DefaultSubsystemClient, RuntimeApiSubsystemClient};
 
 pub use jaeger::*;
 pub use polkadot_node_jaeger as jaeger;
@@ -82,8 +82,8 @@ pub struct ActivatedLeaf {
 	pub status: LeafStatus,
 	/// An associated [`jaeger::Span`].
 	///
-	/// NOTE: Each span should only be kept active as long as the leaf is considered active and should be dropped
-	/// when the leaf is deactivated.
+	/// NOTE: Each span should only be kept active as long as the leaf is considered active and
+	/// should be dropped when the leaf is deactivated.
 	pub span: Arc<jaeger::Span>,
 }
 

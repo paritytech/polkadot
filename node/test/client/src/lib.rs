@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,16 +20,14 @@
 
 mod block_builder;
 
-use polkadot_primitives::v2::Block;
-use sc_service::client;
-use sp_core::storage::Storage;
+use polkadot_primitives::Block;
 use sp_runtime::BuildStorage;
+use std::sync::Arc;
 
 pub use block_builder::*;
 pub use polkadot_test_runtime as runtime;
 pub use polkadot_test_service::{
 	construct_extrinsic, construct_transfer_extrinsic, Client, FullBackend,
-	PolkadotTestExecutorDispatch,
 };
 pub use substrate_test_client::*;
 
@@ -37,7 +35,7 @@ pub use substrate_test_client::*;
 pub type Executor = client::LocalCallExecutor<
 	Block,
 	FullBackend,
-	sc_executor::NativeElseWasmExecutor<PolkadotTestExecutorDispatch>,
+	WasmExecutor<(sp_io::SubstrateHostFunctions, frame_benchmarking::benchmarking::HostFunctions)>,
 >;
 
 /// Test client builder for Polkadot.
@@ -72,7 +70,16 @@ pub trait TestClientBuilderExt: Sized {
 
 impl TestClientBuilderExt for TestClientBuilder {
 	fn build_with_longest_chain(self) -> (Client, LongestChain) {
-		self.build_with_native_executor(None)
+		let executor = WasmExecutor::builder().build();
+		let executor = client::LocalCallExecutor::new(
+			self.backend().clone(),
+			executor.clone(),
+			Default::default(),
+			ExecutionExtensions::new(Default::default(), Arc::new(executor)),
+		)
+		.unwrap();
+
+		self.build_with_executor(executor)
 	}
 }
 

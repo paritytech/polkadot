@@ -17,8 +17,8 @@ jobs:
     steps:
       - id: get-rust-versions
         run: |
-          echo "::set-output name=stable::$(rustc +stable --version)"
-          echo "::set-output name=nightly::$(rustc +nightly --version)"
+          echo "stable=$(rustc +stable --version)" >> $GITHUB_OUTPUT
+          echo "nightly=$(rustc +nightly --version)" >> $GITHUB_OUTPUT
 
   build-runtimes:
     runs-on: ubuntu-latest
@@ -40,9 +40,8 @@ jobs:
 
       - name: Build ${{ matrix.runtime }} runtime
         id: srtool_build
-        uses: chevdor/srtool-actions@v0.5.0
+        uses: chevdor/srtool-actions@v0.7.0
         with:
-          # This is the default with chevdor/srtool-actions@v0.3.0+ but we make it clear
           image: paritytech/srtool
           chain: ${{ matrix.runtime }}
 
@@ -167,7 +166,7 @@ jobs:
           ls "$RUNTIME_DIR/${{ matrix.runtime }}"
           runtime_ver=$(ruby script.rb)
           echo "Found version: >$runtime_ver<"
-          echo "::set-output name=runtime_ver::$runtime_ver"
+          echo "runtime_ver=$runtime_ver" >> $GITHUB_OUTPUT
 
       - name: Upload compressed ${{ matrix.runtime }} wasm
         uses: actions/upload-release-asset@v1
@@ -182,11 +181,19 @@ jobs:
   post_to_matrix:
     runs-on: ubuntu-latest
     needs: publish-draft-release
+    strategy:
+      matrix:
+        channel:
+          - name: "RelEng: Polkadot Release Coordination"
+            room: '!cqAmzdIcbOFwrdrubV:parity.io'
+
     steps:
-      - name: Internal polkadot channel
-        uses: s3krit/matrix-message-action@v0.0.3
+      - name: Send Matrix message to ${{ matrix.channel.name }}
+        uses: s3krit/matrix-message-action@70ad3fb812ee0e45ff8999d6af11cafad11a6ecf # v0.0.3
         with:
-          room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
-          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
-          message: "**New version of polkadot tagged**: ${{ github.ref }}<br/>Draft release created: ${{ needs.publish-draft-release.outputs.release_url }}"
-          server: "matrix.parity.io"
+          room_id: ${{ matrix.channel.room }}
+          access_token: ${{ secrets.RELEASENOTES_MATRIX_V2_ACCESS_TOKEN }}
+          server: m.parity.io
+          message: |
+            **New version of polkadot tagged**: ${{ github.ref }}<br/>
+            Draft release created: ${{ needs.publish-draft-release.outputs.release_url }}

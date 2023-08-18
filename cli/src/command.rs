@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,21 +14,25 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::{Cli, Subcommand};
+use crate::cli::{Cli, Subcommand, NODE_VERSION};
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
-use polkadot_client::benchmarking::{
-	benchmark_inherent_data, ExistentialDepositProvider, RemarkBuilder, TransferKeepAliveBuilder,
+use sc_cli::SubstrateCli;
+use service::{
+	self,
+	benchmarking::{benchmark_inherent_data, RemarkBuilder, TransferKeepAliveBuilder},
+	HeaderBackend, IdentifyVariant,
 };
-use sc_cli::{RuntimeVersion, SubstrateCli};
-use service::{self, HeaderBackend, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
 use sp_keyring::Sr25519Keyring;
 use std::net::ToSocketAddrs;
 
 pub use crate::{error::Error, service::BlockId};
+#[cfg(feature = "hostperfcheck")]
 pub use polkadot_performance_test::PerfCheckError;
+#[cfg(feature = "pyroscope")]
+use pyroscope_pprofrs::{pprof_backend, PprofConfig};
 
 impl From<String> for Error {
 	fn from(s: String) -> Self {
@@ -51,7 +55,7 @@ impl SubstrateCli for Cli {
 	}
 
 	fn impl_version() -> String {
-		env!("SUBSTRATE_CLI_IMPL_VERSION").into()
+		NODE_VERSION.into()
 	}
 
 	fn description() -> String {
@@ -101,8 +105,6 @@ impl SubstrateCli for Cli {
 			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
 			#[cfg(feature = "polkadot-native")]
 			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
-			#[cfg(feature = "polkadot-native")]
-			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()?),
 			"rococo" => Box::new(service::chain_spec::rococo_config()?),
 			#[cfg(feature = "rococo-native")]
 			"rococo-dev" => Box::new(service::chain_spec::rococo_development_config()?),
@@ -146,8 +148,8 @@ impl SubstrateCli for Cli {
 				let chain_spec = Box::new(service::PolkadotChainSpec::from_json_file(path.clone())?)
 					as Box<dyn service::ChainSpec>;
 
-				// When `force_*` is given or the file name starts with the name of one of the known chains,
-				// we use the chain spec for the specific chain.
+				// When `force_*` is given or the file name starts with the name of one of the known
+				// chains, we use the chain spec for the specific chain.
 				if self.run.force_rococo ||
 					chain_spec.is_rococo() ||
 					chain_spec.is_wococo() ||
@@ -163,38 +165,6 @@ impl SubstrateCli for Cli {
 				}
 			},
 		})
-	}
-
-	fn native_runtime_version(spec: &Box<dyn service::ChainSpec>) -> &'static RuntimeVersion {
-		#[cfg(feature = "kusama-native")]
-		if spec.is_kusama() {
-			return &service::kusama_runtime::VERSION
-		}
-
-		#[cfg(feature = "westend-native")]
-		if spec.is_westend() {
-			return &service::westend_runtime::VERSION
-		}
-
-		#[cfg(feature = "rococo-native")]
-		if spec.is_rococo() || spec.is_wococo() || spec.is_versi() {
-			return &service::rococo_runtime::VERSION
-		}
-
-		#[cfg(not(all(
-			feature = "rococo-native",
-			feature = "westend-native",
-			feature = "kusama-native"
-		)))]
-		let _ = spec;
-
-		#[cfg(feature = "polkadot-native")]
-		{
-			return &service::polkadot_runtime::VERSION
-		}
-
-		#[cfg(not(feature = "polkadot-native"))]
-		panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 	}
 }
 
@@ -222,45 +192,23 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 	}
 }
 
-/// Unwraps a [`polkadot_client::Client`] into the concrete runtime client.
-macro_rules! unwrap_client {
-	(
-		$client:ident,
-		$code:expr
-	) => {
-		match $client.as_ref() {
-			#[cfg(feature = "polkadot-native")]
-			polkadot_client::Client::Polkadot($client) => $code,
-			#[cfg(feature = "westend-native")]
-			polkadot_client::Client::Westend($client) => $code,
-			#[cfg(feature = "kusama-native")]
-			polkadot_client::Client::Kusama($client) => $code,
-			#[cfg(feature = "rococo-native")]
-			polkadot_client::Client::Rococo($client) => $code,
-			#[allow(unreachable_patterns)]
-			_ => Err(Error::CommandNotImplemented),
-		}
-	};
-}
-
 /// Runs performance checks.
 /// Should only be used in release build since the check would take too much time otherwise.
 fn host_perf_check() -> Result<()> {
-	#[cfg(not(build_type = "release"))]
+	#[cfg(not(feature = "hostperfcheck"))]
+	{
+		return Err(Error::FeatureNotEnabled { feature: "hostperfcheck" }.into())
+	}
+
+	#[cfg(all(not(build_type = "release"), feature = "hostperfcheck"))]
 	{
 		return Err(PerfCheckError::WrongBuildType.into())
 	}
-	#[cfg(build_type = "release")]
+
+	#[cfg(all(feature = "hostperfcheck", build_type = "release"))]
 	{
-		#[cfg(not(feature = "hostperfcheck"))]
-		{
-			return Err(PerfCheckError::FeatureNotEnabled { feature: "hostperfcheck" }.into())
-		}
-		#[cfg(feature = "hostperfcheck")]
-		{
-			crate::host_perf_check::host_perf_check()?;
-			return Ok(())
-		}
+		crate::host_perf_check::host_perf_check()?;
+		return Ok(())
 	}
 }
 
@@ -292,12 +240,9 @@ where
 		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
-	// Disallow BEEFY on production networks.
-	if cli.run.beefy &&
-		(chain_spec.is_polkadot() || chain_spec.is_kusama() || chain_spec.is_westend())
-	{
-		return Err(Error::Other("BEEFY disallowed on production networks".to_string()))
-	}
+	// By default, enable BEEFY on test networks.
+	let enable_beefy = (chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi()) &&
+		!cli.run.no_beefy;
 
 	set_default_ss58_version(chain_spec);
 
@@ -327,31 +272,46 @@ where
 		None
 	};
 
+	let node_version =
+		if cli.run.disable_worker_version_check { None } else { Some(NODE_VERSION.to_string()) };
+
 	runner.run_node_until_exit(move |config| async move {
-		let hwbench = if !cli.run.no_hardware_benchmarks {
-			config.database.path().map(|database_path| {
+		let hwbench = (!cli.run.no_hardware_benchmarks)
+			.then_some(config.database.path().map(|database_path| {
 				let _ = std::fs::create_dir_all(&database_path);
 				sc_sysinfo::gather_hwbench(Some(database_path))
-			})
-		} else {
-			None
-		};
+			}))
+			.flatten();
 
-		service::build_full(
+		let database_source = config.database.clone();
+		let task_manager = service::build_full(
 			config,
-			service::IsCollator::No,
-			grandpa_pause,
-			cli.run.beefy,
-			jaeger_agent,
-			None,
-			false,
-			overseer_gen,
-			cli.run.overseer_channel_capacity_override,
-			maybe_malus_finality_delay,
-			hwbench,
+			service::NewFullParams {
+				is_parachain_node: service::IsParachainNode::No,
+				grandpa_pause,
+				enable_beefy,
+				jaeger_agent,
+				telemetry_worker_handle: None,
+				node_version,
+				workers_path: cli.run.workers_path,
+				workers_names: None,
+				overseer_gen,
+				overseer_message_channel_capacity_override: cli
+					.run
+					.overseer_channel_capacity_override,
+				malus_finality_delay: maybe_malus_finality_delay,
+				hwbench,
+			},
 		)
-		.map(|full| full.task_manager)
-		.map_err(Into::into)
+		.map(|full| full.task_manager)?;
+
+		sc_storage_monitor::StorageMonitorService::try_spawn(
+			cli.storage_monitor,
+			database_source,
+			&task_manager.spawn_essential_handle(),
+		)?;
+
+		Ok(task_manager)
 	})
 }
 
@@ -367,14 +327,13 @@ pub fn run() -> Result<()> {
 			.next()
 			.ok_or_else(|| Error::AddressResolutionMissing)?;
 		// The pyroscope agent requires a `http://` prefix, so we just do that.
-		let mut agent = pyro::PyroscopeAgent::builder(
+		let agent = pyro::PyroscopeAgent::builder(
 			"http://".to_owned() + address.to_string().as_str(),
 			"polkadot".to_owned(),
 		)
-		.sample_rate(113)
+		.backend(pprof_backend(PprofConfig::new().sample_rate(113)))
 		.build()?;
-		agent.start();
-		Some(agent)
+		Some(agent.start()?)
 	} else {
 		None
 	};
@@ -469,80 +428,49 @@ pub fn run() -> Result<()> {
 				))
 			})?)
 		},
-		Some(Subcommand::PvfPrepareWorker(cmd)) => {
-			let mut builder = sc_cli::LoggerBuilder::new("");
-			builder.with_colors(false);
-			let _ = builder.init();
-
-			#[cfg(target_os = "android")]
-			{
-				return Err(sc_cli::Error::Input(
-					"PVF preparation workers are not supported under this platform".into(),
-				)
-				.into())
-			}
-
-			#[cfg(not(target_os = "android"))]
-			{
-				polkadot_node_core_pvf::prepare_worker_entrypoint(&cmd.socket_path);
-				Ok(())
-			}
-		},
-		Some(Subcommand::PvfExecuteWorker(cmd)) => {
-			let mut builder = sc_cli::LoggerBuilder::new("");
-			builder.with_colors(false);
-			let _ = builder.init();
-
-			#[cfg(target_os = "android")]
-			{
-				return Err(sc_cli::Error::Input(
-					"PVF execution workers are not supported under this platform".into(),
-				)
-				.into())
-			}
-
-			#[cfg(not(target_os = "android"))]
-			{
-				polkadot_node_core_pvf::execute_worker_entrypoint(&cmd.socket_path);
-				Ok(())
-			}
-		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 
 			match cmd {
+				#[cfg(not(feature = "runtime-benchmarks"))]
+				BenchmarkCmd::Storage(_) =>
+					return Err(sc_cli::Error::Input(
+						"Compile with --features=runtime-benchmarks \
+						to enable storage benchmarks."
+							.into(),
+					)
+					.into()),
+				#[cfg(feature = "runtime-benchmarks")]
 				BenchmarkCmd::Storage(cmd) => runner.sync_run(|mut config| {
 					let (client, backend, _, _) = service::new_chain_ops(&mut config, None)?;
 					let db = backend.expose_db();
 					let storage = backend.expose_storage();
 
-					unwrap_client!(
-						client,
-						cmd.run(config, client.clone(), db, storage).map_err(Error::SubstrateCli)
-					)
+					cmd.run(config, client.clone(), db, storage).map_err(Error::SubstrateCli)
 				}),
 				BenchmarkCmd::Block(cmd) => runner.sync_run(|mut config| {
 					let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
 
-					unwrap_client!(client, cmd.run(client.clone()).map_err(Error::SubstrateCli))
+					cmd.run(client.clone()).map_err(Error::SubstrateCli)
 				}),
 				// These commands are very similar and can be handled in nearly the same way.
 				BenchmarkCmd::Extrinsic(_) | BenchmarkCmd::Overhead(_) => {
 					ensure_dev(chain_spec).map_err(Error::Other)?;
 					runner.sync_run(|mut config| {
 						let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
-						let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
+						let header = client.header(client.info().genesis_hash).unwrap().unwrap();
 						let inherent_data = benchmark_inherent_data(header)
 							.map_err(|e| format!("generating inherent data: {:?}", e))?;
-						let remark_builder = RemarkBuilder::new(client.clone());
+						let remark_builder =
+							RemarkBuilder::new(client.clone(), config.chain_spec.identify_chain());
 
 						match cmd {
 							BenchmarkCmd::Extrinsic(cmd) => {
 								let tka_builder = TransferKeepAliveBuilder::new(
 									client.clone(),
 									Sr25519Keyring::Alice.to_account_id(),
-									client.existential_deposit(),
+									config.chain_spec.identify_chain(),
 								);
 
 								let ext_factory = ExtrinsicFactory(vec![
@@ -550,17 +478,18 @@ pub fn run() -> Result<()> {
 									Box::new(tka_builder),
 								]);
 
-								unwrap_client!(
-									client,
-									cmd.run(client.clone(), inherent_data, &ext_factory)
-										.map_err(Error::SubstrateCli)
-								)
-							},
-							BenchmarkCmd::Overhead(cmd) => unwrap_client!(
-								client,
-								cmd.run(config, client.clone(), inherent_data, &remark_builder)
+								cmd.run(client.clone(), inherent_data, Vec::new(), &ext_factory)
 									.map_err(Error::SubstrateCli)
-							),
+							},
+							BenchmarkCmd::Overhead(cmd) => cmd
+								.run(
+									config,
+									client.clone(),
+									inherent_data,
+									Vec::new(),
+									&remark_builder,
+								)
+								.map_err(Error::SubstrateCli),
 							_ => unreachable!("Ensured by the outside match; qed"),
 						}
 					})
@@ -569,34 +498,19 @@ pub fn run() -> Result<()> {
 					set_default_ss58_version(chain_spec);
 					ensure_dev(chain_spec).map_err(Error::Other)?;
 
-					#[cfg(feature = "kusama-native")]
-					if chain_spec.is_kusama() {
-						return Ok(runner.sync_run(|config| {
-							cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(config)
+					if cfg!(feature = "runtime-benchmarks") {
+						runner.sync_run(|config| {
+							cmd.run::<service::Block, ()>(config)
 								.map_err(|e| Error::SubstrateCli(e))
-						})?)
+						})
+					} else {
+						Err(sc_cli::Error::Input(
+							"Benchmarking wasn't enabled when building the node. \
+				You can enable it with `--features runtime-benchmarks`."
+								.into(),
+						)
+						.into())
 					}
-
-					#[cfg(feature = "westend-native")]
-					if chain_spec.is_westend() {
-						return Ok(runner.sync_run(|config| {
-							cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(config)
-								.map_err(|e| Error::SubstrateCli(e))
-						})?)
-					}
-
-					// else we assume it is polkadot.
-					#[cfg(feature = "polkadot-native")]
-					{
-						return Ok(runner.sync_run(|config| {
-							cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(config)
-								.map_err(|e| Error::SubstrateCli(e))
-						})?)
-					}
-
-					#[cfg(not(feature = "polkadot-native"))]
-					#[allow(unreachable_code)]
-					Err(service::Error::NoRuntime.into())
 				},
 				BenchmarkCmd::Machine(cmd) => runner.sync_run(|config| {
 					cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())
@@ -617,66 +531,12 @@ pub fn run() -> Result<()> {
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
-		Some(Subcommand::TryRuntime(cmd)) => {
-			let runner = cli.create_runner(cmd)?;
-			let chain_spec = &runner.config().chain_spec;
-			set_default_ss58_version(chain_spec);
-
-			use sc_service::TaskManager;
-			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
-			let task_manager = TaskManager::new(runner.config().tokio_handle.clone(), *registry)
-				.map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
-
-			ensure_dev(chain_spec).map_err(Error::Other)?;
-
-			#[cfg(feature = "kusama-native")]
-			if chain_spec.is_kusama() {
-				return runner.async_run(|config| {
-					Ok((
-						cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(
-							config,
-						)
-						.map_err(Error::SubstrateCli),
-						task_manager,
-					))
-				})
-			}
-
-			#[cfg(feature = "westend-native")]
-			if chain_spec.is_westend() {
-				return runner.async_run(|config| {
-					Ok((
-						cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(
-							config,
-						)
-						.map_err(Error::SubstrateCli),
-						task_manager,
-					))
-				})
-			}
-			// else we assume it is polkadot.
-			#[cfg(feature = "polkadot-native")]
-			{
-				return runner.async_run(|config| {
-					Ok((
-						cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
-							config,
-						)
-						.map_err(Error::SubstrateCli),
-						task_manager,
-					))
-				})
-			}
-			#[cfg(not(feature = "polkadot-native"))]
-			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
-		},
+		Some(Subcommand::TryRuntime) => Err(try_runtime_cli::DEPRECATION_NOTICE.to_owned().into()),
 		#[cfg(not(feature = "try-runtime"))]
-		Some(Subcommand::TryRuntime) => Err(Error::Other(
-			"TryRuntime wasn't enabled when building the node. \
+		Some(Subcommand::TryRuntime) => Err("TryRuntime wasn't enabled when building the node. \
 				You can enable it with `--features try-runtime`."
-				.into(),
-		)
-		.into()),
+			.to_owned()
+			.into()),
 		Some(Subcommand::ChainInfo(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run::<service::Block>(&config))?)
@@ -684,8 +544,9 @@ pub fn run() -> Result<()> {
 	}?;
 
 	#[cfg(feature = "pyroscope")]
-	if let Some(mut pyroscope_agent) = pyroscope_agent_maybe.take() {
-		pyroscope_agent.stop();
+	if let Some(pyroscope_agent) = pyroscope_agent_maybe.take() {
+		let agent = pyroscope_agent.stop()?;
+		agent.shutdown();
 	}
 	Ok(())
 }

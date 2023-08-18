@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,13 +14,46 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! To prevent Out of Memory errors on the `DownwardMessageQueue`, an
+//! exponential fee factor (`DeliveryFeeFactor`) is set. The fee factor
+//! increments exponentially after the number of messages in the
+//! `DownwardMessageQueue` pass a threshold. This threshold is set as:
+//!
+//! ```ignore
+//! // Maximum max sized messages that can be send to
+//! // the DownwardMessageQueue before it runs out of memory
+//! max_messsages = MAX_POSSIBLE_ALLOCATION / max_downward_message_size
+//! threshold = max_messages / THRESHOLD_FACTOR
+//! ```
+//! Based on the THRESHOLD_FACTOR, the threshold is set as a fraction of the
+//! total messages. The `DeliveryFeeFactor` increases for a message over the
+//! threshold by:
+//!
+//! `DeliveryFeeFactor = DeliveryFeeFactor *
+//! (EXPONENTIAL_FEE_BASE + MESSAGE_SIZE_FEE_BASE * encoded_message_size_in_KB)`
+//!
+//! And decreases when the number of messages in the `DownwardMessageQueue` fall
+//! below the threshold by:
+//!
+//! `DeliveryFeeFactor = DeliveryFeeFactor / EXPONENTIAL_FEE_BASE`
+//!
+//! As an extra defensive measure, a `max_messages` hard
+//! limit is set to the number of messages in the DownwardMessageQueue. Messages
+//! that would increase the number of messages in the queue above this hard
+//! limit are dropped.
+
 use crate::{
 	configuration::{self, HostConfiguration},
-	initializer,
+	initializer, FeeTracker,
 };
 use frame_support::pallet_prelude::*;
-use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
-use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
+use frame_system::pallet_prelude::BlockNumberFor;
+use primitives::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
+use sp_core::MAX_POSSIBLE_ALLOCATION;
+use sp_runtime::{
+	traits::{BlakeTwo256, Hash as HashT, SaturatedConversion},
+	FixedU128, Saturating,
+};
 use sp_std::{fmt, prelude::*};
 use xcm::latest::SendError;
 
@@ -28,6 +61,10 @@ pub use pallet::*;
 
 #[cfg(test)]
 mod tests;
+
+const THRESHOLD_FACTOR: u32 = 2;
+const EXPONENTIAL_FEE_BASE: FixedU128 = FixedU128::from_rational(105, 100); // 1.05
+const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1, 1000); // 0.001
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
@@ -57,8 +94,9 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
 		use ProcessedDownwardMessagesAcceptanceErr::*;
 		match *self {
-			AdvancementRule =>
-				write!(fmt, "DMQ is not empty, but processed_downward_messages is 0",),
+			AdvancementRule => {
+				write!(fmt, "DMQ is not empty, but processed_downward_messages is 0",)
+			},
 			Underflow { processed_downward_messages, dmq_length } => write!(
 				fmt,
 				"processed_downward_messages = {}, but dmq_length is only {}",
@@ -73,7 +111,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -86,7 +123,7 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		ParaId,
-		Vec<InboundDownwardMessage<T::BlockNumber>>,
+		Vec<InboundDownwardMessage<BlockNumberFor<T>>>,
 		ValueQuery,
 	>;
 
@@ -101,14 +138,21 @@ pub mod pallet {
 	pub(crate) type DownwardMessageQueueHeads<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, Hash, ValueQuery>;
 
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
-}
+	/// Initialization value for the DeliveryFee factor.
+	#[pallet::type_value]
+	pub fn InitialFactor() -> FixedU128 {
+		FixedU128::from_u32(1)
+	}
 
+	/// The number to multiply the base delivery fee by.
+	#[pallet::storage]
+	pub(crate) type DeliveryFeeFactor<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, FixedU128, ValueQuery, InitialFactor>;
+}
 /// Routines and getters related to downward message passing.
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	pub(crate) fn initializer_initialize(_now: BlockNumberFor<T>) -> Weight {
 		Weight::zero()
 	}
 
@@ -117,7 +161,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		_notification: &initializer::SessionChangeNotification<BlockNumberFor<T>>,
 		outgoing_paras: &[ParaId],
 	) {
 		Self::perform_outgoing_para_cleanup(outgoing_paras);
@@ -133,8 +177,29 @@ impl<T: Config> Pallet<T> {
 
 	/// Remove all relevant storage items for an outgoing parachain.
 	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
-		<Self as Store>::DownwardMessageQueues::remove(outgoing_para);
-		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
+		DownwardMessageQueues::<T>::remove(outgoing_para);
+		DownwardMessageQueueHeads::<T>::remove(outgoing_para);
+	}
+
+	/// Determine whether enqueuing a downward message to a specific recipient para would result
+	/// in an error. If this returns `Ok(())` the caller can be certain that a call to
+	/// `queue_downward_message` with the same parameters will be successful.
+	pub fn can_queue_downward_message(
+		config: &HostConfiguration<BlockNumberFor<T>>,
+		para: &ParaId,
+		msg: &DownwardMessage,
+	) -> Result<(), QueueDownwardMessageError> {
+		let serialized_len = msg.len() as u32;
+		if serialized_len > config.max_downward_message_size {
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
+		// Hard limit on Queue size
+		if Self::dmq_length(*para) > Self::dmq_max_length(config.max_downward_message_size) {
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
+		Ok(())
 	}
 
 	/// Enqueue a downward message to a specific recipient para.
@@ -146,7 +211,7 @@ impl<T: Config> Pallet<T> {
 	/// to a dangling storage. If the caller cannot statically prove that the recipient exists
 	/// then the caller should perform a runtime check.
 	pub fn queue_downward_message(
-		config: &HostConfiguration<T::BlockNumber>,
+		config: &HostConfiguration<BlockNumberFor<T>>,
 		para: ParaId,
 		msg: DownwardMessage,
 	) -> Result<(), QueueDownwardMessageError> {
@@ -155,19 +220,34 @@ impl<T: Config> Pallet<T> {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
+		// Hard limit on Queue size
+		if Self::dmq_length(para) > Self::dmq_max_length(config.max_downward_message_size) {
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
 		let inbound =
 			InboundDownwardMessage { msg, sent_at: <frame_system::Pallet<T>>::block_number() };
 
 		// obtain the new link in the MQC and update the head.
-		<Self as Store>::DownwardMessageQueueHeads::mutate(para, |head| {
+		DownwardMessageQueueHeads::<T>::mutate(para, |head| {
 			let new_head =
 				BlakeTwo256::hash_of(&(*head, inbound.sent_at, T::Hashing::hash_of(&inbound.msg)));
 			*head = new_head;
 		});
 
-		<Self as Store>::DownwardMessageQueues::mutate(para, |v| {
+		let q_len = DownwardMessageQueues::<T>::mutate(para, |v| {
 			v.push(inbound);
+			v.len()
 		});
+
+		let threshold =
+			Self::dmq_max_length(config.max_downward_message_size).saturating_div(THRESHOLD_FACTOR);
+		if q_len > (threshold as usize) {
+			let message_size_factor =
+				FixedU128::from_u32(serialized_len.saturating_div(1024) as u32)
+					.saturating_mul(MESSAGE_SIZE_FEE_BASE);
+			Self::increment_fee_factor(para, message_size_factor);
+		}
 
 		Ok(())
 	}
@@ -194,7 +274,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Prunes the specified number of messages from the downward message queue of the given para.
 	pub(crate) fn prune_dmq(para: ParaId, processed_downward_messages: u32) -> Weight {
-		<Self as Store>::DownwardMessageQueues::mutate(para, |q| {
+		let q_len = DownwardMessageQueues::<T>::mutate(para, |q| {
 			let processed_downward_messages = processed_downward_messages as usize;
 			if processed_downward_messages > q.len() {
 				// reaching this branch is unexpected due to the constraint established by
@@ -203,7 +283,15 @@ impl<T: Config> Pallet<T> {
 			} else {
 				*q = q.split_off(processed_downward_messages);
 			}
+			q.len()
 		});
+
+		let config = configuration::ActiveConfig::<T>::get();
+		let threshold =
+			Self::dmq_max_length(config.max_downward_message_size).saturating_div(THRESHOLD_FACTOR);
+		if q_len <= (threshold as usize) {
+			Self::decrement_fee_factor(para);
+		}
 		T::DbWeight::get().reads_writes(1, 1)
 	}
 
@@ -211,22 +299,56 @@ impl<T: Config> Pallet<T> {
 	/// associated with it.
 	#[cfg(test)]
 	fn dmq_mqc_head(para: ParaId) -> Hash {
-		<Self as Store>::DownwardMessageQueueHeads::get(&para)
+		DownwardMessageQueueHeads::<T>::get(&para)
 	}
 
 	/// Returns the number of pending downward messages addressed to the given para.
 	///
 	/// Returns 0 if the para doesn't have an associated downward message queue.
 	pub(crate) fn dmq_length(para: ParaId) -> u32 {
-		<Self as Store>::DownwardMessageQueues::decode_len(&para)
+		DownwardMessageQueues::<T>::decode_len(&para)
 			.unwrap_or(0)
 			.saturated_into::<u32>()
+	}
+
+	fn dmq_max_length(max_downward_message_size: u32) -> u32 {
+		MAX_POSSIBLE_ALLOCATION.checked_div(max_downward_message_size).unwrap_or(0)
 	}
 
 	/// Returns the downward message queue contents for the given para.
 	///
 	/// The most recent messages are the latest in the vector.
-	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-		<Self as Store>::DownwardMessageQueues::get(&recipient)
+	pub(crate) fn dmq_contents(
+		recipient: ParaId,
+	) -> Vec<InboundDownwardMessage<BlockNumberFor<T>>> {
+		DownwardMessageQueues::<T>::get(&recipient)
+	}
+
+	/// Raise the delivery fee factor by a multiplicative factor and stores the resulting value.
+	///
+	/// Returns the new delivery fee factor after the increment.
+	pub(crate) fn increment_fee_factor(para: ParaId, message_size_factor: FixedU128) -> FixedU128 {
+		<DeliveryFeeFactor<T>>::mutate(para, |f| {
+			*f = f.saturating_mul(EXPONENTIAL_FEE_BASE + message_size_factor);
+			*f
+		})
+	}
+
+	/// Reduce the delivery fee factor by a multiplicative factor and stores the resulting value.
+	///
+	/// Does not reduce the fee factor below the initial value, which is currently set as 1.
+	///
+	/// Returns the new delivery fee factor after the decrement.
+	pub(crate) fn decrement_fee_factor(para: ParaId) -> FixedU128 {
+		<DeliveryFeeFactor<T>>::mutate(para, |f| {
+			*f = InitialFactor::get().max(*f / EXPONENTIAL_FEE_BASE);
+			*f
+		})
+	}
+}
+
+impl<T: Config> FeeTracker for Pallet<T> {
+	fn get_fee_factor(para: ParaId) -> FixedU128 {
+		DeliveryFeeFactor::<T>::get(para)
 	}
 }

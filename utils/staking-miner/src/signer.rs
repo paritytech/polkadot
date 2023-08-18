@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 //! Wrappers around creating a signer account.
 
-use crate::{prelude::*, rpc::SharedRpcClient, AccountId, Error, Index, Pair, LOG_TARGET};
+use crate::{prelude::*, rpc::SharedRpcClient, AccountId, Error, Nonce, Pair, LOG_TARGET};
 use frame_system::AccountInfo;
 use sp_core::{crypto::Pair as _, storage::StorageKey};
 
@@ -39,8 +39,8 @@ pub(crate) async fn get_account_info<T: frame_system::Config<Hash = Hash> + EPM:
 	rpc: &SharedRpcClient,
 	who: &T::AccountId,
 	maybe_at: Option<T::Hash>,
-) -> Result<Option<AccountInfo<Index, T::AccountData>>, Error<T>> {
-	rpc.get_storage_and_decode::<AccountInfo<Index, T::AccountData>>(
+) -> Result<Option<AccountInfo<Nonce, T::AccountData>>, Error<T>> {
+	rpc.get_storage_and_decode::<AccountInfo<Nonce, T::AccountData>>(
 		&StorageKey(<frame_system::Account<T>>::hashed_key_for(&who)),
 		maybe_at,
 	)
@@ -52,7 +52,7 @@ pub(crate) async fn get_account_info<T: frame_system::Config<Hash = Hash> + EPM:
 pub(crate) async fn signer_uri_from_string<
 	T: frame_system::Config<
 			AccountId = AccountId,
-			Index = Index,
+			Nonce = Nonce,
 			AccountData = pallet_balances::AccountData<Balance>,
 			Hash = Hash,
 		> + EPM::Config,

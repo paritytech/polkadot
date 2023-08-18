@@ -1,0 +1,119 @@
+# This file is part of .gitlab-ci.yml
+# Here are all jobs that are executed during "test" stage
+
+# It's more like a check and it belongs to the previous stage, but we want to run this job with real tests in parallel
+find-fail-ci-phrase:
+  stage: test
+  variables:
+    CI_IMAGE: "paritytech/tools:latest"
+    ASSERT_REGEX: "FAIL-CI"
+    GIT_DEPTH: 1
+  extends:
+    - .kubernetes-env
+  script:
+    - set +e
+    - rg --line-number --hidden --type rust --glob '!{.git,target}' "$ASSERT_REGEX" .; exit_status=$?
+    - if [ $exit_status -eq 0 ]; then
+      echo "$ASSERT_REGEX was found, exiting with 1";
+      exit 1;
+      else
+      echo "No $ASSERT_REGEX was found, exiting with 0";
+      exit 0;
+      fi
+
+test-linux-stable:
+  stage: test
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job: job-starter
+      artifacts: false
+  extends:
+    - .docker-env
+    - .common-refs
+    - .pipeline-stopper-artifacts
+  before_script:
+    - !reference [.compiler-info, before_script]
+    - !reference [.pipeline-stopper-vars, before_script]
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+  script:
+    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics,try-runtime,ci-only-tests
+    # Run `polkadot-runtime-parachains` tests a second time because `paras_inherent::enter` tests are gated by not having
+    # the `runtime-benchmarks` feature enabled.
+    - time cargo test --profile testnet --verbose --locked --features=runtime-metrics,try-runtime -p polkadot-runtime-parachains
+
+test-linux-oldkernel-stable:
+  extends: test-linux-stable
+  tags:
+    - oldkernel-vm
+
+.check-dependent-project: &check-dependent-project
+  stage: test
+  extends:
+    - .docker-env
+    - .test-pr-refs
+  script:
+    - git clone
+      --depth=1
+      "--branch=$PIPELINE_SCRIPTS_TAG"
+      https://github.com/paritytech/pipeline-scripts
+    - ./pipeline-scripts/check_dependent_project.sh
+      --org paritytech
+      --dependent-repo "$DEPENDENT_REPO"
+      --github-api-token "$GITHUB_PR_TOKEN"
+      --extra-dependencies "$EXTRA_DEPENDENCIES"
+      --companion-overrides "$COMPANION_OVERRIDES"
+
+check-dependent-cumulus:
+  <<: *check-dependent-project
+  variables:
+    DEPENDENT_REPO: cumulus
+    EXTRA_DEPENDENCIES: substrate
+    COMPANION_OVERRIDES: |
+      polkadot: release-v*
+      cumulus: polkadot-v*
+
+test-node-metrics:
+  stage: test
+  extends:
+    - .docker-env
+    - .test-refs
+    - .compiler-info
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+  script:
+    # Build the required workers.
+    - cargo build --bin polkadot-execute-worker --bin polkadot-prepare-worker --profile testnet --verbose --locked
+    # Run tests.
+    - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
+
+test-deterministic-wasm:
+  stage: test
+  extends:
+    - .docker-env
+    - .test-refs
+    - .compiler-info
+  script:
+    - ./scripts/ci/gitlab/test_deterministic_wasm.sh
+
+cargo-clippy:
+  stage: test
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job: job-starter
+      artifacts: false
+  extends:
+    - .docker-env
+    - .test-refs
+  script:
+    - echo $RUSTFLAGS
+    - cargo version && cargo clippy --version
+    - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo clippy -q --locked --all-targets --workspace

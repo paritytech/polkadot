@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -54,7 +54,8 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| metrics.process_statement.start_timer())
 	}
 
-	/// Provide a timer for handling `CandidateBackingMessage::GetBackedCandidates` which observes on drop.
+	/// Provide a timer for handling `CandidateBackingMessage::GetBackedCandidates` which observes
+	/// on drop.
 	pub fn time_get_backed_candidates(
 		&self,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {

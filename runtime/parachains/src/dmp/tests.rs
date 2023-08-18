@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -15,10 +15,14 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System};
+use crate::{
+	configuration::ActiveConfig,
+	mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System, Test},
+};
+use frame_support::assert_ok;
 use hex_literal::hex;
 use parity_scale_codec::Encode;
-use primitives::v2::BlockNumber;
+use primitives::BlockNumber;
 
 pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 	while System::block_number() < to {
@@ -73,9 +77,9 @@ fn clean_dmp_works() {
 		let outgoing_paras = vec![a, b];
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
-		assert!(<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
-		assert!(<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
-		assert!(!<Dmp as Store>::DownwardMessageQueues::get(&c).is_empty());
+		assert!(DownwardMessageQueues::<Test>::get(&a).is_empty());
+		assert!(DownwardMessageQueues::<Test>::get(&b).is_empty());
+		assert!(!DownwardMessageQueues::<Test>::get(&c).is_empty());
 	});
 }
 
@@ -184,7 +188,7 @@ fn queue_downward_message_critical() {
 #[test]
 fn verify_dmq_mqc_head_is_externally_accessible() {
 	use hex_literal::hex;
-	use primitives::v2::well_known_keys;
+	use primitives::well_known_keys;
 
 	let a = ParaId::from(2020);
 
@@ -203,5 +207,71 @@ fn verify_dmq_mqc_head_is_externally_accessible() {
 					.into()
 			)
 		);
+	});
+}
+
+#[test]
+fn verify_fee_increment_and_decrement() {
+	let a = ParaId::from(123);
+	let mut genesis = default_genesis_config();
+	genesis.configuration.config.max_downward_message_size = 16777216;
+	new_test_ext(genesis).execute_with(|| {
+		let initial = InitialFactor::get();
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), initial);
+
+		// Under fee limit
+		queue_downward_message(a, vec![1]).unwrap();
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), initial);
+
+		// Limit reached so fee is increased
+		queue_downward_message(a, vec![1]).unwrap();
+		let result = InitialFactor::get().saturating_mul(EXPONENTIAL_FEE_BASE);
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), result);
+
+		Dmp::prune_dmq(a, 1);
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), initial);
+
+		// 10 Kb message adds additional 0.001 per KB fee factor
+		let big_message = [0; 10240].to_vec();
+		let msg_len_in_kb = big_message.len().saturating_div(1024) as u32;
+		let result = initial.saturating_mul(
+			EXPONENTIAL_FEE_BASE +
+				MESSAGE_SIZE_FEE_BASE.saturating_mul(FixedU128::from_u32(msg_len_in_kb)),
+		);
+		queue_downward_message(a, big_message).unwrap();
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), result);
+
+		queue_downward_message(a, vec![1]).unwrap();
+		let result = result.saturating_mul(EXPONENTIAL_FEE_BASE);
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), result);
+
+		Dmp::prune_dmq(a, 3);
+		let result = result / EXPONENTIAL_FEE_BASE;
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), result);
+		assert_eq!(Dmp::dmq_length(a), 0);
+
+		// Messages under limit will keep decreasing fee factor until base fee factor is reached
+		queue_downward_message(a, vec![1]).unwrap();
+		Dmp::prune_dmq(a, 1);
+		queue_downward_message(a, vec![1]).unwrap();
+		Dmp::prune_dmq(a, 1);
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), initial);
+	});
+}
+
+#[test]
+fn verify_fee_factor_reaches_high_value() {
+	let a = ParaId::from(123);
+	let mut genesis = default_genesis_config();
+	genesis.configuration.config.max_downward_message_size = 51200;
+	new_test_ext(genesis).execute_with(|| {
+		let max_messages =
+			Dmp::dmq_max_length(ActiveConfig::<Test>::get().max_downward_message_size);
+		let mut total_fee_factor = FixedU128::from_float(1.0);
+		for _ in 1..max_messages {
+			assert_ok!(queue_downward_message(a, vec![]));
+			total_fee_factor = total_fee_factor + (DeliveryFeeFactor::<Test>::get(a));
+		}
+		assert!(total_fee_factor > FixedU128::from_u32(100_000_000));
 	});
 }

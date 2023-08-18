@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@ use std::{
 	hash::Hash,
 };
 
-use primitives::v2::{ValidatorSignature, ValidityAttestation as PrimitiveValidityAttestation};
+use primitives::{ValidatorSignature, ValidityAttestation as PrimitiveValidityAttestation};
 
 use parity_scale_codec::{Decode, Encode};
 
@@ -96,8 +96,8 @@ pub enum ValidityDoubleVote<Candidate, Digest, Signature> {
 }
 
 impl<Candidate, Digest, Signature> ValidityDoubleVote<Candidate, Digest, Signature> {
-	/// Deconstruct this misbehavior into two `(Statement, Signature)` pairs, erasing the information
-	/// about precisely what the problem was.
+	/// Deconstruct this misbehavior into two `(Statement, Signature)` pairs, erasing the
+	/// information about precisely what the problem was.
 	pub fn deconstruct<Ctx>(
 		self,
 	) -> ((Statement<Candidate, Digest>, Signature), (Statement<Candidate, Digest>, Signature))
@@ -124,8 +124,8 @@ pub enum DoubleSign<Candidate, Digest, Signature> {
 }
 
 impl<Candidate, Digest, Signature> DoubleSign<Candidate, Digest, Signature> {
-	/// Deconstruct this misbehavior into a statement with two signatures, erasing the information about
-	/// precisely where in the process the issue was detected.
+	/// Deconstruct this misbehavior into a statement with two signatures, erasing the information
+	/// about precisely where in the process the issue was detected.
 	pub fn deconstruct(self) -> (Statement<Candidate, Digest>, Signature, Signature) {
 		match self {
 			Self::Seconded(candidate, a, b) => (Statement::Seconded(candidate), a, b),
@@ -555,10 +555,11 @@ impl<'a, Ctx: Context> Iterator for DrainMisbehaviors<'a, Ctx> {
 	type Item = (Ctx::AuthorityId, MisbehaviorFor<Ctx>);
 
 	fn next(&mut self) -> Option<Self::Item> {
-		// Note: this implementation will prematurely return `None` if `self.drain.next()` ever returns a
-		// tuple whose vector is empty. That will never currently happen, as the only modification
-		// to the backing map is currently via `drain` and `entry(...).or_default().push(...)`.
-		// However, future code changes might change that property.
+		// Note: this implementation will prematurely return `None` if `self.drain.next()` ever
+		// returns a tuple whose vector is empty. That will never currently happen, as the only
+		// modification to the backing map is currently via `drain` and
+		// `entry(...).or_default().push(...)`. However, future code changes might change that
+		// property.
 		self.maybe_item().or_else(|| {
 			self.in_progress = self.drain.next().map(Into::into);
 			self.maybe_item()
@@ -722,7 +723,7 @@ mod tests {
 
 		// authority 2 votes for validity on 1's candidate.
 		let bad_validity_vote = SignedStatement {
-			statement: Statement::Valid(candidate_a_digest.clone()),
+			statement: Statement::Valid(candidate_a_digest),
 			signature: Signature(2),
 			sender: AuthorityId(2),
 		};
@@ -793,7 +794,7 @@ mod tests {
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
 
 		let extra_vote = SignedStatement {
-			statement: Statement::Valid(candidate_digest.clone()),
+			statement: Statement::Valid(candidate_digest),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -863,7 +864,7 @@ mod tests {
 		assert!(table.attested_candidate(&candidate_digest, &context).is_none());
 
 		let vote = SignedStatement {
-			statement: Statement::Valid(candidate_digest.clone()),
+			statement: Statement::Valid(candidate_digest),
 			signature: Signature(2),
 			sender: AuthorityId(2),
 		};
@@ -922,7 +923,7 @@ mod tests {
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
 
 		let vote = SignedStatement {
-			statement: Statement::Valid(candidate_digest.clone()),
+			statement: Statement::Valid(candidate_digest),
 			signature: Signature(2),
 			sender: AuthorityId(2),
 		};

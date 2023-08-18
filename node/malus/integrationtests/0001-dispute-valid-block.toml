@@ -24,7 +24,7 @@ command = "polkadot"
   [[relaychain.nodes]]
   name = "dave"
   validator = true
-  command = "/usr/local/bin/malus dispute-ancestor"
+  command = "malus dispute-ancestor"
   extra_args = ["--dave", "-lparachain=debug"]
   image = "{{MALUS_IMAGE}}"
   autoConnectApi = false
@@ -35,5 +35,5 @@ id = 100
   [parachains.collator]
   name = "collator01"
   image = "{{COL_IMAGE}}"
-  command = "/usr/local/bin/adder-collator"
+  command = "adder-collator"
   args = ["-lparachain=debug"]

@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -21,8 +21,6 @@
 //! These core Polkadot types are used by the relay chain and the Parachains.
 
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "std")]
-use parity_util_mem::MallocSizeOf;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	generic,
@@ -66,7 +64,6 @@ pub type Hash = sp_core::H256;
 ///
 /// This type makes it easy to enforce that a hash is a candidate hash on the type level.
 #[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, Default, PartialOrd, Ord, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct CandidateHash(pub Hash);
 
 #[cfg(feature = "std")]
@@ -94,10 +91,10 @@ impl sp_std::fmt::Debug for CandidateHash {
 pub type Nonce = u32;
 
 /// The balance of an account.
-/// 128-bits (or 38 significant decimal figures) will allow for 10 m currency (`10^7`) at a resolution
-/// to all for one second's worth of an annualised 50% reward be paid to a unit holder (`10^11` unit
-/// denomination), or `10^18` total atomic units, to grow at 50%/year for 51 years (`10^9` multiplier)
-/// for an eventual total of `10^27` units (27 significant decimal figures).
+/// 128-bits (or 38 significant decimal figures) will allow for 10 m currency (`10^7`) at a
+/// resolution to all for one second's worth of an annualised 50% reward be paid to a unit holder
+/// (`10^11` unit denomination), or `10^18` total atomic units, to grow at 50%/year for 51 years
+/// (`10^9` multiplier) for an eventual total of `10^27` units (27 significant decimal figures).
 /// We round denomination to `10^12` (12 SDF), and leave the other redundancy at the upper end so
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
@@ -124,10 +121,9 @@ pub type Remark = [u8; 32];
 /// The size of the message is limited by the `config.max_downward_message_size` parameter.
 pub type DownwardMessage = sp_std::vec::Vec<u8>;
 
-/// A wrapped version of `DownwardMessage`. The difference is that it has attached the block number when
-/// the message was sent.
+/// A wrapped version of `DownwardMessage`. The difference is that it has attached the block number
+/// when the message was sent.
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
 	/// The block number at which these messages were put into the downward message queue.
 	pub sent_at: BlockNumber,
@@ -137,7 +133,6 @@ pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
 
 /// An HRMP message seen from the perspective of a recipient.
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundHrmpMessage<BlockNumber = crate::BlockNumber> {
 	/// The block number at which this message was sent.
 	/// Specifically, it is the block number at which the candidate that sends this message was
@@ -149,7 +144,6 @@ pub struct InboundHrmpMessage<BlockNumber = crate::BlockNumber> {
 
 /// An HRMP message seen from the perspective of a sender.
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, Eq, Hash, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct OutboundHrmpMessage<Id> {
 	/// The para that will get this message in its downward message queue.
 	pub recipient: Id,

@@ -1,4 +1,4 @@
-{%- set to_ignore = changes | filter(attribute="meta.B.value", value=0) %}
+{%- set to_ignore = changes | filter(attribute="meta.B.B0") %}
 
 <!--
 changes:

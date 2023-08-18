@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -13,6 +13,8 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+#![cfg(feature = "runtime-benchmarks")]
 
 use assert_cmd::cargo::cargo_bin;
 use std::{
@@ -38,7 +40,7 @@ fn benchmark_storage_works() {
 /// Invoke the `benchmark storage` sub-command.
 fn benchmark_storage(db: &str, base_path: &Path) -> ExitStatus {
 	Command::new(cargo_bin("polkadot"))
-		.args(&["benchmark", "storage", "--dev"])
+		.args(["benchmark", "storage", "--dev"])
 		.arg("--db")
 		.arg(db)
 		.arg("--weight-path")

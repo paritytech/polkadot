@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,16 +17,17 @@
 use super::*;
 use frame_support::{assert_err, assert_ok, assert_storage_noop};
 use keyring::Sr25519Keyring;
-use primitives::v2::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID};
+use primitives::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID};
 use sc_keystore::LocalKeystore;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 use std::sync::Arc;
 use test_helpers::{dummy_head_data, dummy_validation_code};
 
 use crate::{
 	configuration::HostConfiguration,
 	mock::{
-		new_test_ext, Configuration, MockGenesisConfig, Origin, Paras, ParasShared, System, Test,
+		new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, RuntimeOrigin, System,
+		Test,
 	},
 };
 
@@ -54,10 +55,26 @@ fn sign_and_include_pvf_check_statement(stmt: PvfCheckStatement) {
 	Paras::include_pvf_check_statement(None.into(), stmt, signature.into()).unwrap();
 }
 
+fn submit_super_majority_pvf_votes(
+	validation_code: &ValidationCode,
+	session_index: SessionIndex,
+	accept: bool,
+) {
+	[0, 1, 2, 3]
+		.into_iter()
+		.map(|i| PvfCheckStatement {
+			accept,
+			subject: validation_code.hash(),
+			session_index,
+			validator_index: i.into(),
+		})
+		.for_each(sign_and_include_pvf_check_statement);
+}
+
 fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in VALIDATORS.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -101,19 +118,20 @@ fn upgrade_at(
 }
 
 fn check_code_is_stored(validation_code: &ValidationCode) {
-	assert!(<Paras as Store>::CodeByHashRefs::get(validation_code.hash()) != 0);
-	assert!(<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
+	assert!(CodeByHashRefs::<Test>::get(validation_code.hash()) != 0);
+	assert!(CodeByHash::<Test>::contains_key(validation_code.hash()));
 }
 
 fn check_code_is_not_stored(validation_code: &ValidationCode) {
-	assert!(!<Paras as Store>::CodeByHashRefs::contains_key(validation_code.hash()));
-	assert!(!<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
+	assert!(!CodeByHashRefs::<Test>::contains_key(validation_code.hash()));
+	assert!(!CodeByHash::<Test>::contains_key(validation_code.hash()));
 }
 
 /// An utility for checking that certain events were deposited.
 struct EventValidator {
-	events:
-		Vec<frame_system::EventRecord<<Test as frame_system::Config>::Event, primitives::v2::Hash>>,
+	events: Vec<
+		frame_system::EventRecord<<Test as frame_system::Config>::RuntimeEvent, primitives::Hash>,
+	>,
 }
 
 impl EventValidator {
@@ -217,7 +235,7 @@ fn schedule_para_init_rejects_empty_code() {
 			Paras::schedule_para_initialize(
 				1000.into(),
 				ParaGenesisArgs {
-					parachain: false,
+					para_kind: ParaKind::Parathread,
 					genesis_head: dummy_head_data(),
 					validation_code: ValidationCode(vec![]),
 				}
@@ -228,7 +246,7 @@ fn schedule_para_init_rejects_empty_code() {
 		assert_ok!(Paras::schedule_para_initialize(
 			1000.into(),
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: dummy_head_data(),
 				validation_code: ValidationCode(vec![1]),
 			}
@@ -243,7 +261,7 @@ fn para_past_code_pruning_in_initialize() {
 		(
 			0u32.into(),
 			ParaGenesisArgs {
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -251,7 +269,7 @@ fn para_past_code_pruning_in_initialize() {
 		(
 			1u32.into(),
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -262,7 +280,6 @@ fn para_past_code_pruning_in_initialize() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -274,32 +291,26 @@ fn para_past_code_pruning_in_initialize() {
 		let validation_code = ValidationCode(vec![4, 5, 6]);
 
 		Paras::increase_code_ref(&validation_code.hash(), &validation_code);
-		<Paras as Store>::PastCodeHash::insert(&(id, at_block), &validation_code.hash());
-		<Paras as Store>::PastCodePruning::put(&vec![(id, included_block)]);
+		PastCodeHash::<Test>::insert(&(id, at_block), &validation_code.hash());
+		PastCodePruning::<Test>::put(&vec![(id, included_block)]);
 
 		{
 			let mut code_meta = Paras::past_code_meta(&id);
 			code_meta.note_replacement(at_block, included_block);
-			<Paras as Store>::PastCodeMeta::insert(&id, &code_meta);
+			PastCodeMeta::<Test>::insert(&id, &code_meta);
 		}
 
 		let pruned_at: BlockNumber = included_block + code_retention_period + 1;
-		assert_eq!(
-			<Paras as Store>::PastCodeHash::get(&(id, at_block)),
-			Some(validation_code.hash())
-		);
+		assert_eq!(PastCodeHash::<Test>::get(&(id, at_block)), Some(validation_code.hash()));
 		check_code_is_stored(&validation_code);
 
 		run_to_block(pruned_at - 1, None);
-		assert_eq!(
-			<Paras as Store>::PastCodeHash::get(&(id, at_block)),
-			Some(validation_code.hash())
-		);
+		assert_eq!(PastCodeHash::<Test>::get(&(id, at_block)), Some(validation_code.hash()));
 		assert_eq!(Paras::past_code_meta(&id).most_recent_change(), Some(at_block));
 		check_code_is_stored(&validation_code);
 
 		run_to_block(pruned_at, None);
-		assert!(<Paras as Store>::PastCodeHash::get(&(id, at_block)).is_none());
+		assert!(PastCodeHash::<Test>::get(&(id, at_block)).is_none());
 		assert!(Paras::past_code_meta(&id).most_recent_change().is_none());
 		check_code_is_not_stored(&validation_code);
 	});
@@ -311,7 +322,7 @@ fn note_new_head_sets_head() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: dummy_validation_code(),
 		},
@@ -321,7 +332,6 @@ fn note_new_head_sets_head() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -344,7 +354,7 @@ fn note_past_code_sets_up_pruning_correctly() {
 		(
 			0u32.into(),
 			ParaGenesisArgs {
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -352,7 +362,7 @@ fn note_past_code_sets_up_pruning_correctly() {
 		(
 			1u32.into(),
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -363,7 +373,6 @@ fn note_past_code_sets_up_pruning_correctly() {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration { code_retention_period, ..Default::default() },
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -375,7 +384,7 @@ fn note_past_code_sets_up_pruning_correctly() {
 		Paras::note_past_code(id_a, 10, 12, ValidationCode(vec![1, 2, 3]).hash());
 		Paras::note_past_code(id_b, 20, 23, ValidationCode(vec![4, 5, 6]).hash());
 
-		assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(id_a, 12), (id_b, 23)]);
+		assert_eq!(PastCodePruning::<Test>::get(), vec![(id_a, 12), (id_b, 23)]);
 		assert_eq!(
 			Paras::past_code_meta(&id_a),
 			ParaPastCodeMeta { upgrade_times: vec![upgrade_at(10, 12)], last_pruned: None }
@@ -397,7 +406,7 @@ fn code_upgrade_applied_after_delay() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: original_code.clone(),
 		},
@@ -410,10 +419,8 @@ fn code_upgrade_applied_after_delay() {
 				code_retention_period,
 				validation_upgrade_delay,
 				validation_upgrade_cooldown,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -424,29 +431,31 @@ fn code_upgrade_applied_after_delay() {
 		let para_id = ParaId::from(0);
 		let new_code = ValidationCode(vec![4, 5, 6]);
 
-		run_to_block(2, None);
+		// Wait for at least one session change to set active validators.
+		const EXPECTED_SESSION: SessionIndex = 1;
+		run_to_block(2, Some(vec![1]));
 		assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
-		let expected_at = {
+		let (expected_at, next_possible_upgrade_at) = {
 			// this parablock is in the context of block 1.
 			let expected_at = 1 + validation_upgrade_delay;
 			let next_possible_upgrade_at = 1 + validation_upgrade_cooldown;
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
+			// Include votes for super-majority.
+			submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
+
 			Paras::note_new_head(para_id, Default::default(), 1);
 
 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
-			assert_eq!(<Paras as Store>::UpcomingUpgrades::get(), vec![(para_id, expected_at)]);
-			assert_eq!(
-				<Paras as Store>::UpgradeCooldowns::get(),
-				vec![(para_id, next_possible_upgrade_at)]
-			);
+			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
+			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
+			assert_eq!(UpcomingUpgrades::<Test>::get(), vec![(para_id, expected_at)]);
+			assert_eq!(UpgradeCooldowns::<Test>::get(), vec![(para_id, next_possible_upgrade_at)]);
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
 
-			expected_at
+			(expected_at, next_possible_upgrade_at)
 		};
 
 		run_to_block(expected_at, None);
@@ -457,12 +466,9 @@ fn code_upgrade_applied_after_delay() {
 			Paras::note_new_head(para_id, Default::default(), expected_at - 1);
 
 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
-			assert_eq!(
-				<Paras as Store>::UpgradeGoAheadSignal::get(&para_id),
-				Some(UpgradeGoAhead::GoAhead)
-			);
+			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
+			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
+			assert_eq!(UpgradeGoAheadSignal::<Test>::get(&para_id), Some(UpgradeGoAhead::GoAhead));
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
@@ -477,15 +483,27 @@ fn code_upgrade_applied_after_delay() {
 
 			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(expected_at));
 			assert_eq!(
-				<Paras as Store>::PastCodeHash::get(&(para_id, expected_at)),
+				PastCodeHash::<Test>::get(&(para_id, expected_at)),
 				Some(original_code.hash()),
 			);
-			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-			assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
-			assert!(<Paras as Store>::UpgradeGoAheadSignal::get(&para_id).is_none());
+			assert!(FutureCodeUpgrades::<Test>::get(&para_id).is_none());
+			assert!(FutureCodeHash::<Test>::get(&para_id).is_none());
+			assert!(UpgradeGoAheadSignal::<Test>::get(&para_id).is_none());
 			assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
+			assert_eq!(
+				UpgradeRestrictionSignal::<Test>::get(&para_id),
+				Some(UpgradeRestriction::Present),
+			);
+			assert_eq!(UpgradeCooldowns::<Test>::get(), vec![(para_id, next_possible_upgrade_at)]);
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
+		}
+
+		run_to_block(next_possible_upgrade_at + 1, None);
+
+		{
+			assert!(UpgradeRestrictionSignal::<Test>::get(&para_id).is_none());
+			assert!(UpgradeCooldowns::<Test>::get().is_empty());
 		}
 	});
 }
@@ -500,7 +518,7 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: original_code.clone(),
 		},
@@ -513,10 +531,8 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 				code_retention_period,
 				validation_upgrade_delay,
 				validation_upgrade_cooldown,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -525,7 +541,9 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 		let para_id = ParaId::from(0);
 		let new_code = ValidationCode(vec![4, 5, 6]);
 
-		run_to_block(2, None);
+		// Wait for at least one session change to set active validators.
+		const EXPECTED_SESSION: SessionIndex = 1;
+		run_to_block(2, Some(vec![1]));
 		assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 		let expected_at = {
@@ -533,17 +551,17 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 			let expected_at = 1 + validation_upgrade_delay;
 			let next_possible_upgrade_at = 1 + validation_upgrade_cooldown;
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
+			// Include votes for super-majority.
+			submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
+
 			Paras::note_new_head(para_id, Default::default(), 1);
 
 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
-			assert_eq!(<Paras as Store>::UpcomingUpgrades::get(), vec![(para_id, expected_at)]);
-			assert_eq!(
-				<Paras as Store>::UpgradeCooldowns::get(),
-				vec![(para_id, next_possible_upgrade_at)]
-			);
-			assert!(<Paras as Store>::UpgradeGoAheadSignal::get(&para_id).is_none());
+			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
+			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
+			assert_eq!(UpcomingUpgrades::<Test>::get(), vec![(para_id, expected_at)]);
+			assert_eq!(UpgradeCooldowns::<Test>::get(), vec![(para_id, next_possible_upgrade_at)]);
+			assert!(UpgradeGoAheadSignal::<Test>::get(&para_id).is_none());
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 			expected_at
@@ -555,22 +573,19 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 		// the upgrade.
 		{
 			// The signal should be set to go-ahead until the new head is actually processed.
-			assert_eq!(
-				<Paras as Store>::UpgradeGoAheadSignal::get(&para_id),
-				Some(UpgradeGoAhead::GoAhead),
-			);
+			assert_eq!(UpgradeGoAheadSignal::<Test>::get(&para_id), Some(UpgradeGoAhead::GoAhead));
 
 			Paras::note_new_head(para_id, Default::default(), expected_at + 4);
 
 			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(expected_at));
 
 			assert_eq!(
-				<Paras as Store>::PastCodeHash::get(&(para_id, expected_at)),
+				PastCodeHash::<Test>::get(&(para_id, expected_at)),
 				Some(original_code.hash()),
 			);
-			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-			assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
-			assert!(<Paras as Store>::UpgradeGoAheadSignal::get(&para_id).is_none());
+			assert!(FutureCodeUpgrades::<Test>::get(&para_id).is_none());
+			assert!(FutureCodeHash::<Test>::get(&para_id).is_none());
+			assert!(UpgradeGoAheadSignal::<Test>::get(&para_id).is_none());
 			assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
 		}
 	});
@@ -585,7 +600,7 @@ fn submit_code_change_when_not_allowed_is_err() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: vec![1, 2, 3].into(),
 		},
@@ -598,10 +613,8 @@ fn submit_code_change_when_not_allowed_is_err() {
 				code_retention_period,
 				validation_upgrade_delay,
 				validation_upgrade_cooldown,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -611,13 +624,16 @@ fn submit_code_change_when_not_allowed_is_err() {
 		let new_code = ValidationCode(vec![4, 5, 6]);
 		let newer_code = ValidationCode(vec![4, 5, 6, 7]);
 
-		run_to_block(1, None);
+		// Wait for at least one session change to set active validators.
+		const EXPECTED_SESSION: SessionIndex = 1;
+		run_to_block(1, Some(vec![1]));
+
 		Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
-		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
-			Some(1 + validation_upgrade_delay)
-		);
-		assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
+		// Include votes for super-majority.
+		submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
+
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(1 + validation_upgrade_delay));
+		assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 		check_code_is_stored(&new_code);
 
 		// We expect that if an upgrade is signalled while there is already one pending we just
@@ -626,10 +642,11 @@ fn submit_code_change_when_not_allowed_is_err() {
 		assert!(!Paras::can_upgrade_validation_code(para_id));
 		Paras::schedule_code_upgrade(para_id, newer_code.clone(), 2, &Configuration::config());
 		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
-			Some(1 + validation_upgrade_delay), // did not change since the same assertion from the last time.
+			FutureCodeUpgrades::<Test>::get(&para_id),
+			Some(1 + validation_upgrade_delay), /* did not change since the same assertion from
+			                                     * the last time. */
 		);
-		assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
+		assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 		check_code_is_not_stored(&newer_code);
 	});
 }
@@ -644,7 +661,7 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 	// rather an artifact of the current implementation and not necessarily something we want
 	// to keep in the future.
 	//
-	// This test exists that this is not accidentially changed.
+	// This test exists that this is not accidentally changed.
 
 	let code_retention_period = 10;
 	let validation_upgrade_delay = 7;
@@ -653,7 +670,7 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: vec![1, 2, 3].into(),
 		},
@@ -666,10 +683,8 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 				code_retention_period,
 				validation_upgrade_delay,
 				validation_upgrade_cooldown,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -679,31 +694,31 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 		let new_code = ValidationCode(vec![4, 5, 6]);
 		let newer_code = ValidationCode(vec![4, 5, 6, 7]);
 
-		run_to_block(1, None);
+		// Wait for at least one session change to set active validators.
+		const EXPECTED_SESSION: SessionIndex = 1;
+		run_to_block(1, Some(vec![1]));
+
 		Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
+		// Include votes for super-majority.
+		submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
+
 		Paras::note_new_head(para_id, dummy_head_data(), 0);
 		assert_eq!(
-			<Paras as Store>::UpgradeRestrictionSignal::get(&para_id),
+			UpgradeRestrictionSignal::<Test>::get(&para_id),
 			Some(UpgradeRestriction::Present),
 		);
-		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
-			Some(0 + validation_upgrade_delay)
-		);
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(0 + validation_upgrade_delay));
 		assert!(!Paras::can_upgrade_validation_code(para_id));
 
 		run_to_block(31, None);
-		assert!(<Paras as Store>::UpgradeRestrictionSignal::get(&para_id).is_none());
+		assert!(UpgradeRestrictionSignal::<Test>::get(&para_id).is_none());
 
 		// Note the para still cannot upgrade the validation code.
 		assert!(!Paras::can_upgrade_validation_code(para_id));
 
 		// And scheduling another upgrade does not do anything. `expected_at` is still the same.
 		Paras::schedule_code_upgrade(para_id, newer_code.clone(), 30, &Configuration::config());
-		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
-			Some(0 + validation_upgrade_delay)
-		);
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(0 + validation_upgrade_delay));
 	});
 }
 
@@ -716,7 +731,7 @@ fn full_parachain_cleanup_storage() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: original_code.clone(),
 		},
@@ -728,15 +743,12 @@ fn full_parachain_cleanup_storage() {
 			config: HostConfiguration {
 				code_retention_period,
 				validation_upgrade_delay,
-				pvf_checking_enabled: false,
 				minimum_validation_upgrade_delay: 2,
 				// Those are not relevant to this test. However, HostConfiguration is still a
 				// subject for the consistency check.
-				chain_availability_period: 1,
-				thread_availability_period: 1,
+				paras_availability_period: 1,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -747,7 +759,10 @@ fn full_parachain_cleanup_storage() {
 		let para_id = ParaId::from(0);
 		let new_code = ValidationCode(vec![4, 5, 6]);
 
-		run_to_block(2, None);
+		// Wait for at least one session change to set active validators.
+		const EXPECTED_SESSION: SessionIndex = 1;
+		run_to_block(2, Some(vec![1]));
+
 		assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 		check_code_is_stored(&original_code);
 
@@ -755,20 +770,20 @@ fn full_parachain_cleanup_storage() {
 			// this parablock is in the context of block 1.
 			let expected_at = 1 + validation_upgrade_delay;
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
+			// Include votes for super-majority.
+			submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
+
 			Paras::note_new_head(para_id, Default::default(), 1);
 
 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
+			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
+			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
 
 			expected_at
 		};
-
-		// Cannot offboard while an upgrade is pending.
-		assert_err!(Paras::schedule_para_cleanup(para_id), Error::<Test>::CannotOffboard);
 
 		// Enact the upgrade.
 		//
@@ -790,15 +805,15 @@ fn full_parachain_cleanup_storage() {
 		// Why 7 and 8? See above, the clean up scheduled above was processed at the block 8.
 		// The initial upgrade was enacted at the block 7.
 		assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(8));
-		assert_eq!(<Paras as Store>::PastCodeHash::get(&(para_id, 8)), Some(new_code.hash()));
-		assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 7), (para_id, 8)]);
+		assert_eq!(PastCodeHash::<Test>::get(&(para_id, 8)), Some(new_code.hash()));
+		assert_eq!(PastCodePruning::<Test>::get(), vec![(para_id, 7), (para_id, 8)]);
 		check_code_is_stored(&original_code);
 		check_code_is_stored(&new_code);
 
 		// any future upgrades haven't been used to validate yet, so those
 		// are cleaned up immediately.
-		assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-		assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
+		assert!(FutureCodeUpgrades::<Test>::get(&para_id).is_none());
+		assert!(FutureCodeHash::<Test>::get(&para_id).is_none());
 		assert!(Paras::current_code(&para_id).is_none());
 
 		// run to do the final cleanup
@@ -807,11 +822,59 @@ fn full_parachain_cleanup_storage() {
 
 		// now the final cleanup: last past code cleaned up, and this triggers meta cleanup.
 		assert_eq!(Paras::past_code_meta(&para_id), Default::default());
-		assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 7)).is_none());
-		assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 8)).is_none());
-		assert!(<Paras as Store>::PastCodePruning::get().is_empty());
+		assert!(PastCodeHash::<Test>::get(&(para_id, 7)).is_none());
+		assert!(PastCodeHash::<Test>::get(&(para_id, 8)).is_none());
+		assert!(PastCodePruning::<Test>::get().is_empty());
 		check_code_is_not_stored(&original_code);
 		check_code_is_not_stored(&new_code);
+	});
+}
+
+#[test]
+fn cannot_offboard_ongoing_pvf_check() {
+	let para_id = ParaId::from(0);
+
+	let existing_code: ValidationCode = vec![1, 2, 3].into();
+	let new_code: ValidationCode = vec![3, 2, 1].into();
+
+	let paras = vec![(
+		para_id,
+		ParaGenesisArgs {
+			para_kind: ParaKind::Parachain,
+			genesis_head: Default::default(),
+			validation_code: existing_code,
+		},
+	)];
+
+	let genesis_config = MockGenesisConfig {
+		paras: GenesisConfig { paras, ..Default::default() },
+		..Default::default()
+	};
+
+	new_test_ext(genesis_config).execute_with(|| {
+		run_to_block(2, Some(vec![1]));
+
+		// Relay parent of the block that schedules the upgrade.
+		const RELAY_PARENT: BlockNumber = 1;
+		// Expected current session index.
+		const EXPECTED_SESSION: SessionIndex = 1;
+
+		Paras::schedule_code_upgrade(
+			para_id,
+			new_code.clone(),
+			RELAY_PARENT,
+			&Configuration::config(),
+		);
+		assert!(!Paras::pvfs_require_precheck().is_empty());
+
+		// Cannot offboard when there's an ongoing pvf-check voting.
+		assert_err!(Paras::schedule_para_cleanup(para_id), Error::<Test>::CannotOffboard);
+
+		// Include votes for super-majority.
+		submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
+
+		// Voting concluded, can offboard even though an upgrade is in progress.
+		assert_ok!(Paras::schedule_para_cleanup(para_id));
 	});
 }
 
@@ -821,13 +884,7 @@ fn para_incoming_at_session() {
 	let code_b = ValidationCode(vec![1]);
 	let code_c = ValidationCode(vec![3]);
 
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = MockGenesisConfig::default();
 
 	new_test_ext(genesis_config).execute_with(|| {
 		run_to_block(1, Some(vec![1]));
@@ -839,7 +896,7 @@ fn para_incoming_at_session() {
 		assert_ok!(Paras::schedule_para_initialize(
 			b,
 			ParaGenesisArgs {
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 				genesis_head: vec![1].into(),
 				validation_code: code_b.clone(),
 			},
@@ -848,7 +905,7 @@ fn para_incoming_at_session() {
 		assert_ok!(Paras::schedule_para_initialize(
 			a,
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: vec![2].into(),
 				validation_code: code_a.clone(),
 			},
@@ -857,7 +914,7 @@ fn para_incoming_at_session() {
 		assert_ok!(Paras::schedule_para_initialize(
 			c,
 			ParaGenesisArgs {
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 				genesis_head: vec![3].into(),
 				validation_code: code_c.clone(),
 			},
@@ -890,34 +947,34 @@ fn para_incoming_at_session() {
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
-		assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), vec![c, b, a],);
+		assert_eq!(ActionsQueue::<Test>::get(Paras::scheduled_session()), vec![c, b, a],);
 
 		// Lifecycle is tracked correctly
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&a), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&b), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&c), Some(ParaLifecycle::Onboarding));
 
 		// run to block without session change.
 		run_to_block(2, None);
 
 		assert_eq!(Paras::parachains(), Vec::new());
-		assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), vec![c, b, a],);
+		assert_eq!(ActionsQueue::<Test>::get(Paras::scheduled_session()), vec![c, b, a],);
 
 		// Lifecycle is tracked correctly
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&a), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&b), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&c), Some(ParaLifecycle::Onboarding));
 
 		// Two sessions pass, so action queue is triggered
 		run_to_block(4, Some(vec![3, 4]));
 
 		assert_eq!(Paras::parachains(), vec![c, b]);
-		assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), Vec::new());
+		assert_eq!(ActionsQueue::<Test>::get(Paras::scheduled_session()), Vec::new());
 
 		// Lifecycle is tracked correctly
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&b), Some(ParaLifecycle::Parachain));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&c), Some(ParaLifecycle::Parachain));
+		assert_eq!(ParaLifecycles::<Test>::get(&a), Some(ParaLifecycle::Parathread));
+		assert_eq!(ParaLifecycles::<Test>::get(&b), Some(ParaLifecycle::Parachain));
+		assert_eq!(ParaLifecycles::<Test>::get(&c), Some(ParaLifecycle::Parachain));
 
 		assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
 		assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
@@ -933,7 +990,7 @@ fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: vec![1, 2, 3].into(),
 		},
@@ -945,19 +1002,23 @@ fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 			config: HostConfiguration {
 				code_retention_period,
 				validation_upgrade_delay,
-				pvf_checking_enabled: false,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
 
 	new_test_ext(genesis_config).execute_with(|| {
+		// Wait for at least one session change to set active validators.
+		run_to_block(2, Some(vec![1]));
+		const EXPECTED_SESSION: SessionIndex = 1;
+
 		let para_id = ParaId::from(0);
 		let old_code: ValidationCode = vec![1, 2, 3].into();
 		let new_code: ValidationCode = vec![4, 5, 6].into();
 		Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
+		// Include votes for super-majority.
+		submit_super_majority_pvf_votes(&new_code, EXPECTED_SESSION, true);
 
 		// The new validation code can be applied but a new parablock hasn't gotten in yet,
 		// so the old code should still be current.
@@ -967,7 +1028,7 @@ fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 		run_to_block(10, None);
 		Paras::note_new_head(para_id, Default::default(), 7);
 
-		assert_eq!(Paras::past_code_meta(&para_id).upgrade_times, vec![upgrade_at(2, 10)]);
+		assert_eq!(Paras::past_code_meta(&para_id).upgrade_times, vec![upgrade_at(4, 10)]);
 		assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
 
 		// Make sure that the old code is available **before** the code retion period passes.
@@ -996,18 +1057,18 @@ fn code_ref_is_cleaned_correctly() {
 		Paras::increase_code_ref(&code.hash(), &code);
 		Paras::increase_code_ref(&code.hash(), &code);
 
-		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 2);
+		assert!(CodeByHash::<Test>::contains_key(code.hash()));
+		assert_eq!(CodeByHashRefs::<Test>::get(code.hash()), 2);
 
 		Paras::decrease_code_ref(&code.hash());
 
-		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 1);
+		assert!(CodeByHash::<Test>::contains_key(code.hash()));
+		assert_eq!(CodeByHashRefs::<Test>::get(code.hash()), 1);
 
 		Paras::decrease_code_ref(&code.hash());
 
-		assert!(!<Paras as Store>::CodeByHash::contains_key(code.hash()));
-		assert!(!<Paras as Store>::CodeByHashRefs::contains_key(code.hash()));
+		assert!(!CodeByHash::<Test>::contains_key(code.hash()));
+		assert!(!CodeByHashRefs::<Test>::contains_key(code.hash()));
 	});
 }
 
@@ -1023,7 +1084,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 	let paras = vec![(
 		a,
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: Default::default(),
 			validation_code: existing_code,
 		},
@@ -1032,12 +1093,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 	let genesis_config = MockGenesisConfig {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration {
-				pvf_checking_enabled: true,
-				validation_upgrade_delay,
-				..Default::default()
-			},
-			..Default::default()
+			config: HostConfiguration { validation_upgrade_delay, ..Default::default() },
 		},
 		..Default::default()
 	};
@@ -1056,7 +1112,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 		assert_ok!(Paras::schedule_para_initialize(
 			b,
 			ParaGenesisArgs {
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 				genesis_head: vec![2].into(),
 				validation_code: validation_code.clone(),
 			},
@@ -1072,21 +1128,14 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 		assert!(!Paras::pvfs_require_precheck().is_empty());
 
 		// Supermajority of validators vote for `validation_code`. It should be approved.
-		IntoIterator::into_iter([0, 1, 2, 3])
-			.map(|i| PvfCheckStatement {
-				accept: true,
-				subject: validation_code.hash(),
-				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
-			})
-			.for_each(sign_and_include_pvf_check_statement);
+		submit_super_majority_pvf_votes(&validation_code, EXPECTED_SESSION, true);
 
 		// Check that `b` actually onboards.
-		assert_eq!(<Paras as Store>::ActionsQueue::get(EXPECTED_SESSION + 2), vec![b]);
+		assert_eq!(ActionsQueue::<Test>::get(EXPECTED_SESSION + 2), vec![b]);
 
 		// Check that the upgrade got scheduled.
 		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&a),
+			FutureCodeUpgrades::<Test>::get(&a),
 			Some(RELAY_PARENT + validation_upgrade_delay),
 		);
 
@@ -1108,12 +1157,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration {
-				pvf_checking_enabled: true,
-				pvf_voting_ttl,
-				..Default::default()
-			},
-			..Default::default()
+			config: HostConfiguration { pvf_voting_ttl, ..Default::default() },
 		},
 		..Default::default()
 	};
@@ -1124,7 +1168,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 		assert_ok!(Paras::schedule_para_initialize(
 			a,
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: vec![2].into(),
 				validation_code: validation_code.clone(),
 			},
@@ -1132,7 +1176,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 
 		// Make sure that we kicked off the PVF vote for this validation code and that the
 		// validation code is stored.
-		assert!(<Paras as Store>::PvfActiveVoteMap::get(&validation_code.hash()).is_some());
+		assert!(PvfActiveVoteMap::<Test>::get(&validation_code.hash()).is_some());
 		check_code_is_stored(&validation_code);
 
 		// Skip 2 sessions (i.e. `pvf_voting_ttl`) verifying that the code is still stored in
@@ -1146,7 +1190,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 
 		// Verify that the PVF is no longer stored and there is no active PVF vote.
 		check_code_is_not_stored(&validation_code);
-		assert!(<Paras as Store>::PvfActiveVoteMap::get(&validation_code.hash()).is_none());
+		assert!(PvfActiveVoteMap::<Test>::get(&validation_code.hash()).is_none());
 		assert!(Paras::pvfs_require_precheck().is_empty());
 
 		// Verify that at this point we can again try to initialize the same para.
@@ -1163,7 +1207,7 @@ fn pvf_check_upgrade_reject() {
 	let paras = vec![(
 		a,
 		ParaGenesisArgs {
-			parachain: false,
+			para_kind: ParaKind::Parathread,
 			genesis_head: Default::default(),
 			validation_code: old_code,
 		},
@@ -1171,10 +1215,6 @@ fn pvf_check_upgrade_reject() {
 
 	let genesis_config = MockGenesisConfig {
 		paras: GenesisConfig { paras, ..Default::default() },
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
-			..Default::default()
-		},
 		..Default::default()
 	};
 
@@ -1191,66 +1231,34 @@ fn pvf_check_upgrade_reject() {
 		Paras::schedule_code_upgrade(a, new_code.clone(), RELAY_PARENT, &Configuration::config());
 		check_code_is_stored(&new_code);
 
-		// Supermajority of validators vote against `new_code`. PVF should be rejected.
-		IntoIterator::into_iter([0, 1, 2, 3])
-			.map(|i| PvfCheckStatement {
-				accept: false,
-				subject: new_code.hash(),
-				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
-			})
-			.for_each(sign_and_include_pvf_check_statement);
+		// 1/3 of validators vote against `new_code`. PVF should not be rejected yet.
+		sign_and_include_pvf_check_statement(PvfCheckStatement {
+			accept: false,
+			subject: new_code.hash(),
+			session_index: EXPECTED_SESSION,
+			validator_index: 0.into(),
+		});
+
+		// Verify that the new code is not yet discarded.
+		check_code_is_stored(&new_code);
+
+		// >1/3 of validators vote against `new_code`. PVF should be rejected.
+		sign_and_include_pvf_check_statement(PvfCheckStatement {
+			accept: false,
+			subject: new_code.hash(),
+			session_index: EXPECTED_SESSION,
+			validator_index: 1.into(),
+		});
 
 		// Verify that the new code is discarded.
 		check_code_is_not_stored(&new_code);
 
-		assert!(<Paras as Store>::PvfActiveVoteMap::get(&new_code.hash()).is_none());
+		assert!(PvfActiveVoteMap::<Test>::get(&new_code.hash()).is_none());
 		assert!(Paras::pvfs_require_precheck().is_empty());
-		assert!(<Paras as Store>::FutureCodeHash::get(&a).is_none());
+		assert!(FutureCodeHash::<Test>::get(&a).is_none());
 
 		// Verify that the required events were emitted.
 		EventValidator::new().started(&new_code, a).rejected(&new_code, a).check();
-	});
-}
-
-#[test]
-fn pvf_check_submit_vote_while_disabled() {
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { pvf_checking_enabled: false, ..Default::default() },
-			..Default::default()
-		},
-		..Default::default()
-	};
-
-	new_test_ext(genesis_config).execute_with(|| {
-		// This will set the session index to 1 and seed the validators.
-		run_to_block(1, Some(vec![1]));
-
-		let stmt = PvfCheckStatement {
-			accept: false,
-			subject: ValidationCode(vec![1, 2, 3]).hash(),
-			session_index: 1,
-			validator_index: 1.into(),
-		};
-
-		let signature: ValidatorSignature =
-			Sr25519Keyring::Alice.sign(&stmt.signing_payload()).into();
-
-		let call =
-			Call::include_pvf_check_statement { stmt: stmt.clone(), signature: signature.clone() };
-
-		let validate_unsigned =
-			<Paras as ValidateUnsigned>::validate_unsigned(TransactionSource::InBlock, &call);
-		assert_eq!(
-			validate_unsigned,
-			InvalidTransaction::Custom(INVALID_TX_PVF_CHECK_DISABLED).into()
-		);
-
-		assert_err!(
-			Paras::include_pvf_check_statement(None.into(), stmt.clone(), signature.clone()),
-			Error::<Test>::PvfCheckDisabled
-		);
 	});
 }
 
@@ -1283,13 +1291,7 @@ fn pvf_check_submit_vote() {
 		(validate_unsigned, dispatch_result)
 	};
 
-	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let genesis_config = MockGenesisConfig::default();
 
 	new_test_ext(genesis_config).execute_with(|| {
 		// Important to run this to seed the validators.
@@ -1298,7 +1300,7 @@ fn pvf_check_submit_vote() {
 		assert_ok!(Paras::schedule_para_initialize(
 			1000.into(),
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: vec![2].into(),
 				validation_code: code_a.clone(),
 			},
@@ -1385,7 +1387,7 @@ fn include_pvf_check_statement_refunds_weight() {
 	let paras = vec![(
 		a,
 		ParaGenesisArgs {
-			parachain: false,
+			para_kind: ParaKind::Parathread,
 			genesis_head: Default::default(),
 			validation_code: old_code,
 		},
@@ -1393,10 +1395,6 @@ fn include_pvf_check_statement_refunds_weight() {
 
 	let genesis_config = MockGenesisConfig {
 		paras: GenesisConfig { paras, ..Default::default() },
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
-			..Default::default()
-		},
 		..Default::default()
 	};
 
@@ -1445,8 +1443,11 @@ fn add_trusted_validation_code_inserts_with_no_users() {
 	// with the reference count equal to 0.
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(&validation_code.hash()), 0,);
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
+		assert_eq!(CodeByHashRefs::<Test>::get(&validation_code.hash()), 0,);
 	});
 }
 
@@ -1456,9 +1457,15 @@ fn add_trusted_validation_code_idempotent() {
 	// parameters is a no-op.
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 		assert_storage_noop!({
-			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+			assert_ok!(Paras::add_trusted_validation_code(
+				RuntimeOrigin::root(),
+				validation_code.clone()
+			));
 		});
 	});
 }
@@ -1469,11 +1476,17 @@ fn poke_unused_validation_code_removes_code_cleanly() {
 	// in the storage but has no users will remove it cleanly from the storage.
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
-		assert_ok!(Paras::poke_unused_validation_code(Origin::root(), validation_code.hash()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
+		assert_ok!(Paras::poke_unused_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.hash()
+		));
 
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(&validation_code.hash()), 0);
-		assert!(!<Paras as Store>::CodeByHash::contains_key(&validation_code.hash()));
+		assert_eq!(CodeByHashRefs::<Test>::get(&validation_code.hash()), 0);
+		assert!(!CodeByHash::<Test>::contains_key(&validation_code.hash()));
 	});
 }
 
@@ -1483,7 +1496,10 @@ fn poke_unused_validation_code_doesnt_remove_code_with_users() {
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
 		// First we add the code to the storage.
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 
 		// Then we add a user to the code, say by upgrading.
 		run_to_block(2, None);
@@ -1492,7 +1508,10 @@ fn poke_unused_validation_code_doesnt_remove_code_with_users() {
 
 		// Finally we poke the code, which should not remove it from the storage.
 		assert_storage_noop!({
-			assert_ok!(Paras::poke_unused_validation_code(Origin::root(), validation_code.hash()));
+			assert_ok!(Paras::poke_unused_validation_code(
+				RuntimeOrigin::root(),
+				validation_code.hash()
+			));
 		});
 		check_code_is_stored(&validation_code);
 	});
@@ -1507,25 +1526,26 @@ fn increase_code_ref_doesnt_have_allergy_on_add_trusted_validation_code() {
 	let code = ValidationCode(vec![1, 2, 3]);
 
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), code.clone()));
 		Paras::increase_code_ref(&code.hash(), &code);
 		Paras::increase_code_ref(&code.hash(), &code);
-		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 2);
+		assert!(CodeByHash::<Test>::contains_key(code.hash()));
+		assert_eq!(CodeByHashRefs::<Test>::get(code.hash()), 2);
 	});
 
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), code.clone()));
 		Paras::decrease_code_ref(&code.hash());
-		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 0);
+		assert!(CodeByHash::<Test>::contains_key(code.hash()));
+		assert_eq!(CodeByHashRefs::<Test>::get(code.hash()), 0);
 	});
 }
 
 #[test]
 fn add_trusted_validation_code_insta_approval() {
-	// In particular, this tests that `kick_off_pvf_check` reacts to the `add_trusted_validation_code`
-	// and uses the `CodeByHash::contains_key` which is what `add_trusted_validation_code` uses.
+	// In particular, this tests that `kick_off_pvf_check` reacts to the
+	// `add_trusted_validation_code` and uses the `CodeByHash::contains_key` which is what
+	// `add_trusted_validation_code` uses.
 	let para_id = 100.into();
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	let validation_upgrade_delay = 25;
@@ -1533,29 +1553,26 @@ fn add_trusted_validation_code_insta_approval() {
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration {
-				pvf_checking_enabled: true,
 				validation_upgrade_delay,
 				minimum_validation_upgrade_delay,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
 	new_test_ext(genesis_config).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 
 		// Then some parachain upgrades it's code with the relay-parent 1.
 		run_to_block(2, None);
 		Paras::schedule_code_upgrade(para_id, validation_code.clone(), 1, &Configuration::config());
 		Paras::note_new_head(para_id, HeadData::default(), 1);
 
-		// Verify that the code upgrade has `expected_at` set to `26`. This is the behavior
-		// equal to that of `pvf_checking_enabled: false`.
-		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
-			Some(1 + validation_upgrade_delay)
-		);
+		// Verify that the code upgrade has `expected_at` set to `26`.
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(1 + validation_upgrade_delay));
 
 		// Verify that the required events were emitted.
 		EventValidator::new()
@@ -1577,12 +1594,10 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration {
-				pvf_checking_enabled: true,
 				validation_upgrade_delay,
 				minimum_validation_upgrade_delay,
 				..Default::default()
 			},
-			..Default::default()
 		},
 		..Default::default()
 	};
@@ -1594,25 +1609,28 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 
 		// No upgrade should be scheduled at this point. PVF pre-checking vote should run for
 		// that PVF.
-		assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-		assert!(<Paras as Store>::PvfActiveVoteMap::contains_key(&validation_code.hash()));
+		assert!(FutureCodeUpgrades::<Test>::get(&para_id).is_none());
+		assert!(PvfActiveVoteMap::<Test>::contains_key(&validation_code.hash()));
 
 		// Then we add a trusted validation code. That should conclude the vote.
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
-		assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_some());
-		assert!(!<Paras as Store>::PvfActiveVoteMap::contains_key(&validation_code.hash()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
+		assert!(FutureCodeUpgrades::<Test>::get(&para_id).is_some());
+		assert!(!PvfActiveVoteMap::<Test>::contains_key(&validation_code.hash()));
 	});
 }
 
 #[test]
 fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
-	use primitives::v2::well_known_keys;
+	use primitives::well_known_keys;
 
 	let a = ParaId::from(2020);
 
 	new_test_ext(Default::default()).execute_with(|| {
 		assert!(sp_io::storage::get(&well_known_keys::upgrade_go_ahead_signal(a)).is_none());
-		<Paras as Store>::UpgradeGoAheadSignal::insert(&a, UpgradeGoAhead::GoAhead);
+		UpgradeGoAheadSignal::<Test>::insert(&a, UpgradeGoAhead::GoAhead);
 		assert_eq!(
 			sp_io::storage::get(&well_known_keys::upgrade_go_ahead_signal(a)).unwrap(),
 			vec![1u8],
@@ -1622,16 +1640,143 @@ fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
 
 #[test]
 fn verify_upgrade_restriction_signal_is_externally_accessible() {
-	use primitives::v2::well_known_keys;
+	use primitives::well_known_keys;
 
 	let a = ParaId::from(2020);
 
 	new_test_ext(Default::default()).execute_with(|| {
 		assert!(sp_io::storage::get(&well_known_keys::upgrade_restriction_signal(a)).is_none());
-		<Paras as Store>::UpgradeRestrictionSignal::insert(&a, UpgradeRestriction::Present);
+		UpgradeRestrictionSignal::<Test>::insert(&a, UpgradeRestriction::Present);
 		assert_eq!(
 			sp_io::storage::get(&well_known_keys::upgrade_restriction_signal(a)).unwrap(),
 			vec![0],
 		);
+	});
+}
+
+#[test]
+fn verify_para_head_is_externally_accessible() {
+	use primitives::well_known_keys;
+
+	let a = ParaId::from(2020);
+	let expected_head_data = HeadData(vec![0, 1, 2, 3]);
+
+	new_test_ext(Default::default()).execute_with(|| {
+		Heads::<Test>::insert(&a, expected_head_data.clone());
+		let encoded = sp_io::storage::get(&well_known_keys::para_head(a)).unwrap();
+		let head_data = HeadData::decode(&mut encoded.as_ref());
+		assert_eq!(head_data, Ok(expected_head_data));
+	});
+}
+
+#[test]
+fn parakind_encodes_decodes_to_bool_scale() {
+	let chain_kind = ParaKind::Parachain.encode();
+	let chain_bool = true.encode();
+	assert_eq!(chain_kind, chain_bool);
+
+	let chain_dec = ParaKind::decode(&mut chain_kind.as_slice());
+	assert_eq!(chain_dec, Ok(ParaKind::Parachain));
+
+	let thread_kind = ParaKind::Parathread.encode();
+	let thread_bool = false.encode();
+	assert_eq!(thread_kind, thread_bool);
+
+	let thread_dec = ParaKind::decode(&mut thread_kind.as_slice());
+	assert_eq!(thread_dec, Ok(ParaKind::Parathread));
+
+	assert_eq!(bool::type_info(), ParaKind::type_info());
+}
+
+#[test]
+fn parakind_encodes_decodes_to_bool_serde() {
+	let chain = ParaKind::Parachain;
+	let ser_chain = serde_json::to_string(&ParaKind::Parachain).unwrap();
+	let de_chain: ParaKind = serde_json::from_str(&ser_chain).unwrap();
+	assert_eq!(chain, de_chain);
+
+	let ser_true = serde_json::to_string(&true).unwrap();
+	assert_eq!(ser_true, ser_chain);
+
+	let thread = ParaKind::Parathread;
+	let ser_thread = serde_json::to_string(&thread).unwrap();
+	let de_thread: ParaKind = serde_json::from_str(&ser_thread).unwrap();
+	assert_eq!(thread, de_thread);
+
+	let ser_false = serde_json::to_string(&false).unwrap();
+	assert_eq!(ser_false, ser_thread);
+}
+
+#[test]
+fn parachains_cache_is_set() {
+	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let a = ParaId::from(111);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Add element twice
+		parachains_cache.add(a);
+		parachains_cache.add(a);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after addition
+		assert_eq!(Parachains::<Test>::get(), vec![a]);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Remove element twice
+		parachains_cache.remove(a);
+		parachains_cache.remove(a);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after removal
+		assert_eq!(Parachains::<Test>::get(), vec![]);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Remove nonexisting element
+		parachains_cache.remove(a);
+		assert_storage_noop!(drop(parachains_cache));
+		assert_eq!(Parachains::<Test>::get(), vec![]);
+	});
+}
+
+#[test]
+fn parachains_cache_preserves_order() {
+	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let a = ParaId::from(111);
+		let b = ParaId::from(222);
+		let c = ParaId::from(333);
+		let d = ParaId::from(444);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Add in mixed order
+		parachains_cache.add(b);
+		parachains_cache.add(c);
+		parachains_cache.add(a);
+		parachains_cache.add(d);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after addition
+		assert_eq!(Parachains::<Test>::get(), vec![a, b, c, d]);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Remove 2 elements
+		parachains_cache.remove(b);
+		parachains_cache.remove(d);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after removal
+		assert_eq!(Parachains::<Test>::get(), vec![a, c]);
 	});
 }

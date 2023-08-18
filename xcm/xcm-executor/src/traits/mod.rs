@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,20 +17,42 @@
 //! Various traits used in configuring the executor.
 
 mod conversion;
-pub use conversion::{Convert, ConvertOrigin, Decoded, Encoded, Identity, InvertLocation, JustTry};
+pub use conversion::{CallDispatcher, ConvertLocation, ConvertOrigin, WithOriginFilter};
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
+mod asset_lock;
+pub use asset_lock::{AssetLock, Enact, LockError};
+mod asset_exchange;
+pub use asset_exchange::AssetExchange;
+mod export;
+pub use export::{export_xcm, validate_export, ExportXcm};
+mod fee_manager;
+pub use fee_manager::{FeeManager, FeeReason};
 mod filter_asset_location;
+#[allow(deprecated)]
 pub use filter_asset_location::FilterAssetLocation;
-mod matches_fungible;
-pub use matches_fungible::MatchesFungible;
-mod matches_fungibles;
-pub use matches_fungibles::{Error, MatchesFungibles};
+mod token_matching;
+pub use token_matching::{
+	Error, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
+};
 mod on_response;
-pub use on_response::{OnResponse, VersionChangeNotifier};
+pub use on_response::{OnResponse, QueryHandler, QueryResponseStatus, VersionChangeNotifier};
 mod should_execute;
-pub use should_execute::ShouldExecute;
+pub use should_execute::{CheckSuspension, Properties, ShouldExecute};
 mod transact_asset;
 pub use transact_asset::TransactAsset;
 mod weight;
+#[deprecated = "Use `sp_runtime::traits::` instead"]
+pub use sp_runtime::traits::{Identity, TryConvertInto as JustTry};
 pub use weight::{WeightBounds, WeightTrader};
+
+pub mod prelude {
+	pub use super::{
+		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin,
+		DropAssets, Enact, Error, ExportXcm, FeeManager, FeeReason, LockError, MatchesFungible,
+		MatchesFungibles, MatchesNonFungible, MatchesNonFungibles, OnResponse, ShouldExecute,
+		TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader, WithOriginFilter,
+	};
+	#[allow(deprecated)]
+	pub use super::{Identity, JustTry};
+}

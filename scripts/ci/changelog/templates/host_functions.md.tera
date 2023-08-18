@@ -1,31 +1,44 @@
 {%- import "change.md.tera" as m_c -%}
+
 {%- set_global host_fn_count = 0 -%}
+{%- set_global upgrade_first = 0 -%}
 
 {% for pr in changes | sort(attribute="merged_at") -%}
 
-{%- if pr.meta.B and pr.meta.B.value == 0 -%}
+{%- if pr.meta.B and pr.meta.B.B0 -%}
 {#- We skip silent ones -#}
 {%- else -%}
-    {%- if pr.meta.E and pr.meta.E.value == 4 -%}
+    {%- if pr.meta.E and pr.meta.E.E3 -%}
         {%- set_global host_fn_count = host_fn_count + 1 -%}
             - {{ m_c::change(c=pr) }}
-        {% endif -%}
     {% endif -%}
+    {%- if pr.meta.E and pr.meta.E.E4 -%}
+        {%- set_global upgrade_first = upgrade_first + 1 -%}
+            - {{ m_c::change(c=pr) }}
+    {% endif -%}
+{% endif -%}
 {%- endfor -%}
+
+<!-- {{ upgrade_first }} changes require node upgrade -->
+
+{%- if upgrade_first != 0 %}
+## Node upgrade required
+⚠️ There is a runtime change that will require nodes to be upgraded BEFORE the runtime upgrade.
+
+⚠️ It is critical that you update your client before the chain switches to the new runtime.
+{%- endif %}
 
 <!-- {{ host_fn_count }} host functions were detected -->
 
 ## Host functions
 
-{%- if host_fn_count == 0 %}
-ℹ️ This release does not contain any new host functions.
+{% if host_fn_count == 0 %}
+ℹ️ This release does not contain any change related to host functions.
 {% elif host_fn_count == 1 -%}
 {# ---- #}
-⚠️ The runtimes in this release contain one new **host function**.
-
-⚠️ It is critical that you update your client before the chain switches to the new runtime.
+ℹ️ The runtimes in this release contain one change related to **host function**s:
+{% include "host_functions-list.md.tera" -%}
 {%- else -%}
-⚠️ The runtimes in this release contain {{ host_fn_count }} new **host function{{ host_fn_count | pluralize }}**.
-
-⚠️ It is critical that you update your client before the chain switches to the new runtime.
+ℹ️ The runtimes in this release contain {{ host_fn_count }} changes related to **host function**s:
+{% include "host_functions-list.md.tera" -%}
 {%- endif %}

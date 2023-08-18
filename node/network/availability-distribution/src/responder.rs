@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem::{jaeger, messages::AvailabilityStoreMessage, SubsystemSender};
-use polkadot_primitives::v2::{CandidateHash, ValidatorIndex};
+use polkadot_primitives::{CandidateHash, ValidatorIndex};
 
 use crate::{
 	error::{JfyiError, Result},
@@ -186,7 +186,10 @@ where
 {
 	let span = jaeger::Span::new(req.payload.candidate_hash, "answer-chunk-request");
 
-	let _child_span = span.child("answer-chunk-request").with_chunk_index(req.payload.index.0);
+	let _child_span = span
+		.child("answer-chunk-request")
+		.with_trace_id(req.payload.candidate_hash)
+		.with_chunk_index(req.payload.index.0);
 
 	let chunk = query_chunk(sender, req.payload.candidate_hash, req.payload.index).await?;
 

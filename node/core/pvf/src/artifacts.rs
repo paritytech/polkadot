@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,42 +14,76 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{error::PrepareError, host::PrepareResultSender};
+//! PVF artifacts (final compiled code blobs).
+//!
+//!	# Lifecycle of an artifact
+//!
+//! 1. During node start-up, the artifacts cache is cleaned up. This means that all local artifacts
+//!    stored on-disk are cleared, and we start with an empty [`Artifacts`] table.
+//!
+//! 2. In order to be executed, a PVF should be prepared first. This means that artifacts should
+//!    have an [`ArtifactState::Prepared`] entry for that artifact in the table. If not, the
+//!    preparation process kicks in. The execution request is stashed until after the preparation is
+//!    done, and the artifact state in the host is set to [`ArtifactState::Preparing`]. Preparation
+//!    goes through the preparation queue and the pool.
+//!
+//!    1. If the artifact is already being processed, we add another execution request to the
+//!       existing preparation job, without starting a new one.
+//!
+//!    2. Note that if the state is [`ArtifactState::FailedToProcess`], we usually do not retry
+//!       preparation, though we may under certain conditions.
+//!
+//! 3. The pool gets an available worker and instructs it to work on the given PVF. The worker
+//!    starts compilation. When the worker finishes successfully, it writes the serialized artifact
+//!    into a temporary file and notifies the host that it's done. The host atomically moves
+//!    (renames) the temporary file to the destination filename of the artifact.
+//!
+//! 4. If the worker concluded successfully or returned an error, then the pool notifies the queue.
+//!    In both cases, the queue reports to the host that the result is ready.
+//!
+//! 5. The host will react by changing the artifact state to either [`ArtifactState::Prepared`] or
+//!    [`ArtifactState::FailedToProcess`] for the PVF in question. On success, the
+//!    `last_time_needed` will be set to the current time. It will also dispatch the pending
+//!    execution requests.
+//!
+//! 6. On success, the execution request will come through the execution queue and ultimately be
+//!    processed by an execution worker. When this worker receives the request, it will read the
+//!    requested artifact. If it doesn't exist it reports an internal error. A request for execution
+//!    will bump the `last_time_needed` to the current time.
+//!
+//! 7. There is a separate process for pruning the prepared artifacts whose `last_time_needed` is
+//!    older by a predefined parameter. This process is run very rarely (say, once a day). Once the
+//!    artifact is expired it is removed from disk eagerly atomically.
+
+use crate::host::PrepareResultSender;
 use always_assert::always;
-use async_std::path::{Path, PathBuf};
+use polkadot_node_core_pvf_common::{error::PrepareError, prepare::PrepareStats, pvf::PvfPrepData};
 use polkadot_parachain::primitives::ValidationCodeHash;
+use polkadot_primitives::ExecutorParamsHash;
 use std::{
 	collections::HashMap,
+	path::{Path, PathBuf},
 	time::{Duration, SystemTime},
 };
 
-pub struct CompiledArtifact(Vec<u8>);
-
-impl CompiledArtifact {
-	pub fn new(code: Vec<u8>) -> Self {
-		Self(code)
-	}
-}
-
-impl AsRef<[u8]> for CompiledArtifact {
-	fn as_ref(&self) -> &[u8] {
-		self.0.as_slice()
-	}
-}
-
-/// Identifier of an artifact. Right now it only encodes a code hash of the PVF. But if we get to
-/// multiple engine implementations the artifact ID should include the engine type as well.
+/// Identifier of an artifact. Encodes a code hash of the PVF and a hash of executor parameter set.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArtifactId {
 	pub(crate) code_hash: ValidationCodeHash,
+	pub(crate) executor_params_hash: ExecutorParamsHash,
 }
 
 impl ArtifactId {
 	const PREFIX: &'static str = "wasmtime_";
 
 	/// Creates a new artifact ID with the given hash.
-	pub fn new(code_hash: ValidationCodeHash) -> Self {
-		Self { code_hash }
+	pub fn new(code_hash: ValidationCodeHash, executor_params_hash: ExecutorParamsHash) -> Self {
+		Self { code_hash, executor_params_hash }
+	}
+
+	/// Returns an artifact ID that corresponds to the PVF with given executor params.
+	pub fn from_pvf_prep_data(pvf: &PvfPrepData) -> Self {
+		Self::new(pvf.code_hash(), pvf.executor_params().hash())
 	}
 
 	/// Tries to recover the artifact id from the given file name.
@@ -59,14 +93,18 @@ impl ArtifactId {
 		use std::str::FromStr as _;
 
 		let file_name = file_name.strip_prefix(Self::PREFIX)?;
-		let code_hash = Hash::from_str(file_name).ok()?.into();
+		let (code_hash_str, executor_params_hash_str) = file_name.split_once('_')?;
+		let code_hash = Hash::from_str(code_hash_str).ok()?.into();
+		let executor_params_hash =
+			ExecutorParamsHash::from_hash(Hash::from_str(executor_params_hash_str).ok()?);
 
-		Some(Self { code_hash })
+		Some(Self { code_hash, executor_params_hash })
 	}
 
 	/// Returns the expected path to this artifact given the root of the cache.
 	pub fn path(&self, cache_path: &Path) -> PathBuf {
-		let file_name = format!("{}{:#x}", Self::PREFIX, self.code_hash);
+		let file_name =
+			format!("{}{:#x}_{:#x}", Self::PREFIX, self.code_hash, self.executor_params_hash);
 		cache_path.join(file_name)
 	}
 }
@@ -96,17 +134,31 @@ pub enum ArtifactState {
 	/// That means that the artifact should be accessible through the path obtained by the artifact
 	/// id (unless, it was removed externally).
 	Prepared {
-		/// The time when the artifact was the last time needed.
+		/// The time when the artifact was last needed.
 		///
 		/// This is updated when we get the heads up for this artifact or when we just discover
 		/// this file.
 		last_time_needed: SystemTime,
+		/// Stats produced by successful preparation.
+		prepare_stats: PrepareStats,
 	},
 	/// A task to prepare this artifact is scheduled.
-	Preparing { waiting_for_response: Vec<PrepareResultSender> },
+	Preparing {
+		/// List of result senders that are waiting for a response.
+		waiting_for_response: Vec<PrepareResultSender>,
+		/// The number of times this artifact has failed to prepare.
+		num_failures: u32,
+	},
 	/// The code couldn't be compiled due to an error. Such artifacts
 	/// never reach the executor and stay in the host's memory.
-	FailedToProcess(PrepareError),
+	FailedToProcess {
+		/// Keep track of the last time that processing this artifact failed.
+		last_time_failed: SystemTime,
+		/// The number of times this artifact has failed to prepare.
+		num_failures: u32,
+		/// The last error encountered for preparation.
+		error: PrepareError,
+	},
 }
 
 /// A container of all known artifact ids and their states.
@@ -120,10 +172,10 @@ impl Artifacts {
 	///
 	/// The recognized artifacts will be filled in the table and unrecognized will be removed.
 	pub async fn new(cache_path: &Path) -> Self {
-		// Make sure that the cache path directory and all it's parents are created.
+		// Make sure that the cache path directory and all its parents are created.
 		// First delete the entire cache. Nodes are long-running so this should populate shortly.
-		let _ = async_std::fs::remove_dir_all(cache_path).await;
-		let _ = async_std::fs::create_dir_all(cache_path).await;
+		let _ = tokio::fs::remove_dir_all(cache_path).await;
+		let _ = tokio::fs::create_dir_all(cache_path).await;
 
 		Self { artifacts: HashMap::new() }
 	}
@@ -150,7 +202,7 @@ impl Artifacts {
 		// See the precondition.
 		always!(self
 			.artifacts
-			.insert(artifact_id, ArtifactState::Preparing { waiting_for_response })
+			.insert(artifact_id, ArtifactState::Preparing { waiting_for_response, num_failures: 0 })
 			.is_none());
 	}
 
@@ -159,15 +211,21 @@ impl Artifacts {
 	/// This function must be used only for brand-new artifacts and should never be used for
 	/// replacing existing ones.
 	#[cfg(test)]
-	pub fn insert_prepared(&mut self, artifact_id: ArtifactId, last_time_needed: SystemTime) {
+	pub fn insert_prepared(
+		&mut self,
+		artifact_id: ArtifactId,
+		last_time_needed: SystemTime,
+		prepare_stats: PrepareStats,
+	) {
 		// See the precondition.
 		always!(self
 			.artifacts
-			.insert(artifact_id, ArtifactState::Prepared { last_time_needed })
+			.insert(artifact_id, ArtifactState::Prepared { last_time_needed, prepare_stats })
 			.is_none());
 	}
 
-	/// Remove and retrieve the artifacts from the table that are older than the supplied Time-To-Live.
+	/// Remove and retrieve the artifacts from the table that are older than the supplied
+	/// Time-To-Live.
 	pub fn prune(&mut self, artifact_ttl: Duration) -> Vec<ArtifactId> {
 		let now = SystemTime::now();
 
@@ -195,9 +253,9 @@ impl Artifacts {
 #[cfg(test)]
 mod tests {
 	use super::{ArtifactId, Artifacts};
-	use async_std::path::Path;
+	use polkadot_primitives::ExecutorParamsHash;
 	use sp_core::H256;
-	use std::str::FromStr;
+	use std::{path::Path, str::FromStr};
 
 	#[test]
 	fn from_file_name() {
@@ -206,13 +264,16 @@ mod tests {
 
 		assert_eq!(
 			ArtifactId::from_file_name(
-				"wasmtime_0x0022800000000000000000000000000000000000000000000000000000000000"
+				"wasmtime_0x0022800000000000000000000000000000000000000000000000000000000000_0x0033900000000000000000000000000000000000000000000000000000000000"
 			),
 			Some(ArtifactId::new(
 				hex_literal::hex![
 					"0022800000000000000000000000000000000000000000000000000000000000"
 				]
-				.into()
+				.into(),
+				ExecutorParamsHash::from_hash(sp_core::H256(hex_literal::hex![
+					"0033900000000000000000000000000000000000000000000000000000000000"
+				])),
 			)),
 		);
 	}
@@ -222,22 +283,19 @@ mod tests {
 		let path = Path::new("/test");
 		let hash =
 			H256::from_str("1234567890123456789012345678901234567890123456789012345678901234")
-				.unwrap()
-				.into();
+				.unwrap();
 
 		assert_eq!(
-			ArtifactId::new(hash).path(path).to_str(),
+			ArtifactId::new(hash.into(), ExecutorParamsHash::from_hash(hash)).path(path).to_str(),
 			Some(
-				"/test/wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234"
+				"/test/wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234_0x1234567890123456789012345678901234567890123456789012345678901234"
 			),
 		);
 	}
 
-	#[test]
-	fn artifacts_removes_cache_on_startup() {
-		let fake_cache_path = async_std::task::block_on(async move {
-			crate::worker_common::tmpfile("test-cache").await.unwrap()
-		});
+	#[tokio::test]
+	async fn artifacts_removes_cache_on_startup() {
+		let fake_cache_path = crate::worker_intf::tmpfile("test-cache").await.unwrap();
 		let fake_artifact_path = {
 			let mut p = fake_cache_path.clone();
 			p.push("wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234");
@@ -252,7 +310,7 @@ mod tests {
 		// this should remove it and re-create.
 
 		let p = &fake_cache_path;
-		async_std::task::block_on(async { Artifacts::new(p).await });
+		Artifacts::new(p).await;
 
 		assert_eq!(std::fs::read_dir(&fake_cache_path).unwrap().count(), 0);
 

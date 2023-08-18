@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,8 +17,8 @@
 use super::*;
 use crate::configuration::HostConfiguration;
 use frame_benchmarking::benchmarks;
-use frame_system::RawOrigin;
-use primitives::v2::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
+use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
+use primitives::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 use sp_runtime::traits::{One, Saturating};
 
 mod pvf_check;
@@ -31,9 +31,9 @@ use self::pvf_check::{VoteCause, VoteOutcome};
 // shouldn't exceed this number.
 const SAMPLE_SIZE: u32 = 1024;
 
-fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 	let events = frame_system::Pallet::<T>::events();
-	let system_event: <T as frame_system::Config>::Event = generic_event.into();
+	let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);
@@ -44,11 +44,11 @@ fn generate_disordered_pruning<T: Config>() {
 
 	for i in 0..SAMPLE_SIZE {
 		let id = ParaId::from(i);
-		let block_number = T::BlockNumber::from(1000u32);
+		let block_number = BlockNumberFor::<T>::from(1000u32);
 		needs_pruning.push((id, block_number));
 	}
 
-	<Pallet<T> as Store>::PastCodePruning::put(needs_pruning);
+	PastCodePruning::<T>::put(needs_pruning);
 }
 
 pub(crate) fn generate_disordered_upgrades<T: Config>() {
@@ -57,13 +57,13 @@ pub(crate) fn generate_disordered_upgrades<T: Config>() {
 
 	for i in 0..SAMPLE_SIZE {
 		let id = ParaId::from(i);
-		let block_number = T::BlockNumber::from(1000u32);
+		let block_number = BlockNumberFor::<T>::from(1000u32);
 		upgrades.push((id, block_number));
 		cooldowns.push((id, block_number));
 	}
 
-	<Pallet<T> as Store>::UpcomingUpgrades::put(upgrades);
-	<Pallet<T> as Store>::UpgradeCooldowns::put(cooldowns);
+	UpcomingUpgrades::<T>::put(upgrades);
+	UpgradeCooldowns::<T>::put(cooldowns);
 }
 
 fn generate_disordered_actions_queue<T: Config>() {
@@ -75,7 +75,7 @@ fn generate_disordered_actions_queue<T: Config>() {
 		queue.push(id);
 	}
 
-	<Pallet<T> as Store>::ActionsQueue::mutate(next_session, |v| {
+	ActionsQueue::<T>::mutate(next_session, |v| {
 		*v = queue;
 	});
 }
@@ -85,7 +85,7 @@ benchmarks! {
 		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
 		let para_id = ParaId::from(c as u32);
-		<Pallet<T> as Store>::CurrentCodeHash::insert(&para_id, new_code.hash());
+		CurrentCodeHash::<T>::insert(&para_id, new_code.hash());
 		generate_disordered_pruning::<T>();
 	}: _(RawOrigin::Root, para_id, new_code)
 	verify {
@@ -103,7 +103,7 @@ benchmarks! {
 		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
 		let para_id = ParaId::from(c as u32);
-		let block = T::BlockNumber::from(c);
+		let block = BlockNumberFor::<T>::from(c);
 		generate_disordered_upgrades::<T>();
 	}: _(RawOrigin::Root, para_id, new_code, block)
 	verify {
@@ -114,11 +114,11 @@ benchmarks! {
 		let para_id = ParaId::from(1000);
 		let new_head = HeadData(vec![0; s as usize]);
 		let old_code_hash = ValidationCode(vec![0]).hash();
-		<Pallet<T> as Store>::CurrentCodeHash::insert(&para_id, old_code_hash);
+		CurrentCodeHash::<T>::insert(&para_id, old_code_hash);
 		// schedule an expired code upgrade for this `para_id` so that force_note_new_head would use
 		// the worst possible code path
 		let expired = frame_system::Pallet::<T>::block_number().saturating_sub(One::one());
-		let config = HostConfiguration::<T::BlockNumber>::default();
+		let config = HostConfiguration::<BlockNumberFor<T>>::default();
 		generate_disordered_pruning::<T>();
 		Pallet::<T>::schedule_code_upgrade(para_id, ValidationCode(vec![0]), expired, &config);
 	}: _(RawOrigin::Root, para_id, new_head)
@@ -137,6 +137,8 @@ benchmarks! {
 	add_trusted_validation_code {
 		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
+
+		pvf_check::prepare_bypassing_bench::<T>(new_code.clone());
 	}: _(RawOrigin::Root, new_code)
 
 	poke_unused_validation_code {

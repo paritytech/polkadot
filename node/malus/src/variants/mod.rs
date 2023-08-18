@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,8 +22,8 @@ mod dispute_valid_candidates;
 mod suggest_garbage_candidate;
 
 pub(crate) use self::{
-	back_garbage_candidate::BackGarbageCandidate,
+	back_garbage_candidate::{BackGarbageCandidateOptions, BackGarbageCandidates},
 	dispute_valid_candidates::{DisputeAncestorOptions, DisputeValidCandidates},
-	suggest_garbage_candidate::BackGarbageCandidateWrapper,
+	suggest_garbage_candidate::{SuggestGarbageCandidateOptions, SuggestGarbageCandidates},
 };
 pub(crate) use common::*;

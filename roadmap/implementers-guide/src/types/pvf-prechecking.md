@@ -1,5 +1,7 @@
 # PVF Pre-checking types
 
+## `PvfCheckStatement`
+
 > ⚠️ This type was added in v2.
 
 One of the main units of information on which PVF pre-checking voting is build is the `PvfCheckStatement`.

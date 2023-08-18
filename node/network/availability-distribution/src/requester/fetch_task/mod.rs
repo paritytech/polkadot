@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 	messages::{AvailabilityStoreMessage, IfDisconnected, NetworkBridgeTxMessage},
 	overseer,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore,
 	SessionIndex,
 };
@@ -140,16 +140,24 @@ impl FetchTaskConfig {
 		sender: mpsc::Sender<FromFetchTask>,
 		metrics: Metrics,
 		session_info: &SessionInfo,
+		span: jaeger::Span,
 	) -> Self {
+		let span = span
+			.child("fetch-task-config")
+			.with_trace_id(core.candidate_hash)
+			.with_string_tag("leaf", format!("{:?}", leaf))
+			.with_validator_index(session_info.our_index)
+			.with_uint_tag("group-index", core.group_responsible.0 as u64)
+			.with_relay_parent(core.candidate_descriptor.relay_parent)
+			.with_string_tag("pov-hash", format!("{:?}", core.candidate_descriptor.pov_hash))
+			.with_stage(jaeger::Stage::AvailabilityDistribution);
+
 		let live_in = vec![leaf].into_iter().collect();
 
 		// Don't run tasks for our backing group:
 		if session_info.our_group == Some(core.group_responsible) {
 			return FetchTaskConfig { live_in, prepared_running: None }
 		}
-
-		let span = jaeger::Span::new(core.candidate_hash, "availability-distribution")
-			.with_stage(jaeger::Stage::AvailabilityDistribution);
 
 		let prepared_running = RunningTask {
 			session_index: session_info.session_index,
@@ -251,22 +259,25 @@ impl RunningTask {
 		let mut bad_validators = Vec::new();
 		let mut succeeded = false;
 		let mut count: u32 = 0;
-		let mut _span = self
-			.span
-			.child("fetch-task")
-			.with_chunk_index(self.request.index.0)
-			.with_relay_parent(self.relay_parent);
+		let mut span = self.span.child("run-fetch-chunk-task").with_relay_parent(self.relay_parent);
+		let mut network_error_freq = gum::Freq::new();
+		let mut canceled_freq = gum::Freq::new();
 		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
-			let _try_span = _span.child("try");
 			// Report retries:
 			if count > 0 {
 				self.metrics.on_retry();
 			}
 			count += 1;
-
+			let _chunk_fetch_span = span
+				.child("fetch-chunk-request")
+				.with_chunk_index(self.request.index.0)
+				.with_stage(jaeger::Stage::AvailabilityDistribution);
 			// Send request:
-			let resp = match self.do_request(&validator).await {
+			let resp = match self
+				.do_request(&validator, &mut network_error_freq, &mut canceled_freq)
+				.await
+			{
 				Ok(resp) => resp,
 				Err(TaskError::ShuttingDown) => {
 					gum::info!(
@@ -281,6 +292,12 @@ impl RunningTask {
 					continue
 				},
 			};
+			// We drop the span here, so that the span is not active while we recombine the chunk.
+			drop(_chunk_fetch_span);
+			let _chunk_recombine_span = span
+				.child("recombine-chunk")
+				.with_chunk_index(self.request.index.0)
+				.with_stage(jaeger::Stage::AvailabilityDistribution);
 			let chunk = match resp {
 				ChunkFetchingResponse::Chunk(resp) => resp.recombine_into_chunk(&self.request),
 				ChunkFetchingResponse::NoSuchChunk => {
@@ -298,6 +315,13 @@ impl RunningTask {
 					continue
 				},
 			};
+			// We drop the span so that the span is not active whilst we validate and store the
+			// chunk.
+			drop(_chunk_recombine_span);
+			let _chunk_validate_and_store_span = span
+				.child("validate-and-store-chunk")
+				.with_chunk_index(self.request.index.0)
+				.with_stage(jaeger::Stage::AvailabilityDistribution);
 
 			// Data genuine?
 			if !self.validate_chunk(&validator, &chunk) {
@@ -308,10 +332,9 @@ impl RunningTask {
 			// Ok, let's store it and be happy:
 			self.store_chunk(chunk).await;
 			succeeded = true;
-			_span.add_string_tag("success", "true");
 			break
 		}
-		_span.add_int_tag("tries", count as _);
+		span.add_int_tag("tries", count as _);
 		if succeeded {
 			self.metrics.on_fetch(SUCCEEDED);
 			self.conclude(bad_validators).await;
@@ -325,7 +348,20 @@ impl RunningTask {
 	async fn do_request(
 		&mut self,
 		validator: &AuthorityDiscoveryId,
+		nerwork_error_freq: &mut gum::Freq,
+		canceled_freq: &mut gum::Freq,
 	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
+		gum::trace!(
+			target: LOG_TARGET,
+			origin = ?validator,
+			relay_parent = ?self.relay_parent,
+			group_index = ?self.group_index,
+			session_index = ?self.session_index,
+			chunk_index = ?self.request.index,
+			candidate_hash = ?self.request.candidate_hash,
+			"Starting chunk request",
+		);
+
 		let (full_request, response_recv) =
 			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
 		let requests = Requests::ChunkFetchingV1(full_request);
@@ -346,35 +382,39 @@ impl RunningTask {
 			Err(RequestError::InvalidResponse(err)) => {
 				gum::warn!(
 					target: LOG_TARGET,
-					origin= ?validator,
+					origin = ?validator,
 					relay_parent = ?self.relay_parent,
 					group_index = ?self.group_index,
 					session_index = ?self.session_index,
 					chunk_index = ?self.request.index,
 					candidate_hash = ?self.request.candidate_hash,
-					err= ?err,
+					err = ?err,
 					"Peer sent us invalid erasure chunk data"
 				);
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::NetworkError(err)) => {
-				gum::debug!(
+				gum::warn_if_frequent!(
+					freq: nerwork_error_freq,
+					max_rate: gum::Times::PerHour(100),
 					target: LOG_TARGET,
-					origin= ?validator,
+					origin = ?validator,
 					relay_parent = ?self.relay_parent,
 					group_index = ?self.group_index,
 					session_index = ?self.session_index,
 					chunk_index = ?self.request.index,
 					candidate_hash = ?self.request.candidate_hash,
-					err= ?err,
+					err = ?err,
 					"Some network error occurred when fetching erasure chunk"
 				);
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::Canceled(oneshot::Canceled)) => {
-				gum::debug!(
+				gum::warn_if_frequent!(
+					freq: canceled_freq,
+					max_rate: gum::Times::PerHour(100),
 					target: LOG_TARGET,
-					origin= ?validator,
+					origin = ?validator,
 					relay_parent = ?self.relay_parent,
 					group_index = ?self.group_index,
 					session_index = ?self.session_index,

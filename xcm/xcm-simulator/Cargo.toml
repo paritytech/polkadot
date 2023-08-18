@@ -1,12 +1,13 @@
 [package]
 name = "xcm-simulator"
-version = "0.9.28"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "Test kit to simulate cross-chain message passing and XCM execution"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.0.0" }
+codec = { package = "parity-scale-codec", version = "3.6.1" }
 paste = "1.0.7"
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -15,6 +16,7 @@ sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 xcm = { path = "../" }
 xcm-executor = { path = "../xcm-executor" }
+xcm-builder = { path = "../xcm-builder" }
 polkadot-core-primitives = { path = "../../core-primitives"}
 polkadot-parachain = { path = "../../parachain" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }

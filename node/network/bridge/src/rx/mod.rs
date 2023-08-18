@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Network Bridge Subsystem - handles _incoming_ messages from the network, forwarded to the relevant subsystems.
+//! The Network Bridge Subsystem - handles _incoming_ messages from the network, forwarded to the
+//! relevant subsystems.
 use super::*;
 
 use always_assert::never;
@@ -27,6 +28,7 @@ use sp_consensus::SyncOracle;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
+	grid_topology::{SessionGridTopology, TopologyPeerInfo},
 	peer_set::{
 		CollationVersion, PeerSet, PeerSetProtocolNames, PerPeerSet, ProtocolVersion,
 		ValidationVersion,
@@ -37,19 +39,18 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem::{
 	errors::SubsystemError,
 	messages::{
-		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
-		ApprovalDistributionMessage, BitfieldDistributionMessage, CollatorProtocolMessage,
-		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeRxMessage,
-		StatementDistributionMessage,
+		network_bridge_event::NewGossipTopology, ApprovalDistributionMessage,
+		BitfieldDistributionMessage, CollatorProtocolMessage, GossipSupportMessage,
+		NetworkBridgeEvent, NetworkBridgeRxMessage, StatementDistributionMessage,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 };
 
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
+use polkadot_primitives::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 
 /// Peer set info for network initialization.
 ///
-/// To be added to [`NetworkConfiguration::extra_sets`].
+/// To be passed to [`FullNetworkConfiguration::add_notification_protocol`]().
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
 use std::{
@@ -86,7 +87,8 @@ pub struct NetworkBridgeRx<N, AD> {
 }
 
 impl<N, AD> NetworkBridgeRx<N, AD> {
-	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
+	/// Create a new network bridge subsystem with underlying network service and authority
+	/// discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
@@ -125,30 +127,8 @@ where
 		let future = run_network_in(self, ctx, network_stream)
 			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
 			.boxed();
-		SpawnedSubsystem { name: "network-bridge-subsystem", future }
+		SpawnedSubsystem { name: "network-bridge-rx-subsystem", future }
 	}
-}
-
-async fn update_gossip_peers_1d<AD, N>(
-	ads: &mut AD,
-	neighbors: N,
-) -> HashMap<AuthorityDiscoveryId, TopologyPeerInfo>
-where
-	AD: validator_discovery::AuthorityDiscovery,
-	N: IntoIterator<Item = (AuthorityDiscoveryId, ValidatorIndex)>,
-	N::IntoIter: std::iter::ExactSizeIterator,
-{
-	let neighbors = neighbors.into_iter();
-	let mut peers = HashMap::with_capacity(neighbors.len());
-	for (authority, validator_index) in neighbors {
-		let addr = get_peer_id_by_authority_id(ads, authority.clone()).await;
-
-		if let Some(peer_id) = addr {
-			peers.insert(authority, TopologyPeerInfo { peer_ids: vec![peer_id], validator_index });
-		}
-	}
-
-	peers
 }
 
 async fn handle_network_messages<AD>(
@@ -167,14 +147,13 @@ where
 	loop {
 		match network_stream.next().await {
 			None => return Err(Error::EventStreamConcluded),
-			Some(NetworkEvent::Dht(_)) |
-			Some(NetworkEvent::SyncConnected { .. }) |
-			Some(NetworkEvent::SyncDisconnected { .. }) => {},
+			Some(NetworkEvent::Dht(_)) => {},
 			Some(NetworkEvent::NotificationStreamOpened {
 				remote: peer,
 				protocol,
 				role,
 				negotiated_fallback,
+				received_handshake: _,
 			}) => {
 				let role = ObservedRole::from(role);
 				let (peer_set, version) = {
@@ -235,7 +214,7 @@ where
 						PeerSet::Collation => &mut shared.collation_peers,
 					};
 
-					match peer_map.entry(peer.clone()) {
+					match peer_map.entry(peer) {
 						hash_map::Entry::Occupied(_) => continue,
 						hash_map::Entry::Vacant(vacant) => {
 							vacant.insert(PeerData { view: View::default(), version });
@@ -256,12 +235,12 @@ where
 						dispatch_validation_events_to_all(
 							vec![
 								NetworkBridgeEvent::PeerConnected(
-									peer.clone(),
+									peer,
 									role,
 									version,
 									maybe_authority,
 								),
-								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+								NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 							],
 							&mut sender,
 						)
@@ -281,12 +260,12 @@ where
 						dispatch_collation_events_to_all(
 							vec![
 								NetworkBridgeEvent::PeerConnected(
-									peer.clone(),
+									peer,
 									role,
 									version,
 									maybe_authority,
 								),
-								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+								NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 							],
 							&mut sender,
 						)
@@ -387,14 +366,14 @@ where
 				let v_messages = match v_messages {
 					Err(rep) => {
 						gum::debug!(target: LOG_TARGET, action = "ReportPeer");
-						network_service.report_peer(remote, rep);
+						network_service.report_peer(remote, rep.into());
 
 						continue
 					},
 					Ok(v) => v,
 				};
 
-				// non-decoded, but version-checked colldation messages.
+				// non-decoded, but version-checked collation messages.
 				let c_messages: Result<Vec<_>, _> = messages
 					.iter()
 					.filter_map(|(protocol, msg_bytes)| {
@@ -418,7 +397,7 @@ where
 				let c_messages = match c_messages {
 					Err(rep) => {
 						gum::debug!(target: LOG_TARGET, action = "ReportPeer");
-						network_service.report_peer(remote, rep);
+						network_service.report_peer(remote, rep.into());
 
 						continue
 					},
@@ -443,7 +422,7 @@ where
 							Some(ValidationVersion::V1.into())
 						{
 							handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
-								remote.clone(),
+								remote,
 								PeerSet::Validation,
 								&mut shared.0.lock().validation_peers,
 								v_messages,
@@ -464,7 +443,7 @@ where
 						};
 
 					for report in reports {
-						network_service.report_peer(remote.clone(), report);
+						network_service.report_peer(remote, report.into());
 					}
 
 					dispatch_validation_events_to_all(events, &mut sender).await;
@@ -476,7 +455,7 @@ where
 							Some(CollationVersion::V1.into())
 						{
 							handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
-								remote.clone(),
+								remote,
 								PeerSet::Collation,
 								&mut shared.0.lock().collation_peers,
 								c_messages,
@@ -497,7 +476,7 @@ where
 						};
 
 					for report in reports {
-						network_service.report_peer(remote.clone(), report);
+						network_service.report_peer(remote, report.into());
 					}
 
 					dispatch_collation_events_to_all(events, &mut sender).await;
@@ -505,6 +484,26 @@ where
 			},
 		}
 	}
+}
+
+async fn flesh_out_topology_peers<AD, N>(ads: &mut AD, neighbors: N) -> Vec<TopologyPeerInfo>
+where
+	AD: validator_discovery::AuthorityDiscovery,
+	N: IntoIterator<Item = (AuthorityDiscoveryId, ValidatorIndex)>,
+	N::IntoIter: std::iter::ExactSizeIterator,
+{
+	let neighbors = neighbors.into_iter();
+	let mut peers = Vec::with_capacity(neighbors.len());
+	for (discovery_id, validator_index) in neighbors {
+		let addr = get_peer_id_by_authority_id(ads, discovery_id.clone()).await;
+		peers.push(TopologyPeerInfo {
+			peer_ids: addr.into_iter().collect(),
+			validator_index,
+			discovery_id,
+		});
+	}
+
+	peers
 }
 
 #[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
@@ -532,30 +531,50 @@ where
 				msg:
 					NetworkBridgeRxMessage::NewGossipTopology {
 						session,
-						our_neighbors_x,
-						our_neighbors_y,
+						local_index,
+						canonical_shuffling,
+						shuffled_indices,
 					},
 			} => {
 				gum::debug!(
 					target: LOG_TARGET,
 					action = "NewGossipTopology",
-					neighbors_x = our_neighbors_x.len(),
-					neighbors_y = our_neighbors_y.len(),
+					?session,
+					?local_index,
 					"Gossip topology has changed",
 				);
 
-				let gossip_peers_x =
-					update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_x).await;
-
-				let gossip_peers_y =
-					update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_y).await;
+				let topology_peers =
+					flesh_out_topology_peers(&mut authority_discovery_service, canonical_shuffling)
+						.await;
 
 				dispatch_validation_event_to_all_unbounded(
 					NetworkBridgeEvent::NewGossipTopology(NewGossipTopology {
 						session,
-						our_neighbors_x: gossip_peers_x,
-						our_neighbors_y: gossip_peers_y,
+						topology: SessionGridTopology::new(shuffled_indices, topology_peers),
+						local_index,
 					}),
+					ctx.sender(),
+				);
+			},
+			FromOrchestra::Communication {
+				msg: NetworkBridgeRxMessage::UpdatedAuthorityIds { peer_id, authority_ids },
+			} => {
+				gum::debug!(
+					target: LOG_TARGET,
+					action = "UpdatedAuthorityIds",
+					?peer_id,
+					?authority_ids,
+					"`AuthorityDiscoveryId`s have changed",
+				);
+				// using unbounded send to avoid cycles
+				// the messages are sent only once per session up to one per peer
+				dispatch_collation_event_to_all_unbounded(
+					NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids.clone()),
+					ctx.sender(),
+				);
+				dispatch_validation_event_to_all_unbounded(
+					NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids),
 					ctx.sender(),
 				);
 			},
@@ -569,7 +588,7 @@ where
 					num_deactivated = %deactivated.len(),
 				);
 
-				for activated in activated {
+				if let Some(activated) = activated {
 					let pos = live_heads
 						.binary_search_by(|probe| probe.number.cmp(&activated.number).reverse())
 						.unwrap_or_else(|i| i);
@@ -656,7 +675,7 @@ where
 	)
 	.remote_handle();
 
-	ctx.spawn("network-bridge-in-network-worker", Box::pin(task))?;
+	ctx.spawn_blocking("network-bridge-in-network-worker", Box::pin(task))?;
 	futures::pin_mut!(network_event_handler);
 
 	let orchestra_signal_handler = run_incoming_orchestra_signals(
@@ -798,11 +817,11 @@ fn handle_v1_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
 				} else {
 					peer_data.view = new_view;
 
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), peer_data.view.clone())
+					NetworkBridgeEvent::PeerViewChange(peer, peer_data.view.clone())
 				}
 			},
 			WireMessage::ProtocolMessage(message) =>
-				NetworkBridgeEvent::PeerMessage(peer.clone(), message.into()),
+				NetworkBridgeEvent::PeerMessage(peer, message.into()),
 		})
 	}
 

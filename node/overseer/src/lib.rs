@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -62,6 +62,7 @@
 use std::{
 	collections::{hash_map, HashMap},
 	fmt::{self, Debug},
+	num::NonZeroUsize,
 	pin::Pin,
 	sync::Arc,
 	time::Duration,
@@ -71,17 +72,18 @@ use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, St
 use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
-use polkadot_primitives::v2::{Block, BlockNumber, Hash};
+use polkadot_primitives::{Block, BlockNumber, Hash};
 
+use self::messages::{BitfieldSigningMessage, PvfCheckerMessage};
 use polkadot_node_subsystem_types::messages::{
 	ApprovalDistributionMessage, ApprovalVotingMessage, AvailabilityDistributionMessage,
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
-	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
-	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
-	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
-	NetworkBridgeRxMessage, NetworkBridgeTxMessage, ProvisionerMessage, PvfCheckerMessage,
-	RuntimeApiMessage, StatementDistributionMessage,
+	CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage, ChainSelectionMessage,
+	CollationGenerationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
+	DisputeDistributionMessage, GossipSupportMessage, NetworkBridgeRxMessage,
+	NetworkBridgeTxMessage, ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage,
 };
+
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
@@ -100,8 +102,6 @@ pub use polkadot_node_metrics::{
 	Metronome,
 };
 
-use parity_util_mem::MemoryAllocationTracker;
-
 pub use orchestra as gen;
 pub use orchestra::{
 	contextbounds, orchestra, subsystem, FromOrchestra, MapSubsystem, MessagePacket,
@@ -112,8 +112,13 @@ pub use orchestra::{
 
 /// Store 2 days worth of blocks, not accounting for forks,
 /// in the LRU cache. Assumes a 6-second block time.
-pub const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
+pub const KNOWN_LEAVES_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(2 * 24 * 3600 / 6) {
+	Some(cap) => cap,
+	None => panic!("Known leaves cache size must be non-zero"),
+};
 
+#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+mod memory_stats;
 #[cfg(test)]
 mod tests;
 
@@ -206,10 +211,10 @@ impl Handle {
 
 	/// Wait for a block with the given hash to be in the active-leaves set.
 	///
-	/// The response channel responds if the hash was activated and is closed if the hash was deactivated.
-	/// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
-	/// the response channel may never return if the hash was deactivated before this call.
-	/// In this case, it's the caller's responsibility to ensure a timeout is set.
+	/// The response channel responds if the hash was activated and is closed if the hash was
+	/// deactivated. Note that due the fact the overseer doesn't store the whole active-leaves set,
+	/// only deltas, the response channel may never return if the hash was deactivated before this
+	/// call. In this case, it's the caller's responsibility to ensure a timeout is set.
 	pub async fn wait_for_activation(
 		&mut self,
 		hash: Hash,
@@ -350,7 +355,6 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 ///                         +-----------+
 ///                         |           |
 ///                         +-----------+
-///
 /// ```
 ///
 /// [`Subsystem`]: trait.Subsystem.html
@@ -358,13 +362,13 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # Example
 ///
 /// The [`Subsystems`] may be any type as long as they implement an expected interface.
-/// Here, we create a mock validation subsystem and a few dummy ones and start the `Overseer` with them.
-/// For the sake of simplicity the termination of the example is done with a timeout.
+/// Here, we create a mock validation subsystem and a few dummy ones and start the `Overseer` with
+/// them. For the sake of simplicity the termination of the example is done with a timeout.
 /// ```
 /// # use std::time::Duration;
 /// # use futures::{executor, pin_mut, select, FutureExt};
 /// # use futures_timer::Delay;
-/// # use polkadot_primitives::v2::Hash;
+/// # use polkadot_primitives::Hash;
 /// # use polkadot_overseer::{
 /// # 	self as overseer,
 /// #   OverseerSignal,
@@ -389,11 +393,11 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// impl<Ctx> overseer::Subsystem<Ctx, SubsystemError> for ValidationSubsystem
 /// where
 ///     Ctx: overseer::SubsystemContext<
-///				Message=CandidateValidationMessage,
-///				AllMessages=AllMessages,
-///				Signal=OverseerSignal,
-///				Error=SubsystemError,
-///			>,
+/// 				Message=CandidateValidationMessage,
+/// 				AllMessages=AllMessages,
+/// 				Signal=OverseerSignal,
+/// 				Error=SubsystemError,
+/// 			>,
 /// {
 ///     fn start(
 ///         self,
@@ -421,10 +425,10 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 ///
 /// let spawner = sp_core::testing::TaskExecutor::new();
 /// let (overseer, _handle) = dummy_overseer_builder(spawner, AlwaysSupportsParachains, None)
-///		.unwrap()
-///		.replace_candidate_validation(|_| ValidationSubsystem)
-///		.build()
-///		.unwrap();
+/// 		.unwrap()
+/// 		.replace_candidate_validation(|_| ValidationSubsystem)
+/// 		.build()
+/// 		.unwrap();
 ///
 /// let timer = Delay::new(Duration::from_millis(50)).fuse();
 ///
@@ -453,7 +457,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	candidate_validation: CandidateValidation,
 
-	#[subsystem(PvfCheckerMessage, sends: [
+	#[subsystem(sends: [
 		CandidateValidationMessage,
 		RuntimeApiMessage,
 	])]
@@ -493,7 +497,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	availability_recovery: AvailabilityRecovery,
 
-	#[subsystem(blocking, BitfieldSigningMessage, sends: [
+	#[subsystem(blocking, sends: [
 		AvailabilityStoreMessage,
 		RuntimeApiMessage,
 		BitfieldDistributionMessage,
@@ -524,7 +528,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	availability_store: AvailabilityStore,
 
-	#[subsystem(NetworkBridgeRxMessage, sends: [
+	#[subsystem(blocking, NetworkBridgeRxMessage, sends: [
 		BitfieldDistributionMessage,
 		StatementDistributionMessage,
 		ApprovalDistributionMessage,
@@ -535,7 +539,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	network_bridge_rx: NetworkBridgeRx,
 
-	#[subsystem(NetworkBridgeTxMessage, sends: [])]
+	#[subsystem(blocking, NetworkBridgeTxMessage, sends: [])]
 	network_bridge_tx: NetworkBridgeTx,
 
 	#[subsystem(blocking, ChainApiMessage, sends: [])]
@@ -554,7 +558,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(ApprovalDistributionMessage, sends: [
+	#[subsystem(blocking, message_capacity: 64000, ApprovalDistributionMessage, sends: [
 		NetworkBridgeTxMessage,
 		ApprovalVotingMessage,
 	])]
@@ -579,7 +583,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	gossip_support: GossipSupport,
 
-	#[subsystem(blocking, DisputeCoordinatorMessage, sends: [
+	#[subsystem(blocking, message_capacity: 32000, DisputeCoordinatorMessage, sends: [
 		RuntimeApiMessage,
 		ChainApiMessage,
 		DisputeDistributionMessage,
@@ -587,6 +591,7 @@ pub struct Overseer<SupportsParachains> {
 		ApprovalVotingMessage,
 		AvailabilityStoreMessage,
 		AvailabilityRecoveryMessage,
+		ChainSelectionMessage,
 	])]
 	dispute_coordinator: DisputeCoordinator,
 
@@ -605,11 +610,6 @@ pub struct Overseer<SupportsParachains> {
 
 	/// Stores the [`jaeger::Span`] per active leaf.
 	pub span_per_active_leaf: HashMap<Hash, Arc<jaeger::Span>>,
-
-	/// A set of leaves that `Overseer` starts working with.
-	///
-	/// Drained at the beginning of `run` and never used again.
-	pub leaves: Vec<(Hash, BlockNumber)>,
 
 	/// The set of the "active leaves".
 	pub active_leaves: HashMap<Hash, BlockNumber>,
@@ -647,8 +647,9 @@ where
 	}
 	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> =
-		match MemoryAllocationTracker::new() {
+		match memory_stats::MemoryAllocationTracker::new() {
 			Ok(memory_stats) =>
 				Box::new(move |metrics: &OverseerMetrics| match memory_stats.snapshot() {
 					Ok(memory_stats_snapshot) => {
@@ -672,6 +673,9 @@ where
 			},
 		};
 
+	#[cfg(not(any(target_os = "linux", feature = "jemalloc-allocator")))]
+	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> = Box::new(|_| {});
+
 	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
 		collect_memory_stats(&metronome_metrics);
 
@@ -682,7 +686,7 @@ where
 			subsystem_meters
 				.iter()
 				.cloned()
-				.filter_map(|x| x)
+				.flatten()
 				.map(|(name, ref meters)| (name, meters.read())),
 		);
 
@@ -706,19 +710,17 @@ where
 	}
 
 	/// Run the `Overseer`.
-	pub async fn run(mut self) -> SubsystemResult<()> {
+	///
+	/// Logging any errors.
+	pub async fn run(self) {
+		if let Err(err) = self.run_inner().await {
+			gum::error!(target: LOG_TARGET, ?err, "Overseer exited with error");
+		}
+	}
+
+	async fn run_inner(mut self) -> SubsystemResult<()> {
 		let metrics = self.metrics.clone();
 		spawn_metronome_metrics(&mut self, metrics)?;
-
-		// Notify about active leaves on startup before starting the loop
-		for (hash, number) in std::mem::take(&mut self.leaves) {
-			let _ = self.active_leaves.insert(hash, number);
-			if let Some((span, status)) = self.on_head_activated(&hash, None).await {
-				let update =
-					ActiveLeavesUpdate::start_work(ActivatedLeaf { hash, number, status, span });
-				self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-			}
-		}
 
 		loop {
 			select! {
@@ -822,7 +824,8 @@ where
 
 		// If there are no leaves being deactivated, we don't need to send an update.
 		//
-		// Our peers will be informed about our finalized block the next time we activating/deactivating some leaf.
+		// Our peers will be informed about our finalized block the next time we
+		// activating/deactivating some leaf.
 		if !update.is_empty() {
 			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 		}
@@ -843,6 +846,11 @@ where
 
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
+			gum::trace!(
+				target: LOG_TARGET,
+				relay_parent = ?hash,
+				"Leaf got activated, notifying exterinal listeners"
+			);
 			for listener in listeners {
 				// it's fine if the listener is no longer interested
 				let _ = listener.send(Ok(()));
@@ -852,7 +860,7 @@ where
 		let mut span = jaeger::Span::new(*hash, "leaf-activated");
 
 		if let Some(parent_span) = parent_hash.and_then(|h| self.span_per_active_leaf.get(&h)) {
-			span.add_follows_from(&*parent_span);
+			span.add_follows_from(parent_span);
 		}
 
 		let span = Arc::new(span);
@@ -884,14 +892,20 @@ where
 	fn handle_external_request(&mut self, request: ExternalRequest) {
 		match request {
 			ExternalRequest::WaitForActivation { hash, response_channel } => {
-				// We use known leaves here because the `WaitForActivation` message
-				// is primarily concerned about leaves which subsystems have simply
-				// not been made aware of yet. Anything in the known leaves set,
-				// even if stale, has been activated in the past.
-				if self.known_leaves.peek(&hash).is_some() {
+				if self.active_leaves.get(&hash).is_some() {
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Leaf was already ready - answering `WaitForActivation`"
+					);
 					// it's fine if the listener is no longer interested
 					let _ = response_channel.send(Ok(()));
 				} else {
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Leaf not yet ready - queuing `WaitForActivation` sender"
+					);
 					self.activation_external_listeners
 						.entry(hash)
 						.or_default()

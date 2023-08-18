@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 #![warn(missing_docs)]
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::v2::{BlockNumber, Hash};
+use polkadot_primitives::{BlockNumber, Hash};
 use std::{collections::HashMap, fmt};
 
 #[doc(hidden)]
@@ -91,7 +91,8 @@ impl Into<sc_network::ObservedRole> for ObservedRole {
 
 /// Specialized wrapper around [`View`].
 ///
-/// Besides the access to the view itself, it also gives access to the [`jaeger::Span`] per leave/head.
+/// Besides the access to the view itself, it also gives access to the [`jaeger::Span`] per
+/// leave/head.
 #[derive(Debug, Clone, Default)]
 pub struct OurView {
 	view: View,
@@ -131,7 +132,8 @@ impl std::ops::Deref for OurView {
 	}
 }
 
-/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled [`jaeger::Span`]'s.
+/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled
+/// [`jaeger::Span`]'s.
 ///
 /// NOTE: Use for tests only.
 ///
@@ -139,7 +141,7 @@ impl std::ops::Deref for OurView {
 ///
 /// ```
 /// # use polkadot_node_network_protocol::our_view;
-/// # use polkadot_primitives::v2::Hash;
+/// # use polkadot_primitives::Hash;
 /// let our_view = our_view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
@@ -173,7 +175,7 @@ pub struct View {
 ///
 /// ```
 /// # use polkadot_node_network_protocol::view;
-/// # use polkadot_primitives::v2::Hash;
+/// # use polkadot_primitives::Hash;
 /// let view = view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
@@ -207,7 +209,7 @@ impl View {
 	}
 
 	/// Obtain an iterator over all heads.
-	pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Hash> {
+	pub fn iter(&self) -> impl Iterator<Item = &Hash> {
 		self.heads.iter()
 	}
 
@@ -398,7 +400,7 @@ impl_versioned_try_from!(
 pub mod v1 {
 	use parity_scale_codec::{Decode, Encode};
 
-	use polkadot_primitives::v2::{
+	use polkadot_primitives::{
 		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash,
 		Id as ParaId, UncheckedSignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature,
 	};

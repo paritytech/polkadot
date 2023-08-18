@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,15 +17,16 @@
 use super::{relay_chain_selection::*, *};
 
 use futures::channel::oneshot::Receiver;
-use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
+use polkadot_node_primitives::approval::VrfSignature;
 use polkadot_node_subsystem::messages::{AllMessages, BlockDescription};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_test_client::Sr25519Keyring;
 use sp_consensus_babe::{
 	digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
-	Transcript,
+	VrfTranscript,
 };
+use sp_core::{crypto::VrfSecret, testing::TaskExecutor};
 use sp_runtime::{testing::*, DigestItem};
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
@@ -40,7 +41,7 @@ use polkadot_node_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
 	HighestApprovedAncestorBlock,
 };
-use polkadot_primitives::v2::{Block, BlockNumber, Hash, Header};
+use polkadot_primitives::{Block, BlockNumber, Hash, Header};
 
 use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
 use polkadot_overseer::{SubsystemContext, SubsystemSender};
@@ -74,7 +75,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		.filter_level(log::LevelFilter::Trace)
 		.try_init();
 
-	let pool = sp_core::testing::TaskExecutor::new();
+	let pool = TaskExecutor::new();
 	let (mut context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
 
 	let (finality_target_tx, finality_target_rx) = oneshot::channel::<Option<Hash>>();
@@ -83,12 +84,13 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		Arc::new(case_vars.chain.clone()),
 		context.sender().clone(),
 		Default::default(),
+		None,
 	);
 
-	let target_hash = case_vars.target_block.clone();
+	let target_hash = case_vars.target_block;
 	let selection_process = async move {
 		let best = select_relay_chain
-			.finality_target_with_longest_chain(target_hash, target_hash, None)
+			.finality_target_with_longest_chain(target_hash, None)
 			.await
 			.unwrap();
 		finality_target_tx.send(Some(best)).unwrap();
@@ -99,14 +101,12 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(selection_process);
-
 	futures::executor::block_on(future::join(
 		async move {
 			let _overseer = test_fut.await;
 		},
 		selection_process,
-	))
-	.1;
+	));
 }
 
 async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
@@ -129,12 +129,9 @@ async fn overseer_recv_with_timeout(
 const TIMEOUT: Duration = Duration::from_millis(2000);
 
 // used for generating assignments where the validity of the VRF doesn't matter.
-fn garbage_vrf() -> (VRFOutput, VRFProof) {
-	let key = Sr25519Keyring::Alice.pair();
-	let key = key.as_ref();
-
-	let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
-	(VRFOutput(o.to_output()), VRFProof(p))
+fn garbage_vrf_signature() -> VrfSignature {
+	let transcript = VrfTranscript::new(b"test-garbage", &[]);
+	Sr25519Keyring::Alice.pair().vrf_sign(&transcript.into())
 }
 
 /// Representation of a local representation
@@ -243,7 +240,7 @@ impl ChainBuilder {
 		builder
 	}
 
-	pub fn add_block<'a>(&'a mut self, hash: Hash, parent_hash: Hash, number: u32) -> &'a mut Self {
+	pub fn add_block(&mut self, hash: Hash, parent_hash: Hash, number: u32) -> &mut Self {
 		assert!(number != 0, "cannot add duplicate genesis block");
 		assert!(hash != Self::GENESIS_HASH, "cannot add block with genesis hash");
 		assert!(
@@ -254,12 +251,7 @@ impl ChainBuilder {
 		self.add_block_inner(hash, parent_hash, number)
 	}
 
-	fn add_block_inner<'a>(
-		&'a mut self,
-		hash: Hash,
-		parent_hash: Hash,
-		number: u32,
-	) -> &'a mut Self {
+	fn add_block_inner(&mut self, hash: Hash, parent_hash: Hash, number: u32) -> &mut Self {
 		let header = ChainBuilder::make_header(parent_hash, number);
 		assert!(
 			self.0.blocks_by_hash.insert(hash, header).is_none(),
@@ -316,13 +308,12 @@ impl ChainBuilder {
 	fn make_header(parent_hash: Hash, number: u32) -> Header {
 		let digest = {
 			let mut digest = Digest::default();
-			let (vrf_output, vrf_proof) = garbage_vrf();
+			let vrf_signature = garbage_vrf_signature();
 			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
 				SecondaryVRFPreDigest {
 					authority_index: 0,
 					slot: 1.into(), // slot, unused
-					vrf_output,
-					vrf_proof,
+					vrf_signature,
 				},
 			)));
 			digest
@@ -363,7 +354,7 @@ async fn test_skeleton(
 		))
 		=> {
 			assert_eq!(target_block_hash, target_hash, "TestIntegrity: target hashes always match. qed");
-			tx.send(best_chain_containing_block.clone()).unwrap();
+			tx.send(best_chain_containing_block).unwrap();
 		}
 	);
 
@@ -501,8 +492,8 @@ struct CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3 --- 0xA4(!avail) --- 0xA5(!avail)
-///			   \
-///				`- 0xB2
+/// 			   \
+/// 				`- 0xB2
 /// ```
 fn chain_undisputed() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -532,8 +523,8 @@ fn chain_undisputed() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed) --- 0xA4(!avail) --- 0xA5(!avail)
-///			   \
-///				`- 0xB2
+/// 			   \
+/// 				`- 0xB2
 /// ```
 fn chain_0() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -563,8 +554,8 @@ fn chain_0() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2(disputed) --- 0xA3
-///			   \
-///				`- 0xB2 --- 0xB3(!available)
+/// 			   \
+/// 				`- 0xB2 --- 0xB3(!available)
 /// ```
 fn chain_1() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -591,8 +582,8 @@ fn chain_1() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2(disputed) --- 0xA3
-///			   \
-///				`- 0xB2 --- 0xB3
+/// 			   \
+/// 				`- 0xB2 --- 0xB3
 /// ```
 fn chain_2() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -619,8 +610,8 @@ fn chain_2() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed)
-///			   \
-///				`- 0xB2 --- 0xB3
+/// 			   \
+/// 				`- 0xB2 --- 0xB3
 /// ```
 fn chain_3() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -647,10 +638,10 @@ fn chain_3() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed)
-///			   \
-///				`- 0xB2 --- 0xB3
+/// 			   \
+/// 				`- 0xB2 --- 0xB3
 ///
-///	            ? --- NEX(does_not_exist)
+/// 	            ? --- NEX(does_not_exist)
 /// ```
 fn chain_4() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;

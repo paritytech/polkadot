@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -72,9 +72,12 @@ impl Metrics {
 	}
 
 	/// Statements have been imported.
-	pub fn on_imported(&self, label: &'static str) {
+	pub fn on_imported(&self, label: &'static str, num_requests: usize) {
 		if let Some(metrics) = &self.0 {
-			metrics.imported_requests.with_label_values(&[label]).inc()
+			metrics
+				.imported_requests
+				.with_label_values(&[label])
+				.inc_by(num_requests as u64)
 		}
 	}
 

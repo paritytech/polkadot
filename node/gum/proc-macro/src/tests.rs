@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -13,6 +13,8 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+#![allow(clippy::dbg_macro)]
 
 use super::*;
 
@@ -127,7 +129,6 @@ mod roundtrip {
 	}
 
 	#[test]
-
 	fn sample_w_candidate_hash_aliased_unnecessary() {
 		assert_matches!(impl_gum2(
 			quote! {

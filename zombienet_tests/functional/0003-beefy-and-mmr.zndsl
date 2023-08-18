@@ -1,0 +1,39 @@
+Description: Test BEEFY voting and finality, test MMR proofs. Assumes Rococo sessions of 1 minute.
+Network: ./0003-beefy-and-mmr.toml
+Creds: config
+
+# Check authority status.
+validator: reports node_roles is 4
+validator-unstable: reports node_roles is 4
+
+# BEEFY sanity checks.
+validator: reports substrate_beefy_validator_set_id is 0
+validator-unstable: reports substrate_beefy_validator_set_id is 0
+
+# Verify voting happens and 1st mandatory block is finalized within 1st session.
+validator: reports substrate_beefy_best_block is at least 1 within 60 seconds
+validator-unstable: reports substrate_beefy_best_block is at least 1 within 60 seconds
+
+# Pause validator-unstable and test chain is making progress without it.
+validator-unstable: pause
+
+# Verify validator sets get changed on new sessions.
+validator: reports substrate_beefy_validator_set_id is at least 1 within 70 seconds
+# Check next session too.
+validator: reports substrate_beefy_validator_set_id is at least 2 within 130 seconds
+
+# Verify voting happens and blocks are being finalized for new sessions too:
+# since we verified we're at least in the 3rd session, verify BEEFY finalized mandatory #21.
+validator: reports substrate_beefy_best_block is at least 21 within 130 seconds
+
+# Custom JS to test BEEFY RPCs.
+validator-0: js-script ./0003-beefy-finalized-heads.js with "validator-0,validator-1,validator-2" return is 1 within 5 seconds
+
+# Custom JS to test MMR RPCs.
+validator: js-script ./0003-mmr-leaves.js with "21" return is 1 within 5 seconds
+validator: js-script ./0003-mmr-generate-and-verify-proof.js with "validator-0,validator-1,validator-2" return is 1 within 5 seconds
+
+# Resume validator-unstable and verify it imports all BEEFY justification and catches up.
+validator-unstable: resume
+validator-unstable: reports substrate_beefy_validator_set_id is at least 2 within 30 seconds
+validator-unstable: reports substrate_beefy_best_block is at least 21 within 30 seconds
