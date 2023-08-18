@@ -37,6 +37,7 @@ polkadot-cli = { path = "cli", features = [ "polkadot-native", "kusama-native", 
 polkadot-node-core-pvf = { path = "node/core/pvf" }
 polkadot-node-core-pvf-prepare-worker = { path = "node/core/pvf/prepare-worker" }
 polkadot-overseer = { path = "node/overseer" }
+tracking-allocator = { path = "node/tracking-allocator", optional = true }
 
 # Needed for worker binaries.
 polkadot-node-core-pvf-common = { path = "node/core/pvf/common", features = ["test-utils"] }
@@ -121,6 +122,7 @@ members = [
 	"node/subsystem-types",
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
+	"node/tracking-allocator",
 	"node/jaeger",
 	"node/gum",
 	"node/gum/proc-macro",
@@ -226,6 +228,8 @@ fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
 jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
+tracking-allocator = ["jemalloc-allocator", "dep:tracking-allocator", "polkadot-node-core-pvf-prepare-worker/tracking-allocator"]
+
 # Enables timeout-based tests supposed to be run only in CI environment as they may be flaky
 # when run locally depending on system load
 ci-only-tests = ["polkadot-node-core-pvf/ci-only-tests"]

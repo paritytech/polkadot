@@ -13,6 +13,7 @@ libc = "0.2.139"
 rayon = "1.5.1"
 tikv-jemalloc-ctl = { version = "0.5.0", optional = true }
 tokio = { version = "1.24.2", features = ["fs", "process"] }
+tracking-allocator = { path = "../../../tracking-allocator", optional = true }
 
 parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 
@@ -33,3 +34,12 @@ tikv-jemalloc-ctl = "0.5.0"
 [features]
 builder = []
 jemalloc-allocator = ["dep:tikv-jemalloc-ctl"]
+tracking-allocator = ["dep:tracking-allocator"]
+
+[dev-dependencies]
+criterion = { version = "0.4.0", default-features = false, features = ["cargo_bench_support"] }
+kusama-runtime = { path = "../../../../runtime/kusama" }
+
+[[bench]]
+name = "prepare_kusama_runtime"
+harness = false

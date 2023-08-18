@@ -96,11 +96,6 @@ pub struct RunCmd {
 	#[arg(long = "grandpa-pause", num_args = 2)]
 	pub grandpa_pause: Vec<u32>,
 
-	/// Disable the BEEFY gadget
-	/// (currently enabled by default on Rococo, Wococo and Versi).
-	#[arg(long)]
-	pub no_beefy: bool,
-
 	/// Add the destination address to the jaeger agent.
 	///
 	/// Must be valid socket address, of format `IP:Port`

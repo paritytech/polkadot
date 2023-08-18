@@ -52,6 +52,8 @@ use std::{
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
+#[cfg(feature = "tracking-allocator")]
+use tracking_allocator::ALLOC;
 
 /// Contains the bytes for a successfully compiled artifact.
 pub struct CompiledArtifact(Vec<u8>);
@@ -180,8 +182,22 @@ pub fn worker_entrypoint(
 						#[cfg(not(target_os = "linux"))]
 						let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
 
+						#[cfg(feature = "tracking-allocator")]
+						ALLOC.start_tracking();
+
 						#[allow(unused_mut)]
 						let mut result = prepare_artifact(pvf, cpu_time_start);
+
+						#[cfg(feature = "tracking-allocator")]
+						{
+							let peak = ALLOC.end_tracking();
+							gum::debug!(
+								target: LOG_TARGET,
+								%worker_pid,
+								"prepare job peak allocation is {} bytes",
+								peak,
+							);
+						}
 
 						// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
 						#[cfg(target_os = "linux")]
