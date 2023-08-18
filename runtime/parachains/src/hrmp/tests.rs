@@ -69,10 +69,8 @@ pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>
 pub(super) struct GenesisConfigBuilder {
 	hrmp_channel_max_capacity: u32,
 	hrmp_channel_max_message_size: u32,
-	hrmp_max_parathread_outbound_channels: u32,
-	hrmp_max_parachain_outbound_channels: u32,
-	hrmp_max_parathread_inbound_channels: u32,
-	hrmp_max_parachain_inbound_channels: u32,
+	hrmp_max_paras_outbound_channels: u32,
+	hrmp_max_paras_inbound_channels: u32,
 	hrmp_max_message_num_per_candidate: u32,
 	hrmp_channel_max_total_size: u32,
 	hrmp_sender_deposit: Balance,
@@ -84,10 +82,8 @@ impl Default for GenesisConfigBuilder {
 		Self {
 			hrmp_channel_max_capacity: 2,
 			hrmp_channel_max_message_size: 8,
-			hrmp_max_parathread_outbound_channels: 1,
-			hrmp_max_parachain_outbound_channels: 2,
-			hrmp_max_parathread_inbound_channels: 1,
-			hrmp_max_parachain_inbound_channels: 2,
+			hrmp_max_paras_outbound_channels: 2,
+			hrmp_max_paras_inbound_channels: 2,
 			hrmp_max_message_num_per_candidate: 2,
 			hrmp_channel_max_total_size: 16,
 			hrmp_sender_deposit: 100,
@@ -102,10 +98,8 @@ impl GenesisConfigBuilder {
 		let config = &mut genesis.configuration.config;
 		config.hrmp_channel_max_capacity = self.hrmp_channel_max_capacity;
 		config.hrmp_channel_max_message_size = self.hrmp_channel_max_message_size;
-		config.hrmp_max_parathread_outbound_channels = self.hrmp_max_parathread_outbound_channels;
-		config.hrmp_max_parachain_outbound_channels = self.hrmp_max_parachain_outbound_channels;
-		config.hrmp_max_parathread_inbound_channels = self.hrmp_max_parathread_inbound_channels;
-		config.hrmp_max_parachain_inbound_channels = self.hrmp_max_parachain_inbound_channels;
+		config.hrmp_max_parachain_outbound_channels = self.hrmp_max_paras_outbound_channels;
+		config.hrmp_max_parachain_inbound_channels = self.hrmp_max_paras_inbound_channels;
 		config.hrmp_max_message_num_per_candidate = self.hrmp_max_message_num_per_candidate;
 		config.hrmp_channel_max_total_size = self.hrmp_channel_max_total_size;
 		config.hrmp_sender_deposit = self.hrmp_sender_deposit;

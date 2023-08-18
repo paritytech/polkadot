@@ -23,13 +23,106 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use primitives::SessionIndex;
+use primitives::{vstaging::AsyncBackingParams, Balance, ExecutorParams, SessionIndex};
 use sp_std::vec::Vec;
 
 use frame_support::traits::OnRuntimeUpgrade;
 
 use super::v6::V6HostConfiguration;
-type V7HostConfiguration<BlockNumber> = configuration::HostConfiguration<BlockNumber>;
+
+#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug, Clone)]
+pub struct V7HostConfiguration<BlockNumber> {
+	pub max_code_size: u32,
+	pub max_head_data_size: u32,
+	pub max_upward_queue_count: u32,
+	pub max_upward_queue_size: u32,
+	pub max_upward_message_size: u32,
+	pub max_upward_message_num_per_candidate: u32,
+	pub hrmp_max_message_num_per_candidate: u32,
+	pub validation_upgrade_cooldown: BlockNumber,
+	pub validation_upgrade_delay: BlockNumber,
+	pub async_backing_params: AsyncBackingParams,
+	pub max_pov_size: u32,
+	pub max_downward_message_size: u32,
+	pub hrmp_max_parachain_outbound_channels: u32,
+	pub hrmp_max_parathread_outbound_channels: u32,
+	pub hrmp_sender_deposit: Balance,
+	pub hrmp_recipient_deposit: Balance,
+	pub hrmp_channel_max_capacity: u32,
+	pub hrmp_channel_max_total_size: u32,
+	pub hrmp_max_parachain_inbound_channels: u32,
+	pub hrmp_max_parathread_inbound_channels: u32,
+	pub hrmp_channel_max_message_size: u32,
+	pub executor_params: ExecutorParams,
+	pub code_retention_period: BlockNumber,
+	pub parathread_cores: u32,
+	pub parathread_retries: u32,
+	pub group_rotation_frequency: BlockNumber,
+	pub chain_availability_period: BlockNumber,
+	pub thread_availability_period: BlockNumber,
+	pub scheduling_lookahead: u32,
+	pub max_validators_per_core: Option<u32>,
+	pub max_validators: Option<u32>,
+	pub dispute_period: SessionIndex,
+	pub dispute_post_conclusion_acceptance_period: BlockNumber,
+	pub no_show_slots: u32,
+	pub n_delay_tranches: u32,
+	pub zeroth_delay_tranche_width: u32,
+	pub needed_approvals: u32,
+	pub relay_vrf_modulo_samples: u32,
+	pub pvf_voting_ttl: SessionIndex,
+	pub minimum_validation_upgrade_delay: BlockNumber,
+}
+
+impl<BlockNumber: Default + From<u32>> Default for V7HostConfiguration<BlockNumber> {
+	fn default() -> Self {
+		Self {
+			async_backing_params: AsyncBackingParams {
+				max_candidate_depth: 0,
+				allowed_ancestry_len: 0,
+			},
+			group_rotation_frequency: 1u32.into(),
+			chain_availability_period: 1u32.into(),
+			thread_availability_period: 1u32.into(),
+			no_show_slots: 1u32.into(),
+			validation_upgrade_cooldown: Default::default(),
+			validation_upgrade_delay: 2u32.into(),
+			code_retention_period: Default::default(),
+			max_code_size: Default::default(),
+			max_pov_size: Default::default(),
+			max_head_data_size: Default::default(),
+			parathread_cores: Default::default(),
+			parathread_retries: Default::default(),
+			scheduling_lookahead: Default::default(),
+			max_validators_per_core: Default::default(),
+			max_validators: None,
+			dispute_period: 6,
+			dispute_post_conclusion_acceptance_period: 100.into(),
+			n_delay_tranches: Default::default(),
+			zeroth_delay_tranche_width: Default::default(),
+			needed_approvals: Default::default(),
+			relay_vrf_modulo_samples: Default::default(),
+			max_upward_queue_count: Default::default(),
+			max_upward_queue_size: Default::default(),
+			max_downward_message_size: Default::default(),
+			max_upward_message_size: Default::default(),
+			max_upward_message_num_per_candidate: Default::default(),
+			hrmp_sender_deposit: Default::default(),
+			hrmp_recipient_deposit: Default::default(),
+			hrmp_channel_max_capacity: Default::default(),
+			hrmp_channel_max_total_size: Default::default(),
+			hrmp_max_parachain_inbound_channels: Default::default(),
+			hrmp_max_parathread_inbound_channels: Default::default(),
+			hrmp_channel_max_message_size: Default::default(),
+			hrmp_max_parachain_outbound_channels: Default::default(),
+			hrmp_max_parathread_outbound_channels: Default::default(),
+			hrmp_max_message_num_per_candidate: Default::default(),
+			pvf_voting_ttl: 2u32.into(),
+			minimum_validation_upgrade_delay: 2.into(),
+			executor_params: Default::default(),
+		}
+	}
+}
 
 mod v6 {
 	use super::*;

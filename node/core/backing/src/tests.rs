@@ -31,8 +31,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::{
-	CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData, PersistedValidationData,
-	PvfExecTimeoutKind, ScheduledCore,
+	CandidateDescriptor, GroupRotationInfo, HeadData, PersistedValidationData, PvfExecTimeoutKind,
+	ScheduledCore,
 };
 use sp_application_crypto::AppCrypto;
 use sp_keyring::Sr25519Keyring;
@@ -98,14 +98,10 @@ impl Default for TestState {
 		let group_rotation_info =
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
 
-		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 		let availability_cores = vec![
 			CoreState::Scheduled(ScheduledCore { para_id: chain_a, collator: None }),
 			CoreState::Scheduled(ScheduledCore { para_id: chain_b, collator: None }),
-			CoreState::Scheduled(ScheduledCore {
-				para_id: thread_a,
-				collator: Some(thread_collator.clone()),
-			}),
+			CoreState::Scheduled(ScheduledCore { para_id: thread_a, collator: None }),
 		];
 
 		let mut head_data = HashMap::new();
@@ -1182,116 +1178,6 @@ fn backing_works_after_failed_validation() {
 
 		virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 		assert_eq!(rx.await.unwrap().len(), 0);
-		virtual_overseer
-	});
-}
-
-// Test that a `CandidateBackingMessage::Second` issues validation work
-// and in case validation is successful issues a `StatementDistributionMessage`.
-#[test]
-fn backing_doesnt_second_wrong_collator() {
-	let mut test_state = TestState::default();
-	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
-		para_id: ParaId::from(1),
-		collator: Some(Sr25519Keyring::Bob.public().into()),
-	});
-
-	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
-		test_startup(&mut virtual_overseer, &test_state).await;
-
-		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
-
-		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
-
-		let pov_hash = pov.hash();
-		let candidate = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
-			relay_parent: test_state.relay_parent,
-			pov_hash,
-			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
-		}
-		.build();
-
-		let second = CandidateBackingMessage::Second(
-			test_state.relay_parent,
-			candidate.to_plain(),
-			pov.clone(),
-		);
-
-		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::CollatorProtocol(
-				CollatorProtocolMessage::Invalid(parent, c)
-			) if parent == test_state.relay_parent && c == candidate.to_plain() => {
-			}
-		);
-
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
-			)))
-			.await;
-		virtual_overseer
-	});
-}
-
-#[test]
-fn validation_work_ignores_wrong_collator() {
-	let mut test_state = TestState::default();
-	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
-		para_id: ParaId::from(1),
-		collator: Some(Sr25519Keyring::Bob.public().into()),
-	});
-
-	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
-		test_startup(&mut virtual_overseer, &test_state).await;
-
-		let pov = PoV { block_data: BlockData(vec![1, 2, 3]) };
-
-		let pov_hash = pov.hash();
-
-		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
-
-		let candidate_a = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
-			relay_parent: test_state.relay_parent,
-			pov_hash,
-			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
-		}
-		.build();
-
-		let public2 = Keystore::sr25519_generate_new(
-			&*test_state.keystore,
-			ValidatorId::ID,
-			Some(&test_state.validators[2].to_seed()),
-		)
-		.expect("Insert key into keystore");
-		let seconding = SignedFullStatement::sign(
-			&test_state.keystore,
-			Statement::Seconded(candidate_a.clone()),
-			&test_state.signing_context,
-			ValidatorIndex(2),
-			&public2.into(),
-		)
-		.ok()
-		.flatten()
-		.expect("should be signed");
-
-		let statement =
-			CandidateBackingMessage::Statement(test_state.relay_parent, seconding.clone());
-
-		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
-
-		// The statement will be ignored because it has the wrong collator.
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
-			)))
-			.await;
 		virtual_overseer
 	});
 }

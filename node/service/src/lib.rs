@@ -56,7 +56,6 @@ use {
 	sc_client_api::BlockBackend,
 	sc_transaction_pool_api::OffchainTransactionPoolFactory,
 	sp_core::traits::SpawnNamed,
-	sp_trie::PrefixedMemoryDB,
 };
 
 use polkadot_node_subsystem_util::database::Database;
@@ -475,7 +474,7 @@ fn new_partial<ChainSelection>(
 		FullClient,
 		FullBackend,
 		ChainSelection,
-		sc_consensus::DefaultImportQueue<Block, FullClient>,
+		sc_consensus::DefaultImportQueue<Block>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
 		(
 			impl Fn(
@@ -1321,15 +1320,8 @@ macro_rules! chain_ops {
 pub fn new_chain_ops(
 	config: &mut Configuration,
 	jaeger_agent: Option<std::net::SocketAddr>,
-) -> Result<
-	(
-		Arc<FullClient>,
-		Arc<FullBackend>,
-		sc_consensus::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
-		TaskManager,
-	),
-	Error,
-> {
+) -> Result<(Arc<FullClient>, Arc<FullBackend>, sc_consensus::BasicQueue<Block>, TaskManager), Error>
+{
 	config.keystore = service::config::KeystoreConfig::InMemory;
 
 	if config.chain_spec.is_rococo() ||
