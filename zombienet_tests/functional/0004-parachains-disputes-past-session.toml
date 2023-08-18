@@ -42,4 +42,4 @@ cumulus_based = true
   command = "polkadot-parachain"
   image = "docker.io/parity/polkadot-parachain:latest"
   # image = "{{COL_IMAGE}}"
-  args = ["-lparachain=debug"]
+  args = ["-lparachain=debug,cumulus-collator=trace,cumulus-pov-recovery=trace"]
