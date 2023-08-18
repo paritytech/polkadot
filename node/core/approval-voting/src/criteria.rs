@@ -278,7 +278,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 		config: &Config,
 		leaving_cores: Vec<(CandidateHash, CoreIndex, GroupIndex)>,
 	) -> HashMap<CoreIndex, OurAssignment> {
-		compute_assignments(keystore, relay_vrf_story, config, leaving_cores, true)
+		compute_assignments(keystore, relay_vrf_story, config, leaving_cores, false)
 	}
 
 	fn check_assignment_cert(
@@ -712,8 +712,9 @@ pub(crate) fn check_assignment_cert(
 			);
 
 			// Currently validators can opt out of checking specific cores.
-			// This is the same issue to how validator can opt out and not send their assignments in the first place.
-			// Ensure that the `vrf_in_out` actually includes all of the claimed cores.
+			// This is the same issue to how validator can opt out and not send their assignments in
+			// the first place. Ensure that the `vrf_in_out` actually includes all of the claimed
+			// cores.
 			for claimed_core_index in claimed_core_indices.iter_ones() {
 				if !resulting_cores.contains(&CoreIndex(claimed_core_index as u32)) {
 					gum::debug!(
