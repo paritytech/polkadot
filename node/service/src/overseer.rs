@@ -28,7 +28,9 @@ use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_network_protocol::{
 	peer_set::PeerSetProtocolNames,
-	request_response::{v1 as request_v1, IncomingRequestReceiver, ReqProtocolNames},
+	request_response::{
+		v1 as request_v1, vstaging as request_vstaging, IncomingRequestReceiver, ReqProtocolNames,
+	},
 };
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
@@ -70,6 +72,7 @@ pub use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 pub use polkadot_node_core_chain_api::ChainApiSubsystem;
 pub use polkadot_node_core_chain_selection::ChainSelectionSubsystem;
 pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
+pub use polkadot_node_core_prospective_parachains::ProspectiveParachainsSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
@@ -95,13 +98,24 @@ where
 	pub sync_service: Arc<sc_network_sync::SyncingService<Block>>,
 	/// Underlying authority discovery service.
 	pub authority_discovery_service: AuthorityDiscoveryService,
-	/// POV request receiver
+	/// POV request receiver.
 	pub pov_req_receiver: IncomingRequestReceiver<request_v1::PoVFetchingRequest>,
+	/// Erasure chunks request receiver.
 	pub chunk_req_receiver: IncomingRequestReceiver<request_v1::ChunkFetchingRequest>,
-	pub collation_req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	/// Collations request receiver for network protocol v1.
+	pub collation_req_v1_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	/// Collations request receiver for network protocol vstaging.
+	pub collation_req_vstaging_receiver:
+		IncomingRequestReceiver<request_vstaging::CollationFetchingRequest>,
+	/// Receiver for available data requests.
 	pub available_data_req_receiver:
 		IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+	/// Receiver for incoming large statement requests.
 	pub statement_req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
+	/// Receiver for incoming candidate requests.
+	pub candidate_req_vstaging_receiver:
+		IncomingRequestReceiver<request_vstaging::AttestedCandidateRequest>,
+	/// Receiver for incoming disputes.
 	pub dispute_req_receiver: IncomingRequestReceiver<request_v1::DisputeRequest>,
 	/// Prometheus registry, commonly used for production systems, less so for test.
 	pub registry: Option<&'a Registry>,
@@ -143,9 +157,11 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		authority_discovery_service,
 		pov_req_receiver,
 		chunk_req_receiver,
-		collation_req_receiver,
+		collation_req_v1_receiver,
+		collation_req_vstaging_receiver,
 		available_data_req_receiver,
 		statement_req_receiver,
+		candidate_req_vstaging_receiver,
 		dispute_req_receiver,
 		registry,
 		spawner,
@@ -193,6 +209,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		DisputeCoordinatorSubsystem,
 		DisputeDistributionSubsystem<AuthorityDiscoveryService>,
 		ChainSelectionSubsystem,
+		ProspectiveParachainsSubsystem,
 	>,
 	Error,
 >
@@ -267,12 +284,13 @@ where
 		.collation_generation(CollationGenerationSubsystem::new(Metrics::register(registry)?))
 		.collator_protocol({
 			let side = match is_parachain_node {
-				IsParachainNode::Collator(collator_pair) => ProtocolSide::Collator(
-					network_service.local_peer_id(),
+				IsParachainNode::Collator(collator_pair) => ProtocolSide::Collator {
+					peer_id: network_service.local_peer_id(),
 					collator_pair,
-					collation_req_receiver,
-					Metrics::register(registry)?,
-				),
+					request_receiver_v1: collation_req_v1_receiver,
+					request_receiver_vstaging: collation_req_vstaging_receiver,
+					metrics: Metrics::register(registry)?,
+				},
 				IsParachainNode::FullNode => ProtocolSide::None,
 				IsParachainNode::No => ProtocolSide::Validator {
 					keystore: keystore.clone(),
@@ -291,6 +309,7 @@ where
 		.statement_distribution(StatementDistributionSubsystem::new(
 			keystore.clone(),
 			statement_req_receiver,
+			candidate_req_vstaging_receiver,
 			Metrics::register(registry)?,
 			rand::rngs::StdRng::from_entropy(),
 		))
@@ -320,6 +339,7 @@ where
 			Metrics::register(registry)?,
 		))
 		.chain_selection(ChainSelectionSubsystem::new(chain_selection_config, parachains_db))
+		.prospective_parachains(ProspectiveParachainsSubsystem::new(Metrics::register(registry)?))
 		.activation_external_listeners(Default::default())
 		.span_per_active_leaf(Default::default())
 		.active_leaves(Default::default())

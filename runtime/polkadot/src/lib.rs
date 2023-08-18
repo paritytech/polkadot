@@ -821,6 +821,7 @@ where
 }
 
 parameter_types! {
+	// Deposit for a parathread (on-demand parachain)
 	pub const ParathreadDeposit: Balance = 500 * DOLLARS;
 	pub const MaxRetries: u32 = 3;
 }

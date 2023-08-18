@@ -55,14 +55,14 @@ validator-8: reports polkadot_parachain_approval_checking_finality_lag is 0
 validator-9: reports polkadot_parachain_approval_checking_finality_lag is 0
 
 # Check lag - dispute conclusion
-validator-0: reports parachain_candidate_disputes_total is 0
-validator-1: reports parachain_candidate_disputes_total is 0
-validator-2: reports parachain_candidate_disputes_total is 0
-validator-3: reports parachain_candidate_disputes_total is 0
-validator-4: reports parachain_candidate_disputes_total is 0
-validator-5: reports parachain_candidate_disputes_total is 0
-validator-6: reports parachain_candidate_disputes_total is 0
-validator-7: reports parachain_candidate_disputes_total is 0
-validator-8: reports parachain_candidate_disputes_total is 0
-validator-9: reports parachain_candidate_disputes_total is 0
+validator-0: reports polkadot_parachain_candidate_disputes_total is 0
+validator-1: reports polkadot_parachain_candidate_disputes_total is 0
+validator-2: reports polkadot_parachain_candidate_disputes_total is 0
+validator-3: reports polkadot_parachain_candidate_disputes_total is 0
+validator-4: reports polkadot_parachain_candidate_disputes_total is 0
+validator-5: reports polkadot_parachain_candidate_disputes_total is 0
+validator-6: reports polkadot_parachain_candidate_disputes_total is 0
+validator-7: reports polkadot_parachain_candidate_disputes_total is 0
+validator-8: reports polkadot_parachain_candidate_disputes_total is 0
+validator-9: reports polkadot_parachain_candidate_disputes_total is 0
 

@@ -19,7 +19,7 @@
 use frame_support::pallet_prelude::*;
 use primitives::{
 	v5::{Assignment, ParasEntry},
-	CoreIndex, GroupIndex, Id as ParaId,
+	CoreIndex, Id as ParaId,
 };
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
@@ -81,8 +81,6 @@ pub struct CoreAssignment<BlockNumber> {
 	pub core: CoreIndex,
 	/// The para id and accompanying information needed to collate and back a parablock.
 	pub paras_entry: ParasEntry<BlockNumber>,
-	/// The index of the validator group assigned to the core.
-	pub group_idx: GroupIndex,
 }
 
 impl<BlockNumber> CoreAssignment<BlockNumber> {

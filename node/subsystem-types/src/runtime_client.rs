@@ -212,13 +212,6 @@ pub trait RuntimeApiSubsystemClient {
 		key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
 	) -> Result<Option<()>, ApiError>;
 
-	/// Get the execution environment parameter set by parent hash, if stored
-	async fn session_executor_params(
-		&self,
-		at: Hash,
-		session_index: SessionIndex,
-	) -> Result<Option<ExecutorParams>, ApiError>;
-
 	// === BABE API ===
 
 	/// Returns information regarding the current epoch.
@@ -231,6 +224,29 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
+
+	/// Get the execution environment parameter set by parent hash, if stored
+	async fn session_executor_params(
+		&self,
+		at: Hash,
+		session_index: SessionIndex,
+	) -> Result<Option<ExecutorParams>, ApiError>;
+
+	// === Asynchronous backing API ===
+
+	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
+	async fn staging_async_backing_params(
+		&self,
+		at: Hash,
+	) -> Result<polkadot_primitives::vstaging::AsyncBackingParams, ApiError>;
+
+	/// Returns the state of parachain backing for a given para.
+	/// This is a staging method! Do not use on production runtimes!
+	async fn staging_para_backing_state(
+		&self,
+		at: Hash,
+		para_id: Id,
+	) -> Result<Option<polkadot_primitives::vstaging::BackingState>, ApiError>;
 }
 
 /// Default implementation of [`RuntimeApiSubsystemClient`] using the client.
@@ -455,5 +471,21 @@ where
 		);
 
 		runtime_api.submit_report_dispute_lost(at, dispute_proof, key_ownership_proof)
+	}
+
+	async fn staging_para_backing_state(
+		&self,
+		at: Hash,
+		para_id: Id,
+	) -> Result<Option<polkadot_primitives::vstaging::BackingState>, ApiError> {
+		self.client.runtime_api().staging_para_backing_state(at, para_id)
+	}
+
+	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
+	async fn staging_async_backing_params(
+		&self,
+		at: Hash,
+	) -> Result<polkadot_primitives::vstaging::AsyncBackingParams, ApiError> {
+		self.client.runtime_api().staging_async_backing_params(at)
 	}
 }
