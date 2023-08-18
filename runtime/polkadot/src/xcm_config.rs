@@ -350,7 +350,7 @@ impl xcm_executor::Config for XcmConfig {
 }
 
 parameter_types! {
-	// GeneralAdmion pluralistic body.
+	// `GeneralAdmin` pluralistic body.
 	pub const GeneralAdminBodyId: BodyId = BodyId::Administration;
 	// StakingAdmin pluralistic body.
 	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
