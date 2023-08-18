@@ -79,9 +79,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		instructions[..end]
 			.matcher()
 			.match_next_inst(|inst| match inst {
-				ReceiveTeleportedAsset(..) |
-				ReserveAssetDeposited(..) |
-				ClaimAsset { .. } => Ok(()),
+				ReceiveTeleportedAsset(..) | ReserveAssetDeposited(..) | ClaimAsset { .. } =>
+					Ok(()),
 				WithdrawAsset(ref assets) if assets.len() < 2 => Ok(()),
 				_ => Err(ProcessMessageError::BadFormat),
 			})?
