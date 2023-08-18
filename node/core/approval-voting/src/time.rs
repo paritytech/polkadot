@@ -98,9 +98,9 @@ pub(crate) fn slot_number_to_tick(slot_duration_millis: u64, slot: Slot) -> Tick
 	u64::from(slot) * ticks_per_slot
 }
 
-// A list of delayed futures that gets triggered when the waiting time has expired and it is
-// time to sign the candidate.
-// We have a timer per relay-chain block.
+/// A list of delayed futures that gets triggered when the waiting time has expired and it is
+/// time to sign the candidate.
+/// We have a timer per relay-chain block.
 #[derive(Default)]
 pub struct DelayedApprovalTimer {
 	timers: FuturesUnordered<BoxFuture<'static, (Hash, ValidatorIndex)>>,

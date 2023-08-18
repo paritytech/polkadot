@@ -133,13 +133,12 @@ fn make_gossip_topology(
 	all_peers: &[(PeerId, AuthorityDiscoveryId)],
 	neighbors_x: &[usize],
 	neighbors_y: &[usize],
+	local_index: usize,
 ) -> network_bridge_event::NewGossipTopology {
 	// This builds a grid topology which is a square matrix.
 	// The local validator occupies the top left-hand corner.
 	// The X peers occupy the same row and the Y peers occupy
 	// the same column.
-
-	let local_index = 1;
 
 	assert_eq!(
 		neighbors_x.len(),
@@ -365,10 +364,11 @@ fn state_with_reputation_delay() -> State {
 /// the new peer sends us the same assignment
 #[test]
 fn try_import_the_same_assignment() {
-	let peer_a = PeerId::random();
-	let peer_b = PeerId::random();
-	let peer_c = PeerId::random();
-	let peer_d = PeerId::random();
+	let peers = make_peers_and_authority_ids(15);
+	let peer_a = peers.get(0).unwrap().0;
+	let peer_b = peers.get(1).unwrap().0;
+	let peer_c = peers.get(2).unwrap().0;
+	let peer_d = peers.get(4).unwrap().0;
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
 
@@ -378,6 +378,9 @@ fn try_import_the_same_assignment() {
 		setup_peer_with_view(overseer, &peer_a, view![], ValidationVersion::V1).await;
 		setup_peer_with_view(overseer, &peer_b, view![hash], ValidationVersion::V1).await;
 		setup_peer_with_view(overseer, &peer_c, view![hash], ValidationVersion::V1).await;
+
+		// Set up a gossip topology, where a, b, c and d are topology neighboors to the node under testing.
+		setup_gossip_topology(overseer, make_gossip_topology(1, &peers, &[0, 1], &[2, 4], 3)).await;
 
 		// new block `hash_a` with 1 candidates
 		let meta = BlockApprovalMeta {
@@ -449,10 +452,11 @@ fn try_import_the_same_assignment() {
 /// cores.
 #[test]
 fn try_import_the_same_assignment_v2() {
-	let peer_a = PeerId::random();
-	let peer_b = PeerId::random();
-	let peer_c = PeerId::random();
-	let peer_d = PeerId::random();
+	let peers = make_peers_and_authority_ids(15);
+	let peer_a = peers.get(0).unwrap().0;
+	let peer_b = peers.get(1).unwrap().0;
+	let peer_c = peers.get(2).unwrap().0;
+	let peer_d = peers.get(4).unwrap().0;
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
 
@@ -462,6 +466,9 @@ fn try_import_the_same_assignment_v2() {
 		setup_peer_with_view(overseer, &peer_a, view![], ValidationVersion::VStaging).await;
 		setup_peer_with_view(overseer, &peer_b, view![hash], ValidationVersion::VStaging).await;
 		setup_peer_with_view(overseer, &peer_c, view![hash], ValidationVersion::VStaging).await;
+
+		// Set up a gossip topology, where a, b, c and d are topology neighboors to the node under testing.
+		setup_gossip_topology(overseer, make_gossip_topology(1, &peers, &[0, 1], &[2, 4], 3)).await;
 
 		// new block `hash_a` with 1 candidates
 		let meta = BlockApprovalMeta {
@@ -690,13 +697,18 @@ fn spam_attack_results_in_negative_reputation_change() {
 #[test]
 fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 	let parent_hash = Hash::repeat_byte(0xFF);
-	let peer_a = PeerId::random();
 	let hash = Hash::repeat_byte(0xAA);
+
+	let peers = make_peers_and_authority_ids(8);
+	let peer_a = peers.first().unwrap().0;
 
 	let _ = test_harness(state_without_reputation_delay(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		let peer = &peer_a;
 		setup_peer_with_view(overseer, peer, view![], ValidationVersion::V1).await;
+
+		// Setup a topology where peer_a is neigboor to current node.
+		setup_gossip_topology(overseer, make_gossip_topology(1, &peers, &[0], &[2], 1)).await;
 
 		// new block `hash` with 1 candidates
 		let meta = BlockApprovalMeta {
@@ -766,9 +778,11 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 
 #[test]
 fn import_approval_happy_path() {
-	let peer_a = PeerId::random();
-	let peer_b = PeerId::random();
-	let peer_c = PeerId::random();
+	let peers = make_peers_and_authority_ids(15);
+
+	let peer_a = peers.get(0).unwrap().0;
+	let peer_b = peers.get(1).unwrap().0;
+	let peer_c = peers.get(2).unwrap().0;
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
 
@@ -790,6 +804,9 @@ fn import_approval_happy_path() {
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
+
+		// Set up a gossip topology, where a, b, and c are topology neighboors to the node.
+		setup_gossip_topology(overseer, make_gossip_topology(1, &peers, &[0, 1], &[2, 4], 3)).await;
 
 		// import an assignment related to `hash` locally
 		let validator_index = ValidatorIndex(0);
@@ -1033,7 +1050,8 @@ fn update_peer_view() {
 	let hash_b = Hash::repeat_byte(0xBB);
 	let hash_c = Hash::repeat_byte(0xCC);
 	let hash_d = Hash::repeat_byte(0xDD);
-	let peer_a = PeerId::random();
+	let peers = make_peers_and_authority_ids(8);
+	let peer_a = peers.first().unwrap().0;
 	let peer = &peer_a;
 
 	let state = test_harness(State::default(), |mut virtual_overseer| async move {
@@ -1066,6 +1084,9 @@ fn update_peer_view() {
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta_a, meta_b, meta_c]);
 		overseer_send(overseer, msg).await;
+
+		// Setup a topology where peer_a is neigboor to current node.
+		setup_gossip_topology(overseer, make_gossip_topology(1, &peers, &[0], &[2], 1)).await;
 
 		let cert_a = fake_assignment_cert(hash_a, ValidatorIndex(0));
 		let cert_b = fake_assignment_cert(hash_b, ValidatorIndex(0));
@@ -1280,7 +1301,8 @@ fn import_remotely_then_locally() {
 
 #[test]
 fn sends_assignments_even_when_state_is_approved() {
-	let peer_a = PeerId::random();
+	let peers = make_peers_and_authority_ids(8);
+	let peer_a = peers.first().unwrap().0;
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
 	let peer = &peer_a;
@@ -1299,6 +1321,9 @@ fn sends_assignments_even_when_state_is_approved() {
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
+
+		// Setup a topology where peer_a is neigboor to current node.
+		setup_gossip_topology(overseer, make_gossip_topology(1, &peers, &[0], &[2], 1)).await;
 
 		let validator_index = ValidatorIndex(0);
 		let candidate_index = 0u32;
@@ -1367,7 +1392,8 @@ fn sends_assignments_even_when_state_is_approved() {
 /// Same as `sends_assignments_even_when_state_is_approved_v2` but with `VRFModuloCompact` assignemnts.
 #[test]
 fn sends_assignments_even_when_state_is_approved_v2() {
-	let peer_a = PeerId::random();
+	let peers = make_peers_and_authority_ids(8);
+	let peer_a = peers.first().unwrap().0;
 	let parent_hash = Hash::repeat_byte(0xFF);
 	let hash = Hash::repeat_byte(0xAA);
 	let peer = &peer_a;
@@ -1386,6 +1412,9 @@ fn sends_assignments_even_when_state_is_approved_v2() {
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
+
+		// Setup a topology where peer_a is neigboor to current node.
+		setup_gossip_topology(overseer, make_gossip_topology(1, &peers, &[0], &[2], 1)).await;
 
 		let validator_index = ValidatorIndex(0);
 		let cores = vec![0, 1, 2, 3];
@@ -1567,13 +1596,19 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+			make_gossip_topology(
+				1,
+				&peers,
+				&[0, 10, 20, 30, 40, 60, 70, 80],
+				&[50, 51, 52, 53, 54, 55, 56, 57],
+				1,
+			),
 		)
 		.await;
 
 		let expected_indices = [
 			// Both dimensions in the gossip topology
-			0, 10, 20, 30, 50, 51, 52, 53,
+			0, 10, 20, 30, 40, 60, 70, 80, 50, 51, 52, 53, 54, 55, 56, 57,
 		];
 
 		// new block `hash_a` with 1 candidates
@@ -1678,7 +1713,7 @@ fn propagates_assignments_along_unshared_dimension() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53], 1),
 		)
 		.await;
 
@@ -1821,13 +1856,19 @@ fn propagates_to_required_after_connect() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+			make_gossip_topology(
+				1,
+				&peers,
+				&[0, 10, 20, 30, 40, 60, 70, 80],
+				&[50, 51, 52, 53, 54, 55, 56, 57],
+				1,
+			),
 		)
 		.await;
 
 		let expected_indices = [
 			// Both dimensions in the gossip topology, minus omitted.
-			20, 30, 52, 53,
+			20, 30, 40, 60, 70, 80, 52, 53, 54, 55, 56, 57,
 		];
 
 		// new block `hash_a` with 1 candidates
@@ -2004,47 +2045,12 @@ fn sends_to_more_peers_after_getting_topology() {
 		let assignments = vec![(cert.clone(), candidate_index)];
 		let approvals = vec![approval.clone()];
 
-		let mut expected_indices = vec![0, 10, 20, 30, 50, 51, 52, 53];
-		let assignment_sent_peers = assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
-				sent_peers,
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
-				))
-			)) => {
-				// Only sends to random peers.
-				assert_eq!(sent_peers.len(), 4);
-				for peer in &sent_peers {
-					let i = peers.iter().position(|p| peer == &p.0).unwrap();
-					// Random gossip before topology can send to topology-targeted peers.
-					// Remove them from the expected indices so we don't expect
-					// them to get the messages again after the assignment.
-					expected_indices.retain(|&i2| i2 != i);
-				}
-				assert_eq!(sent_assignments, assignments);
-				sent_peers
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
-				sent_peers,
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
-				))
-			)) => {
-				// Random sampling is reused from the assignment.
-				assert_eq!(sent_peers, assignment_sent_peers);
-				assert_eq!(sent_approvals, approvals);
-			}
-		);
+		let expected_indices = vec![0, 10, 20, 30, 50, 51, 52, 53];
 
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53], 1),
 		)
 		.await;
 
@@ -2147,7 +2153,7 @@ fn originator_aggression_l1() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53], 1),
 		)
 		.await;
 
@@ -2306,7 +2312,7 @@ fn non_originator_aggression_l1() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53], 1),
 		)
 		.await;
 
@@ -2411,7 +2417,7 @@ fn non_originator_aggression_l2() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53], 1),
 		)
 		.await;
 
@@ -2557,7 +2563,7 @@ fn resends_messages_periodically() {
 		// Set up a gossip topology.
 		setup_gossip_topology(
 			overseer,
-			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53]),
+			make_gossip_topology(1, &peers, &[0, 10, 20, 30], &[50, 51, 52, 53], 1),
 		)
 		.await;
 

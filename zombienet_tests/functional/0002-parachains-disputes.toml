@@ -7,7 +7,6 @@ timeout = 1000
 
 [relaychain.genesis.runtime.runtime_genesis_config.configuration.config.approval_voting_params]
   max_approval_coalesce_count = 5
-  max_approval_coalesce_wait_ticks = 2
 
 
 [relaychain]

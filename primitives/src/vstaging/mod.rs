@@ -69,7 +69,4 @@ pub struct ApprovalVotingParams {
 	///
 	/// Setting it to 1, means we send the approval as soon as we have it available.
 	pub max_approval_coalesce_count: u32,
-	/// The maximum ticks we await for a candidate approval to be coalesced with
-	/// the ones for other candidate before we sign it and distribute to our peers
-	pub max_approval_coalesce_wait_ticks: u32,
 }

@@ -152,6 +152,12 @@ We strongly prefer if postponements come from tranches higher aka less important
 
 TODO: When?  Is this optimal for the network?  etc.
 
+## Approval coalescing
+To reduce the necessary network bandwidth and cpu time when a validator has more than one candidate to approve we are doing our best effort to send a single message that approves all available candidates with a single signature. The implemented heuristic, is that each time we are ready to create a signature and send a vote for a candidate we delay the sending of it untill one of three things happen:
+- We gathered a maximum of `MAX_APPROVAL_COALESCE_COUNT` candidates that we are ready to vote for.
+- `MAX_APPROVALS_COALESCE_TICKS` have passed since the we were ready to approve the candidate.
+- We are already in the last third of the now-show period in order to avoid creating accidental no shows, which in turn my trigger other assignments.
+
 ## On-chain verification
 
 We should verify approval on-chain to reward approval checkers. We therefore require the "no show" timeout to be longer than a relay chain slot so that we can witness "no shows" on-chain, which helps with this goal. The major challenge with an on-chain record of the off-chain process is adversarial block producers who may either censor votes or publish votes to the chain which cause other votes to be ignored and unrewarded (reward stealing).

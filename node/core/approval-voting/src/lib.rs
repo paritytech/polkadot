@@ -23,6 +23,7 @@
 
 use itertools::Itertools;
 use jaeger::{hash_to_trace_identifier, PerLeafSpan};
+use lru::LruCache;
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
@@ -102,7 +103,7 @@ use crate::{
 	approval_db::v2::{Config as DatabaseConfig, DbBackend},
 	backend::{Backend, OverlayedBackend},
 	criteria::InvalidAssignmentReason,
-	persisted_entries::{CandidateSigningContext, OurApproval},
+	persisted_entries::OurApproval,
 };
 
 #[cfg(test)]
@@ -122,6 +123,16 @@ const APPROVAL_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(1024) {
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const APPROVAL_DELAY: Tick = 2;
 pub(crate) const LOG_TARGET: &str = "parachain::approval-voting";
+
+// The max number of ticks we delay sending the approval after we are ready to issue the approval
+const MAX_APPROVAL_COALESCE_WAIT_TICKS: Tick = 2;
+
+// The maximum approval params we cache locally in the subsytem, so that we don't have
+// to do the back and forth to the runtime subsystem api.
+const APPROVAL_PARAMS_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(128) {
+	Some(cap) => cap,
+	None => panic!("Approval params cache size must be non-zero."),
+};
 
 /// Configuration for the approval voting subsystem
 #[derive(Debug, Clone)]
@@ -158,6 +169,9 @@ pub struct ApprovalVotingSubsystem {
 	db: Arc<dyn Database>,
 	mode: Mode,
 	metrics: Metrics,
+	// Store approval-voting params, so that we don't to always go to RuntimeAPI
+	// to ask this information which requires a task context switch.
+	approval_voting_params_cache: Option<LruCache<Hash, ApprovalVotingParams>>,
 }
 
 #[derive(Clone)]
@@ -166,9 +180,9 @@ struct MetricsInner {
 	assignments_produced: prometheus::Histogram,
 	approvals_produced_total: prometheus::CounterVec<prometheus::U64>,
 	no_shows_total: prometheus::Counter<prometheus::U64>,
-	// The difference is that this counts all observed no-shows.
-	// approvals might arrive late and `no_shows_total` wouldn't catch
-	// that number.
+	// The difference from `no_shows_total` is that this counts all observed no-shows at any
+	// moment in time. While `no_shows_total` catches that the no-shows at the moment the candidate
+	// is approved, approvals might arrive late and `no_shows_total` wouldn't catch that number.
 	observed_no_shows: prometheus::Counter<prometheus::U64>,
 	approved_by_one_third: prometheus::Counter<prometheus::U64>,
 	wakeups_triggered_total: prometheus::Counter<prometheus::U64>,
@@ -200,7 +214,8 @@ impl Metrics {
 
 	fn on_approval_coalesce(&self, num_coalesced: u32) {
 		if let Some(metrics) = &self.0 {
-			// So we count how many candidates we covered with this approvals.
+			// Count how many candidates we covered with this coalesced approvals,
+			// so that the heat-map really gives a good understanding of the scales.
 			for _ in 0..num_coalesced {
 				metrics.coalesced_approvals_buckets.observe(num_coalesced as f64)
 			}
@@ -335,7 +350,7 @@ impl metrics::Metrics for Metrics {
 			observed_no_shows: prometheus::register(
 				prometheus::Counter::new(
 					"polkadot_parachain_approvals_observed_no_shows_total",
-					"Number of observed no shows",
+					"Number of observed no shows at any moment in time",
 				)?,
 				registry,
 			)?,
@@ -427,6 +442,24 @@ impl ApprovalVotingSubsystem {
 		sync_oracle: Box<dyn SyncOracle + Send>,
 		metrics: Metrics,
 	) -> Self {
+		Self::with_config_and_cache(
+			config,
+			db,
+			keystore,
+			sync_oracle,
+			metrics,
+			Some(LruCache::new(APPROVAL_PARAMS_CACHE_SIZE)),
+		)
+	}
+
+	pub fn with_config_and_cache(
+		config: Config,
+		db: Arc<dyn Database>,
+		keystore: Arc<LocalKeystore>,
+		sync_oracle: Box<dyn SyncOracle + Send>,
+		metrics: Metrics,
+		approval_voting_params_cache: Option<LruCache<Hash, ApprovalVotingParams>>,
+	) -> Self {
 		ApprovalVotingSubsystem {
 			keystore,
 			slot_duration_millis: config.slot_duration_millis,
@@ -434,6 +467,7 @@ impl ApprovalVotingSubsystem {
 			db_config: DatabaseConfig { col_approval_data: config.col_approval_data },
 			mode: Mode::Syncing(sync_oracle),
 			metrics,
+			approval_voting_params_cache,
 		}
 	}
 
@@ -739,6 +773,9 @@ struct State {
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 	spans: HashMap<Hash, jaeger::PerLeafSpan>,
+	// Store approval-voting params, so that we don't to always go to RuntimeAPI
+	// to ask this information which requires a task context switch.
+	approval_voting_params_cache: Option<LruCache<Hash, ApprovalVotingParams>>,
 }
 
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
@@ -794,6 +831,47 @@ impl State {
 			None
 		}
 	}
+
+	// Returns the approval voting from the RuntimeApi.
+	// To avoid crossing the subsystem boundary every-time we are caching locally the values.
+	#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+	async fn get_approval_voting_params_or_default<Context>(
+		&mut self,
+		ctx: &mut Context,
+		block_hash: Hash,
+	) -> ApprovalVotingParams {
+		if let Some(params) = self
+			.approval_voting_params_cache
+			.as_mut()
+			.and_then(|cache| cache.get(&block_hash))
+		{
+			*params
+		} else {
+			let (s_tx, s_rx) = oneshot::channel();
+
+			ctx.send_message(RuntimeApiMessage::Request(
+				block_hash,
+				RuntimeApiRequest::ApprovalVotingParams(s_tx),
+			))
+			.await;
+
+			match s_rx.await {
+				Ok(Ok(params)) => {
+					self.approval_voting_params_cache
+						.as_mut()
+						.map(|cache| cache.put(block_hash, params));
+					params
+				},
+				_ => {
+					gum::error!(
+						target: LOG_TARGET,
+						"Could not request approval voting params from runtime using defaults"
+					);
+					ApprovalVotingParams { max_approval_coalesce_count: 1 }
+				},
+			}
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -842,6 +920,7 @@ where
 		clock,
 		assignment_criteria,
 		spans: HashMap::new(),
+		approval_voting_params_cache: subsystem.approval_voting_params_cache.take(),
 	};
 
 	// `None` on start-up. Gets initialized/updated on leaf update
@@ -937,7 +1016,7 @@ where
 					"Sign approval for multiple candidates",
 				);
 
-				let approval_params = get_approval_voting_params_or_default(&mut ctx, block_hash).await;
+				let approval_params = state.get_approval_voting_params_or_default(&mut ctx, block_hash).await;
 
 				match maybe_create_signature(
 					&mut overlayed_db,
@@ -966,7 +1045,7 @@ where
 
 		if handle_actions(
 			&mut ctx,
-			&state,
+			&mut state,
 			&mut overlayed_db,
 			&mut session_info_provider,
 			&subsystem.metrics,
@@ -1014,7 +1093,7 @@ where
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 async fn handle_actions<Context>(
 	ctx: &mut Context,
-	state: &State,
+	state: &mut State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut RuntimeInfo,
 	metrics: &Metrics,
@@ -1281,7 +1360,7 @@ fn distribution_messages_for_activation(
 								&candidate_hash,
 								&block_entry,
 							) {
-								if !block_entry.candidates_pending_signature.is_empty() {
+								if block_entry.has_candidates_pending_signature() {
 									delayed_approvals_timers.maybe_arm_timer(
 										state.clock.tick_now(),
 										state.clock.as_ref(),
@@ -2603,9 +2682,9 @@ where
 				metrics.on_no_shows(no_shows);
 			}
 			if check == Check::ApprovedOneThird {
-				// No-shows are not counted when more than one third of validators,
-				// so count candidates where more than one third of validators had
-				// to approve it, this is indicative of something breaking.
+				// No-shows are not counted when more than one third of validators approve a candidate,
+				// so count candidates where more than one third of validators had to approve it,
+				// this is indicative of something breaking.
 				metrics.on_approved_by_one_third()
 			}
 
@@ -3106,7 +3185,7 @@ async fn launch_approval<Context>(
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 async fn issue_approval<Context>(
 	ctx: &mut Context,
-	state: &State,
+	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	session_info_provider: &mut RuntimeInfo,
 	metrics: &Metrics,
@@ -3193,20 +3272,22 @@ async fn issue_approval<Context>(
 		None => return Ok(Vec::new()),
 	};
 
-	let approval_params = get_approval_voting_params_or_default(ctx, block_hash).await;
-
-	block_entry.candidates_pending_signature.insert(
-		candidate_index as _,
-		CandidateSigningContext {
+	if block_entry
+		.defer_candidate_signature(
+			candidate_index as _,
 			candidate_hash,
-			send_no_later_than_tick: compute_delayed_approval_sending_tick(
-				state,
-				&block_entry,
-				session_info,
-				&approval_params,
-			),
-		},
-	);
+			compute_delayed_approval_sending_tick(state, &block_entry, session_info),
+		)
+		.is_some()
+	{
+		gum::error!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			?block_hash,
+			validator_index = validator_index.0,
+			"Possible bug, we shouldn't have to defer a candidate more than once",
+		);
+	}
 
 	gum::info!(
 		target: LOG_TARGET,
@@ -3215,6 +3296,8 @@ async fn issue_approval<Context>(
 		validator_index = validator_index.0,
 		"Ready to issue approval vote",
 	);
+
+	let approval_params = state.get_approval_voting_params_or_default(ctx, block_hash).await;
 
 	let actions = advance_approval_state(
 		ctx.sender(),
@@ -3278,14 +3361,10 @@ async fn maybe_create_signature<Context>(
 
 	gum::debug!(
 		target: LOG_TARGET,
-		"Candidates pending signatures {:}", block_entry.candidates_pending_signature.len()
+		"Candidates pending signatures {:}", block_entry.num_candidates_pending_signature()
 	);
 
-	let oldest_candidate_to_sign = match block_entry
-		.candidates_pending_signature
-		.values()
-		.min_by(|a, b| a.send_no_later_than_tick.cmp(&b.send_no_later_than_tick))
-	{
+	let oldest_candidate_to_sign = match block_entry.longest_waiting_candidate_signature() {
 		Some(candidate) => candidate,
 		// No cached candidates, nothing to do here, this just means the timer fired,
 		// but the signatures were already sent because we gathered more than max_approval_coalesce_count.
@@ -3295,7 +3374,7 @@ async fn maybe_create_signature<Context>(
 	let tick_now = state.clock.tick_now();
 
 	if oldest_candidate_to_sign.send_no_later_than_tick > tick_now &&
-		(block_entry.candidates_pending_signature.len() as u32) <
+		(block_entry.num_candidates_pending_signature() as u32) <
 			approval_params.max_approval_coalesce_count
 	{
 		return Ok(Some(oldest_candidate_to_sign.send_no_later_than_tick))
@@ -3335,11 +3414,7 @@ async fn maybe_create_signature<Context>(
 		},
 	};
 
-	let candidate_hashes: Vec<CandidateHash> = block_entry
-		.candidates_pending_signature
-		.values()
-		.map(|unsigned_approval| unsigned_approval.candidate_hash)
-		.collect();
+	let candidate_hashes = block_entry.candidate_hashes_pending_signature();
 
 	let signature = match sign_approval(
 		&state.keystore,
@@ -3361,13 +3436,13 @@ async fn maybe_create_signature<Context>(
 		},
 	};
 
-	let candidate_entries = block_entry
-		.candidates_pending_signature
-		.values()
-		.map(|unsigned_approval| db.load_candidate_entry(&unsigned_approval.candidate_hash))
+	let candidate_entries = candidate_hashes
+		.iter()
+		.map(|candidate_hash| db.load_candidate_entry(candidate_hash))
 		.collect::<SubsystemResult<Vec<Option<CandidateEntry>>>>()?;
-	let candidate_indices: Vec<CandidateIndex> =
-		block_entry.candidates_pending_signature.keys().map(|val| *val).collect();
+
+	let candidate_indices = block_entry.candidate_indices_pending_signature();
+
 	for candidate_entry in candidate_entries {
 		let mut candidate_entry = candidate_entry
 			.expect("Candidate was scheduled to be signed entry in db should exist; qed");
@@ -3404,10 +3479,10 @@ async fn maybe_create_signature<Context>(
 	gum::debug!(
 		target: LOG_TARGET,
 		?block_hash,
-		signed_candidates = ?block_entry.candidates_pending_signature.len(),
+		signed_candidates = ?block_entry.num_candidates_pending_signature(),
 		"Issue approval votes",
 	);
-	block_entry.candidates_pending_signature.clear();
+	block_entry.issued_approval();
 	db.write_block_entry(block_entry.into());
 	Ok(None)
 }
@@ -3452,39 +3527,11 @@ fn issue_local_invalid_statement<Sender>(
 	));
 }
 
-#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
-async fn get_approval_voting_params_or_default<Context>(
-	ctx: &mut Context,
-	block_hash: Hash,
-) -> ApprovalVotingParams {
-	let (s_tx, s_rx) = oneshot::channel();
-
-	ctx.send_message(RuntimeApiMessage::Request(
-		block_hash,
-		RuntimeApiRequest::ApprovalVotingParams(s_tx),
-	))
-	.await;
-
-	match s_rx.await {
-		Ok(Ok(s)) => s,
-		_ => {
-			gum::error!(
-				target: LOG_TARGET,
-				"Could not request approval voting params from runtime using defaults"
-			);
-			ApprovalVotingParams {
-				max_approval_coalesce_count: 1,
-				max_approval_coalesce_wait_ticks: 2,
-			}
-		},
-	}
-}
-
+// Computes what is the latest tick we can send an approval
 fn compute_delayed_approval_sending_tick(
 	state: &State,
 	block_entry: &BlockEntry,
 	session_info: &SessionInfo,
-	approval_params: &ApprovalVotingParams,
 ) -> Tick {
 	let current_block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
 
@@ -3495,7 +3542,7 @@ fn compute_delayed_approval_sending_tick(
 	let tick_now = state.clock.tick_now();
 
 	min(
-		tick_now + approval_params.max_approval_coalesce_wait_ticks as Tick,
+		tick_now + MAX_APPROVAL_COALESCE_WAIT_TICKS as Tick,
 		// We don't want to accidentally cause, no-shows so if we are past
 		// the 2 thirds of the no show time, force the sending of the
 		// approval immediately.

@@ -102,7 +102,7 @@ impl From<ValidatorSignature> for OurApproval {
 /// Metadata about our approval signature
 #[derive(Debug, Clone, PartialEq)]
 pub struct OurApproval {
-	/// The
+	/// The signature for the candidates hashes pointed by indices.
 	pub signature: ValidatorSignature,
 	/// The indices of the candidates signed in this approval, an empty value means only
 	/// the candidate referred by this approval entry was signed.
@@ -388,7 +388,7 @@ pub struct BlockEntry {
 	pub children: Vec<Hash>,
 	// A list of candidates that has been approved, but we didn't not sign and
 	// advertise the vote yet.
-	pub candidates_pending_signature: BTreeMap<CandidateIndex, CandidateSigningContext>,
+	candidates_pending_signature: BTreeMap<CandidateIndex, CandidateSigningContext>,
 	// A list of assignments for which wea already distributed the assignment.
 	// We use this to ensure we don't distribute multiple core assignments twice as we track
 	// individual wakeups for each core.
@@ -488,6 +488,54 @@ impl BlockEntry {
 		let distributed = total_one_bits == self.distributed_assignments.count_ones();
 
 		distributed
+	}
+
+	/// Defer signing and issuing an approval for a candidate no later than the specified tick
+	pub fn defer_candidate_signature(
+		&mut self,
+		candidate_index: CandidateIndex,
+		candidate_hash: CandidateHash,
+		send_no_later_than_tick: Tick,
+	) -> Option<CandidateSigningContext> {
+		self.candidates_pending_signature.insert(
+			candidate_index,
+			CandidateSigningContext { candidate_hash, send_no_later_than_tick },
+		)
+	}
+
+	/// Returns the number of candidates waiting for an approval to be issued.
+	pub fn num_candidates_pending_signature(&self) -> usize {
+		self.candidates_pending_signature.len()
+	}
+
+	/// Return if we have candidates waiting for signature to be issued
+	pub fn has_candidates_pending_signature(&self) -> bool {
+		!self.candidates_pending_signature.is_empty()
+	}
+
+	/// Candidate hashes  for candidates pending signatures
+	pub fn candidate_hashes_pending_signature(&self) -> Vec<CandidateHash> {
+		self.candidates_pending_signature
+			.values()
+			.map(|unsigned_approval| unsigned_approval.candidate_hash)
+			.collect()
+	}
+
+	/// Candidate indices for candidates pending signature
+	pub fn candidate_indices_pending_signature(&self) -> Vec<CandidateIndex> {
+		self.candidates_pending_signature.keys().map(|val| *val).collect()
+	}
+
+	/// Returns the candidate that has been longest in the queue.
+	pub fn longest_waiting_candidate_signature(&self) -> Option<&CandidateSigningContext> {
+		self.candidates_pending_signature
+			.values()
+			.min_by(|a, b| a.send_no_later_than_tick.cmp(&b.send_no_later_than_tick))
+	}
+
+	/// Signals the approval was issued for the candidates pending signature
+	pub fn issued_approval(&mut self) {
+		self.candidates_pending_signature.clear();
 	}
 }
 

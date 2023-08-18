@@ -312,15 +312,12 @@ fn setting_pending_config_members() {
 			pvf_voting_ttl: 3,
 			minimum_validation_upgrade_delay: 20,
 			executor_params: Default::default(),
-			approval_voting_params: ApprovalVotingParams {
-				max_approval_coalesce_count: 1,
-				max_approval_coalesce_wait_ticks: 0,
-			},
 			on_demand_queue_max_size: 10_000u32,
 			on_demand_base_fee: 10_000_000u128,
 			on_demand_fee_variability: Perbill::from_percent(3),
 			on_demand_target_queue_utilization: Perbill::from_percent(25),
 			on_demand_ttl: 5u32,
+			approval_voting_params: ApprovalVotingParams { max_approval_coalesce_count: 1 },
 		};
 
 		Configuration::set_validation_upgrade_cooldown(
