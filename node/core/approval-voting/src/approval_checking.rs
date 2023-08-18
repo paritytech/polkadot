@@ -17,7 +17,7 @@
 //! Utilities for checking whether a candidate has been approved under a given block.
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice};
-use polkadot_node_primitives::approval::DelayTranche;
+use polkadot_node_primitives::approval::v1::DelayTranche;
 use polkadot_primitives::ValidatorIndex;
 
 use crate::{
@@ -64,7 +64,7 @@ pub enum RequiredTranches {
 }
 
 /// The result of a check.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Check {
 	/// The candidate is unapproved.
 	Unapproved,
@@ -372,19 +372,22 @@ pub fn tranches_to_approve(
 	block_tick: Tick,
 	no_show_duration: Tick,
 	needed_approvals: usize,
-) -> RequiredTranches {
+) -> (RequiredTranches, usize) {
 	let tick_now = tranche_now as Tick + block_tick;
 	let n_validators = approval_entry.n_validators();
 
-	let initial_state = State {
-		assignments: 0,
-		depth: 0,
-		covered: 0,
-		covering: needed_approvals,
-		uncovered: 0,
-		next_no_show: None,
-		last_assignment_tick: None,
-	};
+	let initial_state = (
+		State {
+			assignments: 0,
+			depth: 0,
+			covered: 0,
+			covering: needed_approvals,
+			uncovered: 0,
+			next_no_show: None,
+			last_assignment_tick: None,
+		},
+		0usize,
+	);
 
 	// The `ApprovalEntry` doesn't have any data for empty tranches. We still want to iterate over
 	// these empty tranches, so we create an iterator to fill the gaps.
@@ -395,7 +398,7 @@ pub fn tranches_to_approve(
 	tranches_with_gaps_filled
 		.scan(Some(initial_state), |state, (tranche, assignments)| {
 			// The `Option` here is used for early exit.
-			let s = state.take()?;
+			let (s, prev_no_shows) = state.take()?;
 
 			let clock_drift = s.clock_drift(no_show_duration);
 			let drifted_tick_now = tick_now.saturating_sub(clock_drift);
@@ -444,11 +447,11 @@ pub fn tranches_to_approve(
 				RequiredTranches::Pending { .. } => {
 					// Pending results are only interesting when they are the last result of the iterator
 					// i.e. we never achieve a satisfactory level of assignment.
-					Some(s)
+					Some((s, no_shows + prev_no_shows))
 				}
 			};
 
-			Some(output)
+			Some((output, no_shows + prev_no_shows))
 		})
 		.last()
 		.expect("the underlying iterator is infinite, starts at 0, and never exits early before tranche 1; qed")
@@ -472,9 +475,9 @@ mod tests {
 		}
 		.into();
 
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: BitVec::default(),
+			assigned_validators: BitVec::default(),
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -509,22 +512,22 @@ mod tests {
 			candidate.mark_approval(ValidatorIndex(i));
 		}
 
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: vec![
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 0,
 					assignments: (0..2).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 1,
 					assignments: (2..5).map(|i| (ValidatorIndex(i), 1.into())).collect(),
 				},
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 2,
 					assignments: (5..10).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
 			],
-			assignments: bitvec![u8, BitOrderLsb0; 1; 10],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 1; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -581,22 +584,22 @@ mod tests {
 			candidate.mark_approval(ValidatorIndex(i));
 		}
 
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: vec![
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 0,
 					assignments: (0..4).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 1,
 					assignments: (4..6).map(|i| (ValidatorIndex(i), 1.into())).collect(),
 				},
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 2,
 					assignments: (6..10).map(|i| (ValidatorIndex(i), 0.into())).collect(),
 				},
 			],
-			assignments: bitvec![u8, BitOrderLsb0; 1; 10],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 1; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -647,9 +650,9 @@ mod tests {
 		let no_show_duration = 10;
 		let needed_approvals = 4;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; 5],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; 5],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -675,7 +678,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Exact {
 				needed: 1,
 				tolerated_missing: 0,
@@ -691,9 +695,9 @@ mod tests {
 		let no_show_duration = 10;
 		let needed_approvals = 4;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; 10],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -715,7 +719,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 2,
 				next_no_show: Some(block_tick + no_show_duration),
@@ -731,9 +736,9 @@ mod tests {
 		let no_show_duration = 10;
 		let needed_approvals = 4;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; 10],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; 10],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -759,7 +764,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 11,
 				next_no_show: None,
@@ -776,9 +782,9 @@ mod tests {
 		let needed_approvals = 4;
 		let n_validators = 8;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; n_validators],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -807,7 +813,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 1,
 				next_no_show: None,
@@ -826,7 +833,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 1,
 				next_no_show: None,
@@ -843,9 +851,9 @@ mod tests {
 		let needed_approvals = 4;
 		let n_validators = 8;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; n_validators],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -879,7 +887,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Exact {
 				needed: 1,
 				tolerated_missing: 0,
@@ -898,7 +907,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Exact {
 				needed: 2,
 				tolerated_missing: 1,
@@ -917,7 +927,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 2,
 				next_no_show: None,
@@ -934,9 +945,9 @@ mod tests {
 		let needed_approvals = 4;
 		let n_validators = 8;
 
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![u8, BitOrderLsb0; 0; n_validators],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 0; n_validators],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -970,7 +981,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Exact {
 				needed: 2,
 				tolerated_missing: 1,
@@ -992,7 +1004,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 2,
 				next_no_show: None,
@@ -1013,7 +1026,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Exact {
 				needed: 3,
 				tolerated_missing: 2,
@@ -1041,15 +1055,15 @@ mod tests {
 			candidate.mark_approval(ValidatorIndex(i));
 		}
 
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: vec![
 				// Assignments with invalid validator indexes.
-				approval_db::v1::TrancheEntry {
+				approval_db::v2::TrancheEntry {
 					tranche: 1,
 					assignments: (2..5).map(|i| (ValidatorIndex(i), 1.into())).collect(),
 				},
 			],
-			assignments: bitvec![u8, BitOrderLsb0; 1; 3],
+			assigned_validators: bitvec![u8, BitOrderLsb0; 1; 3],
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -1068,7 +1082,8 @@ mod tests {
 				block_tick,
 				no_show_duration,
 				needed_approvals,
-			),
+			)
+			.0,
 			RequiredTranches::Pending {
 				considered: 10,
 				next_no_show: None,
@@ -1094,12 +1109,12 @@ mod tests {
 		];
 
 		for test_tranche in test_tranches {
-			let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+			let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
 				tranches: Vec::new(),
 				backing_group: GroupIndex(0),
 				our_assignment: None,
 				our_approval_sig: None,
-				assignments: bitvec![u8, BitOrderLsb0; 0; 3],
+				assigned_validators: bitvec![u8, BitOrderLsb0; 0; 3],
 				approved: false,
 			}
 			.into();

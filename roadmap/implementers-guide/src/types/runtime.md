@@ -55,7 +55,7 @@ struct HostConfiguration {
 	pub zeroth_delay_tranche_width: u32,
 	/// The number of validators needed to approve a block.
 	pub needed_approvals: u32,
-	/// The number of samples to do of the RelayVRFModulo approval assignment criterion.
+	/// The number of samples to use in `RelayVRFModulo` or `RelayVRFModuloCompact` approval assignment criterions.
 	pub relay_vrf_modulo_samples: u32,
 	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
 	pub max_upward_queue_count: u32,

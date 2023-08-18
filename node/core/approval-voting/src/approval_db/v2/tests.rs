@@ -40,10 +40,6 @@ fn make_db() -> (DbBackend, Arc<dyn Database>) {
 	(DbBackend::new(db_writer.clone(), TEST_CONFIG), db_writer)
 }
 
-fn make_bitvec(len: usize) -> BitVec<u8, BitOrderLsb0> {
-	bitvec::bitvec![u8, BitOrderLsb0; 0; len]
-}
-
 fn make_block_entry(
 	block_hash: Hash,
 	parent_hash: Hash,
@@ -60,7 +56,13 @@ fn make_block_entry(
 		approved_bitfield: make_bitvec(candidates.len()),
 		candidates,
 		children: Vec::new(),
+		candidates_pending_signature: Default::default(),
+		distributed_assignments: Default::default(),
 	}
+}
+
+fn make_bitvec(len: usize) -> BitVec<u8, BitOrderLsb0> {
+	bitvec::bitvec![u8, BitOrderLsb0; 0; len]
 }
 
 fn make_candidate(para_id: ParaId, relay_parent: Hash) -> CandidateReceipt {
@@ -96,7 +98,7 @@ fn read_write() {
 				backing_group: GroupIndex(1),
 				our_assignment: None,
 				our_approval_sig: None,
-				assignments: Default::default(),
+				assigned_validators: Default::default(),
 				approved: false,
 			},
 		)]

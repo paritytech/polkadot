@@ -114,10 +114,11 @@
 //! separated from the stable primitives.
 
 use crate::{
-	vstaging, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo,
-	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
-	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex, ValidatorSignature,
+	vstaging::{self, ApprovalVotingParams},
+	BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
+	CoreState, DisputeState, ExecutorParams, GroupRotationInfo, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives as pcp;
@@ -239,5 +240,9 @@ sp_api::decl_runtime_apis! {
 			dispute_proof: vstaging::slashing::DisputeProof,
 			key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
 		) -> Option<()>;
+
+		/// Approval voting configuration parameters
+		#[api_version(6)]
+		fn approval_voting_params() -> ApprovalVotingParams;
 	}
 }

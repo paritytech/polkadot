@@ -25,9 +25,9 @@ use std::collections::HashSet;
 use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName, ReputationChange};
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSetProtocolNames,
+	peer_set::{PeerSetProtocolNames, ValidationVersion},
 	request_response::{outgoing::Requests, ReqProtocolNames},
-	ObservedRole, Versioned,
+	v1 as protocol_v1, vstaging as protocol_vstaging, ObservedRole, Versioned,
 };
 use polkadot_node_subsystem::{FromOrchestra, OverseerSignal};
 use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
@@ -130,8 +130,7 @@ impl Network for TestNetwork {
 	}
 
 	fn disconnect_peer(&self, who: PeerId, protocol: ProtocolName) {
-		let (peer_set, version) = self.peerset_protocol_names.try_get_protocol(&protocol).unwrap();
-		assert_eq!(version, peer_set.get_main_version());
+		let (peer_set, _) = self.peerset_protocol_names.try_get_protocol(&protocol).unwrap();
 
 		self.action_tx
 			.lock()
@@ -140,8 +139,7 @@ impl Network for TestNetwork {
 	}
 
 	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>) {
-		let (peer_set, version) = self.peerset_protocol_names.try_get_protocol(&protocol).unwrap();
-		assert_eq!(version, peer_set.get_main_version());
+		let (peer_set, _) = self.peerset_protocol_names.try_get_protocol(&protocol).unwrap();
 
 		self.action_tx
 			.lock()
@@ -173,10 +171,17 @@ impl TestNetworkHandle {
 		self.action_rx.next().await.expect("subsystem concluded early")
 	}
 
-	async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, role: ObservedRole) {
+	async fn connect_peer(
+		&mut self,
+		peer: PeerId,
+		protocol_version: ValidationVersion,
+		peer_set: PeerSet,
+		role: ObservedRole,
+	) {
+		let protocol_version = ProtocolVersion::from(protocol_version);
 		self.send_network_event(NetworkEvent::NotificationStreamOpened {
 			remote: peer,
-			protocol: self.peerset_protocol_names.get_main_name(peer_set),
+			protocol: self.peerset_protocol_names.get_name(peer_set, protocol_version),
 			negotiated_fallback: None,
 			role: role.into(),
 			received_handshake: vec![],
@@ -242,7 +247,12 @@ fn send_messages_to_peers() {
 		let peer = PeerId::random();
 
 		network_handle
-			.connect_peer(peer, PeerSet::Validation, ObservedRole::Full)
+			.connect_peer(
+				peer.clone(),
+				ValidationVersion::V1,
+				PeerSet::Validation,
+				ObservedRole::Full,
+			)
 			.timeout(TIMEOUT)
 			.await
 			.expect("Timeout does not occur");
@@ -251,7 +261,12 @@ fn send_messages_to_peers() {
 		// so the single item sink has to be free explicitly
 
 		network_handle
-			.connect_peer(peer, PeerSet::Collation, ObservedRole::Full)
+			.connect_peer(
+				peer.clone(),
+				ValidationVersion::V1,
+				PeerSet::Collation,
+				ObservedRole::Full,
+			)
 			.timeout(TIMEOUT)
 			.await
 			.expect("Timeout does not occur");
@@ -324,6 +339,67 @@ fn send_messages_to_peers() {
 					WireMessage::ProtocolMessage(message_v1).encode(),
 				)
 			);
+		}
+		virtual_overseer
+	});
+}
+
+#[test]
+fn network_protocol_versioning_send() {
+	test_harness(|test_harness| async move {
+		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
+
+		let peer_ids: Vec<_> = (0..2).map(|_| PeerId::random()).collect();
+		let peers = [
+			(peer_ids[0], PeerSet::Validation, ValidationVersion::VStaging),
+			(peer_ids[1], PeerSet::Validation, ValidationVersion::V1),
+		];
+
+		for &(peer_id, peer_set, version) in &peers {
+			network_handle
+				.connect_peer(peer_id, version, peer_set, ObservedRole::Full)
+				.timeout(TIMEOUT)
+				.await
+				.expect("Timeout does not occur");
+		}
+
+		// send a validation protocol message.
+		{
+			let approval_distribution_message =
+				protocol_vstaging::ApprovalDistributionMessage::Approvals(Vec::new());
+
+			let msg = protocol_vstaging::ValidationProtocol::ApprovalDistribution(
+				approval_distribution_message.clone(),
+			);
+
+			// Note that bridge doesn't ensure neither peer's protocol version
+			// or peer set match the message.
+			let receivers = vec![peer_ids[0], peer_ids[1]];
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: NetworkBridgeTxMessage::SendValidationMessage(
+						receivers.clone(),
+						Versioned::VStaging(msg.clone()),
+					),
+				})
+				.timeout(TIMEOUT)
+				.await
+				.expect("Timeout does not occur");
+
+			for peer in &receivers {
+				assert_eq!(
+					network_handle
+						.next_network_action()
+						.timeout(TIMEOUT)
+						.await
+						.expect("Timeout does not occur"),
+					NetworkAction::WriteNotification(
+						*peer,
+						PeerSet::Validation,
+						WireMessage::ProtocolMessage(msg.clone()).encode(),
+					)
+				);
+			}
 		}
 		virtual_overseer
 	});

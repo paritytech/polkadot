@@ -915,6 +915,10 @@ async fn handle_network_msg<Context>(
 		NewGossipTopology { .. } => {
 			// impossible!
 		},
+		PeerMessage(_, Versioned::VStaging(_)) => gum::warn!(
+			target: LOG_TARGET,
+			"Received message on invalid collator protocol version. Only v1 supported",
+		),
 	}
 
 	Ok(())

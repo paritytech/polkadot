@@ -633,7 +633,7 @@ impl Initialized {
 						};
 					debug_assert!(
 						SignedDisputeStatement::new_checked(
-							DisputeStatement::Valid(valid_statement_kind),
+							DisputeStatement::Valid(valid_statement_kind.clone()),
 							candidate_hash,
 							session,
 							validator_public.clone(),
@@ -647,7 +647,7 @@ impl Initialized {
 					);
 					let signed_dispute_statement =
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
-							DisputeStatement::Valid(valid_statement_kind),
+							DisputeStatement::Valid(valid_statement_kind.clone()),
 							candidate_hash,
 							session,
 							validator_public,

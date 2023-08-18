@@ -30,7 +30,10 @@
 
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
-	approval::{self as approval_types, BlockApprovalMeta, RelayVRFStory},
+	approval::{
+		self as approval_types,
+		v1::{BlockApprovalMeta, RelayVRFStory},
+	},
 	MAX_FINALITY_LAG,
 };
 use polkadot_node_subsystem::{
@@ -53,7 +56,7 @@ use futures::{channel::oneshot, prelude::*};
 
 use std::collections::HashMap;
 
-use super::approval_db::v1;
+use super::approval_db::v2;
 use crate::{
 	backend::{Backend, OverlayedBackend},
 	criteria::{AssignmentCriteria, OurAssignment},
@@ -92,7 +95,7 @@ enum ImportedBlockInfoError {
 	FutureCancelled(&'static str, futures::channel::oneshot::Canceled),
 
 	#[error(transparent)]
-	ApprovalError(approval_types::ApprovalError),
+	ApprovalError(approval_types::v1::ApprovalError),
 
 	#[error("block is already finalized")]
 	BlockAlreadyFinalized,
@@ -216,7 +219,7 @@ async fn imported_block_info<Context>(
 		.ok_or(ImportedBlockInfoError::SessionInfoUnavailable)?;
 
 	let (assignments, slot, relay_vrf_story) = {
-		let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
+		let unsafe_vrf = approval_types::v1::babe_unsafe_vrf_info(&block_header);
 
 		match unsafe_vrf {
 			Some(unsafe_vrf) => {
@@ -497,7 +500,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
 		}
 
-		let block_entry = v1::BlockEntry {
+		let block_entry = v2::BlockEntry {
 			block_hash,
 			parent_hash: block_header.parent_hash,
 			block_number: block_header.number,
@@ -510,6 +513,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				.collect(),
 			approved_bitfield,
 			children: Vec::new(),
+			candidates_pending_signature: Default::default(),
+			distributed_assignments: Default::default(),
 		};
 
 		gum::trace!(
@@ -588,11 +593,11 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::*;
-	use crate::{approval_db::v1::DbBackend, RuntimeInfo, RuntimeInfoConfig};
+	use crate::{approval_db::v2::DbBackend, RuntimeInfo, RuntimeInfoConfig};
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
 	use polkadot_node_primitives::{
-		approval::{VrfSignature, VrfTranscript},
+		approval::v1::{VrfSignature, VrfTranscript},
 		DISPUTE_WINDOW,
 	};
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
@@ -608,7 +613,7 @@ pub(crate) mod tests {
 	pub(crate) use sp_runtime::{Digest, DigestItem};
 	use std::{pin::Pin, sync::Arc};
 
-	use crate::{approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry};
+	use crate::{approval_db::v2::Config as DatabaseConfig, criteria, BlockEntry};
 
 	const DATA_COL: u32 = 0;
 
@@ -635,6 +640,7 @@ pub(crate) mod tests {
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
 			spans: HashMap::new(),
+			approval_voting_params_cache: None,
 		}
 	}
 
@@ -654,7 +660,7 @@ pub(crate) mod tests {
 		fn compute_assignments(
 			&self,
 			_keystore: &LocalKeystore,
-			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
+			_relay_vrf_story: polkadot_node_primitives::approval::v1::RelayVRFStory,
 			_config: &criteria::Config,
 			_leaving_cores: Vec<(
 				CandidateHash,
@@ -667,13 +673,14 @@ pub(crate) mod tests {
 
 		fn check_assignment_cert(
 			&self,
-			_claimed_core_index: polkadot_primitives::CoreIndex,
+			_claimed_core_bitfield: polkadot_node_primitives::approval::v2::CoreBitfield,
 			_validator_index: polkadot_primitives::ValidatorIndex,
 			_config: &criteria::Config,
-			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
-			_assignment: &polkadot_node_primitives::approval::AssignmentCert,
-			_backing_group: polkadot_primitives::GroupIndex,
-		) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
+			_relay_vrf_story: polkadot_node_primitives::approval::v1::RelayVRFStory,
+			_assignment: &polkadot_node_primitives::approval::v2::AssignmentCertV2,
+			_backing_groups: Vec<polkadot_primitives::GroupIndex>,
+		) -> Result<polkadot_node_primitives::approval::v1::DelayTranche, criteria::InvalidAssignment>
+		{
 			Ok(0)
 		}
 	}
@@ -1252,7 +1259,7 @@ pub(crate) mod tests {
 
 		let (state, mut session_info_provider) = single_session_state();
 		overlay_db.write_block_entry(
-			v1::BlockEntry {
+			v2::BlockEntry {
 				block_hash: parent_hash,
 				parent_hash: Default::default(),
 				block_number: 4,
@@ -1262,6 +1269,8 @@ pub(crate) mod tests {
 				candidates: Vec::new(),
 				approved_bitfield: Default::default(),
 				children: Vec::new(),
+				candidates_pending_signature: Default::default(),
+				distributed_assignments: Default::default(),
 			}
 			.into(),
 		);
@@ -1294,7 +1303,7 @@ pub(crate) mod tests {
 				// the first candidate should be insta-approved
 				// the second should not
 				let entry: BlockEntry =
-					v1::load_block_entry(db_writer.as_ref(), &TEST_CONFIG, &hash)
+					v2::load_block_entry(db_writer.as_ref(), &TEST_CONFIG, &hash)
 						.unwrap()
 						.unwrap()
 						.into();

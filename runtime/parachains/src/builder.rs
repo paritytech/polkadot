@@ -634,7 +634,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						} else {
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
-						let data = dispute_statement.payload_data(candidate_hash, session);
+						let data = dispute_statement.payload_data(candidate_hash.clone(), session).unwrap();
 						let statement_sig = validator_public.sign(&data).unwrap();
 
 						(dispute_statement, ValidatorIndex(validator_index), statement_sig)

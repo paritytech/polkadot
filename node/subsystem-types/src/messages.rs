@@ -32,19 +32,23 @@ use polkadot_node_network_protocol::{
 	self as net_protocol, peer_set::PeerSet, request_response::Requests, PeerId,
 };
 use polkadot_node_primitives::{
-	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
+	approval::{
+		v1::BlockApprovalMeta,
+		v2::{CandidateBitfield, IndirectAssignmentCertV2, IndirectSignedApprovalVoteV2},
+	},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
 	CollationSecondedSignal, DisputeMessage, DisputeStatus, ErasureChunk, PoV,
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::{
-	slashing, AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
-	DisputeState, ExecutorParams, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
-	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, PvfExecTimeoutKind,
-	SessionIndex, SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	slashing, vstaging::ApprovalVotingParams, AuthorityDiscoveryId, BackedCandidate, BlockNumber,
+	CandidateEvent, CandidateHash, CandidateIndex, CandidateReceipt, CollatorId,
+	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupIndex,
+	GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, PvfExecTimeoutKind, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
+	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
@@ -654,6 +658,8 @@ pub enum RuntimeApiRequest {
 		slashing::OpaqueKeyOwnershipProof,
 		RuntimeApiSender<Option<()>>,
 	),
+	/// Approval voting params
+	ApprovalVotingParams(RuntimeApiSender<ApprovalVotingParams>),
 }
 
 impl RuntimeApiRequest {
@@ -771,6 +777,8 @@ pub enum AssignmentCheckError {
 	InvalidCert(ValidatorIndex, String),
 	#[error("Internal state mismatch: {0:?}, {1:?}")]
 	Internal(Hash, CandidateHash),
+	#[error("Oversized candidate or core bitfield >= {0}")]
+	InvalidBitfield(usize),
 }
 
 /// The result type of [`ApprovalVotingMessage::CheckAndImportApproval`] request.
@@ -836,15 +844,15 @@ pub enum ApprovalVotingMessage {
 	/// Check if the assignment is valid and can be accepted by our view of the protocol.
 	/// Should not be sent unless the block hash is known.
 	CheckAndImportAssignment(
-		IndirectAssignmentCert,
-		CandidateIndex,
+		IndirectAssignmentCertV2,
+		CandidateBitfield,
 		oneshot::Sender<AssignmentCheckResult>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the
 	/// protocol.
 	///
 	/// Should not be sent unless the block hash within the indirect vote is known.
-	CheckAndImportApproval(IndirectSignedApprovalVote, oneshot::Sender<ApprovalCheckResult>),
+	CheckAndImportApproval(IndirectSignedApprovalVoteV2, oneshot::Sender<ApprovalCheckResult>),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
 	/// acceptable to vote on finality for.
 	/// The `BlockNumber` provided is the number of the block's ancestor which is the
@@ -860,7 +868,7 @@ pub enum ApprovalVotingMessage {
 	/// requires calling into `approval-distribution`: Calls should be infrequent and bounded.
 	GetApprovalSignaturesForCandidate(
 		CandidateHash,
-		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
+		oneshot::Sender<HashMap<ValidatorIndex, (Vec<CandidateHash>, ValidatorSignature)>>,
 	),
 }
 
@@ -872,11 +880,11 @@ pub enum ApprovalDistributionMessage {
 	NewBlocks(Vec<BlockApprovalMeta>),
 	/// Distribute an assignment cert from the local validator. The cert is assumed
 	/// to be valid, relevant, and for the given relay-parent and validator index.
-	DistributeAssignment(IndirectAssignmentCert, CandidateIndex),
+	DistributeAssignment(IndirectAssignmentCertV2, CandidateBitfield),
 	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
 	/// valid, relevant, and the corresponding approval already issued.
 	/// If not, the subsystem is free to drop the message.
-	DistributeApproval(IndirectSignedApprovalVote),
+	DistributeApproval(IndirectSignedApprovalVoteV2),
 	/// An update from the network bridge.
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>),
@@ -884,7 +892,7 @@ pub enum ApprovalDistributionMessage {
 	/// Get all approval signatures for all chains a candidate appeared in.
 	GetApprovalSignatures(
 		HashSet<(Hash, CandidateIndex)>,
-		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
+		oneshot::Sender<HashMap<ValidatorIndex, (Hash, Vec<CandidateIndex>, ValidatorSignature)>>,
 	),
 	/// Approval checking lag update measured in blocks.
 	ApprovalCheckingLagUpdate(BlockNumber),

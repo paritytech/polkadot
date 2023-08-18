@@ -7254,9 +7254,11 @@ name = "polkadot-approval-distribution"
 version = "0.9.43"
 dependencies = [
  "assert_matches",
+ "bitvec",
  "env_logger 0.9.3",
  "futures",
  "futures-timer",
+ "itertools",
  "log",
  "polkadot-node-jaeger",
  "polkadot-node-metrics",
@@ -7559,10 +7561,13 @@ dependencies = [
  "async-trait",
  "bitvec",
  "derive_more",
+ "env_logger 0.9.3",
  "futures",
  "futures-timer",
+ "itertools",
  "kvdb",
  "kvdb-memorydb",
+ "log",
  "lru 0.11.0",
  "merlin 2.0.1",
  "parity-scale-codec",
@@ -8005,6 +8010,7 @@ dependencies = [
 name = "polkadot-node-primitives"
 version = "0.9.43"
 dependencies = [
+ "bitvec",
  "bounded-vec",
  "futures",
  "parity-scale-codec",
@@ -8055,6 +8061,7 @@ name = "polkadot-node-subsystem-types"
 version = "0.9.43"
 dependencies = [
  "async-trait",
+ "bitvec",
  "derive_more",
  "futures",
  "orchestra",

@@ -505,6 +505,7 @@ fn peer_view_update_sends_messages() {
 			k
 		},
 		maybe_authority: None,
+		version: ValidationVersion::V1.into(),
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
@@ -553,9 +554,13 @@ fn peer_view_update_sends_messages() {
 		// it will not change between runs of the program.
 		for statement in active_head.statements_about(candidate_hash) {
 			let message = handle.recv().await;
-			let expected_to = vec![peer];
-			let expected_payload =
-				statement_message(hash_c, statement.statement.clone(), &Metrics::default());
+			let expected_to = vec![peer.clone()];
+			let expected_payload = statement_message(
+				hash_c,
+				statement.statement.clone(),
+				&Metrics::default(),
+				ValidationVersion::V1.into(),
+			);
 
 			assert_matches!(
 				message,
@@ -598,6 +603,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 		view: view.clone(),
 		view_knowledge: view.iter().map(|v| (*v, Default::default())).collect(),
 		maybe_authority: None,
+		version: ValidationVersion::V1.into(),
 	};
 
 	let mut peer_data: HashMap<_, _> = vec![
@@ -697,7 +703,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 
 				assert_eq!(
 					payload,
-					statement_message(hash_b, statement.statement.clone(), &Metrics::default()),
+					statement_message(hash_b, statement.statement.clone(), &Metrics::default(), ValidationVersion::V1.into()),
 				);
 			}
 		)

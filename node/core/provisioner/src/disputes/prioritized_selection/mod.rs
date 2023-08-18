@@ -221,7 +221,7 @@ where
 				votes.valid.retain(|validator_idx, (statement_kind, _)| {
 					is_vote_worth_to_keep(
 						validator_idx,
-						DisputeStatement::Valid(*statement_kind),
+						DisputeStatement::Valid(statement_kind.clone()),
 						&onchain_state,
 					)
 				});

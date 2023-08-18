@@ -25,7 +25,7 @@ use polkadot_primitives::{BlockNumber, CandidateHash, CandidateReceipt, GroupInd
 use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use super::{
-	approval_db::v1::{OurAssignment, StoredBlockRange},
+	approval_db::v2::{OurAssignment, StoredBlockRange},
 	backend::{Backend, OverlayedBackend},
 	persisted_entries::{ApprovalEntry, BlockEntry, CandidateEntry},
 	LOG_TARGET,

@@ -651,7 +651,7 @@ fn make_candidate_included_event(candidate_receipt: CandidateReceipt) -> Candida
 pub async fn handle_approval_vote_request(
 	ctx_handle: &mut VirtualOverseer,
 	expected_hash: &CandidateHash,
-	votes_to_send: HashMap<ValidatorIndex, ValidatorSignature>,
+	votes_to_send: HashMap<ValidatorIndex, (Vec<CandidateHash>, ValidatorSignature)>,
 ) {
 	assert_matches!(
 		ctx_handle.recv().await,
@@ -858,9 +858,12 @@ fn approval_vote_import_works() {
 				.await;
 			gum::trace!("After sending `ImportStatements`");
 
-			let approval_votes = [(ValidatorIndex(4), approval_vote.into_validator_signature())]
-				.into_iter()
-				.collect();
+			let approval_votes = [(
+				ValidatorIndex(4),
+				(vec![candidate_receipt1.hash()], approval_vote.into_validator_signature()),
+			)]
+			.into_iter()
+			.collect();
 
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, approval_votes)
 				.await;

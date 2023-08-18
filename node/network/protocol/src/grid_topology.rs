@@ -73,12 +73,20 @@ pub struct SessionGridTopology {
 	shuffled_indices: Vec<usize>,
 	/// The canonical shuffling of validators for the session.
 	canonical_shuffling: Vec<TopologyPeerInfo>,
+	/// The list of peer-ids in an efficient way to search.
+	peer_ids: HashSet<PeerId>,
 }
 
 impl SessionGridTopology {
 	/// Create a new session grid topology.
 	pub fn new(shuffled_indices: Vec<usize>, canonical_shuffling: Vec<TopologyPeerInfo>) -> Self {
-		SessionGridTopology { shuffled_indices, canonical_shuffling }
+		let mut peer_ids = HashSet::new();
+		for peer_info in canonical_shuffling.iter() {
+			for peer_id in peer_info.peer_ids.iter() {
+				peer_ids.insert(*peer_id);
+			}
+		}
+		SessionGridTopology { shuffled_indices, canonical_shuffling, peer_ids }
 	}
 
 	/// Produces the outgoing routing logic for a particular peer.
@@ -110,6 +118,11 @@ impl SessionGridTopology {
 		}
 
 		Some(grid_subset)
+	}
+
+	/// Tells if a given peer id is validator in a session
+	pub fn is_validator(&self, peer: &PeerId) -> bool {
+		self.peer_ids.contains(peer)
 	}
 }
 
@@ -273,6 +286,11 @@ impl SessionGridTopologyEntry {
 	pub fn get(&self) -> &SessionGridTopology {
 		&self.topology
 	}
+
+	/// Tells if a given peer id is validator in a session
+	pub fn is_validator(&self, peer: &PeerId) -> bool {
+		self.topology.is_validator(peer)
+	}
 }
 
 /// A set of topologies indexed by session
@@ -347,6 +365,7 @@ impl Default for SessionBoundGridTopologyStorage {
 					topology: SessionGridTopology {
 						shuffled_indices: Vec::new(),
 						canonical_shuffling: Vec::new(),
+						peer_ids: Default::default(),
 					},
 					local_neighbors: GridNeighbors::empty(),
 				},

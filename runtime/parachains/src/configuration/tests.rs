@@ -317,6 +317,7 @@ fn setting_pending_config_members() {
 			on_demand_fee_variability: Perbill::from_percent(3),
 			on_demand_target_queue_utilization: Perbill::from_percent(25),
 			on_demand_ttl: 5u32,
+			approval_voting_params: ApprovalVotingParams { max_approval_coalesce_count: 1 },
 		};
 
 		Configuration::set_validation_upgrade_cooldown(
