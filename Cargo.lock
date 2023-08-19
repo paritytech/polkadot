@@ -6585,6 +6585,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-salary"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#96f8c97dff7f419a349ee01d02613445ba4a41f8"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-scheduler"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#ecd503d49029236cc43d6de8c5068188c0fc1ef8"
@@ -15130,11 +15148,14 @@ dependencies = [
  "frame-system",
  "impl-trait-for-tuples",
  "log",
+ "pallet-assets",
  "pallet-balances",
+ "pallet-salary",
  "pallet-transaction-payment",
  "pallet-xcm",
  "parity-scale-codec 3.6.4",
  "polkadot-parachain",
+ "polkadot-primitives",
  "polkadot-runtime-parachains",
  "polkadot-test-runtime",
  "primitive-types",
