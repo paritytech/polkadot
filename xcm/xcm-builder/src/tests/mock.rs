@@ -412,7 +412,8 @@ pub fn response(query_id: u64) -> Option<Response> {
 	})
 }
 
-/// Mock implementation of the [`QueryHandler`] trait for creating XCM success queries and expecting responses.
+/// Mock implementation of the [`QueryHandler`] trait for creating XCM success queries and expecting
+/// responses.
 pub struct TestQueryHandler<T, BlockNumber>(core::marker::PhantomData<(T, BlockNumber)>);
 impl<T: Config, BlockNumber: sp_runtime::traits::Zero> QueryHandler
 	for TestQueryHandler<T, BlockNumber>

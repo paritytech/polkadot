@@ -69,7 +69,7 @@ fn pay_over_xcm_works() {
 		>::pay(&recipient, asset_kind, amount));
 
 		let expected_message = Xcm(vec![
-			DescendOrigin(AccountId32 { id: [3u8; 32], network: None }.into()),
+			DescendOrigin(AccountId32 { id: SenderAccount::get().into(), network: None }.into()),
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
 				destination: (Parent, Parachain(42)).into(),
@@ -78,7 +78,7 @@ fn pay_over_xcm_works() {
 			})])),
 			TransferAsset {
 				assets: (Here, amount).into(),
-				beneficiary: AccountId32 { id: [5u8; 32], network: None }.into(),
+				beneficiary: AccountId32 { id: recipient.clone().into(), network: None }.into(),
 			},
 		]);
 		let expected_hash = fake_message_hash(&expected_message);
@@ -136,8 +136,8 @@ fn pay_over_xcm_governance_body() {
 				max_weight: Weight::zero(),
 			})])),
 			TransferAsset {
-				assets: (Parent, 10 * UNITS).into(),
-				beneficiary: AccountId32 { id: [7u8; 32], network: None }.into(),
+				assets: (Parent, amount).into(),
+				beneficiary: AccountId32 { id: recipient.clone().into(), network: None }.into(),
 			},
 		]);
 		let expected_hash = fake_message_hash(&expected_message);

@@ -155,7 +155,7 @@ fn salary_pay_over_xcm_works() {
 			})])),
 			TransferAsset {
 				assets: (AssetHubAssetId::get(), FixedSalaryAmount::get()).into(),
-				beneficiary: AccountId32 { id: [1u8; 32], network: None }.into(),
+				beneficiary: AccountId32 { id: recipient.clone().into(), network: None }.into(),
 			},
 		]);
 		assert_eq!(message, expected_message);
