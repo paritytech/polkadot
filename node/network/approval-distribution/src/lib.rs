@@ -1441,7 +1441,6 @@ impl State {
 					modify_reputation(reputation, ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE)
 						.await;
 					metrics.on_approval_out_of_view();
-					return true
 				},
 			}
 		}
