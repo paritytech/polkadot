@@ -160,8 +160,8 @@ impl RecentOutdatedHeads {
 /// via other means.
 #[derive(Default)]
 struct VcPerPeerTracker {
-	local_observed: arrayvec::ArrayVec<[CandidateHash; VC_THRESHOLD]>,
-	remote_observed: arrayvec::ArrayVec<[CandidateHash; VC_THRESHOLD]>,
+	local_observed: arrayvec::ArrayVec<CandidateHash, VC_THRESHOLD>,
+	remote_observed: arrayvec::ArrayVec<CandidateHash, VC_THRESHOLD>,
 }
 
 impl VcPerPeerTracker {
@@ -193,7 +193,7 @@ impl VcPerPeerTracker {
 }
 
 fn note_hash(
-	observed: &mut arrayvec::ArrayVec<[CandidateHash; VC_THRESHOLD]>,
+	observed: &mut arrayvec::ArrayVec<CandidateHash, VC_THRESHOLD>,
 	h: CandidateHash,
 ) -> bool {
 	if observed.contains(&h) {
