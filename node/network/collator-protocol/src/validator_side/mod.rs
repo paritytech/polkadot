@@ -921,6 +921,7 @@ async fn process_incoming_peer_message<Context>(
 				.span_per_relay_parent
 				.get(&relay_parent)
 				.map(|s| s.child("advertise-collation"));
+
 			if !state.view.contains(&relay_parent) {
 				gum::debug!(
 					target: LOG_TARGET,
@@ -1130,6 +1131,9 @@ async fn handle_network_msg<Context>(
 		},
 		PeerMessage(remote, Versioned::V1(msg)) => {
 			process_incoming_peer_message(ctx, state, remote, msg).await;
+		},
+		UpdatedAuthorityIds { .. } => {
+			// The validator side doesn't deal with `AuthorityDiscoveryId`s.
 		},
 	}
 

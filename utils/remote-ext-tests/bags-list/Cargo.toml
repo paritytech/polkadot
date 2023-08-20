@@ -1,8 +1,10 @@
 [package]
 name = "remote-ext-tests-bags-list"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 polkadot-runtime = { path = "../../../runtime/polkadot" }

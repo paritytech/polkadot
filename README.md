@@ -91,7 +91,13 @@ git checkout <latest tagged release>
 cargo build --release
 ```
 
-Note that compilation is a memory intensive process. We recommend having 4 GiB of physical RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
+**Note:** compilation is a memory intensive process. We recommend having 4 GiB of physical RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
+
+**Note:** if you want to move the built `polkadot` binary somewhere (e.g. into $PATH) you will also need to move `polkadot-execute-worker` and `polkadot-prepare-worker`. You can let cargo do all this for you by running:
+
+```sh
+cargo install --path . --locked
+```
 
 #### Build from Source with Docker
 
@@ -191,6 +197,7 @@ cargo test --workspace --release
 You can start a development chain with:
 
 ```bash
+cargo build
 cargo run -- --dev
 ```
 

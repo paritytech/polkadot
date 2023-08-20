@@ -22,9 +22,9 @@ use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Error as MatchError, MatchesFungibles, MatchesNonFungibles};
 
-/// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
-/// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
-/// `PalletInstance` junction.
+/// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be
+/// `TryFrom/TryInto<u128>`) into a `GeneralIndex` junction, prefixed by some `MultiLocation` value.
+/// The `MultiLocation` value will typically be a `PalletInstance` junction.
 pub struct AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>(
 	PhantomData<(Prefix, AssetId, ConvertAssetId)>,
 );
@@ -286,11 +286,11 @@ mod tests {
 		struct ClassInstanceIdConverter;
 		impl MaybeEquivalence<AssetInstance, ClassInstanceId> for ClassInstanceIdConverter {
 			fn convert(value: &AssetInstance) -> Option<ClassInstanceId> {
-				value.clone().try_into().ok()
+				(*value).try_into().ok()
 			}
 
 			fn convert_back(value: &ClassInstanceId) -> Option<AssetInstance> {
-				Some(AssetInstance::from(value.clone()))
+				Some(AssetInstance::from(*value))
 			}
 		}
 

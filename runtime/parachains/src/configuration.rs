@@ -25,9 +25,9 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
 use primitives::{
 	vstaging::AsyncBackingParams, Balance, ExecutorParams, SessionIndex, MAX_CODE_SIZE,
-	MAX_HEAD_DATA_SIZE, MAX_POV_SIZE,
+	MAX_HEAD_DATA_SIZE, MAX_POV_SIZE, ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE,
 };
-use sp_runtime::traits::Zero;
+use sp_runtime::{traits::Zero, Perbill};
 use sp_std::prelude::*;
 
 #[cfg(test)]
@@ -42,7 +42,7 @@ pub use pallet::*;
 
 const LOG_TARGET: &str = "runtime::configuration";
 
-/// All configuration of the runtime with respect to parachains and parathreads.
+/// All configuration of the runtime with respect to paras.
 #[derive(
 	Clone,
 	Encode,
@@ -54,12 +54,12 @@ const LOG_TARGET: &str = "runtime::configuration";
 	serde::Deserialize,
 )]
 pub struct HostConfiguration<BlockNumber> {
-	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
-	// special treatment.
+	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct
+	// requires special treatment.
 	//
-	// A parachain requested this struct can only depend on the subset of this struct. Specifically,
-	// only a first few fields can be depended upon. These fields cannot be changed without
-	// corresponding migration of the parachains.
+	// A parachain requested this struct can only depend on the subset of this struct.
+	// Specifically, only a first few fields can be depended upon. These fields cannot be changed
+	// without corresponding migration of the parachains.
 	/**
 	 * The parameters that are required for the parachains.
 	 */
@@ -88,9 +88,9 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_message_num_per_candidate: u32,
 	/// The minimum period, in blocks, between which parachains can update their validation code.
 	///
-	/// This number is used to prevent parachains from spamming the relay chain with validation code
-	/// upgrades. The only thing it controls is the number of blocks the `UpgradeRestrictionSignal`
-	/// is set for the parachain in question.
+	/// This number is used to prevent parachains from spamming the relay chain with validation
+	/// code upgrades. The only thing it controls is the number of blocks the
+	/// `UpgradeRestrictionSignal` is set for the parachain in question.
 	///
 	/// If PVF pre-checking is enabled this should be greater than the maximum number of blocks
 	/// PVF pre-checking can take. Intuitively, this number should be greater than the duration
@@ -113,14 +113,14 @@ pub struct HostConfiguration<BlockNumber> {
 	/// been completed.
 	///
 	/// Note, there are situations in which `expected_at` in the past. For example, if
-	/// [`chain_availability_period`] or [`thread_availability_period`] is less than the delay set by
+	/// [`paras_availability_period`] is less than the delay set by
 	/// this field or if PVF pre-check took more time than the delay. In such cases, the upgrade is
 	/// further at the earliest possible time determined by [`minimum_validation_upgrade_delay`].
 	///
 	/// The rationale for this delay has to do with relay-chain reversions. In case there is an
-	/// invalid candidate produced with the new version of the code, then the relay-chain can revert
-	/// [`validation_upgrade_delay`] many blocks back and still find the new code in the storage by
-	/// hash.
+	/// invalid candidate produced with the new version of the code, then the relay-chain can
+	/// revert [`validation_upgrade_delay`] many blocks back and still find the new code in the
+	/// storage by hash.
 	///
 	/// [#4601]: https://github.com/paritytech/polkadot/issues/4601
 	pub validation_upgrade_delay: BlockNumber,
@@ -142,8 +142,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub max_downward_message_size: u32,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
 	pub hrmp_max_parachain_outbound_channels: u32,
-	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
-	pub hrmp_max_parathread_outbound_channels: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
 	pub hrmp_sender_deposit: Balance,
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
@@ -154,8 +152,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_channel_max_total_size: u32,
 	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
 	pub hrmp_max_parachain_inbound_channels: u32,
-	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
-	pub hrmp_max_parathread_inbound_channels: u32,
 	/// The maximum size of a message that could ever be put into an HRMP channel.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
@@ -170,26 +166,34 @@ pub struct HostConfiguration<BlockNumber> {
 	/// How long to keep code on-chain, in blocks. This should be sufficiently long that disputes
 	/// have concluded.
 	pub code_retention_period: BlockNumber,
-	/// The amount of execution cores to dedicate to parathread execution.
-	pub parathread_cores: u32,
-	/// The number of retries that a parathread author has to submit their block.
-	pub parathread_retries: u32,
+	/// The amount of execution cores to dedicate to on demand execution.
+	pub on_demand_cores: u32,
+	/// The number of retries that a on demand author has to submit their block.
+	pub on_demand_retries: u32,
+	/// The maximum queue size of the pay as you go module.
+	pub on_demand_queue_max_size: u32,
+	/// The target utilization of the spot price queue in percentages.
+	pub on_demand_target_queue_utilization: Perbill,
+	/// How quickly the fee rises in reaction to increased utilization.
+	/// The lower the number the slower the increase.
+	pub on_demand_fee_variability: Perbill,
+	/// The minimum amount needed to claim a slot in the spot pricing queue.
+	pub on_demand_base_fee: Balance,
+	/// The number of blocks an on demand claim stays in the scheduler's claimqueue before getting
+	/// cleared. This number should go reasonably higher than the number of blocks in the async
+	/// backing lookahead.
+	pub on_demand_ttl: BlockNumber,
 	/// How often parachain groups should be rotated across parachains.
 	///
 	/// Must be non-zero.
 	pub group_rotation_frequency: BlockNumber,
-	/// The availability period, in blocks, for parachains. This is the amount of blocks
-	/// after inclusion that validators have to make the block available and signal its availability to
-	/// the chain.
+	/// The availability period, in blocks. This is the amount of blocks
+	/// after inclusion that validators have to make the block available and signal its
+	/// availability to the chain.
 	///
 	/// Must be at least 1.
-	pub chain_availability_period: BlockNumber,
-	/// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
-	/// but a differing timeout due to differing requirements.
-	///
-	/// Must be at least 1.
-	pub thread_availability_period: BlockNumber,
-	/// The amount of blocks ahead to schedule parachains and parathreads.
+	pub paras_availability_period: BlockNumber,
+	/// The amount of blocks ahead to schedule paras.
 	pub scheduling_lookahead: u32,
 	/// The maximum number of validators to have per core.
 	///
@@ -217,8 +221,8 @@ pub struct HostConfiguration<BlockNumber> {
 	pub needed_approvals: u32,
 	/// The number of samples to do of the `RelayVRFModulo` approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
-	/// If an active PVF pre-checking vote observes this many number of sessions it gets automatically
-	/// rejected.
+	/// If an active PVF pre-checking vote observes this many number of sessions it gets
+	/// automatically rejected.
 	///
 	/// 0 means PVF pre-checking will be rejected on the first observed session unless the voting
 	/// gained supermajority before that the session change.
@@ -236,8 +240,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// To prevent that, we introduce the minimum number of blocks after which the upgrade can be
 	/// scheduled. This number is controlled by this field.
 	///
-	/// This value should be greater than [`chain_availability_period`] and
-	/// [`thread_availability_period`].
+	/// This value should be greater than [`paras_availability_period`].
 	pub minimum_validation_upgrade_delay: BlockNumber,
 }
 
@@ -249,8 +252,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 				allowed_ancestry_len: 0,
 			},
 			group_rotation_frequency: 1u32.into(),
-			chain_availability_period: 1u32.into(),
-			thread_availability_period: 1u32.into(),
+			paras_availability_period: 1u32.into(),
 			no_show_slots: 1u32.into(),
 			validation_upgrade_cooldown: Default::default(),
 			validation_upgrade_delay: 2u32.into(),
@@ -258,9 +260,9 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_code_size: Default::default(),
 			max_pov_size: Default::default(),
 			max_head_data_size: Default::default(),
-			parathread_cores: Default::default(),
-			parathread_retries: Default::default(),
-			scheduling_lookahead: Default::default(),
+			on_demand_cores: Default::default(),
+			on_demand_retries: Default::default(),
+			scheduling_lookahead: 1,
 			max_validators_per_core: Default::default(),
 			max_validators: None,
 			dispute_period: 6,
@@ -279,14 +281,17 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_channel_max_capacity: Default::default(),
 			hrmp_channel_max_total_size: Default::default(),
 			hrmp_max_parachain_inbound_channels: Default::default(),
-			hrmp_max_parathread_inbound_channels: Default::default(),
 			hrmp_channel_max_message_size: Default::default(),
 			hrmp_max_parachain_outbound_channels: Default::default(),
-			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
 			executor_params: Default::default(),
+			on_demand_queue_max_size: ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE,
+			on_demand_base_fee: 10_000_000u128,
+			on_demand_fee_variability: Perbill::from_percent(3),
+			on_demand_target_queue_utilization: Perbill::from_percent(25),
+			on_demand_ttl: 5u32.into(),
 		}
 	}
 }
@@ -296,10 +301,8 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 pub enum InconsistentError<BlockNumber> {
 	/// `group_rotation_frequency` is set to zero.
 	ZeroGroupRotationFrequency,
-	/// `chain_availability_period` is set to zero.
-	ZeroChainAvailabilityPeriod,
-	/// `thread_availability_period` is set to zero.
-	ZeroThreadAvailabilityPeriod,
+	/// `paras_availability_period` is set to zero.
+	ZeroParasAvailabilityPeriod,
 	/// `no_show_slots` is set to zero.
 	ZeroNoShowSlots,
 	/// `max_code_size` exceeds the hard limit of `MAX_CODE_SIZE`.
@@ -308,15 +311,10 @@ pub enum InconsistentError<BlockNumber> {
 	MaxHeadDataSizeExceedHardLimit { max_head_data_size: u32 },
 	/// `max_pov_size` exceeds the hard limit of `MAX_POV_SIZE`.
 	MaxPovSizeExceedHardLimit { max_pov_size: u32 },
-	/// `minimum_validation_upgrade_delay` is less than `chain_availability_period`.
+	/// `minimum_validation_upgrade_delay` is less than `paras_availability_period`.
 	MinimumValidationUpgradeDelayLessThanChainAvailabilityPeriod {
 		minimum_validation_upgrade_delay: BlockNumber,
-		chain_availability_period: BlockNumber,
-	},
-	/// `minimum_validation_upgrade_delay` is less than `thread_availability_period`.
-	MinimumValidationUpgradeDelayLessThanThreadAvailabilityPeriod {
-		minimum_validation_upgrade_delay: BlockNumber,
-		thread_availability_period: BlockNumber,
+		paras_availability_period: BlockNumber,
 	},
 	/// `validation_upgrade_delay` is less than or equal 1.
 	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
@@ -348,12 +346,8 @@ where
 			return Err(ZeroGroupRotationFrequency)
 		}
 
-		if self.chain_availability_period.is_zero() {
-			return Err(ZeroChainAvailabilityPeriod)
-		}
-
-		if self.thread_availability_period.is_zero() {
-			return Err(ZeroThreadAvailabilityPeriod)
+		if self.paras_availability_period.is_zero() {
+			return Err(ZeroParasAvailabilityPeriod)
 		}
 
 		if self.no_show_slots.is_zero() {
@@ -374,15 +368,10 @@ where
 			return Err(MaxPovSizeExceedHardLimit { max_pov_size: self.max_pov_size })
 		}
 
-		if self.minimum_validation_upgrade_delay <= self.chain_availability_period {
+		if self.minimum_validation_upgrade_delay <= self.paras_availability_period {
 			return Err(MinimumValidationUpgradeDelayLessThanChainAvailabilityPeriod {
 				minimum_validation_upgrade_delay: self.minimum_validation_upgrade_delay.clone(),
-				chain_availability_period: self.chain_availability_period.clone(),
-			})
-		} else if self.minimum_validation_upgrade_delay <= self.thread_availability_period {
-			return Err(MinimumValidationUpgradeDelayLessThanThreadAvailabilityPeriod {
-				minimum_validation_upgrade_delay: self.minimum_validation_upgrade_delay.clone(),
-				thread_availability_period: self.thread_availability_period.clone(),
+				paras_availability_period: self.paras_availability_period.clone(),
 			})
 		}
 
@@ -441,6 +430,7 @@ pub trait WeightInfo {
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
 	fn set_config_with_executor_params() -> Weight;
+	fn set_config_with_perbill() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -463,6 +453,9 @@ impl WeightInfo for TestWeightInfo {
 	fn set_config_with_executor_params() -> Weight {
 		Weight::MAX
 	}
+	fn set_config_with_perbill() -> Weight {
+		Weight::MAX
+	}
 }
 
 #[frame_support::pallet]
@@ -480,7 +473,8 @@ pub mod pallet {
 	///      + <https://github.com/paritytech/polkadot/pull/6934>
 	/// v5-v6: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
 	/// v6-v7: <https://github.com/paritytech/polkadot/pull/7396>
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
+	/// v7-v8: <https://github.com/paritytech/polkadot/pull/6969>
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(8);
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -625,29 +619,29 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the number of parathread execution cores.
+		/// Set the number of on demand execution cores.
 		#[pallet::call_index(6)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_parathread_cores(origin: OriginFor<T>, new: u32) -> DispatchResult {
+		pub fn set_on_demand_cores(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.parathread_cores = new;
+				config.on_demand_cores = new;
 			})
 		}
 
-		/// Set the number of retries for a particular parathread.
+		/// Set the number of retries for a particular on demand.
 		#[pallet::call_index(7)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_parathread_retries(origin: OriginFor<T>, new: u32) -> DispatchResult {
+		pub fn set_on_demand_retries(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.parathread_retries = new;
+				config.on_demand_retries = new;
 			})
 		}
 
@@ -667,35 +661,19 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the availability period for parachains.
+		/// Set the availability period for paras.
 		#[pallet::call_index(9)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
 		))]
-		pub fn set_chain_availability_period(
+		pub fn set_paras_availability_period(
 			origin: OriginFor<T>,
 			new: BlockNumberFor<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.chain_availability_period = new;
-			})
-		}
-
-		/// Set the availability period for parathreads.
-		#[pallet::call_index(10)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_block_number(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_thread_availability_period(
-			origin: OriginFor<T>,
-			new: BlockNumberFor<T>,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.thread_availability_period = new;
+				config.paras_availability_period = new;
 			})
 		}
 
@@ -849,7 +827,8 @@ pub mod pallet {
 			})
 		}
 
-		/// Sets the maximum total size of items that can present in a upward dispatch queue at once.
+		/// Sets the maximum total size of items that can present in a upward dispatch queue at
+		/// once.
 		#[pallet::call_index(24)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
@@ -987,22 +966,6 @@ pub mod pallet {
 			})
 		}
 
-		/// Sets the maximum number of inbound HRMP channels a parathread is allowed to accept.
-		#[pallet::call_index(35)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_hrmp_max_parathread_inbound_channels(
-			origin: OriginFor<T>,
-			new: u32,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.hrmp_max_parathread_inbound_channels = new;
-			})
-		}
-
 		/// Sets the maximum size of a message that could ever be put into an HRMP channel.
 		#[pallet::call_index(36)]
 		#[pallet::weight((
@@ -1029,22 +992,6 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.hrmp_max_parachain_outbound_channels = new;
-			})
-		}
-
-		/// Sets the maximum number of outbound HRMP channels a parathread is allowed to open.
-		#[pallet::call_index(38)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_hrmp_max_parathread_outbound_channels(
-			origin: OriginFor<T>,
-			new: u32,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.hrmp_max_parathread_outbound_channels = new;
 			})
 		}
 
@@ -1135,6 +1082,72 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.executor_params = new;
+			})
+		}
+
+		/// Set the on demand (parathreads) base fee.
+		#[pallet::call_index(47)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_balance(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_on_demand_base_fee(origin: OriginFor<T>, new: Balance) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.on_demand_base_fee = new;
+			})
+		}
+
+		/// Set the on demand (parathreads) fee variability.
+		#[pallet::call_index(48)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_perbill(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_on_demand_fee_variability(origin: OriginFor<T>, new: Perbill) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.on_demand_fee_variability = new;
+			})
+		}
+
+		/// Set the on demand (parathreads) queue max size.
+		#[pallet::call_index(49)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_option_u32(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_on_demand_queue_max_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.on_demand_queue_max_size = new;
+			})
+		}
+		/// Set the on demand (parathreads) fee variability.
+		#[pallet::call_index(50)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_perbill(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_on_demand_target_queue_utilization(
+			origin: OriginFor<T>,
+			new: Perbill,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.on_demand_target_queue_utilization = new;
+			})
+		}
+		/// Set the on demand (parathreads) ttl in the claimqueue.
+		#[pallet::call_index(51)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_block_number(),
+			DispatchClass::Operational
+		))]
+		pub fn set_on_demand_ttl(origin: OriginFor<T>, new: BlockNumberFor<T>) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.on_demand_ttl = new;
 			})
 		}
 	}
@@ -1242,28 +1255,27 @@ impl<T: Config> Pallet<T> {
 	) -> DispatchResult {
 		let mut pending_configs = <PendingConfigs<T>>::get();
 
-		// 1. pending_configs = []
-		//    No pending configuration changes.
+		// 1. pending_configs = [] No pending configuration changes.
 		//
 		//    That means we should use the active config as the base configuration. We will insert
 		//    the new pending configuration as (cur+2, new_config) into the list.
 		//
-		// 2. pending_configs = [(cur+2, X)]
-		//    There is a configuration that is pending for the scheduled session.
+		// 2. pending_configs = [(cur+2, X)] There is a configuration that is pending for the
+		//    scheduled session.
 		//
 		//    We will use X as the base configuration. We can update the pending configuration X
 		//    directly.
 		//
-		// 3. pending_configs = [(cur+1, X)]
-		//    There is a pending configuration scheduled and it will be applied in the next session.
+		// 3. pending_configs = [(cur+1, X)] There is a pending configuration scheduled and it will
+		//    be applied in the next session.
 		//
-		//    We will use X as the base configuration. We need to schedule a new configuration change
-		//    for the `scheduled_session` and use X as the base for the new configuration.
+		//    We will use X as the base configuration. We need to schedule a new configuration
+		// change    for the `scheduled_session` and use X as the base for the new configuration.
 		//
-		// 4. pending_configs = [(cur+1, X), (cur+2, Y)]
-		//    There is a pending configuration change in the next session and for the scheduled
-		//    session. Due to case №3, we can be sure that Y is based on top of X. This means we
-		//    can use Y as the base configuration and update Y directly.
+		// 4. pending_configs = [(cur+1, X), (cur+2, Y)] There is a pending configuration change in
+		//    the next session and for the scheduled session. Due to case №3, we can be sure that Y
+		//    is based on top of X. This means we can use Y as the base configuration and update Y
+		//    directly.
 		//
 		// There cannot be (cur, X) because those are applied in the session change handler for the
 		// current session.

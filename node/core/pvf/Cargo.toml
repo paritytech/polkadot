@@ -1,12 +1,15 @@
 [package]
 name = "polkadot-node-core-pvf"
+description = "Polkadot crate that implements the PVF validation host. Responsible for coordinating preparation and execution of PVFs."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "puppet_worker"
 path = "bin/puppet_worker.rs"
+required-features = ["test-utils"]
 
 [dependencies]
 always-assert = "0.1"
@@ -25,8 +28,6 @@ parity-scale-codec = { version = "3.6.1", default-features = false, features = [
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-core-pvf-common = { path = "common" }
-polkadot-node-core-pvf-execute-worker = { path = "execute-worker" }
-polkadot-node-core-pvf-prepare-worker = { path = "prepare-worker" }
 polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-primitives = { path = "../../../primitives" }
@@ -34,7 +35,9 @@ polkadot-primitives = { path = "../../../primitives" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+polkadot-node-core-pvf-prepare-worker = { path = "prepare-worker", optional = true }
+polkadot-node-core-pvf-execute-worker = { path = "execute-worker", optional = true }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -42,9 +45,15 @@ substrate-build-script-utils = { git = "https://github.com/paritytech/substrate"
 [dev-dependencies]
 assert_matches = "1.4.0"
 hex-literal = "0.3.4"
+polkadot-node-core-pvf-common = { path = "common", features = ["test-utils"] }
+# For the puppet worker, depend on ourselves with the test-utils feature.
+polkadot-node-core-pvf = { path = ".", features = ["test-utils"] }
 
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
 halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
 
 [features]
 ci-only-tests = []
+# This feature is used to export test code to other crates without putting it in the production build.
+# This is also used by the `puppet_worker` binary.
+test-utils = ["polkadot-node-core-pvf-prepare-worker", "polkadot-node-core-pvf-execute-worker", "sp-tracing"]

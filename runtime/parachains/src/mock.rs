@@ -17,7 +17,7 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, disputes, dmp, hrmp,
+	assigner, assigner_on_demand, assigner_parachains, configuration, disputes, dmp, hrmp,
 	inclusion::{self, AggregateMessageOrigin, UmpQueueId},
 	initializer, origin, paras,
 	paras::ParaKind,
@@ -32,6 +32,7 @@ use frame_support::{
 	weights::{Weight, WeightMeter},
 };
 use frame_support_test::TestRandomness;
+use frame_system::limits;
 use parity_scale_codec::Decode;
 use primitives::{
 	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Moment, SessionIndex, UpwardMessage,
@@ -42,7 +43,7 @@ use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	BuildStorage, Permill,
+	BuildStorage, FixedU128, Perbill, Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -61,6 +62,9 @@ frame_support::construct_runtime!(
 		ParaInclusion: inclusion,
 		ParaInherent: paras_inherent,
 		Scheduler: scheduler,
+		Assigner: assigner,
+		OnDemandAssigner: assigner_on_demand,
+		ParachainsAssigner: assigner_parachains,
 		Initializer: initializer,
 		Dmp: dmp,
 		Hrmp: hrmp,
@@ -81,10 +85,11 @@ where
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
-	pub BlockWeights: frame_system::limits::BlockWeights =
+	pub static BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
 			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
 		);
+	pub static BlockLength: limits::BlockLength = limits::BlockLength::max_with_normal_ratio(u32::MAX, Perbill::from_percent(75));
 }
 
 pub type AccountId = u64;
@@ -92,7 +97,7 @@ pub type AccountId = u64;
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = BlockWeights;
-	type BlockLength = ();
+	type BlockLength = BlockLength;
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
@@ -279,7 +284,9 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
-impl crate::scheduler::Config for Test {}
+impl crate::scheduler::Config for Test {
+	type AssignmentProvider = Assigner;
+}
 
 pub struct TestMessageQueueWeight;
 impl pallet_message_queue::WeightInfo for TestMessageQueueWeight {
@@ -330,6 +337,24 @@ impl pallet_message_queue::Config for Test {
 	type HeapSize = ConstU32<65536>;
 	type MaxStale = ConstU32<8>;
 	type ServiceWeight = MessageQueueServiceWeight;
+}
+
+impl assigner::Config for Test {
+	type ParachainsAssignmentProvider = ParachainsAssigner;
+	type OnDemandAssignmentProvider = OnDemandAssigner;
+}
+
+impl assigner_parachains::Config for Test {}
+
+parameter_types! {
+	pub const OnDemandTrafficDefaultValue: FixedU128 = FixedU128::from_u32(1);
+}
+
+impl assigner_on_demand::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type TrafficDefaultValue = OnDemandTrafficDefaultValue;
+	type WeightInfo = crate::assigner_on_demand::TestWeightInfo;
 }
 
 impl crate::inclusion::Config for Test {

@@ -83,8 +83,8 @@ pub mod memory_tracker {
 	///
 	/// # Errors
 	///
-	/// For simplicity, any errors are returned as a string. As this is not a critical component, errors
-	/// are used for informational purposes (logging) only.
+	/// For simplicity, any errors are returned as a string. As this is not a critical component,
+	/// errors are used for informational purposes (logging) only.
 	pub fn memory_tracker_loop(condvar: thread::Cond) -> Result<MemoryAllocationStats, String> {
 		// NOTE: This doesn't need to be too fine-grained since preparation currently takes 3-10s or
 		// more. Apart from that, there is not really a science to this number.
