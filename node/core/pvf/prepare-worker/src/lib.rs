@@ -141,10 +141,14 @@ pub fn worker_entrypoint(
 				#[cfg(target_os = "linux")]
 				let landlock_status = {
 					use polkadot_node_core_pvf_common::worker::security::landlock::{
-						path_beneath_rules, try_restrict_thread, Access, AccessFs, LANDLOCK_ABI,
+						path_beneath_rules, try_restrict, Access, AccessFs, LANDLOCK_ABI,
 					};
 
-					try_restrict_thread(path_beneath_rules(
+					// Allow an exception for writing to the artifact cache, with no allowance for
+					// listing the directory contents. Since we prepend artifact names with a random
+					// hash, this means attackers can't discover artifacts apart from the current
+					// job.
+					try_restrict(path_beneath_rules(
 						&[cache_path],
 						AccessFs::from_write(LANDLOCK_ABI),
 					))
