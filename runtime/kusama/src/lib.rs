@@ -279,7 +279,7 @@ impl pallet_babe::Config for Runtime {
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
-	type MaxNominators = MaxNominatorRewardedPerValidator;
+	type MaxNominators = MaxExposurePageSize;
 }
 
 parameter_types! {
@@ -559,8 +559,6 @@ parameter_types! {
 		"DOT_SLASH_DEFER_DURATION"
 	);
 	pub const MaxExposurePageSize: u32 = 512;
-	pub const MaxExposurePageCount: u32 = 1;
-	pub const MaxNominatorRewardedPerValidator: u32 = MaxExposurePageSize::get() * MaxExposurePageCount::get();
 
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 24
@@ -586,7 +584,6 @@ impl pallet_staking::Config for Runtime {
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
 	type MaxExposurePageSize = MaxExposurePageSize;
-	type MaxExposurePageCount = MaxExposurePageCount;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type VoterList = VoterList;
 	type TargetList = UseValidatorsMap<Self>;
@@ -719,7 +716,7 @@ impl pallet_grandpa::Config for Runtime {
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
-	type MaxNominators = MaxNominatorRewardedPerValidator;
+	type MaxNominators = MaxExposurePageSize;
 	type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
 
 	type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
