@@ -63,8 +63,8 @@ parameter_types! {
 	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
 }
 
-/// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to determine
-/// the sovereign account controlled by a location.
+/// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to
+/// determine the sovereign account controlled by a location.
 pub type SovereignAccountOf = (
 	// We can convert a child parachain using the standard `AccountId` conversion.
 	ChildParachainConvertsVia<ParaId, AccountId>,
@@ -72,8 +72,8 @@ pub type SovereignAccountOf = (
 	AccountId32Aliases<ThisNetwork, AccountId>,
 );
 
-/// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
-/// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
+/// Our asset transactor. This is what allows us to interest with the runtime facilities from the
+/// point of view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
 ///
 /// Ours is only aware of the Balances pallet, which is mapped to `TokenLocation`.
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
@@ -360,8 +360,8 @@ parameter_types! {
 	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
 }
 
-/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain.
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior
+/// location of this chain.
 pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
@@ -374,8 +374,8 @@ pub type StakingAdminToPlurality =
 /// Type to convert the Fellows origin to a Plurality `MultiLocation` value.
 pub type FellowsToPlurality = OriginToPluralityVoice<RuntimeOrigin, Fellows, FellowsBodyId>;
 
-/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain for a destination chain.
+/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an
+/// interior location of this chain for a destination chain.
 pub type LocalPalletOriginToLocation = (
 	// StakingAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
 	StakingAdminToPlurality,
@@ -385,17 +385,18 @@ pub type LocalPalletOriginToLocation = (
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	// We only allow the root, the council, fellows and the staking admin to send messages.
-	// This is basically safe to enable for everyone (safe the possibility of someone spamming the parachain
-	// if they're willing to pay the KSM to send from the Relay-chain), but it's useless until we bring in XCM v3
-	// which will make `DescendOrigin` a bit more useful.
+	// We only allow the root, fellows and the staking admin to send messages.
+	// This is basically safe to enable for everyone (safe the possibility of someone spamming the
+	// parachain if they're willing to pay the KSM to send from the Relay-chain), but it's useless
+	// until we bring in XCM v3 which will make `DescendOrigin` a bit more useful.
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalPalletOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally.
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
-	// Anyone is able to use teleportation regardless of who they are and what they want to teleport.
+	// Anyone is able to use teleportation regardless of who they are and what they want to
+	// teleport.
 	type XcmTeleportFilter = Everything;
 	// Anyone is able to use reserve transfers regardless of who they are and what they want to
 	// transfer.
@@ -432,8 +433,10 @@ fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
 
 	// should be [WithdrawAsset, BuyExecution, Transact, RefundSurplus, DepositAsset]
 	let blob = hex_literal::hex!("02140004000000000700e40b540213000000000700e40b54020006010700c817a804341801000006010b00c490bf4302140d010003ffffffff000100411f");
-	let Ok(VersionedXcm::V2(old_xcm)) =
-		VersionedXcm::<super::RuntimeCall>::decode(&mut &blob[..]) else { panic!("can't decode XCM blob") };
+	let Ok(VersionedXcm::V2(old_xcm)) = VersionedXcm::<super::RuntimeCall>::decode(&mut &blob[..])
+	else {
+		panic!("can't decode XCM blob")
+	};
 	let mut xcm: Xcm<super::RuntimeCall> =
 		old_xcm.try_into().expect("conversion from v2 to v3 failed");
 	let weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut xcm)
@@ -444,10 +447,12 @@ fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
 	assert!(weight.all_lte(Weight::from_parts(30_313_281_000, 72_722)));
 
 	let Some(Transact { require_weight_at_most, call, .. }) =
-		xcm.inner_mut().into_iter().find(|inst| matches!(inst, Transact { .. })) else {
-			panic!("no Transact instruction found")
-		};
-	// should be pallet_utility.as_derivative { index: 0, call: pallet_staking::bond_extra { max_additional: 2490000000000 } }
+		xcm.inner_mut().into_iter().find(|inst| matches!(inst, Transact { .. }))
+	else {
+		panic!("no Transact instruction found")
+	};
+	// should be pallet_utility.as_derivative { index: 0, call: pallet_staking::bond_extra {
+	// max_additional: 2490000000000 } }
 	let message_call = call.take_decoded().expect("can't decode Transact call");
 	let call_weight = message_call.get_dispatch_info().weight;
 	// Ensure that the Transact instruction is giving a sensible `require_weight_at_most` value

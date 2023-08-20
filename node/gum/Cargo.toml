@@ -3,6 +3,7 @@ name = "tracing-gum"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 description = "Stick logs together with the TraceID as provided by tempo"
 
 [dependencies]

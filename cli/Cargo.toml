@@ -4,6 +4,7 @@ description = "Polkadot Relay-chain Client Node"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [package.metadata.wasm-pack.profile.release]
 # `wasm-opt` has some problems on Linux, see
@@ -74,3 +75,4 @@ rococo-native = ["service/rococo-native"]
 
 malus = ["full-node", "service/malus"]
 runtime-metrics = ["service/runtime-metrics", "polkadot-node-metrics/runtime-metrics"]
+network-protocol-staging = ["service/network-protocol-staging"]

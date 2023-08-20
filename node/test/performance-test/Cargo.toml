@@ -1,8 +1,10 @@
 [package]
 name = "polkadot-performance-test"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 thiserror = "1.0.31"

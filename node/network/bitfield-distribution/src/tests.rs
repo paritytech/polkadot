@@ -56,6 +56,10 @@ fn dummy_rng() -> ChaCha12Rng {
 	rand_chacha::ChaCha12Rng::seed_from_u64(12345)
 }
 
+fn peer_data_v1(view: View) -> PeerData {
+	PeerData { view, version: ValidationVersion::V1.into() }
+}
+
 /// A very limited state, only interested in the relay parent of the
 /// given message, which must be signed by `validator` and a set of peers
 /// which are also only interested in that relay parent.
@@ -65,7 +69,7 @@ fn prewarmed_state(
 	known_message: BitfieldGossipMessage,
 	peers: Vec<PeerId>,
 ) -> ProtocolState {
-	let relay_parent = known_message.relay_parent.clone();
+	let relay_parent = known_message.relay_parent;
 	let mut topologies = SessionBoundGridTopologyStorage::default();
 	topologies.update_topology(0_u32, SessionGridTopology::new(Vec::new(), Vec::new()), None);
 	topologies.get_current_topology_mut().local_grid_neighbors_mut().peers_x =
@@ -73,7 +77,7 @@ fn prewarmed_state(
 
 	ProtocolState {
 		per_relay_parent: hashmap! {
-			relay_parent.clone() =>
+			relay_parent =>
 				PerRelayParentData {
 					signing_context,
 					validator_set: vec![validator.clone()],
@@ -85,7 +89,11 @@ fn prewarmed_state(
 					span: PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 				},
 		},
-		peer_views: peers.iter().cloned().map(|peer| (peer, view!(relay_parent))).collect(),
+		peer_data: peers
+			.iter()
+			.cloned()
+			.map(|peer| (peer, peer_data_v1(view![relay_parent])))
+			.collect(),
 		topologies,
 		view: our_view!(relay_parent),
 		reputation: ReputationAggregator::new(|_| true),
@@ -99,7 +107,7 @@ fn state_with_view(
 ) -> (ProtocolState, SigningContext, KeystorePtr, ValidatorId) {
 	let mut state = ProtocolState { reputation, ..Default::default() };
 
-	let signing_context = SigningContext { session_index: 1, parent_hash: relay_parent.clone() };
+	let signing_context = SigningContext { session_index: 1, parent_hash: relay_parent };
 
 	let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
 	let validator = Keystore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
@@ -109,10 +117,10 @@ fn state_with_view(
 		.iter()
 		.map(|relay_parent| {
 			(
-				relay_parent.clone(),
+				*relay_parent,
 				PerRelayParentData {
 					signing_context: signing_context.clone(),
-					validator_set: vec![validator.clone().into()],
+					validator_set: vec![validator.into()],
 					one_per_validator: hashmap! {},
 					message_received_from_peer: hashmap! {},
 					message_sent_to_peer: hashmap! {},
@@ -140,7 +148,7 @@ fn receive_invalid_signature() {
 	let peer_b = PeerId::random();
 	assert_ne!(peer_a, peer_b);
 
-	let signing_context = SigningContext { session_index: 1, parent_hash: hash_a.clone() };
+	let signing_context = SigningContext { session_index: 1, parent_hash: hash_a };
 
 	// another validator not part of the validatorset
 	let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
@@ -184,28 +192,20 @@ fn receive_invalid_signature() {
 	.flatten()
 	.expect("should be signed");
 
-	let invalid_msg = BitfieldGossipMessage {
-		relay_parent: hash_a.clone(),
-		signed_availability: invalid_signed.clone(),
-	};
+	let invalid_msg =
+		BitfieldGossipMessage { relay_parent: hash_a, signed_availability: invalid_signed.clone() };
 	let invalid_msg_2 = BitfieldGossipMessage {
-		relay_parent: hash_a.clone(),
+		relay_parent: hash_a,
 		signed_availability: invalid_signed_2.clone(),
 	};
-	let valid_msg = BitfieldGossipMessage {
-		relay_parent: hash_a.clone(),
-		signed_availability: valid_signed.clone(),
-	};
+	let valid_msg =
+		BitfieldGossipMessage { relay_parent: hash_a, signed_availability: valid_signed.clone() };
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
-	let mut state = prewarmed_state(
-		validator_0.into(),
-		signing_context.clone(),
-		valid_msg,
-		vec![peer_b.clone()],
-	);
+	let mut state =
+		prewarmed_state(validator_0.into(), signing_context.clone(), valid_msg, vec![peer_b]);
 	state
 		.per_relay_parent
 		.get_mut(&hash_a)
@@ -219,7 +219,10 @@ fn receive_invalid_signature() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), invalid_msg.into_network_message()),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b,
+				invalid_msg.into_network_message(ValidationVersion::V1.into())
+			),
 			&mut rng,
 		));
 
@@ -230,7 +233,10 @@ fn receive_invalid_signature() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), invalid_msg_2.into_network_message()),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b,
+				invalid_msg_2.into_network_message(ValidationVersion::V1.into())
+			),
 			&mut rng,
 		));
 		// reputation change due to invalid signature
@@ -261,13 +267,10 @@ fn receive_invalid_validator_index() {
 	assert_ne!(peer_a, peer_b);
 
 	// validator 0 key pair
-	let (mut state, signing_context, keystore, validator) = state_with_view(
-		our_view![hash_a, hash_b],
-		hash_a.clone(),
-		ReputationAggregator::new(|_| true),
-	);
+	let (mut state, signing_context, keystore, validator) =
+		state_with_view(our_view![hash_a, hash_b], hash_a, ReputationAggregator::new(|_| true));
 
-	state.peer_views.insert(peer_b.clone(), view![hash_a]);
+	state.peer_data.insert(peer_b, peer_data_v1(view![hash_a]));
 
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
 	let signed = Signed::<AvailabilityBitfield>::sign(
@@ -281,8 +284,7 @@ fn receive_invalid_validator_index() {
 	.flatten()
 	.expect("should be signed");
 
-	let msg =
-		BitfieldGossipMessage { relay_parent: hash_a.clone(), signed_availability: signed.clone() };
+	let msg = BitfieldGossipMessage { relay_parent: hash_a, signed_availability: signed.clone() };
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
@@ -293,7 +295,10 @@ fn receive_invalid_validator_index() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.into_network_message()),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b,
+				msg.into_network_message(ValidationVersion::V1.into())
+			),
 			&mut rng,
 		));
 
@@ -325,11 +330,8 @@ fn receive_duplicate_messages() {
 	assert_ne!(peer_a, peer_b);
 
 	// validator 0 key pair
-	let (mut state, signing_context, keystore, validator) = state_with_view(
-		our_view![hash_a, hash_b],
-		hash_a.clone(),
-		ReputationAggregator::new(|_| true),
-	);
+	let (mut state, signing_context, keystore, validator) =
+		state_with_view(our_view![hash_a, hash_b], hash_a, ReputationAggregator::new(|_| true));
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
@@ -345,7 +347,7 @@ fn receive_duplicate_messages() {
 	.expect("should be signed");
 
 	let msg = BitfieldGossipMessage {
-		relay_parent: hash_a.clone(),
+		relay_parent: hash_a,
 		signed_availability: signed_bitfield.clone(),
 	};
 
@@ -359,7 +361,10 @@ fn receive_duplicate_messages() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b,
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -392,7 +397,10 @@ fn receive_duplicate_messages() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_a.clone(), msg.clone().into_network_message(),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_a,
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -411,7 +419,10 @@ fn receive_duplicate_messages() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b,
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -428,8 +439,6 @@ fn receive_duplicate_messages() {
 }
 
 #[test]
-// FIXME <https://github.com/paritytech/polkadot/issues/7407>
-#[cfg(feature = "enable-flaky")]
 fn delay_reputation_change() {
 	use polkadot_node_subsystem_util::reputation::add_reputation;
 
@@ -444,11 +453,8 @@ fn delay_reputation_change() {
 	let peer = PeerId::random();
 
 	// validator 0 key pair
-	let (mut state, signing_context, keystore, validator) = state_with_view(
-		our_view![hash_a, hash_b],
-		hash_a.clone(),
-		ReputationAggregator::new(|_| false),
-	);
+	let (mut state, signing_context, keystore, validator) =
+		state_with_view(our_view![hash_a, hash_b], hash_a, ReputationAggregator::new(|_| false));
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
@@ -464,14 +470,14 @@ fn delay_reputation_change() {
 	.expect("should be signed");
 
 	let msg = BitfieldGossipMessage {
-		relay_parent: hash_a.clone(),
+		relay_parent: hash_a,
 		signed_availability: signed_bitfield.clone(),
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 	let mut rng = dummy_rng();
-	let reputation_interval = Duration::from_millis(1);
+	let reputation_interval = Duration::from_millis(100);
 
 	let bg = async move {
 		let subsystem = BitfieldDistribution::new(Default::default());
@@ -484,8 +490,8 @@ fn delay_reputation_change() {
 			.send(FromOrchestra::Communication {
 				msg: BitfieldDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
-						peer.clone(),
-						msg.clone().into_network_message(),
+						peer,
+						msg.clone().into_network_message(ValidationVersion::V1.into()),
 					),
 				),
 			})
@@ -510,8 +516,8 @@ fn delay_reputation_change() {
 			.send(FromOrchestra::Communication {
 				msg: BitfieldDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
-						peer.clone(),
-						msg.clone().into_network_message(),
+						peer,
+						msg.clone().into_network_message(ValidationVersion::V1.into()),
 					),
 				),
 			})
@@ -557,7 +563,7 @@ fn do_not_relay_message_twice() {
 
 	// validator 0 key pair
 	let (mut state, signing_context, keystore, validator) =
-		state_with_view(our_view![hash], hash.clone(), ReputationAggregator::new(|_| true));
+		state_with_view(our_view![hash], hash, ReputationAggregator::new(|_| true));
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
@@ -572,13 +578,11 @@ fn do_not_relay_message_twice() {
 	.flatten()
 	.expect("should be signed");
 
-	state.peer_views.insert(peer_b.clone(), view![hash]);
-	state.peer_views.insert(peer_a.clone(), view![hash]);
+	state.peer_data.insert(peer_b, peer_data_v1(view![hash]));
+	state.peer_data.insert(peer_a, peer_data_v1(view![hash]));
 
-	let msg = BitfieldGossipMessage {
-		relay_parent: hash.clone(),
-		signed_availability: signed_bitfield.clone(),
-	};
+	let msg =
+		BitfieldGossipMessage { relay_parent: hash, signed_availability: signed_bitfield.clone() };
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
@@ -586,13 +590,13 @@ fn do_not_relay_message_twice() {
 
 	executor::block_on(async move {
 		let mut gossip_peers = GridNeighbors::empty();
-		gossip_peers.peers_x = HashSet::from_iter(vec![peer_a.clone(), peer_b.clone()].into_iter());
+		gossip_peers.peers_x = HashSet::from_iter(vec![peer_a, peer_b].into_iter());
 
 		relay_message(
 			&mut ctx,
 			state.per_relay_parent.get_mut(&hash).unwrap(),
 			&gossip_peers,
-			&mut state.peer_views,
+			&mut state.peer_data,
 			validator.clone(),
 			msg.clone(),
 			RequiredRouting::GridXY,
@@ -619,7 +623,7 @@ fn do_not_relay_message_twice() {
 				assert_eq!(2, peers.len());
 				assert!(peers.contains(&peer_a));
 				assert!(peers.contains(&peer_b));
-				assert_eq!(send_msg, msg.clone().into_validation_protocol());
+				assert_eq!(send_msg, msg.clone().into_validation_protocol(ValidationVersion::V1.into()));
 			}
 		);
 
@@ -628,7 +632,7 @@ fn do_not_relay_message_twice() {
 			&mut ctx,
 			state.per_relay_parent.get_mut(&hash).unwrap(),
 			&gossip_peers,
-			&mut state.peer_views,
+			&mut state.peer_data,
 			validator.clone(),
 			msg.clone(),
 			RequiredRouting::GridXY,
@@ -667,11 +671,8 @@ fn changing_view() {
 	assert_ne!(peer_a, peer_b);
 
 	// validator 0 key pair
-	let (mut state, signing_context, keystore, validator) = state_with_view(
-		our_view![hash_a, hash_b],
-		hash_a.clone(),
-		ReputationAggregator::new(|_| true),
-	);
+	let (mut state, signing_context, keystore, validator) =
+		state_with_view(our_view![hash_a, hash_b], hash_a, ReputationAggregator::new(|_| true));
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
@@ -687,7 +688,7 @@ fn changing_view() {
 	.expect("should be signed");
 
 	let msg = BitfieldGossipMessage {
-		relay_parent: hash_a.clone(),
+		relay_parent: hash_a,
 		signed_availability: signed_bitfield.clone(),
 	};
 
@@ -701,7 +702,7 @@ fn changing_view() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerConnected(
-				peer_b.clone(),
+				peer_b,
 				ObservedRole::Full,
 				ValidationVersion::V1.into(),
 				None
@@ -714,18 +715,21 @@ fn changing_view() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a, hash_b]),
+			NetworkBridgeEvent::PeerViewChange(peer_b, view![hash_a, hash_b]),
 			&mut rng,
 		));
 
-		assert!(state.peer_views.contains_key(&peer_b));
+		assert!(state.peer_data.contains_key(&peer_b));
 
 		// recv a first message from the network
 		launch!(handle_network_msg(
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b,
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -756,12 +760,15 @@ fn changing_view() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![]),
+			NetworkBridgeEvent::PeerViewChange(peer_b, view![]),
 			&mut rng,
 		));
 
-		assert!(state.peer_views.contains_key(&peer_b));
-		assert_eq!(state.peer_views.get(&peer_b).expect("Must contain value for peer B"), &view![]);
+		assert!(state.peer_data.contains_key(&peer_b));
+		assert_eq!(
+			&state.peer_data.get(&peer_b).expect("Must contain value for peer B").view,
+			&view![]
+		);
 
 		// on rx of the same message, since we are not interested,
 		// should give penalty
@@ -769,7 +776,10 @@ fn changing_view() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b,
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -788,7 +798,7 @@ fn changing_view() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerDisconnected(peer_b.clone()),
+			NetworkBridgeEvent::PeerDisconnected(peer_b),
 			&mut rng,
 		));
 
@@ -801,7 +811,10 @@ fn changing_view() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_a.clone(), msg.clone().into_network_message(),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_a,
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -848,13 +861,11 @@ fn do_not_send_message_back_to_origin() {
 	.flatten()
 	.expect("should be signed");
 
-	state.peer_views.insert(peer_b.clone(), view![hash]);
-	state.peer_views.insert(peer_a.clone(), view![hash]);
+	state.peer_data.insert(peer_b, peer_data_v1(view![hash]));
+	state.peer_data.insert(peer_a, peer_data_v1(view![hash]));
 
-	let msg = BitfieldGossipMessage {
-		relay_parent: hash.clone(),
-		signed_availability: signed_bitfield.clone(),
-	};
+	let msg =
+		BitfieldGossipMessage { relay_parent: hash, signed_availability: signed_bitfield.clone() };
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
@@ -866,7 +877,10 @@ fn do_not_send_message_back_to_origin() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b,
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -888,7 +902,7 @@ fn do_not_send_message_back_to_origin() {
 			) => {
 				assert_eq!(1, peers.len());
 				assert!(peers.contains(&peer_a));
-				assert_eq!(send_msg, msg.clone().into_validation_protocol());
+				assert_eq!(send_msg, msg.clone().into_validation_protocol(ValidationVersion::V1.into()));
 			}
 		);
 
@@ -932,13 +946,13 @@ fn topology_test() {
 	let peers_x: Vec<_> = [0, 2, 3, 4, 5, 6]
 		.iter()
 		.cloned()
-		.map(|i| topology_peer_info[i].peer_ids[0].clone())
+		.map(|i| topology_peer_info[i].peer_ids[0])
 		.collect();
 
 	let peers_y: Vec<_> = [8, 15, 22, 29, 36, 43]
 		.iter()
 		.cloned()
-		.map(|i| topology_peer_info[i].peer_ids[0].clone())
+		.map(|i| topology_peer_info[i].peer_ids[0])
 		.collect();
 
 	{
@@ -965,13 +979,11 @@ fn topology_test() {
 	.expect("should be signed");
 
 	peers_x.iter().chain(peers_y.iter()).for_each(|peer| {
-		state.peer_views.insert(peer.clone(), view![hash]);
+		state.peer_data.insert(*peer, peer_data_v1(view![hash]));
 	});
 
-	let msg = BitfieldGossipMessage {
-		relay_parent: hash.clone(),
-		signed_availability: signed_bitfield.clone(),
-	};
+	let msg =
+		BitfieldGossipMessage { relay_parent: hash, signed_availability: signed_bitfield.clone() };
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
@@ -983,7 +995,10 @@ fn topology_test() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peers_x[0].clone(), msg.clone().into_network_message(),),
+			NetworkBridgeEvent::PeerMessage(
+				peers_x[0],
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -1010,7 +1025,7 @@ fn topology_test() {
 				assert!(topology.peers_x.iter().filter(|peer| peers.contains(&peer)).count() == 4);
 				// Must never include originator
 				assert!(!peers.contains(&peers_x[0]));
-				assert_eq!(send_msg, msg.clone().into_validation_protocol());
+				assert_eq!(send_msg, msg.clone().into_validation_protocol(ValidationVersion::V1.into()));
 			}
 		);
 
@@ -1066,22 +1081,146 @@ fn need_message_works() {
 				.insert(signed_by.clone());
 		};
 
-	assert!(true == pretend_send(&mut state, peer_a, &validator_set[0]));
-	assert!(true == pretend_send(&mut state, peer_b, &validator_set[1]));
+	assert!(pretend_send(&mut state, peer_a, &validator_set[0]));
+	assert!(pretend_send(&mut state, peer_b, &validator_set[1]));
 	// sending the same thing must not be allowed
-	assert!(false == pretend_send(&mut state, peer_a, &validator_set[0]));
+	assert!(!pretend_send(&mut state, peer_a, &validator_set[0]));
 
 	// receive by Alice
 	pretend_receive(&mut state, peer_a, &validator_set[0]);
 	// must be marked as not needed by Alice, so attempt to send to Alice must be false
-	assert!(false == pretend_send(&mut state, peer_a, &validator_set[0]));
+	assert!(!pretend_send(&mut state, peer_a, &validator_set[0]));
 	// but ok for Bob
-	assert!(false == pretend_send(&mut state, peer_b, &validator_set[1]));
+	assert!(!pretend_send(&mut state, peer_b, &validator_set[1]));
 
 	// receive by Bob
 	pretend_receive(&mut state, peer_a, &validator_set[0]);
 	// not ok for Alice
-	assert!(false == pretend_send(&mut state, peer_a, &validator_set[0]));
+	assert!(!pretend_send(&mut state, peer_a, &validator_set[0]));
 	// also not ok for Bob
-	assert!(false == pretend_send(&mut state, peer_b, &validator_set[1]));
+	assert!(!pretend_send(&mut state, peer_b, &validator_set[1]));
+}
+
+#[test]
+fn network_protocol_versioning() {
+	let hash_a: Hash = [0; 32].into();
+	let hash_b: Hash = [1; 32].into();
+
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
+	let peer_c = PeerId::random();
+
+	let peers = [
+		(peer_a, ValidationVersion::VStaging),
+		(peer_b, ValidationVersion::V1),
+		(peer_c, ValidationVersion::VStaging),
+	];
+
+	// validator 0 key pair
+	let (mut state, signing_context, keystore, validator) =
+		state_with_view(our_view![hash_a, hash_b], hash_a, ReputationAggregator::new(|_| true));
+
+	let pool = sp_core::testing::TaskExecutor::new();
+	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+	let mut rng = dummy_rng();
+
+	executor::block_on(async move {
+		// create a signed message by validator 0
+		let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
+		let signed_bitfield = Signed::<AvailabilityBitfield>::sign(
+			&keystore,
+			payload,
+			&signing_context,
+			ValidatorIndex(0),
+			&validator,
+		)
+		.ok()
+		.flatten()
+		.expect("should be signed");
+		let msg = BitfieldGossipMessage {
+			relay_parent: hash_a,
+			signed_availability: signed_bitfield.clone(),
+		};
+
+		for (peer, protocol_version) in peers {
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut state,
+				&Default::default(),
+				NetworkBridgeEvent::PeerConnected(
+					peer,
+					ObservedRole::Full,
+					protocol_version.into(),
+					None
+				),
+				&mut rng,
+			));
+
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut state,
+				&Default::default(),
+				NetworkBridgeEvent::PeerViewChange(peer, view![hash_a, hash_b]),
+				&mut rng,
+			));
+
+			assert!(state.peer_data.contains_key(&peer));
+		}
+
+		launch!(handle_network_msg(
+			&mut ctx,
+			&mut state,
+			&Default::default(),
+			NetworkBridgeEvent::PeerMessage(
+				peer_a,
+				msg.clone().into_network_message(ValidationVersion::VStaging.into()),
+			),
+			&mut rng,
+		));
+
+		// gossip to the overseer
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
+				_,
+				ProvisionableData::Bitfield(hash, signed)
+			)) => {
+				assert_eq!(hash, hash_a);
+				assert_eq!(signed, signed_bitfield)
+			}
+		);
+
+		// v1 gossip
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
+			) => {
+				assert_eq!(peers, vec![peer_b]);
+				assert_eq!(send_msg, msg.clone().into_validation_protocol(ValidationVersion::V1.into()));
+			}
+		);
+
+		// vstaging gossip
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
+			) => {
+				assert_eq!(peers, vec![peer_c]);
+				assert_eq!(send_msg, msg.clone().into_validation_protocol(ValidationVersion::VStaging.into()));
+			}
+		);
+
+		// reputation change
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(peer, rep))
+			) => {
+				assert_eq!(peer, peer_a);
+				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST.into())
+			}
+		);
+	});
 }

@@ -19,9 +19,9 @@ struct HostConfiguration {
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
 	pub max_head_data_size: u32,
-	/// The amount of availability cores to dedicate to parathreads.
+	/// The amount of availability cores to dedicate to parathreads (on-demand parachains).
 	pub parathread_cores: u32,
-	/// The number of retries that a parathread author has to submit their block.
+	/// The number of retries that a parathread (on-demand parachain) author has to submit their block.
 	pub parathread_retries: u32,
 	/// How often parachain groups should be rotated across parachains.
 	pub group_rotation_frequency: BlockNumber,
@@ -29,10 +29,10 @@ struct HostConfiguration {
 	/// after inclusion that validators have to make the block available and signal its availability to
 	/// the chain. Must be at least 1.
 	pub chain_availability_period: BlockNumber,
-	/// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
+	/// The availability period, in blocks, for parathreads (on-demand parachains). Same as the `chain_availability_period`,
 	/// but a differing timeout due to differing requirements. Must be at least 1.
 	pub thread_availability_period: BlockNumber,
-	/// The amount of blocks ahead to schedule parathreads.
+	/// The amount of blocks ahead to schedule on-demand parachains.
 	pub scheduling_lookahead: u32,
 	/// The maximum number of validators to have per core. `None` means no maximum.
 	pub max_validators_per_core: Option<u32>,
@@ -88,7 +88,7 @@ struct HostConfiguration {
 	pub hrmp_channel_max_total_size: u32,
 	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
 	pub hrmp_max_parachain_inbound_channels: u32,
-	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
+	/// The maximum number of inbound HRMP channels a parathread (on-demand parachain) is allowed to accept.
 	pub hrmp_max_parathread_inbound_channels: u32,
 	/// The maximum size of a message that could ever be put into an HRMP channel.
 	///
@@ -96,7 +96,7 @@ struct HostConfiguration {
 	pub hrmp_channel_max_message_size: u32,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
 	pub hrmp_max_parachain_outbound_channels: u32,
-	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
+	/// The maximum number of outbound HRMP channels a parathread (on-demand parachain) is allowed to open.
 	pub hrmp_max_parathread_outbound_channels: u32,
 	/// The maximum number of outbound HRMP messages can be sent by a candidate.
 	///

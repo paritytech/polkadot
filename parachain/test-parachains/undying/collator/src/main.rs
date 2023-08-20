@@ -59,7 +59,9 @@ fn main() -> Result<()> {
 				let full_node = polkadot_service::build_full(
 					config,
 					polkadot_service::NewFullParams {
-						is_collator: polkadot_service::IsCollator::Yes(collator.collator_key()),
+						is_parachain_node: polkadot_service::IsParachainNode::Collator(
+							collator.collator_key(),
+						),
 						grandpa_pause: None,
 						enable_beefy: false,
 						jaeger_agent: None,
@@ -70,7 +72,6 @@ fn main() -> Result<()> {
 						workers_path: None,
 						workers_names: None,
 
-						overseer_enable_anyways: false,
 						overseer_gen: polkadot_service::RealOverseerGen,
 						overseer_message_channel_capacity_override: None,
 						malus_finality_delay: None,
@@ -95,8 +96,9 @@ fn main() -> Result<()> {
 
 				let config = CollationGenerationConfig {
 					key: collator.collator_key(),
-					collator: collator
-						.create_collation_function(full_node.task_manager.spawn_handle()),
+					collator: Some(
+						collator.create_collation_function(full_node.task_manager.spawn_handle()),
+					),
 					para_id,
 				};
 				overseer_handle

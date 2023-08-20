@@ -55,12 +55,9 @@ pub enum Subcommand {
 	/// capabilities of running a validator.
 	HostPerfCheck,
 
-	/// Try some command against runtime state.
-	#[cfg(feature = "try-runtime")]
-	TryRuntime(try_runtime_cli::TryRuntimeCmd),
-
-	/// Try some command against runtime state. Note: `try-runtime` feature must be enabled.
-	#[cfg(not(feature = "try-runtime"))]
+	/// Try-runtime has migrated to a standalone CLI
+	/// (<https://github.com/paritytech/try-runtime-cli>). The subcommand exists as a stub and
+	/// deprecation notice. It will be removed entirely some time after Janurary 2024.
 	TryRuntime,
 
 	/// Key management CLI utilities
@@ -69,17 +66,6 @@ pub enum Subcommand {
 
 	/// Db meta columns information.
 	ChainInfo(sc_cli::ChainInfoCmd),
-}
-
-#[allow(missing_docs)]
-#[derive(Debug, Parser)]
-pub struct ValidationWorkerCommand {
-	/// The path to the validation host's socket.
-	#[arg(long)]
-	pub socket_path: String,
-	/// Calling node implementation version
-	#[arg(long)]
-	pub node_impl_version: String,
 }
 
 #[allow(missing_docs)]
@@ -146,8 +132,8 @@ pub struct RunCmd {
 	pub overseer_channel_capacity_override: Option<usize>,
 
 	/// Path to the directory where auxiliary worker binaries reside. If not specified, the main
-	/// binary's directory is searched first, then `/usr/lib/polkadot` is searched. TESTING ONLY: if
-	/// the path points to an executable rather then directory, that executable is used both as
+	/// binary's directory is searched first, then `/usr/lib/polkadot` is searched. TESTING ONLY:
+	/// if the path points to an executable rather then directory, that executable is used both as
 	/// preparation and execution worker.
 	#[arg(long, value_name = "PATH")]
 	pub workers_path: Option<PathBuf>,

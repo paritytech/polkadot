@@ -2,9 +2,11 @@
 name = "test-parachain-undying"
 description = "Test parachain for zombienet integration tests"
 build = "build.rs"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 parachain = { package = "polkadot-parachain", path = "../../", default-features = false, features = [ "wasm-api" ] }

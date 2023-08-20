@@ -55,6 +55,9 @@ pub(crate) fn send_message<M>(
 ) where
 	M: Encode + Clone,
 {
+	if peers.is_empty() {
+		return
+	}
 	let message = {
 		let encoded = message.encode();
 		metrics.on_notification_sent(peer_set, version, encoded.len(), peers.len());
@@ -65,8 +68,11 @@ pub(crate) fn send_message<M>(
 	// list. The message payload can be quite large. If the underlying
 	// network used `Bytes` this would not be necessary.
 	let last_peer = peers.pop();
-	// optimization: generate the protocol name once.
-	let protocol_name = protocol_names.get_name(peer_set, version);
+
+	// We always send messages on the "main" name even when a negotiated
+	// fallback is used. The libp2p implementation handles the fallback
+	// under the hood.
+	let protocol_name = protocol_names.get_main_name(peer_set);
 	peers.into_iter().for_each(|peer| {
 		net.write_notification(peer, protocol_name.clone(), message.clone());
 	});
@@ -94,7 +100,11 @@ pub trait Network: Clone + Send + 'static {
 	) -> Result<(), String>;
 
 	/// Removes the peers for the protocol's peer set (both reserved and non-reserved).
-	async fn remove_from_peers_set(&mut self, protocol: ProtocolName, peers: Vec<PeerId>);
+	async fn remove_from_peers_set(
+		&mut self,
+		protocol: ProtocolName,
+		peers: Vec<PeerId>,
+	) -> Result<(), String>;
 
 	/// Send a request to a remote peer.
 	async fn start_request<AD: AuthorityDiscovery>(
@@ -129,8 +139,12 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		NetworkService::set_reserved_peers(&**self, protocol, multiaddresses)
 	}
 
-	async fn remove_from_peers_set(&mut self, protocol: ProtocolName, peers: Vec<PeerId>) {
-		NetworkService::remove_peers_from_reserved_set(&**self, protocol, peers);
+	async fn remove_from_peers_set(
+		&mut self,
+		protocol: ProtocolName,
+		peers: Vec<PeerId>,
+	) -> Result<(), String> {
+		NetworkService::remove_peers_from_reserved_set(&**self, protocol, peers)
 	}
 
 	fn report_peer(&self, who: PeerId, rep: ReputationChange) {

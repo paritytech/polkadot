@@ -3,6 +3,7 @@ name = "polkadot-node-network-protocol"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 description = "Primitives types for the Node-side"
 
 [dependencies]
@@ -22,6 +23,10 @@ fatality = "0.0.6"
 rand = "0.8"
 derive_more = "0.99"
 gum = { package = "tracing-gum", path = "../../gum" }
+bitvec = "1"
 
 [dev-dependencies]
 rand_chacha = "0.3.1"
+
+[features]
+network-protocol-staging = []

@@ -61,9 +61,9 @@ pub enum ToPool {
 
 	/// Request the given worker to start working on the given code.
 	///
-	/// Once the job either succeeded or failed, a [`FromPool::Concluded`] message will be sent back.
-	/// It's also possible that the worker dies before handling the message in which case [`FromPool::Rip`]
-	/// will be sent back.
+	/// Once the job either succeeded or failed, a [`FromPool::Concluded`] message will be sent
+	/// back. It's also possible that the worker dies before handling the message in which case
+	/// [`FromPool::Rip`] will be sent back.
 	///
 	/// In either case, the worker is considered busy and no further `StartWork` messages should be
 	/// sent until either `Concluded` or `Rip` message is received.
@@ -243,8 +243,8 @@ fn handle_to_pool(
 					);
 				} else {
 					// idle token is present after spawn and after a job is concluded;
-					// the precondition for `StartWork` is it should be sent only if all previous work
-					// items concluded;
+					// the precondition for `StartWork` is it should be sent only if all previous
+					// work items concluded;
 					// thus idle token is Some;
 					// qed.
 					never!("unexpected absence of the idle token in prepare pool");
@@ -320,7 +320,8 @@ fn handle_mux(
 			match outcome {
 				Outcome::Concluded { worker: idle, result } =>
 					handle_concluded_no_rip(from_pool, spawned, worker, idle, result),
-				// Return `Concluded`, but do not kill the worker since the error was on the host side.
+				// Return `Concluded`, but do not kill the worker since the error was on the host
+				// side.
 				Outcome::CreateTmpFileErr { worker: idle, err } => handle_concluded_no_rip(
 					from_pool,
 					spawned,
@@ -328,7 +329,8 @@ fn handle_mux(
 					idle,
 					Err(PrepareError::CreateTmpFileErr(err)),
 				),
-				// Return `Concluded`, but do not kill the worker since the error was on the host side.
+				// Return `Concluded`, but do not kill the worker since the error was on the host
+				// side.
 				Outcome::RenameTmpFileErr { worker: idle, result: _, err } =>
 					handle_concluded_no_rip(
 						from_pool,

@@ -4,6 +4,7 @@ description = "Statement Distribution Subsystem"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 futures = "0.3.21"
@@ -21,10 +22,12 @@ indexmap = "1.9.1"
 parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 thiserror = "1.0.31"
 fatality = "0.0.6"
+bitvec = "1"
 
 [dev-dependencies]
-polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+async-channel = "1.8.0"
 assert_matches = "1.4.0"
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -35,3 +38,5 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures-timer = "3.0.2"
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }
+rand_chacha = "0.3"
+polkadot-node-subsystem-types = { path = "../../subsystem-types" }

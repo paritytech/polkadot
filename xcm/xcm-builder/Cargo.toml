@@ -3,6 +3,7 @@ name = "xcm-builder"
 description = "Tools & types for building with XCM and its executor."
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 version.workspace = true
 
 [dependencies]
@@ -28,6 +29,9 @@ polkadot-parachain = { path = "../../parachain", default-features = false }
 primitive-types = "0.12.1"
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-xcm = { path = "../pallet-xcm" }
+pallet-salary = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-assets = { git = "https://github.com/paritytech/substrate", branch = "master" }
+primitives = { package = "polkadot-primitives", path = "../../primitives" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 assert_matches = "1.5.0"
 polkadot-test-runtime = { path = "../../runtime/test-runtime" }
