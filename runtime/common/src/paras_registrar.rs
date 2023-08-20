@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Pallet to handle parathread/parachain registration and related fund management.
+//! Pallet to handle parachain registration and related fund management.
 //! In essence this is a simple wrapper around `paras`.
 
 use frame_support::{
@@ -113,13 +113,13 @@ pub mod pallet {
 		type RuntimeOrigin: From<<Self as frame_system::Config>::RuntimeOrigin>
 			+ Into<result::Result<Origin, <Self as Config>::RuntimeOrigin>>;
 
-		/// The system's currency for parathread payment.
+		/// The system's currency for on-demand parachain payment.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
-		/// Runtime hook for when a parachain and parathread swap.
+		/// Runtime hook for when a lease holding parachain and on-demand parachain swap.
 		type OnSwap: crate::traits::OnSwap;
 
-		/// The deposit to be paid to run a parathread.
+		/// The deposit to be paid to run a on-demand parachain.
 		/// This should include the cost for storing the genesis head and validation code.
 		#[pallet::constant]
 		type ParaDeposit: Get<BalanceOf<Self>>;
@@ -155,13 +155,13 @@ pub mod pallet {
 		HeadDataTooLarge,
 		/// Para is not a Parachain.
 		NotParachain,
-		/// Para is not a Parathread.
+		/// Para is not a Parathread (on-demand parachain).
 		NotParathread,
 		/// Cannot deregister para
 		CannotDeregister,
-		/// Cannot schedule downgrade of parachain to parathread
+		/// Cannot schedule downgrade of lease holding parachain to on-demand parachain
 		CannotDowngrade,
-		/// Cannot schedule upgrade of parathread to parachain
+		/// Cannot schedule upgrade of on-demand parachain to lease holding parachain
 		CannotUpgrade,
 		/// Para is locked from manipulation by the manager. Must use parachain or relay chain
 		/// governance.
@@ -265,8 +265,8 @@ pub mod pallet {
 
 		/// Deregister a Para Id, freeing all data and returning any deposit.
 		///
-		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a
-		/// parathread.
+		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be an
+		/// on-demand parachain.
 		#[pallet::call_index(2)]
 		#[pallet::weight(<T as Config>::WeightInfo::deregister())]
 		pub fn deregister(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
@@ -274,7 +274,8 @@ pub mod pallet {
 			Self::do_deregister(id)
 		}
 
-		/// Swap a parachain with another parachain or parathread.
+		/// Swap a lease holding parachain with another parachain, either on-demand or lease
+		/// holding.
 		///
 		/// The origin must be Root, the `para` owner, or the `para` itself.
 		///
@@ -283,8 +284,8 @@ pub mod pallet {
 		///
 		/// The `ParaId`s remain mapped to the same head data and code so external code can rely on
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
-		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
-		/// and the auction deposit are switched.
+		/// scheduling info (i.e. whether they're an on-demand parachain or lease holding
+		/// parachain), auction information and the auction deposit are switched.
 		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::swap())]
 		pub fn swap(origin: OriginFor<T>, id: ParaId, other: ParaId) -> DispatchResult {
@@ -304,7 +305,8 @@ pub mod pallet {
 			if PendingSwap::<T>::get(other) == Some(id) {
 				let other_lifecycle =
 					paras::Pallet::<T>::lifecycle(other).ok_or(Error::<T>::NotRegistered)?;
-				// identify which is a parachain and which is a parathread
+				// identify which is a lease holding parachain and which is a parathread (on-demand
+				// parachain)
 				if id_lifecycle == ParaLifecycle::Parachain &&
 					other_lifecycle == ParaLifecycle::Parathread
 				{
@@ -348,8 +350,8 @@ pub mod pallet {
 		///
 		/// This function will reserve a new Para Id to be owned/managed by the origin account.
 		/// The origin account is able to register head data and validation code using `register` to
-		/// create a parathread. Using the Slots pallet, a parathread can then be upgraded to get a
-		/// parachain slot.
+		/// create an on-demand parachain. Using the Slots pallet, an on-demand parachain can then
+		/// be upgraded to a lease holding parachain.
 		///
 		/// ## Arguments
 		/// - `origin`: Must be called by a `Signed` origin. Becomes the manager/owner of the new
@@ -426,17 +428,18 @@ impl<T: Config> Registrar for Pallet<T> {
 		Some(Paras::<T>::get(id)?.manager)
 	}
 
-	// All parachains. Ordered ascending by ParaId. Parathreads are not included.
+	// All lease holding parachains. Ordered ascending by ParaId. On-demand parachains are not
+	// included.
 	fn parachains() -> Vec<ParaId> {
 		paras::Pallet::<T>::parachains()
 	}
 
-	// Return if a para is a parathread
+	// Return if a para is a parathread (on-demand parachain)
 	fn is_parathread(id: ParaId) -> bool {
 		paras::Pallet::<T>::is_parathread(id)
 	}
 
-	// Return if a para is a parachain
+	// Return if a para is a lease holding parachain
 	fn is_parachain(id: ParaId) -> bool {
 		paras::Pallet::<T>::is_parachain(id)
 	}
@@ -469,9 +472,9 @@ impl<T: Config> Registrar for Pallet<T> {
 		Self::do_deregister(id)
 	}
 
-	// Upgrade a registered parathread into a parachain.
+	// Upgrade a registered on-demand parachain into a lease holding parachain.
 	fn make_parachain(id: ParaId) -> DispatchResult {
-		// Para backend should think this is a parathread...
+		// Para backend should think this is an on-demand parachain...
 		ensure!(
 			paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread),
 			Error::<T>::NotParathread
@@ -484,7 +487,7 @@ impl<T: Config> Registrar for Pallet<T> {
 		Ok(())
 	}
 
-	// Downgrade a registered para into a parathread.
+	// Downgrade a registered para into a parathread (on-demand parachain).
 	fn make_parathread(id: ParaId) -> DispatchResult {
 		// Para backend should think this is a parachain...
 		ensure!(
@@ -611,7 +614,7 @@ impl<T: Config> Pallet<T> {
 	/// Deregister a Para Id, freeing all data returning any deposit.
 	fn do_deregister(id: ParaId) -> DispatchResult {
 		match paras::Pallet::<T>::lifecycle(id) {
-			// Para must be a parathread, or not exist at all.
+			// Para must be a parathread (on-demand parachain), or not exist at all.
 			Some(ParaLifecycle::Parathread) | None => {},
 			_ => return Err(Error::<T>::NotParathread.into()),
 		}
@@ -651,7 +654,8 @@ impl<T: Config> Pallet<T> {
 		Ok((ParaGenesisArgs { genesis_head, validation_code, para_kind }, deposit))
 	}
 
-	/// Swap a parachain and parathread, which involves scheduling an appropriate lifecycle update.
+	/// Swap a lease holding parachain and parathread (on-demand parachain), which involves
+	/// scheduling an appropriate lifecycle update.
 	fn do_thread_and_chain_swap(to_downgrade: ParaId, to_upgrade: ParaId) {
 		let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(to_downgrade);
 		debug_assert!(res1.is_ok());
@@ -931,16 +935,16 @@ mod tests {
 			conclude_pvf_checking::<Test>(&validation_code, VALIDATORS, START_SESSION_INDEX);
 
 			run_to_session(START_SESSION_INDEX + 2);
-			// It is now a parathread.
+			// It is now a parathread (on-demand parachain).
 			assert!(Parachains::is_parathread(para_id));
 			assert!(!Parachains::is_parachain(para_id));
-			// Some other external process will elevate parathread to parachain
+			// Some other external process will elevate on-demand to lease holding parachain
 			assert_ok!(Registrar::make_parachain(para_id));
 			run_to_session(START_SESSION_INDEX + 4);
-			// It is now a parachain.
+			// It is now a lease holding parachain.
 			assert!(!Parachains::is_parathread(para_id));
 			assert!(Parachains::is_parachain(para_id));
-			// Turn it back into a parathread
+			// Turn it back into a parathread (on-demand parachain)
 			assert_ok!(Registrar::make_parathread(para_id));
 			run_to_session(START_SESSION_INDEX + 6);
 			assert!(Parachains::is_parathread(para_id));
@@ -1328,7 +1332,7 @@ mod tests {
 
 			run_to_session(START_SESSION_INDEX + 2);
 
-			// They are now a parathread.
+			// They are now parathreads (on-demand parachains).
 			assert!(Parachains::is_parathread(para_1));
 			assert!(Parachains::is_parathread(para_2));
 
@@ -1339,7 +1343,8 @@ mod tests {
 				Error::<Test>::CannotSwap
 			);
 
-			// Some other external process will elevate one parathread to parachain
+			// Some other external process will elevate one on-demand
+			// parachain to a lease holding parachain
 			assert_ok!(Registrar::make_parachain(para_1));
 
 			// Cannot swap
@@ -1360,7 +1365,7 @@ mod tests {
 
 			run_to_session(START_SESSION_INDEX + 4);
 
-			// It is now a parachain.
+			// It is now a lease holding parachain.
 			assert!(Parachains::is_parachain(para_1));
 			assert!(Parachains::is_parathread(para_2));
 
@@ -1521,6 +1526,7 @@ mod benchmarking {
 		}
 
 		swap {
+			// On demand parachain
 			let parathread = register_para::<T>(LOWEST_PUBLIC_ID.into());
 			let parachain = register_para::<T>((LOWEST_PUBLIC_ID + 1).into());
 

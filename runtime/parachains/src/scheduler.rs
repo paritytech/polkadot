@@ -587,7 +587,7 @@ impl<T: Config> Pallet<T> {
 			debug_assert!(timedout_paras.is_empty());
 			debug_assert!(concluded_paras.is_empty());
 
-			Self::scheduled_claimqueue(now)
+			Self::scheduled_claimqueue()
 		}
 	}
 
@@ -634,9 +634,7 @@ impl<T: Config> Pallet<T> {
 
 	// TODO: Temporary to imitate the old schedule() call. Will be adjusted when we make the
 	// scheduler AB ready
-	pub(crate) fn scheduled_claimqueue(
-		now: BlockNumberFor<T>,
-	) -> Vec<CoreAssignment<BlockNumberFor<T>>> {
+	pub(crate) fn scheduled_claimqueue() -> Vec<CoreAssignment<BlockNumberFor<T>>> {
 		let claimqueue = ClaimQueue::<T>::get();
 
 		claimqueue
@@ -645,18 +643,9 @@ impl<T: Config> Pallet<T> {
 				v.front()
 					.cloned()
 					.flatten()
-					.and_then(|pe| Self::paras_entry_to_core_assignment(now, core_idx, pe))
+					.map(|pe| CoreAssignment { core: core_idx, paras_entry: pe })
 			})
 			.collect()
-	}
-
-	fn paras_entry_to_core_assignment(
-		now: BlockNumberFor<T>,
-		core_idx: CoreIndex,
-		pe: ParasEntry<BlockNumberFor<T>>,
-	) -> Option<CoreAssignment<BlockNumberFor<T>>> {
-		let group_idx = Self::group_assigned_to_core(core_idx, now)?;
-		Some(CoreAssignment { core: core_idx, group_idx, paras_entry: pe })
 	}
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
@@ -674,5 +663,10 @@ impl<T: Config> Pallet<T> {
 	#[cfg(all(not(feature = "runtime-benchmarks"), test))]
 	pub(crate) fn claimqueue_is_empty() -> bool {
 		Self::claimqueue_len() == 0
+	}
+
+	#[cfg(test)]
+	pub(crate) fn set_validator_groups(validator_groups: Vec<Vec<ValidatorIndex>>) {
+		ValidatorGroups::<T>::set(validator_groups);
 	}
 }

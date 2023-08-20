@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Mock implementations to test XCM builder configuration types.
+
 use crate::{
 	barriers::{AllowSubscriptionsFrom, RespectSuspension, TrailingSetTopicAsId},
 	test_utils::*,
@@ -42,7 +44,7 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::{prelude::*, Weight};
-use xcm_executor::traits::Properties;
+use xcm_executor::traits::{Properties, QueryHandler, QueryResponseStatus};
 pub use xcm_executor::{
 	traits::{
 		AssetExchange, AssetLock, CheckSuspension, ConvertOrigin, Enact, ExportXcm, FeeManager,
@@ -408,6 +410,63 @@ pub fn response(query_id: u64) -> Option<Response> {
 			_ => None,
 		})
 	})
+}
+
+/// Mock implementation of the [`QueryHandler`] trait for creating XCM success queries and expecting
+/// responses.
+pub struct TestQueryHandler<T, BlockNumber>(core::marker::PhantomData<(T, BlockNumber)>);
+impl<T: Config, BlockNumber: sp_runtime::traits::Zero> QueryHandler
+	for TestQueryHandler<T, BlockNumber>
+{
+	type QueryId = u64;
+	type BlockNumber = BlockNumber;
+	type Error = XcmError;
+	type UniversalLocation = T::UniversalLocation;
+
+	fn new_query(
+		responder: impl Into<MultiLocation>,
+		_timeout: Self::BlockNumber,
+		_match_querier: impl Into<MultiLocation>,
+	) -> Self::QueryId {
+		let query_id = 1;
+		expect_response(query_id, responder.into());
+		query_id
+	}
+
+	fn report_outcome(
+		message: &mut Xcm<()>,
+		responder: impl Into<MultiLocation>,
+		timeout: Self::BlockNumber,
+	) -> Result<Self::QueryId, Self::Error> {
+		let responder = responder.into();
+		let destination = Self::UniversalLocation::get()
+			.invert_target(&responder)
+			.map_err(|()| XcmError::LocationNotInvertible)?;
+		let query_id = Self::new_query(responder, timeout, Here);
+		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
+		let report_error = Xcm(vec![ReportError(response_info)]);
+		message.0.insert(0, SetAppendix(report_error));
+		Ok(query_id)
+	}
+
+	fn take_response(query_id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber> {
+		QUERIES
+			.with(|q| {
+				q.borrow().get(&query_id).and_then(|v| match v {
+					ResponseSlot::Received(r) => Some(QueryResponseStatus::Ready {
+						response: r.clone(),
+						at: Self::BlockNumber::zero(),
+					}),
+					_ => Some(QueryResponseStatus::NotFound),
+				})
+			})
+			.unwrap_or(QueryResponseStatus::NotFound)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn expect_response(_id: Self::QueryId, _response: xcm::latest::Response) {
+		// Unnecessary since it's only a test implementation
+	}
 }
 
 parameter_types! {
