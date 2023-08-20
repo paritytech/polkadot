@@ -165,6 +165,7 @@ async fn run<Context>(
 				CandidateValidationMessage::ValidateFromChainState(
 					candidate_receipt,
 					pov,
+					executor_params,
 					timeout,
 					response_sender,
 				) => {
@@ -180,6 +181,7 @@ async fn run<Context>(
 								validation_host,
 								candidate_receipt,
 								pov,
+								executor_params,
 								timeout,
 								&metrics,
 							)
@@ -197,23 +199,23 @@ async fn run<Context>(
 					validation_code,
 					candidate_receipt,
 					pov,
+					executor_params,
 					timeout,
 					response_sender,
 				) => {
 					let bg = {
-						let mut sender = ctx.sender().clone();
 						let metrics = metrics.clone();
 						let validation_host = validation_host.clone();
 
 						async move {
 							let _timer = metrics.time_validate_from_exhaustive();
 							let res = validate_candidate_exhaustive(
-								&mut sender,
 								validation_host,
 								persisted_validation_data,
 								validation_code,
 								candidate_receipt,
 								pov,
+								executor_params,
 								timeout,
 								&metrics,
 							)
@@ -497,6 +499,7 @@ async fn validate_from_chain_state<Sender>(
 	validation_host: ValidationHost,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
+	executor_params: ExecutorParams,
 	exec_timeout_kind: PvfExecTimeoutKind,
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed>
@@ -511,12 +514,12 @@ where
 		};
 
 	let validation_result = validate_candidate_exhaustive(
-		sender,
 		validation_host,
 		validation_data,
 		validation_code,
 		candidate_receipt.clone(),
 		pov,
+		executor_params,
 		exec_timeout_kind,
 		metrics,
 	)
@@ -546,19 +549,16 @@ where
 	validation_result
 }
 
-async fn validate_candidate_exhaustive<Sender>(
-	sender: &mut Sender,
+async fn validate_candidate_exhaustive(
 	mut validation_backend: impl ValidationBackend + Send,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
+	executor_params: ExecutorParams,
 	exec_timeout_kind: PvfExecTimeoutKind,
 	metrics: &Metrics,
-) -> Result<ValidationResult, ValidationFailed>
-where
-	Sender: SubsystemSender<RuntimeApiMessage>,
-{
+) -> Result<ValidationResult, ValidationFailed> {
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
 	let validation_code_hash = validation_code.hash();
@@ -613,27 +613,6 @@ where
 		block_data: raw_block_data,
 		relay_parent_number: persisted_validation_data.relay_parent_number,
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
-	};
-
-	let executor_params = if let Ok(executor_params) =
-		executor_params_at_relay_parent(candidate_receipt.descriptor.relay_parent, sender).await
-	{
-		gum::debug!(
-			target: LOG_TARGET,
-			?validation_code_hash,
-			?para_id,
-			"Acquired executor params for the session: {:?}",
-			executor_params,
-		);
-		executor_params
-	} else {
-		gum::warn!(
-			target: LOG_TARGET,
-			?validation_code_hash,
-			?para_id,
-			"Failed to acquire executor params for the session",
-		);
-		return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent))
 	};
 
 	let result = validation_backend

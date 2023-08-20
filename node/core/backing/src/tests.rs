@@ -300,6 +300,7 @@ fn backing_second_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					candidate_receipt,
 					pov,
+					_,
 					timeout,
 					tx,
 				)
@@ -442,6 +443,7 @@ fn backing_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					_,
 					timeout,
 					tx,
 				)
@@ -608,6 +610,7 @@ fn backing_works_while_validation_ongoing() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					_,
 					timeout,
 					tx,
 				)
@@ -757,6 +760,7 @@ fn backing_misbehavior_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					_,
 					timeout,
 					tx,
 				)
@@ -901,6 +905,7 @@ fn backing_dont_second_invalid() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					_,
 					timeout,
 					tx,
 				)
@@ -930,6 +935,7 @@ fn backing_dont_second_invalid() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					_,
 					timeout,
 					tx,
 				)
@@ -1043,6 +1049,7 @@ fn backing_second_after_first_fails_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					_,
 					timeout,
 					tx,
 				)
@@ -1091,6 +1098,7 @@ fn backing_second_after_first_fails_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					_,
 					pov,
+					_,
 					_,
 					_,
 				)
@@ -1167,6 +1175,7 @@ fn backing_works_after_failed_validation() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					_,
 					timeout,
 					tx,
 				)
@@ -1512,6 +1521,7 @@ fn retry_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					_,
 					timeout,
 					_tx,
 				)

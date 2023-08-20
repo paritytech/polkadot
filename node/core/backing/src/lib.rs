@@ -38,19 +38,20 @@ use polkadot_node_subsystem::{
 	messages::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, ProvisionableData, ProvisionerMessage,
-		RuntimeApiRequest, StatementDistributionMessage, StoreAvailableDataError,
+		RuntimeApiRequest, StatementDistributionMessage, StoreAvailableDataError, ValidationFailed,
 	},
-	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	Stage, SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, RuntimeApiError,
+	SpawnedSubsystem, Stage, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, Validator,
+	self as util, request_from_runtime, request_session_executor_params,
+	request_session_index_for_child, request_validator_groups, request_validators, Validator,
 };
 use polkadot_primitives::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PvfExecTimeoutKind,
-	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	CommittedCandidateReceipt, CoreIndex, CoreState, ExecutorParams, Hash, Id as ParaId,
+	PvfExecTimeoutKind, SessionIndex, SigningContext, ValidatorId, ValidatorIndex,
+	ValidatorSignature, ValidityAttestation,
 };
 use sp_keystore::KeystorePtr;
 use statement_table::{
@@ -380,6 +381,7 @@ async fn handle_active_leaves_update<Context>(
 
 	let job = CandidateBackingJob {
 		parent,
+		session_index,
 		assignment,
 		required_collator,
 		issued_statements: HashSet::new(),
@@ -410,6 +412,8 @@ struct JobAndSpan<Context> {
 struct CandidateBackingJob<Context> {
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
+	/// The session index for this job
+	session_index: SessionIndex,
 	/// The `ParaId` assigned to this validator
 	assignment: Option<ParaId>,
 	/// The collator required to author the candidate, if any.
@@ -637,6 +641,7 @@ async fn request_candidate_validation(
 	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
+	executor_params: ExecutorParams,
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 
@@ -644,6 +649,7 @@ async fn request_candidate_validation(
 		.send_message(CandidateValidationMessage::ValidateFromChainState(
 			candidate_receipt,
 			pov,
+			executor_params,
 			PvfExecTimeoutKind::Backing,
 			tx,
 		))
@@ -665,6 +671,7 @@ struct BackgroundValidationParams<S: overseer::CandidateBackingSenderTrait, F> {
 	candidate: CandidateReceipt,
 	relay_parent: Hash,
 	pov: PoVData,
+	executor_params: Option<ExecutorParams>,
 	n_validators: usize,
 	span: Option<jaeger::Span>,
 	make_command: F,
@@ -682,6 +689,7 @@ async fn validate_and_make_available(
 		candidate,
 		relay_parent,
 		pov,
+		executor_params,
 		n_validators,
 		span,
 		make_command,
@@ -723,7 +731,13 @@ async fn validate_and_make_available(
 				.with_pov(&pov)
 				.with_para_id(candidate.descriptor().para_id)
 		});
-		request_candidate_validation(&mut sender, candidate.clone(), pov.clone()).await?
+		request_candidate_validation(
+			&mut sender,
+			candidate.clone(),
+			pov.clone(),
+			executor_params.expect("Caller must provide executor parameters; qed"),
+		)
+		.await?
 	};
 
 	let res = match v {
@@ -876,6 +890,43 @@ impl<Context> CandidateBackingJob<Context> {
 	) -> Result<(), Error> {
 		let candidate_hash = params.candidate.hash();
 		if self.awaiting_validation.insert(candidate_hash) {
+			let mut params = params;
+			if params.executor_params.is_none() {
+				params.executor_params = match request_session_executor_params(
+					self.parent,
+					self.session_index,
+					ctx.sender(),
+				)
+				.await
+				.await
+				{
+					Err(_) => {
+						// Failed to communicate with the runtime
+						return Err(Error::ValidationFailed(ValidationFailed(
+							"Runtime call cancelled".to_owned(),
+						)))
+					},
+					Ok(Err(RuntimeApiError::NotSupported { .. })) => {
+						// Runtime doesn't yet support the api requested, should execute anyway
+						// with default set of parameters
+						// FIXME: This branch is not needed anymore?
+						Some(ExecutorParams::default())
+					},
+					Ok(Err(_)) => {
+						// Runtime failed to execute the request
+						return Err(Error::ValidationFailed(ValidationFailed(
+							"Runtime API request failed".to_owned(),
+						)))
+					},
+					Ok(Ok(None)) => {
+						// No parameter set for the given session; should never happen
+						return Err(Error::ValidationFailed(ValidationFailed(
+							"No executor parameters for the session".to_owned(),
+						)))
+					},
+					Ok(Ok(Some(ep))) => Some(ep),
+				}
+			}
 			// spawn background task.
 			let bg = async move {
 				if let Err(e) = validate_and_make_available(params).await {
@@ -951,6 +1002,7 @@ impl<Context> CandidateBackingJob<Context> {
 				candidate: candidate.clone(),
 				relay_parent: self.parent,
 				pov: PoVData::Ready(pov),
+				executor_params: None,
 				n_validators: self.table_context.validators.len(),
 				span,
 				make_command: ValidatedCandidateCommand::Second,
@@ -1202,6 +1254,7 @@ impl<Context> CandidateBackingJob<Context> {
 				candidate: attesting.candidate,
 				relay_parent: self.parent,
 				pov,
+				executor_params: None,
 				n_validators: self.table_context.validators.len(),
 				span,
 				make_command: ValidatedCandidateCommand::Attest,

@@ -27,17 +27,17 @@ use sp_keystore::{Keystore, KeystorePtr};
 
 use polkadot_node_subsystem::{messages::RuntimeApiMessage, overseer, SubsystemSender};
 use polkadot_primitives::{
-	vstaging, CandidateEvent, CandidateHash, CoreState, EncodeAs, GroupIndex, GroupRotationInfo,
-	Hash, IndexedVec, OccupiedCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
-	SigningContext, UncheckedSigned, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex,
+	vstaging, CandidateEvent, CandidateHash, CoreState, EncodeAs, ExecutorParams, GroupIndex,
+	GroupRotationInfo, Hash, IndexedVec, OccupiedCore, ScrapedOnChainVotes, SessionIndex,
+	SessionInfo, Signed, SigningContext, UncheckedSigned, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex,
 };
 
 use crate::{
 	request_availability_cores, request_candidate_events, request_key_ownership_proof,
-	request_on_chain_votes, request_session_index_for_child, request_session_info,
-	request_submit_report_dispute_lost, request_unapplied_slashes, request_validation_code_by_hash,
-	request_validator_groups,
+	request_on_chain_votes, request_session_executor_params, request_session_index_for_child,
+	request_session_info, request_submit_report_dispute_lost, request_unapplied_slashes,
+	request_validation_code_by_hash, request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -80,6 +80,8 @@ pub struct ExtendedSessionInfo {
 	pub session_info: SessionInfo,
 	/// Contains useful information about ourselves, in case this node is a validator.
 	pub validator_info: ValidatorInfo,
+	/// Session executor parameters
+	pub executor_params: ExecutorParams,
 }
 
 /// Information about ourselves, in case we are an `Authority`.
@@ -173,9 +175,15 @@ impl RuntimeInfo {
 				recv_runtime(request_session_info(parent, session_index, sender).await)
 					.await?
 					.ok_or(JfyiError::NoSuchSession(session_index))?;
+
+			let executor_params =
+				recv_runtime(request_session_executor_params(parent, session_index, sender).await)
+					.await?
+					.ok_or(JfyiError::NoExecutorParams(session_index))?;
+
 			let validator_info = self.get_validator_info(&session_info)?;
 
-			let full_info = ExtendedSessionInfo { session_info, validator_info };
+			let full_info = ExtendedSessionInfo { session_info, validator_info, executor_params };
 
 			self.session_info_cache.put(session_index, full_info);
 		}
