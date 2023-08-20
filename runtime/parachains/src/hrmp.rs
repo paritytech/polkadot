@@ -117,12 +117,12 @@ pub struct HrmpOpenChannelRequest {
 #[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub struct HrmpChannel {
-	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
-	// special treatment.
+	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct
+	// requires special treatment.
 	//
-	// A parachain requested this struct can only depend on the subset of this struct. Specifically,
-	// only a first few fields can be depended upon (See `AbridgedHrmpChannel`). These fields cannot
-	// be changed without corresponding migration of parachains.
+	// A parachain requested this struct can only depend on the subset of this struct.
+	// Specifically, only a first few fields can be depended upon (See `AbridgedHrmpChannel`).
+	// These fields cannot be changed without corresponding migration of parachains.
 	/// The maximum number of messages that can be pending in the channel at once.
 	pub max_capacity: u32,
 	/// The maximum total size of the messages that can be pending in the channel at once.
@@ -334,7 +334,7 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, HrmpChannelId, HrmpOpenChannelRequest>;
 
 	// NOTE: could become bounded, but we don't have a global maximum for this.
-	// `HRMP_MAX_INBOUND_CHANNELS_BOUND` are per parachain/parathread, while this storage tracks the
+	// `HRMP_MAX_INBOUND_CHANNELS_BOUND` are per parachain, while this storage tracks the
 	// global state.
 	#[pallet::storage]
 	pub type HrmpOpenChannelRequestsList<T: Config> =
@@ -370,7 +370,8 @@ pub mod pallet {
 
 	/// The HRMP watermark associated with each para.
 	/// Invariant:
-	/// - each para `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a session.
+	/// - each para `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a
+	///   session.
 	#[pallet::storage]
 	pub type HrmpWatermarks<T: Config> = StorageMap<_, Twox64Concat, ParaId, BlockNumberFor<T>>;
 
@@ -950,6 +951,14 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	/// Returns HRMP watermarks of previously sent messages to a given para.
+	pub(crate) fn valid_watermarks(recipient: ParaId) -> Vec<BlockNumberFor<T>> {
+		HrmpChannelDigests::<T>::get(&recipient)
+			.into_iter()
+			.map(|(block_no, _)| block_no)
+			.collect()
+	}
+
 	pub(crate) fn check_outbound_hrmp(
 		config: &HostConfiguration<BlockNumberFor<T>>,
 		sender: ParaId,
@@ -968,9 +977,9 @@ impl<T: Config> Pallet<T> {
 			out_hrmp_msgs.iter().enumerate().map(|(idx, out_msg)| (idx as u32, out_msg))
 		{
 			match last_recipient {
-				// the messages must be sorted in ascending order and there must be no two messages sent
-				// to the same recipient. Thus we can check that every recipient is strictly greater than
-				// the previous one.
+				// the messages must be sorted in ascending order and there must be no two messages
+				// sent to the same recipient. Thus we can check that every recipient is strictly
+				// greater than the previous one.
 				Some(last_recipient) if out_msg.recipient <= last_recipient =>
 					return Err(OutboundHrmpAcceptanceErr::NotSorted { idx }),
 				_ => last_recipient = Some(out_msg.recipient),
@@ -1012,6 +1021,27 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Ok(())
+	}
+
+	/// Returns remaining outbound channels capacity in messages and in bytes per recipient para.
+	pub(crate) fn outbound_remaining_capacity(sender: ParaId) -> Vec<(ParaId, (u32, u32))> {
+		let recipients = HrmpEgressChannelsIndex::<T>::get(&sender);
+		let mut remaining = Vec::with_capacity(recipients.len());
+
+		for recipient in recipients {
+			let Some(channel) = HrmpChannels::<T>::get(&HrmpChannelId { sender, recipient }) else {
+				continue
+			};
+			remaining.push((
+				recipient,
+				(
+					channel.max_capacity - channel.msg_count,
+					channel.max_total_size - channel.total_size,
+				),
+			));
+		}
+
+		remaining
 	}
 
 	pub(crate) fn prune_hrmp(recipient: ParaId, new_hrmp_watermark: BlockNumberFor<T>) -> Weight {
@@ -1112,12 +1142,12 @@ impl<T: Config> Pallet<T> {
 			HrmpChannels::<T>::insert(&channel_id, channel);
 			HrmpChannelContents::<T>::append(&channel_id, inbound);
 
-			// The digests are sorted in ascending by block number order. Assuming absence of
-			// contextual execution, there are only two possible scenarios here:
+			// The digests are sorted in ascending by block number order. There are only two
+			// possible scenarios here ("the current" is the block of candidate's inclusion):
 			//
 			// (a) It's the first time anybody sends a message to this recipient within this block.
 			//     In this case, the digest vector would be empty or the block number of the latest
-			//     entry  is smaller than the current.
+			//     entry is smaller than the current.
 			//
 			// (b) Somebody has already sent a message within the current block. That means that
 			//     the block number of the latest entry is equal to the current.
@@ -1183,11 +1213,7 @@ impl<T: Config> Pallet<T> {
 
 		let egress_cnt = HrmpEgressChannelsIndex::<T>::decode_len(&origin).unwrap_or(0) as u32;
 		let open_req_cnt = HrmpOpenChannelRequestCount::<T>::get(&origin);
-		let channel_num_limit = if <paras::Pallet<T>>::is_parathread(origin) {
-			config.hrmp_max_parathread_outbound_channels
-		} else {
-			config.hrmp_max_parachain_outbound_channels
-		};
+		let channel_num_limit = config.hrmp_max_parachain_outbound_channels;
 		ensure!(
 			egress_cnt + open_req_cnt < channel_num_limit,
 			Error::<T>::OpenHrmpChannelLimitExceeded,
@@ -1253,11 +1279,7 @@ impl<T: Config> Pallet<T> {
 		// check if by accepting this open channel request, this parachain would exceed the
 		// number of inbound channels.
 		let config = <configuration::Pallet<T>>::config();
-		let channel_num_limit = if <paras::Pallet<T>>::is_parathread(origin) {
-			config.hrmp_max_parathread_inbound_channels
-		} else {
-			config.hrmp_max_parachain_inbound_channels
-		};
+		let channel_num_limit = config.hrmp_max_parachain_inbound_channels;
 		let ingress_cnt = HrmpIngressChannelsIndex::<T>::decode_len(&origin).unwrap_or(0) as u32;
 		let accepted_cnt = HrmpAcceptedChannelRequestCount::<T>::get(&origin);
 		ensure!(

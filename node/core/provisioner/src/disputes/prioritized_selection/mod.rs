@@ -48,7 +48,8 @@ pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 /// Controls how much dispute votes to be fetched from the `dispute-coordinator` per iteration in
 /// `fn vote_selection`. The purpose is to fetch the votes in batches until
 /// `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` is reached. If all votes are fetched in single call
-/// we might fetch votes which we never use. This will create unnecessary load on `dispute-coordinator`.
+/// we might fetch votes which we never use. This will create unnecessary load on
+/// `dispute-coordinator`.
 ///
 /// This value should be less than `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME`. Increase it in case
 /// `provisioner` sends too many `QueryCandidateVotes` messages to `dispite-coordinator`.
@@ -68,22 +69,23 @@ const VOTES_SELECTION_BATCH_SIZE: usize = 11;
 ///   * Offchain vs Onchain
 ///   * Concluded onchain vs Unconcluded onchain
 ///
-/// Provisioner fetches all disputes from `dispute-coordinator` and separates them in multiple partitions.
-/// Please refer to `struct PartitionedDisputes` for details about the actual partitions.
-/// Each partition has got a priority implicitly assigned to it and the disputes are selected based on this
-/// priority (e.g. disputes in partition 1, then if there is space - disputes from partition 2 and so on).
+/// Provisioner fetches all disputes from `dispute-coordinator` and separates them in multiple
+/// partitions. Please refer to `struct PartitionedDisputes` for details about the actual
+/// partitions. Each partition has got a priority implicitly assigned to it and the disputes are
+/// selected based on this priority (e.g. disputes in partition 1, then if there is space - disputes
+/// from partition 2 and so on).
 ///
 /// # Votes selection
 ///
-/// Besides the prioritization described above the votes in each partition are filtered too. Provisioner
-/// fetches all onchain votes and filters them out from all partitions. As a result the Runtime receives
-/// only fresh votes (votes it didn't know about).
+/// Besides the prioritization described above the votes in each partition are filtered too.
+/// Provisioner fetches all onchain votes and filters them out from all partitions. As a result the
+/// Runtime receives only fresh votes (votes it didn't know about).
 ///
 /// # How the onchain votes are fetched
 ///
-/// The logic outlined above relies on `RuntimeApiRequest::Disputes` message from the Runtime. The user
-/// check the Runtime version before calling `select_disputes`. If the function is used with old runtime
-/// an error is logged and the logic will continue with empty onchain votes `HashMap`.
+/// The logic outlined above relies on `RuntimeApiRequest::Disputes` message from the Runtime. The
+/// user check the Runtime version before calling `select_disputes`. If the function is used with
+/// old runtime an error is logged and the logic will continue with empty onchain votes `HashMap`.
 pub async fn select_disputes<Sender>(
 	sender: &mut Sender,
 	metrics: &metrics::Metrics,
@@ -110,7 +112,8 @@ where
 			r
 		},
 		Err(GetOnchainDisputesError::NotSupported(runtime_api_err, relay_parent)) => {
-			// Runtime version is checked before calling this method, so the error below should never happen!
+			// Runtime version is checked before calling this method, so the error below should
+			// never happen!
 			gum::error!(
 				target: LOG_TARGET,
 				?runtime_api_err,
@@ -152,7 +155,8 @@ where
 	gum::trace!(target: LOG_TARGET, ?leaf, "Filtering recent disputes");
 
 	// Filter out unconfirmed disputes. However if the dispute is already onchain - don't skip it.
-	// In this case we'd better push as much fresh votes as possible to bring it to conclusion faster.
+	// In this case we'd better push as much fresh votes as possible to bring it to conclusion
+	// faster.
 	let recent_disputes = recent_disputes
 		.into_iter()
 		.filter(|d| d.2.is_confirmed_concluded() || onchain.contains_key(&(d.0, d.1)))
@@ -178,9 +182,9 @@ where
 	make_multi_dispute_statement_set(metrics, result)
 }
 
-/// Selects dispute votes from `PartitionedDisputes` which should be sent to the runtime. Votes which
-/// are already onchain are filtered out. Result should be sorted by `(SessionIndex, CandidateHash)`
-/// which is enforced by the `BTreeMap`. This is a requirement from the runtime.
+/// Selects dispute votes from `PartitionedDisputes` which should be sent to the runtime. Votes
+/// which are already onchain are filtered out. Result should be sorted by `(SessionIndex,
+/// CandidateHash)` which is enforced by the `BTreeMap`. This is a requirement from the runtime.
 async fn vote_selection<Sender>(
 	sender: &mut Sender,
 	partitioned: PartitionedDisputes,
@@ -237,9 +241,9 @@ where
 		for (session_index, candidate_hash, selected_votes) in votes {
 			let votes_len = selected_votes.valid.raw().len() + selected_votes.invalid.len();
 			if votes_len + total_votes_len > MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME {
-				// we are done - no more votes can be added. Importantly, we don't add any votes for a dispute here
-				// if we can't fit them all. This gives us an important invariant, that backing votes for
-				// disputes make it into the provisioned vote set.
+				// we are done - no more votes can be added. Importantly, we don't add any votes for
+				// a dispute here if we can't fit them all. This gives us an important invariant,
+				// that backing votes for disputes make it into the provisioned vote set.
 				gum::trace!(
 					target: LOG_TARGET,
 					?request_votes_counter,
@@ -483,7 +487,8 @@ fn make_multi_dispute_statement_set(
 		.collect()
 }
 
-/// Gets the on-chain disputes at a given block number and returns them as a `HashMap` so that searching in them is cheap.
+/// Gets the on-chain disputes at a given block number and returns them as a `HashMap` so that
+/// searching in them is cheap.
 pub async fn get_onchain_disputes<Sender>(
 	sender: &mut Sender,
 	relay_parent: Hash,

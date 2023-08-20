@@ -38,7 +38,6 @@ where
 /// belongs to.
 ///
 /// This module fulfills only the single purpose of housing the `Origin` in `construct_runtime`.
-///
 // ideally, though, the `construct_runtime` should support a free-standing origin.
 #[frame_support::pallet]
 pub mod pallet {

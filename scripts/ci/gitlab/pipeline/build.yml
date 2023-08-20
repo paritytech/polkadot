@@ -39,7 +39,6 @@ build-linux-stable:
     - echo -n ${CI_JOB_ID} > ./artifacts/BUILD_LINUX_JOB_ID
     - RELEASE_VERSION=$(./artifacts/polkadot -V | awk '{print $2}'| awk -F "-" '{print $1}')
     - echo -n "v${RELEASE_VERSION}" > ./artifacts/BUILD_RELEASE_VERSION
-    - cp -r scripts/* ./artifacts
 
 build-test-collators:
   stage: build
@@ -64,7 +63,6 @@ build-test-collators:
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - echo "undying-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r ./scripts/* ./artifacts
 
 build-malus:
   stage: build
@@ -88,7 +86,6 @@ build-malus:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r ./scripts/* ./artifacts
 
 build-staking-miner:
   stage: build
@@ -110,7 +107,6 @@ build-staking-miner:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "staking-miner = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r ./scripts/* ./artifacts
 
 build-rustdoc:
   stage: build
