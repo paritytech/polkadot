@@ -20,6 +20,7 @@
 
 /// To what degree landlock is enabled. It's a separate struct from `RulesetStatus` because that is
 /// only available on Linux, plus this has a nicer name.
+#[derive(Debug)]
 pub enum LandlockStatus {
 	FullyEnforced,
 	PartiallyEnforced,
@@ -150,8 +151,8 @@ pub mod landlock {
 			// Restricted thread cannot read from FS.
 			let handle =
 				thread::spawn(|| {
-					// Create, write, and read two tmp files. This should succeed before any landlock
-					// restrictions are applied.
+					// Create, write, and read two tmp files. This should succeed before any
+					// landlock restrictions are applied.
 					const TEXT: &str = "foo";
 					let tmpfile1 = tempfile::NamedTempFile::new().unwrap();
 					let path1 = tmpfile1.path();

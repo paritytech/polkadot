@@ -34,7 +34,7 @@ use polkadot_node_core_pvf_common::{
 	error::{PrepareError, PrepareResult},
 	executor_intf::Executor,
 	framed_recv, framed_send,
-	prepare::{MemoryStats, PrepareJobKind, PrepareStats},
+	prepare::{Handshake, MemoryStats, PrepareJobKind, PrepareStats},
 	pvf::PvfPrepData,
 	worker::{
 		bytes_to_path, cpu_time_monitor_loop,
@@ -67,6 +67,17 @@ impl AsRef<[u8]> for CompiledArtifact {
 	fn as_ref(&self) -> &[u8] {
 		self.0.as_slice()
 	}
+}
+
+async fn recv_handshake(stream: &mut UnixStream) -> io::Result<Handshake> {
+	let handshake_enc = framed_recv(stream).await?;
+	let handshake = Handshake::decode(&mut &handshake_enc[..]).map_err(|_| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			"prepare pvf recv_handshake: failed to decode Handshake".to_owned(),
+		)
+	})?;
+	Ok(handshake)
 }
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
@@ -138,6 +149,8 @@ pub fn worker_entrypoint(
 		|mut stream| async move {
 			let worker_pid = std::process::id();
 
+			let Handshake { landlock_enabled } = recv_handshake(&mut stream).await?;
+
 			// Try to enable landlock.
 			{
 				#[cfg(target_os = "linux")]
@@ -160,15 +173,20 @@ pub fn worker_entrypoint(
 				#[cfg(not(target_os = "linux"))]
 				let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
 
-				// TODO: return an error?
-				// Log if landlock threw an error.
-				if let Err(err) = landlock_status {
+				// Error if the host determined that landlock is fully enabled and we couldn't fully
+				// enforce it here.
+				if landlock_enabled && !matches!(landlock_status, Ok(LandlockStatus::FullyEnforced))
+				{
 					gum::warn!(
 						target: LOG_TARGET,
 						%worker_pid,
-						"error enabling landlock: {}",
-						err
+						"could not fully enable landlock: {:?}",
+						landlock_status
 					);
+					return Err(io::Error::new(
+						io::ErrorKind::Other,
+						format!("could not fully enable landlock: {:?}", landlock_status),
+					))
 				}
 			}
 

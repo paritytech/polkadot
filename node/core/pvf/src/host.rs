@@ -202,8 +202,8 @@ impl Config {
 pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<Output = ()>) {
 	gum::debug!(target: LOG_TARGET, ?config, "starting PVF validation host");
 
-	// Run checks for supported security features once per host startup.
-	warn_if_no_landlock();
+	// Run checks for supported security features once per host startup. Warn here if not enabled.
+	let landlock_enabled = check_landlock();
 
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
@@ -215,6 +215,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		config.cache_path.clone(),
 		config.prepare_worker_spawn_timeout,
 		config.node_version.clone(),
+		landlock_enabled,
 	);
 
 	let (to_prepare_queue_tx, from_prepare_queue_rx, run_prepare_queue) = prepare::start_queue(
@@ -233,6 +234,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		config.execute_worker_spawn_timeout,
 		config.node_version,
 		config.cache_path.clone(),
+		landlock_enabled,
 	);
 
 	let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(100);
@@ -875,10 +877,11 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 }
 
 /// Check if landlock is supported and emit a warning if not.
-fn warn_if_no_landlock() {
+fn check_landlock() -> bool {
 	#[cfg(target_os = "linux")]
 	{
 		use polkadot_node_core_pvf_common::worker::security::landlock;
+
 		let status = landlock::get_status();
 		if !landlock::status_is_fully_enabled(&status) {
 			let abi = landlock::LANDLOCK_ABI as u8;
@@ -888,14 +891,20 @@ fn warn_if_no_landlock() {
 				%abi,
 				"Cannot fully enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider upgrading the kernel version for maximum security."
 			);
+			false
+		} else {
+			true
 		}
 	}
 
 	#[cfg(not(target_os = "linux"))]
-	gum::warn!(
-		target: LOG_TARGET,
-		"Cannot enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider running on Linux with landlock support for maximum security."
-	);
+	{
+		gum::warn!(
+			target: LOG_TARGET,
+			"Cannot enable landlock, a Linux kernel security feature. Running validation of malicious PVF code has a higher risk of compromising this machine. Consider running on Linux with landlock support for maximum security."
+		);
+		false
+	}
 }
 
 #[cfg(test)]

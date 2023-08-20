@@ -55,3 +55,11 @@ pub enum PrepareJobKind {
 	/// A prechecking job.
 	Prechecking,
 }
+
+/// The payload of the one-time handshake that is done when a worker process is created. Carries
+/// data from the host to the worker.
+#[derive(Encode, Decode)]
+pub struct Handshake {
+	/// Whether the host has determined that landlock is enabled.
+	pub landlock_enabled: bool,
+}

@@ -47,6 +47,7 @@ pub async fn spawn(
 	spawn_timeout: Duration,
 	node_version: Option<&str>,
 	cache_path: &Path,
+	landlock_enabled: bool,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	let cache_path = match cache_path.to_str() {
 		Some(a) => a,
@@ -59,7 +60,7 @@ pub async fn spawn(
 
 	let (mut idle_worker, worker_handle) =
 		spawn_with_program_path("execute", program_path, &extra_args, spawn_timeout).await?;
-	send_handshake(&mut idle_worker.stream, Handshake { executor_params })
+	send_handshake(&mut idle_worker.stream, Handshake { executor_params, landlock_enabled })
 		.await
 		.map_err(|error| {
 			gum::warn!(

@@ -143,6 +143,12 @@ pub fn worker_entrypoint(
 		|mut stream| async move {
 			let worker_pid = std::process::id();
 
+			let Handshake { executor_params, landlock_enabled } =
+				recv_handshake(&mut stream).await?;
+			let executor = Executor::new(executor_params).map_err(|e| {
+				io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
+			})?;
+
 			// Try to enable landlock.
 			{
 				#[cfg(target_os = "linux")]
@@ -164,22 +170,22 @@ pub fn worker_entrypoint(
 				#[cfg(not(target_os = "linux"))]
 				let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
 
-				// TODO: return an error?
-				// Log if landlock threw an error.
-				if let Err(err) = landlock_status {
+				// Error if the host determined that landlock is fully enabled and we couldn't fully
+				// enforce it here.
+				if landlock_enabled && !matches!(landlock_status, Ok(LandlockStatus::FullyEnforced))
+				{
 					gum::warn!(
 						target: LOG_TARGET,
 						%worker_pid,
-						"error enabling landlock: {}",
-						err
+						"could not fully enable landlock: {:?}",
+						landlock_status
 					);
+					return Err(io::Error::new(
+						io::ErrorKind::Other,
+						format!("could not fully enable landlock: {:?}", landlock_status),
+					))
 				}
 			}
-
-			let handshake = recv_handshake(&mut stream).await?;
-			let executor = Executor::new(handshake.executor_params).map_err(|e| {
-				io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
-			})?;
 
 			loop {
 				let (artifact_path, params, execution_timeout) = recv_request(&mut stream).await?;
