@@ -22,6 +22,7 @@
 
 #![deny(unused_crate_dependencies)]
 
+use always_assert::never;
 use futures::{channel::oneshot, FutureExt};
 
 use polkadot_node_network_protocol::{
@@ -29,7 +30,9 @@ use polkadot_node_network_protocol::{
 	grid_topology::{
 		GridNeighbors, RandomRouting, RequiredRouting, SessionBoundGridTopologyStorage,
 	},
-	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
+	peer_set::{ProtocolVersion, ValidationVersion},
+	v1 as protocol_v1, vstaging as protocol_vstaging, OurView, PeerId,
+	UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_subsystem::{
 	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan,
@@ -76,16 +79,54 @@ struct BitfieldGossipMessage {
 }
 
 impl BitfieldGossipMessage {
-	fn into_validation_protocol(self) -> net_protocol::VersionedValidationProtocol {
-		self.into_network_message().into()
+	fn into_validation_protocol(
+		self,
+		recipient_version: ProtocolVersion,
+	) -> net_protocol::VersionedValidationProtocol {
+		self.into_network_message(recipient_version).into()
 	}
 
-	fn into_network_message(self) -> net_protocol::BitfieldDistributionMessage {
-		Versioned::V1(protocol_v1::BitfieldDistributionMessage::Bitfield(
-			self.relay_parent,
-			self.signed_availability.into(),
-		))
+	fn into_network_message(
+		self,
+		recipient_version: ProtocolVersion,
+	) -> net_protocol::BitfieldDistributionMessage {
+		match ValidationVersion::try_from(recipient_version).ok() {
+			Some(ValidationVersion::V1) =>
+				Versioned::V1(protocol_v1::BitfieldDistributionMessage::Bitfield(
+					self.relay_parent,
+					self.signed_availability.into(),
+				)),
+			Some(ValidationVersion::VStaging) =>
+				Versioned::VStaging(protocol_vstaging::BitfieldDistributionMessage::Bitfield(
+					self.relay_parent,
+					self.signed_availability.into(),
+				)),
+			None => {
+				never!("Peers should only have supported protocol versions.");
+
+				gum::warn!(
+					target: LOG_TARGET,
+					version = ?recipient_version,
+					"Unknown protocol version provided for message recipient"
+				);
+
+				// fall back to v1 to avoid
+				Versioned::V1(protocol_v1::BitfieldDistributionMessage::Bitfield(
+					self.relay_parent,
+					self.signed_availability.into(),
+				))
+			},
+		}
 	}
+}
+
+/// Data stored on a per-peer basis.
+#[derive(Debug)]
+pub struct PeerData {
+	/// The peer's view.
+	view: View,
+	/// The peer's protocol version.
+	version: ProtocolVersion,
 }
 
 /// Data used to track information of peers and relay parents the
@@ -94,7 +135,7 @@ impl BitfieldGossipMessage {
 struct ProtocolState {
 	/// Track all active peers and their views
 	/// to determine what is relevant to them.
-	peer_views: HashMap<PeerId, View>,
+	peer_data: HashMap<PeerId, PeerData>,
 
 	/// The current and previous gossip topologies
 	topologies: SessionBoundGridTopologyStorage,
@@ -357,7 +398,7 @@ async fn handle_bitfield_distribution<Context>(
 		ctx,
 		job_data,
 		topology,
-		&mut state.peer_views,
+		&mut state.peer_data,
 		validator,
 		msg,
 		required_routing,
@@ -376,7 +417,7 @@ async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
 	topology_neighbors: &GridNeighbors,
-	peer_views: &mut HashMap<PeerId, View>,
+	peers: &mut HashMap<PeerId, PeerData>,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
 	required_routing: RequiredRouting,
@@ -394,16 +435,16 @@ async fn relay_message<Context>(
 	.await;
 
 	drop(_span);
-	let total_peers = peer_views.len();
+	let total_peers = peers.len();
 	let mut random_routing: RandomRouting = Default::default();
 
 	let _span = span.child("interested-peers");
 	// pass on the bitfield distribution to all interested peers
-	let interested_peers = peer_views
+	let interested_peers = peers
 		.iter()
-		.filter_map(|(peer, view)| {
+		.filter_map(|(peer, data)| {
 			// check interest in the peer in this message's relay parent
-			if view.contains(&message.relay_parent) {
+			if data.view.contains(&message.relay_parent) {
 				let message_needed =
 					job_data.message_from_validator_needed_by_peer(&peer, &validator);
 				if message_needed {
@@ -418,7 +459,7 @@ async fn relay_message<Context>(
 					};
 
 					if need_routing {
-						Some(*peer)
+						Some((*peer, data.version))
 					} else {
 						None
 					}
@@ -429,9 +470,9 @@ async fn relay_message<Context>(
 				None
 			}
 		})
-		.collect::<Vec<PeerId>>();
+		.collect::<Vec<(PeerId, ProtocolVersion)>>();
 
-	interested_peers.iter().for_each(|peer| {
+	interested_peers.iter().for_each(|(peer, _)| {
 		// track the message as sent for this peer
 		job_data
 			.message_sent_to_peer
@@ -450,11 +491,35 @@ async fn relay_message<Context>(
 		);
 	} else {
 		let _span = span.child("gossip");
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			interested_peers,
-			message.into_validation_protocol(),
-		))
-		.await;
+
+		let filter_by_version = |peers: &[(PeerId, ProtocolVersion)],
+		                         version: ValidationVersion| {
+			peers
+				.iter()
+				.filter(|(_, v)| v == &version.into())
+				.map(|(peer_id, _)| *peer_id)
+				.collect::<Vec<_>>()
+		};
+
+		let v1_interested_peers = filter_by_version(&interested_peers, ValidationVersion::V1);
+		let vstaging_interested_peers =
+			filter_by_version(&interested_peers, ValidationVersion::VStaging);
+
+		if !v1_interested_peers.is_empty() {
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+				v1_interested_peers,
+				message.clone().into_validation_protocol(ValidationVersion::V1.into()),
+			))
+			.await;
+		}
+
+		if !vstaging_interested_peers.is_empty() {
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+				vstaging_interested_peers,
+				message.into_validation_protocol(ValidationVersion::VStaging.into()),
+			))
+			.await
+		}
 	}
 }
 
@@ -465,10 +530,20 @@ async fn process_incoming_peer_message<Context>(
 	state: &mut ProtocolState,
 	metrics: &Metrics,
 	origin: PeerId,
-	message: protocol_v1::BitfieldDistributionMessage,
+	message: net_protocol::BitfieldDistributionMessage,
 	rng: &mut (impl CryptoRng + Rng),
 ) {
-	let protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) = message;
+	let (relay_parent, bitfield) = match message {
+		Versioned::V1(protocol_v1::BitfieldDistributionMessage::Bitfield(
+			relay_parent,
+			bitfield,
+		)) => (relay_parent, bitfield),
+		Versioned::VStaging(protocol_vstaging::BitfieldDistributionMessage::Bitfield(
+			relay_parent,
+			bitfield,
+		)) => (relay_parent, bitfield),
+	};
+
 	gum::trace!(
 		target: LOG_TARGET,
 		peer = %origin,
@@ -616,7 +691,7 @@ async fn process_incoming_peer_message<Context>(
 		ctx,
 		job_data,
 		topology,
-		&mut state.peer_views,
+		&mut state.peer_data,
 		validator,
 		message,
 		required_routing,
@@ -647,15 +722,18 @@ async fn handle_network_msg<Context>(
 	let _timer = metrics.time_handle_network_msg();
 
 	match bridge_message {
-		NetworkBridgeEvent::PeerConnected(peer, role, _, _) => {
+		NetworkBridgeEvent::PeerConnected(peer, role, version, _) => {
 			gum::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
 			// insert if none already present
-			state.peer_views.entry(peer).or_default();
+			state
+				.peer_data
+				.entry(peer)
+				.or_insert_with(|| PeerData { view: View::default(), version });
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
 			gum::trace!(target: LOG_TARGET, ?peer, "Peer disconnected");
 			// get rid of superfluous data
-			state.peer_views.remove(&peer);
+			state.peer_data.remove(&peer);
 		},
 		NetworkBridgeEvent::NewGossipTopology(gossip_topology) => {
 			let session_index = gossip_topology.session;
@@ -680,12 +758,21 @@ async fn handle_network_msg<Context>(
 			);
 
 			for new_peer in newly_added {
-				// in case we already knew that peer in the past
-				// it might have had an existing view, we use to initialize
-				// and minimize the delta on `PeerViewChange` to be sent
-				if let Some(old_view) = state.peer_views.remove(&new_peer) {
-					handle_peer_view_change(ctx, state, new_peer, old_view, rng).await;
-				}
+				let old_view = match state.peer_data.get_mut(&new_peer) {
+					Some(d) => {
+						// in case we already knew that peer in the past
+						// it might have had an existing view, we use to initialize
+						// and minimize the delta on `PeerViewChange` to be sent
+						std::mem::replace(&mut d.view, Default::default())
+					},
+					None => {
+						// For peers which are currently unknown, we'll send topology-related
+						// messages to them when they connect and send their first view update.
+						continue
+					},
+				};
+
+				handle_peer_view_change(ctx, state, new_peer, old_view, rng).await;
 			}
 		},
 		NetworkBridgeEvent::PeerViewChange(peerid, new_view) => {
@@ -696,7 +783,7 @@ async fn handle_network_msg<Context>(
 			gum::trace!(target: LOG_TARGET, ?new_view, "Our view change");
 			handle_our_view_change(state, new_view);
 		},
-		NetworkBridgeEvent::PeerMessage(remote, Versioned::V1(message)) =>
+		NetworkBridgeEvent::PeerMessage(remote, message) =>
 			process_incoming_peer_message(ctx, state, metrics, remote, message, rng).await,
 		NetworkBridgeEvent::UpdatedAuthorityIds { .. } => {
 			// The bitfield-distribution subsystem doesn't deal with `AuthorityDiscoveryId`s.
@@ -728,6 +815,9 @@ fn handle_our_view_change(state: &mut ProtocolState, view: OurView) {
 
 // Send the difference between two views which were not sent
 // to that particular peer.
+//
+// This requires that there is an entry in the `peer_data` field for the
+// peer.
 #[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
@@ -736,13 +826,20 @@ async fn handle_peer_view_change<Context>(
 	view: View,
 	rng: &mut (impl CryptoRng + Rng),
 ) {
-	let added = state
-		.peer_views
-		.entry(origin)
-		.or_default()
-		.replace_difference(view)
-		.cloned()
-		.collect::<Vec<_>>();
+	let peer_data = match state.peer_data.get_mut(&origin) {
+		None => {
+			gum::warn!(
+				target: LOG_TARGET,
+				peer = ?origin,
+				"Attempted to update peer view for unknown peer."
+			);
+
+			return
+		},
+		Some(pd) => pd,
+	};
+
+	let added = peer_data.view.replace_difference(view).cloned().collect::<Vec<_>>();
 
 	let topology = state.topologies.get_current_topology().local_grid_neighbors();
 	let is_gossip_peer = topology.route_to_peer(RequiredRouting::GridXY, &origin);
@@ -808,11 +905,14 @@ async fn send_tracked_gossip_message<Context>(
 		"Sending gossip message"
 	);
 
+	let version =
+		if let Some(peer_data) = state.peer_data.get(&dest) { peer_data.version } else { return };
+
 	job_data.message_sent_to_peer.entry(dest).or_default().insert(validator.clone());
 
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 		vec![dest],
-		message.into_validation_protocol(),
+		message.into_validation_protocol(version),
 	))
 	.await;
 }

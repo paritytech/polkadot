@@ -31,21 +31,25 @@
 
 #![deny(missing_docs)]
 
-use futures::{channel::mpsc, future::FutureExt, join, select, sink::SinkExt, stream::StreamExt};
+use futures::{channel::oneshot, future::FutureExt, join, select};
 use parity_scale_codec::Encode;
-use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
+use polkadot_node_primitives::{
+	AvailableData, Collation, CollationGenerationConfig, CollationSecondedSignal, PoV,
+	SubmitCollationParams,
+};
 use polkadot_node_subsystem::{
 	messages::{CollationGenerationMessage, CollatorProtocolMessage},
-	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, RuntimeApiError, SpawnedSubsystem,
 	SubsystemContext, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
-	request_availability_cores, request_persisted_validation_data, request_validation_code,
-	request_validation_code_hash, request_validators,
+	request_availability_cores, request_persisted_validation_data,
+	request_staging_async_backing_params, request_validation_code, request_validation_code_hash,
+	request_validators,
 };
 use polkadot_primitives::{
 	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
-	CoreState, Hash, Id as ParaId, OccupiedCoreAssumption, PersistedValidationData,
+	CollatorPair, CoreState, Hash, Id as ParaId, OccupiedCoreAssumption, PersistedValidationData,
 	ValidationCodeHash,
 };
 use sp_core::crypto::Pair;
@@ -86,24 +90,11 @@ impl CollationGenerationSubsystem {
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
 	async fn run<Context>(mut self, mut ctx: Context) {
-		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
-		// expected to generate precisely one message. We don't want to block the main loop
-		// at any point waiting for them all, so instead, we create a channel on which they can
-		// send those messages. We can then just monitor the channel and forward messages on it
-		// to the overseer here, via the context.
-		let (sender, receiver) = mpsc::channel(0);
-
-		let mut receiver = receiver.fuse();
 		loop {
 			select! {
 				incoming = ctx.recv().fuse() => {
-					if self.handle_incoming::<Context>(incoming, &mut ctx, &sender).await {
+					if self.handle_incoming::<Context>(incoming, &mut ctx).await {
 						break;
-					}
-				},
-				msg = receiver.next() => {
-					if let Some(msg) = msg {
-						ctx.send_message(msg).await;
 					}
 				},
 			}
@@ -119,7 +110,6 @@ impl CollationGenerationSubsystem {
 		&mut self,
 		incoming: SubsystemResult<FromOrchestra<<Context as SubsystemContext>::Message>>,
 		ctx: &mut Context,
-		sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 	) -> bool {
 		match incoming {
 			Ok(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
@@ -134,7 +124,6 @@ impl CollationGenerationSubsystem {
 						activated.into_iter().map(|v| v.hash),
 						ctx,
 						metrics,
-						sender,
 					)
 					.await
 					{
@@ -153,6 +142,21 @@ impl CollationGenerationSubsystem {
 				} else {
 					self.config = Some(Arc::new(config));
 				}
+				false
+			},
+			Ok(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitCollation(params),
+			}) => {
+				if let Some(config) = &self.config {
+					if let Err(err) =
+						handle_submit_collation(params, config, ctx, &self.metrics).await
+					{
+						gum::error!(target: LOG_TARGET, ?err, "Failed to submit collation");
+					}
+				} else {
+					gum::error!(target: LOG_TARGET, "Collation submitted before initialization");
+				}
+
 				false
 			},
 			Ok(FromOrchestra::Signal(OverseerSignal::BlockFinalized(..))) => false,
@@ -188,23 +192,28 @@ async fn handle_new_activations<Context>(
 	activated: impl IntoIterator<Item = Hash>,
 	ctx: &mut Context,
 	metrics: Metrics,
-	sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 ) -> crate::error::Result<()> {
 	// follow the procedure from the guide:
 	// https://paritytech.github.io/polkadot/book/node/collators/collation-generation.html
+
+	if config.collator.is_none() {
+		return Ok(())
+	}
 
 	let _overall_timer = metrics.time_new_activations();
 
 	for relay_parent in activated {
 		let _relay_parent_timer = metrics.time_new_activations_relay_parent();
 
-		let (availability_cores, validators) = join!(
+		let (availability_cores, validators, async_backing_params) = join!(
 			request_availability_cores(relay_parent, ctx.sender()).await,
 			request_validators(relay_parent, ctx.sender()).await,
+			request_staging_async_backing_params(relay_parent, ctx.sender()).await,
 		);
 
 		let availability_cores = availability_cores??;
 		let n_validators = validators??.len();
+		let async_backing_params = async_backing_params?.ok();
 
 		for (core_idx, core) in availability_cores.into_iter().enumerate() {
 			let _availability_core_timer = metrics.time_new_activations_availability_core();
@@ -212,15 +221,30 @@ async fn handle_new_activations<Context>(
 			let (scheduled_core, assumption) = match core {
 				CoreState::Scheduled(scheduled_core) =>
 					(scheduled_core, OccupiedCoreAssumption::Free),
-				CoreState::Occupied(_occupied_core) => {
-					// TODO: https://github.com/paritytech/polkadot/issues/1573
-					gum::trace!(
-						target: LOG_TARGET,
-						core_idx = %core_idx,
-						relay_parent = ?relay_parent,
-						"core is occupied. Keep going.",
-					);
-					continue
+				CoreState::Occupied(occupied_core) => match async_backing_params {
+					Some(params) if params.max_candidate_depth >= 1 => {
+						// maximum candidate depth when building on top of a block
+						// pending availability is necessarily 1 - the depth of the
+						// pending block is 0 so the child has depth 1.
+
+						// TODO [now]: this assumes that next up == current.
+						// in practice we should only set `OccupiedCoreAssumption::Included`
+						// when the candidate occupying the core is also of the same para.
+						if let Some(scheduled) = occupied_core.next_up_on_available {
+							(scheduled, OccupiedCoreAssumption::Included)
+						} else {
+							continue
+						}
+					},
+					_ => {
+						gum::trace!(
+							target: LOG_TARGET,
+							core_idx = %core_idx,
+							relay_parent = ?relay_parent,
+							"core is occupied. Keep going.",
+						);
+						continue
+					},
 				},
 				CoreState::Free => {
 					gum::trace!(
@@ -271,7 +295,7 @@ async fn handle_new_activations<Context>(
 				},
 			};
 
-			let validation_code_hash = match obtain_current_validation_code_hash(
+			let validation_code_hash = match obtain_validation_code_hash_with_assumption(
 				relay_parent,
 				scheduled_core.para_id,
 				assumption,
@@ -294,15 +318,18 @@ async fn handle_new_activations<Context>(
 			};
 
 			let task_config = config.clone();
-			let mut task_sender = sender.clone();
 			let metrics = metrics.clone();
+			let mut task_sender = ctx.sender().clone();
 			ctx.spawn(
 				"collation-builder",
 				Box::pin(async move {
-					let persisted_validation_data_hash = validation_data.hash();
+					let collator_fn = match task_config.collator.as_ref() {
+						Some(x) => x,
+						None => return,
+					};
 
 					let (collation, result_sender) =
-						match (task_config.collator)(relay_parent, &validation_data).await {
+						match collator_fn(relay_parent, &validation_data).await {
 							Some(collation) => collation.into_inner(),
 							None => {
 								gum::debug!(
@@ -314,104 +341,21 @@ async fn handle_new_activations<Context>(
 							},
 						};
 
-					// Apply compression to the block data.
-					let pov = {
-						let pov = collation.proof_of_validity.into_compressed();
-						let encoded_size = pov.encoded_size();
-
-						// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
-						// that honest collators never produce a PoV which is uncompressed.
-						//
-						// As such, honest collators never produce an uncompressed PoV which starts
-						// with a compression magic number, which would lead validators to reject
-						// the collation.
-						if encoded_size > validation_data.max_pov_size as usize {
-							gum::debug!(
-								target: LOG_TARGET,
-								para_id = %scheduled_core.para_id,
-								size = encoded_size,
-								max_size = validation_data.max_pov_size,
-								"PoV exceeded maximum size"
-							);
-
-							return
-						}
-
-						pov
-					};
-
-					let pov_hash = pov.hash();
-
-					let signature_payload = collator_signature_payload(
-						&relay_parent,
-						&scheduled_core.para_id,
-						&persisted_validation_data_hash,
-						&pov_hash,
-						&validation_code_hash,
-					);
-
-					let erasure_root =
-						match erasure_root(n_validators, validation_data, pov.clone()) {
-							Ok(erasure_root) => erasure_root,
-							Err(err) => {
-								gum::error!(
-									target: LOG_TARGET,
-									para_id = %scheduled_core.para_id,
-									err = ?err,
-									"failed to calculate erasure root",
-								);
-								return
-							},
-						};
-
-					let commitments = CandidateCommitments {
-						upward_messages: collation.upward_messages,
-						horizontal_messages: collation.horizontal_messages,
-						new_validation_code: collation.new_validation_code,
-						head_data: collation.head_data,
-						processed_downward_messages: collation.processed_downward_messages,
-						hrmp_watermark: collation.hrmp_watermark,
-					};
-
-					let ccr = CandidateReceipt {
-						commitments_hash: commitments.hash(),
-						descriptor: CandidateDescriptor {
-							signature: task_config.key.sign(&signature_payload),
+					construct_and_distribute_receipt(
+						PreparedCollation {
+							collation,
 							para_id: scheduled_core.para_id,
 							relay_parent,
-							collator: task_config.key.public(),
-							persisted_validation_data_hash,
-							pov_hash,
-							erasure_root,
-							para_head: commitments.head_data.hash(),
+							validation_data,
 							validation_code_hash,
+							n_validators,
 						},
-					};
-
-					gum::debug!(
-						target: LOG_TARGET,
-						candidate_hash = ?ccr.hash(),
-						?pov_hash,
-						?relay_parent,
-						para_id = %scheduled_core.para_id,
-						"candidate is generated",
-					);
-					metrics.on_collation_generated();
-
-					if let Err(err) = task_sender
-						.send(
-							CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender)
-								.into(),
-						)
-						.await
-					{
-						gum::warn!(
-							target: LOG_TARGET,
-							para_id = %scheduled_core.para_id,
-							err = ?err,
-							"failed to send collation result",
-						);
-					}
+						task_config.key.clone(),
+						&mut task_sender,
+						result_sender,
+						&metrics,
+					)
+					.await;
 				}),
 			)?;
 		}
@@ -420,14 +364,199 @@ async fn handle_new_activations<Context>(
 	Ok(())
 }
 
-async fn obtain_current_validation_code_hash(
+#[overseer::contextbounds(CollationGeneration, prefix = self::overseer)]
+async fn handle_submit_collation<Context>(
+	params: SubmitCollationParams,
+	config: &CollationGenerationConfig,
+	ctx: &mut Context,
+	metrics: &Metrics,
+) -> crate::error::Result<()> {
+	let _timer = metrics.time_submit_collation();
+
+	let SubmitCollationParams {
+		relay_parent,
+		collation,
+		parent_head,
+		validation_code_hash,
+		result_sender,
+	} = params;
+
+	let validators = request_validators(relay_parent, ctx.sender()).await.await??;
+	let n_validators = validators.len();
+
+	// We need to swap the parent-head data, but all other fields here will be correct.
+	let mut validation_data = match request_persisted_validation_data(
+		relay_parent,
+		config.para_id,
+		OccupiedCoreAssumption::TimedOut,
+		ctx.sender(),
+	)
+	.await
+	.await??
+	{
+		Some(v) => v,
+		None => {
+			gum::debug!(
+				target: LOG_TARGET,
+				relay_parent = ?relay_parent,
+				our_para = %config.para_id,
+				"No validation data for para - does it exist at this relay-parent?",
+			);
+			return Ok(())
+		},
+	};
+
+	validation_data.parent_head = parent_head;
+
+	let collation = PreparedCollation {
+		collation,
+		relay_parent,
+		para_id: config.para_id,
+		validation_data,
+		validation_code_hash,
+		n_validators,
+	};
+
+	construct_and_distribute_receipt(
+		collation,
+		config.key.clone(),
+		ctx.sender(),
+		result_sender,
+		metrics,
+	)
+	.await;
+
+	Ok(())
+}
+
+struct PreparedCollation {
+	collation: Collation,
+	para_id: ParaId,
+	relay_parent: Hash,
+	validation_data: PersistedValidationData,
+	validation_code_hash: ValidationCodeHash,
+	n_validators: usize,
+}
+
+/// Takes a prepared collation, along with its context, and produces a candidate receipt
+/// which is distributed to validators.
+async fn construct_and_distribute_receipt(
+	collation: PreparedCollation,
+	key: CollatorPair,
+	sender: &mut impl overseer::CollationGenerationSenderTrait,
+	result_sender: Option<oneshot::Sender<CollationSecondedSignal>>,
+	metrics: &Metrics,
+) {
+	let PreparedCollation {
+		collation,
+		para_id,
+		relay_parent,
+		validation_data,
+		validation_code_hash,
+		n_validators,
+	} = collation;
+
+	let persisted_validation_data_hash = validation_data.hash();
+	let parent_head_data_hash = validation_data.parent_head.hash();
+
+	// Apply compression to the block data.
+	let pov = {
+		let pov = collation.proof_of_validity.into_compressed();
+		let encoded_size = pov.encoded_size();
+
+		// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
+		// that honest collators never produce a PoV which is uncompressed.
+		//
+		// As such, honest collators never produce an uncompressed PoV which starts with
+		// a compression magic number, which would lead validators to reject the collation.
+		if encoded_size > validation_data.max_pov_size as usize {
+			gum::debug!(
+				target: LOG_TARGET,
+				para_id = %para_id,
+				size = encoded_size,
+				max_size = validation_data.max_pov_size,
+				"PoV exceeded maximum size"
+			);
+
+			return
+		}
+
+		pov
+	};
+
+	let pov_hash = pov.hash();
+
+	let signature_payload = collator_signature_payload(
+		&relay_parent,
+		&para_id,
+		&persisted_validation_data_hash,
+		&pov_hash,
+		&validation_code_hash,
+	);
+
+	let erasure_root = match erasure_root(n_validators, validation_data, pov.clone()) {
+		Ok(erasure_root) => erasure_root,
+		Err(err) => {
+			gum::error!(
+				target: LOG_TARGET,
+				para_id = %para_id,
+				err = ?err,
+				"failed to calculate erasure root",
+			);
+			return
+		},
+	};
+
+	let commitments = CandidateCommitments {
+		upward_messages: collation.upward_messages,
+		horizontal_messages: collation.horizontal_messages,
+		new_validation_code: collation.new_validation_code,
+		head_data: collation.head_data,
+		processed_downward_messages: collation.processed_downward_messages,
+		hrmp_watermark: collation.hrmp_watermark,
+	};
+
+	let ccr = CandidateReceipt {
+		commitments_hash: commitments.hash(),
+		descriptor: CandidateDescriptor {
+			signature: key.sign(&signature_payload),
+			para_id,
+			relay_parent,
+			collator: key.public(),
+			persisted_validation_data_hash,
+			pov_hash,
+			erasure_root,
+			para_head: commitments.head_data.hash(),
+			validation_code_hash,
+		},
+	};
+
+	gum::debug!(
+		target: LOG_TARGET,
+		candidate_hash = ?ccr.hash(),
+		?pov_hash,
+		?relay_parent,
+		para_id = %para_id,
+		"candidate is generated",
+	);
+	metrics.on_collation_generated();
+
+	sender
+		.send_message(CollatorProtocolMessage::DistributeCollation(
+			ccr,
+			parent_head_data_hash,
+			pov,
+			result_sender,
+		))
+		.await;
+}
+
+async fn obtain_validation_code_hash_with_assumption(
 	relay_parent: Hash,
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 	sender: &mut impl overseer::CollationGenerationSenderTrait,
-) -> Result<Option<ValidationCodeHash>, crate::error::Error> {
-	use polkadot_node_subsystem::RuntimeApiError;
-
+) -> crate::error::Result<Option<ValidationCodeHash>> {
 	match request_validation_code_hash(relay_parent, para_id, assumption, sender)
 		.await
 		.await?

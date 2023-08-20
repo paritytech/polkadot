@@ -24,11 +24,12 @@ exactly one downward message queue.
 - **Parablock:** A block in a parachain.
 - **Parachain:** A constituent chain secured by the Relay Chain's validators.
 - **Parachain Validators:** A subset of validators assigned during a period of time to back candidates for a specific parachain
-- **Parathread:** A parachain which is scheduled on a pay-as-you-go basis.
+- **On-demand parachain:** A parachain which is scheduled on a pay-as-you-go basis.
+- **Lease holding parachain:** A parachain possessing an active slot lease. The lease holder is assigned a single availability core for the duration of the lease, granting consistent blockspace scheduling at the rate 1 parablock per relay block.
 - **PDK (Parachain Development Kit):** A toolset that allows one to develop a parachain. Cumulus is a PDK.
 - **Preimage:** In our context, if `H(X) = Y` where `H` is a hash function and `Y` is the hash, then `X` is the hash preimage.
 - **Proof-of-Validity (PoV):** A stateless-client proof that a parachain candidate is valid, with respect to some validation function.
-- **PVF:** Parachain Validation Function. The validation code that is run by validators on parachains or parathreads.
+- **PVF:** Parachain Validation Function. The validation code that is run by validators on parachains.
 - **PVF Prechecking:** This is the process of initially checking the PVF when it is first added. We attempt preparation of the PVF and make sure it succeeds within a given timeout, plus some additional checks.
 - **PVF Preparation:** This is the process of preparing the WASM blob and includes both prevalidation and compilation. As there is no prevalidation right now, preparation just consists of compilation.
 - **Relay Parent:** A block in the relay chain, referred to in a context where work is being done in the context of the state at this block.
