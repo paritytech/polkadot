@@ -169,8 +169,8 @@ zombienet-tests-parachains-max-tranche0-approvals:
   needs:
     - job: publish-polkadot-debug-image
     - job: publish-test-collators-image
-    - job: publish-malus-image
   variables:
+    RUN_IN_CONTAINER: "1"
     GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
     - echo "Zombie-net Tests Config"
