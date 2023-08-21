@@ -657,9 +657,9 @@ impl<T: Config> Pallet<T> {
 	/// Swap a lease holding parachain and parathread (on-demand parachain), which involves
 	/// scheduling an appropriate lifecycle update.
 	fn do_thread_and_chain_swap(to_downgrade: ParaId, to_upgrade: ParaId) {
-		let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(to_downgrade);
+		let res1 = Pallet::<T>::make_parathread(to_downgrade);
 		debug_assert!(res1.is_ok());
-		let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(to_upgrade);
+		let res2 = Pallet::<T>::make_parachain(to_upgrade);
 		debug_assert!(res2.is_ok());
 		T::OnSwap::on_swap(to_upgrade, to_downgrade);
 	}
