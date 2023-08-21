@@ -121,6 +121,10 @@ sp_api::impl_runtime_apis! {
 			unimplemented!()
 		}
 
+		fn minimum_backing_votes() -> u32 {
+			unimplemented!()
+		}
+
 		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
 			unimplemented!()
 		}

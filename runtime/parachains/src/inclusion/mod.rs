@@ -199,17 +199,6 @@ impl<H> Default for ProcessedCandidates<H> {
 	}
 }
 
-/// Number of backing votes we need for a valid backing.
-///
-/// WARNING: This check has to be kept in sync with the node side checks.
-pub fn minimum_backing_votes(n_validators: usize) -> usize {
-	// For considerations on this value see:
-	// https://github.com/paritytech/polkadot/pull/1656#issuecomment-999734650
-	// and
-	// https://github.com/paritytech/polkadot/issues/4386
-	sp_std::cmp::min(n_validators, 2)
-}
-
 /// Reads the footprint of queues for a specific origin type.
 pub trait QueueFootprinter {
 	type Origin;
@@ -622,6 +611,7 @@ impl<T: Config> Pallet<T> {
 			return Ok(ProcessedCandidates::default())
 		}
 
+		let minimum_backing_votes = configuration::Pallet::<T>::config().minimum_backing_votes;
 		let validators = shared::Pallet::<T>::active_validator_keys();
 
 		// Collect candidate receipts with backers.
@@ -738,7 +728,11 @@ impl<T: Config> Pallet<T> {
 
 							match maybe_amount_validated {
 								Ok(amount_validated) => ensure!(
-									amount_validated >= minimum_backing_votes(group_vals.len()),
+									amount_validated >=
+										sp_std::cmp::min(
+											group_vals.len(),
+											minimum_backing_votes as usize
+										),
 									Error::<T>::InsufficientBacking,
 								),
 								Err(()) => {

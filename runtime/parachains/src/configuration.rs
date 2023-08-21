@@ -242,6 +242,9 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// This value should be greater than [`paras_availability_period`].
 	pub minimum_validation_upgrade_delay: BlockNumber,
+	/// The minimum number of valid backing statements required to consider a parachain candidate
+	/// backable.
+	pub minimum_backing_votes: u32,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
@@ -292,6 +295,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			on_demand_fee_variability: Perbill::from_percent(3),
 			on_demand_target_queue_utilization: Perbill::from_percent(25),
 			on_demand_ttl: 5u32.into(),
+			minimum_backing_votes: Default::default(),
 		}
 	}
 }

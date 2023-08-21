@@ -40,6 +40,7 @@ const DEFAULT_CACHE_CAP: NonZeroUsize = match NonZeroUsize::new(128) {
 pub(crate) struct RequestResultCache {
 	authorities: LruCache<Hash, Vec<AuthorityDiscoveryId>>,
 	validators: LruCache<Hash, Vec<ValidatorId>>,
+	minimum_backing_votes: LruCache<Hash, u32>,
 	validator_groups: LruCache<Hash, (Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>,
 	availability_cores: LruCache<Hash, Vec<CoreState>>,
 	persisted_validation_data:
@@ -78,6 +79,7 @@ impl Default for RequestResultCache {
 		Self {
 			authorities: LruCache::new(DEFAULT_CACHE_CAP),
 			validators: LruCache::new(DEFAULT_CACHE_CAP),
+			minimum_backing_votes: LruCache::new(DEFAULT_CACHE_CAP),
 			validator_groups: LruCache::new(DEFAULT_CACHE_CAP),
 			availability_cores: LruCache::new(DEFAULT_CACHE_CAP),
 			persisted_validation_data: LruCache::new(DEFAULT_CACHE_CAP),
@@ -129,6 +131,18 @@ impl RequestResultCache {
 
 	pub(crate) fn cache_validators(&mut self, relay_parent: Hash, validators: Vec<ValidatorId>) {
 		self.validators.put(relay_parent, validators);
+	}
+
+	pub(crate) fn minimum_backing_votes(&mut self, relay_parent: &Hash) -> Option<u32> {
+		self.minimum_backing_votes.get(relay_parent).copied()
+	}
+
+	pub(crate) fn cache_minimum_backing_votes(
+		&mut self,
+		relay_parent: Hash,
+		minimum_backing_votes: u32,
+	) {
+		self.minimum_backing_votes.put(relay_parent, minimum_backing_votes);
 	}
 
 	pub(crate) fn validator_groups(
@@ -472,6 +486,7 @@ pub(crate) enum RequestResult {
 	// The structure of each variant is (relay_parent, [params,]*, result)
 	Authorities(Hash, Vec<AuthorityDiscoveryId>),
 	Validators(Hash, Vec<ValidatorId>),
+	MinimumBackingVotes(Hash, u32),
 	ValidatorGroups(Hash, (Vec<Vec<ValidatorIndex>>, GroupRotationInfo)),
 	AvailabilityCores(Hash, Vec<CoreState>),
 	PersistedValidationData(Hash, ParaId, OccupiedCoreAssumption, Option<PersistedValidationData>),

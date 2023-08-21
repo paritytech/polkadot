@@ -240,6 +240,9 @@ sp_api::decl_runtime_apis! {
 			key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
 		) -> Option<()>;
 
+		/// Get the minimum number of backing votes for a parachain candidate.
+		fn minimum_backing_votes() -> u32;
+
 		/***** Asynchronous backing *****/
 
 		/// Returns the state of parachain backing for a given para.

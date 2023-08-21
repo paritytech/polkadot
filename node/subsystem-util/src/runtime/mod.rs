@@ -26,7 +26,9 @@ use sp_core::crypto::ByteArray;
 use sp_keystore::{Keystore, KeystorePtr};
 
 use polkadot_node_subsystem::{
-	errors::RuntimeApiError, messages::RuntimeApiMessage, overseer, SubsystemSender,
+	errors::RuntimeApiError,
+	messages::{RuntimeApiMessage, RuntimeApiRequest},
+	overseer, SubsystemSender,
 };
 use polkadot_primitives::{
 	vstaging, CandidateEvent, CandidateHash, CoreState, EncodeAs, GroupIndex, GroupRotationInfo,
@@ -36,9 +38,9 @@ use polkadot_primitives::{
 };
 
 use crate::{
-	request_availability_cores, request_candidate_events, request_key_ownership_proof,
-	request_on_chain_votes, request_session_index_for_child, request_session_info,
-	request_staging_async_backing_params, request_submit_report_dispute_lost,
+	request_availability_cores, request_candidate_events, request_from_runtime,
+	request_key_ownership_proof, request_on_chain_votes, request_session_index_for_child,
+	request_session_info, request_staging_async_backing_params, request_submit_report_dispute_lost,
 	request_unapplied_slashes, request_validation_code_by_hash, request_validator_groups,
 };
 
@@ -73,6 +75,9 @@ pub struct RuntimeInfo {
 
 	/// Look up cached sessions by `SessionIndex`.
 	session_info_cache: LruCache<SessionIndex, ExtendedSessionInfo>,
+
+	/// Look up minimum validator backing votes threshold by `SessionIndex`.
+	min_backing_votes: LruCache<SessionIndex, u32>,
 
 	/// Key store for determining whether we are a validator and what `ValidatorIndex` we have.
 	keystore: Option<KeystorePtr>,
@@ -120,6 +125,7 @@ impl RuntimeInfo {
 					.max(NonZeroUsize::new(10).expect("10 is larger than 0; qed")),
 			),
 			session_info_cache: LruCache::new(cfg.session_cache_lru_size),
+			min_backing_votes: LruCache::new(cfg.session_cache_lru_size),
 			keystore: cfg.keystore,
 		}
 	}
@@ -157,6 +163,34 @@ impl RuntimeInfo {
 		let session_index = self.get_session_index_for_child(sender, relay_parent).await?;
 
 		self.get_session_info_by_index(sender, relay_parent, session_index).await
+	}
+
+	/// Get minimum_backing_votes by relay parent hash.
+	pub async fn get_min_backing_votes<'a, Sender>(
+		&mut self,
+		sender: &mut Sender,
+		session_index: SessionIndex,
+		relay_parent: Hash,
+	) -> Result<u32>
+	where
+		Sender: SubsystemSender<RuntimeApiMessage>,
+	{
+		if !self.min_backing_votes.contains(&session_index) {
+			let min_votes = recv_runtime(
+				request_from_runtime(relay_parent, sender, |tx| {
+					RuntimeApiRequest::MinimumBackingVotes(tx)
+				})
+				.await,
+			)
+			.await?;
+
+			self.min_backing_votes.put(session_index, min_votes);
+		}
+
+		Ok(*self
+			.min_backing_votes
+			.get(&session_index)
+			.expect("We just put the value there. qed."))
 	}
 
 	/// Get `ExtendedSessionInfo` by session index.

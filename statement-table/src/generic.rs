@@ -57,8 +57,8 @@ pub trait Context {
 	/// Members are meant to submit candidates and vote on validity.
 	fn is_member_of(&self, authority: &Self::AuthorityId, group: &Self::GroupId) -> bool;
 
-	/// requisite number of votes for validity from a group.
-	fn requisite_votes(&self, group: &Self::GroupId) -> usize;
+	/// Get a validator group size.
+	fn get_group_size(&self, group: &Self::GroupId) -> Option<usize>;
 }
 
 /// Table configuration.
@@ -319,9 +319,12 @@ impl<Ctx: Context> Table<Ctx> {
 		&self,
 		digest: &Ctx::Digest,
 		context: &Ctx,
+		minimum_backing_votes: u32,
 	) -> Option<AttestedCandidate<Ctx::GroupId, Ctx::Candidate, Ctx::AuthorityId, Ctx::Signature>> {
 		self.candidate_votes.get(digest).and_then(|data| {
-			let v_threshold = context.requisite_votes(&data.group_id);
+			let v_threshold = context
+				.get_group_size(&data.group_id)
+				.map_or(usize::MAX, |len| std::cmp::min(minimum_backing_votes as usize, len));
 			data.attested(v_threshold)
 		})
 	}
@@ -636,16 +639,13 @@ mod tests {
 			self.authorities.get(authority).map(|v| v == group).unwrap_or(false)
 		}
 
-		fn requisite_votes(&self, id: &GroupId) -> usize {
-			let mut total_validity = 0;
-
-			for validity in self.authorities.values() {
-				if validity == id {
-					total_validity += 1
-				}
+		fn get_group_size(&self, group: &Self::GroupId) -> Option<usize> {
+			let count = self.authorities.values().filter(|g| *g == group).count();
+			if count == 0 {
+				None
+			} else {
+				Some(count)
 			}
-
-			total_validity / 2 + 1
 		}
 	}
 
@@ -910,7 +910,7 @@ mod tests {
 		table.import_statement(&context, statement);
 
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
-		assert!(table.attested_candidate(&candidate_digest, &context).is_none());
+		assert!(table.attested_candidate(&candidate_digest, &context, 2).is_none());
 
 		let vote = SignedStatement {
 			statement: Statement::Valid(candidate_digest),
@@ -920,7 +920,7 @@ mod tests {
 
 		table.import_statement(&context, vote);
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(2)));
-		assert!(table.attested_candidate(&candidate_digest, &context).is_some());
+		assert!(table.attested_candidate(&candidate_digest, &context, 2).is_some());
 	}
 
 	#[test]
