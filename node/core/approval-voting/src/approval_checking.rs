@@ -42,8 +42,8 @@ pub enum RequiredTranches {
 		/// assignments that are before the local time.
 		maximum_broadcast: DelayTranche,
 		/// The clock drift, in ticks, to apply to the local clock when determining whether
-		/// to broadcast an assignment or when to schedule a wakeup. The local clock should be treated
-		/// as though it is `clock_drift` ticks earlier.
+		/// to broadcast an assignment or when to schedule a wakeup. The local clock should be
+		/// treated as though it is `clock_drift` ticks earlier.
 		clock_drift: Tick,
 	},
 	/// An exact number of required tranches and a number of no-shows. This indicates that
@@ -55,8 +55,8 @@ pub enum RequiredTranches {
 		/// The amount of missing votes that should be tolerated.
 		tolerated_missing: usize,
 		/// When the next no-show would be, if any. This is used to schedule the next wakeup in the
-		/// event that there are some assignments that don't have corresponding approval votes. If this
-		/// is `None`, all assignments have approvals.
+		/// event that there are some assignments that don't have corresponding approval votes. If
+		/// this is `None`, all assignments have approvals.
 		next_no_show: Option<Tick>,
 		/// The last tick at which a needed assignment was received.
 		last_assignment_tick: Option<Tick>,

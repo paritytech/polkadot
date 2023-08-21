@@ -9,7 +9,7 @@ Collation generation for Parachains currently works in the following way:
 1.  A new relay chain block is imported.
 2.  The collation generation subsystem checks if the core associated to
     the parachain is free and if yes, continues.
-3.  Collation generation calls our collator callback to generate a PoV.
+3.  Collation generation calls our collator callback, if present, to generate a PoV. If none exists, do nothing.
 4.  Authoring logic determines if the current node should build a PoV.
 5.  Build new PoV and give it back to collation generation.
 
@@ -25,6 +25,10 @@ Collation generation for Parachains currently works in the following way:
   - No more than one initialization message should ever be sent to the collation
     generation subsystem.
   - Sent by a collator to initialize this subsystem.
+- `CollationGenerationMessage::SubmitCollation`
+  - If the subsystem isn't initialized or the relay-parent is too old to be relevant, ignore the message.
+  - Otherwise, use the provided parameters to generate a [`CommittedCandidateReceipt`]
+  - Submit the collation to the collator-protocol with `CollatorProtocolMessage::DistributeCollation`.
 
 ### Outgoing
 
@@ -101,7 +105,7 @@ pub struct CollationGenerationConfig {
   /// Collator's authentication key, so it can sign things.
   pub key: CollatorPair,
   /// Collation function. See [`CollatorFn`] for more details.
-  pub collator: CollatorFn,
+  pub collator: Option<CollatorFn>,
   /// The parachain that this collator collates for
   pub para_id: ParaId,
 }
@@ -136,7 +140,7 @@ The configuration should be optional, to allow for the case where the node is no
 
 - **Collation generation config**
 
-  - Contains collator's authentication key, collator function, and
+  - Contains collator's authentication key, optional collator function, and
     parachain ID.
 
 [CP]: collator-protocol.md

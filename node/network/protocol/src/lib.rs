@@ -91,7 +91,8 @@ impl Into<sc_network::ObservedRole> for ObservedRole {
 
 /// Specialized wrapper around [`View`].
 ///
-/// Besides the access to the view itself, it also gives access to the [`jaeger::Span`] per leave/head.
+/// Besides the access to the view itself, it also gives access to the [`jaeger::Span`] per
+/// leave/head.
 #[derive(Debug, Clone, Default)]
 pub struct OurView {
 	view: View,
@@ -131,7 +132,8 @@ impl std::ops::Deref for OurView {
 	}
 }
 
-/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled [`jaeger::Span`]'s.
+/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled
+/// [`jaeger::Span`]'s.
 ///
 /// NOTE: Use for tests only.
 ///
@@ -293,6 +295,12 @@ impl From<v1::CollationProtocol> for VersionedCollationProtocol {
 	}
 }
 
+impl From<vstaging::CollationProtocol> for VersionedCollationProtocol {
+	fn from(vstaging: vstaging::CollationProtocol) -> Self {
+		VersionedCollationProtocol::VStaging(vstaging)
+	}
+}
+
 macro_rules! impl_versioned_full_protocol_from {
 	($from:ty, $out:ty, $variant:ident) => {
 		impl From<$from> for $out {
@@ -422,56 +430,6 @@ impl_versioned_try_from!(
 	vstaging::CollationProtocol::CollatorProtocol(x) => x
 );
 
-/// A staging version of the validation/collator protocol.
-/// Changes:
-/// - assignment cert type changed, see `IndirectAssignmentCertV2`.
-pub mod vstaging {
-	use parity_scale_codec::{Decode, Encode};
-	use polkadot_node_primitives::approval::{
-		v1::IndirectSignedApprovalVote,
-		v2::{CandidateBitfield, IndirectAssignmentCertV2},
-	};
-
-	// Re-export stuff that has not changed since v1.
-	pub use crate::v1::{
-		declare_signature_payload, BitfieldDistributionMessage, CollationProtocol,
-		CollatorProtocolMessage, GossipSupportNetworkMessage, StatementDistributionMessage,
-		StatementMetadata,
-	};
-
-	/// All network messages on the validation peer-set.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, derive_more::From)]
-	pub enum ValidationProtocol {
-		/// Bitfield distribution messages
-		#[codec(index = 0)]
-		#[from]
-		BitfieldDistribution(BitfieldDistributionMessage),
-		/// Statement distribution messages
-		#[codec(index = 1)]
-		#[from]
-		StatementDistribution(StatementDistributionMessage),
-		/// Approval distribution messages
-		#[codec(index = 2)]
-		#[from]
-		ApprovalDistribution(ApprovalDistributionMessage),
-	}
-
-	/// Network messages used by the approval distribution subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub enum ApprovalDistributionMessage {
-		/// Assignments for candidates in recent, unfinalized blocks.
-		/// We use a bitfield to reference claimed candidates, where the bit index is equal to candidate index.
-		///
-		/// Actually checking the assignment may yield a different result.
-		/// TODO: Look at getting rid of bitfield in the future.
-		#[codec(index = 0)]
-		Assignments(Vec<(IndirectAssignmentCertV2, CandidateBitfield)>),
-		/// Approvals for candidates in some recent, unfinalized block.
-		#[codec(index = 1)]
-		Approvals(Vec<IndirectSignedApprovalVote>),
-	}
-}
-
 /// v1 notification protocol types.
 pub mod v1 {
 	use parity_scale_codec::{Decode, Encode};
@@ -588,6 +546,265 @@ pub mod v1 {
 		/// declared that they are a collator with given ID.
 		#[codec(index = 1)]
 		AdvertiseCollation(Hash),
+		/// A collation sent to a validator was seconded.
+		#[codec(index = 4)]
+		CollationSeconded(Hash, UncheckedSignedFullStatement),
+	}
+
+	/// All network messages on the validation peer-set.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, derive_more::From)]
+	pub enum ValidationProtocol {
+		/// Bitfield distribution messages
+		#[codec(index = 1)]
+		#[from]
+		BitfieldDistribution(BitfieldDistributionMessage),
+		/// Statement distribution messages
+		#[codec(index = 3)]
+		#[from]
+		StatementDistribution(StatementDistributionMessage),
+		/// Approval distribution messages
+		#[codec(index = 4)]
+		#[from]
+		ApprovalDistribution(ApprovalDistributionMessage),
+	}
+
+	/// All network messages on the collation peer-set.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, derive_more::From)]
+	pub enum CollationProtocol {
+		/// Collator protocol messages
+		#[codec(index = 0)]
+		#[from]
+		CollatorProtocol(CollatorProtocolMessage),
+	}
+
+	/// Get the payload that should be signed and included in a `Declare` message.
+	///
+	/// The payload is the local peer id of the node, which serves to prove that it
+	/// controls the collator key it is declaring an intention to collate under.
+	pub fn declare_signature_payload(peer_id: &sc_network::PeerId) -> Vec<u8> {
+		let mut payload = peer_id.to_bytes();
+		payload.extend_from_slice(b"COLL");
+		payload
+	}
+}
+
+/// vstaging network protocol types.
+pub mod vstaging {
+	use bitvec::{order::Lsb0, slice::BitSlice, vec::BitVec};
+	use parity_scale_codec::{Decode, Encode};
+
+	use polkadot_primitives::vstaging::{
+		CandidateHash, CollatorId, CollatorSignature, GroupIndex, Hash, Id as ParaId,
+		UncheckedSignedAvailabilityBitfield, UncheckedSignedStatement,
+	};
+
+	use polkadot_node_primitives::{
+		approval::{
+			v1::IndirectSignedApprovalVote,
+			v2::{CandidateBitfield, IndirectAssignmentCertV2},
+		},
+		UncheckedSignedFullStatement,
+	};
+
+	/// Network messages used by the bitfield distribution subsystem.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub enum BitfieldDistributionMessage {
+		/// A signed availability bitfield for a given relay-parent hash.
+		#[codec(index = 0)]
+		Bitfield(Hash, UncheckedSignedAvailabilityBitfield),
+	}
+
+	/// Bitfields indicating the statements that are known or undesired
+	/// about a candidate.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct StatementFilter {
+		/// Seconded statements. '1' is known or undesired.
+		pub seconded_in_group: BitVec<u8, Lsb0>,
+		/// Valid statements. '1' is known or undesired.
+		pub validated_in_group: BitVec<u8, Lsb0>,
+	}
+
+	impl StatementFilter {
+		/// Create a new blank filter with the given group size.
+		pub fn blank(group_size: usize) -> Self {
+			StatementFilter {
+				seconded_in_group: BitVec::repeat(false, group_size),
+				validated_in_group: BitVec::repeat(false, group_size),
+			}
+		}
+
+		/// Create a new full filter with the given group size.
+		pub fn full(group_size: usize) -> Self {
+			StatementFilter {
+				seconded_in_group: BitVec::repeat(true, group_size),
+				validated_in_group: BitVec::repeat(true, group_size),
+			}
+		}
+
+		/// Whether the filter has a specific expected length, consistent across both
+		/// bitfields.
+		pub fn has_len(&self, len: usize) -> bool {
+			self.seconded_in_group.len() == len && self.validated_in_group.len() == len
+		}
+
+		/// Determine the number of backing validators in the statement filter.
+		pub fn backing_validators(&self) -> usize {
+			self.seconded_in_group
+				.iter()
+				.by_vals()
+				.zip(self.validated_in_group.iter().by_vals())
+				.filter(|&(s, v)| s || v) // no double-counting
+				.count()
+		}
+
+		/// Whether the statement filter has at least one seconded statement.
+		pub fn has_seconded(&self) -> bool {
+			self.seconded_in_group.iter().by_vals().any(|x| x)
+		}
+
+		/// Mask out `Seconded` statements in `self` according to the provided
+		/// bitvec. Bits appearing in `mask` will not appear in `self` afterwards.
+		pub fn mask_seconded(&mut self, mask: &BitSlice<u8, Lsb0>) {
+			for (mut x, mask) in self
+				.seconded_in_group
+				.iter_mut()
+				.zip(mask.iter().by_vals().chain(std::iter::repeat(false)))
+			{
+				// (x, mask) => x
+				// (true, true) => false
+				// (true, false) => true
+				// (false, true) => false
+				// (false, false) => false
+				*x = *x && !mask;
+			}
+		}
+
+		/// Mask out `Valid` statements in `self` according to the provided
+		/// bitvec. Bits appearing in `mask` will not appear in `self` afterwards.
+		pub fn mask_valid(&mut self, mask: &BitSlice<u8, Lsb0>) {
+			for (mut x, mask) in self
+				.validated_in_group
+				.iter_mut()
+				.zip(mask.iter().by_vals().chain(std::iter::repeat(false)))
+			{
+				// (x, mask) => x
+				// (true, true) => false
+				// (true, false) => true
+				// (false, true) => false
+				// (false, false) => false
+				*x = *x && !mask;
+			}
+		}
+	}
+
+	/// A manifest of a known backed candidate, along with a description
+	/// of the statements backing it.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct BackedCandidateManifest {
+		/// The relay-parent of the candidate.
+		pub relay_parent: Hash,
+		/// The hash of the candidate.
+		pub candidate_hash: CandidateHash,
+		/// The group index backing the candidate at the relay-parent.
+		pub group_index: GroupIndex,
+		/// The para ID of the candidate. It is illegal for this to
+		/// be a para ID which is not assigned to the group indicated
+		/// in this manifest.
+		pub para_id: ParaId,
+		/// The head-data corresponding to the candidate.
+		pub parent_head_data_hash: Hash,
+		/// A statement filter which indicates which validators in the
+		/// para's group at the relay-parent have validated this candidate
+		/// and issued statements about it, to the advertiser's knowledge.
+		///
+		/// This MUST have exactly the minimum amount of bytes
+		/// necessary to represent the number of validators in the assigned
+		/// backing group as-of the relay-parent.
+		pub statement_knowledge: StatementFilter,
+	}
+
+	/// An acknowledgement of a backed candidate being known.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct BackedCandidateAcknowledgement {
+		/// The hash of the candidate.
+		pub candidate_hash: CandidateHash,
+		/// A statement filter which indicates which validators in the
+		/// para's group at the relay-parent have validated this candidate
+		/// and issued statements about it, to the advertiser's knowledge.
+		///
+		/// This MUST have exactly the minimum amount of bytes
+		/// necessary to represent the number of validators in the assigned
+		/// backing group as-of the relay-parent.
+		pub statement_knowledge: StatementFilter,
+	}
+
+	/// Network messages used by the statement distribution subsystem.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub enum StatementDistributionMessage {
+		/// A notification of a signed statement in compact form, for a given relay parent.
+		#[codec(index = 0)]
+		Statement(Hash, UncheckedSignedStatement),
+
+		/// A notification of a backed candidate being known by the
+		/// sending node, for the purpose of being requested by the receiving node
+		/// if needed.
+		#[codec(index = 1)]
+		BackedCandidateManifest(BackedCandidateManifest),
+
+		/// A notification of a backed candidate being known by the sending node,
+		/// for the purpose of informing a receiving node which already has the candidate.
+		#[codec(index = 2)]
+		BackedCandidateKnown(BackedCandidateAcknowledgement),
+
+		/// All messages for V1 for compatibility with the statement distribution
+		/// protocol, for relay-parents that don't support asynchronous backing.
+		///
+		/// These are illegal to send to V1 peers, and illegal to send concerning relay-parents
+		/// which support asynchronous backing. This backwards compatibility should be
+		/// considered immediately deprecated and can be removed once the node software
+		/// is not required to support logic from before asynchronous backing anymore.
+		#[codec(index = 255)]
+		V1Compatibility(crate::v1::StatementDistributionMessage),
+	}
+
+	/// Network messages used by the approval distribution subsystem.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub enum ApprovalDistributionMessage {
+		/// Assignments for candidates in recent, unfinalized blocks.
+		/// We use a bitfield to reference claimed candidates, where the bit index is equal to
+		/// candidate index.
+		///
+		/// Actually checking the assignment may yield a different result.
+		/// TODO: Look at getting rid of bitfield in the future.
+		#[codec(index = 0)]
+		Assignments(Vec<(IndirectAssignmentCertV2, CandidateBitfield)>),
+		/// Approvals for candidates in some recent, unfinalized block.
+		#[codec(index = 1)]
+		Approvals(Vec<IndirectSignedApprovalVote>),
+	}
+
+	/// Dummy network message type, so we will receive connect/disconnect events.
+	#[derive(Debug, Clone, PartialEq, Eq)]
+	pub enum GossipSupportNetworkMessage {}
+
+	/// Network messages used by the collator protocol subsystem
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub enum CollatorProtocolMessage {
+		/// Declare the intent to advertise collations under a collator ID, attaching a
+		/// signature of the `PeerId` of the node using the given collator ID key.
+		#[codec(index = 0)]
+		Declare(CollatorId, ParaId, CollatorSignature),
+		/// Advertise a collation to a validator. Can only be sent once the peer has
+		/// declared that they are a collator with given ID.
+		#[codec(index = 1)]
+		AdvertiseCollation {
+			/// Hash of the relay parent advertised collation is based on.
+			relay_parent: Hash,
+			/// Candidate hash.
+			candidate_hash: CandidateHash,
+			/// Parachain head data hash before candidate execution.
+			parent_head_data_hash: Hash,
+		},
 		/// A collation sent to a validator was seconded.
 		#[codec(index = 4)]
 		CollationSeconded(Hash, UncheckedSignedFullStatement),

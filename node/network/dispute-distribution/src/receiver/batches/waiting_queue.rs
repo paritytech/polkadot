@@ -50,8 +50,8 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 
 	/// Push a `PendingWake`.
 	///
-	/// The next call to `wait_ready` will make sure to wake soon enough to process that new event in a
-	/// timely manner.
+	/// The next call to `wait_ready` will make sure to wake soon enough to process that new event
+	/// in a timely manner.
 	pub fn push(&mut self, wake: PendingWake<Payload>) {
 		self.pending_wakes.push(wake);
 		// Reset timer as it is potentially obsolete now:

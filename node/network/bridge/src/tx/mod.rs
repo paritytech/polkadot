@@ -39,7 +39,8 @@ use crate::validator_discovery;
 ///
 /// Defines the `Network` trait with an implementation for an `Arc<NetworkService>`.
 use crate::network::{
-	send_collation_message_v1, send_validation_message_v1, send_validation_message_v2, Network,
+	send_collation_message_v1, send_collation_message_v2, send_validation_message_v1,
+	send_validation_message_v2, Network,
 };
 
 use crate::metrics::Metrics;
@@ -61,7 +62,8 @@ pub struct NetworkBridgeTx<N, AD> {
 }
 
 impl<N, AD> NetworkBridgeTx<N, AD> {
-	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
+	/// Create a new network bridge subsystem with underlying network service and authority
+	/// discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
@@ -248,14 +250,13 @@ where
 					WireMessage::ProtocolMessage(msg),
 					&metrics,
 				),
-				_ => {
-					gum::warn!(
-						target: LOG_TARGET,
-						action = "SendCollationMessages",
-						num_messages = 1usize,
-						"Attempted to send collation message on invalid protocol version. Only v1 supported."
-					);
-				},
+				Versioned::VStaging(msg) => send_collation_message_v2(
+					&mut network_service,
+					peers,
+					peerset_protocol_names,
+					WireMessage::ProtocolMessage(msg),
+					&metrics,
+				),
 			}
 		},
 		NetworkBridgeTxMessage::SendCollationMessages(msgs) => {
@@ -274,11 +275,12 @@ where
 						WireMessage::ProtocolMessage(msg),
 						&metrics,
 					),
-					_ => gum::warn!(
-						target: LOG_TARGET,
-						action = "SendCollationMessages",
-						num_messages = 1usize,
-						"Attempted to send collation message on invalid protocol version"
+					Versioned::VStaging(msg) => send_collation_message_v2(
+						&mut network_service,
+						peers,
+						peerset_protocol_names,
+						WireMessage::ProtocolMessage(msg),
+						&metrics,
 					),
 				}
 			}

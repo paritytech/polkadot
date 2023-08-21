@@ -17,20 +17,22 @@
 use crate::{
 	configuration, inclusion, initializer, paras,
 	paras::ParaKind,
-	paras_inherent::{self},
-	scheduler, session_info, shared,
+	paras_inherent,
+	scheduler::{self, common::AssignmentProviderConfig},
+	session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use primitives::{
-	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
-	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
-	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
-	HeadData, Id as ParaId, IndexedVec, InherentData as ParachainsInherentData,
-	InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext,
-	UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex,
-	ValidityAttestation,
+	collator_signature_payload,
+	v5::{Assignment, ParasEntry},
+	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
+	CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt, CompactStatement,
+	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
+	Id as ParaId, IndexedVec, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
+	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
+	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -174,7 +176,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		configuration::Pallet::<T>::config().max_validators.unwrap_or(200)
 	}
 
-	/// Maximum number of validators participating in parachains consensus (a.k.a. active validators).
+	/// Maximum number of validators participating in parachains consensus (a.k.a. active
+	/// validators).
 	fn max_validators(&self) -> u32 {
 		self.max_validators.unwrap_or(Self::fallback_max_validators())
 	}
@@ -186,8 +189,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self
 	}
 
-	/// Maximum number of validators per core (a.k.a. max validators per group). This value is used if none is
-	/// explicitly set on the builder.
+	/// Maximum number of validators per core (a.k.a. max validators per group). This value is used
+	/// if none is explicitly set on the builder.
 	pub(crate) fn fallback_max_validators_per_core() -> u32 {
 		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
 	}
@@ -376,8 +379,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	fn signing_context(&self) -> SigningContext<T::Hash> {
 		SigningContext {
-			parent_hash: Self::header(self.block_number.clone()).hash(),
-			session_index: self.session.clone(),
+			parent_hash: Self::header(self.block_number).hash(),
+			session_index: self.session,
 		}
 	}
 
@@ -407,7 +410,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		}
 
 		let block_number = BlockNumberFor::<T>::from(block);
-		let header = Self::header(block_number.clone());
+		let header = Self::header(block_number);
 
 		frame_system::Pallet::<T>::reset_events();
 		frame_system::Pallet::<T>::initialize(
@@ -463,13 +466,13 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		for (seed, _) in concluding_cores.iter() {
 			// make sure the candidates that will be concluding are marked as pending availability.
-			let (para_id, core_idx, group_idx) = self.create_indexes(seed.clone());
+			let (para_id, core_idx, group_idx) = self.create_indexes(*seed);
 			Self::add_availability(
 				para_id,
 				core_idx,
 				group_idx,
 				Self::validator_availability_votes_yes(validators.len()),
-				CandidateHash(H256::from(byte32_slice_from(seed.clone()))),
+				CandidateHash(H256::from(byte32_slice_from(*seed))),
 			);
 		}
 
@@ -479,7 +482,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create backed candidates for `cores_with_backed_candidates`. You need these cores to be
 	/// scheduled _within_ paras inherent, which requires marking the available bitfields as fully
 	/// available.
-	/// - `cores_with_backed_candidates` Mapping of `para_id`/`core_idx`/`group_idx` seed to number of
+	/// - `cores_with_backed_candidates` Mapping of `para_id`/`core_idx`/`group_idx` seed to number
+	///   of
 	/// validity votes.
 	fn create_backed_candidates(
 		&self,
@@ -494,11 +498,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.iter()
 			.map(|(seed, num_votes)| {
 				assert!(*num_votes <= validators.len() as u32);
-				let (para_id, _core_idx, group_idx) = self.create_indexes(seed.clone());
+				let (para_id, _core_idx, group_idx) = self.create_indexes(*seed);
 
 				// This generates a pair and adds it to the keystore, returning just the public.
 				let collator_public = CollatorId::generate_pair(None);
-				let header = Self::header(self.block_number.clone());
+				let header = Self::header(self.block_number);
 				let relay_parent = header.hash();
 				let head_data = Self::mock_head_data();
 				let persisted_validation_data_hash = PersistedValidationData::<H256> {
@@ -561,7 +565,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						let public = validators.get(*val_idx).unwrap();
 						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
 							public,
-							CompactStatement::Valid(candidate_hash.clone()),
+							CompactStatement::Valid(candidate_hash),
 							&self.signing_context(),
 							*val_idx,
 						)
@@ -630,14 +634,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						} else {
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
-						let data = dispute_statement.payload_data(candidate_hash.clone(), session);
+						let data = dispute_statement.payload_data(candidate_hash, session);
 						let statement_sig = validator_public.sign(&data).unwrap();
 
 						(dispute_statement, ValidatorIndex(validator_index), statement_sig)
 					})
 					.collect();
 
-				DisputeStatementSet { candidate_hash: candidate_hash.clone(), session, statements }
+				DisputeStatementSet { candidate_hash: candidate_hash, session, statements }
 			})
 			.collect()
 	}
@@ -687,20 +691,29 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		);
 		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), used_cores as usize,);
 
-		// Mark all the used cores as occupied. We expect that their are `backed_and_concluding_cores`
-		// that are pending availability and that there are `used_cores - backed_and_concluding_cores `
-		// which are about to be disputed.
-		scheduler::AvailabilityCores::<T>::set(vec![
-			Some(CoreOccupied::Parachain);
-			used_cores as usize
-		]);
+		// Mark all the used cores as occupied. We expect that there are
+		// `backed_and_concluding_cores` that are pending availability and that there are
+		// `used_cores - backed_and_concluding_cores ` which are about to be disputed.
+		let now = <frame_system::Pallet<T>>::block_number() + One::one();
+		let cores = (0..used_cores)
+			.into_iter()
+			.map(|i| {
+				let AssignmentProviderConfig { ttl, .. } =
+					scheduler::Pallet::<T>::assignment_provider_config(CoreIndex(i));
+				CoreOccupied::Paras(ParasEntry::new(
+					Assignment::new(ParaId::from(i as u32)),
+					now + ttl,
+				))
+			})
+			.collect();
+		scheduler::AvailabilityCores::<T>::set(cores);
 
 		Bench::<T> {
 			data: ParachainsInherentData {
 				bitfields,
 				backed_candidates,
 				disputes,
-				parent_header: Self::header(builder.block_number.clone()),
+				parent_header: Self::header(builder.block_number),
 			},
 			_session: target_session,
 			_block_number: builder.block_number,

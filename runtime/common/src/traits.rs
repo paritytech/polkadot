@@ -31,15 +31,16 @@ pub trait Registrar {
 	/// Report the manager (permissioned owner) of a parachain, if there is one.
 	fn manager_of(id: ParaId) -> Option<Self::AccountId>;
 
-	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
+	/// All lease holding parachains. Ordered ascending by `ParaId`. On-demand
+	/// parachains are not included.
 	fn parachains() -> Vec<ParaId>;
 
-	/// Return if a `ParaId` is a Parachain.
+	/// Return if a `ParaId` is a lease holding Parachain.
 	fn is_parachain(id: ParaId) -> bool {
 		Self::parachains().binary_search(&id).is_ok()
 	}
 
-	/// Return if a `ParaId` is a Parathread.
+	/// Return if a `ParaId` is a Parathread (on-demand parachain).
 	fn is_parathread(id: ParaId) -> bool;
 
 	/// Return if a `ParaId` is registered in the system.
@@ -70,7 +71,7 @@ pub trait Registrar {
 	/// Elevate a para to parachain status.
 	fn make_parachain(id: ParaId) -> DispatchResult;
 
-	/// Lower a para back to normal from parachain status.
+	/// Downgrade lease holding parachain into parathread (on-demand parachain)
 	fn make_parathread(id: ParaId) -> DispatchResult;
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
@@ -80,7 +81,8 @@ pub trait Registrar {
 	fn worst_validation_code() -> ValidationCode;
 
 	/// Execute any pending state transitions for paras.
-	/// For example onboarding to parathread, or parathread to parachain.
+	/// For example onboarding to on-demand parachain, or upgrading on-demand to
+	/// lease holding parachain.
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn execute_pending_transitions();
 }
@@ -113,11 +115,12 @@ pub trait Leaser<BlockNumber> {
 	///
 	/// `leaser` shall have a total of `amount` balance reserved by the implementer of this trait.
 	///
-	/// Note: The implementer of the trait (the leasing system) is expected to do all reserve/unreserve calls. The
-	/// caller of this trait *SHOULD NOT* pre-reserve the deposit (though should ensure that it is reservable).
+	/// Note: The implementer of the trait (the leasing system) is expected to do all
+	/// reserve/unreserve calls. The caller of this trait *SHOULD NOT* pre-reserve the deposit
+	/// (though should ensure that it is reservable).
 	///
-	/// The lease will last from `period_begin` for `period_count` lease periods. It is undefined if the `para`
-	/// already has a slot leased during those periods.
+	/// The lease will last from `period_begin` for `period_count` lease periods. It is undefined if
+	/// the `para` already has a slot leased during those periods.
 	///
 	/// Returns `Err` in the case of an error, and in which case nothing is changed.
 	fn lease_out(
@@ -128,8 +131,8 @@ pub trait Leaser<BlockNumber> {
 		period_count: Self::LeasePeriod,
 	) -> Result<(), LeaseError>;
 
-	/// Return the amount of balance currently held in reserve on `leaser`'s account for leasing `para`. This won't
-	/// go down outside a lease period.
+	/// Return the amount of balance currently held in reserve on `leaser`'s account for leasing
+	/// `para`. This won't go down outside a lease period.
 	fn deposit_held(
 		para: ParaId,
 		leaser: &Self::AccountId,
@@ -147,7 +150,8 @@ pub trait Leaser<BlockNumber> {
 	fn lease_period_index(block: BlockNumber) -> Option<(Self::LeasePeriod, bool)>;
 
 	/// Returns true if the parachain already has a lease in any of lease periods in the inclusive
-	/// range `[first_period, last_period]`, intersected with the unbounded range [`current_lease_period`..] .
+	/// range `[first_period, last_period]`, intersected with the unbounded range
+	/// [`current_lease_period`..] .
 	fn already_leased(
 		para_id: ParaId,
 		first_period: Self::LeasePeriod,
@@ -169,7 +173,8 @@ pub enum AuctionStatus<BlockNumber> {
 	/// will be `EndingPeriod(1, 5)`.
 	EndingPeriod(BlockNumber, BlockNumber),
 	/// We have completed the bidding process and are waiting for the VRF to return some acceptable
-	/// randomness to select the winner. The number represents how many blocks we have been waiting.
+	/// randomness to select the winner. The number represents how many blocks we have been
+	/// waiting.
 	VrfDelay(BlockNumber),
 }
 
@@ -224,9 +229,9 @@ pub trait Auctioneer<BlockNumber> {
 	/// - `last_slot`: The last lease period index of the range to be bid on (inclusive).
 	/// - `amount`: The total amount to be the bid for deposit over the range.
 	///
-	/// The account `Bidder` must have at least `amount` available as a free balance in `Currency`. The
-	/// implementation *MUST* remove or reserve `amount` funds from `bidder` and those funds should be returned
-	/// or freed once the bid is rejected or lease has ended.
+	/// The account `Bidder` must have at least `amount` available as a free balance in `Currency`.
+	/// The implementation *MUST* remove or reserve `amount` funds from `bidder` and those funds
+	/// should be returned or freed once the bid is rejected or lease has ended.
 	fn place_bid(
 		bidder: Self::AccountId,
 		para: ParaId,
@@ -250,7 +255,7 @@ pub trait Auctioneer<BlockNumber> {
 	fn has_won_an_auction(para: ParaId, bidder: &Self::AccountId) -> bool;
 }
 
-/// Runtime hook for when we swap a parachain and parathread.
+/// Runtime hook for when we swap a lease holding parachain and an on-demand parachain.
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 pub trait OnSwap {
 	/// Updates any needed state/references to enact a logical swap of two parachains. Identity,

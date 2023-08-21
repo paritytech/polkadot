@@ -98,7 +98,8 @@ impl PeerSet {
 				max_notification_size,
 				handshake: None,
 				set_config: SetConfig {
-					// Non-authority nodes don't need to accept incoming connections on this peer set:
+					// Non-authority nodes don't need to accept incoming connections on this peer
+					// set:
 					in_peers: if is_authority == IsAuthority::Yes { 100 } else { 0 },
 					out_peers: 0,
 					reserved_nodes: Vec::new(),
@@ -126,7 +127,7 @@ impl PeerSet {
 		#[cfg(feature = "network-protocol-staging")]
 		match self {
 			PeerSet::Validation => ValidationVersion::VStaging.into(),
-			PeerSet::Collation => CollationVersion::V1.into(),
+			PeerSet::Collation => CollationVersion::VStaging.into(),
 		}
 	}
 
@@ -159,6 +160,8 @@ impl PeerSet {
 			PeerSet::Collation =>
 				if version == CollationVersion::V1.into() {
 					Some("collation/1")
+				} else if version == CollationVersion::VStaging.into() {
+					Some("collation/2")
 				} else {
 					None
 				},
@@ -220,7 +223,7 @@ impl From<ProtocolVersion> for u32 {
 pub enum ValidationVersion {
 	/// The first version.
 	V1 = 1,
-	/// The staging version adds `AssignmentsV2` message to approval distribution.
+	/// The staging version.
 	VStaging = 2,
 }
 
@@ -229,6 +232,8 @@ pub enum ValidationVersion {
 pub enum CollationVersion {
 	/// The first version.
 	V1 = 1,
+	/// The staging version.
+	VStaging = 2,
 }
 
 /// Marker indicating the version is unknown.

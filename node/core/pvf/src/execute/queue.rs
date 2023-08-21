@@ -419,7 +419,8 @@ fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
 /// beforehand. In such a way, a race condition is avoided: during the worker being spawned,
 /// another job in the queue, with an incompatible execution environment, may become stale, and
 /// the queue would have to kill a newly started worker and spawn another one.
-/// Nevertheless, if the worker finishes executing the job, it becomes idle and may be used to execute other jobs with a compatible execution environment.
+/// Nevertheless, if the worker finishes executing the job, it becomes idle and may be used to
+/// execute other jobs with a compatible execution environment.
 async fn spawn_worker_task(
 	program_path: PathBuf,
 	job: ExecuteJob,

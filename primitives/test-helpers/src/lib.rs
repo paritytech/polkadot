@@ -17,19 +17,22 @@
 #![forbid(unused_crate_dependencies)]
 #![forbid(unused_extern_crates)]
 
-//! A set of primitive constructors, to aid in crafting meaningful testcase while reducing repetition.
+//! A set of primitive constructors, to aid in crafting meaningful testcase while reducing
+//! repetition.
 //!
 //! Note that `dummy_` prefixed values are meant to be fillers, that should not matter, and will
 //! contain randomness based data.
 use polkadot_primitives::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CollatorId, CollatorSignature,
-	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
-	ValidatorId,
+	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, PersistedValidationData,
+	ValidationCode, ValidationCodeHash, ValidatorId,
 };
 pub use rand;
 use sp_application_crypto::sr25519;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::generic::Digest;
+
+const MAX_POV_SIZE: u32 = 1_000_000;
 
 /// Creates a candidate receipt with filler data.
 pub fn dummy_candidate_receipt<H: AsRef<[u8]>>(relay_parent: H) -> CandidateReceipt<H> {
@@ -144,6 +147,46 @@ pub fn dummy_validator() -> ValidatorId {
 /// Create a meaningless collator signature.
 pub fn dummy_collator_signature() -> CollatorSignature {
 	CollatorSignature::from(sr25519::Signature([0u8; 64]))
+}
+
+/// Create a meaningless persisted validation data.
+pub fn dummy_pvd(parent_head: HeadData, relay_parent_number: u32) -> PersistedValidationData {
+	PersistedValidationData {
+		parent_head,
+		relay_parent_number,
+		max_pov_size: MAX_POV_SIZE,
+		relay_parent_storage_root: dummy_hash(),
+	}
+}
+
+/// Create a meaningless candidate, returning its receipt and PVD.
+pub fn make_candidate(
+	relay_parent_hash: Hash,
+	relay_parent_number: u32,
+	para_id: ParaId,
+	parent_head: HeadData,
+	head_data: HeadData,
+	validation_code_hash: ValidationCodeHash,
+) -> (CommittedCandidateReceipt, PersistedValidationData) {
+	let pvd = dummy_pvd(parent_head, relay_parent_number);
+	let commitments = CandidateCommitments {
+		head_data,
+		horizontal_messages: Default::default(),
+		upward_messages: Default::default(),
+		new_validation_code: None,
+		processed_downward_messages: 0,
+		hrmp_watermark: relay_parent_number,
+	};
+
+	let mut candidate =
+		dummy_candidate_receipt_bad_sig(relay_parent_hash, Some(Default::default()));
+	candidate.commitments_hash = commitments.hash();
+	candidate.descriptor.para_id = para_id;
+	candidate.descriptor.persisted_validation_data_hash = pvd.hash();
+	candidate.descriptor.validation_code_hash = validation_code_hash;
+	let candidate = CommittedCandidateReceipt { descriptor: candidate.descriptor, commitments };
+
+	(candidate, pvd)
 }
 
 /// Create a new candidate descriptor, and apply a valid signature

@@ -40,9 +40,9 @@ impl<AccountId> ConvertLocation<AccountId> for Tuple {
 
 /// A converter `trait` for origin types.
 ///
-/// Can be amalgamated into tuples. If any of the tuple elements returns `Ok(_)`, it short circuits. Else, the `Err(_)`
-/// of the last tuple item is returned. Each intermediate `Err(_)` might return a different `origin` of type `Origin`
-/// which is passed to the next convert item.
+/// Can be amalgamated into tuples. If any of the tuple elements returns `Ok(_)`, it short circuits.
+/// Else, the `Err(_)` of the last tuple item is returned. Each intermediate `Err(_)` might return a
+/// different `origin` of type `Origin` which is passed to the next convert item.
 ///
 /// ```rust
 /// # use xcm::latest::{MultiLocation, Junctions, Junction, OriginKind};

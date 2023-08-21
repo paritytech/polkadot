@@ -1458,8 +1458,8 @@ fn subsystem_accepts_duplicate_assignment() {
 
 		assert_eq!(rx.await, Ok(AssignmentCheckResult::AcceptedDuplicate));
 
-		// Test with multiple assigned cores. This cannot happen in practice, as tranche0 assignments
-		// are sent first, but we should still ensure correct behavior.
+		// Test with multiple assigned cores. This cannot happen in practice, as tranche0
+		// assignments are sent first, but we should still ensure correct behavior.
 		let rx = check_and_import_assignment_v2(
 			&mut virtual_overseer,
 			block_hash,
