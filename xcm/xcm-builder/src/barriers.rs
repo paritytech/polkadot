@@ -72,6 +72,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		);
 
 		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
+		let max_assets_for_buy_execution = 1;
 		// We will read up to 5 instructions. This allows up to 3 `ClearOrigin` instructions. We
 		// allow for more than one since anything beyond the first is a no-op and it's conceivable
 		// that composition of operations might result in more than one being appended.
@@ -79,9 +80,10 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		instructions[..end]
 			.matcher()
 			.match_next_inst(|inst| match inst {
-				ReceiveTeleportedAsset(..) | ReserveAssetDeposited(..) | ClaimAsset { .. } =>
+				ReceiveTeleportedAsset(..) | ReserveAssetDeposited(..) => Ok(()),
+				WithdrawAsset(ref assets) if assets.len() <= max_assets_for_buy_execution => Ok(()),
+				ClaimAsset { ref assets, .. } if assets.len() <= max_assets_for_buy_execution =>
 					Ok(()),
-				WithdrawAsset(ref assets) if assets.len() < 2 => Ok(()),
 				_ => Err(ProcessMessageError::BadFormat),
 			})?
 			.skip_inst_while(|inst| matches!(inst, ClearOrigin))?
