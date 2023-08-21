@@ -173,10 +173,10 @@ fn remove_env_vars(debug_id: &'static str) {
 			err_reasons.push("key contains '='");
 		}
 		if key_str.is_some_and(|s| s.contains('\0')) {
-			err_reasons.push("key contains '\0' (null character)");
+			err_reasons.push("key contains null character");
 		}
 		if value_str.is_some_and(|s| s.contains('\0')) {
-			err_reasons.push("value contains '\0' (null character)");
+			err_reasons.push("value contains null character");
 		}
 		if !err_reasons.is_empty() {
 			gum::warn!(
