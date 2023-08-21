@@ -1,7 +1,7 @@
 # Candidate Types
 
 Para candidates are some of the most common types, both within the runtime and on the Node-side.
-Candidates are the fundamental datatype for advancing parachains and parathreads, encapsulating the collator's signature, the context of the parablock, the commitments to the output, and a commitment to the data which proves it valid.
+Candidates are the fundamental datatype for advancing parachains, encapsulating the collator's signature, the context of the parablock, the commitments to the output, and a commitment to the data which proves it valid.
 
 In a way, this entire guide is about these candidates: how they are scheduled, constructed, backed, included, and challenged.
 
@@ -142,7 +142,7 @@ struct PersistedValidationData {
 
 ## `HeadData`
 
-Head data is a type-safe abstraction around bytes (`Vec<u8>`) for the purposes of representing heads of parachains or parathreads.
+Head data is a type-safe abstraction around bytes (`Vec<u8>`) for the purposes of representing heads of parachains.
 
 ```rust
 struct HeadData(Vec<u8>);
@@ -150,7 +150,7 @@ struct HeadData(Vec<u8>);
 
 ## Candidate Commitments
 
-The execution and validation of parachain or parathread candidates produces a number of values which either must be committed to on the relay chain or committed to the state of the relay chain.
+The execution and validation of parachain candidates produces a number of values which either must be committed to blocks on the relay chain or committed to the state of the relay chain.
 
 ```rust
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.

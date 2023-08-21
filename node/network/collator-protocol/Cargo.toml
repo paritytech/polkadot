@@ -6,7 +6,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-always-assert = "0.1.2"
 bitvec = { version = "1.0.1", default-features = false, features = ["alloc"] }
 futures = "0.3.21"
 futures-timer = "3"
@@ -23,6 +22,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-subsystem = {path = "../../subsystem" }
 fatality = "0.0.6"
 thiserror = "1.0.31"
+tokio-util = "0.7.1"
 
 [dev-dependencies]
 log = "0.4.17"
@@ -31,6 +31,7 @@ assert_matches = "1.4.0"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 parity-scale-codec = { version = "3.6.1", features = ["std"] }
 

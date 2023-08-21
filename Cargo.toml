@@ -96,6 +96,7 @@ members = [
 	"node/core/chain-selection",
 	"node/core/dispute-coordinator",
 	"node/core/parachains-inherent",
+	"node/core/prospective-parachains",
 	"node/core/provisioner",
 	"node/core/pvf",
 	"node/core/pvf/common",
@@ -166,7 +167,6 @@ crossbeam-deque = { opt-level = 3 }
 crypto-mac = { opt-level = 3 }
 curve25519-dalek = { opt-level = 3 }
 ed25519-dalek = { opt-level = 3 }
-flate2 = { opt-level = 3 }
 futures-channel = { opt-level = 3 }
 hash-db = { opt-level = 3 }
 hashbrown = { opt-level = 3 }
@@ -227,6 +227,8 @@ fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
 jemalloc-allocator = ["polkadot-node-core-pvf-prepare-worker/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
+network-protocol-staging = ["polkadot-cli/network-protocol-staging"]
+
 # Enables timeout-based tests supposed to be run only in CI environment as they may be flaky
 # when run locally depending on system load
 ci-only-tests = ["polkadot-node-core-pvf/ci-only-tests"]

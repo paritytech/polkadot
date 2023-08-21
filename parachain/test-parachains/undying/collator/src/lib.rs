@@ -33,7 +33,9 @@ use std::{
 	},
 	time::Duration,
 };
-use test_parachain_undying::{execute, hash_state, BlockData, GraveyardState, HeadData};
+use test_parachain_undying::{
+	execute, hash_state, BlockData, GraveyardState, HeadData, StateMismatch,
+};
 
 /// Default PoV size which also drives state size.
 const DEFAULT_POV_SIZE: usize = 1000;
@@ -45,7 +47,7 @@ fn calculate_head_and_state_for_number(
 	number: u64,
 	graveyard_size: usize,
 	pvf_complexity: u32,
-) -> (HeadData, GraveyardState) {
+) -> Result<(HeadData, GraveyardState), StateMismatch> {
 	let index = 0u64;
 	let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
 	let zombies = 0;
@@ -62,13 +64,12 @@ fn calculate_head_and_state_for_number(
 
 	while head.number < number {
 		let block = BlockData { state, tombstones: 1_000, iterations: pvf_complexity };
-		let (new_head, new_state) =
-			execute(head.hash(), head.clone(), block).expect("Produces valid block");
+		let (new_head, new_state) = execute(head.hash(), head.clone(), block)?;
 		head = new_head;
 		state = new_state;
 	}
 
-	(head, state)
+	Ok((head, state))
 }
 
 /// The state of the undying parachain.
@@ -122,39 +123,35 @@ impl State {
 	/// Advance the state and produce a new block based on the given `parent_head`.
 	///
 	/// Returns the new [`BlockData`] and the new [`HeadData`].
-	fn advance(&mut self, parent_head: HeadData) -> (BlockData, HeadData) {
+	fn advance(&mut self, parent_head: HeadData) -> Result<(BlockData, HeadData), StateMismatch> {
 		self.best_block = parent_head.number;
 
-		let state = if let Some(head_data) = self.number_to_head.get(&self.best_block) {
-			self.head_to_state.get(head_data).cloned().unwrap_or_else(|| {
-				calculate_head_and_state_for_number(
-					parent_head.number,
-					self.graveyard_size,
-					self.pvf_complexity,
-				)
-				.1
-			})
+		let state = if let Some(state) = self
+			.number_to_head
+			.get(&self.best_block)
+			.and_then(|head_data| self.head_to_state.get(head_data).cloned())
+		{
+			state
 		} else {
 			let (_, state) = calculate_head_and_state_for_number(
 				parent_head.number,
 				self.graveyard_size,
 				self.pvf_complexity,
-			);
+			)?;
 			state
 		};
 
 		// Start with prev state and transaction to execute (place 1000 tombstones).
 		let block = BlockData { state, tombstones: 1000, iterations: self.pvf_complexity };
 
-		let (new_head, new_state) =
-			execute(parent_head.hash(), parent_head, block.clone()).expect("Produces valid block");
+		let (new_head, new_state) = execute(parent_head.hash(), parent_head, block.clone())?;
 
 		let new_head_arc = Arc::new(new_head.clone());
 
 		self.head_to_state.insert(new_head_arc.clone(), new_state);
 		self.number_to_head.insert(new_head.number, new_head_arc);
 
-		(block, new_head)
+		Ok((block, new_head))
 	}
 }
 
@@ -221,7 +218,8 @@ impl Collator {
 
 	/// Create the collation function.
 	///
-	/// This collation function can be plugged into the overseer to generate collations for the undying parachain.
+	/// This collation function can be plugged into the overseer to generate collations for the
+	/// undying parachain.
 	pub fn create_collation_function(
 		&self,
 		spawner: impl SpawnNamed + Clone + 'static,
@@ -232,10 +230,21 @@ impl Collator {
 		let seconded_collations = self.seconded_collations.clone();
 
 		Box::new(move |relay_parent, validation_data| {
-			let parent = HeadData::decode(&mut &validation_data.parent_head.0[..])
-				.expect("Decodes parent head");
+			let parent = match HeadData::decode(&mut &validation_data.parent_head.0[..]) {
+				Err(err) => {
+					log::error!("Requested to build on top of malformed head-data: {:?}", err);
+					return futures::future::ready(None).boxed()
+				},
+				Ok(p) => p,
+			};
 
-			let (block_data, head_data) = state.lock().unwrap().advance(parent);
+			let (block_data, head_data) = match state.lock().unwrap().advance(parent.clone()) {
+				Err(err) => {
+					log::error!("Unable to build on top of {:?}: {:?}", parent, err);
+					return futures::future::ready(None).boxed()
+				},
+				Ok(x) => x,
+			};
 
 			log::info!(
 				"created a new collation on relay-parent({}): {:?}",
@@ -279,7 +288,6 @@ impl Collator {
 								"Seconded statement should match our collation: {:?}",
 								res.statement.payload()
 							);
-							std::process::exit(-1);
 						}
 
 						seconded_collations.fetch_add(1, Ordering::Relaxed);
@@ -309,8 +317,9 @@ impl Collator {
 
 	/// Wait until `seconded` collations of this collator are seconded by a parachain validator.
 	///
-	/// The internal counter isn't de-duplicating the collations when counting the number of seconded collations. This
-	/// means when one collation is seconded by X validators, we record X seconded messages.
+	/// The internal counter isn't de-duplicating the collations when counting the number of
+	/// seconded collations. This means when one collation is seconded by X validators, we record X
+	/// seconded messages.
 	pub async fn wait_for_seconded_collations(&self, seconded: u32) {
 		let seconded_collations = self.seconded_collations.clone();
 		loop {
@@ -392,10 +401,10 @@ mod tests {
 		let collator = Collator::new(1_000, 1);
 		let graveyard_size = collator.state.lock().unwrap().graveyard_size;
 
-		let mut head = calculate_head_and_state_for_number(10, graveyard_size, 1).0;
+		let mut head = calculate_head_and_state_for_number(10, graveyard_size, 1).unwrap().0;
 
 		for i in 1..10 {
-			head = collator.state.lock().unwrap().advance(head).1;
+			head = collator.state.lock().unwrap().advance(head).unwrap().1;
 			assert_eq!(10 + i, head.number);
 		}
 
@@ -412,7 +421,7 @@ mod tests {
 			.clone();
 
 		for _ in 1..20 {
-			second_head = collator.state.lock().unwrap().advance(second_head.clone()).1;
+			second_head = collator.state.lock().unwrap().advance(second_head.clone()).unwrap().1;
 		}
 
 		assert_eq!(second_head, head);

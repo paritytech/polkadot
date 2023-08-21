@@ -313,8 +313,8 @@ impl Queues {
 		return Self::pop_impl(&mut self.priority)
 	}
 
-	// `pop_best_effort` and `pop_priority` do the same but on different `BTreeMap`s. This function has
-	// the extracted implementation
+	// `pop_best_effort` and `pop_priority` do the same but on different `BTreeMap`s. This function
+	// has the extracted implementation
 	fn pop_impl(
 		target: &mut BTreeMap<CandidateComparator, ParticipationRequest>,
 	) -> Option<(CandidateComparator, ParticipationRequest)> {
@@ -350,9 +350,10 @@ impl Queues {
 #[derive(Copy, Clone)]
 #[cfg_attr(test, derive(Debug))]
 struct CandidateComparator {
-	/// Block number of the relay parent. It's wrapped in an `Option<>` because there are cases when
-	/// it can't be obtained. For example when the node is lagging behind and new leaves are received
-	/// with a slight delay. Candidates with unknown relay parent are treated with the lowest priority.
+	/// Block number of the relay parent. It's wrapped in an `Option<>` because there are cases
+	/// when it can't be obtained. For example when the node is lagging behind and new leaves are
+	/// received with a slight delay. Candidates with unknown relay parent are treated with the
+	/// lowest priority.
 	///
 	/// The order enforced by `CandidateComparator` is important because we want to participate in
 	/// the oldest disputes first.
@@ -365,9 +366,10 @@ struct CandidateComparator {
 	/// that is not stable. If a new fork appears after the fact, we would start ordering the same
 	/// candidate differently, which would result in the same candidate getting queued twice.
 	relay_parent_block_number: Option<BlockNumber>,
-	/// By adding the `CandidateHash`, we can guarantee a unique ordering across candidates with the
-	/// same relay parent block number. Candidates without `relay_parent_block_number` are ordered by
-	/// the `candidate_hash` (and treated with the lowest priority, as already mentioned).
+	/// By adding the `CandidateHash`, we can guarantee a unique ordering across candidates with
+	/// the same relay parent block number. Candidates without `relay_parent_block_number` are
+	/// ordered by the `candidate_hash` (and treated with the lowest priority, as already
+	/// mentioned).
 	candidate_hash: CandidateHash,
 }
 
@@ -383,11 +385,11 @@ impl CandidateComparator {
 	/// Create a candidate comparator for a given candidate.
 	///
 	/// Returns:
-	///	- `Ok(CandidateComparator{Some(relay_parent_block_number), candidate_hash})` when the
+	/// 	- `Ok(CandidateComparator{Some(relay_parent_block_number), candidate_hash})` when the
 	/// 	relay parent can be obtained. This is the happy case.
 	/// - `Ok(CandidateComparator{None, candidate_hash})` in case the candidate's relay parent
 	/// 	can't be obtained.
-	///	- `FatalError` in case the chain API call fails with an unexpected error.
+	/// 	- `FatalError` in case the chain API call fails with an unexpected error.
 	pub async fn new(
 		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
 		candidate: &CandidateReceipt,

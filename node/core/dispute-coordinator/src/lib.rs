@@ -17,12 +17,13 @@
 //! Implements the dispute coordinator subsystem.
 //!
 //! This is the central subsystem of the node-side components which participate in disputes.
-//! This subsystem wraps a database which tracks all statements observed by all validators over some window of sessions.
-//! Votes older than this session window are pruned.
+//! This subsystem wraps a database which tracks all statements observed by all validators over some
+//! window of sessions. Votes older than this session window are pruned.
 //!
-//! This subsystem will be the point which produce dispute votes, either positive or negative, based on locally-observed
-//! validation results as well as a sink for votes received by other subsystems. When importing a dispute vote from
-//! another node, this will trigger dispute participation to recover and validate the block.
+//! This subsystem will be the point which produce dispute votes, either positive or negative, based
+//! on locally-observed validation results as well as a sink for votes received by other subsystems.
+//! When importing a dispute vote from another node, this will trigger dispute participation to
+//! recover and validate the block.
 
 use std::{num::NonZeroUsize, sync::Arc};
 
@@ -92,10 +93,10 @@ mod spam_slots;
 
 /// Handling of participation requests via `Participation`.
 ///
-/// `Participation` provides an API (`Participation::queue_participation`) for queuing of dispute participations and will process those
-/// participation requests, such that most important/urgent disputes will be resolved and processed
-/// first and more importantly it will order requests in a way so disputes will get resolved, even
-/// if there are lots of them.
+/// `Participation` provides an API (`Participation::queue_participation`) for queuing of dispute
+/// participations and will process those participation requests, such that most important/urgent
+/// disputes will be resolved and processed first and more importantly it will order requests in a
+/// way so disputes will get resolved, even if there are lots of them.
 pub(crate) mod participation;
 
 /// Pure processing of vote imports.

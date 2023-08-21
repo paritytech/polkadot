@@ -98,7 +98,8 @@ mod ref_counted_candidates_tests {
 /// Keeps track of scraped candidates. Supports `insert`, `remove_up_to_height` and `contains`
 /// operations.
 pub struct ScrapedCandidates {
-	/// Main data structure which keeps the candidates we know about. `contains` does lookups only here.
+	/// Main data structure which keeps the candidates we know about. `contains` does lookups only
+	/// here.
 	candidates: RefCountedCandidates,
 	/// Keeps track at which block number a candidate was inserted. Used in `remove_up_to_height`.
 	/// Without this tracking we won't be able to remove all candidates before block X.
@@ -117,7 +118,8 @@ impl ScrapedCandidates {
 		self.candidates.contains(candidate_hash)
 	}
 
-	// Removes all candidates up to a given height. The candidates at the block height are NOT removed.
+	// Removes all candidates up to a given height. The candidates at the block height are NOT
+	// removed.
 	pub fn remove_up_to_height(&mut self, height: &BlockNumber) -> HashSet<CandidateHash> {
 		let mut candidates_modified: HashSet<CandidateHash> = HashSet::new();
 		let not_stale = self.candidates_by_block_number.split_off(&height);

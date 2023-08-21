@@ -67,15 +67,15 @@ mod tests;
 
 const LOG_TARGET: &'static str = "parachain::candidate-validation";
 
-/// The amount of time to wait before retrying after a retry-able backing validation error. We use a lower value for the
-/// backing case, to fit within the lower backing timeout.
+/// The amount of time to wait before retrying after a retry-able backing validation error. We use a
+/// lower value for the backing case, to fit within the lower backing timeout.
 #[cfg(not(test))]
 const PVF_BACKING_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(500);
 #[cfg(test)]
 const PVF_BACKING_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
-/// The amount of time to wait before retrying after a retry-able approval validation error. We use a higher value for
-/// the approval case since we have more time, and if we wait longer it is more likely that transient conditions will
-/// resolve.
+/// The amount of time to wait before retrying after a retry-able approval validation error. We use
+/// a higher value for the approval case since we have more time, and if we wait longer it is more
+/// likely that transient conditions will resolve.
 #[cfg(not(test))]
 const PVF_APPROVAL_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(3);
 #[cfg(test)]
@@ -453,9 +453,9 @@ where
 	const ASSUMPTIONS: &[OccupiedCoreAssumption] = &[
 		OccupiedCoreAssumption::Included,
 		OccupiedCoreAssumption::TimedOut,
-		// `TimedOut` and `Free` both don't perform any speculation and therefore should be the same
-		// for our purposes here. In other words, if `TimedOut` matched then the `Free` must be
-		// matched as well.
+		// `TimedOut` and `Free` both don't perform any speculation and therefore should be the
+		// same for our purposes here. In other words, if `TimedOut` matched then the `Free` must
+		// be matched as well.
 	];
 
 	// Consider running these checks in parallel to reduce validation latency.
@@ -484,9 +484,10 @@ where
 		AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
 			Ok(Some((validation_data, validation_code))),
 		AssumptionCheckOutcome::DoesNotMatch => {
-			// If neither the assumption of the occupied core having the para included or the assumption
-			// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
-			// is not based on the relay parent and is thus invalid.
+			// If neither the assumption of the occupied core having the para included or the
+			// assumption of the occupied core timing out are valid, then the
+			// persisted_validation_data_hash in the descriptor is not based on the relay parent and
+			// is thus invalid.
 			Ok(None)
 		},
 		AssumptionCheckOutcome::BadRequest =>
@@ -683,7 +684,8 @@ async fn validate_candidate_exhaustive(
 						"Invalid candidate (commitments hash)"
 					);
 
-					// If validation produced a new set of commitments, we treat the candidate as invalid.
+					// If validation produced a new set of commitments, we treat the candidate as
+					// invalid.
 					Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))
 				} else {
 					Ok(ValidationResult::Valid(outputs, persisted_validation_data))
@@ -723,7 +725,8 @@ trait ValidationBackend {
 			prep_timeout,
 			PrepareJobKind::Compilation,
 		);
-		// We keep track of the total time that has passed and stop retrying if we are taking too long.
+		// We keep track of the total time that has passed and stop retrying if we are taking too
+		// long.
 		let total_time_start = Instant::now();
 
 		let mut validation_result =
@@ -759,8 +762,8 @@ trait ValidationBackend {
 				_ => break,
 			}
 
-			// If we got a possibly transient error, retry once after a brief delay, on the assumption
-			// that the conditions that caused this error may have resolved on their own.
+			// If we got a possibly transient error, retry once after a brief delay, on the
+			// assumption that the conditions that caused this error may have resolved on their own.
 			{
 				// Wait a brief delay before retrying.
 				futures_timer::Delay::new(retry_delay).await;

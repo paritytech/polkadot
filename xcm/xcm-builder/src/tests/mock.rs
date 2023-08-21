@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Mock implementations to test XCM builder configuration types.
+
 use crate::{
 	barriers::{AllowSubscriptionsFrom, RespectSuspension, TrailingSetTopicAsId},
 	test_utils::*,
@@ -42,7 +44,7 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::{prelude::*, Weight};
-use xcm_executor::traits::Properties;
+use xcm_executor::traits::{Properties, QueryHandler, QueryResponseStatus};
 pub use xcm_executor::{
 	traits::{
 		AssetExchange, AssetLock, CheckSuspension, ConvertOrigin, Enact, ExportXcm, FeeManager,
@@ -60,8 +62,8 @@ pub enum TestOrigin {
 
 /// A dummy call.
 ///
-/// Each item contains the amount of weight that it *wants* to consume as the first item, and the actual amount (if
-/// different from the former) in the second option.
+/// Each item contains the amount of weight that it *wants* to consume as the first item, and the
+/// actual amount (if different from the former) in the second option.
 #[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, Copy, scale_info::TypeInfo)]
 pub enum TestCall {
 	OnlyRoot(Weight, Option<Weight>),
@@ -254,7 +256,7 @@ impl TransactAsset for TestAssetTransactor {
 		who: &MultiLocation,
 		_context: &XcmContext,
 	) -> Result<(), XcmError> {
-		add_asset(who.clone(), what.clone());
+		add_asset(*who, what.clone());
 		Ok(())
 	}
 
@@ -410,6 +412,63 @@ pub fn response(query_id: u64) -> Option<Response> {
 	})
 }
 
+/// Mock implementation of the [`QueryHandler`] trait for creating XCM success queries and expecting
+/// responses.
+pub struct TestQueryHandler<T, BlockNumber>(core::marker::PhantomData<(T, BlockNumber)>);
+impl<T: Config, BlockNumber: sp_runtime::traits::Zero> QueryHandler
+	for TestQueryHandler<T, BlockNumber>
+{
+	type QueryId = u64;
+	type BlockNumber = BlockNumber;
+	type Error = XcmError;
+	type UniversalLocation = T::UniversalLocation;
+
+	fn new_query(
+		responder: impl Into<MultiLocation>,
+		_timeout: Self::BlockNumber,
+		_match_querier: impl Into<MultiLocation>,
+	) -> Self::QueryId {
+		let query_id = 1;
+		expect_response(query_id, responder.into());
+		query_id
+	}
+
+	fn report_outcome(
+		message: &mut Xcm<()>,
+		responder: impl Into<MultiLocation>,
+		timeout: Self::BlockNumber,
+	) -> Result<Self::QueryId, Self::Error> {
+		let responder = responder.into();
+		let destination = Self::UniversalLocation::get()
+			.invert_target(&responder)
+			.map_err(|()| XcmError::LocationNotInvertible)?;
+		let query_id = Self::new_query(responder, timeout, Here);
+		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
+		let report_error = Xcm(vec![ReportError(response_info)]);
+		message.0.insert(0, SetAppendix(report_error));
+		Ok(query_id)
+	}
+
+	fn take_response(query_id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber> {
+		QUERIES
+			.with(|q| {
+				q.borrow().get(&query_id).and_then(|v| match v {
+					ResponseSlot::Received(r) => Some(QueryResponseStatus::Ready {
+						response: r.clone(),
+						at: Self::BlockNumber::zero(),
+					}),
+					_ => Some(QueryResponseStatus::NotFound),
+				})
+			})
+			.unwrap_or(QueryResponseStatus::NotFound)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn expect_response(_id: Self::QueryId, _response: xcm::latest::Response) {
+		// Unnecessary since it's only a test implementation
+	}
+}
+
 parameter_types! {
 	pub static ExecutorUniversalLocation: InteriorMultiLocation
 		= (ByGenesis([0; 32]), Parachain(42)).into();
@@ -515,7 +574,7 @@ pub fn disallow_unlock(
 pub fn unlock_allowed(unlocker: &MultiLocation, asset: &MultiAsset, owner: &MultiLocation) -> bool {
 	ALLOWED_UNLOCKS.with(|l| {
 		l.borrow_mut()
-			.get(&(owner.clone(), unlocker.clone()))
+			.get(&(*owner, *unlocker))
 			.map_or(false, |x| x.contains_asset(asset))
 	})
 }
@@ -550,7 +609,7 @@ pub fn request_unlock_allowed(
 ) -> bool {
 	ALLOWED_REQUEST_UNLOCKS.with(|l| {
 		l.borrow_mut()
-			.get(&(owner.clone(), locker.clone()))
+			.get(&(*owner, *locker))
 			.map_or(false, |x| x.contains_asset(asset))
 	})
 }
@@ -560,11 +619,11 @@ impl Enact for TestTicket {
 	fn enact(self) -> Result<(), LockError> {
 		match &self.0 {
 			LockTraceItem::Lock { unlocker, asset, owner } =>
-				allow_unlock(unlocker.clone(), asset.clone(), owner.clone()),
+				allow_unlock(*unlocker, asset.clone(), *owner),
 			LockTraceItem::Unlock { unlocker, asset, owner } =>
-				disallow_unlock(unlocker.clone(), asset.clone(), owner.clone()),
+				disallow_unlock(*unlocker, asset.clone(), *owner),
 			LockTraceItem::Reduce { locker, asset, owner } =>
-				disallow_request_unlock(locker.clone(), asset.clone(), owner.clone()),
+				disallow_request_unlock(*locker, asset.clone(), *owner),
 			_ => {},
 		}
 		LOCK_TRACE.with(move |l| l.borrow_mut().push(self.0));
@@ -583,7 +642,7 @@ impl AssetLock for TestAssetLock {
 		asset: MultiAsset,
 		owner: MultiLocation,
 	) -> Result<Self::LockTicket, LockError> {
-		ensure!(assets(owner.clone()).contains_asset(&asset), LockError::AssetNotOwned);
+		ensure!(assets(owner).contains_asset(&asset), LockError::AssetNotOwned);
 		Ok(TestTicket(LockTraceItem::Lock { unlocker, asset, owner }))
 	}
 
@@ -601,7 +660,7 @@ impl AssetLock for TestAssetLock {
 		asset: MultiAsset,
 		owner: MultiLocation,
 	) -> Result<(), LockError> {
-		allow_request_unlock(locker.clone(), asset.clone(), owner.clone());
+		allow_request_unlock(locker, asset.clone(), owner);
 		let item = LockTraceItem::Note { locker, asset, owner };
 		LOCK_TRACE.with(move |l| l.borrow_mut().push(item));
 		Ok(())

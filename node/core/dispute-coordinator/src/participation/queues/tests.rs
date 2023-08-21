@@ -44,7 +44,7 @@ fn make_dummy_comparator(
 fn clone_request(request: &ParticipationRequest) -> ParticipationRequest {
 	ParticipationRequest {
 		candidate_receipt: request.candidate_receipt.clone(),
-		candidate_hash: request.candidate_hash.clone(),
+		candidate_hash: request.candidate_hash,
 		session: request.session,
 		executor_params: request.executor_params.clone(),
 		request_timer: None,
@@ -54,8 +54,8 @@ fn clone_request(request: &ParticipationRequest) -> ParticipationRequest {
 /// Check that dequeuing acknowledges order.
 ///
 /// Any priority item will be dequeued before any best effort items, priority and best effort with
-/// known parent block number items will be processed in order. Best effort items without known parent
-/// block number should be treated with lowest priority.
+/// known parent block number items will be processed in order. Best effort items without known
+/// parent block number should be treated with lowest priority.
 #[test]
 fn ordering_works_as_expected() {
 	let metrics = Metrics::default();

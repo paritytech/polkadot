@@ -20,7 +20,8 @@
 //! or determining what their validator ID is. These common interests are factored into
 //! this module.
 //!
-//! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
+//! This crate also reexports Prometheus metric types which are expected to be implemented by
+//! subsystems.
 
 #![warn(missing_docs)]
 
@@ -42,11 +43,11 @@ use futures::channel::{mpsc, oneshot};
 use parity_scale_codec::Encode;
 
 use polkadot_primitives::{
-	AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreState,
-	EncodeAs, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
-	SigningContext, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	vstaging as vstaging_primitives, AuthorityDiscoveryId, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash,
+	Id as ParaId, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 pub use rand;
 use sp_application_crypto::AppCrypto;
@@ -60,16 +61,23 @@ pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
 pub use determine_new_blocks::determine_new_blocks;
 
-/// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
+/// These reexports are required so that external crates can use the `delegated_subsystem` macro
+/// properly.
 pub mod reexports {
 	pub use polkadot_overseer::gen::{SpawnedSubsystem, Spawner, Subsystem, SubsystemContext};
 }
 
-/// Convenient and efficient runtime info access.
-pub mod runtime;
-
+/// A utility for managing the implicit view of the relay-chain derived from active
+/// leaves and the minimum allowed relay-parents that parachain candidates can have
+/// and be backed in those leaves' children.
+pub mod backing_implicit_view;
 /// Database trait for subsystem.
 pub mod database;
+/// An emulator for node-side code to predict the results of on-chain parachain inclusion
+/// and predict future constraints.
+pub mod inclusion_emulator;
+/// Convenient and efficient runtime info access.
+pub mod runtime;
 
 /// Nested message sending
 ///
@@ -198,6 +206,7 @@ macro_rules! specialize_requests {
 }
 
 specialize_requests! {
+	fn request_runtime_api_version() -> u32; Version;
 	fn request_authorities() -> Vec<AuthorityDiscoveryId>; Authorities;
 	fn request_validators() -> Vec<ValidatorId>; Validators;
 	fn request_validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
@@ -217,6 +226,8 @@ specialize_requests! {
 	fn request_unapplied_slashes() -> Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)>; UnappliedSlashes;
 	fn request_key_ownership_proof(validator_id: ValidatorId) -> Option<slashing::OpaqueKeyOwnershipProof>; KeyOwnershipProof;
 	fn request_submit_report_dispute_lost(dp: slashing::DisputeProof, okop: slashing::OpaqueKeyOwnershipProof) -> Option<()>; SubmitReportDisputeLost;
+
+	fn request_staging_async_backing_params() -> vstaging_primitives::AsyncBackingParams; StagingAsyncBackingParams;
 }
 
 /// Requests executor parameters from the runtime effective at given relay-parent. First obtains
@@ -268,17 +279,20 @@ pub async fn executor_params_at_relay_parent(
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub fn signing_key(validators: &[ValidatorId], keystore: &KeystorePtr) -> Option<ValidatorId> {
+pub fn signing_key<'a>(
+	validators: impl IntoIterator<Item = &'a ValidatorId>,
+	keystore: &KeystorePtr,
+) -> Option<ValidatorId> {
 	signing_key_and_index(validators, keystore).map(|(k, _)| k)
 }
 
 /// From the given set of validators, find the first key we can sign with, if any, and return it
 /// along with the validator index.
-pub fn signing_key_and_index(
-	validators: &[ValidatorId],
+pub fn signing_key_and_index<'a>(
+	validators: impl IntoIterator<Item = &'a ValidatorId>,
 	keystore: &KeystorePtr,
 ) -> Option<(ValidatorId, ValidatorIndex)> {
-	for (i, v) in validators.iter().enumerate() {
+	for (i, v) in validators.into_iter().enumerate() {
 		if keystore.has_keys(&[(v.to_raw_vec(), ValidatorId::ID)]) {
 			return Some((v.clone(), ValidatorIndex(i as _)))
 		}
@@ -367,7 +381,8 @@ pub struct Validator {
 }
 
 impl Validator {
-	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
+	/// Get a struct representing this node's validator if this node is in fact a validator in the
+	/// context of the given block.
 	pub async fn new<S>(parent: Hash, keystore: KeystorePtr, sender: &mut S) -> Result<Self, Error>
 	where
 		S: SubsystemSender<RuntimeApiMessage>,

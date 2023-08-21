@@ -23,10 +23,12 @@
 //! This pallet should not be used on a production relay chain,
 //! only on a test relay chain (e.g. Rococo).
 
+pub mod benchmarking;
+pub mod migration;
+
 use crate::{
-	slots::{self, Pallet as Slots, WeightInfo},
+	slots::{self, Pallet as Slots, WeightInfo as SlotsWeightInfo},
 	traits::{LeaseError, Leaser, Registrar},
-	MAXIMUM_BLOCK_WEIGHT,
 };
 use frame_support::{pallet_prelude::*, traits::Currency};
 use frame_system::pallet_prelude::*;
@@ -40,6 +42,8 @@ use runtime_parachains::{
 use scale_info::TypeInfo;
 use sp_runtime::traits::{One, Saturating, Zero};
 use sp_std::prelude::*;
+
+const LOG_TARGET: &str = "runtime::assigned_slots";
 
 /// Lease period an assigned slot should start from (current, or next one).
 #[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug, TypeInfo)]
@@ -67,6 +71,33 @@ pub struct ParachainTemporarySlot<AccountId, LeasePeriod> {
 	pub lease_count: u32,
 }
 
+pub trait WeightInfo {
+	fn assign_perm_parachain_slot() -> Weight;
+	fn assign_temp_parachain_slot() -> Weight;
+	fn unassign_parachain_slot() -> Weight;
+	fn set_max_permanent_slots() -> Weight;
+	fn set_max_temporary_slots() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn assign_perm_parachain_slot() -> Weight {
+		Weight::zero()
+	}
+	fn assign_temp_parachain_slot() -> Weight {
+		Weight::zero()
+	}
+	fn unassign_parachain_slot() -> Weight {
+		Weight::zero()
+	}
+	fn set_max_permanent_slots() -> Weight {
+		Weight::zero()
+	}
+	fn set_max_temporary_slots() -> Weight {
+		Weight::zero()
+	}
+}
+
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
@@ -76,7 +107,11 @@ type LeasePeriodOf<T> = <<T as Config>::Leaser as Leaser<BlockNumberFor<T>>>::Le
 pub mod pallet {
 	use super::*;
 
+	/// The current storage version.
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 	#[pallet::pallet]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -103,17 +138,12 @@ pub mod pallet {
 		#[pallet::constant]
 		type TemporarySlotLeasePeriodLength: Get<u32>;
 
-		/// The max number of permanent slots that can be assigned.
-		#[pallet::constant]
-		type MaxPermanentSlots: Get<u32>;
-
-		/// The max number of temporary slots that can be assigned.
-		#[pallet::constant]
-		type MaxTemporarySlots: Get<u32>;
-
 		/// The max number of temporary slots to be scheduled per lease periods.
 		#[pallet::constant]
 		type MaxTemporarySlotPerLeasePeriod: Get<u32>;
+
+		/// Weight Information for the Extrinsics in the Pallet
+		type WeightInfo: WeightInfo;
 	}
 
 	/// Assigned permanent slots, with their start lease period, and duration.
@@ -148,24 +178,54 @@ pub mod pallet {
 	#[pallet::getter(fn active_temporary_slot_count)]
 	pub type ActiveTemporarySlotCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+	///  The max number of temporary slots that can be assigned.
+	#[pallet::storage]
+	pub type MaxTemporarySlots<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+	/// The max number of permanent slots that can be assigned.
+	#[pallet::storage]
+	pub type MaxPermanentSlots<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+	#[pallet::genesis_config]
+	#[derive(frame_support::DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		pub max_temporary_slots: u32,
+		pub max_permanent_slots: u32,
+		pub _config: PhantomData<T>,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			<MaxPermanentSlots<T>>::put(&self.max_permanent_slots);
+			<MaxTemporarySlots<T>>::put(&self.max_temporary_slots);
+		}
+	}
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A para was assigned a permanent parachain slot
+		/// A parachain was assigned a permanent parachain slot
 		PermanentSlotAssigned(ParaId),
-		/// A para was assigned a temporary parachain slot
+		/// A parachain was assigned a temporary parachain slot
 		TemporarySlotAssigned(ParaId),
+		/// The maximum number of permanent slots has been changed
+		MaxPermanentSlotsChanged { slots: u32 },
+		/// The maximum number of temporary slots has been changed
+		MaxTemporarySlotsChanged { slots: u32 },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The specified parachain or parathread is not registered.
+		/// The specified parachain is not registered.
 		ParaDoesntExist,
-		/// Not a parathread.
+		/// Not a parathread (on-demand parachain).
 		NotParathread,
-		/// Cannot upgrade parathread.
+		/// Cannot upgrade on-demand parachain to lease holding
+		/// parachain.
 		CannotUpgrade,
-		/// Cannot downgrade parachain.
+		/// Cannot downgrade lease holding parachain to
+		/// on-demand.
 		CannotDowngrade,
 		/// Permanent or Temporary slot already assigned.
 		SlotAlreadyAssigned,
@@ -173,9 +233,9 @@ pub mod pallet {
 		SlotNotAssigned,
 		/// An ongoing lease already exists.
 		OngoingLeaseExists,
-		// Maximum number of permanent slots exceeded
+		// The maximum number of permanent slots exceeded
 		MaxPermanentSlotsExceeded,
-		// Maximum number of temporary slots exceeded
+		// The maximum number of temporary slots exceeded
 		MaxTemporarySlotsExceeded,
 	}
 
@@ -196,16 +256,15 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		// TODO: Benchmark this
 		/// Assign a permanent parachain slot and immediately create a lease for it.
 		#[pallet::call_index(0)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight((<T as Config>::WeightInfo::assign_perm_parachain_slot(), DispatchClass::Operational))]
 		pub fn assign_perm_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			T::AssignSlotOrigin::ensure_origin(origin)?;
 
 			let manager = T::Registrar::manager_of(id).ok_or(Error::<T>::ParaDoesntExist)?;
 
-			ensure!(T::Registrar::is_parathread(id), Error::<T>::NotParathread,);
+			ensure!(T::Registrar::is_parathread(id), Error::<T>::NotParathread);
 
 			ensure!(
 				!Self::has_permanent_slot(id) && !Self::has_temporary_slot(id),
@@ -227,7 +286,7 @@ pub mod pallet {
 			);
 
 			ensure!(
-				PermanentSlotCount::<T>::get() < T::MaxPermanentSlots::get(),
+				PermanentSlotCount::<T>::get() < MaxPermanentSlots::<T>::get(),
 				Error::<T>::MaxPermanentSlotsExceeded
 			);
 
@@ -253,12 +312,11 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// TODO: Benchmark this
 		/// Assign a temporary parachain slot. The function tries to create a lease for it
 		/// immediately if `SlotLeasePeriodStart::Current` is specified, and if the number
 		/// of currently active temporary slots is below `MaxTemporarySlotPerLeasePeriod`.
 		#[pallet::call_index(1)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight((<T as Config>::WeightInfo::assign_temp_parachain_slot(), DispatchClass::Operational))]
 		pub fn assign_temp_parachain_slot(
 			origin: OriginFor<T>,
 			id: ParaId,
@@ -290,7 +348,7 @@ pub mod pallet {
 			);
 
 			ensure!(
-				TemporarySlotCount::<T>::get() < T::MaxTemporarySlots::get(),
+				TemporarySlotCount::<T>::get() < MaxTemporarySlots::<T>::get(),
 				Error::<T>::MaxTemporarySlotsExceeded
 			);
 
@@ -322,10 +380,14 @@ pub mod pallet {
 					},
 					Err(err) => {
 						// Treat failed lease creation as warning .. slot will be allocated a lease
-						// in a subsequent lease period by the `allocate_temporary_slot_leases` function.
-						log::warn!(target: "assigned_slots",
+						// in a subsequent lease period by the `allocate_temporary_slot_leases`
+						// function.
+						log::warn!(
+							target: LOG_TARGET,
 							"Failed to allocate a temp slot for para {:?} at period {:?}: {:?}",
-							id, current_lease_period, err
+							id,
+							current_lease_period,
+							err
 						);
 					},
 				}
@@ -339,10 +401,9 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// TODO: Benchmark this
 		/// Unassign a permanent or temporary parachain slot
 		#[pallet::call_index(2)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight((<T as Config>::WeightInfo::unassign_parachain_slot(), DispatchClass::Operational))]
 		pub fn unassign_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			T::AssignSlotOrigin::ensure_origin(origin.clone())?;
 
@@ -370,19 +431,46 @@ pub mod pallet {
 				}
 			}
 
-			// Force downgrade to parathread (if needed) before end of lease period
+			// Force downgrade to on-demand parachain (if needed) before end of lease period
 			if is_parachain {
 				if let Err(err) = runtime_parachains::schedule_parachain_downgrade::<T>(id) {
 					// Treat failed downgrade as warning .. slot lease has been cleared,
 					// so the parachain will be downgraded anyway by the slots pallet
 					// at the end of the lease period .
-					log::warn!(target: "assigned_slots",
+					log::warn!(
+						target: LOG_TARGET,
 						"Failed to downgrade parachain {:?} at period {:?}: {:?}",
-						id, Self::current_lease_period_index(), err
+						id,
+						Self::current_lease_period_index(),
+						err
 					);
 				}
 			}
 
+			Ok(())
+		}
+
+		/// Sets the storage value [`MaxPermanentSlots`].
+		#[pallet::call_index(3)]
+		#[pallet::weight((<T as Config>::WeightInfo::set_max_permanent_slots(), DispatchClass::Operational))]
+		pub fn set_max_permanent_slots(origin: OriginFor<T>, slots: u32) -> DispatchResult {
+			ensure_root(origin)?;
+
+			<MaxPermanentSlots<T>>::put(slots);
+
+			Self::deposit_event(Event::<T>::MaxPermanentSlotsChanged { slots });
+			Ok(())
+		}
+
+		/// Sets the storage value [`MaxTemporarySlots`].
+		#[pallet::call_index(4)]
+		#[pallet::weight((<T as Config>::WeightInfo::set_max_temporary_slots(), DispatchClass::Operational))]
+		pub fn set_max_temporary_slots(origin: OriginFor<T>, slots: u32) -> DispatchResult {
+			ensure_root(origin)?;
+
+			<MaxTemporarySlots<T>>::put(slots);
+
+			Self::deposit_event(Event::<T>::MaxTemporarySlotsChanged { slots });
 			Ok(())
 		}
 	}
@@ -398,7 +486,8 @@ impl<T: Config> Pallet<T> {
 	/// total number of lease (lower first), and then when they last a turn (older ones first).
 	/// If any remaining ex-aequo, we just take the para ID in ascending order as discriminator.
 	///
-	/// Assigned slots with a `period_begin` bigger than current lease period are not considered (yet).
+	/// Assigned slots with a `period_begin` bigger than current lease period are not considered
+	/// (yet).
 	///
 	/// The function will call out to `Leaser::lease_out` to create the appropriate slot leases.
 	fn allocate_temporary_slot_leases(lease_period_index: LeasePeriodOf<T>) -> DispatchResult {
@@ -506,7 +595,7 @@ impl<T: Config> Pallet<T> {
 		TemporarySlots::<T>::contains_key(id)
 	}
 
-	/// Returns whether a para is currently a parachain.
+	/// Returns whether a para is currently a lease holding parachain.
 	fn is_parachain(id: ParaId) -> bool {
 		T::Registrar::is_parachain(id)
 	}
@@ -525,11 +614,14 @@ impl<T: Config> Pallet<T> {
 
 	/// Handles start of a lease period.
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) -> Weight {
-		// Note: leases that have ended in previous lease period, should have been cleaned in slots pallet.
+		// Note: leases that have ended in previous lease period, should have been cleaned in slots
+		// pallet.
 		if let Err(err) = Self::allocate_temporary_slot_leases(lease_period_index) {
-			log::error!(target: "assigned_slots",
+			log::error!(
+				target: LOG_TARGET,
 				"Allocating slots failed for lease period {:?}, with: {:?}",
-				lease_period_index, err
+				lease_period_index,
+				err
 			);
 		}
 		<T as slots::Config>::WeightInfo::force_lease() *
@@ -670,8 +762,6 @@ mod tests {
 	parameter_types! {
 		pub const PermanentSlotLeasePeriodLength: u32 = 3;
 		pub const TemporarySlotLeasePeriodLength: u32 = 2;
-		pub const MaxPermanentSlots: u32 = 2;
-		pub const MaxTemporarySlots: u32 = 6;
 		pub const MaxTemporarySlotPerLeasePeriod: u32 = 2;
 	}
 
@@ -681,9 +771,8 @@ mod tests {
 		type Leaser = Slots;
 		type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
 		type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
-		type MaxPermanentSlots = MaxPermanentSlots;
-		type MaxTemporarySlots = MaxTemporarySlots;
 		type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
+		type WeightInfo = crate::assigned_slots::TestWeightInfo;
 	}
 
 	// This function basically just builds a genesis storage key/value store according to
@@ -695,6 +784,15 @@ mod tests {
 		}
 		.assimilate_storage(&mut t)
 		.unwrap();
+
+		crate::assigned_slots::GenesisConfig::<Test> {
+			max_temporary_slots: 6,
+			max_permanent_slots: 2,
+			_config: Default::default(),
+		}
+		.assimilate_storage(&mut t)
+		.unwrap();
+
 		t.into()
 	}
 
@@ -893,7 +991,8 @@ mod tests {
 				ParaId::from(1_u32),
 			));
 
-			// Para is a parachain for PermanentSlotLeasePeriodLength * LeasePeriod blocks
+			// Para is a lease holding parachain for PermanentSlotLeasePeriodLength * LeasePeriod
+			// blocks
 			while block < 9 {
 				println!("block #{}", block);
 
@@ -909,7 +1008,7 @@ mod tests {
 				run_to_block(block);
 			}
 
-			// Para lease ended, downgraded back to parathread
+			// Para lease ended, downgraded back to parathread (on-demand parachain)
 			assert_eq!(TestRegistrar::<Test>::is_parathread(ParaId::from(1_u32)), true);
 			assert_eq!(Slots::already_leased(ParaId::from(1_u32), 0, 5), false);
 		});
@@ -1076,7 +1175,8 @@ mod tests {
 			assert_eq!(AssignedSlots::active_temporary_slot_count(), 1);
 
 			// Block 1-5
-			// Para is a parachain for TemporarySlotLeasePeriodLength * LeasePeriod blocks
+			// Para is a lease holding parachain for TemporarySlotLeasePeriodLength * LeasePeriod
+			// blocks
 			while block < 6 {
 				println!("block #{}", block);
 				println!("lease period #{}", AssignedSlots::current_lease_period_index());
@@ -1108,7 +1208,7 @@ mod tests {
 			println!("lease period #{}", AssignedSlots::current_lease_period_index());
 			println!("lease {:?}", Slots::lease(ParaId::from(1_u32)));
 
-			// Para lease ended, downgraded back to parathread
+			// Para lease ended, downgraded back to on-demand parachain
 			assert_eq!(TestRegistrar::<Test>::is_parathread(ParaId::from(1_u32)), true);
 			assert_eq!(Slots::already_leased(ParaId::from(1_u32), 0, 3), false);
 			assert_eq!(AssignedSlots::active_temporary_slot_count(), 0);
@@ -1319,6 +1419,49 @@ mod tests {
 			assert_eq!(AssignedSlots::temporary_slots(ParaId::from(1_u32)), None);
 
 			assert_eq!(Slots::already_leased(ParaId::from(1_u32), 0, 1), false);
+		});
+	}
+	#[test]
+	fn set_max_permanent_slots_fails_for_no_root_origin() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_noop!(
+				AssignedSlots::set_max_permanent_slots(RuntimeOrigin::signed(1), 5),
+				BadOrigin
+			);
+		});
+	}
+	#[test]
+	fn set_max_permanent_slots_succeeds() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_eq!(MaxPermanentSlots::<Test>::get(), 2);
+			assert_ok!(AssignedSlots::set_max_permanent_slots(RuntimeOrigin::root(), 10),);
+			assert_eq!(MaxPermanentSlots::<Test>::get(), 10);
+		});
+	}
+
+	#[test]
+	fn set_max_temporary_slots_fails_for_no_root_origin() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_noop!(
+				AssignedSlots::set_max_temporary_slots(RuntimeOrigin::signed(1), 5),
+				BadOrigin
+			);
+		});
+	}
+	#[test]
+	fn set_max_temporary_slots_succeeds() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_eq!(MaxTemporarySlots::<Test>::get(), 6);
+			assert_ok!(AssignedSlots::set_max_temporary_slots(RuntimeOrigin::root(), 12),);
+			assert_eq!(MaxTemporarySlots::<Test>::get(), 12);
 		});
 	}
 }

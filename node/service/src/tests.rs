@@ -87,7 +87,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		None,
 	);
 
-	let target_hash = case_vars.target_block.clone();
+	let target_hash = case_vars.target_block;
 	let selection_process = async move {
 		let best = select_relay_chain
 			.finality_target_with_longest_chain(target_hash, None)
@@ -106,8 +106,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 			let _overseer = test_fut.await;
 		},
 		selection_process,
-	))
-	.1;
+	));
 }
 
 async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
@@ -241,7 +240,7 @@ impl ChainBuilder {
 		builder
 	}
 
-	pub fn add_block<'a>(&'a mut self, hash: Hash, parent_hash: Hash, number: u32) -> &'a mut Self {
+	pub fn add_block(&mut self, hash: Hash, parent_hash: Hash, number: u32) -> &mut Self {
 		assert!(number != 0, "cannot add duplicate genesis block");
 		assert!(hash != Self::GENESIS_HASH, "cannot add block with genesis hash");
 		assert!(
@@ -252,12 +251,7 @@ impl ChainBuilder {
 		self.add_block_inner(hash, parent_hash, number)
 	}
 
-	fn add_block_inner<'a>(
-		&'a mut self,
-		hash: Hash,
-		parent_hash: Hash,
-		number: u32,
-	) -> &'a mut Self {
+	fn add_block_inner(&mut self, hash: Hash, parent_hash: Hash, number: u32) -> &mut Self {
 		let header = ChainBuilder::make_header(parent_hash, number);
 		assert!(
 			self.0.blocks_by_hash.insert(hash, header).is_none(),
@@ -360,7 +354,7 @@ async fn test_skeleton(
 		))
 		=> {
 			assert_eq!(target_block_hash, target_hash, "TestIntegrity: target hashes always match. qed");
-			tx.send(best_chain_containing_block.clone()).unwrap();
+			tx.send(best_chain_containing_block).unwrap();
 		}
 	);
 
@@ -498,8 +492,8 @@ struct CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3 --- 0xA4(!avail) --- 0xA5(!avail)
-///			   \
-///				`- 0xB2
+/// 			   \
+/// 				`- 0xB2
 /// ```
 fn chain_undisputed() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -529,8 +523,8 @@ fn chain_undisputed() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed) --- 0xA4(!avail) --- 0xA5(!avail)
-///			   \
-///				`- 0xB2
+/// 			   \
+/// 				`- 0xB2
 /// ```
 fn chain_0() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -560,8 +554,8 @@ fn chain_0() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2(disputed) --- 0xA3
-///			   \
-///				`- 0xB2 --- 0xB3(!available)
+/// 			   \
+/// 				`- 0xB2 --- 0xB3(!available)
 /// ```
 fn chain_1() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -588,8 +582,8 @@ fn chain_1() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2(disputed) --- 0xA3
-///			   \
-///				`- 0xB2 --- 0xB3
+/// 			   \
+/// 				`- 0xB2 --- 0xB3
 /// ```
 fn chain_2() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -616,8 +610,8 @@ fn chain_2() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed)
-///			   \
-///				`- 0xB2 --- 0xB3
+/// 			   \
+/// 				`- 0xB2 --- 0xB3
 /// ```
 fn chain_3() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -644,10 +638,10 @@ fn chain_3() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed)
-///			   \
-///				`- 0xB2 --- 0xB3
+/// 			   \
+/// 				`- 0xB2 --- 0xB3
 ///
-///	            ? --- NEX(does_not_exist)
+/// 	            ? --- NEX(does_not_exist)
 /// ```
 fn chain_4() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;

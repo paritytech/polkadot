@@ -48,8 +48,8 @@ pub enum ResponderMessage {
 
 /// A fetching task, taking care of fetching large statements via request/response.
 ///
-/// A fetch task does not know about a particular `Statement` instead it just tries fetching a
-/// `CommittedCandidateReceipt` from peers, whether this can be used to re-assemble one ore
+/// A fetch task does not know about a particular `Statement`, instead it just tries fetching a
+/// `CommittedCandidateReceipt` from peers, whether this can be used to re-assemble one or
 /// many `SignedFullStatement`s needs to be verified by the caller.
 pub async fn respond(
 	mut receiver: IncomingRequestReceiver<StatementFetchingRequest>,
@@ -62,8 +62,8 @@ pub async fn respond(
 		//
 		// 1. We want some requesters to have full data fast, rather then lots of them having them
 		//    late, as each requester having the data will help distributing it.
-		// 2. If we take too long, the requests timing out will not yet have had any data sent,
-		//    thus we wasted no bandwidth.
+		// 2. If we take too long, the requests timing out will not yet have had any data sent, thus
+		//    we wasted no bandwidth.
 		// 3. If the queue is full, requestes will get an immediate error instead of running in a
 		//    timeout, thus requesters can immediately try another peer and be faster.
 		//
