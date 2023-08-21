@@ -2115,9 +2115,10 @@ sp_api::impl_runtime_apis! {
 			sp_runtime::RuntimeString,
 		> {
 			use frame_support::traits::WhitelistedStorageKeys;
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey, BenchmarkError};
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, BenchmarkError};
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
+			use sp_storage::TrackedStorageKey;
 			use xcm::latest::prelude::*;
 			use xcm_config::{
 				LocalCheckAccount, LocationConverter, Rockmine, TokenLocation, XcmConfig,
