@@ -214,25 +214,22 @@ impl ApprovalEntry {
 	}
 
 	// Get the assignment certiticate and claimed candidates.
-	pub fn get_assignment(&self) -> (IndirectAssignmentCertV2, CandidateBitfield) {
+	pub fn assignment(&self) -> (IndirectAssignmentCertV2, CandidateBitfield) {
 		(self.assignment.clone(), self.candidates.clone())
 	}
 
 	// Get all approvals for all candidates claimed by the assignment.
-	pub fn get_approvals(&self) -> Vec<IndirectSignedApprovalVote> {
+	pub fn approvals(&self) -> Vec<IndirectSignedApprovalVote> {
 		self.approvals.values().cloned().collect::<Vec<_>>()
 	}
 
 	// Get the approval for a specific candidate index.
-	pub fn get_approval(
-		&self,
-		candidate_index: CandidateIndex,
-	) -> Option<IndirectSignedApprovalVote> {
+	pub fn approval(&self, candidate_index: CandidateIndex) -> Option<IndirectSignedApprovalVote> {
 		self.approvals.get(&candidate_index).cloned()
 	}
 
 	// Get validator index.
-	pub fn get_validator_index(&self) -> ValidatorIndex {
+	pub fn validator_index(&self) -> ValidatorIndex {
 		self.validator_index
 	}
 }
@@ -461,7 +458,7 @@ impl BlockEntry {
 				Some(candidate_entry) => {
 					candidate_entry
 						.messages
-						.entry(entry.get_validator_index())
+						.entry(entry.validator_index())
 						.or_insert(entry.candidates.clone());
 				},
 				None => {
@@ -499,7 +496,7 @@ impl BlockEntry {
 
 	// Returns a mutable reference of `ApprovalEntry` for `candidate_index` from validator
 	// `validator_index`.
-	pub fn get_approval_entry(
+	pub fn approval_entry(
 		&mut self,
 		candidate_index: CandidateIndex,
 		validator_index: ValidatorIndex,
@@ -513,7 +510,7 @@ impl BlockEntry {
 	}
 
 	// Get all approval entries for a given candidate.
-	pub fn get_approval_entries(&self, candidate_index: CandidateIndex) -> Vec<&ApprovalEntry> {
+	pub fn approval_entries(&self, candidate_index: CandidateIndex) -> Vec<&ApprovalEntry> {
 		// Get the keys for fetching `ApprovalEntry` from `self.approval_entries`,
 		let approval_entry_keys = self
 			.candidates
@@ -1545,7 +1542,7 @@ impl State {
 			}
 		}
 
-		let required_routing = match entry.get_approval_entry(candidate_index, validator_index) {
+		let required_routing = match entry.approval_entry(candidate_index, validator_index) {
 			Some(approval_entry) => {
 				// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
 				metrics.on_approval_imported();
@@ -1689,9 +1686,9 @@ impl State {
 			};
 
 			let sigs = block_entry
-				.get_approval_entries(index)
+				.approval_entries(index)
 				.into_iter()
-				.filter_map(|approval_entry| approval_entry.get_approval(index))
+				.filter_map(|approval_entry| approval_entry.approval(index))
 				.map(|approval| (approval.validator, approval.signature))
 				.collect::<HashMap<ValidatorIndex, ValidatorSignature>>();
 			all_sigs.extend(sigs);
@@ -1765,8 +1762,8 @@ impl State {
 						}
 					}
 
-					let assignment_message = approval_entry.get_assignment();
-					let approval_messages = approval_entry.get_approvals();
+					let assignment_message = approval_entry.assignment();
+					let approval_messages = approval_entry.approvals();
 					let (assignment_knowledge, message_kind) =
 						approval_entry.create_assignment_knowledge(block);
 
@@ -2052,7 +2049,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 			let new_required_routing = routing_modifier(
 				&approval_entry.routing_info().required_routing,
 				approval_entry.routing_info().local,
-				&approval_entry.get_validator_index(),
+				&approval_entry.validator_index(),
 			);
 
 			approval_entry.update_required_routing(new_required_routing);
@@ -2061,8 +2058,8 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 				continue
 			}
 
-			let assignment_message = approval_entry.get_assignment();
-			let approval_messages = approval_entry.get_approvals();
+			let assignment_message = approval_entry.assignment();
+			let approval_messages = approval_entry.approvals();
 			let (assignment_knowledge, message_kind) =
 				approval_entry.create_assignment_knowledge(*block_hash);
 
@@ -2229,9 +2226,6 @@ impl ApprovalDistribution {
 				state.handle_new_blocks(ctx, metrics, metas, rng).await;
 			},
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_indices) => {
-				// TODO: Fix warning: `Importing locally an already known assignment` for multiple candidate assignments.
-				// This is due to the fact that we call this on wakeup, and we do have a wakeup for each candidate index, but
-				// a single assignment claiming the candidates.
 				let _span = state
 					.spans
 					.get(&cert.block_hash)
