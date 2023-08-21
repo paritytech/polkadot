@@ -121,19 +121,18 @@ pub fn worker_event_loop<F, Fut>(
 				"Node and worker version mismatch, node needs restarting, forcing shutdown",
 			);
 			kill_parent_node_in_emergency();
-			let err: io::Result<Never> =
-				Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"));
-			gum::debug!(target: LOG_TARGET, %worker_pid, "quitting pvf worker({}): {:?}", debug_id, err);
+			let err = io::Error::new(io::ErrorKind::Unsupported, "Version mismatch");
+			worker_shutdown_message(debug_id, worker_pid, err);
 			return
 		}
 	}
 
 	// Delete all env vars to prevent malicious code from accessing them.
-	for (key, _) in std::env::vars() {
+	for (key, _) in std::env::vars_os() {
 		// TODO: *theoretically* the value (or mere presence) of `RUST_LOG` can be a source of
 		// randomness for malicious code. In the future we can remove it also and log in the host;
 		// see <https://github.com/paritytech/polkadot/issues/7117>.
-		if key != "RUST_LOG" {
+		if key.to_str() != Some("RUST_LOG") {
 			std::env::remove_var(key);
 		}
 	}
@@ -152,12 +151,17 @@ pub fn worker_event_loop<F, Fut>(
 		// It's never `Ok` because it's `Ok(Never)`.
 		.unwrap_err();
 
-	gum::debug!(target: LOG_TARGET, %worker_pid, "quitting pvf worker ({}): {:?}", debug_id, err);
+	worker_shutdown_message(debug_id, worker_pid, err);
 
 	// We don't want tokio to wait for the tasks to finish. We want to bring down the worker as fast
 	// as possible and not wait for stalled validation to finish. This isn't strictly necessary now,
 	// but may be in the future.
 	rt.shutdown_background();
+}
+
+/// Provide a consistent message on worker shutdown.
+fn worker_shutdown_message(debug_id: &'static str, worker_pid: u32, err: io::Error) {
+	gum::debug!(target: LOG_TARGET, %worker_pid, "quitting pvf worker ({}): {:?}", debug_id, err);
 }
 
 /// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
