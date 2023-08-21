@@ -1,4 +1,4 @@
-# Configuration Module
+# Configuration Pallet
 
 This module is responsible for managing all configuration of the parachain host in-flight. It provides a central point for configuration updates to prevent races between configuration changes and parachain-processing logic. Configuration can only change during the session change routine, and as this module handles the session change notification first it provides an invariant that the configuration does not change throughout the entire session. Both the [scheduler](scheduler.md) and [inclusion](inclusion.md) modules rely on this invariant to ensure proper behavior of the scheduler.
 

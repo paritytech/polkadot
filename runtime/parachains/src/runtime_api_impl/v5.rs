@@ -126,7 +126,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, Bl
 		.collect();
 
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
-	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue(now) {
+	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue() {
 		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(primitives::ScheduledCore {
 			para_id: scheduled.paras_entry.para_id(),
 			collator: None,
@@ -221,7 +221,12 @@ pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
 	outputs: primitives::CandidateCommitments,
 ) -> bool {
-	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
+	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
+	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(
+		para_id,
+		relay_parent_number,
+		outputs,
+	)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.

@@ -30,6 +30,7 @@ use polkadot_node_subsystem::{
 
 use polkadot_primitives::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, PersistedValidationData,
+	PvfExecTimeoutKind,
 };
 
 use futures::channel::oneshot;
@@ -46,6 +47,55 @@ pub enum FakeCandidateValidation {
 	BackingValid,
 	ApprovalValid,
 	BackingAndApprovalValid,
+}
+
+impl FakeCandidateValidation {
+	fn misbehaves_valid(&self) -> bool {
+		use FakeCandidateValidation::*;
+
+		match *self {
+			BackingValid | ApprovalValid | BackingAndApprovalValid => true,
+			_ => false,
+		}
+	}
+
+	fn misbehaves_invalid(&self) -> bool {
+		use FakeCandidateValidation::*;
+
+		match *self {
+			BackingInvalid | ApprovalInvalid | BackingAndApprovalInvalid => true,
+			_ => false,
+		}
+	}
+
+	fn includes_backing(&self) -> bool {
+		use FakeCandidateValidation::*;
+
+		match *self {
+			BackingInvalid | BackingAndApprovalInvalid | BackingValid | BackingAndApprovalValid =>
+				true,
+			_ => false,
+		}
+	}
+
+	fn includes_approval(&self) -> bool {
+		use FakeCandidateValidation::*;
+
+		match *self {
+			ApprovalInvalid |
+			BackingAndApprovalInvalid |
+			ApprovalValid |
+			BackingAndApprovalValid => true,
+			_ => false,
+		}
+	}
+
+	fn should_misbehave(&self, timeout: PvfExecTimeoutKind) -> bool {
+		match timeout {
+			PvfExecTimeoutKind::Backing => self.includes_backing(),
+			PvfExecTimeoutKind::Approval => self.includes_approval(),
+		}
+	}
 }
 
 /// Candidate invalidity details
@@ -162,11 +212,20 @@ where
 pub fn create_fake_candidate_commitments(
 	persisted_validation_data: &PersistedValidationData,
 ) -> CandidateCommitments {
+	// Backing rejects candidates which output the same head as the parent,
+	// therefore we must create a new head which is not equal to the parent.
+	let mut head_data = persisted_validation_data.parent_head.clone();
+	if head_data.0.is_empty() {
+		head_data.0.push(0);
+	} else {
+		head_data.0[0] = head_data.0[0].wrapping_add(1);
+	};
+
 	CandidateCommitments {
 		upward_messages: Default::default(),
 		horizontal_messages: Default::default(),
 		new_validation_code: None,
-		head_data: persisted_validation_data.parent_head.clone(),
+		head_data,
 		processed_downward_messages: 0,
 		hrmp_watermark: persisted_validation_data.relay_parent_number,
 	}
@@ -224,8 +283,7 @@ where
 					),
 			} => {
 				match self.fake_validation {
-					FakeCandidateValidation::ApprovalValid |
-					FakeCandidateValidation::BackingAndApprovalValid => {
+					x if x.misbehaves_valid() && x.should_misbehave(timeout) => {
 						// Behave normally if the `PoV` is not known to be malicious.
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
 							return Some(FromOrchestra::Communication {
@@ -278,8 +336,7 @@ where
 							},
 						}
 					},
-					FakeCandidateValidation::ApprovalInvalid |
-					FakeCandidateValidation::BackingAndApprovalInvalid => {
+					x if x.misbehaves_invalid() && x.should_misbehave(timeout) => {
 						// Set the validation result to invalid with probability `p` and trigger a
 						// dispute
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
@@ -342,8 +399,7 @@ where
 					),
 			} => {
 				match self.fake_validation {
-					FakeCandidateValidation::BackingValid |
-					FakeCandidateValidation::BackingAndApprovalValid => {
+					x if x.misbehaves_valid() && x.should_misbehave(timeout) => {
 						// Behave normally if the `PoV` is not known to be malicious.
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
 							return Some(FromOrchestra::Communication {
@@ -385,8 +441,7 @@ where
 							}),
 						}
 					},
-					FakeCandidateValidation::BackingInvalid |
-					FakeCandidateValidation::BackingAndApprovalInvalid => {
+					x if x.misbehaves_invalid() && x.should_misbehave(timeout) => {
 						// Maliciously set the validation result to invalid for a valid candidate
 						// with probability `p`
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());

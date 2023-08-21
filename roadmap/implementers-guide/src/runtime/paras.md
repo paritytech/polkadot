@@ -1,7 +1,7 @@
-# Paras Module
+# Paras Pallet
 
-The Paras module is responsible for storing information on parachains and parathreads. Registered
-parachains and parathreads cannot change except at session boundaries and after at least a full
+The Paras module is responsible for storing information on parachains. Registered
+parachains cannot change except at session boundaries and after at least a full
 session has passed. This is primarily to ensure that the number and meaning of bits required for the
 availability bitfields does not change except at session boundaries.
 
@@ -54,15 +54,15 @@ struct ParaGenesisArgs {
 pub enum ParaLifecycle {
   /// A Para is new and is onboarding.
   Onboarding,
-  /// Para is a Parathread.
+  /// Para is a Parathread (on-demand parachain).
   Parathread,
-  /// Para is a Parachain.
+  /// Para is a lease holding Parachain.
   Parachain,
-  /// Para is a Parathread which is upgrading to a Parachain.
+  /// Para is a Parathread (on-demand Parachain) which is upgrading to a lease holding Parachain.
   UpgradingParathread,
-  /// Para is a Parachain which is downgrading to a Parathread.
+  /// Para is a lease holding Parachain which is downgrading to an on-demand parachain.
   DowngradingParachain,
-  /// Parathread is being offboarded.
+  /// Parathread (on-demand parachain) is being offboarded.
   OutgoingParathread,
   /// Parachain is being offboarded.
   OutgoingParachain,
@@ -102,11 +102,11 @@ struct PvfCheckActiveVoteState {
 
 #### Para Lifecycle
 
-Because the state changes of parachains and parathreads are delayed, we track the specific state of 
+Because the state changes of parachains are delayed, we track the specific state of 
 the para using the `ParaLifecycle` enum.
 
 ```
-None                 Parathread                  Parachain
+None         Parathread (on-demand parachain)    Parachain
  +                        +                          +
  |                        |                          |
  |   (≈2 Session Delay)   |                          |
@@ -148,12 +148,14 @@ use frame_system::pallet_prelude::BlockNumberFor;
 PvfActiveVoteMap: map ValidationCodeHash => PvfCheckActiveVoteState;
 /// The list of all currently active PVF votes. Auxiliary to `PvfActiveVoteMap`.
 PvfActiveVoteList: Vec<ValidationCodeHash>;
-/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
+/// All parachains. Ordered ascending by ParaId. On-demand parachains are not included.
 Parachains: Vec<ParaId>,
 /// The current lifecycle state of all known Para Ids.
 ParaLifecycle: map ParaId => Option<ParaLifecycle>,
 /// The head-data of every registered para.
 Heads: map ParaId => Option<HeadData>;
+/// The context (relay-chain block number) of the most recent parachain head.
+MostRecentContext: map ParaId => BlockNumber;
 /// The validation code hash of every live para.
 CurrentCodeHash: map ParaId => Option<ValidationCodeHash>;
 /// Actual past code hash, indicated by the para id as well as the block number at which it became outdated.
@@ -221,19 +223,17 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
 
 1. Execute all queued actions for paralifecycle changes:
   1. Clean up outgoing paras.
-     1. This means removing the entries under `Heads`, `CurrentCode`, `FutureCodeUpgrades`, and
-        `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and
-        `PastCodePruning` using the outgoing `ParaId` and removed `CurrentCode` value. This is
-        because any outdated validation code must remain available on-chain for a determined amount
+     1. This means removing the entries under `Heads`, `CurrentCode`, `FutureCodeUpgrades`,
+        `FutureCode` and `MostRecentContext`. An according entry should be added to `PastCode`, `PastCodeMeta`, and `PastCodePruning` using the outgoing `ParaId` and removed `CurrentCode` value. This is because any outdated validation code must remain available on-chain for a determined amount
         of blocks, and validation code outdated by de-registering the para is still subject to that
         invariant.
   1. Apply all incoming paras by initializing the `Heads` and `CurrentCode` using the genesis
-     parameters.
+     parameters as well as `MostRecentContext` to `0`.
   1. Amend the `Parachains` list and `ParaLifecycle` to reflect changes in registered parachains.
-  1. Amend the `ParaLifecycle` set to reflect changes in registered parathreads.
-  1. Upgrade all parathreads that should become parachains, updating the `Parachains` list and
+  1. Amend the `ParaLifecycle` set to reflect changes in registered on-demand parachains.
+  1. Upgrade all on-demand parachains that should become lease holding parachains, updating the `Parachains` list and
      `ParaLifecycle`.
-  1. Downgrade all parachains that should become parathreads, updating the `Parachains` list and
+  1. Downgrade all lease holding parachains that should become on-demand parachains, updating the `Parachains` list and
      `ParaLifecycle`.
   1. (Deferred) Return list of outgoing paras to the initializer for use by other modules.
 1. Go over all active PVF pre-checking votes:
@@ -255,22 +255,21 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
 * `schedule_para_initialize(ParaId, ParaGenesisArgs)`: Schedule a para to be initialized at the next
   session. Noop if para is already registered in the system with some `ParaLifecycle`.
 * `schedule_para_cleanup(ParaId)`: Schedule a para to be cleaned up after the next full session.
-* `schedule_parathread_upgrade(ParaId)`: Schedule a parathread to be upgraded to a parachain.
-* `schedule_parachain_downgrade(ParaId)`: Schedule a parachain to be downgraded to a parathread.
+* `schedule_parathread_upgrade(ParaId)`: Schedule a parathread (on-demand parachain) to be upgraded to a parachain.
+* `schedule_parachain_downgrade(ParaId)`: Schedule a parachain to be downgraded from lease holding to on-demand.
 * `schedule_code_upgrade(ParaId, new_code, relay_parent: BlockNumber, HostConfiguration)`: Schedule a future code
   upgrade of the given parachain. In case the PVF pre-checking is disabled, or the new code is already present in the storage, the upgrade will be applied after inclusion of a block of the same parachain
   executed in the context of a relay-chain block with number >= `relay_parent + config.validation_upgrade_delay`. If the upgrade is scheduled `UpgradeRestrictionSignal` is set and it will remain set until `relay_parent + config.validation_upgrade_cooldown`.
 In case the PVF pre-checking is enabled, or the new code is not already present in the storage, then the PVF pre-checking run will be scheduled for that validation code. If the pre-checking concludes with rejection, then the upgrade is canceled. Otherwise, after pre-checking is concluded the upgrade will be scheduled and be enacted as described above.
 * `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head,
-  where the new head was executed in the context of a relay-chain block with given number. This will
-  apply pending code upgrades based on the block number provided. If an upgrade took place it will clear the `UpgradeGoAheadSignal`.
+  where the new head was executed in the context of a relay-chain block with given number, the latter value is inserted into the `MostRecentContext` mapping. This will apply pending code upgrades based on the block number provided. If an upgrade took place it will clear the `UpgradeGoAheadSignal`.
 * `lifecycle(ParaId) -> Option<ParaLifecycle>`: Return the `ParaLifecycle` of a para.
-* `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live parachain,
-  including those which may be transitioning to a parathread in the future.
-* `is_parathread(ParaId) -> bool`: Returns true if the para ID references any live parathread,
-  including those which may be transitioning to a parachain in the future.
-* `is_valid_para(ParaId) -> bool`: Returns true if the para ID references either a live parathread
-  or live parachain.
+* `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live lease holding parachain,
+  including those which may be transitioning to an on-demand parachain in the future.
+* `is_parathread(ParaId) -> bool`: Returns true if the para ID references any live parathread (on-demand parachain),
+  including those which may be transitioning to a lease holding parachain in the future.
+* `is_valid_para(ParaId) -> bool`: Returns true if the para ID references either a live on-demand parachain
+  or live lease holding parachain.
 * `can_upgrade_validation_code(ParaId) -> bool`: Returns true if the given para can signal code upgrade right now.
 * `pvfs_require_prechecking() -> Vec<ValidationCodeHash>`: Returns the list of PVF validation code hashes that require PVF pre-checking votes.
 

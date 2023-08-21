@@ -41,22 +41,22 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The specified parachain or parathread is not registered.
+		/// The specified parachain is not registered.
 		ParaDoesntExist,
-		/// The specified parachain or parathread is already registered.
+		/// The specified parachain is already registered.
 		ParaAlreadyExists,
 		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a
 		/// downward message.
 		ExceedsMaxMessageSize,
 		/// Could not schedule para cleanup.
 		CouldntCleanup,
-		/// Not a parathread.
+		/// Not a parathread (on-demand parachain).
 		NotParathread,
-		/// Not a parachain.
+		/// Not a lease holding parachain.
 		NotParachain,
-		/// Cannot upgrade parathread.
+		/// Cannot upgrade on-demand parachain to lease holding parachain.
 		CannotUpgrade,
-		/// Cannot downgrade parachain.
+		/// Cannot downgrade lease holding parachain to on-demand.
 		CannotDowngrade,
 	}
 
@@ -89,7 +89,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Upgrade a parathread to a parachain
+		/// Upgrade a parathread (on-demand parachain) to a lease holding parachain
 		#[pallet::call_index(2)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_parathread_upgrade(
@@ -97,7 +97,7 @@ pub mod pallet {
 			id: ParaId,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			// Para backend should think this is a parathread...
+			// Para backend should think this is a parathread (on-demand parachain)...
 			ensure!(
 				paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread),
 				Error::<T>::NotParathread,
@@ -107,7 +107,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Downgrade a parachain to a parathread
+		/// Downgrade a lease holding parachain to an on-demand parachain
 		#[pallet::call_index(3)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_parachain_downgrade(

@@ -81,7 +81,8 @@ use polkadot_node_subsystem_types::messages::{
 	CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage, ChainSelectionMessage,
 	CollationGenerationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
 	DisputeDistributionMessage, GossipSupportMessage, NetworkBridgeRxMessage,
-	NetworkBridgeTxMessage, ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage,
+	NetworkBridgeTxMessage, ProspectiveParachainsMessage, ProvisionerMessage, RuntimeApiMessage,
+	StatementDistributionMessage,
 };
 
 pub use polkadot_node_subsystem_types::{
@@ -466,11 +467,13 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(CandidateBackingMessage, sends: [
 		CandidateValidationMessage,
 		CollatorProtocolMessage,
+		ChainApiMessage,
 		AvailabilityDistributionMessage,
 		AvailabilityStoreMessage,
 		StatementDistributionMessage,
 		ProvisionerMessage,
 		RuntimeApiMessage,
+		ProspectiveParachainsMessage,
 	])]
 	candidate_backing: CandidateBacking,
 
@@ -478,6 +481,8 @@ pub struct Overseer<SupportsParachains> {
 		NetworkBridgeTxMessage,
 		CandidateBackingMessage,
 		RuntimeApiMessage,
+		ProspectiveParachainsMessage,
+		ChainApiMessage,
 	])]
 	statement_distribution: StatementDistribution,
 
@@ -516,6 +521,7 @@ pub struct Overseer<SupportsParachains> {
 		CandidateBackingMessage,
 		ChainApiMessage,
 		DisputeCoordinatorMessage,
+		ProspectiveParachainsMessage,
 	])]
 	provisioner: Provisioner,
 
@@ -555,6 +561,8 @@ pub struct Overseer<SupportsParachains> {
 		NetworkBridgeTxMessage,
 		RuntimeApiMessage,
 		CandidateBackingMessage,
+		ChainApiMessage,
+		ProspectiveParachainsMessage,
 	])]
 	collator_protocol: CollatorProtocol,
 
@@ -604,6 +612,12 @@ pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(blocking, ChainSelectionMessage, sends: [ChainApiMessage])]
 	chain_selection: ChainSelection,
+
+	#[subsystem(ProspectiveParachainsMessage, sends: [
+		RuntimeApiMessage,
+		ChainApiMessage,
+	])]
+	prospective_parachains: ProspectiveParachains,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
 	pub activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,

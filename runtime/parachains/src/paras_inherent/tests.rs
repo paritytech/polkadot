@@ -601,8 +601,8 @@ mod enter {
 		sum
 	}
 
-	#[test]
 	// Ensure that when a block is over weight due to disputes and bitfields, we filter.
+	#[test]
 	fn limit_candidates_over_weight_1() {
 		let config = MockGenesisConfig::default();
 		assert!(config.configuration.config.scheduling_lookahead > 0);
@@ -671,6 +671,7 @@ mod enter {
 				limit_inherent_data,
 			));
 
+			// TODO [now]: this assertion fails with async backing runtime.
 			assert_eq!(
 				// The length of this vec is equal to the number of candidates, so we know our 2
 				// backed candidates did not get filtered out
@@ -1244,7 +1245,6 @@ mod sanitizers {
 						Assignment::new(ParaId::from(1_u32 + idx as u32)),
 						entry_ttl,
 					),
-					group_idx: GroupIndex::from(idx as u32),
 					core: core_idx,
 				};
 				ca
@@ -1291,7 +1291,6 @@ mod sanitizers {
 		// happy path
 		assert_eq!(
 			sanitize_backed_candidates::<Test, _>(
-				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
 				&scheduled
@@ -1303,19 +1302,6 @@ mod sanitizers {
 		{
 			let scheduled = &Vec::new();
 			assert!(sanitize_backed_candidates::<Test, _>(
-				relay_parent,
-				backed_candidates.clone(),
-				has_concluded_invalid,
-				scheduled
-			)
-			.is_empty());
-		}
-
-		// relay parent mismatch
-		{
-			let relay_parent = Hash::repeat_byte(0xFA);
-			assert!(sanitize_backed_candidates::<Test, _>(
-				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
 				&scheduled
@@ -1339,7 +1325,6 @@ mod sanitizers {
 				|_idx: usize, candidate: &BackedCandidate| set.contains(&candidate.hash());
 			assert_eq!(
 				sanitize_backed_candidates::<Test, _>(
-					relay_parent,
 					backed_candidates.clone(),
 					has_concluded_invalid,
 					&scheduled

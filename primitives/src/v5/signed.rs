@@ -157,7 +157,6 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	) -> Result<Signed<SuperPayload, RealPayload>, (Self, SuperPayload)>
 	where
 		SuperPayload: EncodeAs<RealPayload>,
-		Payload: Encode,
 	{
 		if claimed.encode_as() == self.0.payload.encode_as() {
 			Ok(Signed(UncheckedSigned {
@@ -168,6 +167,34 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 			}))
 		} else {
 			Err((self, claimed))
+		}
+	}
+
+	/// Convert `Payload` into some converted `SuperPayload` if the encoding matches.
+	///
+	/// This invokes the closure on the current payload, which is irreversible.
+	///
+	/// Succeeds if and only if the super-payload provided actually encodes as
+	/// the expected payload.
+	pub fn convert_to_superpayload_with<F, SuperPayload>(
+		self,
+		convert: F,
+	) -> Result<Signed<SuperPayload, RealPayload>, SuperPayload>
+	where
+		F: FnOnce(Payload) -> SuperPayload,
+		SuperPayload: EncodeAs<RealPayload>,
+	{
+		let expected_encode_as = self.0.payload.encode_as();
+		let converted = convert(self.0.payload);
+		if converted.encode_as() == expected_encode_as {
+			Ok(Signed(UncheckedSigned {
+				payload: converted,
+				validator_index: self.0.validator_index,
+				signature: self.0.signature,
+				real_payload: sp_std::marker::PhantomData,
+			}))
+		} else {
+			Err(converted)
 		}
 	}
 }

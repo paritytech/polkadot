@@ -89,6 +89,12 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 			.saturating_add(Weight::from_parts(1_025, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
+	// Storage: Paras Heads (r:0 w:1)
+	fn force_set_most_recent_context() -> Weight {
+		Weight::from_parts(10_155_000, 0)
+			// Standard Error: 0
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
+	}
 	/// Storage: Paras FutureCodeHash (r:1 w:1)
 	/// Proof Skipped: Paras FutureCodeHash (max_values: None, max_size: None, mode: Measured)
 	/// Storage: Paras CurrentCodeHash (r:1 w:0)

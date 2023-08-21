@@ -136,8 +136,7 @@ fn make_candidate_receipt(relay_parent: Hash) -> CandidateReceipt {
 		para_head: zeros,
 		validation_code_hash: zeros.into(),
 	};
-	let candidate = CandidateReceipt { descriptor, commitments_hash: zeros };
-	candidate
+	CandidateReceipt { descriptor, commitments_hash: zeros }
 }
 
 /// Get a dummy `ActivatedLeaf` for a given block number.

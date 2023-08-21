@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! `V1` Primitives.
+//! `V2` Primitives.
 
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
@@ -797,7 +797,7 @@ impl TypeIndex for CoreIndex {
 }
 
 /// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default, Clone, Copy, Debug, PartialEq, Eq, TypeInfo)]
+#[derive(Encode, Decode, Default, Clone, Copy, Debug, PartialEq, Eq, TypeInfo, PartialOrd, Ord)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct GroupIndex(pub u32);
 
@@ -813,7 +813,7 @@ impl TypeIndex for GroupIndex {
 	}
 }
 
-/// A claim on authoring the next block for a given parathread.
+/// A claim on authoring the next block for a given parathread (on-demand parachain).
 #[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
 pub struct ParathreadClaim(pub Id, pub Option<CollatorId>);
 
@@ -1233,10 +1233,10 @@ pub const POLKADOT_ENGINE_ID: runtime_primitives::ConsensusEngineId = *b"POL1";
 /// A consensus log item for polkadot validation. To be used with [`POLKADOT_ENGINE_ID`].
 #[derive(Decode, Encode, Clone, PartialEq, Eq)]
 pub enum ConsensusLog {
-	/// A parachain or parathread upgraded its code.
+	/// A parachain upgraded its code.
 	#[codec(index = 1)]
 	ParaUpgradeCode(Id, ValidationCodeHash),
-	/// A parachain or parathread scheduled a code upgrade.
+	/// A parachain scheduled a code upgrade.
 	#[codec(index = 2)]
 	ParaScheduleUpgradeCode(Id, ValidationCodeHash, BlockNumber),
 	/// Governance requests to auto-approve every candidate included up to the given block
@@ -1544,7 +1544,7 @@ const BACKING_STATEMENT_MAGIC: [u8; 4] = *b"BKNG";
 
 /// Statements that can be made about parachain candidates. These are the
 /// actual values that are signed.
-#[derive(Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
@@ -1558,6 +1558,13 @@ impl CompactStatement {
 	/// of statement.
 	pub fn signing_payload(&self, context: &SigningContext) -> Vec<u8> {
 		(self, context).encode()
+	}
+
+	/// Get the underlying candidate hash this references.
+	pub fn candidate_hash(&self) -> &CandidateHash {
+		match *self {
+			CompactStatement::Seconded(ref h) | CompactStatement::Valid(ref h) => h,
+		}
 	}
 }
 
@@ -1604,15 +1611,6 @@ impl parity_scale_codec::Decode for CompactStatement {
 			CompactStatementInner::Seconded(h) => CompactStatement::Seconded(h),
 			CompactStatementInner::Valid(h) => CompactStatement::Valid(h),
 		})
-	}
-}
-
-impl CompactStatement {
-	/// Get the underlying candidate hash this references.
-	pub fn candidate_hash(&self) -> &CandidateHash {
-		match *self {
-			CompactStatement::Seconded(ref h) | CompactStatement::Valid(ref h) => h,
-		}
 	}
 }
 
