@@ -106,6 +106,7 @@ where
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
 							candidate_receipt,
 							PoV { block_data: BlockData(Vec::new()) }.into(),
+							Default::default(),
 							PvfExecTimeoutKind::Backing,
 							tx,
 						))
@@ -779,6 +780,7 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	CandidateValidationMessage::ValidateFromChainState(
 		candidate_receipt,
 		pov,
+		Default::default(),
 		PvfExecTimeoutKind::Backing,
 		sender,
 	)

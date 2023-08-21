@@ -76,6 +76,7 @@ impl Subsystem1 {
 			let msg = CandidateValidationMessage::ValidateFromChainState(
 				candidate_receipt,
 				PoV { block_data: BlockData(Vec::new()) }.into(),
+				Default::default(),
 				PvfExecTimeoutKind::Backing,
 				tx,
 			);

@@ -46,7 +46,7 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::{reputation::add_reputation, TimeoutExt};
 use polkadot_primitives::{
 	AuthorityDiscoveryId, CollatorPair, GroupIndex, GroupRotationInfo, IndexedVec, ScheduledCore,
-	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex, ExecutorParams,
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
 
@@ -396,6 +396,16 @@ async fn distribute_collation_with_receipt(
 				assert_eq!(index, test_state.current_session_index());
 
 				tx.send(Ok(Some(test_state.session_info.clone()))).unwrap();
+			},
+
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionExecutorParams(session_index, tx),
+			)) => {
+				assert_eq!(relay_parent, relay_parent);
+				assert_eq!(session_index, test_state.current_session_index());
+
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
 			},
 
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
