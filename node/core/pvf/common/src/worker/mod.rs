@@ -127,7 +127,7 @@ pub fn worker_event_loop<F, Fut>(
 		}
 	}
 
-	remove_env_vars();
+	remove_env_vars(debug_id);
 
 	// Run the main worker loop.
 	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
@@ -152,7 +152,7 @@ pub fn worker_event_loop<F, Fut>(
 }
 
 /// Delete all env vars to prevent malicious code from accessing them.
-fn remove_env_vars() {
+fn remove_env_vars(debug_id: &'static str) {
 	for (key, value) in std::env::vars_os() {
 		// TODO: *theoretically* the value (or mere presence) of `RUST_LOG` can be a source of
 		// randomness for malicious code. In the future we can remove it also and log in the host;
@@ -181,9 +181,10 @@ fn remove_env_vars() {
 		if !err_reasons.is_empty() {
 			gum::warn!(
 				target: LOG_TARGET,
+				%debug_id,
 				?key,
 				?value,
-				"Attempting to remove env var may fail: {:?}",
+				"Attempting to remove badly-formatted env var, this may cause the PVF worker to crash. Please remove it yourself. Reasons: {:?}",
 				err_reasons
 			);
 		}
