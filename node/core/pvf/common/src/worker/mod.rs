@@ -257,7 +257,7 @@ pub mod thread {
 		Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()))
 	}
 
-	/// Runs a worker thread. Will first enable security features, and afterwards notify the threads
+	/// Runs a worker thread. Will run the requested function, and afterwards notify the threads
 	/// waiting on the condvar. Catches panics during execution and resumes the panics after
 	/// triggering the condvar, so that the waiting thread is notified on panics.
 	///
