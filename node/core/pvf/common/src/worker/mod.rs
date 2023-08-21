@@ -128,6 +128,16 @@ pub fn worker_event_loop<F, Fut>(
 		}
 	}
 
+	// Delete all env vars to prevent malicious code from accessing them.
+	for (key, _) in std::env::vars() {
+		// TODO: *theoretically* the value (or mere presence) of `RUST_LOG` can be a source of
+		// randomness for malicious code. In the future we can remove it also and log in the host;
+		// see <https://github.com/paritytech/polkadot/issues/7117>.
+		if key != "RUST_LOG" {
+			std::env::remove_var(key);
+		}
+	}
+
 	// Run the main worker loop.
 	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
 	let err = rt
