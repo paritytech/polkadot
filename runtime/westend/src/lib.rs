@@ -333,7 +333,7 @@ impl BeefyDataProvider<H256> for ParaHeadsRootProvider {
 			.into_iter()
 			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
 			.collect();
-		para_heads.sort();
+		para_heads.sort_by_key(|k| *k.0);
 		binary_merkle_tree::merkle_root::<mmr::Hashing, _>(
 			para_heads.into_iter().map(|pair| pair.encode()),
 		)
@@ -1416,8 +1416,8 @@ pub mod migrations {
 		parachains_configuration::migration::v8::MigrateToV8<Runtime>,
 	);
 
-	// Upgrade Session keys to include BEEFY key.
-	// When this is removed, should also remove `OldSessionKeys`.
+	/// Upgrade Session keys to include BEEFY key.
+	/// When this is removed, should also remove `OldSessionKeys`.
 	pub struct UpgradeSessionKeys;
 	impl frame_support::traits::OnRuntimeUpgrade for UpgradeSessionKeys {
 		fn on_runtime_upgrade() -> Weight {
