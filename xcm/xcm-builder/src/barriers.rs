@@ -52,6 +52,8 @@ impl ShouldExecute for TakeWeightCredit {
 	}
 }
 
+const MAX_ASSETS_FOR_BUY_EXECUTION: usize = 1;
+
 /// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking
 /// payments into account.
 ///
@@ -72,7 +74,6 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		);
 
 		ensure!(T::contains(origin), ProcessMessageError::Unsupported);
-		let max_assets_for_buy_execution = 1;
 		// We will read up to 5 instructions. This allows up to 3 `ClearOrigin` instructions. We
 		// allow for more than one since anything beyond the first is a no-op and it's conceivable
 		// that composition of operations might result in more than one being appended.
@@ -81,8 +82,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 			.matcher()
 			.match_next_inst(|inst| match inst {
 				ReceiveTeleportedAsset(..) | ReserveAssetDeposited(..) => Ok(()),
-				WithdrawAsset(ref assets) if assets.len() <= max_assets_for_buy_execution => Ok(()),
-				ClaimAsset { ref assets, .. } if assets.len() <= max_assets_for_buy_execution =>
+				WithdrawAsset(ref assets) if assets.len() <= MAX_ASSETS_FOR_BUY_EXECUTION => Ok(()),
+				ClaimAsset { ref assets, .. } if assets.len() <= MAX_ASSETS_FOR_BUY_EXECUTION =>
 					Ok(()),
 				_ => Err(ProcessMessageError::BadFormat),
 			})?
