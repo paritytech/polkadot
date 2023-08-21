@@ -333,7 +333,7 @@ impl BeefyDataProvider<H256> for ParaHeadsRootProvider {
 			.into_iter()
 			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
 			.collect();
-		para_heads.sort_by_key(|k| *k.0);
+		para_heads.sort_by_key(|k| k.0);
 		binary_merkle_tree::merkle_root::<mmr::Hashing, _>(
 			para_heads.into_iter().map(|pair| pair.encode()),
 		)
@@ -1400,21 +1400,12 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so. THE ORDER IS IMPORTANT.
-pub type Migrations = (migrations::Unreleased, migrations::UpgradeSessionKeys);
+pub type Migrations = migrations::Unreleased;
 
 /// The runtime migrations per release.
 #[allow(deprecated, missing_docs)]
 pub mod migrations {
 	use super::*;
-
-	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = (
-		pallet_im_online::migration::v1::Migration<Runtime>,
-		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
-		assigned_slots::migration::v1::VersionCheckedMigrateToV1<Runtime>,
-		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
-		parachains_configuration::migration::v8::MigrateToV8<Runtime>,
-	);
 
 	/// Upgrade Session keys to include BEEFY key.
 	/// When this is removed, should also remove `OldSessionKeys`.
@@ -1425,6 +1416,16 @@ pub mod migrations {
 			Perbill::from_percent(50) * BlockWeights::get().max_block
 		}
 	}
+
+	/// Unreleased migrations. Add new ones here:
+	pub type Unreleased = (
+		pallet_im_online::migration::v1::Migration<Runtime>,
+		parachains_configuration::migration::v7::MigrateToV7<Runtime>,
+		assigned_slots::migration::v1::VersionCheckedMigrateToV1<Runtime>,
+		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
+		parachains_configuration::migration::v8::MigrateToV8<Runtime>,
+		UpgradeSessionKeys,
+	);
 }
 
 /// Unchecked extrinsic type as expected by this runtime.
