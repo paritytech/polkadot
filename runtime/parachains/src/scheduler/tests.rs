@@ -400,11 +400,11 @@ fn fill_claimqueue_fills() {
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().on_demand_cores, 3);
 
-		// register 2 parachains
+		// register 2 lease holding parachains
 		schedule_blank_para(chain_a, ParaKind::Parachain);
 		schedule_blank_para(chain_b, ParaKind::Parachain);
 
-		// and 3 parathreads
+		// and 3 parathreads (on-demand parachains)
 		schedule_blank_para(thread_a, ParaKind::Parathread);
 		schedule_blank_para(thread_b, ParaKind::Parathread);
 		schedule_blank_para(thread_c, ParaKind::Parathread);
@@ -427,7 +427,7 @@ fn fill_claimqueue_fills() {
 
 		{
 			assert_eq!(Scheduler::claimqueue_len(), 2 * lookahead);
-			let scheduled = Scheduler::scheduled_claimqueue(1);
+			let scheduled = Scheduler::scheduled_claimqueue();
 
 			// Cannot assert on indices anymore as they depend on the assignment providers
 			assert!(claimqueue_contains_para_ids::<Test>(vec![chain_a, chain_b]));
@@ -441,7 +441,6 @@ fn fill_claimqueue_fills() {
 						availability_timeouts: 0,
 						ttl: 6
 					},
-					group_idx: GroupIndex(0),
 				}
 			);
 
@@ -454,7 +453,6 @@ fn fill_claimqueue_fills() {
 						availability_timeouts: 0,
 						ttl: 6
 					},
-					group_idx: GroupIndex(1),
 				}
 			);
 		}
@@ -483,7 +481,7 @@ fn fill_claimqueue_fills() {
 
 		{
 			assert_eq!(Scheduler::claimqueue_len(), 5);
-			let scheduled = Scheduler::scheduled_claimqueue(3);
+			let scheduled = Scheduler::scheduled_claimqueue();
 
 			assert_eq!(
 				scheduled[0],
@@ -494,7 +492,6 @@ fn fill_claimqueue_fills() {
 						availability_timeouts: 0,
 						ttl: 6
 					},
-					group_idx: GroupIndex(0),
 				}
 			);
 			assert_eq!(
@@ -506,7 +503,6 @@ fn fill_claimqueue_fills() {
 						availability_timeouts: 0,
 						ttl: 6
 					},
-					group_idx: GroupIndex(1),
 				}
 			);
 
@@ -520,7 +516,6 @@ fn fill_claimqueue_fills() {
 						availability_timeouts: 0,
 						ttl: 7
 					},
-					group_idx: GroupIndex(2),
 				}
 			);
 			// Sits on the same core as `thread_a`
@@ -541,7 +536,6 @@ fn fill_claimqueue_fills() {
 						availability_timeouts: 0,
 						ttl: 7
 					},
-					group_idx: GroupIndex(3),
 				}
 			);
 		}
@@ -574,11 +568,11 @@ fn schedule_schedules_including_just_freed() {
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().on_demand_cores, 3);
 
-		// register 2 parachains
+		// register 2 lease holding parachains
 		schedule_blank_para(chain_a, ParaKind::Parachain);
 		schedule_blank_para(chain_b, ParaKind::Parachain);
 
-		// and 5 parathreads
+		// and 5 parathreads (on-demand parachains)
 		schedule_blank_para(thread_a, ParaKind::Parathread);
 		schedule_blank_para(thread_b, ParaKind::Parathread);
 		schedule_blank_para(thread_c, ParaKind::Parathread);
@@ -614,7 +608,7 @@ fn schedule_schedules_including_just_freed() {
 		let mut now = 2;
 		run_to_block(now, |_| None);
 
-		assert_eq!(Scheduler::scheduled_claimqueue(now).len(), 4);
+		assert_eq!(Scheduler::scheduled_claimqueue().len(), 4);
 
 		// cores 0, 1, 2, and 3 should be occupied. mark them as such.
 		let mut occupied_map: BTreeMap<CoreIndex, ParaId> = BTreeMap::new();
@@ -636,7 +630,7 @@ fn schedule_schedules_including_just_freed() {
 			// core 4 is free
 			assert!(cores[4] == CoreOccupied::Free);
 
-			assert!(Scheduler::scheduled_claimqueue(now).is_empty());
+			assert!(Scheduler::scheduled_claimqueue().is_empty());
 
 			// All core index entries in the claimqueue should have `None` in them.
 			Scheduler::claimqueue().iter().for_each(|(_core_idx, core_queue)| {
@@ -663,10 +657,10 @@ fn schedule_schedules_including_just_freed() {
 		run_to_block(now, |_| None);
 
 		{
-			let scheduled = Scheduler::scheduled_claimqueue(now);
+			let scheduled = Scheduler::scheduled_claimqueue();
 
-			// cores 0 and 1 are occupied by parachains. cores 2 and 3 are occupied by parathread
-			// claims. core 4 was free.
+			// cores 0 and 1 are occupied by lease holding parachains. cores 2 and 3 are occupied by
+			// on-demand parachain claims. core 4 was free.
 			assert_eq!(scheduled.len(), 1);
 			assert_eq!(
 				scheduled[0],
@@ -677,7 +671,6 @@ fn schedule_schedules_including_just_freed() {
 						availability_timeouts: 0,
 						ttl: 8
 					},
-					group_idx: GroupIndex(4),
 				}
 			);
 		}
@@ -693,7 +686,7 @@ fn schedule_schedules_including_just_freed() {
 		Scheduler::update_claimqueue(just_updated, now);
 
 		{
-			let scheduled = Scheduler::scheduled_claimqueue(now);
+			let scheduled = Scheduler::scheduled_claimqueue();
 
 			// 1 thing scheduled before, + 3 cores freed.
 			assert_eq!(scheduled.len(), 4);
@@ -706,7 +699,6 @@ fn schedule_schedules_including_just_freed() {
 						availability_timeouts: 0,
 						ttl: 8
 					},
-					group_idx: GroupIndex(0),
 				}
 			);
 			assert_eq!(
@@ -718,7 +710,6 @@ fn schedule_schedules_including_just_freed() {
 						availability_timeouts: 0,
 						ttl: 8
 					},
-					group_idx: GroupIndex(2),
 				}
 			);
 			// Although C was descheduled, the core `4` was occupied so C goes back to the queue.
@@ -731,7 +722,6 @@ fn schedule_schedules_including_just_freed() {
 						availability_timeouts: 1,
 						ttl: 8
 					},
-					group_idx: GroupIndex(3),
 				}
 			);
 			assert_eq!(
@@ -743,7 +733,6 @@ fn schedule_schedules_including_just_freed() {
 						availability_timeouts: 0,
 						ttl: 8
 					},
-					group_idx: GroupIndex(4),
 				}
 			);
 
@@ -911,10 +900,16 @@ fn schedule_rotates_groups() {
 		run_to_block(now, |_| None);
 
 		let assert_groups_rotated = |rotations: u32, now: &BlockNumberFor<Test>| {
-			let scheduled = Scheduler::scheduled_claimqueue(*now);
+			let scheduled = Scheduler::scheduled_claimqueue();
 			assert_eq!(scheduled.len(), 2);
-			assert_eq!(scheduled[0].group_idx, GroupIndex((0u32 + rotations) % on_demand_cores));
-			assert_eq!(scheduled[1].group_idx, GroupIndex((1u32 + rotations) % on_demand_cores));
+			assert_eq!(
+				Scheduler::group_assigned_to_core(scheduled[0].core, *now).unwrap(),
+				GroupIndex((0u32 + rotations) % on_demand_cores)
+			);
+			assert_eq!(
+				Scheduler::group_assigned_to_core(scheduled[1].core, *now).unwrap(),
+				GroupIndex((1u32 + rotations) % on_demand_cores)
+			);
 		};
 
 		assert_groups_rotated(0, &now);

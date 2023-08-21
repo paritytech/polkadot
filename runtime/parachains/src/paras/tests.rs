@@ -1670,6 +1670,50 @@ fn verify_para_head_is_externally_accessible() {
 }
 
 #[test]
+fn most_recent_context() {
+	let validation_code: ValidationCode = vec![1, 2, 3].into();
+
+	let genesis_config = MockGenesisConfig::default();
+
+	new_test_ext(genesis_config).execute_with(|| {
+		const EXPECTED_SESSION: SessionIndex = 1;
+		run_to_block(1, Some(vec![1]));
+
+		let para_id = ParaId::from(111);
+
+		assert_eq!(Paras::para_most_recent_context(para_id), None);
+
+		assert_ok!(Paras::schedule_para_initialize(
+			para_id,
+			ParaGenesisArgs {
+				para_kind: ParaKind::Parachain,
+				genesis_head: vec![1].into(),
+				validation_code: validation_code.clone(),
+			},
+		));
+		submit_super_majority_pvf_votes(&validation_code, EXPECTED_SESSION, true);
+
+		assert_eq!(ParaLifecycles::<Test>::get(&para_id), Some(ParaLifecycle::Onboarding));
+
+		// Two sessions pass, so action queue is triggered.
+		run_to_block(4, Some(vec![3, 4]));
+
+		// Double-check the para is onboarded, the context is set to the recent block.
+		assert_eq!(ParaLifecycles::<Test>::get(&para_id), Some(ParaLifecycle::Parachain));
+		assert_eq!(Paras::para_most_recent_context(para_id), Some(0));
+
+		// Progress para to the new head and check that the recent context is updated.
+		Paras::note_new_head(para_id, vec![4, 5, 6].into(), 3);
+		assert_eq!(Paras::para_most_recent_context(para_id), Some(3));
+
+		// Finally, offboard the para and expect the context to be cleared.
+		assert_ok!(Paras::schedule_para_cleanup(para_id));
+		run_to_block(6, Some(vec![5, 6]));
+		assert_eq!(Paras::para_most_recent_context(para_id), None);
+	})
+}
+
+#[test]
 fn parakind_encodes_decodes_to_bool_scale() {
 	let chain_kind = ParaKind::Parachain.encode();
 	let chain_bool = true.encode();

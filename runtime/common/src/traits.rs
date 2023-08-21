@@ -31,15 +31,16 @@ pub trait Registrar {
 	/// Report the manager (permissioned owner) of a parachain, if there is one.
 	fn manager_of(id: ParaId) -> Option<Self::AccountId>;
 
-	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
+	/// All lease holding parachains. Ordered ascending by `ParaId`. On-demand
+	/// parachains are not included.
 	fn parachains() -> Vec<ParaId>;
 
-	/// Return if a `ParaId` is a Parachain.
+	/// Return if a `ParaId` is a lease holding Parachain.
 	fn is_parachain(id: ParaId) -> bool {
 		Self::parachains().binary_search(&id).is_ok()
 	}
 
-	/// Return if a `ParaId` is a Parathread.
+	/// Return if a `ParaId` is a Parathread (on-demand parachain).
 	fn is_parathread(id: ParaId) -> bool;
 
 	/// Return if a `ParaId` is registered in the system.
@@ -70,7 +71,7 @@ pub trait Registrar {
 	/// Elevate a para to parachain status.
 	fn make_parachain(id: ParaId) -> DispatchResult;
 
-	/// Lower a para back to normal from parachain status.
+	/// Downgrade lease holding parachain into parathread (on-demand parachain)
 	fn make_parathread(id: ParaId) -> DispatchResult;
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
@@ -80,7 +81,8 @@ pub trait Registrar {
 	fn worst_validation_code() -> ValidationCode;
 
 	/// Execute any pending state transitions for paras.
-	/// For example onboarding to parathread, or parathread to parachain.
+	/// For example onboarding to on-demand parachain, or upgrading on-demand to
+	/// lease holding parachain.
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn execute_pending_transitions();
 }
@@ -253,7 +255,7 @@ pub trait Auctioneer<BlockNumber> {
 	fn has_won_an_auction(para: ParaId, bidder: &Self::AccountId) -> bool;
 }
 
-/// Runtime hook for when we swap a parachain and parathread.
+/// Runtime hook for when we swap a lease holding parachain and an on-demand parachain.
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 pub trait OnSwap {
 	/// Updates any needed state/references to enact a logical swap of two parachains. Identity,

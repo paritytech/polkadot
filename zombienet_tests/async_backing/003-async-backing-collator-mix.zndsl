@@ -1,0 +1,19 @@
+Description: Async Backing Collator Mix Test
+Network: ./003-async-backing-collator-mix.toml
+Creds: config
+
+# General
+alice: is up
+bob: is up
+
+# Check peers
+alice: reports peers count is at least 3 within 20 seconds
+bob: reports peers count is at least 3 within 20 seconds
+
+# Parachain registration
+alice: parachain 100 is registered within 225 seconds
+bob: parachain 100 is registered within 225 seconds
+
+# Ensure parachain progress
+alice: parachain 100 block height is at least 10 within 250 seconds
+bob: parachain 100 block height is at least 10 within 250 seconds

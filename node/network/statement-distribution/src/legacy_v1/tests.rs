@@ -14,7 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{metrics::Metrics, *};
+#![allow(clippy::clone_on_copy)]
+
+use super::*;
+use crate::{metrics::Metrics, *};
+
 use assert_matches::assert_matches;
 use futures::executor;
 use futures_timer::Delay;
@@ -26,19 +30,21 @@ use polkadot_node_network_protocol::{
 		v1::{StatementFetchingRequest, StatementFetchingResponse},
 		IncomingRequest, Recipient, ReqProtocolNames, Requests,
 	},
-	view, ObservedRole,
+	view, ObservedRole, VersionedValidationProtocol,
 };
-use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
+use polkadot_node_primitives::{
+	SignedFullStatementWithPVD, Statement, UncheckedSignedFullStatement,
+};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		network_bridge_event, AllMessages, ReportPeerMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	ActivatedLeaf, LeafStatus,
+	ActivatedLeaf, LeafStatus, RuntimeApiError,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
 use polkadot_primitives::{
-	GroupIndex, Hash, Id as ParaId, IndexedVec, SessionInfo, ValidationCode, ValidatorId,
+	GroupIndex, Hash, HeadData, Id as ParaId, IndexedVec, SessionInfo, ValidationCode,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
@@ -53,6 +59,30 @@ use util::reputation::add_reputation;
 
 // Some deterministic genesis hash for protocol names
 const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
+
+const ASYNC_BACKING_DISABLED_ERROR: RuntimeApiError =
+	RuntimeApiError::NotSupported { runtime_api_name: "test-runtime" };
+
+fn dummy_pvd() -> PersistedValidationData {
+	PersistedValidationData {
+		parent_head: HeadData(vec![7, 8, 9]),
+		relay_parent_number: 5,
+		max_pov_size: 1024,
+		relay_parent_storage_root: Default::default(),
+	}
+}
+
+fn extend_statement_with_pvd(
+	statement: SignedFullStatement,
+	pvd: PersistedValidationData,
+) -> SignedFullStatementWithPVD {
+	statement
+		.convert_to_superpayload_with(|statement| match statement {
+			Statement::Seconded(receipt) => StatementWithPVD::Seconded(receipt, pvd),
+			Statement::Valid(candidate_hash) => StatementWithPVD::Valid(candidate_hash),
+		})
+		.unwrap()
+}
 
 #[test]
 fn active_head_accepts_only_2_seconded_per_validator() {
@@ -496,6 +526,7 @@ fn peer_view_update_sends_messages() {
 
 	let mut peer_data = PeerData {
 		view: old_view,
+		protocol_version: ValidationVersion::V1,
 		view_knowledge: {
 			let mut k = HashMap::new();
 
@@ -554,8 +585,9 @@ fn peer_view_update_sends_messages() {
 		for statement in active_head.statements_about(candidate_hash) {
 			let message = handle.recv().await;
 			let expected_to = vec![peer];
-			let expected_payload =
-				statement_message(hash_c, statement.statement.clone(), &Metrics::default());
+			let expected_payload = VersionedValidationProtocol::from(Versioned::V1(
+				v1_statement_message(hash_c, statement.statement.clone(), &Metrics::default()),
+			));
 
 			assert_matches!(
 				message,
@@ -596,6 +628,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 
 	let peer_data_from_view = |view: View| PeerData {
 		view: view.clone(),
+		protocol_version: ValidationVersion::V1,
 		view_knowledge: view.iter().map(|v| (*v, Default::default())).collect(),
 		maybe_authority: None,
 	};
@@ -697,7 +730,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 
 				assert_eq!(
 					payload,
-					statement_message(hash_b, statement.statement.clone(), &Metrics::default()),
+					VersionedValidationProtocol::from(Versioned::V1(v1_statement_message(hash_b, statement.statement.clone(), &Metrics::default()))),
 				);
 			}
 		)
@@ -706,12 +739,14 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 
 #[test]
 fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
+	const PARA_ID: ParaId = ParaId::new(1);
 	let hash_a = Hash::repeat_byte(1);
+	let pvd = dummy_pvd();
 
 	let candidate = {
 		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.para_id = PARA_ID;
 		c
 	};
 
@@ -733,11 +768,13 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
 		let s = StatementDistributionSubsystem {
 			keystore: Arc::new(LocalKeystore::in_memory()),
-			req_receiver: Some(statement_req_receiver),
+			v1_req_receiver: Some(statement_req_receiver),
+			req_receiver: Some(candidate_req_receiver),
 			metrics: Default::default(),
 			rng: AlwaysZeroRng,
 			reputation: ReputationAggregator::new(|_| true),
@@ -757,6 +794,17 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 				}),
 			)))
 			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
+			}
+		);
 
 		assert_matches!(
 			handle.recv().await,
@@ -862,18 +910,32 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			})
 			.await;
 
+		let statement_with_pvd = extend_statement_with_pvd(statement.clone(), pvd.clone());
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				hash,
+				RuntimeApiRequest::PersistedValidationData(para_id, assumption, tx),
+			)) if para_id == PARA_ID &&
+				assumption == OccupiedCoreAssumption::Free &&
+				hash == hash_a =>
+			{
+				tx.send(Ok(Some(pvd))).unwrap();
+			}
+		);
+
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(ReportPeerMessage::Single(p, r))
 			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST.into() => {}
 		);
-
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::CandidateBacking(
 				CandidateBackingMessage::Statement(r, s)
-			) if r == hash_a && s == statement => {}
+			) if r == hash_a && s == statement_with_pvd => {}
 		);
 
 		assert_matches!(
@@ -902,6 +964,9 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 
 #[test]
 fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing() {
+	const PARA_ID: ParaId = ParaId::new(1);
+	let pvd = dummy_pvd();
+
 	sp_tracing::try_init_simple();
 	let hash_a = Hash::repeat_byte(1);
 	let hash_b = Hash::repeat_byte(2);
@@ -909,7 +974,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let candidate = {
 		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.para_id = PARA_ID;
 		c.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
 		c
 	};
@@ -937,11 +1002,13 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, mut req_cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
 		let s = StatementDistributionSubsystem {
 			keystore: make_ferdie_keystore(),
-			req_receiver: Some(statement_req_receiver),
+			v1_req_receiver: Some(statement_req_receiver),
+			req_receiver: Some(candidate_req_receiver),
 			metrics: Default::default(),
 			rng: AlwaysZeroRng,
 			reputation: ReputationAggregator::new(|_| true),
@@ -961,6 +1028,17 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 				}),
 			)))
 			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
+			}
+		);
 
 		assert_matches!(
 			handle.recv().await,
@@ -1292,6 +1370,20 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) if p == peer_c && r == BENEFIT_VALID_RESPONSE.into() => {}
 		);
 
+		let statement_with_pvd = extend_statement_with_pvd(statement.clone(), pvd.clone());
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				hash,
+				RuntimeApiRequest::PersistedValidationData(para_id, assumption, tx),
+			)) if para_id == PARA_ID &&
+				assumption == OccupiedCoreAssumption::Free &&
+				hash == hash_a =>
+			{
+				tx.send(Ok(Some(pvd))).unwrap();
+			}
+		);
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
@@ -1303,7 +1395,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			handle.recv().await,
 			AllMessages::CandidateBacking(
 				CandidateBackingMessage::Statement(r, s)
-			) if r == hash_a && s == statement => {}
+			) if r == hash_a && s == statement_with_pvd => {}
 		);
 
 		// Now messages should go out:
@@ -1400,6 +1492,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 fn delay_reputation_changes() {
 	sp_tracing::try_init_simple();
 	let hash_a = Hash::repeat_byte(1);
+	let pvd = dummy_pvd();
 
 	let candidate = {
 		let mut c = dummy_committed_candidate_receipt(dummy_hash());
@@ -1431,13 +1524,15 @@ fn delay_reputation_changes() {
 
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let reputation_interval = Duration::from_millis(100);
 
 	let bg = async move {
 		let s = StatementDistributionSubsystem {
 			keystore: make_ferdie_keystore(),
-			req_receiver: Some(statement_req_receiver),
+			v1_req_receiver: Some(statement_req_receiver),
+			req_receiver: Some(candidate_req_receiver),
 			metrics: Default::default(),
 			rng: AlwaysZeroRng,
 			reputation: ReputationAggregator::new(|_| false),
@@ -1457,6 +1552,17 @@ fn delay_reputation_changes() {
 				}),
 			)))
 			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
+			}
+		);
 
 		assert_matches!(
 			handle.recv().await,
@@ -1768,9 +1874,18 @@ fn delay_reputation_changes() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::CandidateBacking(
-				CandidateBackingMessage::Statement(r, s)
-			) if r == hash_a && s == statement => {}
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				hash,
+				RuntimeApiRequest::PersistedValidationData(_, assumption, tx),
+			)) if assumption == OccupiedCoreAssumption::Free && hash == hash_a =>
+			{
+				tx.send(Ok(Some(pvd))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::CandidateBacking(CandidateBackingMessage::Statement(..))
 		);
 
 		// Now messages should go out:
@@ -1885,11 +2000,13 @@ fn share_prioritizes_backing_group() {
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, mut req_cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
 		let s = StatementDistributionSubsystem {
 			keystore: make_ferdie_keystore(),
-			req_receiver: Some(statement_req_receiver),
+			v1_req_receiver: Some(statement_req_receiver),
+			req_receiver: Some(candidate_req_receiver),
 			metrics: Default::default(),
 			rng: AlwaysZeroRng,
 			reputation: ReputationAggregator::new(|_| true),
@@ -1909,6 +2026,17 @@ fn share_prioritizes_backing_group() {
 				}),
 			)))
 			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
+			}
+		);
 
 		assert_matches!(
 			handle.recv().await,
@@ -2069,9 +2197,17 @@ fn share_prioritizes_backing_group() {
 			)
 			.unwrap();
 
-			SignedFullStatement::sign(
+			// note: this is ignored by legacy-v1 code.
+			let pvd = PersistedValidationData {
+				parent_head: HeadData::from(vec![1, 2, 3]),
+				relay_parent_number: 0,
+				relay_parent_storage_root: Hash::repeat_byte(42),
+				max_pov_size: 100,
+			};
+
+			SignedFullStatementWithPVD::sign(
 				&keystore,
-				Statement::Seconded(candidate.clone()),
+				Statement::Seconded(candidate.clone()).supply_pvd(pvd),
 				&signing_context,
 				ValidatorIndex(4),
 				&ferdie_public.into(),
@@ -2081,13 +2217,14 @@ fn share_prioritizes_backing_group() {
 			.expect("should be signed")
 		};
 
-		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
-
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::Share(hash_a, statement.clone()),
 			})
 			.await;
+
+		let statement = StatementWithPVD::drop_pvd_from_signed(statement);
+		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		// Messages should go out:
 		assert_matches!(
@@ -2180,10 +2317,12 @@ fn peer_cant_flood_with_large_statements() {
 
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	let bg = async move {
 		let s = StatementDistributionSubsystem {
 			keystore: make_ferdie_keystore(),
-			req_receiver: Some(statement_req_receiver),
+			v1_req_receiver: Some(statement_req_receiver),
+			req_receiver: Some(candidate_req_receiver),
 			metrics: Default::default(),
 			rng: AlwaysZeroRng,
 			reputation: ReputationAggregator::new(|_| true),
@@ -2203,6 +2342,17 @@ fn peer_cant_flood_with_large_statements() {
 				}),
 			)))
 			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
+			}
+		);
 
 		assert_matches!(
 			handle.recv().await,
@@ -2341,6 +2491,7 @@ fn peer_cant_flood_with_large_statements() {
 #[test]
 fn handle_multiple_seconded_statements() {
 	let relay_parent_hash = Hash::repeat_byte(1);
+	let pvd = dummy_pvd();
 
 	let candidate = dummy_committed_candidate_receipt(relay_parent_hash);
 	let candidate_hash = candidate.hash();
@@ -2384,11 +2535,13 @@ fn handle_multiple_seconded_statements() {
 
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let virtual_overseer_fut = async move {
 		let s = StatementDistributionSubsystem {
 			keystore: Arc::new(LocalKeystore::in_memory()),
-			req_receiver: Some(statement_req_receiver),
+			v1_req_receiver: Some(statement_req_receiver),
+			req_receiver: Some(candidate_req_receiver),
 			metrics: Default::default(),
 			rng: AlwaysZeroRng,
 			reputation: ReputationAggregator::new(|_| true),
@@ -2408,6 +2561,17 @@ fn handle_multiple_seconded_statements() {
 				}),
 			)))
 			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
+			)
+				if r == relay_parent_hash
+			=> {
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
+			}
+		);
 
 		assert_matches!(
 			handle.recv().await,
@@ -2575,6 +2739,18 @@ fn handle_multiple_seconded_statements() {
 			})
 			.await;
 
+		let statement_with_pvd = extend_statement_with_pvd(statement.clone(), pvd.clone());
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_,
+				RuntimeApiRequest::PersistedValidationData(_, assumption, tx),
+			)) if assumption == OccupiedCoreAssumption::Free => {
+				tx.send(Ok(Some(pvd.clone()))).unwrap();
+			}
+		);
+
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
@@ -2592,7 +2768,7 @@ fn handle_multiple_seconded_statements() {
 				CandidateBackingMessage::Statement(r, s)
 			) => {
 				assert_eq!(r, relay_parent_hash);
-				assert_eq!(s, statement);
+				assert_eq!(s, statement_with_pvd);
 			}
 		);
 
@@ -2676,6 +2852,10 @@ fn handle_multiple_seconded_statements() {
 			})
 			.await;
 
+		let statement_with_pvd = extend_statement_with_pvd(statement.clone(), pvd.clone());
+
+		// Persisted validation data is cached.
+
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridgeTx(
@@ -2692,7 +2872,7 @@ fn handle_multiple_seconded_statements() {
 				CandidateBackingMessage::Statement(r, s)
 			) => {
 				assert_eq!(r, relay_parent_hash);
-				assert_eq!(s, statement);
+				assert_eq!(s, statement_with_pvd);
 			}
 		);
 
@@ -2784,3 +2964,8 @@ fn derive_metadata_assuming_seconded(
 		signature: statement.unchecked_signature().clone(),
 	}
 }
+
+// TODO [now]: adapt most tests to v2 messages.
+// TODO [now]: test that v2 peers send v1 messages to v1 peers
+// TODO [now]: test that v2 peers handle v1 messages from v1 peers.
+// TODO [now]: test that v2 peers send v2 messages to v2 peers.

@@ -28,8 +28,11 @@ use crate::{
 	inclusion::CandidateCheckContext,
 	initializer,
 	metrics::METRICS,
-	scheduler,
-	scheduler::common::{CoreAssignment, FreedReason},
+	paras,
+	scheduler::{
+		self,
+		common::{CoreAssignment, FreedReason},
+	},
 	shared, ParaId,
 };
 use bitvec::prelude::BitVec;
@@ -356,6 +359,23 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let now = <frame_system::Pallet<T>>::block_number();
+		let config = <configuration::Pallet<T>>::config();
+
+		// Before anything else, update the allowed relay-parents.
+		{
+			let parent_number = now - One::one();
+			let parent_storage_root = *parent_header.state_root();
+
+			shared::AllowedRelayParents::<T>::mutate(|tracker| {
+				tracker.update(
+					parent_hash,
+					parent_storage_root,
+					parent_number,
+					config.async_backing_params.allowed_ancestry_len,
+				);
+			});
+		}
+		let allowed_relay_parents = <shared::Pallet<T>>::allowed_relay_parents();
 
 		let candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let bitfields_weight = signed_bitfields_weight::<T>(&bitfields);
@@ -407,7 +427,6 @@ impl<T: Config> Pallet<T> {
 			log::debug!(target: LOG_TARGET, "Found duplicate statement sets, retaining the first");
 		}
 
-		let config = <configuration::Pallet<T>>::config();
 		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 		let dispute_statement_set_valid = move |set: DisputeStatementSet| {
@@ -566,28 +585,28 @@ impl<T: Config> Pallet<T> {
 
 		let scheduled = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
 
-		let relay_parent_number = now - One::one();
-		let parent_storage_root = *parent_header.state_root();
-
-		let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
-
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
 		let backed_candidates = sanitize_backed_candidates::<T, _>(
-			parent_hash,
 			backed_candidates,
-			move |candidate_idx: usize,
-			      backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
-			      -> bool {
+			|candidate_idx: usize,
+			 backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
+			 -> bool {
+				let para_id = backed_candidate.descriptor().para_id;
+				let prev_context = <paras::Pallet<T>>::para_most_recent_context(para_id);
+				let check_ctx = CandidateCheckContext::<T>::new(prev_context);
+
 				// never include a concluded-invalid candidate
 				current_concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
 					// Instead of checking the candidates with code upgrades twice
 					// move the checking up here and skip it in the training wheels fallback.
 					// That way we avoid possible duplicate checks while assuring all
 					// backed candidates fine to pass on.
+					//
+					// NOTE: this is the only place where we check the relay-parent.
 					check_ctx
-					.verify_backed_candidate(parent_hash, parent_storage_root, candidate_idx, backed_candidate)
-					.is_err()
+						.verify_backed_candidate(&allowed_relay_parents, candidate_idx, backed_candidate)
+						.is_err()
 			},
 			&scheduled[..],
 		);
@@ -595,12 +614,11 @@ impl<T: Config> Pallet<T> {
 		METRICS.on_candidates_sanitized(backed_candidates.len() as u64);
 
 		// Process backed candidates according to scheduled cores.
-		let parent_storage_root = *parent_header.state_root();
 		let inclusion::ProcessedCandidates::<<HeaderFor<T> as HeaderT>::Hash> {
 			core_indices: occupied,
 			candidate_receipt_with_backing_validator_indices,
 		} = <inclusion::Pallet<T>>::process_candidates(
-			parent_storage_root,
+			&allowed_relay_parents,
 			backed_candidates.clone(),
 			scheduled,
 			<scheduler::Pallet<T>>::group_validators,
@@ -897,7 +915,6 @@ fn sanitize_backed_candidates<
 	T: crate::inclusion::Config,
 	F: FnMut(usize, &BackedCandidate<T::Hash>) -> bool,
 >(
-	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
 	scheduled: &[CoreAssignment<BlockNumberFor<T>>],
@@ -915,12 +932,13 @@ fn sanitize_backed_candidates<
 
 	// Assure the backed candidate's `ParaId`'s core is free.
 	// This holds under the assumption that `Scheduler::schedule` is called _before_.
-	// Also checks the candidate references the correct relay parent.
+	// We don't check the relay-parent because this is done in the closure when
+	// constructing the inherent and during actual processing otherwise.
 
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
-		desc.relay_parent == relay_parent &&
-			scheduled_paras_to_core_idx.get(&desc.para_id).is_some()
+
+		scheduled_paras_to_core_idx.get(&desc.para_id).is_some()
 	});
 
 	// Sort the `Vec` last, once there is a guarantee that these

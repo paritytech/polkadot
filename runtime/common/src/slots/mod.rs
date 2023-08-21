@@ -245,7 +245,7 @@ impl<T: Config> Pallet<T> {
 			if lease_periods.len() == 1 {
 				// Just one entry, which corresponds to the now-ended lease period.
 				//
-				// `para` is now just a parathread.
+				// `para` is now just an on-demand parachain.
 				//
 				// Unreserve whatever is left.
 				if let Some((who, value)) = &lease_periods[0] {
@@ -945,7 +945,7 @@ mod tests {
 				Error::<Test>::ParaNotOnboarding
 			);
 
-			// Trying Para 2 again should fail cause they are not currently a parathread
+			// Trying Para 2 again should fail cause they are not currently an on-demand parachain
 			assert!(Slots::trigger_onboard(RuntimeOrigin::signed(1), 2.into()).is_err());
 
 			assert_eq!(TestRegistrar::<Test>::operations(), vec![(2.into(), 1, true),]);
@@ -1004,6 +1004,7 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
+	// Registers a parathread (on-demand parachain)
 	fn register_a_parathread<T: Config + paras::Config>(i: u32) -> (ParaId, T::AccountId) {
 		let para = ParaId::from(i);
 		let leaser: T::AccountId = account("leaser", i, 0);
@@ -1052,7 +1053,7 @@ mod benchmarking {
 			}.into());
 		}
 
-		// Worst case scenario, T parathreads onboard, and C parachains offboard.
+		// Worst case scenario, T on-demand parachains onboard, and C lease holding parachains offboard.
 		manage_lease_period_start {
 			// Assume reasonable maximum of 100 paras at any time
 			let c in 0 .. 100;
@@ -1064,14 +1065,14 @@ mod benchmarking {
 			// If there is an offset, we need to be on that block to be able to do lease things.
 			frame_system::Pallet::<T>::set_block_number(T::LeaseOffset::get() + One::one());
 
-			// Make T parathreads
+			// Make T parathreads (on-demand parachains)
 			let paras_info = (0..t).map(|i| {
 				register_a_parathread::<T>(i)
 			}).collect::<Vec<_>>();
 
 			T::Registrar::execute_pending_transitions();
 
-			// T parathread are upgrading to parachains
+			// T on-demand parachains are upgrading to lease holding parachains
 			for (para, leaser) in paras_info {
 				let amount = T::Currency::minimum_balance();
 				let origin = T::ForceOrigin::try_successful_origin()
@@ -1081,7 +1082,7 @@ mod benchmarking {
 
 			T::Registrar::execute_pending_transitions();
 
-			// C parachains are downgrading to parathreads
+			// C lease holding parachains are downgrading to on-demand parachains
 			for i in 200 .. 200 + c {
 				let (para, leaser) = register_a_parathread::<T>(i);
 				T::Registrar::make_parachain(para)?;
