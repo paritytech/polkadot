@@ -132,7 +132,7 @@ pub fn worker_event_loop<F, Fut>(
 		// TODO: *theoretically* the value (or mere presence) of `RUST_LOG` can be a source of
 		// randomness for malicious code. In the future we can remove it also and log in the host;
 		// see <https://github.com/paritytech/polkadot/issues/7117>.
-		if key.to_str() != Some("RUST_LOG") {
+		if key != "RUST_LOG" {
 			std::env::remove_var(key);
 		}
 	}
