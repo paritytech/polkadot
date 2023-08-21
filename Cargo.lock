@@ -6596,7 +6596,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log",
- "parity-scale-codec 3.6.4",
+ "parity-scale-codec",
  "scale-info",
  "sp-arithmetic",
  "sp-core",
