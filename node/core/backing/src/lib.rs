@@ -1000,6 +1000,7 @@ async fn construct_per_relay_parent_state<Context>(
 		try_runtime_api!(runtime_info.get_session_index_for_child(ctx.sender(), parent).await);
 	let minimum_backing_votes =
 		runtime_info.get_min_backing_votes(ctx.sender(), session_index, parent).await;
+	// TODO: if this does not exist, fall back to the hardcoded 2 value.
 
 	let (validators, groups, cores) = futures::try_join!(
 		request_validators(parent, ctx.sender()).await,

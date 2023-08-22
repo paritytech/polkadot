@@ -1291,6 +1291,7 @@ pub mod migrations {
 		assigned_slots::migration::v1::VersionCheckedMigrateToV1<Runtime>,
 		parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 		parachains_configuration::migration::v8::MigrateToV8<Runtime>,
+		parachains_configuration::migration::v9::MigrateToV9<Runtime>,
 	);
 }
 

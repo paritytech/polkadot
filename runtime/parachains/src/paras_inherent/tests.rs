@@ -948,8 +948,11 @@ fn default_header() -> primitives::Header {
 mod sanitizers {
 	use super::*;
 
-	use crate::inclusion::tests::{
-		back_candidate, collator_sign_candidate, BackingKind, TestCandidateBuilder,
+	use crate::{
+		inclusion::tests::{
+			back_candidate, collator_sign_candidate, BackingKind, TestCandidateBuilder,
+		},
+		mock::{new_test_ext, MockGenesisConfig},
 	};
 	use bitvec::order::Lsb0;
 	use primitives::{
@@ -1207,131 +1210,133 @@ mod sanitizers {
 
 	#[test]
 	fn candidates() {
-		const RELAY_PARENT_NUM: u32 = 3;
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			const RELAY_PARENT_NUM: u32 = 3;
 
-		let header = default_header();
-		let relay_parent = header.hash();
-		let session_index = SessionIndex::from(0_u32);
+			let header = default_header();
+			let relay_parent = header.hash();
+			let session_index = SessionIndex::from(0_u32);
 
-		let keystore = LocalKeystore::in_memory();
-		let keystore = Arc::new(keystore) as KeystorePtr;
-		let signing_context = SigningContext { parent_hash: relay_parent, session_index };
+			let keystore = LocalKeystore::in_memory();
+			let keystore = Arc::new(keystore) as KeystorePtr;
+			let signing_context = SigningContext { parent_hash: relay_parent, session_index };
 
-		let validators = vec![
-			keyring::Sr25519Keyring::Alice,
-			keyring::Sr25519Keyring::Bob,
-			keyring::Sr25519Keyring::Charlie,
-			keyring::Sr25519Keyring::Dave,
-		];
-		for validator in validators.iter() {
-			Keystore::sr25519_generate_new(
-				&*keystore,
-				PARACHAIN_KEY_TYPE_ID,
-				Some(&validator.to_seed()),
-			)
-			.unwrap();
-		}
-
-		let has_concluded_invalid =
-			|_idx: usize, _backed_candidate: &BackedCandidate| -> bool { false };
-
-		let entry_ttl = 10_000;
-		let scheduled = (0_usize..2)
-			.into_iter()
-			.map(|idx| {
-				let core_idx = CoreIndex::from(idx as u32);
-				let ca = CoreAssignment {
-					paras_entry: ParasEntry::new(
-						Assignment::new(ParaId::from(1_u32 + idx as u32)),
-						entry_ttl,
-					),
-					core: core_idx,
-				};
-				ca
-			})
-			.collect::<Vec<_>>();
-
-		let group_validators = |group_index: GroupIndex| {
-			match group_index {
-				group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1]),
-				group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
-				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
+			let validators = vec![
+				keyring::Sr25519Keyring::Alice,
+				keyring::Sr25519Keyring::Bob,
+				keyring::Sr25519Keyring::Charlie,
+				keyring::Sr25519Keyring::Dave,
+			];
+			for validator in validators.iter() {
+				Keystore::sr25519_generate_new(
+					&*keystore,
+					PARACHAIN_KEY_TYPE_ID,
+					Some(&validator.to_seed()),
+				)
+				.unwrap();
 			}
-			.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
-		};
 
-		let backed_candidates = (0_usize..2)
-			.into_iter()
-			.map(|idx0| {
-				let idx1 = idx0 + 1;
-				let mut candidate = TestCandidateBuilder {
-					para_id: ParaId::from(idx1),
-					relay_parent,
-					pov_hash: Hash::repeat_byte(idx1 as u8),
-					persisted_validation_data_hash: [42u8; 32].into(),
-					hrmp_watermark: RELAY_PARENT_NUM,
-					..Default::default()
-				}
-				.build();
-
-				collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
-
-				let backed = back_candidate(
-					candidate,
-					&validators,
-					group_validators(GroupIndex::from(idx0 as u32)).unwrap().as_ref(),
-					&keystore,
-					&signing_context,
-					BackingKind::Threshold,
-				);
-				backed
-			})
-			.collect::<Vec<_>>();
-
-		// happy path
-		assert_eq!(
-			sanitize_backed_candidates::<Test, _>(
-				backed_candidates.clone(),
-				has_concluded_invalid,
-				&scheduled
-			),
-			backed_candidates
-		);
-
-		// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
-		{
-			let scheduled = &Vec::new();
-			assert!(sanitize_backed_candidates::<Test, _>(
-				backed_candidates.clone(),
-				has_concluded_invalid,
-				&scheduled
-			)
-			.is_empty());
-		}
-
-		// candidates that have concluded as invalid are filtered out
-		{
-			// mark every second one as concluded invalid
-			let set = {
-				let mut set = std::collections::HashSet::new();
-				for (idx, backed_candidate) in backed_candidates.iter().enumerate() {
-					if idx & 0x01 == 0 {
-						set.insert(backed_candidate.hash());
-					}
-				}
-				set
-			};
 			let has_concluded_invalid =
-				|_idx: usize, candidate: &BackedCandidate| set.contains(&candidate.hash());
+				|_idx: usize, _backed_candidate: &BackedCandidate| -> bool { false };
+
+			let entry_ttl = 10_000;
+			let scheduled = (0_usize..2)
+				.into_iter()
+				.map(|idx| {
+					let core_idx = CoreIndex::from(idx as u32);
+					let ca = CoreAssignment {
+						paras_entry: ParasEntry::new(
+							Assignment::new(ParaId::from(1_u32 + idx as u32)),
+							entry_ttl,
+						),
+						core: core_idx,
+					};
+					ca
+				})
+				.collect::<Vec<_>>();
+
+			let group_validators = |group_index: GroupIndex| {
+				match group_index {
+					group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1]),
+					group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
+					_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
+				}
+				.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
+			};
+
+			let backed_candidates = (0_usize..2)
+				.into_iter()
+				.map(|idx0| {
+					let idx1 = idx0 + 1;
+					let mut candidate = TestCandidateBuilder {
+						para_id: ParaId::from(idx1),
+						relay_parent,
+						pov_hash: Hash::repeat_byte(idx1 as u8),
+						persisted_validation_data_hash: [42u8; 32].into(),
+						hrmp_watermark: RELAY_PARENT_NUM,
+						..Default::default()
+					}
+					.build();
+
+					collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
+
+					let backed = back_candidate(
+						candidate,
+						&validators,
+						group_validators(GroupIndex::from(idx0 as u32)).unwrap().as_ref(),
+						&keystore,
+						&signing_context,
+						BackingKind::Threshold,
+					);
+					backed
+				})
+				.collect::<Vec<_>>();
+
+			// happy path
 			assert_eq!(
 				sanitize_backed_candidates::<Test, _>(
 					backed_candidates.clone(),
 					has_concluded_invalid,
 					&scheduled
-				)
-				.len(),
-				backed_candidates.len() / 2
+				),
+				backed_candidates
 			);
-		}
+
+			// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
+			{
+				let scheduled = &Vec::new();
+				assert!(sanitize_backed_candidates::<Test, _>(
+					backed_candidates.clone(),
+					has_concluded_invalid,
+					&scheduled
+				)
+				.is_empty());
+			}
+
+			// candidates that have concluded as invalid are filtered out
+			{
+				// mark every second one as concluded invalid
+				let set = {
+					let mut set = std::collections::HashSet::new();
+					for (idx, backed_candidate) in backed_candidates.iter().enumerate() {
+						if idx & 0x01 == 0 {
+							set.insert(backed_candidate.hash());
+						}
+					}
+					set
+				};
+				let has_concluded_invalid =
+					|_idx: usize, candidate: &BackedCandidate| set.contains(&candidate.hash());
+				assert_eq!(
+					sanitize_backed_candidates::<Test, _>(
+						backed_candidates.clone(),
+						has_concluded_invalid,
+						&scheduled
+					)
+					.len(),
+					backed_candidates.len() / 2
+				);
+			}
+		});
 	}
 }

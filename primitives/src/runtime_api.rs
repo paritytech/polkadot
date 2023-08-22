@@ -241,6 +241,7 @@ sp_api::decl_runtime_apis! {
 		) -> Option<()>;
 
 		/// Get the minimum number of backing votes for a parachain candidate.
+		/// TODO: bump api version here?
 		fn minimum_backing_votes() -> u32;
 
 		/***** Asynchronous backing *****/

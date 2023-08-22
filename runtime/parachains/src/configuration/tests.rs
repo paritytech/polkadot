@@ -317,6 +317,7 @@ fn setting_pending_config_members() {
 			on_demand_fee_variability: Perbill::from_percent(3),
 			on_demand_target_queue_utilization: Perbill::from_percent(25),
 			on_demand_ttl: 5u32,
+			minimum_backing_votes: 5,
 		};
 
 		Configuration::set_validation_upgrade_cooldown(
@@ -467,6 +468,11 @@ fn setting_pending_config_members() {
 		.unwrap();
 		Configuration::set_pvf_voting_ttl(RuntimeOrigin::root(), new_config.pvf_voting_ttl)
 			.unwrap();
+		Configuration::set_minimum_backing_votes(
+			RuntimeOrigin::root(),
+			new_config.minimum_backing_votes,
+		)
+		.unwrap();
 
 		assert_eq!(PendingConfigs::<Test>::get(), vec![(shared::SESSION_DELAY, new_config)],);
 	})
