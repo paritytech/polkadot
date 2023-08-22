@@ -30,6 +30,7 @@ use polkadot_node_subsystem::{
 
 use polkadot_primitives::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, PersistedValidationData,
+	PvfExecTimeoutKind,
 };
 
 use futures::channel::oneshot;
@@ -46,6 +47,55 @@ pub enum FakeCandidateValidation {
 	BackingValid,
 	ApprovalValid,
 	BackingAndApprovalValid,
+}
+
+impl FakeCandidateValidation {
+	fn misbehaves_valid(&self) -> bool {
+		use FakeCandidateValidation::*;
+
+		match *self {
+			BackingValid | ApprovalValid | BackingAndApprovalValid => true,
+			_ => false,
+		}
+	}
+
+	fn misbehaves_invalid(&self) -> bool {
+		use FakeCandidateValidation::*;
+
+		match *self {
+			BackingInvalid | ApprovalInvalid | BackingAndApprovalInvalid => true,
+			_ => false,
+		}
+	}
+
+	fn includes_backing(&self) -> bool {
+		use FakeCandidateValidation::*;
+
+		match *self {
+			BackingInvalid | BackingAndApprovalInvalid | BackingValid | BackingAndApprovalValid =>
+				true,
+			_ => false,
+		}
+	}
+
+	fn includes_approval(&self) -> bool {
+		use FakeCandidateValidation::*;
+
+		match *self {
+			ApprovalInvalid |
+			BackingAndApprovalInvalid |
+			ApprovalValid |
+			BackingAndApprovalValid => true,
+			_ => false,
+		}
+	}
+
+	fn should_misbehave(&self, timeout: PvfExecTimeoutKind) -> bool {
+		match timeout {
+			PvfExecTimeoutKind::Backing => self.includes_backing(),
+			PvfExecTimeoutKind::Approval => self.includes_approval(),
+		}
+	}
 }
 
 /// Candidate invalidity details
@@ -125,8 +175,8 @@ where
 		Self { fake_validation, fake_validation_error, distribution, spawner }
 	}
 
-	/// Creates and sends the validation response for a given candidate. Queries the runtime to obtain the validation data for the
-	/// given candidate.
+	/// Creates and sends the validation response for a given candidate. Queries the runtime to
+	/// obtain the validation data for the given candidate.
 	pub fn send_validation_response<Sender>(
 		&self,
 		candidate_descriptor: CandidateDescriptor,
@@ -162,11 +212,20 @@ where
 pub fn create_fake_candidate_commitments(
 	persisted_validation_data: &PersistedValidationData,
 ) -> CandidateCommitments {
+	// Backing rejects candidates which output the same head as the parent,
+	// therefore we must create a new head which is not equal to the parent.
+	let mut head_data = persisted_validation_data.parent_head.clone();
+	if head_data.0.is_empty() {
+		head_data.0.push(0);
+	} else {
+		head_data.0[0] = head_data.0[0].wrapping_add(1);
+	};
+
 	CandidateCommitments {
 		upward_messages: Default::default(),
 		horizontal_messages: Default::default(),
 		new_validation_code: None,
-		head_data: persisted_validation_data.parent_head.clone(),
+		head_data,
 		processed_downward_messages: 0,
 		hrmp_watermark: persisted_validation_data.relay_parent_number,
 	}
@@ -203,7 +262,8 @@ where
 {
 	type Message = CandidateValidationMessage;
 
-	// Capture all (approval and backing) candidate validation requests and depending on configuration fail them.
+	// Capture all (approval and backing) candidate validation requests and depending on
+	// configuration fail them.
 	fn intercept_incoming(
 		&self,
 		subsystem_sender: &mut Sender,
@@ -223,8 +283,7 @@ where
 					),
 			} => {
 				match self.fake_validation {
-					FakeCandidateValidation::ApprovalValid |
-					FakeCandidateValidation::BackingAndApprovalValid => {
+					x if x.misbehaves_valid() && x.should_misbehave(timeout) => {
 						// Behave normally if the `PoV` is not known to be malicious.
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
 							return Some(FromOrchestra::Communication {
@@ -277,9 +336,9 @@ where
 							},
 						}
 					},
-					FakeCandidateValidation::ApprovalInvalid |
-					FakeCandidateValidation::BackingAndApprovalInvalid => {
-						// Set the validation result to invalid with probability `p` and trigger a dispute
+					x if x.misbehaves_invalid() && x.should_misbehave(timeout) => {
+						// Set the validation result to invalid with probability `p` and trigger a
+						// dispute
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
@@ -294,7 +353,8 @@ where
 									&validation_result,
 								);
 
-								// We're not even checking the candidate, this makes us appear faster than honest validators.
+								// We're not even checking the candidate, this makes us appear
+								// faster than honest validators.
 								sender.send(Ok(validation_result)).unwrap();
 								None
 							},
@@ -339,8 +399,7 @@ where
 					),
 			} => {
 				match self.fake_validation {
-					FakeCandidateValidation::BackingValid |
-					FakeCandidateValidation::BackingAndApprovalValid => {
+					x if x.misbehaves_valid() && x.should_misbehave(timeout) => {
 						// Behave normally if the `PoV` is not known to be malicious.
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
 							return Some(FromOrchestra::Communication {
@@ -370,7 +429,8 @@ where
 								);
 								None
 							},
-							// If the `PoV` is malicious, we behave normally with some probability `(1-p)`
+							// If the `PoV` is malicious, we behave normally with some probability
+							// `(1-p)`
 							false => Some(FromOrchestra::Communication {
 								msg: CandidateValidationMessage::ValidateFromChainState(
 									candidate_receipt,
@@ -381,22 +441,22 @@ where
 							}),
 						}
 					},
-					FakeCandidateValidation::BackingInvalid |
-					FakeCandidateValidation::BackingAndApprovalInvalid => {
-						// Maliciously set the validation result to invalid for a valid candidate with probability `p`
+					x if x.misbehaves_invalid() && x.should_misbehave(timeout) => {
+						// Maliciously set the validation result to invalid for a valid candidate
+						// with probability `p`
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
-								let validation_result = ValidationResult::Invalid(
-									self.fake_validation_error.clone().into(),
-								);
+								let validation_result =
+									ValidationResult::Invalid(self.fake_validation_error.into());
 								gum::info!(
 									target: MALUS,
 									para_id = ?candidate_receipt.descriptor.para_id,
 									"😈 Maliciously sending invalid validation result: {:?}.",
 									&validation_result,
 								);
-								// We're not even checking the candidate, this makes us appear faster than honest validators.
+								// We're not even checking the candidate, this makes us appear
+								// faster than honest validators.
 								response_sender.send(Ok(validation_result)).unwrap();
 								None
 							},

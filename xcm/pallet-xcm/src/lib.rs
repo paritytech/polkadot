@@ -195,9 +195,9 @@ pub mod pallet {
 		/// The type used to actually dispatch an XCM to its destination.
 		type XcmRouter: SendXcm;
 
-		/// Required origin for executing XCM messages, including the teleport functionality. If successful,
-		/// then it resolves to `MultiLocation` which exists as an interior location within this chain's XCM
-		/// context.
+		/// Required origin for executing XCM messages, including the teleport functionality. If
+		/// successful, then it resolves to `MultiLocation` which exists as an interior location
+		/// within this chain's XCM context.
 		type ExecuteXcmOrigin: EnsureOrigin<
 			<Self as SysConfig>::RuntimeOrigin,
 			Success = MultiLocation,
@@ -212,7 +212,8 @@ pub mod pallet {
 		/// Our XCM filter which messages to be teleported using the dedicated extrinsic must pass.
 		type XcmTeleportFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
 
-		/// Our XCM filter which messages to be reserve-transferred using the dedicated extrinsic must pass.
+		/// Our XCM filter which messages to be reserve-transferred using the dedicated extrinsic
+		/// must pass.
 		type XcmReserveTransferFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
 
 		/// Means of measuring the weight consumed by an XCM message locally.
@@ -290,8 +291,8 @@ pub mod pallet {
 		/// Query response has been received and query is removed. The registered notification has
 		/// been dispatched and executed successfully.
 		Notified { query_id: QueryId, pallet_index: u8, call_index: u8 },
-		/// Query response has been received and query is removed. The registered notification could
-		/// not be dispatched because the dispatch weight is greater than the maximum weight
+		/// Query response has been received and query is removed. The registered notification
+		/// could not be dispatched because the dispatch weight is greater than the maximum weight
 		/// originally budgeted by this runtime for the query result.
 		NotifyOverweight {
 			query_id: QueryId,
@@ -371,7 +372,8 @@ pub mod pallet {
 			cost: MultiAssets,
 			message_id: XcmHash,
 		},
-		/// We have requested that a remote chain stops sending us XCM version change notifications.
+		/// We have requested that a remote chain stops sending us XCM version change
+		/// notifications.
 		VersionNotifyUnrequested {
 			destination: MultiLocation,
 			cost: MultiAssets,
@@ -402,8 +404,8 @@ pub mod pallet {
 		/// The desired destination was unreachable, generally because there is a no way of routing
 		/// to it.
 		Unreachable,
-		/// There was some other issue (i.e. not to do with routing) in sending the message. Perhaps
-		/// a lack of space for buffering the message.
+		/// There was some other issue (i.e. not to do with routing) in sending the message.
+		/// Perhaps a lack of space for buffering the message.
 		SendFailure,
 		/// The message execution fails the filter.
 		Filtered,
@@ -791,12 +793,13 @@ pub mod pallet {
 		/// with all fees taken as needed from the asset.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
-		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
-		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
-		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
-		///   an `AccountId32` value.
-		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
-		///   `dest` side. May not be empty.
+		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent,
+		///   Parachain(..))` to send from parachain to parachain, or `X1(Parachain(..))` to send
+		///   from relay to parachain.
+		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will
+		///   generally be an `AccountId32` value.
+		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to
+		///   pay the fee on the `dest` side. May not be empty.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		#[pallet::call_index(1)]
@@ -839,12 +842,13 @@ pub mod pallet {
 		/// with all fees taken as needed from the asset.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
-		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
-		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
-		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
-		///   an `AccountId32` value.
-		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
-		///   `dest` side.
+		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent,
+		///   Parachain(..))` to send from parachain to parachain, or `X1(Parachain(..))` to send
+		///   from relay to parachain.
+		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will
+		///   generally be an `AccountId32` value.
+		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the
+		///   fee on the `dest` side.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		#[pallet::call_index(2)]
@@ -885,12 +889,12 @@ pub mod pallet {
 		/// An event is deposited indicating whether `msg` could be executed completely or only
 		/// partially.
 		///
-		/// No more than `max_weight` will be used in its attempted execution. If this is less than the
-		/// maximum amount of weight that the message could take to be executed, then no execution
-		/// attempt will be made.
+		/// No more than `max_weight` will be used in its attempted execution. If this is less than
+		/// the maximum amount of weight that the message could take to be executed, then no
+		/// execution attempt will be made.
 		///
-		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
-		/// to completion; only that *some* of it was executed.
+		/// NOTE: A successful return to this does *not* imply that the `msg` was executed
+		/// successfully to completion; only that *some* of it was executed.
 		#[pallet::call_index(3)]
 		#[pallet::weight(max_weight.saturating_add(T::WeightInfo::execute()))]
 		pub fn execute(
@@ -1012,12 +1016,13 @@ pub mod pallet {
 		/// at risk.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
-		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
-		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
-		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
-		///   an `AccountId32` value.
-		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
-		///   `dest` side.
+		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent,
+		///   Parachain(..))` to send from parachain to parachain, or `X1(Parachain(..))` to send
+		///   from relay to parachain.
+		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will
+		///   generally be an `AccountId32` value.
+		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the
+		///   fee on the `dest` side.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
@@ -1063,12 +1068,13 @@ pub mod pallet {
 		/// at risk.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
-		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
-		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
-		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
-		///   an `AccountId32` value.
-		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
-		///   `dest` side. May not be empty.
+		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent,
+		///   Parachain(..))` to send from parachain to parachain, or `X1(Parachain(..))` to send
+		///   from relay to parachain.
+		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will
+		///   generally be an `AccountId32` value.
+		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to
+		///   pay the fee on the `dest` side. May not be empty.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
@@ -1561,13 +1567,13 @@ impl<T: Config> Pallet<T> {
 	///
 	/// - `message`: The message whose outcome should be reported.
 	/// - `responder`: The origin from which a response should be expected.
-	/// - `notify`: A dispatchable function which will be called once the outcome of `message`
-	///   is known. It may be a dispatchable in any pallet of the local chain, but other than
-	///   the usual origin, it must accept exactly two arguments: `query_id: QueryId` and
-	///   `outcome: Response`, and in that order. It should expect that the origin is
-	///   `Origin::Response` and will contain the responder's location.
-	/// - `timeout`: The block number after which it is permissible for `notify` not to be
-	///   called even if a response is received.
+	/// - `notify`: A dispatchable function which will be called once the outcome of `message` is
+	///   known. It may be a dispatchable in any pallet of the local chain, but other than the usual
+	///   origin, it must accept exactly two arguments: `query_id: QueryId` and `outcome: Response`,
+	///   and in that order. It should expect that the origin is `Origin::Response` and will contain
+	///   the responder's location.
+	/// - `timeout`: The block number after which it is permissible for `notify` not to be called
+	///   even if a response is received.
 	///
 	/// `report_outcome_notify` may return an error if the `responder` is not invertible.
 	///
@@ -2090,8 +2096,8 @@ impl<T: Config> OnResponse for Pallet<T> {
 										call_index,
 									};
 									Self::deposit_event(e);
-									// Not much to do with the result as it is. It's up to the parachain to ensure that the
-									// message makes sense.
+									// Not much to do with the result as it is. It's up to the
+									// parachain to ensure that the message makes sense.
 									error_and_info.post_info.actual_weight
 								},
 							}
@@ -2159,8 +2165,8 @@ where
 	}
 }
 
-/// Filter for `MultiLocation` to find those which represent a strict majority approval of an identified
-/// plurality.
+/// Filter for `MultiLocation` to find those which represent a strict majority approval of an
+/// identified plurality.
 ///
 /// May reasonably be used with `EnsureXcm`.
 pub struct IsMajorityOfBody<Prefix, Body>(PhantomData<(Prefix, Body)>);
@@ -2186,8 +2192,8 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
 	}
 }
 
-/// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter the
-/// `Origin::Xcm` item.
+/// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter
+/// the `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);
 impl<O: OriginTrait + From<Origin>, F: Contains<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
 where

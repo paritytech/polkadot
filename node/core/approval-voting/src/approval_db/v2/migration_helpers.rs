@@ -87,8 +87,8 @@ pub fn v1_to_v2(db: Arc<dyn Database>, config: Config) -> Result<()> {
 	// Get all candidate entries, approval entries and convert each of them.
 	for block in all_blocks {
 		for (_core_index, candidate_hash) in block.candidates() {
-			// Loading the candidate will also perform the conversion to the updated format and return
-			// that represantation.
+			// Loading the candidate will also perform the conversion to the updated format and
+			// return that represantation.
 			if let Some(candidate_entry) = backend
 				.load_candidate_entry_v1(&candidate_hash)
 				.map_err(|e| Error::InternalError(e))?
@@ -131,8 +131,8 @@ pub fn v1_to_v2_sanity_check(
 	// Iterate all blocks and approval entries.
 	for block in all_blocks {
 		for (_core_index, candidate_hash) in block.candidates() {
-			// Loading the candidate will also perform the conversion to the updated format and return
-			// that represantation.
+			// Loading the candidate will also perform the conversion to the updated format and
+			// return that represantation.
 			if let Some(candidate_entry) = backend.load_candidate_entry(&candidate_hash).unwrap() {
 				candidates.insert(candidate_entry.candidate.hash());
 			}

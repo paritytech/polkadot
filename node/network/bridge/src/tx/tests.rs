@@ -284,7 +284,7 @@ fn send_messages_to_peers() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeTxMessage::SendValidationMessage(
-						vec![peer.clone()],
+						vec![peer],
 						Versioned::V1(message_v1.clone()),
 					),
 				})
@@ -299,7 +299,7 @@ fn send_messages_to_peers() {
 					.await
 					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
-					peer.clone(),
+					peer,
 					PeerSet::Validation,
 					WireMessage::ProtocolMessage(message_v1).encode(),
 				)
@@ -321,7 +321,7 @@ fn send_messages_to_peers() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeTxMessage::SendCollationMessage(
-						vec![peer.clone()],
+						vec![peer],
 						Versioned::V1(message_v1.clone()),
 					),
 				})
@@ -334,7 +334,7 @@ fn send_messages_to_peers() {
 					.await
 					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
-					peer.clone(),
+					peer,
 					PeerSet::Collation,
 					WireMessage::ProtocolMessage(message_v1).encode(),
 				)
@@ -349,10 +349,12 @@ fn network_protocol_versioning_send() {
 	test_harness(|test_harness| async move {
 		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
 
-		let peer_ids: Vec<_> = (0..2).map(|_| PeerId::random()).collect();
+		let peer_ids: Vec<_> = (0..4).map(|_| PeerId::random()).collect();
 		let peers = [
 			(peer_ids[0], PeerSet::Validation, ValidationVersion::VStaging),
-			(peer_ids[1], PeerSet::Validation, ValidationVersion::V1),
+			(peer_ids[1], PeerSet::Collation, ValidationVersion::V1),
+			(peer_ids[2], PeerSet::Validation, ValidationVersion::V1),
+			(peer_ids[3], PeerSet::Collation, ValidationVersion::VStaging),
 		];
 
 		for &(peer_id, peer_set, version) in &peers {
@@ -374,7 +376,7 @@ fn network_protocol_versioning_send() {
 
 			// Note that bridge doesn't ensure neither peer's protocol version
 			// or peer set match the message.
-			let receivers = vec![peer_ids[0], peer_ids[1]];
+			let receivers = vec![peer_ids[0], peer_ids[3]];
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeTxMessage::SendValidationMessage(
@@ -396,6 +398,46 @@ fn network_protocol_versioning_send() {
 					NetworkAction::WriteNotification(
 						*peer,
 						PeerSet::Validation,
+						WireMessage::ProtocolMessage(msg.clone()).encode(),
+					)
+				);
+			}
+		}
+
+		// send a collation protocol message.
+
+		{
+			let collator_protocol_message = protocol_vstaging::CollatorProtocolMessage::Declare(
+				Sr25519Keyring::Alice.public().into(),
+				0_u32.into(),
+				dummy_collator_signature(),
+			);
+
+			let msg = protocol_vstaging::CollationProtocol::CollatorProtocol(
+				collator_protocol_message.clone(),
+			);
+
+			let receivers = vec![peer_ids[1], peer_ids[2]];
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: NetworkBridgeTxMessage::SendCollationMessages(vec![(
+						receivers.clone(),
+						Versioned::VStaging(msg.clone()),
+					)]),
+				})
+				.await;
+
+			for peer in &receivers {
+				assert_eq!(
+					network_handle
+						.next_network_action()
+						.timeout(TIMEOUT)
+						.await
+						.expect("Timeout does not occur"),
+					NetworkAction::WriteNotification(
+						*peer,
+						PeerSet::Collation,
 						WireMessage::ProtocolMessage(msg.clone()).encode(),
 					)
 				);

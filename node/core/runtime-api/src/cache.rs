@@ -70,6 +70,9 @@ pub(crate) struct RequestResultCache {
 		LruCache<Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>>,
 	key_ownership_proof:
 		LruCache<(Hash, ValidatorId), Option<vstaging::slashing::OpaqueKeyOwnershipProof>>,
+
+	staging_para_backing_state: LruCache<(Hash, ParaId), Option<vstaging::BackingState>>,
+	staging_async_backing_params: LruCache<Hash, vstaging::AsyncBackingParams>,
 }
 
 impl Default for RequestResultCache {
@@ -100,6 +103,8 @@ impl Default for RequestResultCache {
 			unapplied_slashes: LruCache::new(DEFAULT_CACHE_CAP),
 			key_ownership_proof: LruCache::new(DEFAULT_CACHE_CAP),
 			approval_voting_params: LruCache::new(DEFAULT_CACHE_CAP),
+			staging_para_backing_state: LruCache::new(DEFAULT_CACHE_CAP),
+			staging_async_backing_params: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
 }
@@ -448,6 +453,36 @@ impl RequestResultCache {
 	) -> Option<&Option<()>> {
 		None
 	}
+
+	pub(crate) fn staging_para_backing_state(
+		&mut self,
+		key: (Hash, ParaId),
+	) -> Option<&Option<vstaging::BackingState>> {
+		self.staging_para_backing_state.get(&key)
+	}
+
+	pub(crate) fn cache_staging_para_backing_state(
+		&mut self,
+		key: (Hash, ParaId),
+		value: Option<vstaging::BackingState>,
+	) {
+		self.staging_para_backing_state.put(key, value);
+	}
+
+	pub(crate) fn staging_async_backing_params(
+		&mut self,
+		key: &Hash,
+	) -> Option<&vstaging::AsyncBackingParams> {
+		self.staging_async_backing_params.get(key)
+	}
+
+	pub(crate) fn cache_staging_async_backing_params(
+		&mut self,
+		key: Hash,
+		value: vstaging::AsyncBackingParams,
+	) {
+		self.staging_async_backing_params.put(key, value);
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -495,4 +530,6 @@ pub(crate) enum RequestResult {
 		Option<()>,
 	),
 	ApprovalVotingParams(Hash, ApprovalVotingParams),
+	StagingParaBackingState(Hash, ParaId, Option<vstaging::BackingState>),
+	StagingAsyncBackingParams(Hash, vstaging::AsyncBackingParams),
 }

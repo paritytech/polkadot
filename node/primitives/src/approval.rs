@@ -364,8 +364,8 @@ pub mod v2 {
 	/// - introduced RelayVRFModuloCompact
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum AssignmentCertKindV2 {
-		/// Multiple assignment stories based on the VRF that authorized the relay-chain block where the
-		/// candidates were included.
+		/// Multiple assignment stories based on the VRF that authorized the relay-chain block
+		/// where the candidates were included.
 		///
 		/// The context is [`v2::RELAY_VRF_MODULO_CONTEXT`]
 		#[codec(index = 0)]

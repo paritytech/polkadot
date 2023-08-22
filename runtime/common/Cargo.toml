@@ -64,6 +64,9 @@ test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../pri
 
 [features]
 default = ["std"]
+experimental = [
+	"frame-support/experimental"
+]
 no_std = []
 std = [
 	"bitvec/std",

@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Parathread and parachains leasing system. Allows para IDs to be claimed, the code and data to be initialized and
-//! parachain slots (i.e. continuous scheduling) to be leased. Also allows for parachains and parathreads to be
-//! swapped.
+//! Parathread and parachains leasing system. Allows para IDs to be claimed, the code and data to be
+//! initialized and parachain slots (i.e. continuous scheduling) to be leased. Also allows for
+//! parachains and parathreads to be swapped.
 //!
-//! This doesn't handle the mechanics of determining which para ID actually ends up with a parachain lease. This
-//! must handled by a separately, through the trait interface that this pallet provides or the root dispatchables.
+//! This doesn't handle the mechanics of determining which para ID actually ends up with a parachain
+//! lease. This must handled by a separately, through the trait interface that this pallet provides
+//! or the root dispatchables.
 
 pub mod migration;
 
@@ -98,8 +99,8 @@ pub mod pallet {
 
 	/// Amounts held on deposit for each (possibly future) leased parachain.
 	///
-	/// The actual amount locked on its behalf by any account at any time is the maximum of the second values
-	/// of the items in this list whose first value is the account.
+	/// The actual amount locked on its behalf by any account at any time is the maximum of the
+	/// second values of the items in this list whose first value is the account.
 	///
 	/// The first item in the list is the amount locked for the current Lease Period. Following
 	/// items are for the subsequent lease periods.
@@ -160,8 +161,8 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Just a connect into the `lease_out` call, in case Root wants to force some lease to happen
-		/// independently of any other on-chain mechanism to use it.
+		/// Just a connect into the `lease_out` call, in case Root wants to force some lease to
+		/// happen independently of any other on-chain mechanism to use it.
 		///
 		/// The dispatch origin for this call must match `T::ForceOrigin`.
 		#[pallet::call_index(0)]
@@ -244,7 +245,7 @@ impl<T: Config> Pallet<T> {
 			if lease_periods.len() == 1 {
 				// Just one entry, which corresponds to the now-ended lease period.
 				//
-				// `para` is now just a parathread.
+				// `para` is now just an on-demand parachain.
 				//
 				// Unreserve whatever is left.
 				if let Some((who, value)) = &lease_periods[0] {
@@ -268,8 +269,8 @@ impl<T: Config> Pallet<T> {
 					// deposit for the parachain.
 					let now_held = Self::deposit_held(para, &ended_lease.0);
 
-					// If this is less than what we were holding for this leaser's now-ended lease, then
-					// unreserve it.
+					// If this is less than what we were holding for this leaser's now-ended lease,
+					// then unreserve it.
 					if let Some(rebate) = ended_lease.1.checked_sub(&now_held) {
 						T::Currency::unreserve(&ended_lease.0, rebate);
 					}
@@ -392,8 +393,8 @@ impl<T: Config> Leaser<BlockNumberFor<T>> for Pallet<T> {
 				}
 			}
 
-			// Figure out whether we already have some funds of `leaser` held in reserve for `para_id`.
-			//  If so, then we can deduct those from the amount that we need to reserve.
+			// Figure out whether we already have some funds of `leaser` held in reserve for
+			// `para_id`.  If so, then we can deduct those from the amount that we need to reserve.
 			let maybe_additional = amount.checked_sub(&Self::deposit_held(para, &leaser));
 			if let Some(ref additional) = maybe_additional {
 				T::Currency::reserve(&leaser, *additional)
@@ -403,7 +404,8 @@ impl<T: Config> Leaser<BlockNumberFor<T>> for Pallet<T> {
 			let reserved = maybe_additional.unwrap_or_default();
 
 			// Check if current lease period is same as period begin, and onboard them directly.
-			// This will allow us to support onboarding new parachains in the middle of a lease period.
+			// This will allow us to support onboarding new parachains in the middle of a lease
+			// period.
 			if current_lease_period == period_begin {
 				// Best effort. Not much we can do if this fails.
 				let _ = T::Registrar::make_parachain(para);
@@ -481,7 +483,8 @@ impl<T: Config> Leaser<BlockNumberFor<T>> for Pallet<T> {
 			None => return true,
 		};
 
-		// Get the leases, and check each item in the vec which is part of the range we are checking.
+		// Get the leases, and check each item in the vec which is part of the range we are
+		// checking.
 		let leases = Leases::<T>::get(para_id);
 		for slot in offset..=offset + period_count {
 			if let Some(Some(_)) = leases.get(slot) {
@@ -942,7 +945,7 @@ mod tests {
 				Error::<Test>::ParaNotOnboarding
 			);
 
-			// Trying Para 2 again should fail cause they are not currently a parathread
+			// Trying Para 2 again should fail cause they are not currently an on-demand parachain
 			assert!(Slots::trigger_onboard(RuntimeOrigin::signed(1), 2.into()).is_err());
 
 			assert_eq!(TestRegistrar::<Test>::operations(), vec![(2.into(), 1, true),]);
@@ -1001,6 +1004,7 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
+	// Registers a parathread (on-demand parachain)
 	fn register_a_parathread<T: Config + paras::Config>(i: u32) -> (ParaId, T::AccountId) {
 		let para = ParaId::from(i);
 		let leaser: T::AccountId = account("leaser", i, 0);
@@ -1049,7 +1053,7 @@ mod benchmarking {
 			}.into());
 		}
 
-		// Worst case scenario, T parathreads onboard, and C parachains offboard.
+		// Worst case scenario, T on-demand parachains onboard, and C lease holding parachains offboard.
 		manage_lease_period_start {
 			// Assume reasonable maximum of 100 paras at any time
 			let c in 0 .. 100;
@@ -1061,14 +1065,14 @@ mod benchmarking {
 			// If there is an offset, we need to be on that block to be able to do lease things.
 			frame_system::Pallet::<T>::set_block_number(T::LeaseOffset::get() + One::one());
 
-			// Make T parathreads
+			// Make T parathreads (on-demand parachains)
 			let paras_info = (0..t).map(|i| {
 				register_a_parathread::<T>(i)
 			}).collect::<Vec<_>>();
 
 			T::Registrar::execute_pending_transitions();
 
-			// T parathread are upgrading to parachains
+			// T on-demand parachains are upgrading to lease holding parachains
 			for (para, leaser) in paras_info {
 				let amount = T::Currency::minimum_balance();
 				let origin = T::ForceOrigin::try_successful_origin()
@@ -1078,7 +1082,7 @@ mod benchmarking {
 
 			T::Registrar::execute_pending_transitions();
 
-			// C parachains are downgrading to parathreads
+			// C lease holding parachains are downgrading to on-demand parachains
 			for i in 200 .. 200 + c {
 				let (para, leaser) = register_a_parathread::<T>(i);
 				T::Registrar::make_parachain(para)?;

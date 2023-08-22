@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! `V1` Primitives.
+//! `V2` Primitives.
 
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
@@ -103,7 +103,8 @@ pub trait TypeIndex {
 	fn type_index(&self) -> usize;
 }
 
-/// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
+/// Index of the validator is used as a lightweight replacement of the `ValidatorId` when
+/// appropriate.
 #[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
 pub struct ValidatorIndex(pub u32);
@@ -391,6 +392,11 @@ pub const MAX_HEAD_DATA_SIZE: u32 = 1 * 1024 * 1024;
 // NOTE: This value is used in the runtime so be careful when changing it.
 pub const MAX_POV_SIZE: u32 = 5 * 1024 * 1024;
 
+/// Default queue size we use for the on-demand order book.
+///
+/// Can be adjusted in configuration.
+pub const ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE: u32 = 10_000;
+
 // The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
 mod assignment_app {
@@ -596,25 +602,27 @@ impl Ord for CommittedCandidateReceipt {
 	}
 }
 
-/// The validation data provides information about how to create the inputs for validation of a candidate.
-/// This information is derived from the chain state and will vary from para to para, although some
-/// fields may be the same for every para.
+/// The validation data provides information about how to create the inputs for validation of a
+/// candidate. This information is derived from the chain state and will vary from para to para,
+/// although some fields may be the same for every para.
 ///
-/// Since this data is used to form inputs to the validation function, it needs to be persisted by the
-/// availability system to avoid dependence on availability of the relay-chain state.
+/// Since this data is used to form inputs to the validation function, it needs to be persisted by
+/// the availability system to avoid dependence on availability of the relay-chain state.
 ///
-/// Furthermore, the validation data acts as a way to authorize the additional data the collator needs
-/// to pass to the validation function. For example, the validation function can check whether the incoming
-/// messages (e.g. downward messages) were actually sent by using the data provided in the validation data
-/// using so called MQC heads.
+/// Furthermore, the validation data acts as a way to authorize the additional data the collator
+/// needs to pass to the validation function. For example, the validation function can check whether
+/// the incoming messages (e.g. downward messages) were actually sent by using the data provided in
+/// the validation data using so called MQC heads.
 ///
-/// Since the commitments of the validation function are checked by the relay-chain, secondary checkers
-/// can rely on the invariant that the relay-chain only includes para-blocks for which these checks have
-/// already been done. As such, there is no need for the validation data used to inform validators and
-/// collators about the checks the relay-chain will perform to be persisted by the availability system.
+/// Since the commitments of the validation function are checked by the relay-chain, secondary
+/// checkers can rely on the invariant that the relay-chain only includes para-blocks for which
+/// these checks have already been done. As such, there is no need for the validation data used to
+/// inform validators and collators about the checks the relay-chain will perform to be persisted by
+/// the availability system.
 ///
-/// The `PersistedValidationData` should be relatively lightweight primarily because it is constructed
-/// during inclusion for each candidate and therefore lies on the critical path of inclusion.
+/// The `PersistedValidationData` should be relatively lightweight primarily because it is
+/// constructed during inclusion for each candidate and therefore lies on the critical path of
+/// inclusion.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Default))]
 pub struct PersistedValidationData<H = Hash, N = BlockNumber> {
@@ -649,7 +657,8 @@ pub struct CandidateCommitments<N = BlockNumber> {
 	pub head_data: HeadData,
 	/// The number of messages processed from the DMQ.
 	pub processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	/// The mark which specifies the block number up to which all inbound HRMP messages are
+	/// processed.
 	pub hrmp_watermark: N,
 }
 
@@ -684,7 +693,8 @@ pub type UncheckedSignedAvailabilityBitfield = UncheckedSigned<AvailabilityBitfi
 
 /// A set of signed availability bitfields. Should be sorted by validator index, ascending.
 pub type SignedAvailabilityBitfields = Vec<SignedAvailabilityBitfield>;
-/// A set of unchecked signed availability bitfields. Should be sorted by validator index, ascending.
+/// A set of unchecked signed availability bitfields. Should be sorted by validator index,
+/// ascending.
 pub type UncheckedSignedAvailabilityBitfields = Vec<UncheckedSignedAvailabilityBitfield>;
 
 /// A backed (or backable, depending on context) candidate.
@@ -794,7 +804,7 @@ impl TypeIndex for CoreIndex {
 }
 
 /// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default, Clone, Copy, Debug, PartialEq, Eq, TypeInfo)]
+#[derive(Encode, Decode, Default, Clone, Copy, Debug, PartialEq, Eq, TypeInfo, PartialOrd, Ord)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct GroupIndex(pub u32);
 
@@ -810,29 +820,71 @@ impl TypeIndex for GroupIndex {
 	}
 }
 
-/// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
-pub struct ParathreadClaim(pub Id, pub CollatorId);
+/// A claim on authoring the next block for a given parathread (on-demand parachain).
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
+pub struct ParathreadClaim(pub Id, pub Option<CollatorId>);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
 pub struct ParathreadEntry {
 	/// The claim.
 	pub claim: ParathreadClaim,
-	/// Number of retries.
+	/// Number of retries
 	pub retries: u32,
+}
+
+/// An assignment for a parachain scheduled to be backed and included in a relay chain block.
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, RuntimeDebug)]
+pub struct Assignment {
+	/// Assignment's ParaId
+	pub para_id: Id,
+}
+
+impl Assignment {
+	/// Create a new `Assignment`.
+	pub fn new(para_id: Id) -> Self {
+		Self { para_id }
+	}
+}
+
+/// An entry tracking a paras
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
+pub struct ParasEntry<N = BlockNumber> {
+	/// The `Assignment`
+	pub assignment: Assignment,
+	/// The number of times the entry has timed out in availability.
+	pub availability_timeouts: u32,
+	/// The block height where this entry becomes invalid.
+	pub ttl: N,
+}
+
+impl<N> ParasEntry<N> {
+	/// Return `Id` from the underlying `Assignment`.
+	pub fn para_id(&self) -> Id {
+		self.assignment.para_id
+	}
+
+	/// Create a new `ParasEntry`.
+	pub fn new(assignment: Assignment, now: N) -> Self {
+		ParasEntry { assignment, availability_timeouts: 0, ttl: now }
+	}
 }
 
 /// What is occupying a specific availability core.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
-pub enum CoreOccupied {
-	/// A parathread.
-	Parathread(ParathreadEntry),
-	/// A parachain.
-	Parachain,
+pub enum CoreOccupied<N> {
+	/// The core is not occupied.
+	Free,
+	/// A paras.
+	Paras(ParasEntry<N>),
+}
+
+impl<N> CoreOccupied<N> {
+	/// Is core free?
+	pub fn is_free(&self) -> bool {
+		matches!(self, Self::Free)
+	}
 }
 
 /// A helper data-type for tracking validator-group rotations.
@@ -964,7 +1016,9 @@ impl<H, N> OccupiedCore<H, N> {
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
-	/// The collator required to author the block, if any.
+	/// DEPRECATED: see: https://github.com/paritytech/polkadot/issues/7575
+	///
+	/// Will be removed in a future version.
 	pub collator: Option<CollatorId>,
 }
 
@@ -982,8 +1036,9 @@ pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// variant.
 	#[codec(index = 1)]
 	Scheduled(ScheduledCore),
-	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
-	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
+	/// The core is currently free and there is nothing scheduled. This can be the case for
+	/// parathread cores when there are no parathread blocks queued. Parachain cores will never be
+	/// left idle.
 	#[codec(index = 2)]
 	Free,
 }
@@ -993,7 +1048,7 @@ impl<N> CoreState<N> {
 	pub fn para_id(&self) -> Option<Id> {
 		match self {
 			Self::Occupied(ref core) => Some(core.para_id()),
-			Self::Scheduled(ScheduledCore { para_id, .. }) => Some(*para_id),
+			Self::Scheduled(core) => Some(core.para_id),
 			Self::Free => None,
 		}
 	}
@@ -1106,8 +1161,8 @@ impl From<ValidityError> for u8 {
 	}
 }
 
-/// Abridged version of `HostConfiguration` (from the `Configuration` parachains host runtime module)
-/// meant to be used by a parachain or PDK such as cumulus.
+/// Abridged version of `HostConfiguration` (from the `Configuration` parachains host runtime
+/// module) meant to be used by a parachain or PDK such as cumulus.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct AbridgedHostConfiguration {
@@ -1183,17 +1238,18 @@ pub enum UpgradeRestriction {
 #[derive(Copy, Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum UpgradeGoAhead {
 	/// Abort the upgrade process. There is something wrong with the validation code previously
-	/// submitted by the parachain. This variant can also be used to prevent upgrades by the governance
-	/// should an emergency emerge.
+	/// submitted by the parachain. This variant can also be used to prevent upgrades by the
+	/// governance should an emergency emerge.
 	///
 	/// The expected reaction on this variant is that the parachain will admit this message and
 	/// remove all the data about the pending upgrade. Depending on the nature of the problem (to
-	/// be examined offchain for now), it can try to send another validation code or just retry later.
+	/// be examined offchain for now), it can try to send another validation code or just retry
+	/// later.
 	#[codec(index = 0)]
 	Abort,
-	/// Apply the pending code change. The parablock that is built on a relay-parent that is descendant
-	/// of the relay-parent where the parachain observed this signal must use the upgraded validation
-	/// code.
+	/// Apply the pending code change. The parablock that is built on a relay-parent that is
+	/// descendant of the relay-parent where the parachain observed this signal must use the
+	/// upgraded validation code.
 	#[codec(index = 1)]
 	GoAhead,
 }
@@ -1204,10 +1260,10 @@ pub const POLKADOT_ENGINE_ID: runtime_primitives::ConsensusEngineId = *b"POL1";
 /// A consensus log item for polkadot validation. To be used with [`POLKADOT_ENGINE_ID`].
 #[derive(Decode, Encode, Clone, PartialEq, Eq)]
 pub enum ConsensusLog {
-	/// A parachain or parathread upgraded its code.
+	/// A parachain upgraded its code.
 	#[codec(index = 1)]
 	ParaUpgradeCode(Id, ValidationCodeHash),
-	/// A parachain or parathread scheduled a code upgrade.
+	/// A parachain scheduled a code upgrade.
 	#[codec(index = 2)]
 	ParaScheduleUpgradeCode(Id, ValidationCodeHash, BlockNumber),
 	/// Governance requests to auto-approve every candidate included up to the given block
@@ -1535,7 +1591,7 @@ const BACKING_STATEMENT_MAGIC: [u8; 4] = *b"BKNG";
 
 /// Statements that can be made about parachain candidates. These are the
 /// actual values that are signed.
-#[derive(Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
@@ -1549,6 +1605,13 @@ impl CompactStatement {
 	/// of statement.
 	pub fn signing_payload(&self, context: &SigningContext) -> Vec<u8> {
 		(self, context).encode()
+	}
+
+	/// Get the underlying candidate hash this references.
+	pub fn candidate_hash(&self) -> &CandidateHash {
+		match *self {
+			CompactStatement::Seconded(ref h) | CompactStatement::Valid(ref h) => h,
+		}
 	}
 }
 
@@ -1595,15 +1658,6 @@ impl parity_scale_codec::Decode for CompactStatement {
 			CompactStatementInner::Seconded(h) => CompactStatement::Seconded(h),
 			CompactStatementInner::Valid(h) => CompactStatement::Valid(h),
 		})
-	}
-}
-
-impl CompactStatement {
-	/// Get the underlying candidate hash this references.
-	pub fn candidate_hash(&self) -> &CandidateHash {
-		match *self {
-			CompactStatement::Seconded(ref h) | CompactStatement::Valid(ref h) => h,
-		}
 	}
 }
 
@@ -1693,7 +1747,7 @@ pub const fn supermajority_threshold(n: usize) -> usize {
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct SessionInfo {
-	/****** New in v2 *******/
+	/****** New in v2 ****** */
 	/// All the validators actively participating in parachain consensus.
 	/// Indices are into the broader validator set.
 	pub active_validator_indices: Vec<ValidatorIndex>,
@@ -1702,11 +1756,11 @@ pub struct SessionInfo {
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
 
-	/****** Old fields ******/
+	/****** Old fields ***** */
 	/// Validators in canonical ordering.
 	///
-	/// NOTE: There might be more authorities in the current session, than `validators` participating
-	/// in parachain consensus. See
+	/// NOTE: There might be more authorities in the current session, than `validators`
+	/// participating in parachain consensus. See
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
 	///
 	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
@@ -1714,8 +1768,8 @@ pub struct SessionInfo {
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	///
 	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
-	/// `validators`, afterwards any remaining authorities can be found. This is any authorities not
-	/// participating in parachain consensus - see
+	/// `validators`, afterwards any remaining authorities can be found. This is any authorities
+	/// not participating in parachain consensus - see
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148)
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment keys for validators.
@@ -1726,8 +1780,8 @@ pub struct SessionInfo {
 	///
 	/// Therefore:
 	/// ```ignore
-	///		assignment_keys.len() == validators.len() && validators.len() <= discovery_keys.len()
-	///	```
+	/// 		assignment_keys.len() == validators.len() && validators.len() <= discovery_keys.len()
+	/// 	```
 	pub assignment_keys: Vec<AssignmentId>,
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by

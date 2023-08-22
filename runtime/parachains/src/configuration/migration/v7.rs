@@ -23,13 +23,106 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use primitives::{vstaging::ApprovalVotingParams, SessionIndex};
+use primitives::{vstaging::AsyncBackingParams, Balance, ExecutorParams, SessionIndex};
 use sp_std::vec::Vec;
 
 use frame_support::traits::OnRuntimeUpgrade;
 
 use super::v6::V6HostConfiguration;
-type V7HostConfiguration<BlockNumber> = configuration::HostConfiguration<BlockNumber>;
+
+#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug, Clone)]
+pub struct V7HostConfiguration<BlockNumber> {
+	pub max_code_size: u32,
+	pub max_head_data_size: u32,
+	pub max_upward_queue_count: u32,
+	pub max_upward_queue_size: u32,
+	pub max_upward_message_size: u32,
+	pub max_upward_message_num_per_candidate: u32,
+	pub hrmp_max_message_num_per_candidate: u32,
+	pub validation_upgrade_cooldown: BlockNumber,
+	pub validation_upgrade_delay: BlockNumber,
+	pub async_backing_params: AsyncBackingParams,
+	pub max_pov_size: u32,
+	pub max_downward_message_size: u32,
+	pub hrmp_max_parachain_outbound_channels: u32,
+	pub hrmp_max_parathread_outbound_channels: u32,
+	pub hrmp_sender_deposit: Balance,
+	pub hrmp_recipient_deposit: Balance,
+	pub hrmp_channel_max_capacity: u32,
+	pub hrmp_channel_max_total_size: u32,
+	pub hrmp_max_parachain_inbound_channels: u32,
+	pub hrmp_max_parathread_inbound_channels: u32,
+	pub hrmp_channel_max_message_size: u32,
+	pub executor_params: ExecutorParams,
+	pub code_retention_period: BlockNumber,
+	pub parathread_cores: u32,
+	pub parathread_retries: u32,
+	pub group_rotation_frequency: BlockNumber,
+	pub chain_availability_period: BlockNumber,
+	pub thread_availability_period: BlockNumber,
+	pub scheduling_lookahead: u32,
+	pub max_validators_per_core: Option<u32>,
+	pub max_validators: Option<u32>,
+	pub dispute_period: SessionIndex,
+	pub dispute_post_conclusion_acceptance_period: BlockNumber,
+	pub no_show_slots: u32,
+	pub n_delay_tranches: u32,
+	pub zeroth_delay_tranche_width: u32,
+	pub needed_approvals: u32,
+	pub relay_vrf_modulo_samples: u32,
+	pub pvf_voting_ttl: SessionIndex,
+	pub minimum_validation_upgrade_delay: BlockNumber,
+}
+
+impl<BlockNumber: Default + From<u32>> Default for V7HostConfiguration<BlockNumber> {
+	fn default() -> Self {
+		Self {
+			async_backing_params: AsyncBackingParams {
+				max_candidate_depth: 0,
+				allowed_ancestry_len: 0,
+			},
+			group_rotation_frequency: 1u32.into(),
+			chain_availability_period: 1u32.into(),
+			thread_availability_period: 1u32.into(),
+			no_show_slots: 1u32.into(),
+			validation_upgrade_cooldown: Default::default(),
+			validation_upgrade_delay: 2u32.into(),
+			code_retention_period: Default::default(),
+			max_code_size: Default::default(),
+			max_pov_size: Default::default(),
+			max_head_data_size: Default::default(),
+			parathread_cores: Default::default(),
+			parathread_retries: Default::default(),
+			scheduling_lookahead: Default::default(),
+			max_validators_per_core: Default::default(),
+			max_validators: None,
+			dispute_period: 6,
+			dispute_post_conclusion_acceptance_period: 100.into(),
+			n_delay_tranches: Default::default(),
+			zeroth_delay_tranche_width: Default::default(),
+			needed_approvals: Default::default(),
+			relay_vrf_modulo_samples: Default::default(),
+			max_upward_queue_count: Default::default(),
+			max_upward_queue_size: Default::default(),
+			max_downward_message_size: Default::default(),
+			max_upward_message_size: Default::default(),
+			max_upward_message_num_per_candidate: Default::default(),
+			hrmp_sender_deposit: Default::default(),
+			hrmp_recipient_deposit: Default::default(),
+			hrmp_channel_max_capacity: Default::default(),
+			hrmp_channel_max_total_size: Default::default(),
+			hrmp_max_parachain_inbound_channels: Default::default(),
+			hrmp_max_parathread_inbound_channels: Default::default(),
+			hrmp_channel_max_message_size: Default::default(),
+			hrmp_max_parachain_outbound_channels: Default::default(),
+			hrmp_max_parathread_outbound_channels: Default::default(),
+			hrmp_max_message_num_per_candidate: Default::default(),
+			pvf_voting_ttl: 2u32.into(),
+			minimum_validation_upgrade_delay: 2.into(),
+			executor_params: Default::default(),
+		}
+	}
+}
 
 mod v6 {
 	use super::*;
@@ -147,9 +240,7 @@ pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 async_backing_params                     : pre.async_backing_params,
 executor_params                          : pre.executor_params,
-approval_voting_params                   : ApprovalVotingParams {
-                                              max_approval_coalesce_count: 1,
-                                           }
+
 		}
 	};
 
@@ -185,10 +276,12 @@ mod tests {
 		// Steps:
 		// 1. Go to Polkadot.js -> Developer -> Chain state -> Storage: https://polkadot.js.org/apps/#/chainstate
 		// 2. Set these parameters:
-		//   2.1. selected state query: configuration; activeConfig(): PolkadotRuntimeParachainsConfigurationHostConfiguration
-		//   2.2. blockhash to query at: 0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53 (the hash of the block)
-		//   2.3. Note the value of encoded storage key -> 0x06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385 for the referenced block.
-		//   2.4. You'll also need the decoded values to update the test.
+		//   2.1. selected state query: configuration; activeConfig():
+		// PolkadotRuntimeParachainsConfigurationHostConfiguration   2.2. blockhash to query at:
+		// 0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53 (the hash of the
+		// block)   2.3. Note the value of encoded storage key ->
+		// 0x06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385 for the referenced
+		// block.   2.4. You'll also need the decoded values to update the test.
 		// 3. Go to Polkadot.js -> Developer -> Chain state -> Raw storage
 		//   3.1 Enter the encoded storage key and you get the raw config.
 
@@ -199,8 +292,8 @@ mod tests {
 		let v6 =
 			V6HostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..]).unwrap();
 
-		// We check only a sample of the values here. If we missed any fields or messed up data types
-		// that would skew all the fields coming after.
+		// We check only a sample of the values here. If we missed any fields or messed up data
+		// types that would skew all the fields coming after.
 		assert_eq!(v6.max_code_size, 3_145_728);
 		assert_eq!(v6.validation_upgrade_cooldown, 200);
 		assert_eq!(v6.max_pov_size, 5_242_880);
@@ -212,8 +305,8 @@ mod tests {
 
 	#[test]
 	fn test_migrate_to_v7() {
-		// Host configuration has lots of fields. However, in this migration we only remove one field.
-		// The most important part to check are a couple of the last fields. We also pick
+		// Host configuration has lots of fields. However, in this migration we only remove one
+		// field. The most important part to check are a couple of the last fields. We also pick
 		// extra fields to check arbitrarily, e.g. depending on their position (i.e. the middle) and
 		// also their type.
 		//
@@ -294,7 +387,8 @@ mod tests {
 		});
 	}
 
-	// Test that migration doesn't panic in case there're no pending configurations upgrades in pallet's storage.
+	// Test that migration doesn't panic in case there're no pending configurations upgrades in
+	// pallet's storage.
 	#[test]
 	fn test_migrate_to_v7_no_pending() {
 		let v6 = V6HostConfiguration::<primitives::BlockNumber>::default();

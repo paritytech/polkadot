@@ -10,3 +10,7 @@ polkadot.*
 !polkadot.service
 .DS_Store
 .env
+
+artifacts
+release-artifacts
+release.json

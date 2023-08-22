@@ -61,12 +61,11 @@ pub struct OurAssignment {
 }
 
 pub struct ApprovalEntry {
-	tranches: Vec<TrancheEntry>,
+	tranches: Vec<TrancheEntry>, // sorted ascending by tranche number.
 	backing_group: GroupIndex,
 	our_assignment: Option<OurAssignment>,
 	our_approval_sig: Option<ValidatorSignature>,
-	// `n_validators` bits.
-	assigned_validators: Bitfield,
+	assigned_validators: Bitfield, // `n_validators` bits.
 	approved: bool,
 }
 

@@ -63,8 +63,8 @@ impl<
 /// The location which is allowed to mint a particular asset.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum MintLocation {
-	/// This chain is allowed to mint the asset. When we track teleports of the asset we ensure that
-	/// no more of the asset returns back to the chain than has been sent out.
+	/// This chain is allowed to mint the asset. When we track teleports of the asset we ensure
+	/// that no more of the asset returns back to the chain than has been sent out.
 	Local,
 	/// This chain is not allowed to mint the asset. When we track teleports of the asset we ensure
 	/// that no more of the asset is sent out from the chain than has been previously received.

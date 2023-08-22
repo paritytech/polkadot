@@ -30,10 +30,9 @@
 //! The versioning is achieved with the `api_version` attribute. It can be
 //! placed on:
 //! * trait declaration - represents the base version of the API.
-//! * method declaration (inside a trait declaration) - represents a versioned
-//!   method, which is not available in the base version.
-//! * trait implementation - represents which version of the API is being
-//!   implemented.
+//! * method declaration (inside a trait declaration) - represents a versioned method, which is not
+//!   available in the base version.
+//! * trait implementation - represents which version of the API is being implemented.
 //!
 //! Let's see a quick example:
 //!
@@ -90,14 +89,14 @@
 //! # How versioned methods are used for `ParachainHost`
 //!
 //! Let's introduce two types of `ParachainHost` API implementation:
-//! * stable - used on stable production networks like Polkadot and Kusama. There is only one
-//!   stable API at a single point in time.
+//! * stable - used on stable production networks like Polkadot and Kusama. There is only one stable
+//!   API at a single point in time.
 //! * staging - methods that are ready for production, but will be released on Rococo first. We can
 //!   batch together multiple changes and then release all of them to production, by making staging
 //!   production (bump base version). We can not change or remove any method in staging after a
-//!   release, as this would break Rococo. It should be ok to keep adding methods to staging
-//!   across several releases. For experimental methods, you have to keep them on a separate branch
-//!   until ready.
+//!   release, as this would break Rococo. It should be ok to keep adding methods to staging across
+//!   several releases. For experimental methods, you have to keep them on a separate branch until
+//!   ready.
 //!
 //! The stable version of `ParachainHost` is indicated by the base version of the API. Any staging
 //! method must use `api_version` attribute so that it is assigned to a specific version of a
@@ -111,8 +110,8 @@
 //! ```
 //! indicates a function from the stable `v2` API.
 //!
-//! All staging API functions should use primitives from `vstaging`. They should be clearly separated
-//! from the stable primitives.
+//! All staging API functions should use primitives from `vstaging`. They should be clearly
+//! separated from the stable primitives.
 
 use crate::{
 	vstaging::{self, ApprovalVotingParams},
@@ -245,5 +244,15 @@ sp_api::decl_runtime_apis! {
 		/// Approval voting configuration parameters
 		#[api_version(6)]
 		fn approval_voting_params() -> ApprovalVotingParams;
+		/***** Asynchronous backing *****/
+
+		/// Returns the state of parachain backing for a given para.
+		/// This is a staging method! Do not use on production runtimes!
+		#[api_version(99)]
+		fn staging_para_backing_state(_: ppp::Id) -> Option<vstaging::BackingState<H, N>>;
+
+		/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
+		#[api_version(99)]
+		fn staging_async_backing_params() -> vstaging::AsyncBackingParams;
 	}
 }

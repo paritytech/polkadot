@@ -254,6 +254,21 @@ impl RuntimeApiSubsystemClient for MockSubsystemClient {
 	async fn authorities(&self, _: Hash) -> Result<Vec<AuthorityDiscoveryId>, ApiError> {
 		Ok(self.authorities.clone())
 	}
+
+	async fn staging_async_backing_params(
+		&self,
+		_: Hash,
+	) -> Result<vstaging::AsyncBackingParams, ApiError> {
+		todo!("Not required for tests")
+	}
+
+	async fn staging_para_backing_state(
+		&self,
+		_: Hash,
+		_: ParaId,
+	) -> Result<Option<vstaging::BackingState>, ApiError> {
+		todo!("Not required for tests")
+	}
 }
 
 #[test]
@@ -900,7 +915,8 @@ fn multiple_requests_in_parallel_are_working() {
 			receivers.push(rx);
 		}
 
-		// The backpressure from reaching `MAX_PARALLEL_REQUESTS` will make the test block, we need to drop the lock.
+		// The backpressure from reaching `MAX_PARALLEL_REQUESTS` will make the test block, we need
+		// to drop the lock.
 		drop(lock);
 
 		for _ in 0..MAX_PARALLEL_REQUESTS * 100 {
@@ -988,7 +1004,7 @@ fn requests_submit_pvf_check_statement() {
 				),
 			})
 			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), ());
+		let _ = rx.await.unwrap().unwrap();
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
 			.send(FromOrchestra::Communication {
@@ -998,7 +1014,7 @@ fn requests_submit_pvf_check_statement() {
 				),
 			})
 			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), ());
+		let _ = rx.await.unwrap().unwrap();
 
 		assert_eq!(
 			&*subsystem_client.submitted_pvf_check_statement.lock().expect("poisened mutex"),
@@ -1065,9 +1081,7 @@ fn requests_validation_code_hash() {
 	let validation_code_hash = dummy_validation_code().hash();
 
 	let mut subsystem_client = MockSubsystemClient::default();
-	subsystem_client
-		.validation_code_hash
-		.insert(para_a, validation_code_hash.clone());
+	subsystem_client.validation_code_hash.insert(para_a, validation_code_hash);
 	let subsystem_client = Arc::new(subsystem_client);
 
 	let subsystem =

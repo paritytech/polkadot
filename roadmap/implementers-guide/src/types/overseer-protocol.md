@@ -345,9 +345,10 @@ enum BitfieldSigningMessage { }
 
 ```rust
 enum CandidateBackingMessage {
-  /// Requests a set of backable candidates that could be backed in a child of the given
-  /// relay-parent, referenced by its hash.
-  GetBackedCandidates(Hash, Vec<CandidateHash>, ResponseChannel<Vec<BackedCandidate>>),
+  /// Requests a set of backable candidates attested by the subsystem.
+  ///
+  /// Each pair is (candidate_hash, candidate_relay_parent).
+  GetBackedCandidates(Vec<(CandidateHash, Hash)>, oneshot::Sender<Vec<BackedCandidate>>),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated using the provided PoV.
   /// The PoV is expected to match the `pov_hash` in the descriptor.
@@ -444,6 +445,57 @@ enum CollatorProtocolMessage {
     NoteGoodCollation(CollatorId, SignedFullStatement),
     /// Notify a collator that its collation was seconded.
     NotifyCollationSeconded(CollatorId, Hash, SignedFullStatement),
+}
+```
+
+## Collation Generation Message
+
+Messages received by the [Collation Generation subsystem](../node/collators/collation-generation.md)
+
+This is the core interface by which collators built on top of a Polkadot node submit collations to validators. As such, these messages are not sent by any subsystem but are instead sent from outside of the overseer.
+
+```rust
+/// A function provided to the subsystem which it uses to pull new collations.
+///
+/// This mode of querying collations is obsoleted by `CollationGenerationMessages::SubmitCollation`
+///
+/// The response channel, if present, is meant to receive a `Seconded` statement as a
+/// form of authentication, for collation mechanisms which rely on this for anti-spam.
+type CollatorFn = Fn(Hash, PersistedValidationData) -> Future<Output = (Collation, Option<ResponseChannel<SignedStatement>>)>;
+
+/// Configuration for the collation generator
+struct CollationGenerationConfig {
+    /// Collator's authentication key, so it can sign things.
+    key: CollatorPair,
+    /// Collation function. See [`CollatorFn`] for more details.
+    collator: CollatorFn,
+    /// The parachain that this collator collates for
+    para_id: ParaId,
+}
+
+/// Parameters for submitting a collation
+struct SubmitCollationParams {
+    /// The relay-parent the collation is built against.
+    relay_parent: Hash,
+    /// The collation itself (PoV and commitments)
+    collation: Collation,
+    /// The parent block's head-data.
+    parent_head: HeadData,
+    /// The hash of the validation code the collation was created against.
+    validation_code_hash: ValidationCodeHash,
+    /// A response channel for receiving a `Seconded` message about the candidate
+    /// once produced by a validator. This is not guaranteed to provide anything.
+    result_sender: Option<ResponseChannel<SignedStatement>>,
+}
+
+enum CollationGenerationMessage {
+    /// Initialize the collation generation subsystem
+	Initialize(CollationGenerationConfig),
+    /// Submit a collation to the subsystem. This will package it into a signed
+    /// [`CommittedCandidateReceipt`] and distribute along the network to validators.
+    ///
+    /// If sent before `Initialize`, this will be ignored.
+    SubmitCollation(SubmitCollationParams),
 }
 ```
 
@@ -797,7 +849,7 @@ enum StatementDistributionMessage {
     ///
     /// The statement distribution subsystem assumes that the statement should be correctly
     /// signed.
-    Share(Hash, SignedFullStatement),
+    Share(Hash, SignedFullStatementWithPVD),
 }
 ```
 

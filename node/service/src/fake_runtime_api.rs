@@ -16,7 +16,8 @@
 
 //! Provides "fake" runtime API implementations
 //!
-//! These are used to provide a type that implements these runtime APIs without requiring to import the native runtimes.
+//! These are used to provide a type that implements these runtime APIs without requiring to import
+//! the native runtimes.
 
 use beefy_primitives::ecdsa_crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
 use grandpa_primitives::AuthorityId as GrandpaId;

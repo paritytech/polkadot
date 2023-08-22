@@ -56,8 +56,8 @@ pub trait WeightTrader: Sized {
 		context: &XcmContext,
 	) -> Result<Assets, XcmError>;
 
-	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight was
-	/// purchased using `buy_weight`.
+	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight
+	/// was purchased using `buy_weight`.
 	///
 	/// Default implementation refunds nothing.
 	fn refund_weight(&mut self, _weight: Weight, _context: &XcmContext) -> Option<MultiAsset> {
@@ -93,8 +93,8 @@ impl WeightTrader for Tuple {
 
 		log::trace!(target: "xcm::buy_weight", "last_error: {:?}, too_expensive_error_found: {}", last_error, too_expensive_error_found);
 
-		// if we have multiple traders, and first one returns `TooExpensive` and others fail e.g. `AssetNotFound`
-		// then it is more accurate to return `TooExpensive` then `AssetNotFound`
+		// if we have multiple traders, and first one returns `TooExpensive` and others fail e.g.
+		// `AssetNotFound` then it is more accurate to return `TooExpensive` then `AssetNotFound`
 		Err(if too_expensive_error_found {
 			XcmError::TooExpensive
 		} else {

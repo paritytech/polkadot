@@ -41,13 +41,13 @@ Category: Runtime
 
 Auctioning and registration of parachains. This is already implemented and follows the [Parachain Allocation — Research at W3F](https://research.web3.foundation/en/latest/polkadot/Parachain-Allocation.html) document.
 
-#### *Parathread Auctions*
+#### *On-demand Blockspace Purchase*
 
 Category: Runtime
 
-Parathreads are pay-as-you-go parachains. This consists of an on-chain mechanism for resolving an auction by collators and ensuring that they author a block.
+The blockspace purchasing system for on-demand parachains consists of an on-chain mechanism for resolving block space purchases by collators and ensuring that they author a block.
 
-The node-side portion of parathreads is for collators to actually cast bids and to be configured for which conditions to cast bids under.
+The node-side portion of on-demand parachains is for collators to actually purchase blockspace and to configure the conditions in which purchases are made.
 
 #### *Validator Assignment*
 
@@ -76,11 +76,11 @@ Category: Networking
 
 A black-box networking component for validators or fishermen on a parachain to obtain the PoV block referenced by hash in an attestation, for the purpose of validating. When fetching "current" PoV blocks (close to the head of the chain, or relating to the block currently being built), this should be fast. When fetching "old" PoV blocks, it should be possible and fall back on recovering from the availability erasure-coding.
 
-#### *Parathread Auction Voting*
+#### *On-demand Blockspace Purchase*
 
 Category: Node, Networking
 
-How and when collators are configured to cast votes in parathread auctions.
+How and when collators are configured to purchase on-demand blockspace.
 
 #### *Collation Loop*
 
@@ -146,7 +146,7 @@ We will need a network where collators of paras can discover and fetch the relev
 
 Category: Runtime
 
-Runtime logic for paras to open and close channels by putting down a deposit. The amount of channels a parathread can open will be limited. Channels that are pending close should remain open until the watermark of the recipient has reached the block height of the close request.
+Runtime logic for paras to open and close channels by putting down a deposit. The amount of channels an on-demand parachain can open will be limited. Channels that are pending close should remain open until the watermark of the recipient has reached the block height of the close request.
 
 ---
 ### Fishing/Slashing
@@ -197,7 +197,7 @@ The very first phase - this is parachains without slashing (full security) or cr
 
 ### Assignment:
   - Auctions
-  - Parathread Auctions
+  - On-demand Blockspace purchase
   - Validator Assignment
 
 ### Agreement:

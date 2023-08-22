@@ -40,7 +40,8 @@ use sp_application_crypto::{AppCrypto, ByteArray};
 use sp_keystore::{Keystore, KeystorePtr};
 
 use polkadot_node_network_protocol::{
-	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, GossipSupportNetworkMessage, PeerId,
+	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, GossipSupportNetworkMessage,
+	PeerId, Versioned,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -182,8 +183,7 @@ where
 	}
 
 	/// 1. Determine if the current session index has changed.
-	/// 2. If it has, determine relevant validators
-	///    and issue a connection request.
+	/// 2. If it has, determine relevant validators and issue a connection request.
 	async fn handle_active_leaves(
 		&mut self,
 		sender: &mut impl overseer::GossipSupportSenderTrait,
@@ -245,7 +245,8 @@ where
 				{
 					let mut connections = authorities_past_present_future(sender, leaf).await?;
 
-					// Remove all of our locally controlled validator indices so we don't connect to ourself.
+					// Remove all of our locally controlled validator indices so we don't connect to
+					// ourself.
 					let connections =
 						if remove_all_controlled(&self.keystore, &mut connections) != 0 {
 							connections
@@ -447,7 +448,13 @@ where
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},
 			NetworkBridgeEvent::NewGossipTopology { .. } => {},
-			NetworkBridgeEvent::PeerMessage(_, _) => {},
+			NetworkBridgeEvent::PeerMessage(_, message) => {
+				// match void -> LLVM unreachable
+				match message {
+					Versioned::V1(m) => match m {},
+					Versioned::VStaging(m) => match m {},
+				}
+			},
 		}
 	}
 

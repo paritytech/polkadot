@@ -155,7 +155,7 @@ fn price<RemoteExporter: ExportXcm>(
 	d: &InteriorMultiLocation,
 	m: &Xcm<()>,
 ) -> Result<MultiAssets, SendError> {
-	Ok(validate_export::<RemoteExporter>(n, c, s.clone(), d.clone(), m.clone())?.1)
+	Ok(validate_export::<RemoteExporter>(n, c, *s, *d, m.clone())?.1)
 }
 
 fn deliver<RemoteExporter: ExportXcm>(
@@ -205,7 +205,7 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		// though it is `Remote`.
 		ExecutorUniversalLocation::set(Remote::get());
 		let origin = Local::get().relative_to(&Remote::get());
-		AllowUnpaidFrom::set(vec![origin.clone()]);
+		AllowUnpaidFrom::set(vec![origin]);
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
 		// The we execute it:
 		let mut id = fake_id();
@@ -255,7 +255,7 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		// though it is `Remote`.
 		ExecutorUniversalLocation::set(Remote::get());
 		let origin = Local::get().relative_to(&Remote::get());
-		AllowPaidFrom::set(vec![origin.clone()]);
+		AllowPaidFrom::set(vec![origin]);
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
 		// Then we execute it:
 		let mut id = fake_id();

@@ -55,8 +55,8 @@ use tokio::{io, net::UnixStream};
 //
 // There are quirks to that configuration knob:
 //
-// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check
-//    that the stack space is actually available.
+// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check that
+//    the stack space is actually available.
 //
 //    That means, if the calling thread has 1 MiB of stack space left and the wasm code consumes
 //    more, then the wasmtime limit will **not** trigger. Instead, the wasm code will hit the
@@ -239,7 +239,8 @@ pub fn worker_entrypoint(
 					WaitOutcome::TimedOut => {
 						match cpu_time_monitor_thread.join() {
 							Ok(Some(cpu_time_elapsed)) => {
-								// Log if we exceed the timeout and the other thread hasn't finished.
+								// Log if we exceed the timeout and the other thread hasn't
+								// finished.
 								gum::warn!(
 									target: LOG_TARGET,
 									%worker_pid,

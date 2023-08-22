@@ -115,7 +115,8 @@ struct ApprovalRouting {
 	random_routing: RandomRouting,
 }
 
-// This struct is responsible for tracking the full state of an assignment and grid routing information.
+// This struct is responsible for tracking the full state of an assignment and grid routing
+// information.
 struct ApprovalEntry {
 	// The assignment certificate.
 	assignment: IndirectAssignmentCertV2,
@@ -187,7 +188,8 @@ impl ApprovalEntry {
 		self.routing_info.required_routing = required_routing;
 	}
 
-	// Records a new approval. Returns false if the claimed candidate is not found or we already have received the approval.
+	// Records a new approval. Returns false if the claimed candidate is not found or we already
+	// have received the approval.
 	pub fn note_approval(
 		&mut self,
 		approval: IndirectSignedApprovalVoteV2,
@@ -217,17 +219,17 @@ impl ApprovalEntry {
 	}
 
 	// Get the assignment certiticate and claimed candidates.
-	pub fn get_assignment(&self) -> (IndirectAssignmentCertV2, CandidateBitfield) {
+	pub fn assignment(&self) -> (IndirectAssignmentCertV2, CandidateBitfield) {
 		(self.assignment.clone(), self.candidates.clone())
 	}
 
 	// Get all approvals for all candidates claimed by the assignment.
-	pub fn get_approvals(&self) -> Vec<IndirectSignedApprovalVoteV2> {
+	pub fn approvals(&self) -> Vec<IndirectSignedApprovalVoteV2> {
 		self.approvals.values().cloned().collect::<Vec<_>>()
 	}
 
 	// Get the approval for a specific candidate index.
-	pub fn get_approval(
+	pub fn approval(
 		&self,
 		candidate_index: CandidateIndex,
 	) -> Option<IndirectSignedApprovalVoteV2> {
@@ -235,7 +237,7 @@ impl ApprovalEntry {
 	}
 
 	// Get validator index.
-	pub fn get_validator_index(&self) -> ValidatorIndex {
+	pub fn validator_index(&self) -> ValidatorIndex {
 		self.validator_index
 	}
 }
@@ -252,11 +254,13 @@ struct PeerEntry {
 // Aggression has 3 levels:
 //
 //  * Aggression Level 0: The basic behaviors described above.
-//  * Aggression Level 1: The originator of a message sends to all peers. Other peers follow the rules above.
-//  * Aggression Level 2: All peers send all messages to all their row and column neighbors.
-//    This means that each validator will, on average, receive each message approximately `2*sqrt(n)` times.
-// The aggression level of messages pertaining to a block increases when that block is unfinalized and
-// is a child of the finalized block.
+//  * Aggression Level 1: The originator of a message sends to all peers. Other peers follow the
+//    rules above.
+//  * Aggression Level 2: All peers send all messages to all their row and column neighbors. This
+//    means that each validator will, on average, receive each message approximately `2*sqrt(n)`
+//    times.
+// The aggression level of messages pertaining to a block increases when that block is unfinalized
+// and is a child of the finalized block.
 // This means that only one block at a time has its messages propagated with aggression > 0.
 //
 // A note on aggression thresholds: changes in propagation apply only to blocks which are the
@@ -269,7 +273,8 @@ struct PeerEntry {
 struct AggressionConfig {
 	/// Aggression level 1: all validators send all their own messages to all peers.
 	l1_threshold: Option<BlockNumber>,
-	/// Aggression level 2: level 1 + all validators send all messages to all peers in the X and Y dimensions.
+	/// Aggression level 2: level 1 + all validators send all messages to all peers in the X and Y
+	/// dimensions.
 	l2_threshold: Option<BlockNumber>,
 	/// How often to re-send messages to all targeted recipients.
 	/// This applies to all unfinalized blocks.
@@ -316,11 +321,12 @@ struct State {
 	blocks: HashMap<Hash, BlockEntry>,
 
 	/// Our view updates to our peers can race with `NewBlocks` updates. We store messages received
-	/// against the directly mentioned blocks in our view in this map until `NewBlocks` is received.
+	/// against the directly mentioned blocks in our view in this map until `NewBlocks` is
+	/// received.
 	///
-	/// As long as the parent is already in the `blocks` map and `NewBlocks` messages aren't delayed
-	/// by more than a block length, this strategy will work well for mitigating the race. This is
-	/// also a race that occurs typically on local networks.
+	/// As long as the parent is already in the `blocks` map and `NewBlocks` messages aren't
+	/// delayed by more than a block length, this strategy will work well for mitigating the race.
+	/// This is also a race that occurs typically on local networks.
 	pending_known: HashMap<Hash, Vec<(PeerId, PendingMessage)>>,
 
 	/// Peer data is partially stored here, and partially inline within the [`BlockEntry`]s
@@ -444,8 +450,8 @@ struct BlockEntry {
 	candidates: Vec<CandidateEntry>,
 	/// The session index of this block.
 	session: SessionIndex,
-	/// Approval entries for whole block. These also contain all approvals in the case of multiple candidates
-	/// being claimed by assignments.
+	/// Approval entries for whole block. These also contain all approvals in the case of multiple
+	/// candidates being claimed by assignments.
 	approval_entries: HashMap<(ValidatorIndex, CandidateBitfield), ApprovalEntry>,
 }
 
@@ -464,11 +470,12 @@ impl BlockEntry {
 				Some(candidate_entry) => {
 					candidate_entry
 						.messages
-						.entry(entry.get_validator_index())
+						.entry(entry.validator_index())
 						.or_insert(entry.candidates.clone());
 				},
 				None => {
-					// This should never happen, but if it happens, it means the subsystem is broken.
+					// This should never happen, but if it happens, it means the subsystem is
+					// broken.
 					gum::warn!(
 						target: LOG_TARGET,
 						hash = ?entry.assignment.block_hash,
@@ -502,7 +509,7 @@ impl BlockEntry {
 
 	// Returns a mutable reference of `ApprovalEntry` for `candidate_index` from validator
 	// `validator_index`.
-	pub fn get_approval_entry(
+	pub fn approval_entry(
 		&mut self,
 		candidate_index: CandidateIndex,
 		validator_index: ValidatorIndex,
@@ -516,7 +523,7 @@ impl BlockEntry {
 	}
 
 	// Get all approval entries for a given candidate.
-	pub fn get_approval_entries(&self, candidate_index: CandidateIndex) -> Vec<&ApprovalEntry> {
+	pub fn approval_entries(&self, candidate_index: CandidateIndex) -> Vec<&ApprovalEntry> {
 		// Get the keys for fetching `ApprovalEntry` from `self.approval_entries`,
 		let approval_entry_keys = self
 			.candidates
@@ -547,7 +554,8 @@ impl BlockEntry {
 // if it is included by multiple blocks - this is likely the case when there are forks.
 #[derive(Debug, Default)]
 struct CandidateEntry {
-	// The value represents part of the lookup key in `approval_entries` to fetch the assignment and existing votes.
+	// The value represents part of the lookup key in `approval_entries` to fetch the assignment
+	// and existing votes.
 	messages: HashMap<ValidatorIndex, CandidateBitfield>,
 }
 
@@ -1294,7 +1302,8 @@ impl State {
 			}
 		}
 
-		// Invariant: to our knowledge, none of the peers except for the `source` know about the assignment.
+		// Invariant: to our knowledge, none of the peers except for the `source` know about the
+		// assignment.
 		metrics.on_assignment_imported(&assignment.cert.kind);
 
 		let topology = self.topologies.get_topology(entry.session);
@@ -1635,10 +1644,11 @@ impl State {
 
 		for candidate_index in candidate_indices.iter_ones() {
 			// The entry is created when assignment is imported, so we assume this exists.
-			let approval_entry = entry.get_approval_entry(candidate_index as _, validator_index);
+			let approval_entry = entry.approval_entry(candidate_index as _, validator_index);
 			if approval_entry.is_none() {
 				let peer_id = source.peer_id();
-				// This indicates a bug in approval-distribution, since we check the knowledge at the begining of the function.
+				// This indicates a bug in approval-distribution, since we check the knowledge at
+				// the begining of the function.
 				gum::warn!(
 					target: LOG_TARGET,
 					?peer_id,
@@ -1670,7 +1680,8 @@ impl State {
 			required_routing = approval_entry.routing_info().required_routing;
 		}
 
-		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
+		// Invariant: to our knowledge, none of the peers except for the `source` know about the
+		// approval.
 		metrics.on_approval_imported();
 
 		// Dispatch a ApprovalDistributionV1Message::Approval(vote)
@@ -1685,13 +1696,13 @@ impl State {
 			}
 
 			// Here we're leaning on a few behaviors of assignment propagation:
-			//   1. At this point, the only peer we're aware of which has the approval
-			//      message is the source peer.
-			//   2. We have sent the assignment message to every peer in the required routing
-			//      which is aware of this block _unless_ the peer we originally received the
-			//      assignment from was part of the required routing. In that case, we've sent
-			//      the assignment to all aware peers in the required routing _except_ the original
-			//      source of the assignment. Hence the `in_topology_check`.
+			//   1. At this point, the only peer we're aware of which has the approval message is
+			//      the source peer.
+			//   2. We have sent the assignment message to every peer in the required routing which
+			//      is aware of this block _unless_ the peer we originally received the assignment
+			//      from was part of the required routing. In that case, we've sent the assignment
+			//      to all aware peers in the required routing _except_ the original source of the
+			//      assignment. Hence the `in_topology_check`.
 			//   3. Any randomly selected peers have been sent the assignment already.
 			let in_topology = topology
 				.map_or(false, |t| t.local_grid_neighbors().route_to_peer(required_routing, peer));
@@ -1796,9 +1807,9 @@ impl State {
 			};
 
 			let sigs = block_entry
-				.get_approval_entries(index)
+				.approval_entries(index)
 				.into_iter()
-				.filter_map(|approval_entry| approval_entry.get_approval(index))
+				.filter_map(|approval_entry| approval_entry.approval(index))
 				.map(|approval| {
 					(
 						approval.validator,
@@ -1858,8 +1869,8 @@ impl State {
 				let peer_knowledge = entry.known_by.entry(peer_id).or_default();
 				let topology = topologies.get_topology(entry.session);
 
-				// We want to iterate the `approval_entries` of the block entry as these contain all assignments
-				// that also link all approval votes.
+				// We want to iterate the `approval_entries` of the block entry as these contain all
+				// assignments that also link all approval votes.
 				for approval_entry in entry.approval_entries.values_mut() {
 					// Propagate the message to all peers in the required routing set OR
 					// randomly sample peers.
@@ -1893,8 +1904,8 @@ impl State {
 						}
 					}
 
-					let assignment_message = approval_entry.get_assignment();
-					let approval_messages = approval_entry.get_approvals();
+					let assignment_message = approval_entry.assignment();
+					let approval_messages = approval_entry.approvals();
 					let (assignment_knowledge, message_kind) =
 						approval_entry.create_assignment_knowledge(block);
 
@@ -1916,8 +1927,9 @@ impl State {
 											block,
 											approval_candidate_index as _,
 										);
-									// The assignments for all candidates signed in the approval should already have been sent to the peer,
-									// otherwise we can't send our approval and risk breaking our reputation.
+									// The assignments for all candidates signed in the approval
+									// should already have been sent to the peer, otherwise we can't
+									// send our approval and risk breaking our reputation.
 									let should_forward_approval = should_forward_approval &&
 										peer_knowledge
 											.contains(&message_subject, MessageKind::Assignment);
@@ -2094,8 +2106,8 @@ impl State {
 			let cert_bitfield_bits = match cert.cert.kind {
 				AssignmentCertKind::RelayVRFDelay { core_index } => core_index.0 as usize + 1,
 				// We don't want to run the VRF yet, but the output is always bounded by `n_cores`.
-				// We assume `candidate_bitfield` length for the core bitfield and we just check against
-				// `MAX_BITFIELD_SIZE` later.
+				// We assume `candidate_bitfield` length for the core bitfield and we just check
+				// against `MAX_BITFIELD_SIZE` later.
 				AssignmentCertKind::RelayVRFModulo { .. } => candidate_index as usize + 1,
 			};
 
@@ -2129,8 +2141,8 @@ impl State {
 			let cert_bitfield_bits = match &cert.cert.kind {
 				AssignmentCertKindV2::RelayVRFDelay { core_index } => core_index.0 as usize + 1,
 				// We don't want to run the VRF yet, but the output is always bounded by `n_cores`.
-				// We assume `candidate_bitfield` length for the core bitfield and we just check against
-				// `MAX_BITFIELD_SIZE` later.
+				// We assume `candidate_bitfield` length for the core bitfield and we just check
+				// against `MAX_BITFIELD_SIZE` later.
 				AssignmentCertKindV2::RelayVRFModulo { .. } => candidate_bitfield.len(),
 				AssignmentCertKindV2::RelayVRFModuloCompact { core_bitfield } =>
 					core_bitfield.len(),
@@ -2201,13 +2213,13 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 			None => continue,
 		};
 
-		// We just need to iterate the `approval_entries` of the block entry as these contain all assignments
-		// that also link all approval votes.
+		// We just need to iterate the `approval_entries` of the block entry as these contain all
+		// assignments that also link all approval votes.
 		for approval_entry in block_entry.approval_entries.values_mut() {
 			let new_required_routing = routing_modifier(
 				&approval_entry.routing_info().required_routing,
 				approval_entry.routing_info().local,
-				&approval_entry.get_validator_index(),
+				&approval_entry.validator_index(),
 			);
 
 			approval_entry.update_required_routing(new_required_routing);
@@ -2216,8 +2228,8 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 				continue
 			}
 
-			let assignment_message = approval_entry.get_assignment();
-			let approval_messages = approval_entry.get_approvals();
+			let assignment_message = approval_entry.assignment();
+			let approval_messages = approval_entry.approvals();
 			let (assignment_knowledge, message_kind) =
 				approval_entry.create_assignment_knowledge(*block_hash);
 
@@ -2390,9 +2402,6 @@ impl ApprovalDistribution {
 				state.handle_new_blocks(ctx, metrics, metas, rng).await;
 			},
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_indices) => {
-				// TODO: Fix warning: `Importing locally an already known assignment` for multiple candidate assignments.
-				// This is due to the fact that we call this on wakeup, and we do have a wakeup for each candidate index, but
-				// a single assignment claiming the candidates.
 				let _span = state
 					.spans
 					.get(&cert.block_hash)
@@ -2467,9 +2476,9 @@ const fn ensure_size_not_zero(size: usize) -> usize {
 }
 
 /// The maximum amount of assignments per batch is 33% of maximum allowed by protocol.
-/// This is an arbitrary value. Bumping this up increases the maximum amount of approvals or assignments
-/// we send in a single message to peers. Exceeding `MAX_NOTIFICATION_SIZE` will violate the protocol
-/// configuration.
+/// This is an arbitrary value. Bumping this up increases the maximum amount of approvals or
+/// assignments we send in a single message to peers. Exceeding `MAX_NOTIFICATION_SIZE` will violate
+/// the protocol configuration.
 pub const MAX_ASSIGNMENT_BATCH_SIZE: usize = ensure_size_not_zero(
 	MAX_NOTIFICATION_SIZE as usize /
 		std::mem::size_of::<(IndirectAssignmentCertV2, CandidateIndex)>() /
@@ -2543,7 +2552,8 @@ pub(crate) async fn send_assignments_batched(
 	let v2_peers = filter_by_peer_version(peers, ValidationVersion::VStaging.into());
 
 	if !v1_peers.is_empty() {
-		// Older peers(v1) do not understand `AssignmentsV2` messages, so we have to filter these out.
+		// Older peers(v1) do not understand `AssignmentsV2` messages, so we have to filter these
+		// out.
 		let v1_assignments = v2_assignments
 			.clone()
 			.into_iter()

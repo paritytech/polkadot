@@ -32,12 +32,12 @@ use polkadot_node_subsystem_util::reputation::ReputationAggregator;
 use sp_keystore::KeystorePtr;
 
 use polkadot_node_network_protocol::{
-	request_response::{v1 as request_v1, IncomingRequestReceiver},
+	request_response::{v1 as request_v1, vstaging as protocol_vstaging, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::CollatorPair;
 
-use polkadot_node_subsystem::{errors::SubsystemError, overseer, SpawnedSubsystem};
+use polkadot_node_subsystem::{errors::SubsystemError, overseer, DummySubsystem, SpawnedSubsystem};
 
 mod error;
 
@@ -76,12 +76,21 @@ pub enum ProtocolSide {
 		metrics: validator_side::Metrics,
 	},
 	/// Collators operate on a parachain.
-	Collator(
-		PeerId,
-		CollatorPair,
-		IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
-		collator_side::Metrics,
-	),
+	Collator {
+		/// Local peer id.
+		peer_id: PeerId,
+		/// Parachain collator pair.
+		collator_pair: CollatorPair,
+		/// Receiver for v1 collation fetching requests.
+		request_receiver_v1: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+		/// Receiver for vstaging collation fetching requests.
+		request_receiver_vstaging:
+			IncomingRequestReceiver<protocol_vstaging::CollationFetchingRequest>,
+		/// Metrics.
+		metrics: collator_side::Metrics,
+	},
+	/// No protocol side, just disable it.
+	None,
 }
 
 /// The collator protocol subsystem.
@@ -98,24 +107,34 @@ impl CollatorProtocolSubsystem {
 	pub fn new(protocol_side: ProtocolSide) -> Self {
 		Self { protocol_side }
 	}
-
-	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError> {
-		match self.protocol_side {
-			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
-				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
-			ProtocolSide::Collator(local_peer_id, collator_pair, req_receiver, metrics) =>
-				collator_side::run(ctx, local_peer_id, collator_pair, req_receiver, metrics).await,
-		}
-	}
 }
 
 #[overseer::subsystem(CollatorProtocol, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CollatorProtocolSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = self
-			.run(ctx)
+		let future = match self.protocol_side {
+			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
+				validator_side::run(ctx, keystore, eviction_policy, metrics)
+					.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
+					.boxed(),
+			ProtocolSide::Collator {
+				peer_id,
+				collator_pair,
+				request_receiver_v1,
+				request_receiver_vstaging,
+				metrics,
+			} => collator_side::run(
+				ctx,
+				peer_id,
+				collator_pair,
+				request_receiver_v1,
+				request_receiver_vstaging,
+				metrics,
+			)
 			.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
-			.boxed();
+			.boxed(),
+			ProtocolSide::None => return DummySubsystem.start(ctx),
+		};
 
 		SpawnedSubsystem { name: "collator-protocol-subsystem", future }
 	}
