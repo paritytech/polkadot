@@ -7,9 +7,9 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "na-sync-subs-jsonrpsee-v0.21" }
 polkadot-primitives = { path = "../" }
 rand = "0.8.5"

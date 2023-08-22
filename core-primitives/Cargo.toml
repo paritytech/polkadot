@@ -6,9 +6,9 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 parity-scale-codec = { version = "3.6.1", default-features = false, features = [ "derive" ] }
 

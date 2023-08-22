@@ -30,9 +30,9 @@ polkadot-service = { path = "../../../../node/service", features = ["rococo-nati
 polkadot-node-primitives = { path = "../../../../node/primitives" }
 polkadot-node-subsystem = { path = "../../../../node/subsystem" }
 
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
 # This one is tricky. Even though it is not used directly by the collator, we still need it for the
 # `puppet_worker` binary, which is required for the integration test. However, this shouldn't be
 # a big problem since it is used transitively anyway.
@@ -44,9 +44,9 @@ polkadot-test-service = { path = "../../../../node/test/service" }
 # For the puppet worker, depend on ourselves with the test-utils feature.
 test-parachain-undying-collator = { path = ".", features = ["test-utils"] }
 
-substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
 
 tokio = { version = "1.24.2", features = ["macros"] }
 

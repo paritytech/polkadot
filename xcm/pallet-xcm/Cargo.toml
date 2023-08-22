@@ -13,19 +13,19 @@ scale-info = { version = "2.5.0", default-features = false, features = ["derive"
 serde = { version = "1.0.163", optional = true, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "na-sync-subs-jsonrpsee-v0.21" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-sync-subs-jsonrpsee-v0.21" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "na-sync-subs-jsonrpsee-v0.21" }
 
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 polkadot-parachain = { path = "../../parachain" }
 xcm-builder = { path = "../xcm-builder" }

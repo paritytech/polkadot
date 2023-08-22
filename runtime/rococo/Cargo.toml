@@ -15,72 +15,72 @@ serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 smallvec = "1.8.0"
 
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-beefy-primitives = { package = "sp-consensus-beefy", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-binary-merkle-tree = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+beefy-primitives = { package = "sp-consensus-beefy", git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+binary-merkle-tree = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
 rococo-runtime-constants = { package = "rococo-runtime-constants", path = "./constants", default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-beefy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-child-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-nis = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["experimental"] }
-pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-tips = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-beefy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-bounties = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-child-bounties = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-collective = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-democracy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-identity = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-indices = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-membership = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-multisig = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-nis = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-preimage = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-proxy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-recovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-scheduler = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-society = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["experimental"] , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+frame-system = {git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-tips = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-utility = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false, features=["experimental"] }
 pallet-xcm-benchmarks = { path = "../../xcm/pallet-xcm-benchmarks", default-features = false, optional = true }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "na-sync-subs-jsonrpsee-v0.21" }
+frame-try-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "na-sync-subs-jsonrpsee-v0.21" }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "na-sync-subs-jsonrpsee-v0.21" }
 hex-literal = { version = "0.4.1" }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false, features=["experimental"] }
@@ -94,16 +94,16 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-remote-externalities" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", package = "frame-remote-externalities" , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
 separator = "0.4.1"
 serde_json = "1.0.96"
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
 tokio = { version = "1.24.2", features = ["macros"] }
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "na-sync-subs-jsonrpsee-v0.21" }
 
 [features]
 default = ["std"]

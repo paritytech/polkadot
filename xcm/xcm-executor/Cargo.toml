@@ -11,15 +11,15 @@ impl-trait-for-tuples = "0.2.2"
 environmental = { version = "1.1.4", default-features = false }
 parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-sync-subs-jsonrpsee-v0.21" }
 log = { version = "0.4.17", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "na-sync-subs-jsonrpsee-v0.21" }
 
 [features]
 default = ["std"]
