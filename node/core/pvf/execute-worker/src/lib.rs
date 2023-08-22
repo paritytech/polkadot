@@ -140,6 +140,7 @@ pub fn worker_entrypoint(
 		socket_path,
 		node_version,
 		worker_version,
+		cache_path,
 		|mut stream| async move {
 			let worker_pid = std::process::id();
 

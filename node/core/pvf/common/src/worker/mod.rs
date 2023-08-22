@@ -23,7 +23,7 @@ use cpu_time::ProcessTime;
 use futures::never::Never;
 use std::{
 	any::Any,
-	path::PathBuf,
+	path::{Path, PathBuf},
 	sync::mpsc::{Receiver, RecvTimeoutError},
 	time::Duration,
 };
@@ -108,6 +108,7 @@ pub fn worker_event_loop<F, Fut>(
 	socket_path: &str,
 	node_version: Option<&str>,
 	worker_version: Option<&str>,
+	cache_path: &Path,
 	mut event_loop: F,
 ) where
 	F: FnMut(UnixStream) -> Fut,
@@ -115,6 +116,47 @@ pub fn worker_event_loop<F, Fut>(
 {
 	let worker_pid = std::process::id();
 	gum::debug!(target: LOG_TARGET, %worker_pid, "starting pvf worker ({})", debug_id);
+
+	// Change root to be the artifact directory.
+	//
+	// SAFETY: TODO
+	#[cfg(target_os = "linux")]
+	{
+		use std::ffi::CString;
+
+		let cache_path_c = CString::new(cache_path).unwrap();
+		let root_relative_c = CString::new(".").unwrap();
+		let oldroot_relative_c = CString::new("./oldroot").unwrap();
+		let root_absolute_c = CString::new("/").unwrap();
+		let oldroot_absolute_c = CString::new("/oldroot").unwrap();
+
+		unsafe {
+			// 1. `unshare` the user and the mount namespaces.
+			libc::unshare(libc::CLONE_NEWUSER);
+			libc::unshare(libc::CLONE_NEWNS);
+
+			// 2. `pivot_root` to the artifact directory.
+			libc::chdir(cache_path_c.as_ptr());
+			libc::mount(
+				root_relative_c.as_ptr(),
+				root_relative_c.as_ptr(),
+				std::ptr::null(), // ignored when MS_BIND is used
+				libc::MS_BIND | libc::MS_REC | libc::MS_NOEXEC,
+				std::ptr::null(), // ignored when MS_BIND is used
+			);
+			libc::mkdir(oldroot_relative_c.as_ptr(), 0755);
+			libc::syscall(
+				libc::SYS_pivot_root,
+				root_relative_c.as_ptr(),
+				oldroot_relative_c.as_ptr(),
+			);
+
+			// 3. Change to the new root, `unmount2` and remove the old root.
+			libc::chdir(root_absolute_c.as_ptr());
+			libc::umount2(oldroot_absolute_c.as_ptr(), libc::MNT_DETACH);
+			libc::rmdir(oldroot_absolute_c.as_ptr());
+		}
+	}
 
 	// Check for a mismatch between the node and worker versions.
 	if let (Some(node_version), Some(worker_version)) = (node_version, worker_version) {
