@@ -43,9 +43,6 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"xcm-executor/runtime-benchmarks",
 	"pallet-assets/runtime-benchmarks",
-	"pallet-balances/runtime-benchmarks",
-	"pallet-salary/runtime-benchmarks",
-	"pallet-xcm/runtime-benchmarks",
 ]
 std = [
 	"log/std",
