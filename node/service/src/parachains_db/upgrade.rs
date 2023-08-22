@@ -422,7 +422,7 @@ pub fn remove_file_lock(path: &std::path::Path) {
 		let result = std::fs::remove_file(lock_path.as_path());
 		match result {
 			Err(error) => match error.kind() {
-				std::io::ErrorKind::WouldBlock => {
+				ErrorKind::WouldBlock => {
 					sleep(Duration::from_millis(100));
 					continue
 				},
