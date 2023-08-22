@@ -186,7 +186,8 @@ impl Config {
 			prepare_workers_hard_max_num: 1,
 			execute_worker_program_path,
 			execute_worker_spawn_timeout: Duration::from_secs(3),
-			execute_workers_max_num: 2,
+			// TODO: cleanup increased for versi experimenting.
+			execute_workers_max_num: 4,
 		}
 	}
 }
