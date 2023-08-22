@@ -2249,6 +2249,7 @@ impl ApprovalDistribution {
 					target: LOG_TARGET,
 					?candidate_indices,
 					block_hash = ?cert.block_hash,
+					assignment_kind = ?cert.cert.kind,
 					"Distributing our assignment on candidates",
 				);
 
