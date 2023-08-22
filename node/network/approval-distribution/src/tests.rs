@@ -153,7 +153,7 @@ fn make_gossip_topology(
 	assert!(all_peers.len() >= grid_size);
 
 	let peer_info = |i: usize| TopologyPeerInfo {
-		peer_ids: vec![all_peers[i].0.clone()],
+		peer_ids: vec![all_peers[i].0],
 		validator_index: ValidatorIndex::from(i as u32),
 		discovery_id: all_peers[i].1.clone(),
 	};
@@ -230,7 +230,7 @@ async fn setup_peer_with_view(
 	overseer_send(
 		virtual_overseer,
 		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
-			peer_id.clone(),
+			*peer_id,
 			ObservedRole::Full,
 			version.into(),
 			None,
@@ -240,8 +240,7 @@ async fn setup_peer_with_view(
 	overseer_send(
 		virtual_overseer,
 		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
-			peer_id.clone(),
-			view,
+			*peer_id, view,
 		)),
 	)
 	.await;
@@ -255,7 +254,7 @@ async fn send_message_from_peer(
 	overseer_send(
 		virtual_overseer,
 		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
-			peer_id.clone(),
+			*peer_id,
 			Versioned::V1(msg),
 		)),
 	)
@@ -270,7 +269,7 @@ async fn send_message_from_peer_v2(
 	overseer_send(
 		virtual_overseer,
 		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
-			peer_id.clone(),
+			*peer_id,
 			Versioned::VStaging(msg),
 		)),
 	)
@@ -625,7 +624,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 		// new block `hash_b` with 20 candidates
 		let candidates_count = 20;
 		let meta = BlockApprovalMeta {
-			hash: hash_b.clone(),
+			hash: hash_b,
 			parent_hash,
 			number: 2,
 			candidates: vec![Default::default(); candidates_count],
@@ -672,7 +671,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 		overseer_send(
 			overseer,
 			ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
-				peer.clone(),
+				*peer,
 				View::with_finalized(2),
 			)),
 		)
@@ -740,7 +739,7 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 		overseer_send(
 			overseer,
 			ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
-				peer.clone(),
+				*peer,
 				view![hash],
 			)),
 		)
@@ -1144,7 +1143,7 @@ fn update_peer_view() {
 		overseer_send(
 			overseer,
 			ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
-				peer.clone(),
+				*peer,
 				View::new(vec![hash_b, hash_c, hash_d], 2),
 			)),
 		)
@@ -1197,7 +1196,7 @@ fn update_peer_view() {
 		overseer_send(
 			overseer,
 			ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
-				peer.clone(),
+				*peer,
 				View::with_finalized(finalized_number),
 			)),
 		)
@@ -1367,7 +1366,7 @@ fn sends_assignments_even_when_state_is_approved() {
 					protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
 				))
 			)) => {
-				assert_eq!(peers, vec![peer.clone()]);
+				assert_eq!(peers, vec![*peer]);
 				assert_eq!(sent_assignments, assignments);
 			}
 		);
@@ -1380,7 +1379,7 @@ fn sends_assignments_even_when_state_is_approved() {
 					protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
 				))
 			)) => {
-				assert_eq!(peers, vec![peer.clone()]);
+				assert_eq!(peers, vec![*peer]);
 				assert_eq!(sent_approvals, approvals);
 			}
 		);
@@ -1472,7 +1471,7 @@ fn sends_assignments_even_when_state_is_approved_v2() {
 					protocol_vstaging::ApprovalDistributionMessage::Assignments(sent_assignments)
 				))
 			)) => {
-				assert_eq!(peers, vec![peer.clone()]);
+				assert_eq!(peers, vec![*peer]);
 				assert_eq!(sent_assignments, assignments);
 			}
 		);
@@ -1490,7 +1489,7 @@ fn sends_assignments_even_when_state_is_approved_v2() {
 				let sent_approvals = sent_approvals.into_iter().map(|approval| (approval.candidate_indices.clone(), approval)).collect::<HashMap<_,_>>();
 				let approvals = approvals.into_iter().map(|approval| (approval.candidate_indices.clone(), approval)).collect::<HashMap<_,_>>();
 
-				assert_eq!(peers, vec![peer.clone()]);
+				assert_eq!(peers, vec![*peer]);
 				assert_eq!(sent_approvals, approvals);
 			}
 		);
@@ -1519,7 +1518,7 @@ fn race_condition_in_local_vs_remote_view_update() {
 		// Test a small number of candidates
 		let candidates_count = 1;
 		let meta = BlockApprovalMeta {
-			hash: hash_b.clone(),
+			hash: hash_b,
 			parent_hash,
 			number: 2,
 			candidates: vec![Default::default(); candidates_count],
@@ -2117,7 +2116,7 @@ fn originator_aggression_l1() {
 
 	let mut state = State::default();
 	state.aggression_config.resend_unfinalized_period = None;
-	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
+	let aggression_l1_threshold = state.aggression_config.l1_threshold.unwrap();
 
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
@@ -2243,8 +2242,7 @@ fn originator_aggression_l1() {
 					assert_eq!(sent_assignments, assignments);
 
 					assert!(unsent_indices.iter()
-						.find(|i| &peers[**i].0 == &sent_peers[0])
-						.is_some());
+						.any(|i| &peers[*i].0 == &sent_peers[0]));
 				}
 			);
 		}
@@ -2263,8 +2261,7 @@ fn originator_aggression_l1() {
 					assert_eq!(sent_approvals, approvals);
 
 					assert!(unsent_indices.iter()
-						.find(|i| &peers[**i].0 == &sent_peers[0])
-						.is_some());
+						.any(|i| &peers[*i].0 == &sent_peers[0]));
 				}
 			);
 		}
@@ -2284,7 +2281,7 @@ fn non_originator_aggression_l1() {
 
 	let mut state = state_without_reputation_delay();
 	state.aggression_config.resend_unfinalized_period = None;
-	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
+	let aggression_l1_threshold = state.aggression_config.l1_threshold.unwrap();
 
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
@@ -2389,8 +2386,8 @@ fn non_originator_aggression_l2() {
 	let mut state = state_without_reputation_delay();
 	state.aggression_config.resend_unfinalized_period = None;
 
-	let aggression_l1_threshold = state.aggression_config.l1_threshold.clone().unwrap();
-	let aggression_l2_threshold = state.aggression_config.l2_threshold.clone().unwrap();
+	let aggression_l1_threshold = state.aggression_config.l1_threshold.unwrap();
+	let aggression_l2_threshold = state.aggression_config.l2_threshold.unwrap();
 	let _ = test_harness(state, |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 
@@ -2534,8 +2531,7 @@ fn non_originator_aggression_l2() {
 					assert_eq!(sent_assignments, assignments);
 
 					assert!(unsent_indices.iter()
-						.find(|i| &peers[**i].0 == &sent_peers[0])
-						.is_some());
+						.any(|i| &peers[*i].0 == &sent_peers[0]));
 				}
 			);
 		}

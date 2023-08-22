@@ -247,12 +247,7 @@ fn send_messages_to_peers() {
 		let peer = PeerId::random();
 
 		network_handle
-			.connect_peer(
-				peer.clone(),
-				ValidationVersion::V1,
-				PeerSet::Validation,
-				ObservedRole::Full,
-			)
+			.connect_peer(peer, ValidationVersion::V1, PeerSet::Validation, ObservedRole::Full)
 			.timeout(TIMEOUT)
 			.await
 			.expect("Timeout does not occur");
@@ -261,12 +256,7 @@ fn send_messages_to_peers() {
 		// so the single item sink has to be free explicitly
 
 		network_handle
-			.connect_peer(
-				peer.clone(),
-				ValidationVersion::V1,
-				PeerSet::Collation,
-				ObservedRole::Full,
-			)
+			.connect_peer(peer, ValidationVersion::V1, PeerSet::Collation, ObservedRole::Full)
 			.timeout(TIMEOUT)
 			.await
 			.expect("Timeout does not occur");
