@@ -753,13 +753,9 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		Some(backoff)
 	};
 
-	// If not on a known test network, warn the user that BEEFY is still experimental.
-	if enable_beefy &&
-		!config.chain_spec.is_rococo() &&
-		!config.chain_spec.is_wococo() &&
-		!config.chain_spec.is_versi()
-	{
-		gum::warn!("BEEFY is still experimental, usage on a production network is discouraged.");
+	// Warn the user that BEEFY is still experimental for Polkadot.
+	if enable_beefy && config.chain_spec.is_polkadot() {
+		gum::warn!("BEEFY is still experimental, usage on Polkadot network is discouraged.");
 	}
 
 	let disable_grandpa = config.disable_grandpa;
@@ -1204,14 +1200,14 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 
 		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
 
-		// BEEFY currently only runs on testnets, if it fails we'll
-		// bring the node down with it to make sure it is noticed.
+		// BEEFY is part of consensus, if it fails we'll bring the node down with it to make sure it
+		// is noticed.
 		task_manager
 			.spawn_essential_handle()
 			.spawn_blocking("beefy-gadget", None, gadget);
-
+		// When offchain indexing is enabled, MMR gadget should also run.
 		if is_offchain_indexing_enabled {
-			task_manager.spawn_handle().spawn_blocking(
+			task_manager.spawn_essential_handle().spawn_blocking(
 				"mmr-gadget",
 				None,
 				MmrGadget::start(
