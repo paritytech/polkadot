@@ -15,7 +15,7 @@ generate_address() {
 }
 
 generate_public_key() {
-	subkey inspect ${3:-} ${4:-} "$SECRET//$1//$2" | grep "Public" | awk '{ print $4 }'
+	subkey inspect ${3:-} ${4:-} "$SECRET//$1//$2" | grep "Public key (hex)" | awk '{ print $4 }'
 }
 
 generate_address_and_public_key() {

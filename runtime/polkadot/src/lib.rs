@@ -2352,12 +2352,7 @@ mod test {
 
 	#[test]
 	fn call_size() {
-		assert!(
-			core::mem::size_of::<RuntimeCall>() <= 230,
-			"size of RuntimeCall is more than 230 bytes: some calls have too big arguments, use Box to \
-			reduce the size of RuntimeCall.
-			If the limit is too strong, maybe consider increase the limit",
-		);
+		RuntimeCall::assert_size_under(230);
 	}
 
 	#[test]

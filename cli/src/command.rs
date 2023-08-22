@@ -240,9 +240,8 @@ where
 		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
-	// By default, enable BEEFY on test networks.
-	let enable_beefy = (chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi()) &&
-		!cli.run.no_beefy;
+	// By default, enable BEEFY on all networks except Polkadot (for now).
+	let enable_beefy = !chain_spec.is_polkadot() && !cli.run.no_beefy;
 
 	set_default_ss58_version(chain_spec);
 
