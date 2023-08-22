@@ -567,7 +567,7 @@ mod tests {
 			assert_eq!(db.num_columns(), super::columns::v3::NUM_COLUMNS as u32);
 			let db = DbAdapter::new(db, columns::v3::ORDERED_COL);
 			// Fill the approval voting column with test data.
-			v1_to_v2_fill_test_data(std::sync::Arc::new(db), approval_cfg.clone()).unwrap()
+			v1_to_v2_fill_test_data(std::sync::Arc::new(db), approval_cfg).unwrap()
 		};
 
 		try_upgrade_db(&db_dir.path(), DatabaseKind::RocksDB, 4).unwrap();
@@ -576,8 +576,7 @@ mod tests {
 		let db = Database::open(&db_cfg, db_path).unwrap();
 		let db = DbAdapter::new(db, columns::v4::ORDERED_COL);
 
-		v1_to_v2_sanity_check(std::sync::Arc::new(db), approval_cfg.clone(), expected_candidates)
-			.unwrap();
+		v1_to_v2_sanity_check(std::sync::Arc::new(db), approval_cfg, expected_candidates).unwrap();
 	}
 
 	#[test]

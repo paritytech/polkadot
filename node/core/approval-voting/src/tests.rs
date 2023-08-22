@@ -1138,7 +1138,7 @@ fn blank_subsystem_act_on_bad_block() {
 			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
 					IndirectAssignmentCertV2 {
-						block_hash: bad_block_hash.clone(),
+						block_hash: bad_block_hash,
 						validator: 0u32.into(),
 						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
 							sample: 0,
