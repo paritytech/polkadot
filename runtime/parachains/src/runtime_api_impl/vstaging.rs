@@ -118,3 +118,9 @@ pub fn backing_state<T: initializer::Config>(
 pub fn async_backing_params<T: configuration::Config>() -> AsyncBackingParams {
 	<configuration::Pallet<T>>::config().async_backing_params
 }
+
+/// Implementation of the `minimum_backing_votes` function of the runtime API.
+pub fn minimum_backing_votes<T: initializer::Config>() -> u32 {
+	let config = <configuration::Pallet<T>>::config();
+	config.minimum_backing_votes
+}

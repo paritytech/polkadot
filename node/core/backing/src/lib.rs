@@ -115,7 +115,7 @@ use statement_table::{
 	},
 	Config as TableConfig, Context as TableContextTrait, Table,
 };
-use util::runtime::RuntimeInfo;
+use util::{request_runtime_api_version, runtime::RuntimeInfo};
 
 mod error;
 
@@ -126,6 +126,9 @@ use self::metrics::Metrics;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::candidate-backing";
+
+/// Used prior to runtime API version 6.
+const LEGACY_MIN_BACKING_VOTES: u32 = 2;
 
 /// PoV data to validate.
 enum PoVData {
@@ -998,9 +1001,19 @@ async fn construct_per_relay_parent_state<Context>(
 
 	let session_index =
 		try_runtime_api!(runtime_info.get_session_index_for_child(ctx.sender(), parent).await);
+	let runtime_api_version = try_runtime_api!(request_runtime_api_version(parent, ctx.sender())
+		.await
+		.await
+		.map_err(Error::RuntimeApiUnavailable)?);
+
 	let minimum_backing_votes =
-		runtime_info.get_min_backing_votes(ctx.sender(), session_index, parent).await;
-	// TODO: if this does not exist, fall back to the hardcoded 2 value.
+		if runtime_api_version >= RuntimeApiRequest::MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT {
+			try_runtime_api!(
+				runtime_info.get_min_backing_votes(ctx.sender(), session_index, parent).await
+			)
+		} else {
+			LEGACY_MIN_BACKING_VOTES
+		};
 
 	let (validators, groups, cores) = futures::try_join!(
 		request_validators(parent, ctx.sender()).await,
@@ -1015,7 +1028,6 @@ async fn construct_per_relay_parent_state<Context>(
 	let validators: Vec<_> = try_runtime_api!(validators);
 	let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
 	let cores = try_runtime_api!(cores);
-	let minimum_backing_votes = try_runtime_api!(minimum_backing_votes);
 
 	let signing_context = SigningContext { parent_hash: parent, session_index };
 	let validator =

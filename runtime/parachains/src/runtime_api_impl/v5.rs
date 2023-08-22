@@ -38,12 +38,6 @@ pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
 	<shared::Pallet<T>>::active_validator_keys()
 }
 
-/// Implementation of the `minimum_backing_votes` function of the runtime API.
-pub fn minimum_backing_votes<T: initializer::Config>() -> u32 {
-	let config = <configuration::Pallet<T>>::config();
-	config.minimum_backing_votes
-}
-
 /// Implementation for the `validator_groups` function of the runtime API.
 pub fn validator_groups<T: initializer::Config>(
 ) -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumberFor<T>>) {

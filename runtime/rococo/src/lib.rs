@@ -46,7 +46,9 @@ use runtime_parachains::{
 	inclusion::{AggregateMessageOrigin, UmpQueueId},
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
-	runtime_api_impl::v5 as parachains_runtime_api_impl,
+	runtime_api_impl::{
+		v5 as parachains_runtime_api_impl, vstaging as parachains_staging_runtime_api_impl,
+	},
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared,
 };
@@ -1715,13 +1717,10 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[api_version(6)]
 	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
-		}
-
-		fn minimum_backing_votes() -> u32 {
-			parachains_runtime_api_impl::minimum_backing_votes::<Runtime>()
 		}
 
 		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
@@ -1848,6 +1847,10 @@ sp_api::impl_runtime_apis! {
 				dispute_proof,
 				key_ownership_proof,
 			)
+		}
+
+		fn minimum_backing_votes() -> u32 {
+			parachains_staging_runtime_api_impl::minimum_backing_votes::<Runtime>()
 		}
 	}
 

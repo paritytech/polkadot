@@ -455,9 +455,6 @@ where
 
 		Request::Authorities(sender) => query!(Authorities, authorities(), ver = 1, sender),
 		Request::Validators(sender) => query!(Validators, validators(), ver = 1, sender),
-		Request::MinimumBackingVotes(sender) =>
-			query!(MinimumBackingVotes, minimum_backing_votes(), ver = 1, sender),
-
 		Request::ValidatorGroups(sender) => {
 			query!(ValidatorGroups, validator_groups(), ver = 1, sender)
 		},
@@ -557,6 +554,12 @@ where
 			SubmitReportDisputeLost,
 			submit_report_dispute_lost(dispute_proof, key_ownership_proof),
 			ver = Request::SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT,
+			sender
+		),
+		Request::MinimumBackingVotes(sender) => query!(
+			MinimumBackingVotes,
+			minimum_backing_votes(),
+			ver = Request::MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT,
 			sender
 		),
 

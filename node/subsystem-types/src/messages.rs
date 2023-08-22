@@ -721,6 +721,9 @@ impl RuntimeApiRequest {
 	/// `SubmitReportDisputeLost`
 	pub const SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT: u32 = 5;
 
+	/// `MinimumBackingVotes`
+	pub const MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT: u32 = 6;
+
 	/// Minimum version for backing state, required for async backing.
 	///
 	/// 99 for now, should be adjusted to VSTAGING/actual runtime version once released.
