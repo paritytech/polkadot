@@ -2470,7 +2470,7 @@ where
 			)),
 		};
 
-		gum::debug!(
+		gum::trace!(
 			target: LOG_TARGET,
 			"Received approval for num_candidates {:}",
 			approval.candidate_indices.count_ones()
@@ -3359,7 +3359,7 @@ async fn maybe_create_signature<Context>(
 		},
 	};
 
-	gum::debug!(
+	gum::trace!(
 		target: LOG_TARGET,
 		"Candidates pending signatures {:}", block_entry.num_candidates_pending_signature()
 	);
@@ -3477,7 +3477,7 @@ async fn maybe_create_signature<Context>(
 		},
 	));
 
-	gum::debug!(
+	gum::trace!(
 		target: LOG_TARGET,
 		?block_hash,
 		signed_candidates = ?block_entry.num_candidates_pending_signature(),
