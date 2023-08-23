@@ -29,6 +29,7 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 
 [target.'cfg(target_os = "linux")'.dependencies]
 landlock = "0.2.0"
+rand = "0.8.5"
 
 [dev-dependencies]
 assert_matches = "1.4.0"

@@ -49,17 +49,17 @@ pub async fn spawn(
 	cache_path: &Path,
 	landlock_enabled: bool,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	let cache_path = match cache_path.to_str() {
+	let cache_path_str = match cache_path.to_str() {
 		Some(a) => a,
 		None => return Err(SpawnErr::InvalidCachePath(cache_path.to_owned())),
 	};
-	let mut extra_args = vec!["execute-worker", "--cache-path", cache_path];
+	let mut extra_args = vec!["execute-worker", "--cache-path", cache_path_str];
 	if let Some(node_version) = node_version {
 		extra_args.extend_from_slice(&["--node-impl-version", node_version]);
 	}
 
 	let (mut idle_worker, worker_handle) =
-		spawn_with_program_path("execute", program_path, &extra_args, spawn_timeout).await?;
+		spawn_with_program_path("execute", program_path, Some(cache_path), &extra_args, spawn_timeout).await?;
 	send_handshake(&mut idle_worker.stream, Handshake { executor_params, landlock_enabled })
 		.await
 		.map_err(|error| {

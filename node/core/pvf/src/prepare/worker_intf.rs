@@ -49,17 +49,23 @@ pub async fn spawn(
 	cache_path: &Path,
 	landlock_enabled: bool,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	let cache_path = match cache_path.to_str() {
+	let cache_path_str = match cache_path.to_str() {
 		Some(a) => a,
 		None => return Err(SpawnErr::InvalidCachePath(cache_path.to_owned())),
 	};
-	let mut extra_args = vec!["prepare-worker", "--cache-path", cache_path];
+	let mut extra_args = vec!["prepare-worker", "--cache-path", cache_path_str];
 	if let Some(node_version) = node_version {
 		extra_args.extend_from_slice(&["--node-impl-version", node_version]);
 	}
 
-	let (mut idle_worker, worker_handle) =
-		spawn_with_program_path("prepare", program_path, &extra_args, spawn_timeout).await?;
+	let (mut idle_worker, worker_handle) = spawn_with_program_path(
+		"prepare",
+		program_path,
+		Some(cache_path),
+		&extra_args,
+		spawn_timeout,
+	)
+	.await?;
 	send_handshake(&mut idle_worker.stream, Handshake { landlock_enabled })
 		.await
 		.map_err(|error| {
@@ -117,6 +123,12 @@ pub async fn start_work(
 	);
 
 	with_tmp_file(stream, pid, cache_path, |tmp_file, mut stream| async move {
+		// Linux: Pass the socket path relative to the cache_path (what the child thinks is root).
+		#[cfg(target_os = "linux")]
+		let tmp_file = Path::new(".").with_file_name(
+			tmp_file.file_name().expect("tmp files are created with a filename; qed"),
+		);
+
 		let preparation_timeout = pvf.prep_timeout();
 		if let Err(err) = send_request(&mut stream, pvf, &tmp_file).await {
 			gum::warn!(

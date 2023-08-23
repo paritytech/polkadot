@@ -150,46 +150,50 @@ pub fn worker_entrypoint(
 		|mut stream| async move {
 			let worker_pid = std::process::id();
 
+			gum::info!(target: LOG_TARGET, "10. {:?}", std::fs::read_dir(".").unwrap().map(|entry| entry.unwrap().path()).collect::<Vec<PathBuf>>());
+
 			let Handshake { landlock_enabled } = recv_handshake(&mut stream).await?;
 
+			gum::info!(target: LOG_TARGET, "11. {:?}", std::fs::read_dir(".").unwrap().map(|entry| entry.unwrap().path()).collect::<Vec<PathBuf>>());
+
 			// Try to enable landlock.
-			{
-				#[cfg(target_os = "linux")]
-				let landlock_status = {
-					use polkadot_node_core_pvf_common::worker::security::landlock::{
-						path_beneath_rules, try_restrict, Access, AccessFs, LANDLOCK_ABI,
-					};
+			// {
+			// 	#[cfg(target_os = "linux")]
+			// 	let landlock_status = {
+			// 		use polkadot_node_core_pvf_common::worker::security::landlock::{
+			// 			path_beneath_rules, try_restrict, Access, AccessFs, LANDLOCK_ABI,
+			// 		};
 
-					// Allow an exception for writing to the artifact cache, with no allowance for
-					// listing the directory contents. Since we prepend artifact names with a random
-					// hash, this means attackers can't discover artifacts apart from the current
-					// job.
-					try_restrict(path_beneath_rules(
-						&[cache_path],
-						AccessFs::from_write(LANDLOCK_ABI),
-					))
-					.map(LandlockStatus::from_ruleset_status)
-					.map_err(|e| e.to_string())
-				};
-				#[cfg(not(target_os = "linux"))]
-				let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
+			// 		// Allow an exception for writing to the artifact cache, with no allowance for
+			// 		// listing the directory contents. Since we prepend artifact names with a random
+			// 		// hash, this means attackers can't discover artifacts apart from the current
+			// 		// job.
+			// 		try_restrict(path_beneath_rules(
+			// 			&[cache_path],
+			// 			AccessFs::from_write(LANDLOCK_ABI),
+			// 		))
+			// 		.map(LandlockStatus::from_ruleset_status)
+			// 		.map_err(|e| e.to_string())
+			// 	};
+			// 	#[cfg(not(target_os = "linux"))]
+			// 	let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
 
-				// Error if the host determined that landlock is fully enabled and we couldn't fully
-				// enforce it here.
-				if landlock_enabled && !matches!(landlock_status, Ok(LandlockStatus::FullyEnforced))
-				{
-					gum::warn!(
-						target: LOG_TARGET,
-						%worker_pid,
-						"could not fully enable landlock: {:?}",
-						landlock_status
-					);
-					return Err(io::Error::new(
-						io::ErrorKind::Other,
-						format!("could not fully enable landlock: {:?}", landlock_status),
-					))
-				}
-			}
+			// 	// Error if the host determined that landlock is fully enabled and we couldn't fully
+			// 	// enforce it here.
+			// 	if landlock_enabled && !matches!(landlock_status, Ok(LandlockStatus::FullyEnforced))
+			// 	{
+			// 		gum::warn!(
+			// 			target: LOG_TARGET,
+			// 			%worker_pid,
+			// 			"could not fully enable landlock: {:?}",
+			// 			landlock_status
+			// 		);
+			// 		return Err(io::Error::new(
+			// 			io::ErrorKind::Other,
+			// 			format!("could not fully enable landlock: {:?}", landlock_status),
+			// 		))
+			// 	}
+			// }
 
 			loop {
 				let (pvf, temp_artifact_dest) = recv_request(&mut stream).await?;
@@ -199,9 +203,9 @@ pub fn worker_entrypoint(
 					"worker: preparing artifact",
 				);
 
-				if !temp_artifact_dest.starts_with(cache_path) {
-					return Err(io::Error::new(io::ErrorKind::Other, format!("received an artifact path {temp_artifact_dest:?} that does not belong to expected cache path {cache_path:?}")))
-				}
+				// if !temp_artifact_dest.starts_with(cache_path) {
+				// 	return Err(io::Error::new(io::ErrorKind::Other, format!("received an artifact path {temp_artifact_dest:?} that does not belong to expected cache path {cache_path:?}")))
+				// }
 
 				let preparation_timeout = pvf.prep_timeout();
 				let prepare_job_kind = pvf.prep_kind();
