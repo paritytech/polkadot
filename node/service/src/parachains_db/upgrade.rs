@@ -66,9 +66,16 @@ pub(crate) fn try_upgrade_db(
 	// Ensure we don't loop forever below befcause of a bug.
 	const MAX_MIGRATIONS: u32 = 30;
 
+	#[cfg(test)]
+	remove_file_lock(&db_path);
+
 	// Loop migrations until we reach the target version.
 	for _ in 0..MAX_MIGRATIONS {
 		let version = try_upgrade_db_to_next_version(db_path, db_kind)?;
+
+		#[cfg(test)]
+		remove_file_lock(&db_path);
+
 		if version == target_version {
 			return Ok(())
 		}
@@ -401,6 +408,31 @@ fn paritydb_migrate_from_version_2_to_3(path: &Path) -> Result<Version, Error> {
 	parity_db::Db::drop_last_column(&mut paritydb_version_2_config(path))
 		.map_err(|e| other_io_error(format!("Error removing COL_SESSION_WINDOW_DATA {:?}", e)))?;
 	Ok(3)
+}
+
+/// Remove the lock file. If file is locked, it will wait up to 1s.
+#[cfg(test)]
+pub fn remove_file_lock(path: &std::path::Path) {
+	use std::{io::ErrorKind, thread::sleep, time::Duration};
+
+	let mut lock_path = std::path::PathBuf::from(path);
+	lock_path.push("lock");
+
+	for _ in 0..10 {
+		let result = std::fs::remove_file(lock_path.as_path());
+		match result {
+			Err(error) => match error.kind() {
+				ErrorKind::WouldBlock => {
+					sleep(Duration::from_millis(100));
+					continue
+				},
+				_ => return,
+			},
+			Ok(_) => {},
+		}
+	}
+
+	unreachable!("Database is locked, waited 1s for lock file: {:?}", lock_path);
 }
 
 #[cfg(test)]
