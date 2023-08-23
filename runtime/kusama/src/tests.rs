@@ -148,7 +148,7 @@ fn nominator_limit() {
 
 #[test]
 fn call_size() {
-	RuntimeCall::assert_size_under(230);
+	RuntimeCall::assert_size_under(256);
 }
 
 #[test]

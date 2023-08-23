@@ -23,7 +23,7 @@ use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use pallet_staking::testing_utils::create_validators;
 use parity_scale_codec::Decode;
 use primitives::{Hash, PARACHAIN_KEY_TYPE_ID};
-use sp_runtime::traits::{One, StaticLookup};
+use sp_runtime::traits::{One, OpaqueKeys, StaticLookup};
 use sp_session::MembershipProof;
 
 // Candidate hash of the disputed candidate.
@@ -54,9 +54,14 @@ where
 		let controller = pallet_staking::Pallet::<T>::bonded(validator).unwrap();
 
 		let keys = {
-			const NUM_SESSION_KEYS: usize = 6;
 			const SESSION_KEY_LEN: usize = 32;
-			let mut keys = [0u8; NUM_SESSION_KEYS * SESSION_KEY_LEN];
+			let key_ids = T::Keys::key_ids();
+			let mut keys_len = key_ids.len() * SESSION_KEY_LEN;
+			if key_ids.contains(&sp_core::crypto::key_types::BEEFY) {
+				// BEEFY key is 33 bytes long, not 32.
+				keys_len += 1;
+			}
+			let mut keys = vec![0u8; keys_len];
 			let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(n as u64);
 			rng.fill_bytes(&mut keys);
 			keys

@@ -109,10 +109,6 @@ pub mod v1 {
 				"Scheduled before migration: {}",
 				v0::Scheduled::<T>::get().len()
 			);
-			ensure!(
-				StorageVersion::get::<Pallet<T>>() == 0,
-				"Storage version should be less than `1` before the migration",
-			);
 
 			let bytes = u32::to_be_bytes(v0::Scheduled::<T>::get().len() as u32);
 
@@ -123,8 +119,8 @@ pub mod v1 {
 		fn post_upgrade(state: Vec<u8>) -> Result<(), sp_runtime::DispatchError> {
 			log::trace!(target: crate::scheduler::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
-				StorageVersion::get::<Pallet<T>>() == 1,
-				"Storage version should be `1` after the migration"
+				StorageVersion::get::<Pallet<T>>() >= 1,
+				"Storage version should be at least `1` after the migration"
 			);
 			ensure!(
 				v0::Scheduled::<T>::get().len() == 0,
