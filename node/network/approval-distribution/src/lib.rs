@@ -599,9 +599,10 @@ impl State {
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
 				gum::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
 				self.peer_views.remove(&peer_id);
-				self.blocks.iter_mut().for_each(|(_hash, entry)| {
-					entry.known_by.remove(&peer_id);
-				})
+				// TODO: Test some hypot
+				// self.blocks.iter_mut().for_each(|(_hash, entry)| {
+				// 	entry.known_by.remove(&peer_id);
+				// })
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
 				self.handle_new_session_topology(
