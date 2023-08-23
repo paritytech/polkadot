@@ -37,9 +37,10 @@ use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, MintLocation,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	CurrencyAdapter as XcmCurrencyAdapter, DescribeBodyTerminal, DescribeFamily, HashedDescription,
+	IsChildSystemParachain, IsConcrete, MintLocation, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId,
+	UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
 
@@ -55,8 +56,14 @@ parameter_types! {
 	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 }
 
-pub type LocationConverter =
-	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<ThisNetwork, AccountId>);
+pub type LocationConverter = (
+	// We can convert a child parachain using the standard `AccountId` conversion.
+	ChildParachainConvertsVia<ParaId, AccountId>,
+	// We can directly alias an `AccountId32` into a local account.
+	AccountId32Aliases<ThisNetwork, AccountId>,
+	// Allow governance body to be used as a sovereign account.
+	HashedDescription<AccountId, DescribeFamily<DescribeBodyTerminal>>,
+);
 
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency:
