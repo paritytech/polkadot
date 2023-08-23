@@ -1934,11 +1934,13 @@ impl State {
 
 						if should_forward_approval {
 							if !approvals_to_send.contains_key(&(
+								approval_message.block_hash,
 								approval_message.validator,
 								approval_message.candidate_indices.clone(),
 							)) {
 								approvals_to_send.insert(
 									(
+										approval_message.block_hash,
 										approval_message.validator,
 										approval_message.candidate_indices.clone(),
 									),
@@ -2269,11 +2271,13 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 							let approvals_to_send =
 								peer_approvals.entry(*peer).or_insert_with(HashMap::new);
 							if !approvals_to_send.contains_key(&(
+								approval_message.block_hash,
 								approval_message.validator,
 								approval_message.candidate_indices.clone(),
 							)) {
 								peer_approvals.entry(*peer).or_insert_with(HashMap::new).insert(
 									(
+										approval_message.block_hash,
 										approval_message.validator,
 										approval_message.candidate_indices.clone(),
 									),
