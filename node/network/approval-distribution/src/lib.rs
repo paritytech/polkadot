@@ -491,22 +491,6 @@ impl BlockEntry {
 			.or_insert(entry)
 	}
 
-	// Returns `true` if we have an approval for `candidate_index` from validator
-	// `validator_index`.
-	pub fn contains_approval_entry(
-		&self,
-		candidate_index: CandidateIndex,
-		validator_index: ValidatorIndex,
-	) -> bool {
-		self.candidates
-			.get(candidate_index as usize)
-			.map_or(None, |candidate_entry| candidate_entry.messages.get(&validator_index))
-			.map_or(false, |candidate_indices| {
-				self.approval_entries
-					.contains_key(&(validator_index, candidate_indices.clone()))
-			})
-	}
-
 	// Returns a mutable reference of `ApprovalEntry` for `candidate_index` from validator
 	// `validator_index`.
 	pub fn approval_entry(
@@ -1504,8 +1488,7 @@ impl State {
 		let entry = match self.blocks.get_mut(&block_hash) {
 			Some(entry)
 				if vote.candidate_indices.iter_ones().fold(true, |result, candidate_index| {
-					let approval_entry_exists =
-						entry.contains_approval_entry(candidate_index as _, validator_index);
+					let approval_entry_exists = entry.candidates.get(candidate_index as usize).is_some();
 					if !approval_entry_exists {
 						gum::debug!(
 							   target: LOG_TARGET, ?block_hash, ?candidate_index, validator_index = ?vote.validator, candidate_indices = ?vote.candidate_indices,
@@ -1519,6 +1502,14 @@ impl State {
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
+						gum::debug!(
+							target: LOG_TARGET,
+							?peer_id,
+							?block_hash,
+							?validator_index,
+							?candidate_indices,
+							"Approval from a peer is out of view",
+						);
 						modify_reputation(
 							&mut self.reputation,
 							ctx.sender(),
@@ -1526,7 +1517,6 @@ impl State {
 							COST_UNEXPECTED_MESSAGE,
 						)
 						.await;
-						gum::debug!(target: LOG_TARGET, "Received approval for invalid block");
 						metrics.on_approval_invalid_block();
 					} else {
 						metrics.on_approval_recent_outdated();
