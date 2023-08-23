@@ -115,7 +115,7 @@ use statement_table::{
 	},
 	Config as TableConfig, Context as TableContextTrait, Table,
 };
-use util::{request_min_backing_votes, runtime::RuntimeInfo};
+use util::runtime::{request_min_backing_votes, RuntimeInfo};
 
 mod error;
 
@@ -999,10 +999,11 @@ async fn construct_per_relay_parent_state<Context>(
 	let session_index =
 		try_runtime_api!(runtime_info.get_session_index_for_child(ctx.sender(), parent).await);
 
-	let minimum_backing_votes = request_min_backing_votes(parent, ctx.sender(), |sender| {
-		runtime_info.get_min_backing_votes(sender, session_index, parent)
-	})
-	.await?;
+	let minimum_backing_votes =
+		request_min_backing_votes(parent, ctx.sender(), |parent, sender| {
+			runtime_info.get_min_backing_votes(sender, session_index, parent)
+		})
+		.await?;
 
 	let (validators, groups, cores) = futures::try_join!(
 		request_validators(parent, ctx.sender()).await,

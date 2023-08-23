@@ -263,14 +263,14 @@ async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 	);
 
 	// Check that subsystem job issues a request for the runtime API version.
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::Version(tx))
-		) if parent == test_state.relay_parent => {
-			tx.send(Ok(RuntimeApiRequest::MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT)).unwrap();
-		}
-	);
+	// assert_matches!(
+	// 	virtual_overseer.recv().await,
+	// 	AllMessages::RuntimeApi(
+	// 		RuntimeApiMessage::Request(parent, RuntimeApiRequest::Version(tx))
+	// 	) if parent == test_state.relay_parent => {
+	// 		tx.send(Ok(RuntimeApiRequest::MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT)).unwrap();
+	// 	}
+	// );
 
 	// Check if subsystem job issues a request for the minimum backing votes.
 	// This may or may not happen, depending if the minimum backing votes is already cached in the

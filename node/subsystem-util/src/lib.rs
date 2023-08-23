@@ -39,10 +39,7 @@ pub use overseer::{
 
 pub use polkadot_node_metrics::{metrics, Metronome};
 
-use futures::{
-	channel::{mpsc, oneshot},
-	Future,
-};
+use futures::channel::{mpsc, oneshot};
 use parity_scale_codec::Encode;
 
 use polkadot_primitives::{
@@ -99,8 +96,6 @@ mod tests;
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
 /// Capacity of channels to and from individual jobs
 pub const JOB_CHANNEL_CAPACITY: usize = 64;
-/// Used prior to runtime API version 6.
-const LEGACY_MIN_BACKING_VOTES: u32 = 2;
 
 /// Utility errors
 #[derive(Debug, Error)]
@@ -233,31 +228,6 @@ specialize_requests! {
 	fn request_submit_report_dispute_lost(dp: slashing::DisputeProof, okop: slashing::OpaqueKeyOwnershipProof) -> Option<()>; SubmitReportDisputeLost;
 
 	fn request_staging_async_backing_params() -> vstaging_primitives::AsyncBackingParams; StagingAsyncBackingParams;
-}
-
-/// Request the min backing votes value.
-/// Prior to runtime API version 6, just return a hardcoded constant.
-pub async fn request_min_backing_votes<'a, S, Func, Fut>(
-	parent: Hash,
-	sender: &'a mut S,
-	get_min_backing_votes: Func,
-) -> Result<u32, runtime::Error>
-where
-	S: overseer::SubsystemSender<RuntimeApiMessage>,
-	Func: FnOnce(&'a mut S) -> Fut,
-	Fut: Future<Output = Result<u32, runtime::Error>>,
-{
-	let runtime_api_version = request_runtime_api_version(parent, sender)
-		.await
-		.await
-		.map_err(runtime::Error::RuntimeRequestCanceled)?
-		.map_err(runtime::Error::RuntimeRequest)?;
-
-	if runtime_api_version >= RuntimeApiRequest::MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT {
-		get_min_backing_votes(sender).await
-	} else {
-		Ok(LEGACY_MIN_BACKING_VOTES)
-	}
 }
 
 /// Requests executor parameters from the runtime effective at given relay-parent. First obtains

@@ -458,14 +458,6 @@ async fn handle_leaf_activation(
 
 		assert_matches!(
 			virtual_overseer.recv().await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(parent, RuntimeApiRequest::Version(tx))) if parent == *hash => {
-				tx.send(Ok(RuntimeApiRequest::MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT)).unwrap();
-			}
-		);
-
-		assert_matches!(
-			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				parent,
 				RuntimeApiRequest::MinimumBackingVotes(tx),

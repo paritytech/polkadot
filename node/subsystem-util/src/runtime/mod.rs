@@ -16,7 +16,7 @@
 
 //! Convenient interface to runtime information.
 
-use std::num::NonZeroUsize;
+use std::{future::Future, num::NonZeroUsize};
 
 use lru::LruCache;
 
@@ -51,6 +51,9 @@ use error::Result;
 pub use error::{recv_runtime, Error, FatalError, JfyiError};
 
 const LOG_TARGET: &'static str = "parachain::runtime-info";
+
+/// Used prior to runtime API version 6.
+const LEGACY_MIN_BACKING_VOTES: u32 = 2;
 
 /// Configuration for construction a `RuntimeInfo`.
 pub struct Config {
@@ -488,5 +491,33 @@ where
 			max_candidate_depth: max_candidate_depth as _,
 			allowed_ancestry_len: allowed_ancestry_len as _,
 		})
+	}
+}
+
+/// Request the min backing votes value.
+/// Prior to runtime API version 6, just return a hardcoded constant.
+pub async fn request_min_backing_votes<'a, S, Func, Fut>(
+	parent: Hash,
+	sender: &'a mut S,
+	get_min_backing_votes: Func,
+) -> Result<u32>
+where
+	S: overseer::SubsystemSender<RuntimeApiMessage>,
+	Func: FnOnce(Hash, &'a mut S) -> Fut,
+	Fut: Future<Output = Result<u32>>,
+{
+	let min_backing_votes_res = get_min_backing_votes(parent, sender).await;
+
+	if let Err(Error::RuntimeRequest(RuntimeApiError::NotSupported { .. })) = min_backing_votes_res
+	{
+		gum::trace!(
+			target: LOG_TARGET,
+			?parent,
+			"Querying the backing threshold from the runtime is not supported by the current Runtime API",
+		);
+
+		Ok(LEGACY_MIN_BACKING_VOTES)
+	} else {
+		min_backing_votes_res
 	}
 }
