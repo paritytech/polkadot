@@ -1518,6 +1518,7 @@ impl State {
 						)
 						.await;
 						metrics.on_approval_invalid_block();
+
 					} else {
 						metrics.on_approval_recent_outdated();
 					}
@@ -1836,7 +1837,7 @@ impl State {
 		let _timer = metrics.time_unify_with_peer();
 
 		let mut assignments_to_send = Vec::new();
-		let mut approvals_to_send = Vec::new();
+		let mut approvals_to_send = HashMap::new();
 
 		let view_finalized_number = view.finalized_number;
 		for head in view.into_iter() {
@@ -1930,8 +1931,21 @@ impl State {
 									(should_forward_approval, new_covered_approvals)
 								},
 							);
+
 						if should_forward_approval {
-							approvals_to_send.push(approval_message);
+							if !approvals_to_send.contains_key(&(
+								approval_message.validator,
+								approval_message.candidate_indices.clone(),
+							)) {
+								approvals_to_send.insert(
+									(
+										approval_message.validator,
+										approval_message.candidate_indices.clone(),
+									),
+									approval_message,
+								);
+							}
+
 							candidates_covered_by_approvals.into_iter().for_each(
 								|(approval_knowledge, message_kind)| {
 									peer_knowledge.sent.insert(approval_knowledge, message_kind);
@@ -1971,8 +1985,12 @@ impl State {
 				"Sending approvals to unified peer",
 			);
 
-			send_approvals_batched(sender, approvals_to_send, &vec![(peer_id, protocol_version)])
-				.await;
+			send_approvals_batched(
+				sender,
+				approvals_to_send.into_values().collect_vec(),
+				&vec![(peer_id, protocol_version)],
+			)
+			.await;
 		}
 	}
 
@@ -2242,19 +2260,25 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 
 				// Filter approval votes.
 				for approval_message in &approval_messages {
-					let mut queued_to_be_sent: bool = false;
 					for approval_candidate_index in approval_message.candidate_indices.iter_ones() {
 						let (approval_knowledge, message_kind) = approval_entry
 							.create_approval_knowledge(*block_hash, approval_candidate_index as _);
 
 						if !peer_knowledge.contains(&approval_knowledge, message_kind) {
 							peer_knowledge.sent.insert(approval_knowledge, message_kind);
-							if !queued_to_be_sent {
-								peer_approvals
-									.entry(*peer)
-									.or_insert_with(Vec::new)
-									.push(approval_message.clone());
-								queued_to_be_sent = false;
+							let approvals_to_send =
+								peer_approvals.entry(*peer).or_insert_with(HashMap::new);
+							if !approvals_to_send.contains_key(&(
+								approval_message.validator,
+								approval_message.candidate_indices.clone(),
+							)) {
+								peer_approvals.entry(*peer).or_insert_with(HashMap::new).insert(
+									(
+										approval_message.validator,
+										approval_message.candidate_indices.clone(),
+									),
+									approval_message.clone(),
+								);
 							}
 						}
 					}
@@ -2282,7 +2306,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 		if let Some(peer_view) = peer_views.get(&peer) {
 			send_approvals_batched(
 				ctx.sender(),
-				approvals_packet,
+				approvals_packet.into_values().collect_vec(),
 				&vec![(peer, peer_view.version)],
 			)
 			.await;
