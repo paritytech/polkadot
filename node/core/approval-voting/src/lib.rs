@@ -3351,7 +3351,7 @@ async fn maybe_create_signature<Context>(
 		None => {
 			// not a cause for alarm - just lost a race with pruning, most likely.
 			metrics.on_approval_stale();
-			gum::info!(
+			gum::debug!(
 				target: LOG_TARGET,
 				"Could not find block that needs signature {:}", block_hash
 			);

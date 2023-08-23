@@ -120,7 +120,7 @@ impl PeerSet {
 	pub fn get_main_version(self) -> ProtocolVersion {
 		#[cfg(not(feature = "network-protocol-staging"))]
 		match self {
-			PeerSet::Validation => ValidationVersion::VStaging.into(),
+			PeerSet::Validation => ValidationVersion::V1.into(),
 			PeerSet::Collation => CollationVersion::V1.into(),
 		}
 
