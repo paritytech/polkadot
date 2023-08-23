@@ -47,8 +47,8 @@ use crate::{
 /// Errors that can happen on runtime fetches.
 mod error;
 
-use error::{recv_runtime, Result};
-pub use error::{Error, FatalError, JfyiError};
+use error::Result;
+pub use error::{recv_runtime, Error, FatalError, JfyiError};
 
 const LOG_TARGET: &'static str = "parachain::runtime-info";
 
@@ -166,7 +166,7 @@ impl RuntimeInfo {
 	}
 
 	/// Get minimum_backing_votes by relay parent hash.
-	pub async fn get_min_backing_votes<'a, Sender>(
+	pub async fn get_min_backing_votes<Sender>(
 		&mut self,
 		sender: &mut Sender,
 		session_index: SessionIndex,

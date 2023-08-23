@@ -16,7 +16,6 @@
 
 //! A utility for tracking groups and their members within a session.
 
-use polkadot_node_primitives::minimum_votes;
 use polkadot_primitives::vstaging::{GroupIndex, IndexedVec, ValidatorIndex};
 
 use std::collections::HashMap;
@@ -27,12 +26,16 @@ use std::collections::HashMap;
 pub struct Groups {
 	groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	by_validator_index: HashMap<ValidatorIndex, GroupIndex>,
+	backing_threshold: u32,
 }
 
 impl Groups {
 	/// Create a new [`Groups`] tracker with the groups and discovery keys
 	/// from the session.
-	pub fn new(groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>) -> Self {
+	pub fn new(
+		groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
+		backing_threshold: u32,
+	) -> Self {
 		let mut by_validator_index = HashMap::new();
 
 		for (i, group) in groups.iter().enumerate() {
@@ -42,7 +45,7 @@ impl Groups {
 			}
 		}
 
-		Groups { groups, by_validator_index }
+		Groups { groups, by_validator_index, backing_threshold }
 	}
 
 	/// Access all the underlying groups.
@@ -60,7 +63,8 @@ impl Groups {
 		&self,
 		group_index: GroupIndex,
 	) -> Option<(usize, usize)> {
-		self.get(group_index).map(|g| (g.len(), minimum_votes(g.len())))
+		self.get(group_index)
+			.map(|g| (g.len(), std::cmp::min(g.len(), self.backing_threshold as usize)))
 	}
 
 	/// Get the group index for a validator by index.

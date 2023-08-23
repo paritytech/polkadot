@@ -115,7 +115,7 @@ use statement_table::{
 	},
 	Config as TableConfig, Context as TableContextTrait, Table,
 };
-use util::{request_runtime_api_version, runtime::RuntimeInfo};
+use util::{request_min_backing_votes, runtime::RuntimeInfo};
 
 mod error;
 
@@ -126,9 +126,6 @@ use self::metrics::Metrics;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::candidate-backing";
-
-/// Used prior to runtime API version 6.
-const LEGACY_MIN_BACKING_VOTES: u32 = 2;
 
 /// PoV data to validate.
 enum PoVData {
@@ -280,7 +277,7 @@ struct State {
 	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	/// The handle to the keystore used for signing.
 	keystore: KeystorePtr,
-	/// The minimum backing votes threshold.
+	/// Runtime info cached per-session.
 	runtime_info: RuntimeInfo,
 }
 
@@ -1001,19 +998,11 @@ async fn construct_per_relay_parent_state<Context>(
 
 	let session_index =
 		try_runtime_api!(runtime_info.get_session_index_for_child(ctx.sender(), parent).await);
-	let runtime_api_version = try_runtime_api!(request_runtime_api_version(parent, ctx.sender())
-		.await
-		.await
-		.map_err(Error::RuntimeApiUnavailable)?);
 
-	let minimum_backing_votes =
-		if runtime_api_version >= RuntimeApiRequest::MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT {
-			try_runtime_api!(
-				runtime_info.get_min_backing_votes(ctx.sender(), session_index, parent).await
-			)
-		} else {
-			LEGACY_MIN_BACKING_VOTES
-		};
+	let minimum_backing_votes = request_min_backing_votes(parent, ctx.sender(), |sender| {
+		runtime_info.get_min_backing_votes(sender, session_index, parent)
+	})
+	.await?;
 
 	let (validators, groups, cores) = futures::try_join!(
 		request_validators(parent, ctx.sender()).await,

@@ -40,9 +40,6 @@ pub trait RuntimeApiSubsystemClient {
 	/// Get the current validators.
 	async fn validators(&self, at: Hash) -> Result<Vec<ValidatorId>, ApiError>;
 
-	/// Get the minimum number of backing votes.
-	async fn minimum_backing_votes(&self, at: Hash) -> Result<u32, ApiError>;
-
 	/// Returns the validator groups and rotation info localized based on the hypothetical child
 	///  of a block whose state  this is invoked on. Note that `now` in the `GroupRotationInfo`
 	/// should be the successor of the number of the block.
@@ -235,6 +232,10 @@ pub trait RuntimeApiSubsystemClient {
 		session_index: SessionIndex,
 	) -> Result<Option<ExecutorParams>, ApiError>;
 
+	// === STAGING v6 ===
+	/// Get the minimum number of backing votes.
+	async fn minimum_backing_votes(&self, at: Hash) -> Result<u32, ApiError>;
+
 	// === Asynchronous backing API ===
 
 	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
@@ -276,10 +277,6 @@ where
 {
 	async fn validators(&self, at: Hash) -> Result<Vec<ValidatorId>, ApiError> {
 		self.client.runtime_api().validators(at)
-	}
-
-	async fn minimum_backing_votes(&self, at: Hash) -> Result<u32, ApiError> {
-		self.client.runtime_api().minimum_backing_votes(at)
 	}
 
 	async fn validator_groups(
@@ -478,6 +475,10 @@ where
 		);
 
 		runtime_api.submit_report_dispute_lost(at, dispute_proof, key_ownership_proof)
+	}
+
+	async fn minimum_backing_votes(&self, at: Hash) -> Result<u32, ApiError> {
+		self.client.runtime_api().minimum_backing_votes(at)
 	}
 
 	async fn staging_para_backing_state(

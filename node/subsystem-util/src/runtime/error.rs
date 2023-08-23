@@ -43,7 +43,7 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Receive a response from a runtime request and convert errors.
-pub(crate) async fn recv_runtime<V>(
+pub async fn recv_runtime<V>(
 	r: oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
 ) -> Result<V> {
 	let result = r

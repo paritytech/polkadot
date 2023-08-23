@@ -16,6 +16,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-node-subsystem-types = { path = "../../subsystem-types" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.7.4"
 indexmap = "1.9.1"
@@ -39,4 +40,3 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 futures-timer = "3.0.2"
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }
 rand_chacha = "0.3"
-polkadot-node-subsystem-types = { path = "../../subsystem-types" }
