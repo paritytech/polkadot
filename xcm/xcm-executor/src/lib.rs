@@ -79,28 +79,6 @@ pub struct XcmExecutor<Config: config::Config> {
 	_config: PhantomData<Config>,
 }
 
-impl<Config: config::Config> Clone for XcmExecutor<Config> {
-	fn clone(&self) -> XcmExecutor<Config> {
-		Self {
-			holding: self.holding.clone(),
-			holding_limit: self.holding_limit,
-			context: self.context.clone(),
-			original_origin: self.original_origin,
-			trader: self.trader.clone(),
-			error: self.error,
-			total_surplus: self.total_surplus,
-			total_refunded: self.total_refunded,
-			error_handler: self.error_handler.clone(),
-			error_handler_weight: self.error_handler_weight,
-			appendix: self.appendix.clone(),
-			appendix_weight: self.appendix_weight,
-			transact_status: self.transact_status.clone(),
-			fees_mode: self.fees_mode,
-			_config: PhantomData,
-		}
-	}
-}
-
 #[cfg(feature = "runtime-benchmarks")]
 impl<Config: config::Config> XcmExecutor<Config> {
 	pub fn holding(&self) -> &Assets {
@@ -336,7 +314,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		for (i, instr) in xcm.0.into_iter().enumerate() {
 			match &mut result {
 				r @ Ok(()) => {
-					let vm_clone = self.clone();
 					// Initialize the recursion count only the first time we hit this code in our
 					// potential recursive execution.
 					let inst_res = recursion_count::using_once(&mut 1, || {
@@ -367,9 +344,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 							xcm_error: e,
 							weight: Weight::zero(),
 						});
-						if Config::TransactionalProcessor::IS_TRANSACTIONAL {
-							*self = vm_clone;
-						}
 					}
 				},
 				Err(ref mut error) =>
@@ -502,9 +476,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		);
 		match instr {
 			WithdrawAsset(assets) => {
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+				let old_holding = self.holding.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// Take `assets` from the origin account (on-chain) and place in holding.
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
+
 					for asset in assets.into_inner().into_iter() {
 						Config::AssetTransactor::withdraw_asset(
 							&asset,
@@ -514,10 +490,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						self.subsume_asset(asset)?;
 					}
 					Ok(())
-				})
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+				}
+				result
 			},
 			ReserveAssetDeposited(assets) => {
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+				let old_holding = self.holding.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// check whether we trust origin to be our reserve location for this asset.
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					for asset in assets.into_inner().into_iter() {
@@ -529,7 +510,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						self.subsume_asset(asset)?;
 					}
 					Ok(())
-				})
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+				}
+				result
 			},
 			TransferAsset { assets, beneficiary } => {
 				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
@@ -569,7 +554,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				})
 			},
 			ReceiveTeleportedAsset(assets) => {
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+				let old_holding = self.holding.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					// check whether we trust origin to teleport this asset to us via config trait.
 					for asset in assets.inner() {
@@ -589,7 +575,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						self.subsume_asset(asset)?;
 					}
 					Ok(())
-				})
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+				}
+				result
 			},
 			Transact { origin_kind, require_weight_at_most, mut call } => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
@@ -660,8 +650,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				)?;
 				Ok(())
 			},
-			DepositAsset { assets, beneficiary } =>
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+			DepositAsset { assets, beneficiary } => {
+				let old_holding = self.holding.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let deposited = self.holding.saturating_take(assets);
 					for asset in deposited.into_assets_iter() {
 						Config::AssetTransactor::deposit_asset(
@@ -671,9 +662,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						)?;
 					}
 					Ok(())
-				}),
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+				}
+				result
+			},
 			DepositReserveAsset { assets, dest, xcm } => {
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+				let old_holding = self.holding.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let deposited = self.holding.saturating_take(assets);
 					for asset in deposited.assets_iter() {
 						Config::AssetTransactor::deposit_asset(&asset, &dest, &self.context)?;
@@ -685,25 +682,28 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					message.extend(xcm.0.into_iter());
 					self.send(dest, Xcm(message), FeeReason::DepositReserveAsset)?;
 					Ok(())
-				})
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+				}
+				result
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
-					// Note that here we are able to place any assets which could not be reanchored
-					// back into Holding.
-					let assets = Self::reanchored(
-						self.holding.saturating_take(assets),
-						&reserve,
-						Some(&mut self.holding),
-					);
-					let mut message = vec![WithdrawAsset(assets), ClearOrigin];
-					message.extend(xcm.0.into_iter());
-					self.send(reserve, Xcm(message), FeeReason::InitiateReserveWithdraw)?;
-					Ok(())
-				})
+				// Note that here we are able to place any assets which could not be reanchored
+				// back into Holding.
+				let assets = Self::reanchored(
+					self.holding.saturating_take(assets),
+					&reserve,
+					Some(&mut self.holding),
+				);
+				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
+				message.extend(xcm.0.into_iter());
+				self.send(reserve, Xcm(message), FeeReason::InitiateReserveWithdraw)?;
+				Ok(())
 			},
 			InitiateTeleport { assets, dest, xcm } => {
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+				let old_holding = self.holding.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// We must do this first in order to resolve wildcards.
 					let assets = self.holding.saturating_take(assets);
 					for asset in assets.assets_iter() {
@@ -723,7 +723,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					message.extend(xcm.0.into_iter());
 					self.send(dest, Xcm(message), FeeReason::InitiateTeleport)?;
 					Ok(())
-				})
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+				}
+				result
 			},
 			ReportHolding { response_info, assets } => {
 				// Note that we pass `None` as `maybe_failed_bin` since no assets were ever removed
@@ -739,7 +743,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			BuyExecution { fees, weight_limit } => {
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+				let old_holding = self.holding.clone();
+				let old_trader = self.trader.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// There is no need to buy any weight is `weight_limit` is `Unlimited` since it
 					// would indicate that `AllowTopLevelPaidExecutionFrom` was unused for execution
 					// and thus there is some other reason why it has been determined that this XCM
@@ -754,7 +760,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						self.subsume_assets(unspent)?;
 					}
 					Ok(())
-				})
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+					self.trader = old_trader;
+				}
+				result
 			},
 			RefundSurplus => self.refund_surplus(),
 			SetErrorHandler(mut handler) => {
@@ -777,8 +788,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.error = None;
 				Ok(())
 			},
-			ClaimAsset { assets, ticket } =>
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+			ClaimAsset { assets, ticket } => {
+				let old_holding = self.holding.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					let ok =
 						Config::AssetClaims::claim_assets(origin, &ticket, &assets, &self.context);
@@ -787,7 +799,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						self.subsume_asset(asset)?;
 					}
 					Ok(())
-				}),
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+				}
+				result
+			},
 			Trap(code) => Err(XcmError::Trap(code)),
 			SubscribeVersion { query_id, max_response_weight } => {
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
@@ -887,7 +904,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ExportMessage { network, destination, xcm } => {
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+				let old_holding = self.holding.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					// The actual message sent to the bridge for forwarding is prepended with `UniversalOrigin`
 					// and `DescendOrigin` in order to ensure that the message is executed with this Origin.
 					//
@@ -914,10 +932,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					self.take_fee(fee, FeeReason::Export(network))?;
 					Config::MessageExporter::deliver(ticket)?;
 					Ok(())
-				})
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+				}
+				result
 			},
-			LockAsset { asset, unlocker } =>
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+			LockAsset { asset, unlocker } => {
+				let old_holding = self.holding.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					let (remote_asset, context) = Self::try_reanchor(asset.clone(), &unlocker)?;
 					let lock_ticket = Config::AssetLocker::prepare_lock(unlocker, asset, origin)?;
@@ -930,7 +953,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					lock_ticket.enact()?;
 					Config::XcmSender::deliver(ticket)?;
 					Ok(())
-				}),
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+				}
+				result
+			},
 			UnlockAsset { asset, target } =>
 				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
@@ -942,8 +970,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::AssetLocker::note_unlockable(origin, asset, owner)?;
 				Ok(())
 			},
-			RequestUnlock { asset, locker } =>
-				Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
+			RequestUnlock { asset, locker } => {
+				let old_holding = self.holding.clone();
+				let result = Config::TransactionalProcessor::process(|| -> Result<(), XcmError> {
 					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
 					let remote_asset = Self::try_reanchor(asset.clone(), &locker)?.0;
 					let remote_target = Self::try_reanchor_multilocation(origin, &locker)?.0;
@@ -956,7 +985,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					reduce_ticket.enact()?;
 					Config::XcmSender::deliver(ticket)?;
 					Ok(())
-				}),
+				});
+				if Config::TransactionalProcessor::IS_TRANSACTIONAL && result.is_err() {
+					self.holding = old_holding;
+				}
+				result
+			},
 			ExchangeAsset { give, want, maximal } => {
 				let give = self.holding.saturating_take(give);
 				let r =
