@@ -20,9 +20,10 @@ use crate::traits::{
 	WeightTrader,
 };
 use frame_support::{
-	dispatch::{Dispatchable, GetDispatchInfo, Parameter, PostDispatchInfo},
+	dispatch::{GetDispatchInfo, Parameter, PostDispatchInfo},
 	traits::{Contains, ContainsPair, Get, PalletsInfoAccess},
 };
+use sp_runtime::traits::Dispatchable;
 use xcm::prelude::*;
 
 /// The trait to parameterize the `XcmExecutor`.

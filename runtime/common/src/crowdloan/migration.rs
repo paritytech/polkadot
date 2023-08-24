@@ -16,9 +16,8 @@
 
 use super::*;
 use frame_support::{
-	dispatch::GetStorageVersion,
 	storage_alias,
-	traits::{OnRuntimeUpgrade, StorageVersion},
+	traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
 	Twox64Concat,
 };
 
