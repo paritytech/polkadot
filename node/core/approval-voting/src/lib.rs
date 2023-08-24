@@ -125,7 +125,7 @@ const APPROVAL_DELAY: Tick = 2;
 pub(crate) const LOG_TARGET: &str = "parachain::approval-voting";
 
 // The max number of ticks we delay sending the approval after we are ready to issue the approval
-const MAX_APPROVAL_COALESCE_WAIT_TICKS: Tick = 2;
+const MAX_APPROVAL_COALESCE_WAIT_TICKS: Tick = 12;
 
 // The maximum approval params we cache locally in the subsytem, so that we don't have
 // to do the back and forth to the runtime subsystem api.
