@@ -6,11 +6,11 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false}
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "vstakhov-yamux-window" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
 parity-scale-codec = { version = "3.6.1", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "vstakhov-yamux-window" }
 
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 

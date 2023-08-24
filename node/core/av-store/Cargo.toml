@@ -20,7 +20,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 
 [dev-dependencies]
@@ -29,9 +29,9 @@ env_logger = "0.9.0"
 assert_matches = "1.4.0"
 kvdb-memorydb = "0.13.0"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 parking_lot = "0.12.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

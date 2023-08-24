@@ -11,7 +11,7 @@ license.workspace = true
 [dependencies]
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 rustversion = "1.0.6"
 
 [features]

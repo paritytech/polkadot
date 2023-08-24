@@ -14,11 +14,11 @@ gum = { package = "tracing-gum", path = "../gum" }
 metered = { package = "prioritized-metered-channel", version = "0.2.0" }
 
 # Both `sc-service` and `sc-cli` are required by runtime metrics `logger_hook()`.
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 codec = { package = "parity-scale-codec", version = "3.6.1" }
 primitives = { package = "polkadot-primitives", path = "../../primitives/" }
 bs58 = { version = "0.4.0", features = ["alloc"] }
@@ -30,9 +30,9 @@ tempfile = "3.2.0"
 hyper = { version = "0.14.20", default-features = false, features = ["http1", "tcp"] }
 tokio = "1.24.2"
 polkadot-test-service = { path = "../test/service", features=["runtime-metrics"]}
-substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 prometheus-parse = {version = "0.2.2"}
 
 [features]

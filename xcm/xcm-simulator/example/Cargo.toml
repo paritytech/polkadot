@@ -11,16 +11,16 @@ codec = { package = "parity-scale-codec", version = "3.6.1" }
 scale-info = { version = "2.5.0", features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-uniques = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+pallet-uniques = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }

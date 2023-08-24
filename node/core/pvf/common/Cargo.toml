@@ -18,14 +18,14 @@ parity-scale-codec = { version = "3.6.1", default-features = false, features = [
 polkadot-parachain = { path = "../../../../parachain" }
 polkadot-primitives = { path = "../../../../primitives" }
 
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "vstakhov-yamux-window" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 landlock = "0.2.0"

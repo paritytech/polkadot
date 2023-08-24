@@ -16,78 +16,78 @@ serde = { version = "1.0.163", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.8.0"
 
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-beefy-primitives = { package = "sp-consensus-beefy", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+beefy-primitives = { package = "sp-consensus-beefy", git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
 
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
 westend-runtime-constants = { package = "westend-runtime-constants", path = "./constants", default-features = false }
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-elections-phragmen = { package = "pallet-elections-phragmen", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-fast-unstake = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-nomination-pools = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-collective = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-democracy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-elections-phragmen = { package = "pallet-elections-phragmen", git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-fast-unstake = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-identity = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-indices = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-membership = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-multisig = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-nomination-pools = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-preimage = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-proxy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-recovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-scheduler = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-society = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+pallet-staking-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-utility = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false, features=["experimental"] }
 pallet-xcm-benchmarks = { path = "../../xcm/pallet-xcm-benchmarks", default-features = false, optional = true }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-pallet-election-provider-support-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-pallet-nomination-pools-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "vstakhov-yamux-window" }
+frame-try-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "vstakhov-yamux-window" }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "vstakhov-yamux-window" }
+pallet-election-provider-support-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "vstakhov-yamux-window" }
+pallet-nomination-pools-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "vstakhov-yamux-window" }
+pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "vstakhov-yamux-window" }
+pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "vstakhov-yamux-window" }
 hex-literal = { version = "0.4.1", optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false, features=["experimental"] }
@@ -102,14 +102,14 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 [dev-dependencies]
 hex-literal = "0.4.1"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 serde_json = "1.0.96"
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-remote-externalities" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", package = "frame-remote-externalities" , branch = "vstakhov-yamux-window" }
 tokio = { version = "1.24.2", features = ["macros"] }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "vstakhov-yamux-window" }
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 
 [features]
 default = ["std"]

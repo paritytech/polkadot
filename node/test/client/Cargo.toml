@@ -16,25 +16,25 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 
 # Substrate dependencies
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 futures = "0.3.21"
 
 [features]

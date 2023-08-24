@@ -20,12 +20,12 @@ polkadot-node-core-pvf-common = { path = "../common" }
 polkadot-parachain = { path = "../../../../parachain" }
 polkadot-primitives = { path = "../../../../primitives" }
 
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tikv-jemalloc-ctl = "0.5.0"

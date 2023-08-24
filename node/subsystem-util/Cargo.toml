@@ -30,9 +30,9 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
 metered = { package = "prioritized-metered-channel", version = "0.2.0" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 
 kvdb = "0.13.0"
 parity-db = { version = "0.4.8"}

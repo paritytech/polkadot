@@ -15,13 +15,13 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-jaeger = { path = "../jaeger" }
 orchestra = "0.0.5"
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 smallvec = "1.8.0"
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 thiserror = "1.0.31"
 async-trait = "0.1.57"
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }

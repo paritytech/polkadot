@@ -22,8 +22,8 @@ gum = { package = "tracing-gum", path = "../../gum" }
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "vstakhov-yamux-window" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

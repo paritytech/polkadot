@@ -18,7 +18,7 @@ futures-timer = "3.0.2"
 fatality = "0.0.6"
 
 [dev-dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

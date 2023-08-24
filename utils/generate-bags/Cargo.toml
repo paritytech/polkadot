@@ -8,8 +8,8 @@ license.workspace = true
 [dependencies]
 clap = { version = "4.0.9", features = ["derive"] }
 
-generate-bags = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+generate-bags = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 
 westend-runtime = { path = "../../runtime/westend" }
 kusama-runtime = { path = "../../runtime/kusama" }

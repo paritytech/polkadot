@@ -32,15 +32,15 @@ polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-primitives = { path = "../../../primitives" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "vstakhov-yamux-window" }
 polkadot-node-core-pvf-prepare-worker = { path = "prepare-worker", optional = true }
 polkadot-node-core-pvf-execute-worker = { path = "execute-worker", optional = true }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"

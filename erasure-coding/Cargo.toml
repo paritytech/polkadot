@@ -10,8 +10,8 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../node/primitives" }
 novelpoly = { package = "reed-solomon-novelpoly", version = "1.0.0" }
 parity-scale-codec = { version = "3.6.1", default-features = false, features = ["std", "derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "vstakhov-yamux-window" }
 thiserror = "1.0.31"
 
 [dev-dependencies]

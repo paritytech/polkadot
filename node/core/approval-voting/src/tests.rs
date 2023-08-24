@@ -3838,7 +3838,8 @@ async fn handle_approval_on_max_wait_time(
 		.lock()
 		.set_tick(MAX_APPROVAL_COALESCE_WAIT_TICKS as Tick + TICK_NOW_BEGIN);
 
-	// Third time we fetch the configuration when timer expires and we are ready to sent the approval
+	// Third time we fetch the configuration when timer expires and we are ready to sent the
+	// approval
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(sender))) => {
