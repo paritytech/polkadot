@@ -42,7 +42,9 @@
     "/dns/kusama-bootnode.radiumblock.com/tcp/30333/p2p/12D3KooWGzKffWe7JSXeKMQeSQC5xfBafZtgBDCuBVxmwe2TJRuc",
     "/dns/ksm-bootnode.stakeworld.io/tcp/30300/p2p/12D3KooWFRin7WWVS6RgUsSpkfUHSv4tfGKnr2zJPmf1pbMv118H",
     "/dns/ksm-bootnode.stakeworld.io/tcp/30301/ws/p2p/12D3KooWFRin7WWVS6RgUsSpkfUHSv4tfGKnr2zJPmf1pbMv118H",
-    "/dns/ksm-bootnode.stakeworld.io/tcp/30302/wss/p2p/12D3KooWFRin7WWVS6RgUsSpkfUHSv4tfGKnr2zJPmf1pbMv118H"
+    "/dns/ksm-bootnode.stakeworld.io/tcp/30302/wss/p2p/12D3KooWFRin7WWVS6RgUsSpkfUHSv4tfGKnr2zJPmf1pbMv118H",
+    "/dns/ksm14.rotko.net/tcp/35224/wss/p2p/12D3KooWAa5THTw8HPfnhEei23HdL8P9McBXdozG2oTtMMksjZkK",
+    "/dns/ksm14.rotko.net/tcp/33224/p2p/12D3KooWAa5THTw8HPfnhEei23HdL8P9McBXdozG2oTtMMksjZkK"
   ],
   "telemetryEndpoints": [
     [
