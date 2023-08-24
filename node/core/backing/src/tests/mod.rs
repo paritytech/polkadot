@@ -337,6 +337,24 @@ fn backing_second_works() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromExhaustive(
 					_pvd,
@@ -479,6 +497,24 @@ fn backing_works() {
 				RuntimeApiMessage::Request(_, RuntimeApiRequest::ValidationCodeByHash(hash, tx))
 			) if hash == validation_code.hash() => {
 				tx.send(Ok(Some(validation_code.clone()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
 			}
 		);
 
@@ -667,6 +703,24 @@ fn backing_works_while_validation_ongoing() {
 			}
 		);
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+			}
+		);
+
 		// Sending a `Statement::Seconded` for our assignment will start
 		// validation process. The first thing requested is PoV from the
 		// `PoVDistribution`.
@@ -837,6 +891,24 @@ fn backing_misbehavior_works() {
 				RuntimeApiMessage::Request(_, RuntimeApiRequest::ValidationCodeByHash(hash, tx))
 			) if hash == validation_code.hash() => {
 				tx.send(Ok(Some(validation_code.clone()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
 			}
 		);
 
@@ -1029,6 +1101,24 @@ fn backing_dont_second_invalid() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromExhaustive(
 					_pvd,
@@ -1071,6 +1161,24 @@ fn backing_dont_second_invalid() {
 				RuntimeApiMessage::Request(_, RuntimeApiRequest::ValidationCodeByHash(hash, tx))
 			) if hash == validation_code_b.hash() => {
 				tx.send(Ok(Some(validation_code_b.clone()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
 			}
 		);
 
@@ -1193,6 +1301,24 @@ fn backing_second_after_first_fails_works() {
 			}
 		);
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+			}
+		);
+
 		// Subsystem requests PoV and requests validation.
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1285,6 +1411,24 @@ fn backing_second_after_first_fails_works() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, pov, ..),
 			) => {
@@ -1348,6 +1492,24 @@ fn backing_works_after_failed_validation() {
 				RuntimeApiMessage::Request(_, RuntimeApiRequest::ValidationCodeByHash(hash, tx))
 			) if hash == validation_code.hash() => {
 				tx.send(Ok(Some(validation_code.clone()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
 			}
 		);
 
@@ -1558,6 +1720,24 @@ fn retry_works() {
 				RuntimeApiMessage::Request(_, RuntimeApiRequest::ValidationCodeByHash(hash, tx))
 			) if hash == validation_code.hash() => {
 				tx.send(Ok(Some(validation_code.clone()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
 			}
 		);
 
@@ -1814,6 +1994,24 @@ fn cannot_second_multiple_candidates_per_parent() {
 				RuntimeApiMessage::Request(_, RuntimeApiRequest::ValidationCodeByHash(hash, tx))
 			) if hash == validation_code.hash() => {
 				tx.send(Ok(Some(validation_code.clone()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+			) if sess_idx == 1 => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
 			}
 		);
 

@@ -910,6 +910,19 @@ async fn import_block(
 					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
 				}
 			);
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionExecutorParams(_, si_tx),
+					)
+				) => {
+					// Make sure all SessionExecutorParams calls are not made for the leaf (but for its relay parent)
+					assert_ne!(req_block_hash, hashes[(number-1) as usize].0);
+					si_tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+				}
+			);
 		}
 
 		assert_matches!(

@@ -205,6 +205,24 @@ async fn assert_validate_seconded_candidate(
 		}
 	);
 
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+		) => {
+			tx.send(Ok(1u32.into())).unwrap();
+		}
+	);
+
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(sess_idx, tx))
+		) if sess_idx == 1 => {
+			tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+		}
+	);
+
 	if fetch_pov {
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1385,6 +1403,20 @@ fn concurrent_dependent_candidates() {
 						break
 					}
 				},
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_,
+					RuntimeApiRequest::SessionIndexForChild(tx)
+				)) => {
+					tx.send(Ok(1u32.into())).unwrap();
+				},
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_,
+					RuntimeApiRequest::SessionExecutorParams(sess_idx, tx)
+				)) => {
+					assert_eq!(sess_idx, 1);
+					tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+				},
+
 				_ => panic!("unexpected message received from overseer: {:?}", msg),
 			}
 		}
