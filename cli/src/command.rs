@@ -17,7 +17,7 @@
 use crate::cli::{Cli, Subcommand, NODE_VERSION};
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
-use log::info;
+use log::{info, warn};
 use sc_cli::SubstrateCli;
 use service::{
 	self,
@@ -240,8 +240,24 @@ where
 		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
-	// By default, enable BEEFY on all networks except Polkadot (for now).
-	let enable_beefy = !chain_spec.is_polkadot() && !cli.run.no_beefy;
+	// By default, enable BEEFY on all networks except Polkadot (for now), unless
+	// explicitly disabled through CLI.
+	let mut enable_beefy = !chain_spec.is_polkadot() && !cli.run.no_beefy;
+	// BEEFY doesn't (yet) support warp sync:
+	// Until we implement https://github.com/paritytech/substrate/issues/14756
+	// - disallow warp sync for validators,
+	// - disable BEEFY when warp sync for non-validators.
+	if enable_beefy && runner.config().network.sync_mode.is_warp() {
+		if runner.config().role.is_authority() {
+			return Err(Error::Other(
+				"Warp sync not supported for validator nodes running BEEFY.".into(),
+			))
+		} else {
+			// disable BEEFY for non-validator nodes that are warp syncing
+			warn!("🥩 BEEFY not supported when warp syncing. Disabling BEEFY.");
+			enable_beefy = false;
+		}
+	}
 
 	set_default_ss58_version(chain_spec);
 
