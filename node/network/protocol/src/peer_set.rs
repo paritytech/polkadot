@@ -118,9 +118,16 @@ impl PeerSet {
 	/// Networking layer relies on `get_main_version()` being the version
 	/// of the main protocol name reported by [`PeerSetProtocolNames::get_main_name()`].
 	pub fn get_main_version(self) -> ProtocolVersion {
+		#[cfg(not(feature = "network-protocol-staging"))]
 		match self {
 			PeerSet::Validation => ValidationVersion::V1.into(),
 			PeerSet::Collation => CollationVersion::V1.into(),
+		}
+
+		#[cfg(feature = "network-protocol-staging")]
+		match self {
+			PeerSet::Validation => ValidationVersion::VStaging.into(),
+			PeerSet::Collation => CollationVersion::VStaging.into(),
 		}
 	}
 
@@ -145,12 +152,16 @@ impl PeerSet {
 			PeerSet::Validation =>
 				if version == ValidationVersion::V1.into() {
 					Some("validation/1")
+				} else if version == ValidationVersion::VStaging.into() {
+					Some("validation/2")
 				} else {
 					None
 				},
 			PeerSet::Collation =>
 				if version == CollationVersion::V1.into() {
 					Some("collation/1")
+				} else if version == CollationVersion::VStaging.into() {
+					Some("collation/2")
 				} else {
 					None
 				},
@@ -212,6 +223,8 @@ impl From<ProtocolVersion> for u32 {
 pub enum ValidationVersion {
 	/// The first version.
 	V1 = 1,
+	/// The staging version.
+	VStaging = 2,
 }
 
 /// Supported collation protocol versions. Only versions defined here must be used in the codebase.
@@ -219,6 +232,40 @@ pub enum ValidationVersion {
 pub enum CollationVersion {
 	/// The first version.
 	V1 = 1,
+	/// The staging version.
+	VStaging = 2,
+}
+
+/// Marker indicating the version is unknown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnknownVersion;
+
+impl TryFrom<ProtocolVersion> for ValidationVersion {
+	type Error = UnknownVersion;
+
+	fn try_from(p: ProtocolVersion) -> Result<Self, UnknownVersion> {
+		for v in Self::iter() {
+			if v as u32 == p.0 {
+				return Ok(v)
+			}
+		}
+
+		Err(UnknownVersion)
+	}
+}
+
+impl TryFrom<ProtocolVersion> for CollationVersion {
+	type Error = UnknownVersion;
+
+	fn try_from(p: ProtocolVersion) -> Result<Self, UnknownVersion> {
+		for v in Self::iter() {
+			if v as u32 == p.0 {
+				return Ok(v)
+			}
+		}
+
+		Err(UnknownVersion)
+	}
 }
 
 impl From<ValidationVersion> for ProtocolVersion {

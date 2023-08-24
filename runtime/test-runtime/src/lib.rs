@@ -25,6 +25,7 @@ use parity_scale_codec::Encode;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use polkadot_runtime_parachains::{
+	assigner_parachains as parachains_assigner_parachains,
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
 	inclusion as parachains_inclusion, initializer as parachains_initializer,
@@ -555,7 +556,11 @@ impl parachains_hrmp::Config for Runtime {
 	type WeightInfo = parachains_hrmp::TestWeightInfo;
 }
 
-impl parachains_scheduler::Config for Runtime {}
+impl parachains_assigner_parachains::Config for Runtime {}
+
+impl parachains_scheduler::Config for Runtime {
+	type AssignmentProvider = ParaAssignmentProvider;
+}
 
 impl paras_sudo_wrapper::Config for Runtime {}
 
@@ -697,6 +702,7 @@ construct_runtime! {
 		Xcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned},
+		ParaAssignmentProvider: parachains_assigner_parachains::{Pallet},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 

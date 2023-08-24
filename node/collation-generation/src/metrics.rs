@@ -22,6 +22,7 @@ pub(crate) struct MetricsInner {
 	pub(crate) new_activations_overall: prometheus::Histogram,
 	pub(crate) new_activations_per_relay_parent: prometheus::Histogram,
 	pub(crate) new_activations_per_availability_core: prometheus::Histogram,
+	pub(crate) submit_collation: prometheus::Histogram,
 }
 
 /// `CollationGenerationSubsystem` metrics.
@@ -56,6 +57,11 @@ impl Metrics {
 		self.0
 			.as_ref()
 			.map(|metrics| metrics.new_activations_per_availability_core.start_timer())
+	}
+
+	/// Provide a timer for submitting a collation which updates on drop.
+	pub fn time_submit_collation(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.submit_collation.start_timer())
 	}
 }
 
@@ -92,6 +98,15 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_parachain_collation_generation_per_availability_core",
 						"Time spent handling a particular availability core for a relay parent in fn handle_new_activations",
+					)
+				)?,
+				registry,
+			)?,
+			submit_collation: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_collation_generation_submit_collation",
+						"Time spent preparing and submitting a collation to the network protocol",
 					)
 				)?,
 				registry,

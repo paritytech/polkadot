@@ -47,6 +47,8 @@ benchmarks! {
 		ExecutorParam::PvfExecTimeout(PvfExecTimeoutKind::Approval, 12_000),
 	][..]))
 
+	set_config_with_perbill {}: set_on_demand_fee_variability(RawOrigin::Root, Perbill::from_percent(100))
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::mock::new_test_ext(Default::default()),

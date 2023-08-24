@@ -56,7 +56,6 @@ use {
 	sc_client_api::BlockBackend,
 	sc_transaction_pool_api::OffchainTransactionPoolFactory,
 	sp_core::traits::SpawnNamed,
-	sp_trie::PrefixedMemoryDB,
 };
 
 use polkadot_node_subsystem_util::database::Database;
@@ -475,7 +474,7 @@ fn new_partial<ChainSelection>(
 		FullClient,
 		FullBackend,
 		ChainSelection,
-		sc_consensus::DefaultImportQueue<Block, FullClient>,
+		sc_consensus::DefaultImportQueue<Block>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
 		(
 			impl Fn(
@@ -754,13 +753,9 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		Some(backoff)
 	};
 
-	// If not on a known test network, warn the user that BEEFY is still experimental.
-	if enable_beefy &&
-		!config.chain_spec.is_rococo() &&
-		!config.chain_spec.is_wococo() &&
-		!config.chain_spec.is_versi()
-	{
-		gum::warn!("BEEFY is still experimental, usage on a production network is discouraged.");
+	// Warn the user that BEEFY is still experimental for Polkadot.
+	if enable_beefy && config.chain_spec.is_polkadot() {
+		gum::warn!("BEEFY is still experimental, usage on Polkadot network is discouraged.");
 	}
 
 	let disable_grandpa = config.disable_grandpa;
@@ -860,12 +855,19 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 	net_config.add_request_response_protocol(cfg);
 	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	net_config.add_request_response_protocol(cfg);
-	let (collation_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (collation_req_v1_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
+	net_config.add_request_response_protocol(cfg);
+	let (collation_req_vstaging_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	net_config.add_request_response_protocol(cfg);
 	let (available_data_req_receiver, cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
 	net_config.add_request_response_protocol(cfg);
 	let (statement_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	net_config.add_request_response_protocol(cfg);
+	let (candidate_req_vstaging_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	net_config.add_request_response_protocol(cfg);
 	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	net_config.add_request_response_protocol(cfg);
@@ -1051,9 +1053,11 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 					authority_discovery_service,
 					pov_req_receiver,
 					chunk_req_receiver,
-					collation_req_receiver,
+					collation_req_v1_receiver,
+					collation_req_vstaging_receiver,
 					available_data_req_receiver,
 					statement_req_receiver,
+					candidate_req_vstaging_receiver,
 					dispute_req_receiver,
 					registry: prometheus_registry.as_ref(),
 					spawner,
@@ -1196,14 +1200,14 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 
 		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
 
-		// BEEFY currently only runs on testnets, if it fails we'll
-		// bring the node down with it to make sure it is noticed.
+		// BEEFY is part of consensus, if it fails we'll bring the node down with it to make sure it
+		// is noticed.
 		task_manager
 			.spawn_essential_handle()
 			.spawn_blocking("beefy-gadget", None, gadget);
-
+		// When offchain indexing is enabled, MMR gadget should also run.
 		if is_offchain_indexing_enabled {
-			task_manager.spawn_handle().spawn_blocking(
+			task_manager.spawn_essential_handle().spawn_blocking(
 				"mmr-gadget",
 				None,
 				MmrGadget::start(
@@ -1321,15 +1325,8 @@ macro_rules! chain_ops {
 pub fn new_chain_ops(
 	config: &mut Configuration,
 	jaeger_agent: Option<std::net::SocketAddr>,
-) -> Result<
-	(
-		Arc<FullClient>,
-		Arc<FullBackend>,
-		sc_consensus::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
-		TaskManager,
-	),
-	Error,
-> {
+) -> Result<(Arc<FullClient>, Arc<FullBackend>, sc_consensus::BasicQueue<Block>, TaskManager), Error>
+{
 	config.keystore = service::config::KeystoreConfig::InMemory;
 
 	if config.chain_spec.is_rococo() ||

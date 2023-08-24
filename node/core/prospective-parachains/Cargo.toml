@@ -1,0 +1,30 @@
+[package]
+name = "polkadot-node-core-prospective-parachains"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+futures = "0.3.19"
+gum = { package = "tracing-gum", path = "../../gum" }
+parity-scale-codec = "3.6.4"
+thiserror = "1.0.30"
+fatality = "0.0.6"
+bitvec = "1"
+
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-primitives = { path = "../../primitives" }
+polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+
+[dev-dependencies]
+assert_matches = "1"
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+polkadot-node-subsystem-types = { path = "../../subsystem-types" }
+polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }

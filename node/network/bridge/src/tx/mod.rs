@@ -20,7 +20,7 @@ use super::*;
 use polkadot_node_network_protocol::{
 	peer_set::{CollationVersion, PeerSet, PeerSetProtocolNames, ValidationVersion},
 	request_response::ReqProtocolNames,
-	v1 as protocol_v1, PeerId, Versioned,
+	v1 as protocol_v1, vstaging as protocol_vstaging, PeerId, Versioned,
 };
 
 use polkadot_node_subsystem::{
@@ -197,6 +197,13 @@ where
 					WireMessage::ProtocolMessage(msg),
 					&metrics,
 				),
+				Versioned::VStaging(msg) => send_validation_message_vstaging(
+					&mut network_service,
+					peers,
+					peerset_protocol_names,
+					WireMessage::ProtocolMessage(msg),
+					&metrics,
+				),
 			}
 		},
 		NetworkBridgeTxMessage::SendValidationMessages(msgs) => {
@@ -209,6 +216,13 @@ where
 			for (peers, msg) in msgs {
 				match msg {
 					Versioned::V1(msg) => send_validation_message_v1(
+						&mut network_service,
+						peers,
+						peerset_protocol_names,
+						WireMessage::ProtocolMessage(msg),
+						&metrics,
+					),
+					Versioned::VStaging(msg) => send_validation_message_vstaging(
 						&mut network_service,
 						peers,
 						peerset_protocol_names,
@@ -233,6 +247,13 @@ where
 					WireMessage::ProtocolMessage(msg),
 					&metrics,
 				),
+				Versioned::VStaging(msg) => send_collation_message_vstaging(
+					&mut network_service,
+					peers,
+					peerset_protocol_names,
+					WireMessage::ProtocolMessage(msg),
+					&metrics,
+				),
 			}
 		},
 		NetworkBridgeTxMessage::SendCollationMessages(msgs) => {
@@ -245,6 +266,13 @@ where
 			for (peers, msg) in msgs {
 				match msg {
 					Versioned::V1(msg) => send_collation_message_v1(
+						&mut network_service,
+						peers,
+						peerset_protocol_names,
+						WireMessage::ProtocolMessage(msg),
+						&metrics,
+					),
+					Versioned::VStaging(msg) => send_collation_message_vstaging(
 						&mut network_service,
 						peers,
 						peerset_protocol_names,
@@ -376,6 +404,42 @@ fn send_collation_message_v1(
 		peers,
 		PeerSet::Collation,
 		CollationVersion::V1.into(),
+		protocol_names,
+		message,
+		metrics,
+	);
+}
+
+fn send_validation_message_vstaging(
+	net: &mut impl Network,
+	peers: Vec<PeerId>,
+	protocol_names: &PeerSetProtocolNames,
+	message: WireMessage<protocol_vstaging::ValidationProtocol>,
+	metrics: &Metrics,
+) {
+	send_message(
+		net,
+		peers,
+		PeerSet::Validation,
+		ValidationVersion::VStaging.into(),
+		protocol_names,
+		message,
+		metrics,
+	);
+}
+
+fn send_collation_message_vstaging(
+	net: &mut impl Network,
+	peers: Vec<PeerId>,
+	protocol_names: &PeerSetProtocolNames,
+	message: WireMessage<protocol_vstaging::CollationProtocol>,
+	metrics: &Metrics,
+) {
+	send_message(
+		net,
+		peers,
+		PeerSet::Collation,
+		CollationVersion::VStaging.into(),
 		protocol_names,
 		message,
 		metrics,

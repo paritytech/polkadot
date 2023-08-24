@@ -79,7 +79,7 @@ rustup update
 Once done, finish installing the support software:
 
 ```bash
-sudo apt install build-essential git clang libclang-dev pkg-config libssl-dev
+sudo apt install build-essential git clang libclang-dev pkg-config libssl-dev protobuf-compiler
 ```
 
 Build the client by cloning this repository and running the following commands from the root
