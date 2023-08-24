@@ -9,20 +9,20 @@ publish = false
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.6.1" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 futures = "0.3.21"
 pallet-xcm = { path = "../../pallet-xcm" }
 polkadot-test-client = { path = "../../../node/test/client" }
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
 polkadot-test-service = { path = "../../../node/test/service" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 xcm = { path = "../..", default-features = false }
 xcm-executor = { path = ".." }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 
 [features]
 default = ["std"]

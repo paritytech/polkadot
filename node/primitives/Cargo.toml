@@ -11,12 +11,12 @@ bounded-vec = "0.7"
 futures = "0.3.21"
 polkadot-primitives = { path = "../../primitives" }
 parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 polkadot-parachain = { path = "../../parachain", default-features = false }
 schnorrkel = "0.9.1"
 thiserror = "1.0.31"

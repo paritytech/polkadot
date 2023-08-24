@@ -15,30 +15,30 @@ serde = { version = "1.0.163", default-features = false, features = ["derive", "
 derive_more = "0.99.17"
 bitflags = "1.3.2"
 
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features=["serde"] }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features=["serde"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features=["serde"] }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, features=["serde"] , branch = "rockmint-10005" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false, features=["serde"] , branch = "rockmint-10005" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, features=["serde"] , branch = "rockmint-10005" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "rockmint-10005" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "rockmint-10005" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "rockmint-10005" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "rockmint-10005" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -53,11 +53,11 @@ polkadot-runtime-metrics = { path = "../metrics", default-features = false}
 [dev-dependencies]
 futures = "0.3.21"
 hex-literal = "0.4.1"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers"}
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 thousands = "0.2.0"
 assert_matches = "1"
 serde_json = "1.0.96"

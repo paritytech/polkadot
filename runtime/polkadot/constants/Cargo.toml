@@ -8,12 +8,12 @@ license.workspace = true
 [dependencies]
 smallvec = "1.8.0"
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
 primitives = { package = "polkadot-primitives", path = "../../../primitives", default-features = false }
 runtime-common = { package = "polkadot-runtime-common", path = "../../common", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rockmint-10005" }
 
 [features]
 default = ["std"]

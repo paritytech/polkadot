@@ -25,22 +25,22 @@ pyroscope_pprofrs = { version = "0.2", optional = true }
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "rockmint-10005" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "rockmint-10005" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "rockmint-10005" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "rockmint-10005" }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "rockmint-10005" }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 
 [features]
 default = ["db", "cli", "full-node"]

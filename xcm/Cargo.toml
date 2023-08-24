@@ -13,12 +13,12 @@ impl-trait-for-tuples = "0.2.2"
 log = { version = "0.4.17", default-features = false }
 parity-scale-codec = { version = "3.6.1", default-features = false, features = [ "derive", "max-encoded-len" ] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive", "serde"] }
-sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["serde"] }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["serde"] , branch = "rockmint-10005" }
 serde = { version = "1.0.163", default-features = false, features = ["alloc", "derive"] }
 xcm-procedural = { path = "procedural" }
 
 [dev-dependencies]
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 hex = "0.4.3"
 hex-literal = "0.4.1"
 

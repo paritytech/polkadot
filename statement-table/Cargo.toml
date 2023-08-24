@@ -7,5 +7,5 @@ license.workspace = true
 
 [dependencies]
 parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 primitives = { package = "polkadot-primitives", path = "../primitives" }

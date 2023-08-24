@@ -47,11 +47,11 @@ assert_cmd = "2.0.4"
 nix = { version = "0.26.1", features = ["signal"] }
 tempfile = "3.2.0"
 tokio = "1.24.2"
-substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 polkadot-core-primitives = { path = "core-primitives" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 
 [workspace]
 members = [

@@ -12,14 +12,14 @@ honggfuzz = "0.5.55"
 arbitrary = "1.2.0"
 scale-info = { version = "2.5.0", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "rockmint-10005" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }
