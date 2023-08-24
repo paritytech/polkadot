@@ -487,7 +487,9 @@ fn verify_externally_accessible() {
 	use primitives::{well_known_keys, AbridgedHostConfiguration};
 
 	new_test_ext(Default::default()).execute_with(|| {
-		let ground_truth = HostConfiguration::default();
+		let mut ground_truth = HostConfiguration::default();
+		ground_truth.async_backing_params =
+			AsyncBackingParams { allowed_ancestry_len: 111, max_candidate_depth: 222 };
 
 		// Make sure that the configuration is stored in the storage.
 		ActiveConfig::<Test>::put(ground_truth.clone());
@@ -511,6 +513,7 @@ fn verify_externally_accessible() {
 				hrmp_max_message_num_per_candidate: ground_truth.hrmp_max_message_num_per_candidate,
 				validation_upgrade_cooldown: ground_truth.validation_upgrade_cooldown,
 				validation_upgrade_delay: ground_truth.validation_upgrade_delay,
+				async_backing_params: ground_truth.async_backing_params,
 			},
 		);
 	});
