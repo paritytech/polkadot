@@ -1,17 +1,30 @@
 {%- import "change.md.tera" as m_c -%}
 
-{# This macro convert a priority level into readable output #}
-{%- macro high_priority(p, changes) -%}
+{#- This macro convert a priority level into readable output #}
+{%- macro high_priority(p, name, changes) -%}
 
+{% if name == "node" %}
 {%- if p >= 7 -%}
     {%- set prio = "‼️ HIGH" -%}
-    {%- set text = "This is a **high priority** release and you must upgrade as as soon as possible." -%}
+    {%- set text = "This is a **high priority** release for the **node** and you must upgrade your node as as soon as possible." -%}
 {%- elif p >= 3 -%}
     {%- set prio = "❗️ Medium" -%}
-    {%- set text = "This is a medium priority release and you should upgrade in a timely manner." -%}
+    {%- set text = "This is a medium priority release for the **node** and you should upgrade your node in a timely manner." -%}
 {%- else -%}
     {%- set prio = "Low" -%}
-    {%- set text = "This is a low priority release and you may upgrade at your convenience." -%}
+    {%- set text = "This is a low priority release for the **node** and you may upgrade your node at your convenience." -%}
+{%- endif %}
+{% else %}
+{%- if p >= 7 -%}
+    {%- set prio = "‼️ HIGH" -%}
+    {%- set text = "This is a **high priority** release for the **runtime** and the runtime should be upgraded as as soon as possible." -%}
+{%- elif p >= 3 -%}
+    {%- set prio = "❗️ Medium" -%}
+    {%- set text = "This is a medium priority release for the **runtime** and the runtime should be upgraded in a timely manner." -%}
+{%- else -%}
+    {%- set prio = "Low" -%}
+    {%- set text = "This is a low priority release for the **runtime** and the runtime should be upgraded when convenient." -%}
+{%- endif %}
 {%- endif %}
 
 <!-- detected max prio is: {{p}} -->

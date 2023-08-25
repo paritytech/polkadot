@@ -1,22 +1,46 @@
 {% import "high_priority.md.tera" as m_p -%}
 ## Upgrade Priority
 
-{%- set polkadot_prio = 0 -%}
-{%- set substrate_prio = 0 -%}
+{%- set polkadot_prio_runtime = 0 -%}
+{%- set substrate_prio_runtime = 0 -%}
+
+{%- set polkadot_prio_node = 0 -%}
+{%- set substrate_prio_node = 0 -%}
 
 {# We fetch the various priorities #}
 {%- if polkadot.meta.C -%}
-    {%- set polkadot_prio = polkadot.meta.C.max -%}
+    {%- if polkadot.meta.T and polkadot.meta.T0 -%}
+    {%- set polkadot_prio_node = polkadot.meta.C.max -%}
+    {%- endif -%}
+
+    {%- if polkadot.meta.T and polkadot.meta.T1 -%}
+    {%- set polkadot_prio_runtime = polkadot.meta.C.max -%}
+    {%- endif -%}
 {%- endif -%}
 {%- if substrate.meta.C -%}
-    {%- set substrate_prio = substrate.meta.C.max -%}
+    {%- if substrate.meta.T and substrate.meta.T0 -%}
+    {%- set substrate_prio_node = substrate.meta.C.max -%}
+    {%- endif -%}
+
+    {%- if substrate.meta.T and substrate.meta.T1 -%}
+    {%- set substrate_prio_runtime = substrate.meta.C.max -%}
+    {%- endif -%}
 {%- endif -%}
 
 {# We compute the global priority #}
-{%- set global_prio = polkadot_prio -%}
-{%- if substrate_prio > global_prio -%}
-    {%- set global_prio = substrate_prio -%}
+{%- set global_prio_node = polkadot_prio_node -%}
+{%- if substrate_prio_node > global_prio_node -%}
+    {%- set global_prio_node = substrate_prio_node -%}
 {%- endif -%}
+{%- set global_prio_runtime = polkadot_prio_runtime -%}
+{%- if substrate_prio_runtime > global_prio_runtime -%}
+    {%- set global_prio_runtime = substrate_prio_runtime -%}
+{%- endif %}
 
+### Node
 {#- We show the result #}
-{{ m_p::high_priority(p=global_prio, changes=changes) }}
+{{ m_p::high_priority(p=global_prio_node, name="node", changes=changes) }}
+
+### Runtime
+{#- We show the result #}
+{{ m_p::high_priority(p=global_prio_runtime, name="runtime", changes=changes) }}
