@@ -34,7 +34,7 @@ use polkadot_node_core_pvf_common::{
 	error::{PrepareError, PrepareResult},
 	executor_intf::Executor,
 	framed_recv, framed_send,
-	prepare::{MemoryStats, PrepareJobKind, PrepareStats},
+	prepare::{Handshake, MemoryStats, PrepareJobKind, PrepareStats},
 	pvf::PvfPrepData,
 	worker::{
 		bytes_to_path, cpu_time_monitor_loop,
@@ -47,7 +47,7 @@ use polkadot_node_core_pvf_common::{
 };
 use polkadot_primitives::ExecutorParams;
 use std::{
-	path::PathBuf,
+	path::{Path, PathBuf},
 	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
@@ -67,6 +67,17 @@ impl AsRef<[u8]> for CompiledArtifact {
 	fn as_ref(&self) -> &[u8] {
 		self.0.as_slice()
 	}
+}
+
+async fn recv_handshake(stream: &mut UnixStream) -> io::Result<Handshake> {
+	let handshake_enc = framed_recv(stream).await?;
+	let handshake = Handshake::decode(&mut &handshake_enc[..]).map_err(|_| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			"prepare pvf recv_handshake: failed to decode Handshake".to_owned(),
+		)
+	})?;
+	Ok(handshake)
 }
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
@@ -95,10 +106,16 @@ async fn send_response(stream: &mut UnixStream, result: PrepareResult) -> io::Re
 ///
 /// # Parameters
 ///
-/// The `socket_path` specifies the path to the socket used to communicate with the host. The
-/// `node_version`, if `Some`, is checked against the worker version. A mismatch results in
-/// immediate worker termination. `None` is used for tests and in other situations when version
-/// check is not necessary.
+/// - `socket_path` specifies the path to the socket used to communicate with the host.
+///
+/// - `node_version`, if `Some`, is checked against the `worker_version`. A mismatch results in
+///   immediate worker termination. `None` is used for tests and in other situations when version
+///   check is not necessary.
+///
+/// - `worker_version`: see above
+///
+/// - `cache_path` contains the expected cache path for artifacts and is used to provide a sandbox
+///   exception for landlock.
 ///
 /// # Flow
 ///
@@ -122,14 +139,61 @@ pub fn worker_entrypoint(
 	socket_path: &str,
 	node_version: Option<&str>,
 	worker_version: Option<&str>,
+	cache_path: &Path,
 ) {
 	worker_event_loop(
 		"prepare",
 		socket_path,
 		node_version,
 		worker_version,
+		cache_path,
 		|mut stream| async move {
 			let worker_pid = std::process::id();
+
+			gum::info!(target: LOG_TARGET, "10. {:?}", std::fs::read_dir(".").unwrap().map(|entry| entry.unwrap().path()).collect::<Vec<PathBuf>>());
+
+			let Handshake { landlock_enabled } = recv_handshake(&mut stream).await?;
+
+			gum::info!(target: LOG_TARGET, "11. {:?}", std::fs::read_dir(".").unwrap().map(|entry| entry.unwrap().path()).collect::<Vec<PathBuf>>());
+
+			// Try to enable landlock.
+			// {
+			// 	#[cfg(target_os = "linux")]
+			// 	let landlock_status = {
+			// 		use polkadot_node_core_pvf_common::worker::security::landlock::{
+			// 			path_beneath_rules, try_restrict, Access, AccessFs, LANDLOCK_ABI,
+			// 		};
+
+			// 		// Allow an exception for writing to the artifact cache, with no allowance for
+			// 		// listing the directory contents. Since we prepend artifact names with a random
+			// 		// hash, this means attackers can't discover artifacts apart from the current
+			// 		// job.
+			// 		try_restrict(path_beneath_rules(
+			// 			&[cache_path],
+			// 			AccessFs::from_write(LANDLOCK_ABI),
+			// 		))
+			// 		.map(LandlockStatus::from_ruleset_status)
+			// 		.map_err(|e| e.to_string())
+			// 	};
+			// 	#[cfg(not(target_os = "linux"))]
+			// 	let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
+
+			// 	// Error if the host determined that landlock is fully enabled and we couldn't fully
+			// 	// enforce it here.
+			// 	if landlock_enabled && !matches!(landlock_status, Ok(LandlockStatus::FullyEnforced))
+			// 	{
+			// 		gum::warn!(
+			// 			target: LOG_TARGET,
+			// 			%worker_pid,
+			// 			"could not fully enable landlock: {:?}",
+			// 			landlock_status
+			// 		);
+			// 		return Err(io::Error::new(
+			// 			io::ErrorKind::Other,
+			// 			format!("could not fully enable landlock: {:?}", landlock_status),
+			// 		))
+			// 	}
+			// }
 
 			loop {
 				let (pvf, temp_artifact_dest) = recv_request(&mut stream).await?;
@@ -138,6 +202,10 @@ pub fn worker_entrypoint(
 					%worker_pid,
 					"worker: preparing artifact",
 				);
+
+				// if !temp_artifact_dest.starts_with(cache_path) {
+				// 	return Err(io::Error::new(io::ErrorKind::Other, format!("received an artifact path {temp_artifact_dest:?} that does not belong to expected cache path {cache_path:?}")))
+				// }
 
 				let preparation_timeout = pvf.prep_timeout();
 				let prepare_job_kind = pvf.prep_kind();
@@ -172,14 +240,6 @@ pub fn worker_entrypoint(
 				let prepare_thread = thread::spawn_worker_thread(
 					"prepare thread",
 					move || {
-						// Try to enable landlock.
-						#[cfg(target_os = "linux")]
-					let landlock_status = polkadot_node_core_pvf_common::worker::security::landlock::try_restrict_thread()
-						.map(LandlockStatus::from_ruleset_status)
-						.map_err(|e| e.to_string());
-						#[cfg(not(target_os = "linux"))]
-						let landlock_status: Result<LandlockStatus, String> = Ok(LandlockStatus::NotEnforced);
-
 						#[allow(unused_mut)]
 						let mut result = prepare_artifact(pvf, cpu_time_start);
 
@@ -200,7 +260,7 @@ pub fn worker_entrypoint(
 							});
 						}
 
-						(result, landlock_status)
+						result
 					},
 					Arc::clone(&condvar),
 					WaitOutcome::Finished,
@@ -213,16 +273,13 @@ pub fn worker_entrypoint(
 						let _ = cpu_time_monitor_tx.send(());
 
 						match prepare_thread.join().unwrap_or_else(|err| {
-							(
-								Err(PrepareError::Panic(stringify_panic_payload(err))),
-								Ok(LandlockStatus::Unavailable),
-							)
+							Err(PrepareError::Panic(stringify_panic_payload(err)))
 						}) {
-							(Err(err), _) => {
+							Err(err) => {
 								// Serialized error will be written into the socket.
 								Err(err)
 							},
-							(Ok(ok), landlock_status) => {
+							Ok(ok) => {
 								#[cfg(not(target_os = "linux"))]
 								let (artifact, cpu_time_elapsed) = ok;
 								#[cfg(target_os = "linux")]
@@ -241,16 +298,6 @@ pub fn worker_entrypoint(
 									#[cfg(target_os = "linux")]
 									max_rss: extract_max_rss_stat(max_rss, worker_pid),
 								};
-
-								// Log if landlock threw an error.
-								if let Err(err) = landlock_status {
-									gum::warn!(
-										target: LOG_TARGET,
-										%worker_pid,
-										"error enabling landlock: {}",
-										err
-									);
-								}
 
 								// Write the serialized artifact into a temp file.
 								//

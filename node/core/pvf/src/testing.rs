@@ -75,17 +75,23 @@ macro_rules! decl_puppet_worker_main {
 			};
 
 			let mut node_version = None;
-			let mut socket_path: &str = "";
+			let mut socket_path = None;
+			let mut cache_path = None;
 
 			for i in (2..args.len()).step_by(2) {
 				match args[i].as_ref() {
-					"--socket-path" => socket_path = args[i + 1].as_str(),
+					"--socket-path" => socket_path = Some(args[i + 1].as_str()),
 					"--node-impl-version" => node_version = Some(args[i + 1].as_str()),
+					"--cache-path" => cache_path = Some(args[i + 1].as_str()),
 					arg => panic!("Unexpected argument found: {}", arg),
 				}
 			}
+			let socket_path = socket_path.expect("the --socket-path argument is required");
+			let cache_path = cache_path.expect("the --cache-path argument is required");
 
-			entrypoint(&socket_path, node_version, None);
+			let cache_path = &std::path::Path::new(cache_path);
+
+			entrypoint(&socket_path, node_version, None, cache_path);
 		}
 	};
 }

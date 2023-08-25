@@ -7935,6 +7935,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-primitives",
+ "rand 0.8.5",
  "sc-executor",
  "sc-executor-common",
  "sc-executor-wasmtime",

@@ -39,15 +39,31 @@ use tokio::{
 pub const JOB_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
 
 /// This is publicly exposed only for integration tests.
+///
+/// # Parameters
+///
+/// - `debug_id`: An identifier for the process (e.g. "execute" or "prepare").
+///
+/// - `program_path`: The path to the program.
+///
+/// - `socket_dir_path`: An optional path to the dir where the socket should be created, if `None`
+///   use a temp dir.
+///
+/// - `extra_args`: Optional extra CLI arguments to the program. NOTE: Should only contain data
+///   required before the handshake, like node/worker versions for the version check. Other data
+///   should go through the handshake.
+///
+/// - `spawn_timeout`: The amount of time to wait for the child process to spawn.
 #[doc(hidden)]
 pub async fn spawn_with_program_path(
 	debug_id: &'static str,
 	program_path: impl Into<PathBuf>,
+	socket_dir_path: Option<&Path>,
 	extra_args: &[&str],
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	let program_path = program_path.into();
-	with_transient_socket_path(debug_id, |socket_path| {
+	with_transient_socket_path(debug_id, socket_dir_path, |socket_path| {
 		let socket_path = socket_path.to_owned();
 		let extra_args: Vec<String> = extra_args.iter().map(|arg| arg.to_string()).collect();
 
@@ -109,14 +125,23 @@ pub async fn spawn_with_program_path(
 	.await
 }
 
-async fn with_transient_socket_path<T, F, Fut>(debug_id: &'static str, f: F) -> Result<T, SpawnErr>
+async fn with_transient_socket_path<T, F, Fut>(
+	debug_id: &'static str,
+	socket_dir_path: Option<&Path>,
+	f: F,
+) -> Result<T, SpawnErr>
 where
 	F: FnOnce(&Path) -> Fut,
 	Fut: futures::Future<Output = Result<T, SpawnErr>> + 'static,
 {
-	let socket_path = tmpfile(&format!("pvf-host-{}", debug_id))
-		.await
-		.map_err(|_| SpawnErr::TmpFile)?;
+	let socket_prefix = format!("pvf-host-{}-", debug_id);
+	let socket_path = if let Some(socket_dir_path) = socket_dir_path {
+		tmpfile_in(&socket_prefix, socket_dir_path).await
+	} else {
+		tmpfile(&socket_prefix).await
+	}
+	.map_err(|_| SpawnErr::TmpFile)?;
+
 	let result = f(&socket_path).await;
 
 	// Best effort to remove the socket file. Under normal circumstances the socket will be removed
@@ -194,6 +219,8 @@ pub enum SpawnErr {
 	AcceptTimeout,
 	/// Failed to send handshake after successful spawning was signaled
 	Handshake,
+	/// Cache path is not a valid UTF-8 str.
+	InvalidCachePath(PathBuf),
 }
 
 /// This is a representation of a potentially running worker. Drop it and the process will be
@@ -221,10 +248,22 @@ impl WorkerHandle {
 		extra_args: &[String],
 		socket_path: impl AsRef<Path>,
 	) -> io::Result<Self> {
+		// Linux: Pass the socket path relative to the cache_path (what the child thinks is root).
+		#[cfg(target_os = "linux")]
+		let socket_path = Path::new(".").with_file_name(
+			socket_path
+				.as_ref()
+				.file_name()
+				.expect("socket paths are created with a filename; qed"),
+		);
+		// Non-Linux: We are only able to pivot-root on Linux, so pass the socket path as-is.
+		#[cfg(not(target_os = "linux"))]
+		let socket_path = socket_path.as_ref().as_os_str();
+
 		let mut child = process::Command::new(program.as_ref())
 			.args(extra_args)
 			.arg("--socket-path")
-			.arg(socket_path.as_ref().as_os_str())
+			.arg(socket_path)
 			.stdout(std::process::Stdio::piped())
 			.kill_on_drop(true)
 			.spawn()?;

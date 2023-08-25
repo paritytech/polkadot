@@ -23,7 +23,7 @@ use cpu_time::ProcessTime;
 use futures::never::Never;
 use std::{
 	any::Any,
-	path::PathBuf,
+	path::{Path, PathBuf},
 	sync::mpsc::{Receiver, RecvTimeoutError},
 	time::Duration,
 };
@@ -70,17 +70,23 @@ macro_rules! decl_worker_main {
 			}
 
 			let mut node_version = None;
-			let mut socket_path: &str = "";
+			let mut socket_path = None;
+			let mut cache_path = None;
 
 			for i in (2..args.len()).step_by(2) {
 				match args[i].as_ref() {
-					"--socket-path" => socket_path = args[i + 1].as_str(),
+					"--socket-path" => socket_path = Some(args[i + 1].as_str()),
 					"--node-impl-version" => node_version = Some(args[i + 1].as_str()),
+					"--cache-path" => cache_path = Some(args[i + 1].as_str()),
 					arg => panic!("Unexpected argument found: {}", arg),
 				}
 			}
+			let socket_path = socket_path.expect("the --socket-path argument is required");
+			let cache_path = cache_path.expect("the --cache-path argument is required");
 
-			$entrypoint(&socket_path, node_version, Some($worker_version));
+			let cache_path = &std::path::Path::new(cache_path);
+
+			$entrypoint(&socket_path, node_version, Some($worker_version), cache_path);
 		}
 	};
 }
@@ -102,6 +108,7 @@ pub fn worker_event_loop<F, Fut>(
 	socket_path: &str,
 	node_version: Option<&str>,
 	worker_version: Option<&str>,
+	cache_path: &Path,
 	mut event_loop: F,
 ) where
 	F: FnMut(UnixStream) -> Fut,
@@ -115,6 +122,7 @@ pub fn worker_event_loop<F, Fut>(
 		if node_version != worker_version {
 			gum::error!(
 				target: LOG_TARGET,
+				%debug_id,
 				%worker_pid,
 				%node_version,
 				%worker_version,
@@ -127,7 +135,27 @@ pub fn worker_event_loop<F, Fut>(
 		}
 	}
 
+	#[cfg(target_os = "linux")]
+	{
+		if let Err(err_ctx) = change_root(cache_path) {
+			let err = io::Error::last_os_error();
+			gum::error!(
+				target: LOG_TARGET,
+				%debug_id,
+				%worker_pid,
+				%err_ctx,
+				?cache_path,
+				"Could not change root to be the cache path: {}",
+				err
+			);
+			worker_shutdown_message(debug_id, worker_pid, err);
+			return
+		}
+	}
+
 	remove_env_vars(debug_id);
+
+	gum::info!(target: LOG_TARGET, "5. {:?}", std::fs::read_dir(".").unwrap().map(|entry| entry.unwrap().path()).collect::<Vec<PathBuf>>());
 
 	// Run the main worker loop.
 	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
@@ -149,6 +177,87 @@ pub fn worker_event_loop<F, Fut>(
 	// as possible and not wait for stalled validation to finish. This isn't strictly necessary now,
 	// but may be in the future.
 	rt.shutdown_background();
+}
+
+/// Change root to be the artifact directory.
+#[cfg(target_os = "linux")]
+fn change_root(cache_path: &Path) -> Result<(), &'static str> {
+	use rand::{distributions::Alphanumeric, Rng};
+	use std::{ffi::CString, os::unix::ffi::OsStrExt, ptr};
+
+	const RANDOM_LEN: usize = 10;
+	let mut buf = Vec::with_capacity(RANDOM_LEN);
+	buf.extend(rand::thread_rng().sample_iter(&Alphanumeric).take(RANDOM_LEN));
+	let s = std::str::from_utf8(&buf)
+		.expect("the string is collected from a valid utf-8 sequence; qed");
+
+	let cache_path_str = match cache_path.to_str() {
+		Some(s) => s,
+		None => return Err("cache path is not valid UTF-8")
+	};
+	let cache_path_c = CString::new(cache_path.as_os_str().as_bytes()).unwrap();
+	let root_absolute_c = CString::new("/").unwrap();
+	// Append a random string to prevent races and to avoid dealing with the dir already existing.
+	let oldroot_relative_c = CString::new(format!("{}/oldroot-{}", cache_path_str, s)).unwrap();
+	let oldroot_absolute_c = CString::new(format!("/oldroot-{}", s)).unwrap();
+
+	// SAFETY: TODO
+	unsafe {
+		// 1. `unshare` the user and the mount namespaces.
+		if libc::unshare(libc::CLONE_NEWUSER) < 0 {
+			return Err("unshare user namespace")
+		}
+		if libc::unshare(libc::CLONE_NEWNS) < 0 {
+			return Err("unshare mount namespace")
+		}
+
+		// 2. `pivot_root` to the artifact directory.
+		gum::info!(target: LOG_TARGET, "1. {:?}", std::env::current_dir());
+		gum::info!(target: LOG_TARGET, "1.5. {:?}", std::fs::read_dir(".").unwrap().map(|entry| entry.unwrap().path()).collect::<Vec<PathBuf>>());
+		// TODO: Ensure that 'new_root' and its parent mount don't have shared propagation.
+		if libc::mount(ptr::null(), root_absolute_c.as_ptr(), ptr::null(), libc::MS_REC | libc::MS_PRIVATE, ptr::null()) < 0 {
+            return Err("mount MS_PRIVATE")
+		}
+		if libc::mount(
+			cache_path_c.as_ptr(),
+			cache_path_c.as_ptr(),
+			ptr::null(), // ignored when MS_BIND is used
+			libc::MS_BIND | libc::MS_REC | libc::MS_NOEXEC,
+			ptr::null(), // ignored when MS_BIND is used
+		) < 0
+		{
+			return Err("mount MS_BIND")
+		}
+		if libc::mkdir(oldroot_relative_c.as_ptr(), 0755) < 0 {
+			return Err("mkdir oldroot")
+		}
+		if libc::syscall(
+			libc::SYS_pivot_root,
+			cache_path_c.as_ptr(),
+			oldroot_relative_c.as_ptr(),
+		) < 0
+		{
+			return Err("pivot_root")
+		}
+
+		// 3. Change to the new root, `unmount2` and remove the old root.
+		if libc::chdir(root_absolute_c.as_ptr()) < 0 {
+			return Err("chdir to new root")
+		}
+		gum::info!(target: LOG_TARGET, "2. {:?}", std::env::current_dir());
+		gum::info!(target: LOG_TARGET, "3. {:?}", std::fs::read_dir(".").unwrap().map(|entry| entry.unwrap().path()).collect::<Vec<PathBuf>>());
+		if libc::umount2(oldroot_absolute_c.as_ptr(), libc::MNT_DETACH) < 0 {
+			return Err("umount2 the oldroot")
+		}
+		if libc::rmdir(oldroot_absolute_c.as_ptr()) < 0 {
+			return Err("rmdir the oldroot")
+		}
+		gum::info!(target: LOG_TARGET, "4. {:?}", std::fs::read_dir(".").unwrap().map(|entry| entry.unwrap().path()).collect::<Vec<PathBuf>>());
+
+		// TODO: do some assertions
+	}
+
+	Ok(())
 }
 
 /// Delete all env vars to prevent malicious code from accessing them.
@@ -299,7 +408,7 @@ pub mod thread {
 		Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()))
 	}
 
-	/// Runs a worker thread. Will first enable security features, and afterwards notify the threads
+	/// Runs a worker thread. Will run the requested function, and afterwards notify the threads
 	/// waiting on the condvar. Catches panics during execution and resumes the panics after
 	/// triggering the condvar, so that the waiting thread is notified on panics.
 	///

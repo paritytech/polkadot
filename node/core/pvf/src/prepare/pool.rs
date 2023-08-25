@@ -110,10 +110,12 @@ enum PoolEvent {
 type Mux = FuturesUnordered<BoxFuture<'static, PoolEvent>>;
 
 struct Pool {
+	// Some variables related to the current session.
 	program_path: PathBuf,
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
 	node_version: Option<String>,
+	landlock_enabled: bool,
 
 	to_pool: mpsc::Receiver<ToPool>,
 	from_pool: mpsc::UnboundedSender<FromPool>,
@@ -132,6 +134,7 @@ async fn run(
 		cache_path,
 		spawn_timeout,
 		node_version,
+		landlock_enabled,
 		to_pool,
 		mut from_pool,
 		mut spawned,
@@ -160,6 +163,7 @@ async fn run(
 					&cache_path,
 					spawn_timeout,
 					node_version.clone(),
+					landlock_enabled,
 					&mut spawned,
 					&mut mux,
 					to_pool,
@@ -207,6 +211,7 @@ fn handle_to_pool(
 	cache_path: &Path,
 	spawn_timeout: Duration,
 	node_version: Option<String>,
+	landlock_enabled: bool,
 	spawned: &mut HopSlotMap<Worker, WorkerData>,
 	mux: &mut Mux,
 	to_pool: ToPool,
@@ -216,7 +221,14 @@ fn handle_to_pool(
 			gum::debug!(target: LOG_TARGET, "spawning a new prepare worker");
 			metrics.prepare_worker().on_begin_spawn();
 			mux.push(
-				spawn_worker_task(program_path.to_owned(), spawn_timeout, node_version).boxed(),
+				spawn_worker_task(
+					program_path.to_owned(),
+					spawn_timeout,
+					node_version,
+					cache_path.to_owned(),
+					landlock_enabled,
+				)
+				.boxed(),
 			);
 		},
 		ToPool::StartWork { worker, pvf, artifact_path } => {
@@ -260,11 +272,21 @@ async fn spawn_worker_task(
 	program_path: PathBuf,
 	spawn_timeout: Duration,
 	node_version: Option<String>,
+	cache_path: PathBuf,
+	landlock_enabled: bool,
 ) -> PoolEvent {
 	use futures_timer::Delay;
 
 	loop {
-		match worker_intf::spawn(&program_path, spawn_timeout, node_version.as_deref()).await {
+		match worker_intf::spawn(
+			&program_path,
+			spawn_timeout,
+			node_version.as_deref(),
+			&cache_path,
+			landlock_enabled,
+		)
+		.await
+		{
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err);
@@ -434,6 +456,7 @@ pub fn start(
 	cache_path: PathBuf,
 	spawn_timeout: Duration,
 	node_version: Option<String>,
+	landlock_enabled: bool,
 ) -> (mpsc::Sender<ToPool>, mpsc::UnboundedReceiver<FromPool>, impl Future<Output = ()>) {
 	let (to_pool_tx, to_pool_rx) = mpsc::channel(10);
 	let (from_pool_tx, from_pool_rx) = mpsc::unbounded();
@@ -444,6 +467,7 @@ pub fn start(
 		cache_path,
 		spawn_timeout,
 		node_version,
+		landlock_enabled,
 		to_pool: to_pool_rx,
 		from_pool: from_pool_tx,
 		spawned: HopSlotMap::with_capacity_and_key(20),

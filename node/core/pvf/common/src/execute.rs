@@ -26,6 +26,8 @@ use std::time::Duration;
 pub struct Handshake {
 	/// The executor parameters.
 	pub executor_params: ExecutorParams,
+	/// Whether the host has determined that landlock is enabled.
+	pub landlock_enabled: bool,
 }
 
 /// The response from an execution job on the worker.

@@ -258,7 +258,7 @@ async fn execute_queue_doesnt_stall_with_varying_executor_params() {
 #[tokio::test]
 async fn deleting_prepared_artifact_does_not_dispute() {
 	let host = TestHost::new();
-	let cache_dir = host.cache_dir.path().clone();
+	let cache_dir = host.cache_dir.path();
 
 	let result = host
 		.validate_candidate(

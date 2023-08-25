@@ -24,7 +24,7 @@ use crate::PUPPET_EXE;
 #[tokio::test]
 async fn spawn_immediate_exit() {
 	let result =
-		spawn_with_program_path("integration-test", PUPPET_EXE, &["exit"], Duration::from_secs(2))
+		spawn_with_program_path("integration-test", PUPPET_EXE, None, &["exit"], Duration::from_secs(2))
 			.await;
 	assert!(matches!(result, Err(SpawnErr::AcceptTimeout)));
 }
@@ -32,17 +32,35 @@ async fn spawn_immediate_exit() {
 #[tokio::test]
 async fn spawn_timeout() {
 	let result =
-		spawn_with_program_path("integration-test", PUPPET_EXE, &["sleep"], Duration::from_secs(2))
+		spawn_with_program_path("integration-test", PUPPET_EXE, None, &["sleep"], Duration::from_secs(2))
 			.await;
 	assert!(matches!(result, Err(SpawnErr::AcceptTimeout)));
 }
 
 #[tokio::test]
+async fn should_fail_without_cache_path() {
+	// --socket-path is handled by `spawn_with_program_path` so we don't pass it here.
+	let result = spawn_with_program_path(
+		"integration-test",
+		PUPPET_EXE,
+		None,
+		&["prepare-worker"],
+		Duration::from_secs(2),
+	)
+	.await;
+	assert!(matches!(result, Err(SpawnErr::AcceptTimeout)));
+}
+
+#[tokio::test]
 async fn should_connect() {
+	let cache_path = tempfile::tempdir().unwrap();
+	let cache_path_str = cache_path.path().to_str().unwrap();
+
 	let _ = spawn_with_program_path(
 		"integration-test",
 		PUPPET_EXE,
-		&["prepare-worker"],
+		Some(cache_path.path()),
+		&["prepare-worker", "--cache-path", cache_path_str],
 		Duration::from_secs(2),
 	)
 	.await
