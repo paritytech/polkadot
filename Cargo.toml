@@ -209,7 +209,14 @@ opt-level = 3
 [profile.dev.package.backtrace]
 inherits = "release"
 
+# Used to produce the node binary
 [profile.production]
+inherits = "release"
+lto = true
+codegen-units = 1
+
+# Used to build the runtimes
+[profile.runtime]
 inherits = "release"
 lto = true
 codegen-units = 1
