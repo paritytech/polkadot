@@ -19,10 +19,10 @@ use futures::channel::{mpsc, oneshot};
 
 use polkadot_node_subsystem::{
 	messages::{StoreAvailableDataError, ValidationFailed},
-	SubsystemError,
+	RuntimeApiError, SubsystemError,
 };
-use polkadot_node_subsystem_util::Error as UtilError;
-use polkadot_primitives::BackedCandidate;
+use polkadot_node_subsystem_util::{runtime, Error as UtilError};
+use polkadot_primitives::{BackedCandidate, ValidationCodeHash};
 
 use crate::LOG_TARGET;
 
@@ -33,6 +33,18 @@ pub type FatalResult<T> = std::result::Result<T, FatalError>;
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]
 pub enum Error {
+	#[fatal]
+	#[error("Failed to spawn background task")]
+	FailedToSpawnBackgroundTask,
+
+	#[fatal(forward)]
+	#[error("Error while accessing runtime information")]
+	Runtime(#[from] runtime::Error),
+
+	#[fatal]
+	#[error(transparent)]
+	BackgroundValidationMpsc(#[from] mpsc::SendError),
+
 	#[error("Candidate is not found")]
 	CandidateNotFound,
 
@@ -45,15 +57,26 @@ pub enum Error {
 	#[error("FetchPoV failed")]
 	FetchPoV,
 
-	#[fatal]
-	#[error("Failed to spawn background task")]
-	FailedToSpawnBackgroundTask,
+	#[error("Fetching validation code by hash failed {0:?}, {1:?}")]
+	FetchValidationCode(ValidationCodeHash, RuntimeApiError),
 
-	#[error("ValidateFromChainState channel closed before receipt")]
-	ValidateFromChainState(#[source] oneshot::Canceled),
+	#[error("Fetching Runtime API version failed {0:?}")]
+	FetchRuntimeApiVersion(RuntimeApiError),
+
+	#[error("No validation code {0:?}")]
+	NoValidationCode(ValidationCodeHash),
+
+	#[error("Candidate rejected by prospective parachains subsystem")]
+	RejectedByProspectiveParachains,
+
+	#[error("ValidateFromExhaustive channel closed before receipt")]
+	ValidateFromExhaustive(#[source] oneshot::Canceled),
 
 	#[error("StoreAvailableData channel closed before receipt")]
 	StoreAvailableDataChannel(#[source] oneshot::Canceled),
+
+	#[error("RuntimeAPISubsystem channel closed before receipt")]
+	RuntimeApiUnavailable(#[source] oneshot::Canceled),
 
 	#[error("a channel was closed before receipt in try_join!")]
 	JoinMultiple(#[source] oneshot::Canceled),
@@ -63,10 +86,6 @@ pub enum Error {
 
 	#[error(transparent)]
 	ValidationFailed(#[from] ValidationFailed),
-
-	#[fatal]
-	#[error(transparent)]
-	BackgroundValidationMpsc(#[from] mpsc::SendError),
 
 	#[error(transparent)]
 	UtilError(#[from] UtilError),

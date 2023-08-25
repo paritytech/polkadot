@@ -48,7 +48,7 @@ erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
 rand = "0.8.5"
 
 # Required for worker binaries to build.
-polkadot-node-core-pvf-common = { path = "../core/pvf/common" }
+polkadot-node-core-pvf-common = { path = "../core/pvf/common", features = ["test-utils"] }
 polkadot-node-core-pvf-execute-worker = { path = "../core/pvf/execute-worker" }
 polkadot-node-core-pvf-prepare-worker = { path = "../core/pvf/prepare-worker" }
 

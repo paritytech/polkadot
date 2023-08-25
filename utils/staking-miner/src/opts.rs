@@ -58,8 +58,8 @@ pub(crate) enum Command {
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct MonitorConfig {
-	/// The path to a file containing the seed of the account. If the file is not found, the seed is
-	/// used as-is.
+	/// The path to a file containing the seed of the account. If the file is not found, the seed
+	/// is used as-is.
 	///
 	/// Can also be provided via the `SEED` environment variable.
 	///
@@ -88,9 +88,11 @@ pub(crate) struct MonitorConfig {
 	///
 	/// `--submission-strategy always`: always submit.
 	///
-	/// `--submission-strategy "percent-better <percent>"`: submit if the submission is `n` percent better.
+	/// `--submission-strategy "percent-better <percent>"`: submit if the submission is `n` percent
+	/// better.
 	///
-	/// `--submission-strategy "no-worse-than  <percent>"`: submit if submission is no more than `n` percent worse.
+	/// `--submission-strategy "no-worse-than  <percent>"`: submit if submission is no more than
+	/// `n` percent worse.
 	#[clap(long, default_value = "if-leading")]
 	pub submission_strategy: SubmissionStrategy,
 
@@ -100,8 +102,8 @@ pub(crate) struct MonitorConfig {
 	/// a delay can be enforced to avoid submitting at
 	/// "same time" and risk potential races with other miners.
 	///
-	/// When this is enabled and there are competing solutions, your solution might not be submitted
-	/// if the scores are equal.
+	/// When this is enabled and there are competing solutions, your solution might not be
+	/// submitted if the scores are equal.
 	#[arg(long, default_value_t = 0)]
 	pub delay: usize,
 }
@@ -109,8 +111,8 @@ pub(crate) struct MonitorConfig {
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct DryRunConfig {
-	/// The path to a file containing the seed of the account. If the file is not found, the seed is
-	/// used as-is.
+	/// The path to a file containing the seed of the account. If the file is not found, the seed
+	/// is used as-is.
 	///
 	/// Can also be provided via the `SEED` environment variable.
 	///
@@ -165,8 +167,8 @@ pub enum SubmissionStrategy {
 	IfLeading,
 	/// Submit if we are no worse than `Perbill` worse than the best.
 	ClaimNoWorseThan(Perbill),
-	/// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
-	/// better than us. This helps detect obviously fake solutions and still combat them.
+	/// Submit if we are leading, or if the solution that's leading is more that the given
+	/// `Perbill` better than us. This helps detect obviously fake solutions and still combat them.
 	ClaimBetterThan(Perbill),
 }
 
@@ -189,8 +191,8 @@ pub(crate) enum Solver {
 /// * --submission-strategy if-leading: only submit if leading
 /// * --submission-strategy always: always submit
 /// * --submission-strategy "percent-better <percent>": submit if submission is `n` percent better.
-/// * --submission-strategy "no-worse-than<percent>": submit if submission is no more than `n` percent worse.
-///
+/// * --submission-strategy "no-worse-than<percent>": submit if submission is no more than `n`
+///   percent worse.
 impl FromStr for SubmissionStrategy {
 	type Err = String;
 

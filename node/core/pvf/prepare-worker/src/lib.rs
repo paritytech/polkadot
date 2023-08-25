@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Contains the logic for preparing PVFs. Used by the polkadot-prepare-worker binary.
+
 mod executor_intf;
 mod memory_stats;
 
@@ -188,8 +190,9 @@ pub fn worker_entrypoint(
 
 						// If we are pre-checking, check for runtime construction errors.
 						//
-						// As pre-checking is more strict than just preparation in terms of memory and
-						// time, it is okay to do extra checks here. This takes negligible time anyway.
+						// As pre-checking is more strict than just preparation in terms of memory
+						// and time, it is okay to do extra checks here. This takes negligible time
+						// anyway.
 						if let PrepareJobKind::Prechecking = prepare_job_kind {
 							result = result.and_then(|output| {
 								runtime_construction_check(output.0.as_ref(), executor_params)?;
@@ -251,10 +254,11 @@ pub fn worker_entrypoint(
 
 								// Write the serialized artifact into a temp file.
 								//
-								// PVF host only keeps artifacts statuses in its memory, successfully
-								// compiled code gets stored on the disk (and consequently deserialized
-								// by execute-workers). The prepare worker is only required to send `Ok`
-								// to the pool to indicate the success.
+								// PVF host only keeps artifacts statuses in its memory,
+								// successfully compiled code gets stored on the disk (and
+								// consequently deserialized by execute-workers). The prepare worker
+								// is only required to send `Ok` to the pool to indicate the
+								// success.
 
 								gum::debug!(
 									target: LOG_TARGET,
@@ -273,7 +277,8 @@ pub fn worker_entrypoint(
 					WaitOutcome::TimedOut => {
 						match cpu_time_monitor_thread.join() {
 							Ok(Some(cpu_time_elapsed)) => {
-								// Log if we exceed the timeout and the other thread hasn't finished.
+								// Log if we exceed the timeout and the other thread hasn't
+								// finished.
 								gum::warn!(
 									target: LOG_TARGET,
 									%worker_pid,

@@ -134,8 +134,8 @@ pub mod crowdloan_index_migration {
 		Ok(())
 	}
 
-	/// This migration converts crowdloans to use a crowdloan index rather than the parachain id as a
-	/// unique identifier. This makes it easier to swap two crowdloans between parachains.
+	/// This migration converts crowdloans to use a crowdloan index rather than the parachain id as
+	/// a unique identifier. This makes it easier to swap two crowdloans between parachains.
 	pub fn migrate<T: Config>() -> frame_support::weights::Weight {
 		let mut weight = Weight::zero();
 

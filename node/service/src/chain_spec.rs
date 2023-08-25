@@ -211,8 +211,7 @@ fn default_parachains_host_configuration(
 		max_pov_size: MAX_POV_SIZE,
 		max_head_data_size: 32 * 1024,
 		group_rotation_frequency: 20,
-		chain_availability_period: 4,
-		thread_availability_period: 4,
+		paras_availability_period: 4,
 		max_upward_queue_count: 8,
 		max_upward_queue_size: 1024 * 1024,
 		max_downward_message_size: 1024 * 1024,
@@ -223,10 +222,8 @@ fn default_parachains_host_configuration(
 		hrmp_channel_max_capacity: 8,
 		hrmp_channel_max_total_size: 8 * 1024,
 		hrmp_max_parachain_inbound_channels: 4,
-		hrmp_max_parathread_inbound_channels: 4,
 		hrmp_channel_max_message_size: 1024 * 1024,
 		hrmp_max_parachain_outbound_channels: 4,
-		hrmp_max_parathread_outbound_channels: 4,
 		hrmp_max_message_num_per_candidate: 5,
 		dispute_period: 6,
 		no_show_slots: 2,
@@ -277,6 +274,7 @@ fn kusama_session_keys(
 	para_validator: ValidatorId,
 	para_assignment: AssignmentId,
 	authority_discovery: AuthorityDiscoveryId,
+	beefy: BeefyId,
 ) -> kusama::SessionKeys {
 	kusama::SessionKeys {
 		babe,
@@ -285,6 +283,7 @@ fn kusama_session_keys(
 		para_validator,
 		para_assignment,
 		authority_discovery,
+		beefy,
 	}
 }
 
@@ -296,6 +295,7 @@ fn westend_session_keys(
 	para_validator: ValidatorId,
 	para_assignment: AssignmentId,
 	authority_discovery: AuthorityDiscoveryId,
+	beefy: BeefyId,
 ) -> westend::SessionKeys {
 	westend::SessionKeys {
 		babe,
@@ -304,6 +304,7 @@ fn westend_session_keys(
 		para_validator,
 		para_assignment,
 		authority_discovery,
+		beefy,
 	}
 }
 
@@ -333,12 +334,16 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 	use hex_literal::hex;
 	use sp_core::crypto::UncheckedInto;
 
-	// subkey inspect "$SECRET"
+	// Following keys are used in genesis config for development chains.
+	// DO NOT use them in production chains as the secret seed is public.
+	//
+	// SECRET_SEED="slow awkward present example safe bundle science ocean cradle word tennis earn"
+	// subkey inspect -n polkadot "$SECRET_SEED"
 	let endowed_accounts = vec![
-		// 5DaVh5WRfazkGaKhx1jUu6hjz7EmRe4dtW6PKeVLim84KLe8
-		hex!["42f4a4b3e0a89c835ee696205caa90dd85c8ea1d7364b646328ee919a6b2fc1e"].into(),
+		// 15S75FkhCWEowEGfxWwVfrW3LQuy8w8PNhVmrzfsVhCMjUh1
+		hex!["c416837e232d9603e83162ef4bda08e61580eeefe60fe92fc044aa508559ae42"].into(),
 	];
-	// SECRET='...' ./scripts/prepare-test-net.sh 4
+	// SECRET=$SECRET_SEED ./scripts/prepare-test-net.sh 4
 	let initial_authorities: Vec<(
 		AccountId,
 		AccountId,
@@ -348,101 +353,114 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 		ValidatorId,
 		AssignmentId,
 		AuthorityDiscoveryId,
+		BeefyId,
 	)> = vec![
 		(
-			//5ERCqy118nnXDai8g4t3MjdX7ZC5PrQzQpe9vwex5cELWqbt
-			hex!["681af4f93073484e1acd6b27395d0d258f1a6b158c808846c8fd05ee2435056e"].into(),
-			//5GTS114cfQNBgpQULhMaNCPXGds6NokegCnikxDe1vqANhtn
-			hex!["c2463372598ebabd21ee5bc33e1d7e77f391d2df29ce2fbe6bed0d13be629a45"].into(),
-			//5FhGbceKeH7fuGogcBwd28ZCkAwDGYBADCTeHiYrvx2ztyRd
-			hex!["a097bfc6a33499ed843b711f52f523f8a7174f798a9f98620e52f4170dbe2948"]
+			//5EvydUTtHvt39Khac3mMxNPgzcfu49uPDzUs3TL7KEzyrwbw
+			hex!["7ecfd50629cdd246649959d88d490b31508db511487e111a52a392e6e458f518"].into(),
+			//5HQyX5gyy77m9QLXguAhiwjTArHYjYspeY98dYDu1JDetfZg
+			hex!["eca2cca09bdc66a7e6d8c3d9499a0be2ad4690061be8a9834972e17d13d2fe7e"].into(),
+			//5G13qYRudTyttwTJvHvnwp8StFtcfigyPnwfD4v7LNopsnX4
+			hex!["ae27367cb77850fb195fe1f9c60b73210409e68c5ad953088070f7d8513d464c"]
 				.unchecked_into(),
-			//5Es7nDkJt2by5qVCCD7PZJdp76KJw1LdRCiNst5S5f4eecnz
-			hex!["7bde49dda82c2c9f082b807ef3ceebff96437d67b3e630c584db7a220ecafacf"]
+			//5Eb7wM65PNgtY6e33FEAzYtU5cRTXt6WQvZTnzaKQwkVcABk
+			hex!["6faae44b21c6f2681a7f60df708e9f79d340f7d441d28bd987fab8d05c6487e8"]
 				.unchecked_into(),
-			//5D4e8zRjaYzFamqChGPPtu26PcKbKgUrhb7WqcNbKa2RDFUR
-			hex!["2c2fb730a7d9138e6d62fcf516f9ecc2d712af3f2f03ca330c9564b8c0c1bb33"]
+			//5CdS2wGo4qdTQceVfEnbZH8vULeBrnGYCxSCxDna4tQSMV6y
+			hex!["18f5d55f138bfa8e0ea26ed6fa56817b247de3c2e2030a908c63fb37c146473f"]
 				.unchecked_into(),
-			//5DD3JY5ENkjcgVFbVSgUbZv7WmrnyJ8bxxu56ee6hZFiRdnh
-			hex!["3297a8622988cc23dd9c131e3fb8746d49e007f6e58a81d43420cd539e250e4c"]
+			//5FqMLAgygdX9UqzukDp15Uid9PAKdFAR621U7xtp5ut2NfrW
+			hex!["a6c1a5b501985a83cb1c37630c5b41e6b0a15b3675b2fd94694758e6cfa6794d"]
 				.unchecked_into(),
-			//5Gpodowhud8FG9xENXR5YwTFbUAWyoEtw7sYFytFsG4z7SU6
-			hex!["d2932edf775088bd088dc5a112ad867c24cc95858f77f8a1ab014de8d4f96a3f"]
+			//5DhXAV75BKvF9o447ikWqLttyL2wHtLMFSX7GrsKF9Ny61Ta
+			hex!["485051748ab9c15732f19f3fbcf1fd00a6d9709635f084505107fbb059c33d2f"]
 				.unchecked_into(),
-			//5GUMj8tnjL3PJZgXoiWtgLCaMVNHBNeSeTqDsvcxmaVAjKn9
-			hex!["c2fb0f74591a00555a292bc4882d3158bafc4c632124cb60681f164ef81bcf72"]
+			//5GNHfmrtWLTawnGCmc39rjAEiW97vKvE7DGePYe4am5JtE4i
+			hex!["be59ed75a72f7b47221ce081ba4262cf2e1ea7867e30e0b3781822f942b97677"]
 				.unchecked_into(),
-		),
-		(
-			//5HgDCznTkHKUjzPkQoTZGWbvbyqB7sqHDBPDKdF1FyVYM7Er
-			hex!["f8418f189f84814fd40cc1b2e90873e72ea789487f3b98ed42811ba76d10fc37"].into(),
-			//5GQTryeFwuvgmZ2tH5ZeAKZHRM9ch5WGVGo6ND9P8f9uMsNY
-			hex!["c002bb4af4a1bd2f33d104aef8a41878fe1ac94ba007029c4dfdefa8b698d043"].into(),
-			//5C7YkWSVH1zrpsE5KwW1ua1qatyphzYxiZrL24mjkxz7mUbn
-			hex!["022b14fbcf65a93b81f453105b9892c3fc4aa74c22c53b4abab019e1d58fbd41"]
-				.unchecked_into(),
-			//5GwFC6Tmg4fhj4PxSqHycgJxi3PDfnC9RGDsNHoRwAvXvpnZ
-			hex!["d77cafd3b32c8b52b0e2780a586a6e527c94f1bdec117c4e4acb0a491461ffa3"]
-				.unchecked_into(),
-			//5DSVrGURuDuh8Luzo8FYq7o2NWiUSLSN6QAVNrj9BtswWH6R
-			hex!["3cdb36a5a14715999faffd06c5b9e5dcdc24d4b46bc3e4df1aaad266112a7b49"]
-				.unchecked_into(),
-			//5DLEG2AupawCXGwhJtrzBRc3zAhuP8V662dDrUTzAsCiB9Ec
-			hex!["38134245c9919ecb20bf2eedbe943b69ba92ceb9eb5477b92b0afd3cb6ce2858"]
-				.unchecked_into(),
-			//5D83o9fDgnHxaKPkSx59hk8zYzqcgzN2mrf7cp8fiVEi7V4E
-			hex!["2ec917690dc1d676002e3504c530b2595490aa5a4603d9cc579b9485b8d0d854"]
-				.unchecked_into(),
-			//5DwBJquZgncRWXFxj2ydbF8LBUPPUbiq86sXWXgm8Z38m8L2
-			hex!["52bae9b8dedb8058dda93ec6f57d7e5a517c4c9f002a4636fada70fed0acf376"]
+			//5DA6Z8RUF626stn94aTRBCeobDCYcFbU7Pdk4Tz1R9vA8B8F
+			hex!["0207e43990799e1d02b0507451e342a1240ff836ea769c57297589a5fd072ad8f4"]
 				.unchecked_into(),
 		),
 		(
-			//5DMHpkRpQV7NWJFfn2zQxCLiAKv7R12PWFRPHKKk5X3JkYfP
-			hex!["38e280b35d08db46019a210a944e4b7177665232ab679df12d6a8bbb317a2276"].into(),
-			//5FbJpSHmFDe5FN3DVGe1R345ZePL9nhcC9V2Cczxo7q8q6rN
-			hex!["9c0bc0e2469924d718ae683737f818a47c46b0612376ecca06a2ac059fe1f870"].into(),
-			//5E5Pm3Udzxy26KGkLE5pc8JPfQrvkYHiaXWtuEfmQsBSgep9
-			hex!["58fecadc2df8182a27e999e7e1fd7c99f8ec18f2a81f9a0db38b3653613f3f4d"]
+			//5DFpvDUdCgw54E3E357GR1PyJe3Ft9s7Qyp7wbELAoJH9RQa
+			hex!["34b7b3efd35fcc3c1926ca065381682b1af29b57dabbcd091042c6de1d541b7d"].into(),
+			//5DZSSsND5wCjngvyXv27qvF3yPzt3MCU8rWnqNy4imqZmjT8
+			hex!["4226796fa792ac78875e023ff2e30e3c2cf79f0b7b3431254cd0f14a3007bc0e"].into(),
+			//5CPrgfRNDQvQSnLRdeCphP3ibj5PJW9ESbqj2fw29vBMNQNn
+			hex!["0e9b60f04be3bffe362eb2212ea99d2b909b052f4bff7c714e13c2416a797f5d"]
 				.unchecked_into(),
-			//5FxcystSLHtaWoy2HEgRNerj9PrUs452B6AvHVnQZm5ZQmqE
-			hex!["ac4d0c5e8f8486de05135c10a707f58aa29126d5eb28fdaaba00f9a505f5249d"]
+			//5FXFsPReTUEYPRNKhbTdUathcWBsxTNsLbk2mTpYdKCJewjA
+			hex!["98f4d81cb383898c2c3d54dab28698c0f717c81b509cb32dc6905af3cc697b18"]
 				.unchecked_into(),
-			//5E7KqVXaVGuAqiqMigpuH8oXHLVh4tmijmpJABLYANpjMkem
-			hex!["5a781385a0235fe8594dd101ec55ef9ba01883f8563a0cdd37b89e0303f6a578"]
+			//5CDYSCJK91r8y2r1V4Ddrit4PFMEkwZXJe8mNBqGXJ4xWCWq
+			hex!["06bd7dd4ab4c808c7d09d9cb6bd27fbcd99ad8400e99212b335056c475c24031"]
 				.unchecked_into(),
-			//5H9AybjkpyZ79yN5nHuBqs6RKuZPgM7aAVVvTQsDFovgXb2A
-			hex!["e09570f62a062450d4406b4eb43e7f775ff954e37606646cd590d1818189501f"]
+			//5CZjurB78XbSHf6SLkLhCdkqw52Zm7aBYUDdfkLqEDWJ9Zhj
+			hex!["162508accd470e379b04cb0c7c60b35a7d5357e84407a89ed2dd48db4b726960"]
 				.unchecked_into(),
-			//5Ccgs7VwJKBawMbwMENDmj2eFAxhFdGksVHdk8aTAf4w7xox
-			hex!["1864832dae34df30846d5cc65973f58a2d01b337d094b1284ec3466ecc90251d"]
+			//5DkAqCtSjUMVoJFauuGoAbSEgn2aFCRGziKJiLGpPwYgE1pS
+			hex!["4a559c028b69a7f784ce553393e547bec0aa530352157603396d515f9c83463b"]
 				.unchecked_into(),
-			//5EsSaZZ7niJs7hmAtp4QeK19AcAuTp7WXB7N7gRipVooerq4
-			hex!["7c1d92535e6d94e21cffea6633a855a7e3c9684cd2f209e5ddbdeaf5111e395b"]
+			//5GsBt9MhGwkg8Jfb1F9LAy2kcr88WNyNy4L5ezwbCr8NWKQU
+			hex!["d464908266c878acbf181bf8fda398b3aa3fd2d05508013e414aaece4cf0d702"]
+				.unchecked_into(),
+			//5DtJVkz8AHevEnpszy3X4dUcPvACW6x1qBMQZtFxjexLr5bq
+			hex!["02fdf30222d2cb88f2376d558d3de9cb83f9fde3aa4b2dd40c93e3104e3488bcd2"]
 				.unchecked_into(),
 		),
 		(
-			//5Ea11qhmGRntQ7pyEkEydbwxvfrYwGMKW6rPERU4UiSBB6rd
-			hex!["6ed057d2c833c45629de2f14b9f6ce6df1edbf9421b7a638e1fb4828c2bd2651"].into(),
-			//5CZomCZwPB78BZMZsCiy7WSpkpHhdrN8QTSyjcK3FFEZHBor
-			hex!["1631ff446b3534d031adfc37b7f7aed26d2a6b3938d10496aab3345c54707429"].into(),
-			//5CSM6vppouFHzAVPkVFWN76DPRUG7B9qwJe892ccfSfJ8M5f
-			hex!["108188c43a7521e1abe737b343341c2179a3a89626c7b017c09a5b10df6f1c42"]
+			//5E2cob2jrXsBkTih56pizwSqENjE4siaVdXhaD6akLdDyVq7
+			hex!["56e0f73c563d49ee4a3971c393e17c44eaa313dabad7fcf297dc3271d803f303"].into(),
+			//5D4rNYgP9uFNi5GMyDEXTfiaFLjXyDEEX2VvuqBVi3f1qgCh
+			hex!["2c58e5e1d5aef77774480cead4f6876b1a1a6261170166995184d7f86140572b"].into(),
+			//5Ea2D65KXqe625sz4uV1jjhSfuigVnkezC8VgEj9LXN7ERAk
+			hex!["6ed45cb7af613be5d88a2622921e18d147225165f24538af03b93f2a03ce6e13"]
 				.unchecked_into(),
-			//5GwkG4std9KcjYi3ThSC7QWfhqokmYVvWEqTU9h7iswjhLnr
-			hex!["d7de8a43f7ee49fa3b3aaf32fb12617ec9ff7b246a46ab14e9c9d259261117fa"]
+			//5G4kCbgqUhEyrRHCyFwFEkgBZXoYA8sbgsRxT9rY8Tp5Jj5F
+			hex!["b0f8d2b9e4e1eafd4dab6358e0b9d5380d78af27c094e69ae9d6d30ca300fd86"]
 				.unchecked_into(),
-			//5CoUk3wrCGJAWbiJEcsVjYhnd2JAHvR59jBRbSw77YrBtRL1
-			hex!["209f680bc501f9b59358efe3636c51fd61238a8659bac146db909aea2595284b"]
+			//5HVhFBLFTKSZK9fX6RktckWDTgYNoSd33fgonsEC8zfr4ddm
+			hex!["f03c3e184b2883eec9beaeb97f54321587e7476b228831ea0b5fc6da847ea975"]
 				.unchecked_into(),
-			//5EcSu96wprFM7G2HfJTjYu8kMParnYGznSUNTsoEKXywEsgG
-			hex!["70adf80395b3f59e4cab5d9da66d5a286a0b6e138652a06f72542e46912df922"]
+			//5CS7thd2n54WfqeKU3cjvZzK4z5p7zku1Zw97mSzXgPioAAs
+			hex!["1055100a283968271a0781450b389b9093231be809be1e48a305ebad2a90497e"]
 				.unchecked_into(),
-			//5Ge3sjpD43Cuy7rNoJQmE9WctgCn6Faw89Pe7xPs3i55eHwJ
-			hex!["ca5f6b970b373b303f64801a0c2cadc4fc05272c6047a2560a27d0c65589ca1d"]
+			//5DSaL4ZmSYarZSazhL5NQh7LT6pWhNRDcefk2QS9RxEXfsJe
+			hex!["3cea4ab74bab4adf176cf05a6e18c1599a7bc217d4c6c217275bfbe3b037a527"]
 				.unchecked_into(),
-			//5EFcjHLvB2z5vd5g63n4gABmhzP5iPsKvTwd8sjfvTehNNrk
-			hex!["60cae7fa5a079d9fc8061d715fbcc35ef57c3b00005694c2badce22dcc5a9f1b"]
+			//5CaNLkYEbFYXZodXhd3UjV6RNLjFGNLiYafc8X5NooMkZiAq
+			hex!["169faa81aebfe74533518bda28567f2e2664014c8905aa07ea003336afda5a58"]
+				.unchecked_into(),
+			//5ERwhKiePayukzZStMuzGzRJGxGRFpwxYUXVarQpMSMrXzDS
+			hex!["03429d0d20f6ac5ca8b349f04d014f7b5b864acf382a744104d5d9a51108156c0f"]
+				.unchecked_into(),
+		),
+		(
+			//5H6j9ovzYk9opckVjvM9SvVfaK37ASTtPTzWeRfqk1tgLJUN
+			hex!["deb804ed2ed2bb696a3dd4ed7de4cd5c496528a2b204051c6ace385bacd66a3a"].into(),
+			//5DJ51tMW916mGwjMpfS1o9skcNt6Sb28YnZQXaKVg4h89agE
+			hex!["366da6a748afedb31f07902f2de36ab265beccee37762d3ae1f237de234d9c36"].into(),
+			//5CSPYDYoCDGSoSLgSp4EHkJ52YasZLHG2woqhPZkdbtNQpke
+			hex!["1089bc0cd60237d061872925e81d36c9d9205d250d5d8b542c8e08a8ecf1b911"]
+				.unchecked_into(),
+			//5ChfdrAqmLjCeDJvynbMjcxYLHYzPe8UWXd3HnX9JDThUMbn
+			hex!["1c309a70b4e274314b84c9a0a1f973c9c4fc084df5479ef686c54b1ae4950424"]
+				.unchecked_into(),
+			//5DnsMm24575xK2b2aGfmafiDxwCet6Mr4iiZQeDdWvi8CzuF
+			hex!["4c64868ba6d8ace235d3efb4c10d745a67cf3bdfeae23b264d7ea2f3439dec42"]
+				.unchecked_into(),
+			//5D8C3HHEp5E8fJsXRD56494F413CdRSR9QKGXe7v5ZEfymdj
+			hex!["2ee4d78f328db178c54f205ac809da12e291a33bcbd4f29f081ce7e74bdc5044"]
+				.unchecked_into(),
+			//5GxeTYCGmp1C3ZRLDkRWqJc6gB2GYmuqnygweuH3vsivMQq6
+			hex!["d88e40e3c2c7a7c5abf96ffdd8f7b7bec8798cc277bc97e255881871ab73b529"]
+				.unchecked_into(),
+			//5DoGpsgSLcJsHa9B8V4PKjxegWAqDZttWfxicAd68prUX654
+			hex!["4cb3863271b70daa38612acd5dae4f5afcb7c165fa277629e5150d2214df322a"]
+				.unchecked_into(),
+			//5G1KLjqFyMsPAodnjSRkwRFJztTTEzmZWxow2Q3ZSRCPdthM
+			hex!["03be5ec86d10a94db89c9b7a396d3c7742e3bec5f85159d4cf308cef505966ddf5"]
 				.unchecked_into(),
 		),
 	];
@@ -459,6 +477,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		},
+		beefy: Default::default(),
 		indices: westend::IndicesConfig { indices: vec![] },
 		session: westend::SessionConfig {
 			keys: initial_authorities
@@ -474,6 +493,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 							x.5.clone(),
 							x.6.clone(),
 							x.7.clone(),
+							x.8.clone(),
 						),
 					)
 				})
@@ -516,6 +536,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Runtim
 		},
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -524,17 +545,17 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeG
 	use hex_literal::hex;
 	use sp_core::crypto::UncheckedInto;
 
-	// subkey inspect "$SECRET"
+	// Following keys are used in genesis config for development chains.
+	// DO NOT use them in production chains as the secret seed is public.
+	//
+	// SECRET_SEED="explain impose opinion genius bar parrot erupt panther surround best expire
+	// album" subkey inspect -n kusama "$SECRET_SEED"
 	let endowed_accounts = vec![
-		// 5CVFESwfkk7NmhQ6FwHCM9roBvr9BGa4vJHFYU8DnGQxrXvz
-		hex!["12b782529c22032ed4694e0f6e7d486be7daa6d12088f6bc74d593b3900b8438"].into(),
+		// FLN5cfhF7VCGJYefjPQJR2V6WwbfRmb9ozTwLAzBNeQQG6y
+		hex!["7a0fe424217ed176da7abf12e08198db0d0949298e1372c80a1930cb6dc21d3e"].into(),
 	];
 
-	// for i in 1 2 3 4; do for j in stash controller; do subkey inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in babe; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in para_validator para_assignment; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	// SECRET=$SECRET_SEED ./scripts/prepare-test-net.sh 4
 	let initial_authorities: Vec<(
 		AccountId,
 		AccountId,
@@ -544,101 +565,114 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeG
 		ValidatorId,
 		AssignmentId,
 		AuthorityDiscoveryId,
+		BeefyId,
 	)> = vec![
 		(
-			// 5DD7Q4VEfPTLEdn11CnThoHT5f9xKCrnofWJL5SsvpTghaAT
-			hex!["32a5718e87d16071756d4b1370c411bbbb947eb62f0e6e0b937d5cbfc0ea633b"].into(),
-			// 5GNzaEqhrZAtUQhbMe2gn9jBuNWfamWFZHULryFwBUXyd1cG
-			hex!["bee39fe862c85c91aaf343e130d30b643c6ea0b4406a980206f1df8331f7093b"].into(),
-			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
-			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
+			//5D5EsvSJf3KR3WHeZNG8rETdW6homig1cGHezspFt1P4o7sL
+			hex!["2ca4a9582244a3356a0d96e59d71f7e4d12aa88bca6d46f360ef11f6487cab1f"].into(),
+			//5Ev6RixvmK62UQE2PW19MPdLsYT4Nomwj85HKPdbnRECbDYh
+			hex!["7e237806f642b7f45f70ec45fbc41034516c8e5561bae2a62cd287129e1d0712"].into(),
+			//5GbjzK1uYVo6v1SaYhTeK3dbYy2GN9X4K5iwRkHEQ9eLS3We
+			hex!["c89cb7afc47ec0b5aac5824e5338a62959c92978167d3f841491836746e70b3d"]
 				.unchecked_into(),
-			// 5EjvdwATjyFFikdZibVvx1q5uBHhphS2Mnsq5c7yfaYK25vm
-			hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"]
+			//5GFz3YFW8QzEUsWhRjJzvDP7e5X5tPf5U12vUw32R8oJVgqb
+			hex!["b98b200021a608148f9817aeb553596b6968a5aa61b6d320c522f520ecc9cf9c"]
 				.unchecked_into(),
-			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
-			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
+			//5GzaFD8YsqnP5FYe5ijA9M4LQvzU9TPJmnBGdpuoqEvR1gQC
+			hex!["da0690438c0dd7a9aa26e03c9f1deaa58ba2b88d0bec0954b06478632164a401"]
 				.unchecked_into(),
-			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
-			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
+			//5CkZPtNy61PtbJpLqnjNFmbi1qukGkFdqFr5GKduSEthJ1cd
+			hex!["1e6554d35f6f17a37176c71801426204d6df400a1869114e4f00564b35d31150"]
 				.unchecked_into(),
-			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
-			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
+			//5CodnwweaYA1zB4QhdP4YVYFWnuZHY6W7zkN1NCRqJ9wZhap
+			hex!["20bddf09b1d0a2d93bafeb87fe19eb5bd59950c174f23a141a6d99736a5e700d"]
 				.unchecked_into(),
-			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
-			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
+			//5E7TSvNAP6QeJNeckdvYvADpHsx7v6aHXtGoQv5R2N1V3hEB
+			hex!["5a91b2546f1aac1c388eb0739c83e42d9972884d74360200ce32b7595bc65a04"]
 				.unchecked_into(),
-		),
-		(
-			// 5G9VGb8ESBeS8Ca4or43RfhShzk9y7T5iTmxHk5RJsjZwsRx
-			hex!["b496c98a405ceab59b9e970e59ef61acd7765a19b704e02ab06c1cdfe171e40f"].into(),
-			// 5F7V9Y5FcxKXe1aroqvPeRiUmmeQwTFcL3u9rrPXcMuMiCNx
-			hex!["86d3a7571dd60139d297e55d8238d0c977b2e208c5af088f7f0136b565b0c103"].into(),
-			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
-			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
-				.unchecked_into(),
-			// 5HBDAaybNqjmY7ww8ZcZZY1L5LHxvpnyfqJwoB7HhR6raTmG
-			hex!["e2234d661bee4a04c38392c75d1566200aa9e6ae44dd98ee8765e4cc9af63cb7"]
-				.unchecked_into(),
-			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
-			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
-				.unchecked_into(),
-			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
-			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
-				.unchecked_into(),
-			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
-			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
-				.unchecked_into(),
-			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
-			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
+			//5GsoKeoM2HmjXPsdCua4oPu3Ms1Jgu4HbSnB81Lisa2tBFZp
+			hex!["02fd1e7e8455ab888ad054bbec7bc19409e6b1a5bb0300feefc6b58e60efae7e85"]
 				.unchecked_into(),
 		),
 		(
-			// 5FzwpgGvk2kk9agow6KsywLYcPzjYc8suKej2bne5G5b9YU3
-			hex!["ae12f70078a22882bf5135d134468f77301927aa67c376e8c55b7ff127ace115"].into(),
-			// 5EqoZhVC2BcsM4WjvZNidu2muKAbu5THQTBKe3EjvxXkdP7A
-			hex!["7addb914ec8486bbc60643d2647685dcc06373401fa80e09813b630c5831d54b"].into(),
-			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
-			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+			//5HMtKQuL2GQ7YvLBTh3vqFJEpkZW19sQh2X2mcUzAwBAe885
+			hex!["ea478deab0ebfbeab7342febc236a9f1af5129ca0083fa25e6b0cf6a998d8354"].into(),
+			//5EFD5pLC3w5NFEcmQ6rGw9dUZ6fTSjWJemsvJZuaj7Qmq2WT
+			hex!["607b4e88129804eca8cd6fa26cbe2dd36667130e2a061050b08d9015871f4263"].into(),
+			//5DFztsnvC9hN85j5AP116atcnzFhAxnbzPodEp1AsYq1LYXu
+			hex!["34d949c39fae5801ba328ac6d0ddc76e469b7d5a4372a4a0d94f6aad6f9c1600"]
 				.unchecked_into(),
-			// 5E8ULLQrDAtWhfnVfZmX41Yux86zNAwVJYguWJZVWrJvdhBe
-			hex!["5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"]
+			//5EZJNJ4j1eEEwCWusg7nYsZxTYBwoTH2drszxRqgMBTgNxMW
+			hex!["6e47830dcfc1f2b53a1b5db3f76702fc2760c1cc119119aceb00a57ec6658465"]
 				.unchecked_into(),
-			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
-			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+			//5Dts3SrgDQMY9XCzKeQrxYSTh5MphPek994qkDCDk5c4neeF
+			hex!["50f6ef6326cd61ac500f167493e435f1204ce1d66ad18024bc5810d09673785e"]
 				.unchecked_into(),
-			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
-			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+			//5DMKT99825TvA8F1yCQvE1ZcKTqg8T8Ad1KEjN6EuVpz4E6w
+			hex!["38e7fb2f6a1dcec73d93b07a0dc7cff1f9a9cc32cde8eb1e6ea1782f5316b431"]
 				.unchecked_into(),
-			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
-			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+			//5EestuSehdMsWsBZ1hXCVo5YQiYiTPJwtV281x5fjUVtaqtP
+			hex!["72889a7b6ada28c3bd05a5a7298437f01d6d3270559768d16275efaf11864c0a"]
 				.unchecked_into(),
-			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
-			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+			//5FNd5EabUbcReXEPwY9aASJMwSqyiic9w1Qt23YxNXj3dzbi
+			hex!["925f03f6211c68377987b0f78cd02aa882ad1fa9cc00c01fe6ce68e14c23340d"]
+				.unchecked_into(),
+			//5DxhuqfovpooTn8yH7WJGFjYw3pQxSEN9y9kvYUiGguHAj9D
+			hex!["030e77039e470ccdec7fe23dbc41c66f1c187ec8345e8919d3dc1250d975c3ce82"]
 				.unchecked_into(),
 		),
 		(
-			// 5CFj6Kg9rmVn1vrqpyjau2ztyBzKeVdRKwNPiA3tqhB5HPqq
-			hex!["0867dbb49721126df589db100dda728dc3b475cbf414dad8f72a1d5e84897252"].into(),
-			// 5CwQXP6nvWzigFqNhh2jvCaW9zWVzkdveCJY3tz2MhXMjTon
-			hex!["26ab2b4b2eba2263b1e55ceb48f687bb0018130a88df0712fbdaf6a347d50e2a"].into(),
-			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
-			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
+			//5DAiYTKQ5KxwLncfNoTAH58dXBk2oDcQxtAXyDwMdKGLpGeY
+			hex!["30d203d942c1d056245b51e466a50b684f172a37c1cdde678f5346a0b3dbcd52"].into(),
+			//5Dq778qqNiAsjdF4qLVdkSBR8SftJKU35nyeBnkztRgniVhV
+			hex!["4e194bbafeec45647b2679e6b615b2a879d2e74fe706921930509ab3c9dbb22d"].into(),
+			//5E6iENoE1tXJUd7PkopQ8uqejg6xhPpqAnsVjS3hAQHWK1tm
+			hex!["5a0037b6bfc5e879ba5ef480ac29c59a12873854159686899082f41950ffd472"]
 				.unchecked_into(),
-			// 5HGLmrZsiTFTPp3QoS1W8w9NxByt8PVq79reqvdxNcQkByqK
-			hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"]
+			//5F8Dtgoc5dCaLAGYtaDqQUDg91fPQUynd497Fvhor8SYMdXp
+			hex!["87638aef8ab75db093150a6677c0919292ff66fc17f9f006a71fd0618415e164"]
 				.unchecked_into(),
-			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
-			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
+			//5EKsYx6Wj1Qg7LLc12U2YRjRUFmHa4Q3rNSoGZaP1ofS54km
+			hex!["6409c85a1125fa456b9dc6e85408a6d931aa8e04f48511c87fc147d1c103e902"]
 				.unchecked_into(),
-			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
-			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
+			//5H3UQy1NhCUUq3getmSEG8R1capY7Uy8JtKJz68UABmD9UxS
+			hex!["dc3cab0f94fa974cba826984f23dd4dc77ade20f25d935af5f07b85518da8044"]
 				.unchecked_into(),
-			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
-			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
+			//5DstCjokShCt9NppNnAcjg2nS4M5PKY3etn2BoFkZzMhQJ3w
+			hex!["50379866eb62e5c8aac31133efc4a1723e964a8e30c93c3ce2e7758bd03eb776"]
 				.unchecked_into(),
-			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
-			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
+			//5E4SCbSqUWKC4NVRCkMkJEnXCaVRiNQbSHL4upRB1ffd1Mk1
+			hex!["5843c339c39d2c308bfb1841cd10beecfa157580492db05b66db8553e8d6512c"]
+				.unchecked_into(),
+			//5HNoMQ1PL3m7eBhp24FZxZUBtz4eh3AiwWq8i8jXLCRpJHsu
+			hex!["03c81d4e72cbdb96a7e6aad76830ae783b0b4650dc19703dde96866d8894dc921f"]
+				.unchecked_into(),
+		),
+		(
+			//5FNnjg8hXcPVLKASA69bPbooatacxcWNqkQAyXZfFiXi7T8r
+			hex!["927f8b12a0fa7185077353d9f6b4fe6bc6cd9682bd498642fa3801280909711a"].into(),
+			//5GipjBdL3rbex9qyxMinZpJYQbobbwk1ctbZp6B2mh3H25c6
+			hex!["ce03638cd1e8496793b0540ba23370034511ea5d08837deb17f6c4d905b8d017"].into(),
+			//5GByn4uRpwmPe4i4MA4PjTQ8HXuycdue8HMWDhZ7vbU4WR9R
+			hex!["b67d3ed42ab1fcf3fcd7dee99bd6963bc22058ee22bcfddddb776492e85bd76e"]
+				.unchecked_into(),
+			//5GnZZ1rs7RE1jwPiyw1kts4JqaxnML5SdsWMuHV9TqCcuPWj
+			hex!["d0dd492b1a33d2f06a9aa7213e1aaa41d8820a6b56e95cd2462129b446574014"]
+				.unchecked_into(),
+			//5GKEKSAa3gbitHhvu5gm4f7q942azCVGDNhrw3hnsGPEMzyg
+			hex!["bc04e9764e23330b9f4e6922aa6437f87f3dd17b8590825e824724ae89d4ac51"]
+				.unchecked_into(),
+			//5H6QLnsfU7sAQ5ZACs9bPivsn9CXrqqwxhq4KKyoquZb5mVW
+			hex!["de78b26966c08357d66f7f56e7dcac7e4beb16aa0b74939290a42b3f5949bc36"]
+				.unchecked_into(),
+			//5FUUeYiAvFfXfB5yZLNkis2ZDy9T3CBLBPC6SwXFriGEjH5f
+			hex!["96d61fe92a50a79944ea93e3afc0a95a328773878e774cf8c8fbe8eba81cd95c"]
+				.unchecked_into(),
+			//5DLkWtgJahWG99cMcQxtftW9W14oduySyQi6hdhav7w3BiKq
+			hex!["38791c68ee472b94105c66cf150387979c49175062a687d1a1509119cfdc9e0c"]
+				.unchecked_into(),
+			//5Cjm1c3Jwt5jp6AaN2XfnncgZcswAmyfJn1buHEUaPauXAKK
+			hex!["025185a88886008267d27797fc74e34241e3aa8da767fafc9dd3ae5a59546802bb"]
 				.unchecked_into(),
 		),
 	];
@@ -655,6 +689,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeG
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		},
+		beefy: Default::default(),
 		indices: kusama::IndicesConfig { indices: vec![] },
 		session: kusama::SessionConfig {
 			keys: initial_authorities
@@ -670,6 +705,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeG
 							x.5.clone(),
 							x.6.clone(),
 							x.7.clone(),
+							x.8.clone(),
 						),
 					)
 				})
@@ -1015,6 +1051,7 @@ fn rococo_staging_testnet_config_genesis(
 		},
 		xcm_pallet: Default::default(),
 		nis_counterpart_balances: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -1277,14 +1314,6 @@ pub fn polkadot_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		phragmen_election: Default::default(),
-		democracy: polkadot::DemocracyConfig::default(),
-		council: polkadot::CouncilConfig { members: vec![], phantom: Default::default() },
-		technical_committee: polkadot::TechnicalCommitteeConfig {
-			members: vec![],
-			phantom: Default::default(),
-		},
-		technical_membership: Default::default(),
 		babe: polkadot::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(polkadot::BABE_GENESIS_EPOCH_CONFIG),
@@ -1322,6 +1351,7 @@ pub fn kusama_testnet_genesis(
 		ValidatorId,
 		AssignmentId,
 		AuthorityDiscoveryId,
+		BeefyId,
 	)>,
 	_root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
@@ -1337,6 +1367,7 @@ pub fn kusama_testnet_genesis(
 		balances: kusama::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
 		},
+		beefy: Default::default(),
 		session: kusama::SessionConfig {
 			keys: initial_authorities
 				.iter()
@@ -1351,6 +1382,7 @@ pub fn kusama_testnet_genesis(
 							x.5.clone(),
 							x.6.clone(),
 							x.7.clone(),
+							x.8.clone(),
 						),
 					)
 				})
@@ -1406,6 +1438,7 @@ pub fn westend_testnet_genesis(
 		ValidatorId,
 		AssignmentId,
 		AuthorityDiscoveryId,
+		BeefyId,
 	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
@@ -1421,6 +1454,7 @@ pub fn westend_testnet_genesis(
 		balances: westend::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
 		},
+		beefy: Default::default(),
 		session: westend::SessionConfig {
 			keys: initial_authorities
 				.iter()
@@ -1435,6 +1469,7 @@ pub fn westend_testnet_genesis(
 							x.5.clone(),
 							x.6.clone(),
 							x.7.clone(),
+							x.8.clone(),
 						),
 					)
 				})
@@ -1477,6 +1512,7 @@ pub fn westend_testnet_genesis(
 		},
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -1558,6 +1594,7 @@ pub fn rococo_testnet_genesis(
 		},
 		xcm_pallet: Default::default(),
 		nis_counterpart_balances: Default::default(),
+		assigned_slots: Default::default(),
 	}
 }
 
@@ -1575,7 +1612,7 @@ fn polkadot_development_config_genesis(wasm_binary: &[u8]) -> polkadot::RuntimeG
 fn kusama_development_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
 	kusama_testnet_genesis(
 		wasm_binary,
-		vec![get_authority_keys_from_seed_no_beefy("Alice")],
+		vec![get_authority_keys_from_seed("Alice")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 	)
@@ -1585,7 +1622,7 @@ fn kusama_development_config_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenes
 fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::RuntimeGenesisConfig {
 	westend_testnet_genesis(
 		wasm_binary,
-		vec![get_authority_keys_from_seed_no_beefy("Alice")],
+		vec![get_authority_keys_from_seed("Alice")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 	)
@@ -1764,10 +1801,7 @@ pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
 fn kusama_local_testnet_genesis(wasm_binary: &[u8]) -> kusama::RuntimeGenesisConfig {
 	kusama_testnet_genesis(
 		wasm_binary,
-		vec![
-			get_authority_keys_from_seed_no_beefy("Alice"),
-			get_authority_keys_from_seed_no_beefy("Bob"),
-		],
+		vec![get_authority_keys_from_seed("Alice"), get_authority_keys_from_seed("Bob")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 	)
@@ -1796,10 +1830,7 @@ pub fn kusama_local_testnet_config() -> Result<KusamaChainSpec, String> {
 fn westend_local_testnet_genesis(wasm_binary: &[u8]) -> westend::RuntimeGenesisConfig {
 	westend_testnet_genesis(
 		wasm_binary,
-		vec![
-			get_authority_keys_from_seed_no_beefy("Alice"),
-			get_authority_keys_from_seed_no_beefy("Bob"),
-		],
+		vec![get_authority_keys_from_seed("Alice"), get_authority_keys_from_seed("Bob")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 	)

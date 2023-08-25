@@ -18,15 +18,15 @@
 //!
 //! # Tracking State of Paras
 //!
-//! The most important responsibility of this module is to track which parachains and parathreads
+//! The most important responsibility of this module is to track which parachains
 //! are active and what their current state is. The current state of a para consists of the current
 //! head data and the current validation code (AKA Parachain Validation Function (PVF)).
 //!
 //! A para is not considered live until it is registered and activated in this pallet.
 //!
-//! The set of parachains and parathreads cannot change except at session boundaries. This is
-//! primarily to ensure that the number and meaning of bits required for the availability bitfields
-//! does not change except at session boundaries.
+//! The set of parachains cannot change except at session boundaries. This is primarily to ensure
+//! that the number and meaning of bits required for the availability bitfields does not change
+//! except at session boundaries.
 //!
 //! # Validation Code Upgrades
 //!
@@ -43,10 +43,10 @@
 //!
 //! The conditions that must be met before the para can use the new validation code are:
 //!
-//! 1. The validation code should have been "soaked" in the storage for a given number of blocks. That
-//!    is, the validation code should have been stored in on-chain storage for some time, so that in
-//!    case of a revert with a non-extreme height difference, that validation code can still be
-//!    found on-chain.
+//! 1. The validation code should have been "soaked" in the storage for a given number of blocks.
+//! That    is, the validation code should have been stored in on-chain storage for some time, so
+//! that in    case of a revert with a non-extreme height difference, that validation code can still
+//! be    found on-chain.
 //!
 //! 2. The validation code was vetted by the validators and declared as non-malicious in a processes
 //!    known as PVF pre-checking.
@@ -61,7 +61,8 @@
 //!
 //! # Para Lifecycle Management
 //!
-//! A para can be in one of the two stable states: it is either a parachain or a parathread.
+//! A para can be in one of the two stable states: it is either a lease holding parachain or an
+//! on-demand parachain.
 //!
 //! However, in order to get into one of those two states, it must first be onboarded. Onboarding
 //! can be only enacted at session boundaries. Onboarding must take at least one full session.
@@ -105,7 +106,6 @@
 //! start──────▶│reset│
 //!             └─────┘
 //! ```
-//!
 
 use crate::{
 	configuration,
@@ -152,8 +152,8 @@ pub struct ReplacementTimes<N> {
 	/// first parablock included with a relay-parent with number >= this value.
 	expected_at: N,
 	/// The relay-chain block number at which the parablock activating the code upgrade was
-	/// actually included. This means considered included and available, so this is the time at which
-	/// that parablock enters the acceptance period in this fork of the relay-chain.
+	/// actually included. This means considered included and available, so this is the time at
+	/// which that parablock enters the acceptance period in this fork of the relay-chain.
 	activated_at: N,
 }
 
@@ -180,17 +180,17 @@ pub struct ParaPastCodeMeta<N> {
 /// state will be used to determine the state transition to apply to the para.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub enum ParaLifecycle {
-	/// Para is new and is onboarding as a Parathread or Parachain.
+	/// Para is new and is onboarding as an on-demand or lease holding Parachain.
 	Onboarding,
-	/// Para is a Parathread.
+	/// Para is a Parathread (on-demand parachain).
 	Parathread,
-	/// Para is a Parachain.
+	/// Para is a lease holding Parachain.
 	Parachain,
-	/// Para is a Parathread which is upgrading to a Parachain.
+	/// Para is a Parathread (on-demand parachain) which is upgrading to a lease holding Parachain.
 	UpgradingParathread,
-	/// Para is a Parachain which is downgrading to a Parathread.
+	/// Para is a lease holding Parachain which is downgrading to an on-demand parachain.
 	DowngradingParachain,
-	/// Parathread is queued to be offboarded.
+	/// Parathread (on-demand parachain) is queued to be offboarded.
 	OffboardingParathread,
 	/// Parachain is queued to be offboarded.
 	OffboardingParachain,
@@ -198,14 +198,14 @@ pub enum ParaLifecycle {
 
 impl ParaLifecycle {
 	/// Returns true if parachain is currently onboarding. To learn if the
-	/// parachain is onboarding as a parachain or parathread, look at the
+	/// parachain is onboarding as a lease holding or on-demand parachain, look at the
 	/// `UpcomingGenesis` storage item.
 	pub fn is_onboarding(&self) -> bool {
 		matches!(self, ParaLifecycle::Onboarding)
 	}
 
 	/// Returns true if para is in a stable state, i.e. it is currently
-	/// a parachain or parathread, and not in any transition state.
+	/// a lease holding or on-demand parachain, and not in any transition state.
 	pub fn is_stable(&self) -> bool {
 		matches!(self, ParaLifecycle::Parathread | ParaLifecycle::Parachain)
 	}
@@ -222,7 +222,7 @@ impl ParaLifecycle {
 		)
 	}
 
-	/// Returns true if para is currently treated as a parathread.
+	/// Returns true if para is currently treated as a parathread (on-demand parachain).
 	/// This also includes transitioning states, so you may want to combine
 	/// this check with `is_stable` if you specifically want `Paralifecycle::Parathread`.
 	pub fn is_parathread(&self) -> bool {
@@ -260,7 +260,7 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// of the para.
 	#[cfg(test)]
 	fn most_recent_change(&self) -> Option<N> {
-		self.upgrade_times.last().map(|x| x.expected_at.clone())
+		self.upgrade_times.last().map(|x| x.expected_at)
 	}
 
 	// prunes all code upgrade logs occurring at or before `max`.
@@ -295,12 +295,12 @@ pub struct ParaGenesisArgs {
 	pub genesis_head: HeadData,
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
-	/// Parachain or Parathread.
+	/// Lease holding or on-demand parachain.
 	#[serde(rename = "parachain")]
 	pub para_kind: ParaKind,
 }
 
-/// Distinguishes between Parachain and Parathread
+/// Distinguishes between lease holding Parachain and Parathread (on-demand parachain)
 #[derive(PartialEq, Eq, Clone, RuntimeDebug)]
 pub enum ParaKind {
 	Parathread,
@@ -332,7 +332,8 @@ impl<'de> Deserialize<'de> for ParaKind {
 	}
 }
 
-// Manual encoding, decoding, and TypeInfo as the parakind field in ParaGenesisArgs used to be a bool
+// Manual encoding, decoding, and TypeInfo as the parakind field in ParaGenesisArgs used to be a
+// bool
 impl Encode for ParaKind {
 	fn size_hint(&self) -> usize {
 		true.size_hint()
@@ -373,12 +374,15 @@ pub(crate) enum PvfCheckCause<BlockNumber> {
 	Onboarding(ParaId),
 	/// PVF vote was initiated by signalling of an upgrade by the given para.
 	Upgrade {
-		/// The ID of the parachain that initiated or is waiting for the conclusion of pre-checking.
+		/// The ID of the parachain that initiated or is waiting for the conclusion of
+		/// pre-checking.
 		id: ParaId,
-		/// The relay-chain block number of **inclusion** of candidate that that initiated the upgrade.
+		/// The relay-chain block number of **inclusion** of candidate that that initiated the
+		/// upgrade.
 		///
-		/// It's important to count upgrade enactment delay from the inclusion of this candidate instead
-		/// of its relay parent -- in order to keep PVF available in case of chain reversions.
+		/// It's important to count upgrade enactment delay from the inclusion of this candidate
+		/// instead of its relay parent -- in order to keep PVF available in case of chain
+		/// reversions.
 		///
 		/// See https://github.com/paritytech/polkadot/issues/4601 for detailed explanation.
 		included_at: BlockNumber,
@@ -480,6 +484,7 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 pub trait WeightInfo {
 	fn force_set_current_code(c: u32) -> Weight;
 	fn force_set_current_head(s: u32) -> Weight;
+	fn force_set_most_recent_context() -> Weight;
 	fn force_schedule_code_upgrade(c: u32) -> Weight;
 	fn force_note_new_head(s: u32) -> Weight;
 	fn force_queue_action() -> Weight;
@@ -499,6 +504,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn force_set_current_head(_s: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_set_most_recent_context() -> Weight {
 		Weight::MAX
 	}
 	fn force_schedule_code_upgrade(_c: u32) -> Weight {
@@ -603,9 +611,9 @@ pub mod pallet {
 		CannotOnboard,
 		/// Para cannot be offboarded at this time.
 		CannotOffboard,
-		/// Para cannot be upgraded to a parachain.
+		/// Para cannot be upgraded to a lease holding parachain.
 		CannotUpgrade,
-		/// Para cannot be downgraded to a parathread.
+		/// Para cannot be downgraded to an on-demand parachain.
 		CannotDowngrade,
 		/// The statement for PVF pre-checking is stale.
 		PvfCheckStatementStale,
@@ -641,7 +649,8 @@ pub mod pallet {
 	pub(super) type PvfActiveVoteList<T: Config> =
 		StorageValue<_, Vec<ValidationCodeHash>, ValueQuery>;
 
-	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
+	/// All lease holding parachains. Ordered ascending by `ParaId`. On demand parachains are not
+	/// included.
 	///
 	/// Consider using the [`ParachainsCache`] type of modifying.
 	#[pallet::storage]
@@ -656,6 +665,12 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn para_head)]
 	pub(super) type Heads<T: Config> = StorageMap<_, Twox64Concat, ParaId, HeadData>;
+
+	/// The context (relay-chain block number) of the most recent parachain head.
+	#[pallet::storage]
+	#[pallet::getter(fn para_most_recent_context)]
+	pub(super) type MostRecentContext<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, BlockNumberFor<T>>;
 
 	/// The validation code hash of every live para.
 	///
@@ -681,11 +696,11 @@ pub mod pallet {
 	pub(super) type PastCodeMeta<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ParaPastCodeMeta<BlockNumberFor<T>>, ValueQuery>;
 
-	/// Which paras have past code that needs pruning and the relay-chain block at which the code was replaced.
-	/// Note that this is the actual height of the included block, not the expected height at which the
-	/// code upgrade would be applied, although they may be equal.
-	/// This is to ensure the entire acceptance period is covered, not an offset acceptance period starting
-	/// from the time at which the parachain perceives a code upgrade as having occurred.
+	/// Which paras have past code that needs pruning and the relay-chain block at which the code
+	/// was replaced. Note that this is the actual height of the included block, not the expected
+	/// height at which the code upgrade would be applied, although they may be equal.
+	/// This is to ensure the entire acceptance period is covered, not an offset acceptance period
+	/// starting from the time at which the parachain perceives a code upgrade as having occurred.
 	/// Multiple entries for a single para are permitted. Ordered ascending by block number.
 	#[pallet::storage]
 	pub(super) type PastCodePruning<T: Config> =
@@ -703,15 +718,17 @@ pub mod pallet {
 	///
 	/// Corresponding code can be retrieved with [`CodeByHash`].
 	#[pallet::storage]
+	#[pallet::getter(fn future_code_hash)]
 	pub(super) type FutureCodeHash<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ValidationCodeHash>;
 
-	/// This is used by the relay-chain to communicate to a parachain a go-ahead with in the upgrade procedure.
+	/// This is used by the relay-chain to communicate to a parachain a go-ahead with in the upgrade
+	/// procedure.
 	///
 	/// This value is absent when there are no upgrades scheduled or during the time the relay chain
-	/// performs the checks. It is set at the first relay-chain block when the corresponding parachain
-	/// can switch its upgrade function. As soon as the parachain's block is included, the value
-	/// gets reset to `None`.
+	/// performs the checks. It is set at the first relay-chain block when the corresponding
+	/// parachain can switch its upgrade function. As soon as the parachain's block is included, the
+	/// value gets reset to `None`.
 	///
 	/// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
 	/// the format will require migration of parachains.
@@ -729,6 +746,7 @@ pub mod pallet {
 	/// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
 	/// the format will require migration of parachains.
 	#[pallet::storage]
+	#[pallet::getter(fn upgrade_restriction_signal)]
 	pub(super) type UpgradeRestrictionSignal<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, UpgradeRestriction>;
 
@@ -896,8 +914,9 @@ pub mod pallet {
 		/// Otherwise, the code will be added into the storage. Note that the code will be added
 		/// into storage with reference count 0. This is to account the fact that there are no users
 		/// for this code yet. The caller will have to make sure that this code eventually gets
-		/// used by some parachain or removed from the storage to avoid storage leaks. For the latter
-		/// prefer to use the `poke_unused_validation_code` dispatchable to raw storage manipulation.
+		/// used by some parachain or removed from the storage to avoid storage leaks. For the
+		/// latter prefer to use the `poke_unused_validation_code` dispatchable to raw storage
+		/// manipulation.
 		///
 		/// This function is mainly meant to be used for upgrading parachains that do not follow
 		/// the go-ahead signal while the PVF pre-checking feature is enabled.
@@ -1054,6 +1073,19 @@ pub mod pallet {
 				Ok(Some(<T as Config>::WeightInfo::include_pvf_check_statement()).into())
 			}
 		}
+
+		/// Set the storage for the current parachain head data immediately.
+		#[pallet::call_index(8)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_most_recent_context())]
+		pub fn force_set_most_recent_context(
+			origin: OriginFor<T>,
+			para: ParaId,
+			context: BlockNumberFor<T>,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			MostRecentContext::<T>::insert(&para, context);
+			Ok(())
+		}
 	}
 
 	#[pallet::validate_unsigned]
@@ -1195,7 +1227,7 @@ impl<T: Config> Pallet<T> {
 	// The actions to take are based on the lifecycle of of the paras.
 	//
 	// The final state of any para after the actions queue should be as a
-	// parachain, parathread, or not registered. (stable states)
+	// lease holding parachain, on-demand parachain, or not registered. (stable states)
 	//
 	// Returns the list of outgoing paras from the actions queue.
 	fn apply_actions_queue(session: SessionIndex) -> Vec<ParaId> {
@@ -1214,22 +1246,23 @@ impl<T: Config> Pallet<T> {
 						Self::initialize_para_now(&mut parachains, para, &genesis_data);
 					}
 				},
-				// Upgrade a parathread to a parachain
+				// Upgrade an on-demand parachain to a lease holding parachain
 				Some(ParaLifecycle::UpgradingParathread) => {
 					parachains.add(para);
 					ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parachain);
 				},
-				// Downgrade a parachain to a parathread
+				// Downgrade a lease holding parachain to an on-demand parachain
 				Some(ParaLifecycle::DowngradingParachain) => {
 					parachains.remove(para);
 					ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parathread);
 				},
-				// Offboard a parathread or parachain from the system
+				// Offboard a lease holding or on-demand parachain from the system
 				Some(ParaLifecycle::OffboardingParachain) |
 				Some(ParaLifecycle::OffboardingParathread) => {
 					parachains.remove(para);
 
 					Heads::<T>::remove(&para);
+					MostRecentContext::<T>::remove(&para);
 					FutureCodeUpgrades::<T>::remove(&para);
 					UpgradeGoAheadSignal::<T>::remove(&para);
 					UpgradeRestrictionSignal::<T>::remove(&para);
@@ -1569,10 +1602,11 @@ impl<T: Config> Pallet<T> {
 
 			match cause {
 				PvfCheckCause::Onboarding(id) => {
-					// Here we need to undo everything that was done during `schedule_para_initialize`.
-					// Essentially, the logic is similar to offboarding, with exception that before
-					// actual onboarding the parachain did not have a chance to reach to upgrades.
-					// Therefore we can skip all the upgrade related storage items here.
+					// Here we need to undo everything that was done during
+					// `schedule_para_initialize`. Essentially, the logic is similar to offboarding,
+					// with exception that before actual onboarding the parachain did not have a
+					// chance to reach to upgrades. Therefore we can skip all the upgrade related
+					// storage items here.
 					weight += T::DbWeight::get().writes(3);
 					UpcomingParasGenesis::<T>::remove(&id);
 					CurrentCodeHash::<T>::remove(&id);
@@ -1629,8 +1663,8 @@ impl<T: Config> Pallet<T> {
 		//
 		// - Doing it within the context of the PR that introduces this change is undesirable, since
 		//   it is already a big change, and that change would require a migration. Moreover, if we
-		//   run the new version of the runtime, there will be less things to worry about during
-		//   the eventual proper migration.
+		//   run the new version of the runtime, there will be less things to worry about during the
+		//   eventual proper migration.
 		//
 		// - This data type already is used for generating genesis, and changing it will probably
 		//   introduce some unnecessary burden.
@@ -1641,8 +1675,8 @@ impl<T: Config> Pallet<T> {
 		//   get rid of hashing of the validation code when onboarding.
 		//
 		// - Replace `validation_code` with a sentinel value: an empty vector. This should be fine
-		//   as long we do not allow registering parachains with empty code. At the moment of writing
-		//   this should already be the case.
+		//   as long we do not allow registering parachains with empty code. At the moment of
+		//   writing this should already be the case.
 		//
 		// - Empty value is treated as the current code is already inserted during the onboarding.
 		//
@@ -1670,7 +1704,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Will return error if either is true:
 	///
-	/// - para is not a stable parachain or parathread (i.e. [`ParaLifecycle::is_stable`] is `false`)
+	/// - para is not a stable parachain (i.e. [`ParaLifecycle::is_stable`] is `false`)
 	/// - para has a pending upgrade.
 	/// - para has unprocessed messages in its UMP queue.
 	///
@@ -1683,7 +1717,8 @@ impl<T: Config> Pallet<T> {
 		// ongoing PVF pre-checking votes. It also removes some nasty edge cases.
 		//
 		// However, an upcoming upgrade on its own imposes no restrictions. An upgrade is enacted
-		// with a new para head, so if a para never progresses we still should be able to offboard it.
+		// with a new para head, so if a para never progresses we still should be able to offboard
+		// it.
 		//
 		// This implicitly assumes that the given para exists, i.e. it's lifecycle != None.
 		if let Some(future_code_hash) = FutureCodeHash::<T>::get(&id) {
@@ -1720,7 +1755,7 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Schedule a parathread to be upgraded to a parachain.
+	/// Schedule a parathread (on-demand parachain) to be upgraded to a lease holding parachain.
 	///
 	/// Will return error if `ParaLifecycle` is not `Parathread`.
 	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> DispatchResult {
@@ -1739,7 +1774,7 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Schedule a parachain to be downgraded to a parathread.
+	/// Schedule a lease holding parachain to be downgraded to an on-demand parachain.
 	///
 	/// Noop if `ParaLifecycle` is not `Parachain`.
 	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> DispatchResult {
@@ -1768,13 +1803,14 @@ impl<T: Config> Pallet<T> {
 	/// the relay-chain block number will be determined at which the upgrade will take place. We
 	/// call that block `expected_at`.
 	///
-	/// Once the candidate with the relay-parent >= `expected_at` is enacted, the new validation code
-	/// will be applied. Therefore, the new code will be used to validate the next candidate.
+	/// Once the candidate with the relay-parent >= `expected_at` is enacted, the new validation
+	/// code will be applied. Therefore, the new code will be used to validate the next candidate.
 	///
 	/// The new code should not be equal to the current one, otherwise the upgrade will be aborted.
 	/// If there is already a scheduled code upgrade for the para, this is a no-op.
 	///
-	/// Inclusion block number specifies relay parent which enacted candidate initiating the upgrade.
+	/// Inclusion block number specifies relay parent which enacted candidate initiating the
+	/// upgrade.
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
 		new_code: ValidationCode,
@@ -1905,8 +1941,8 @@ impl<T: Config> Pallet<T> {
 		// We increase the code RC here in any case. Intuitively the parachain that requested this
 		// action is now a user of that PVF.
 		//
-		// If the result of the pre-checking is reject, then we would decrease the RC for each cause,
-		// including the current.
+		// If the result of the pre-checking is reject, then we would decrease the RC for each
+		// cause, including the current.
 		//
 		// If the result of the pre-checking is accept, then we do nothing to the RC because the PVF
 		// will continue be used by the same users.
@@ -1918,15 +1954,16 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
-	/// Note that a para has progressed to a new head, where the new head was executed in the context
-	/// of a relay-chain block with given number. This will apply pending code upgrades based
-	/// on the relay-parent block number provided.
+	/// Note that a para has progressed to a new head, where the new head was executed in the
+	/// context of a relay-chain block with given number. This will apply pending code upgrades
+	/// based on the relay-parent block number provided.
 	pub(crate) fn note_new_head(
 		id: ParaId,
 		new_head: HeadData,
 		execution_context: BlockNumberFor<T>,
 	) -> Weight {
 		Heads::<T>::insert(&id, new_head);
+		MostRecentContext::<T>::insert(&id, execution_context);
 
 		if let Some(expected_at) = FutureCodeUpgrades::<T>::get(&id) {
 			if expected_at <= execution_context {
@@ -2019,9 +2056,10 @@ impl<T: Config> Pallet<T> {
 		ParaLifecycles::<T>::get(&id).map_or(false, |state| state.is_offboarding())
 	}
 
-	/// Whether a para ID corresponds to any live parachain.
+	/// Whether a para ID corresponds to any live lease holding parachain.
 	///
-	/// Includes parachains which will downgrade to a parathread in the future.
+	/// Includes lease holding parachains which will downgrade to a on-demand parachains in the
+	/// future.
 	pub fn is_parachain(id: ParaId) -> bool {
 		if let Some(state) = ParaLifecycles::<T>::get(&id) {
 			state.is_parachain()
@@ -2030,9 +2068,9 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// Whether a para ID corresponds to any live parathread.
+	/// Whether a para ID corresponds to any live parathread (on-demand parachain).
 	///
-	/// Includes parathreads which will upgrade to parachains in the future.
+	/// Includes on-demand parachains which will upgrade to lease holding parachains in the future.
 	pub fn is_parathread(id: ParaId) -> bool {
 		if let Some(state) = ParaLifecycles::<T>::get(&id) {
 			state.is_parathread()
@@ -2129,6 +2167,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Heads::<T>::insert(&id, &genesis_data.genesis_head);
+		MostRecentContext::<T>::insert(&id, BlockNumberFor::<T>::from(0u32));
 	}
 
 	#[cfg(test)]

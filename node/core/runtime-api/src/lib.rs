@@ -163,6 +163,12 @@ where
 				.requests_cache
 				.cache_key_ownership_proof((relay_parent, validator_id), key_ownership_proof),
 			SubmitReportDisputeLost(_, _, _, _) => {},
+
+			StagingParaBackingState(relay_parent, para_id, constraints) => self
+				.requests_cache
+				.cache_staging_para_backing_state((relay_parent, para_id), constraints),
+			StagingAsyncBackingParams(relay_parent, params) =>
+				self.requests_cache.cache_staging_async_backing_params(relay_parent, params),
 		}
 	}
 
@@ -288,6 +294,13 @@ where
 						Request::SubmitReportDisputeLost(dispute_proof, key_ownership_proof, sender)
 					},
 				),
+
+			Request::StagingParaBackingState(para, sender) =>
+				query!(staging_para_backing_state(para), sender)
+					.map(|sender| Request::StagingParaBackingState(para, sender)),
+			Request::StagingAsyncBackingParams(sender) =>
+				query!(staging_async_backing_params(), sender)
+					.map(|sender| Request::StagingAsyncBackingParams(sender)),
 		}
 	}
 
@@ -321,7 +334,8 @@ where
 			return futures::pending!()
 		}
 
-		// If there are active requests, this will always resolve to `Some(_)` when a request is finished.
+		// If there are active requests, this will always resolve to `Some(_)` when a request is
+		// finished.
 		if let Some(Ok(Some(result))) = self.active_requests.next().await {
 			self.store_cache(result);
 		}
@@ -343,10 +357,10 @@ where
 {
 	loop {
 		// Let's add some back pressure when the subsystem is running at `MAX_PARALLEL_REQUESTS`.
-		// This can never block forever, because `active_requests` is owned by this task and any mutations
-		// happen either in `poll_requests` or `spawn_request` - so if `is_busy` returns true, then
-		// even if all of the requests finish before us calling `poll_requests` the `active_requests` length
-		// remains invariant.
+		// This can never block forever, because `active_requests` is owned by this task and any
+		// mutations happen either in `poll_requests` or `spawn_request` - so if `is_busy` returns
+		// true, then even if all of the requests finish before us calling `poll_requests` the
+		// `active_requests` length remains invariant.
 		if subsystem.is_busy() {
 			// Since we are not using any internal waiting queues, we need to wait for exactly
 			// one request to complete before we can read the next one from the overseer channel.
@@ -537,5 +551,22 @@ where
 			ver = Request::SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT,
 			sender
 		),
+
+		Request::StagingParaBackingState(para, sender) => {
+			query!(
+				StagingParaBackingState,
+				staging_para_backing_state(para),
+				ver = Request::STAGING_BACKING_STATE,
+				sender
+			)
+		},
+		Request::StagingAsyncBackingParams(sender) => {
+			query!(
+				StagingAsyncBackingParams,
+				staging_async_backing_params(),
+				ver = Request::STAGING_BACKING_STATE,
+				sender
+			)
+		},
 	}
 }

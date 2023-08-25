@@ -121,12 +121,13 @@ pub fn worker_event_loop<F, Fut>(
 				"Node and worker version mismatch, node needs restarting, forcing shutdown",
 			);
 			kill_parent_node_in_emergency();
-			let err: io::Result<Never> =
-				Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"));
-			gum::debug!(target: LOG_TARGET, %worker_pid, "quitting pvf worker({}): {:?}", debug_id, err);
+			let err = io::Error::new(io::ErrorKind::Unsupported, "Version mismatch");
+			worker_shutdown_message(debug_id, worker_pid, err);
 			return
 		}
 	}
+
+	remove_env_vars(debug_id);
 
 	// Run the main worker loop.
 	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
@@ -142,12 +143,59 @@ pub fn worker_event_loop<F, Fut>(
 		// It's never `Ok` because it's `Ok(Never)`.
 		.unwrap_err();
 
-	gum::debug!(target: LOG_TARGET, %worker_pid, "quitting pvf worker ({}): {:?}", debug_id, err);
+	worker_shutdown_message(debug_id, worker_pid, err);
 
 	// We don't want tokio to wait for the tasks to finish. We want to bring down the worker as fast
 	// as possible and not wait for stalled validation to finish. This isn't strictly necessary now,
 	// but may be in the future.
 	rt.shutdown_background();
+}
+
+/// Delete all env vars to prevent malicious code from accessing them.
+fn remove_env_vars(debug_id: &'static str) {
+	for (key, value) in std::env::vars_os() {
+		// TODO: *theoretically* the value (or mere presence) of `RUST_LOG` can be a source of
+		// randomness for malicious code. In the future we can remove it also and log in the host;
+		// see <https://github.com/paritytech/polkadot/issues/7117>.
+		if key == "RUST_LOG" {
+			continue
+		}
+
+		// In case of a key or value that would cause [`env::remove_var` to
+		// panic](https://doc.rust-lang.org/std/env/fn.remove_var.html#panics), we first log a
+		// warning and then proceed to attempt to remove the env var.
+		let mut err_reasons = vec![];
+		let (key_str, value_str) = (key.to_str(), value.to_str());
+		if key.is_empty() {
+			err_reasons.push("key is empty");
+		}
+		if key_str.is_some_and(|s| s.contains('=')) {
+			err_reasons.push("key contains '='");
+		}
+		if key_str.is_some_and(|s| s.contains('\0')) {
+			err_reasons.push("key contains null character");
+		}
+		if value_str.is_some_and(|s| s.contains('\0')) {
+			err_reasons.push("value contains null character");
+		}
+		if !err_reasons.is_empty() {
+			gum::warn!(
+				target: LOG_TARGET,
+				%debug_id,
+				?key,
+				?value,
+				"Attempting to remove badly-formatted env var, this may cause the PVF worker to crash. Please remove it yourself. Reasons: {:?}",
+				err_reasons
+			);
+		}
+
+		std::env::remove_var(key);
+	}
+}
+
+/// Provide a consistent message on worker shutdown.
+fn worker_shutdown_message(debug_id: &'static str, worker_pid: u32, err: io::Error) {
+	gum::debug!(target: LOG_TARGET, %worker_pid, "quitting pvf worker ({}): {:?}", debug_id, err);
 }
 
 /// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
@@ -251,9 +299,9 @@ pub mod thread {
 		Arc::new((Mutex::new(WaitOutcome::Pending), Condvar::new()))
 	}
 
-	/// Runs a worker thread. Will first enable security features, and afterwards notify the threads waiting on the
-	/// condvar. Catches panics during execution and resumes the panics after triggering the condvar, so that the
-	/// waiting thread is notified on panics.
+	/// Runs a worker thread. Will first enable security features, and afterwards notify the threads
+	/// waiting on the condvar. Catches panics during execution and resumes the panics after
+	/// triggering the condvar, so that the waiting thread is notified on panics.
 	///
 	/// # Returns
 	///

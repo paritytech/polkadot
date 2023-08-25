@@ -33,12 +33,12 @@ variables:
   GIT_STRATEGY: fetch
   GIT_DEPTH: 100
   CI_SERVER_NAME: "GitLab CI"
-  CI_IMAGE: !reference [.ci-unified, variables, CI_IMAGE] 
+  CI_IMAGE: !reference [.ci-unified, variables, CI_IMAGE]
   BUILDAH_IMAGE: "quay.io/buildah/stable:v1.29"
   BUILDAH_COMMAND: "buildah --storage-driver overlay2"
   DOCKER_OS: "debian:stretch"
   ARCH: "x86_64"
-  ZOMBIENET_IMAGE: "docker.io/paritytech/zombienet:v1.3.55"
+  ZOMBIENET_IMAGE: "docker.io/paritytech/zombienet:v1.3.65"
 
 default:
   cache: {}
@@ -159,31 +159,39 @@ default:
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/ # i.e. v1.0, v2.1rc1
 
 .build-push-image:
+  variables:
+    CI_IMAGE: "${BUILDAH_IMAGE}"
+
+    REGISTRY: "docker.io"
+    DOCKER_OWNER: "paritypr"
+    DOCKER_USER: "${PARITYPR_USER}"
+    DOCKER_PASS: "${PARITYPR_PASS}"
+    IMAGE: "${REGISTRY}/${DOCKER_OWNER}/${IMAGE_NAME}"
+
+    ENGINE: "${BUILDAH_COMMAND}"
+    BUILDAH_FORMAT: "docker"
+    SKIP_IMAGE_VALIDATION: 1
+
+    PROJECT_ROOT: "."
+    BIN_FOLDER: "./artifacts"
+    VCS_REF: "${CI_COMMIT_SHA}"
+
   before_script:
     - !reference [.common-before-script, before_script]
     - test -s ./artifacts/VERSION || exit 1
     - test -s ./artifacts/EXTRATAG || exit 1
-    - VERSION="$(cat ./artifacts/VERSION)"
+    - export VERSION="$(cat ./artifacts/VERSION)"
     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
     - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
   script:
     - test "$DOCKER_USER" -a "$DOCKER_PASS" ||
       ( echo "no docker credentials provided"; exit 1 )
-    - cd ./artifacts
-    - $BUILDAH_COMMAND build
-      --format=docker
-      --build-arg VCS_REF="${CI_COMMIT_SHA}"
-      --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-      --build-arg IMAGE_NAME="${IMAGE_NAME}"
-      --tag "$IMAGE_NAME:$VERSION"
-      --tag "$IMAGE_NAME:$EXTRATAG"
-      --file ${DOCKERFILE} .
-    # The job will success only on the protected branch
+    - TAGS="${VERSION},${EXTRATAG}" scripts/ci/dockerfiles/build-injected.sh
     - echo "$DOCKER_PASS" |
-      buildah login --username "$DOCKER_USER" --password-stdin docker.io
+      buildah login --username "$DOCKER_USER" --password-stdin "${REGISTRY}"
     - $BUILDAH_COMMAND info
-    - $BUILDAH_COMMAND push --format=v2s2 "$IMAGE_NAME:$VERSION"
-    - $BUILDAH_COMMAND push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
+    - $BUILDAH_COMMAND push --format=v2s2 "$IMAGE:$VERSION"
+    - $BUILDAH_COMMAND push --format=v2s2 "$IMAGE:$EXTRATAG"
   after_script:
     - buildah logout --all
 
@@ -225,7 +233,7 @@ include:
     file: /common/timestamp.yml
   - project: parity/infrastructure/ci_cd/shared
     ref: main
-    file: /common/ci-unified.yml   
+    file: /common/ci-unified.yml
 
 
 #### stage:                        .post

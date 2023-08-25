@@ -59,8 +59,8 @@ parameter_types! {
 pub type LocationConverter =
 	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<ThisNetwork, AccountId>);
 
-/// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
-/// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
+/// Our asset transactor. This is what allows us to interest with the runtime facilities from the
+/// point of view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
 ///
 /// Ours is only aware of the Balances pallet, which is mapped to `RocLocation`.
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
@@ -304,9 +304,6 @@ impl xcm_executor::Config for XcmConfig {
 
 parameter_types! {
 	pub const CollectiveBodyId: BodyId = BodyId::Unit;
-}
-
-parameter_types! {
 	// StakingAdmin pluralistic body.
 	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
 	// Fellows pluralistic body.

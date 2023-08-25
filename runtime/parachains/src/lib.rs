@@ -23,6 +23,9 @@
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "256")]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod assigner;
+pub mod assigner_on_demand;
+pub mod assigner_parachains;
 pub mod configuration;
 pub mod disputes;
 pub mod dmp;
@@ -76,12 +79,12 @@ pub fn schedule_para_cleanup<T: paras::Config>(id: primitives::Id) -> Result<(),
 	<paras::Pallet<T>>::schedule_para_cleanup(id).map_err(|_| ())
 }
 
-/// Schedule a parathread to be upgraded to a parachain.
+/// Schedule a parathread (on-demand parachain) to be upgraded to a lease holding parachain.
 pub fn schedule_parathread_upgrade<T: paras::Config>(id: ParaId) -> Result<(), ()> {
 	paras::Pallet::<T>::schedule_parathread_upgrade(id).map_err(|_| ())
 }
 
-/// Schedule a parachain to be downgraded to a parathread.
+/// Schedule a lease holding parachain to be downgraded to an on-demand parachain.
 pub fn schedule_parachain_downgrade<T: paras::Config>(id: ParaId) -> Result<(), ()> {
 	paras::Pallet::<T>::schedule_parachain_downgrade(id).map_err(|_| ())
 }
