@@ -199,9 +199,13 @@ impl From<i32> for Id {
 	}
 }
 
-const USER_INDEX_START: u32 = 1000;
+/// System parachain ids are `< 2000`
+const SYSTEM_INDEX_END: u32 = 1999;
+
+const USER_INDEX_START: u32 = 2000;
 const PUBLIC_INDEX_START: u32 = 2000;
 
+// TODO: do we need this?
 /// The ID of the first user (non-system) parachain.
 pub const LOWEST_USER_ID: Id = Id(USER_INDEX_START);
 
@@ -223,7 +227,7 @@ pub trait IsSystem {
 
 impl IsSystem for Id {
 	fn is_system(&self) -> bool {
-		self.0 < USER_INDEX_START
+		self.0 <= SYSTEM_INDEX_END
 	}
 }
 

@@ -549,7 +549,7 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 		// all para-ids that are not active.
 		let auctioned_slots = Paras::parachains()
 			.into_iter()
-			// all active para-ids that do not belong to a system or common good chain is the number
+			// all active para-ids that do not belong to a system chain is the number
 			// of parachains that we should take into account for inflation.
 			.filter(|i| *i >= LOWEST_PUBLIC_ID)
 			.count() as u64;
