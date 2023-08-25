@@ -31,7 +31,7 @@ First build the binary as documented [above](#building).
 You may then inject the binary into a Docker base image: `parity/base-bin` (running the command from the root of the Polkadot repository):
 ```
 TODO: UPDATE THAT
-docker build -t staking-miner -f scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile target/release
+$ENGINE build --pull -t staking-miner -f scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile target/release
 ```
 
 ### Building the multi-stage image
@@ -41,7 +41,7 @@ The trade-off however is that it takes a little longer to build and this option 
 You may build the multi-stage image the root of the Polkadot repository with:
 ```
 TODO: UPDATE THAT
-docker build -t staking-miner -f scripts/ci/dockerfiles/staking-miner/staking-miner_builder.Dockerfile .
+$ENGINE build --pull -t staking-miner -f scripts/ci/dockerfiles/staking-miner/staking-miner_builder.Dockerfile .
 ```
 
 ### Running

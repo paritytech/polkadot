@@ -14,3 +14,4 @@ polkadot.*
 artifacts
 release-artifacts
 release.json
+executables

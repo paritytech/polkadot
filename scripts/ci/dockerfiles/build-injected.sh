@@ -68,7 +68,7 @@ done
 echo "$TAG_ARGS"
 
 # time \
-$ENGINE build \
+$ENGINE build --pull \
     ${PODMAN_FLAGS} \
     --build-arg VCS_REF="${VCS_REF}" \
     --build-arg BUILD_DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ') \
