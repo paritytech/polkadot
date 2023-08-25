@@ -17,10 +17,8 @@
 //! Elements of governance concerning the Rococo Fellowship.
 
 use frame_support::traits::{MapSuccess, TryMapSuccess};
-use sp_arithmetic::traits::CheckedSub;
 use sp_runtime::{
-	morph_types,
-	traits::{ConstU16, Replace, TypedGet},
+	traits::{ConstU16, Replace, CheckedReduceBy},
 };
 
 use super::*;
@@ -315,14 +313,6 @@ impl pallet_referenda::Config<FellowshipReferendaInstance> for Runtime {
 }
 
 pub type FellowshipCollectiveInstance = pallet_ranked_collective::Instance1;
-
-morph_types! {
-	/// A `TryMorph` implementation to reduce a scalar by a particular amount, checking for
-	/// underflow.
-	pub type CheckedReduceBy<N: TypedGet>: TryMorph = |r: N::Type| -> Result<N::Type, ()> {
-		r.checked_sub(&N::get()).ok_or(())
-	} where N::Type: CheckedSub;
-}
 
 impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime {
 	type WeightInfo = weights::pallet_ranked_collective::WeightInfo<Self>;
