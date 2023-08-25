@@ -17,9 +17,7 @@
 //! Elements of governance concerning the Rococo Fellowship.
 
 use frame_support::traits::{MapSuccess, TryMapSuccess};
-use sp_runtime::{
-	traits::{ConstU16, Replace, CheckedReduceBy},
-};
+use sp_runtime::traits::{CheckedReduceBy, ConstU16, Replace};
 
 use super::*;
 use crate::{CENTS, DAYS};

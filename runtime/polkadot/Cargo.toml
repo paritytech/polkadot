@@ -33,6 +33,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 

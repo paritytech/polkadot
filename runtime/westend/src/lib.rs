@@ -107,8 +107,8 @@ pub mod xcm_config;
 // Governance and configurations.
 pub mod governance;
 use governance::{
-	pallet_custom_origins, AuctionAdmin, Fellows, GeneralAdmin, LeaseAdmin, Treasurer,
-	TreasurySpender,
+	pallet_custom_origins, AuctionAdmin, FellowshipAdmin, GeneralAdmin, LeaseAdmin, StakingAdmin,
+	Treasurer, TreasurySpender,
 };
 
 #[cfg(test)]
@@ -970,8 +970,6 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Identity(..) |
 				RuntimeCall::ConvictionVoting(..) |
 				RuntimeCall::Referenda(..) |
-				RuntimeCall::FellowshipCollective(..) |
-				RuntimeCall::FellowshipReferenda(..) |
 				RuntimeCall::Whitelist(..) |
 				RuntimeCall::Recovery(pallet_recovery::Call::as_recovered{..}) |
 				RuntimeCall::Recovery(pallet_recovery::Call::vouch_recovery{..}) |
@@ -1023,8 +1021,6 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				// OpenGov calls
 				RuntimeCall::ConvictionVoting(..) |
 					RuntimeCall::Referenda(..) |
-					RuntimeCall::FellowshipCollective(..) |
-					RuntimeCall::FellowshipReferenda(..) |
 					RuntimeCall::Whitelist(..)
 			),
 			ProxyType::IdentityJudgement => matches!(
@@ -1392,12 +1388,6 @@ construct_runtime! {
 		// OpenGov
 		ConvictionVoting: pallet_conviction_voting::{Pallet, Call, Storage, Event<T>} = 31,
 		Referenda: pallet_referenda::{Pallet, Call, Storage, Event<T>} = 32,
-		FellowshipCollective: pallet_ranked_collective::<Instance1>::{
-			Pallet, Call, Storage, Event<T>
-		} = 33,
-		FellowshipReferenda: pallet_referenda::<Instance2>::{
-			Pallet, Call, Storage, Event<T>
-		} = 34,
 		Origins: pallet_custom_origins::{Origin} = 35,
 		Whitelist: pallet_whitelist::{Pallet, Call, Storage, Event<T>} = 36,
 
@@ -1550,8 +1540,6 @@ mod benches {
 		[pallet_proxy, Proxy]
 		[pallet_recovery, Recovery]
 		[pallet_referenda, Referenda]
-		[pallet_referenda, FellowshipReferenda]
-		[pallet_ranked_collective, FellowshipCollective]
 		[pallet_scheduler, Scheduler]
 		[pallet_session, SessionBench::<Runtime>]
 		[pallet_staking, Staking]
@@ -2082,7 +2070,8 @@ sp_api::impl_runtime_apis! {
 			sp_runtime::RuntimeString,
 		> {
 			use frame_support::traits::WhitelistedStorageKeys;
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey, BenchmarkError};
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, BenchmarkError};
+			use sp_storage::TrackedStorageKey;
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;

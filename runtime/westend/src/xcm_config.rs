@@ -17,30 +17,31 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, Dmp, Fellows, ParaId,
-	Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Dmp, FellowshipAdmin,
+	GeneralAdmin, ParaId, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin,
+	TransactionByteFee, WeightToFee, XcmPallet,
 };
 
-use crate::governance::StakingAdmin;
-
 use frame_support::{
-	parameter_types,
+	match_types, parameter_types,
 	traits::{Contains, Everything, Nothing},
 };
 use frame_system::EnsureRoot;
+use pallet_xcm::XcmPassthrough;
 use runtime_common::{
 	crowdloan, paras_registrar,
 	xcm_sender::{ChildParachainRouter, ExponentialPrice},
 	ToAuthor,
 };
 use sp_core::ConstU32;
-use westend_runtime_constants::currency::CENTS;
+use westend_runtime_constants::{
+	currency::CENTS, system_parachain::*, xcm::body::FELLOWSHIP_ADMIN_INDEX,
+};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
-	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, MintLocation,
+	ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter, IsConcrete, MintLocation,
 	OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
 	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
@@ -50,7 +51,7 @@ use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
 parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
 	pub const ThisNetwork: NetworkId = Westend;
-	pub UniversalLocation: InteriorMultiLocation = ThisNetwork::get().into();
+	pub const UniversalLocation: InteriorMultiLocation = X1(GlobalConsensus(ThisNetwork::get()));
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
 	/// The asset ID for the asset that we use to pay for message delivery fees.
@@ -59,8 +60,12 @@ parameter_types! {
 	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 }
 
-pub type LocationConverter =
-	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<ThisNetwork, AccountId>);
+pub type LocationConverter = (
+	// We can convert a child parachain using the standard `AccountId` conversion.
+	ChildParachainConvertsVia<ParaId, AccountId>,
+	// We can directly alias an `AccountId32` into a local account.
+	AccountId32Aliases<ThisNetwork, AccountId>,
+);
 
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency:
@@ -76,10 +81,17 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 >;
 
 type LocalOriginConverter = (
+	// If the origin kind is `Sovereign`, then return a `Signed` origin with the account determined
+	// by the `LocationConverter` converter.
 	SovereignSignedViaLocation<LocationConverter, RuntimeOrigin>,
+	// If the origin kind is `Native` and the XCM origin is a child parachain, then we can express
+	// it with the special `parachains_origin::Origin` origin variant.
 	ChildParachainAsNative<parachains_origin::Origin, RuntimeOrigin>,
+	// If the origin kind is `Native` and the XCM origin is the `AccountId32` location, then it can
+	// be expressed using the `Signed` origin variant.
 	SignedAccountId32AsNative<ThisNetwork, RuntimeOrigin>,
-	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
+	// Xcm origins can be represented natively under the Xcm pallet's Xcm origin.
+	XcmPassthrough<RuntimeOrigin>,
 );
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
@@ -94,22 +106,27 @@ pub type XcmRouter = WithUniqueTopic<(
 )>;
 
 parameter_types! {
-	pub const Westmint: MultiLocation = Parachain(1000).into_location();
-	pub const Collectives: MultiLocation = Parachain(1001).into_location();
 	pub const Wnd: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
+	pub const Westmint: MultiLocation = Parachain(WESTMINT_ID).into_location();
 	pub const WndForWestmint: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Westmint::get());
+	pub const Collectives: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
 	pub const WndForCollectives: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Collectives::get());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
-#[cfg(feature = "runtime-benchmarks")]
-parameter_types! {
-	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
-}
-
 pub type TrustedTeleporters =
 	(xcm_builder::Case<WndForWestmint>, xcm_builder::Case<WndForCollectives>);
+
+match_types! {
+	pub type OnlyParachains: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+	pub type CollectivesOrFellows: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(COLLECTIVES_ID)) } |
+		MultiLocation { parents: 0, interior: X2(Parachain(COLLECTIVES_ID), Plurality { id: BodyId::Technical, .. }) }
+	};
+}
 
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = TrailingSetTopicAsId<(
@@ -121,10 +138,10 @@ pub type Barrier = TrailingSetTopicAsId<(
 		(
 			// If the message is one that immediately attemps to pay for execution, then allow it.
 			AllowTopLevelPaidExecutionFrom<Everything>,
-			// Messages coming from system parachains need not pay for execution.
-			AllowExplicitUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 			// Subscriptions for version tracking are OK.
-			AllowSubscriptionsFrom<Everything>,
+			AllowSubscriptionsFrom<OnlyParachains>,
+			// Collectives and Fellows plurality get free execution.
+			AllowExplicitUnpaidExecutionFrom<CollectivesOrFellows>,
 		),
 		UniversalLocation,
 		ConstU32<8>,
@@ -220,15 +237,6 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_referenda::Call::nudge_referendum { .. } |
 				pallet_referenda::Call::one_fewer_deciding { .. },
 			) |
-			RuntimeCall::FellowshipCollective(..) |
-			RuntimeCall::FellowshipReferenda(
-				pallet_referenda::Call::place_decision_deposit { .. } |
-				pallet_referenda::Call::refund_decision_deposit { .. } |
-				pallet_referenda::Call::cancel { .. } |
-				pallet_referenda::Call::kill { .. } |
-				pallet_referenda::Call::nudge_referendum { .. } |
-				pallet_referenda::Call::one_fewer_deciding { .. },
-			) |
 			RuntimeCall::Recovery(..) |
 			RuntimeCall::Vesting(..) |
 			RuntimeCall::ElectionProviderMultiPhase(..) |
@@ -257,7 +265,9 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			) |
 			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
-			}) => true,
+			}) |
+			RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. }) |
+			RuntimeCall::Proxy(..) => true,
 			_ => false,
 		}
 	}
@@ -273,8 +283,11 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	type Weigher =
-		WeightInfoBounds<weights::xcm::WestendXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<
+		crate::weights::xcm::WestendXcmWeight<RuntimeCall>,
+		RuntimeCall,
+		MaxInstructions,
+	>;
 	type Trader =
 		UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
@@ -294,33 +307,48 @@ impl xcm_executor::Config for XcmConfig {
 }
 
 parameter_types! {
+	// `GeneralAdmin` pluralistic body.
+	pub const GeneralAdminBodyId: BodyId = BodyId::Administration;
 	// StakingAdmin pluralistic body.
 	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
-	// Fellows pluralistic body.
-	pub const FellowsBodyId: BodyId = BodyId::Technical;
+	// FellowshipAdmin pluralistic body.
+	pub const FellowshipAdminBodyId: BodyId = BodyId::Index(FELLOWSHIP_ADMIN_INDEX);
 }
+
+#[cfg(feature = "runtime-benchmarks")]
+parameter_types! {
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
+}
+
+/// Type to convert the `GeneralAdmin` origin to a Plurality `MultiLocation` value.
+pub type GeneralAdminToPlurality =
+	OriginToPluralityVoice<RuntimeOrigin, GeneralAdmin, GeneralAdminBodyId>;
+
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior
+/// location of this chain.
+pub type LocalOriginToLocation = (
+	GeneralAdminToPlurality,
+	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
+	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
+);
 
 /// Type to convert the `StakingAdmin` origin to a Plurality `MultiLocation` value.
 pub type StakingAdminToPlurality =
 	OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, StakingAdminBodyId>;
 
-/// Type to convert the Fellows origin to a Plurality `MultiLocation` value.
-pub type FellowsToPlurality = OriginToPluralityVoice<RuntimeOrigin, Fellows, FellowsBodyId>;
+/// Type to convert the `FellowshipAdmin` origin to a Plurality `MultiLocation` value.
+pub type FellowshipAdminToPlurality =
+	OriginToPluralityVoice<RuntimeOrigin, FellowshipAdmin, FellowshipAdminBodyId>;
 
-/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain for a destination chain.
+/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an
+/// interior location of this chain for a destination chain.
 pub type LocalPalletOriginToLocation = (
+	// GeneralAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	GeneralAdminToPlurality,
 	// StakingAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
 	StakingAdminToPlurality,
-	// Fellows origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
-	FellowsToPlurality,
-);
-
-/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain.
-pub type LocalOriginToLocation = (
-	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
+	// FellowshipAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	FellowshipAdminToPlurality,
 );
 
 impl pallet_xcm::Config for Runtime {
@@ -334,8 +362,11 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher =
-		WeightInfoBounds<weights::xcm::WestendXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<
+		crate::weights::xcm::WestendXcmWeight<RuntimeCall>,
+		RuntimeCall,
+		MaxInstructions,
+	>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
