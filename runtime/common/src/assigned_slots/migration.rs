@@ -15,10 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{Config, MaxPermanentSlots, MaxTemporarySlots, Pallet, LOG_TARGET};
-use frame_support::{
-	dispatch::GetStorageVersion,
-	traits::{Get, OnRuntimeUpgrade},
-};
+use frame_support::traits::{Get, GetStorageVersion, OnRuntimeUpgrade};
 
 #[cfg(feature = "try-runtime")]
 use frame_support::ensure;

@@ -16,12 +16,10 @@
 
 use crate::Xcm;
 use core::result;
-use frame_support::{
-	dispatch::fmt::Debug,
-	pallet_prelude::{Get, TypeInfo},
-};
+use frame_support::pallet_prelude::{Get, TypeInfo};
 use parity_scale_codec::{FullCodec, MaxEncodedLen};
 use sp_arithmetic::traits::Zero;
+use sp_std::fmt::Debug;
 use xcm::latest::{
 	Error as XcmError, InteriorMultiLocation, MultiLocation, QueryId, Response,
 	Result as XcmResult, Weight, XcmContext,

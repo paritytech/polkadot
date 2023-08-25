@@ -34,7 +34,8 @@ use frame_support::traits::{
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{
-		AccountIdConversion, BadOrigin, BlakeTwo256, BlockNumberProvider, Hash, Saturating, Zero,
+		AccountIdConversion, BadOrigin, BlakeTwo256, BlockNumberProvider, Dispatchable, Hash,
+		Saturating, Zero,
 	},
 	RuntimeDebug,
 };
@@ -43,10 +44,7 @@ use xcm::{latest::QueryResponseInfo, prelude::*};
 use xcm_executor::traits::{ConvertOrigin, Properties};
 
 use frame_support::{
-	dispatch::{Dispatchable, GetDispatchInfo},
-	pallet_prelude::*,
-	traits::WithdrawReasons,
-	PalletId,
+	dispatch::GetDispatchInfo, pallet_prelude::*, traits::WithdrawReasons, PalletId,
 };
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
@@ -149,11 +147,12 @@ impl WeightInfo for TestWeightInfo {
 pub mod pallet {
 	use super::*;
 	use frame_support::{
-		dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo},
+		dispatch::{GetDispatchInfo, PostDispatchInfo},
 		parameter_types,
 	};
 	use frame_system::Config as SysConfig;
 	use sp_core::H256;
+	use sp_runtime::traits::Dispatchable;
 	use xcm_executor::traits::{MatchesFungible, WeightBounds};
 
 	parameter_types! {

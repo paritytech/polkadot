@@ -24,10 +24,8 @@ mod mock;
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_benchmarking::BenchmarkError;
-	use frame_support::{
-		dispatch::{Dispatchable, GetDispatchInfo},
-		pallet_prelude::Encode,
-	};
+	use frame_support::{dispatch::GetDispatchInfo, pallet_prelude::Encode};
+	use sp_runtime::traits::Dispatchable;
 	use xcm::latest::{
 		InteriorMultiLocation, Junction, MultiAsset, MultiAssets, MultiLocation, NetworkId,
 		Response,
