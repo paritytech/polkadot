@@ -1932,6 +1932,10 @@ sp_api::impl_runtime_apis! {
 			}
 		}
 
+		fn slot_duration() -> u64 {
+			Babe::slot_duration()
+		}
+
 		fn current_epoch_start() -> babe_primitives::Slot {
 			Babe::current_epoch_start()
 		}
