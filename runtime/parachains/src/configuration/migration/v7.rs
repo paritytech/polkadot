@@ -240,6 +240,7 @@ pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 async_backing_params                     : pre.async_backing_params,
 executor_params                          : pre.executor_params,
+
 		}
 	};
 

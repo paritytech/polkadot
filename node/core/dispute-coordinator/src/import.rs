@@ -34,7 +34,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::overseer;
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
-	CandidateReceipt, DisputeStatement, Hash, IndexedVec, SessionIndex, SessionInfo,
+	CandidateHash, CandidateReceipt, DisputeStatement, Hash, IndexedVec, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
@@ -118,7 +118,9 @@ impl OwnVoteState {
 		let our_valid_votes = controlled_indices
 			.iter()
 			.filter_map(|i| votes.valid.raw().get_key_value(i))
-			.map(|(index, (kind, sig))| (*index, (DisputeStatement::Valid(*kind), sig.clone())));
+			.map(|(index, (kind, sig))| {
+				(*index, (DisputeStatement::Valid(kind.clone()), sig.clone()))
+			});
 		let our_invalid_votes = controlled_indices
 			.iter()
 			.filter_map(|i| votes.invalid.get_key_value(i))
@@ -297,7 +299,7 @@ impl CandidateVoteState<CandidateVotes> {
 				DisputeStatement::Valid(valid_kind) => {
 					let fresh = votes.valid.insert_vote(
 						val_index,
-						*valid_kind,
+						valid_kind.clone(),
 						statement.into_validator_signature(),
 					);
 					if fresh {
@@ -503,7 +505,7 @@ impl ImportResult {
 	pub fn import_approval_votes(
 		self,
 		env: &CandidateEnvironment,
-		approval_votes: HashMap<ValidatorIndex, ValidatorSignature>,
+		approval_votes: HashMap<ValidatorIndex, (Vec<CandidateHash>, ValidatorSignature)>,
 		now: Timestamp,
 	) -> Self {
 		let Self {
@@ -517,19 +519,32 @@ impl ImportResult {
 
 		let (mut votes, _) = new_state.into_old_state();
 
-		for (index, sig) in approval_votes.into_iter() {
+		for (index, (candidate_hashes, sig)) in approval_votes.into_iter() {
 			debug_assert!(
 				{
 					let pub_key = &env.session_info().validators.get(index).expect("indices are validated by approval-voting subsystem; qed");
-					let candidate_hash = votes.candidate_receipt.hash();
 					let session_index = env.session_index();
-					DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
-						.check_signature(pub_key, candidate_hash, session_index, &sig)
+					candidate_hashes.contains(&votes.candidate_receipt.hash()) && DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(candidate_hashes.clone()))
+						.check_signature(pub_key, *candidate_hashes.first().expect("Valid votes have at least one candidate; qed"), session_index, &sig)
 						.is_ok()
 				},
 				"Signature check for imported approval votes failed! This is a serious bug. Session: {:?}, candidate hash: {:?}, validator index: {:?}", env.session_index(), votes.candidate_receipt.hash(), index
 			);
-			if votes.valid.insert_vote(index, ValidDisputeStatementKind::ApprovalChecking, sig) {
+			if votes.valid.insert_vote(
+				index,
+				// There is a hidden dependency here between approval-voting and this subsystem.
+				// We should be able to start emitting ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates only after:
+				// 1. Runtime have been upgraded to know about the new format.
+				// 2. All nodes have been upgraded to know about the new format.
+				// Once those two requirements have been met we should be able to increase max_approval_coalesce_count to values
+				// greater than 1.
+				if candidate_hashes.len() > 1 {
+					ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(candidate_hashes)
+				} else {
+					ValidDisputeStatementKind::ApprovalChecking
+				},
+				sig,
+			) {
 				imported_valid_votes += 1;
 				imported_approval_votes += 1;
 			}

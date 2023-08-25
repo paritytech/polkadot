@@ -162,6 +162,8 @@ where
 			KeyOwnershipProof(relay_parent, validator_id, key_ownership_proof) => self
 				.requests_cache
 				.cache_key_ownership_proof((relay_parent, validator_id), key_ownership_proof),
+			RequestResult::ApprovalVotingParams(relay_parent, params) =>
+				self.requests_cache.cache_approval_voting_params(relay_parent, params),
 			SubmitReportDisputeLost(_, _, _, _) => {},
 
 			StagingParaBackingState(relay_parent, para_id, constraints) => self
@@ -294,6 +296,8 @@ where
 						Request::SubmitReportDisputeLost(dispute_proof, key_ownership_proof, sender)
 					},
 				),
+			Request::ApprovalVotingParams(sender) => query!(approval_voting_params(), sender)
+				.map(|sender| Request::ApprovalVotingParams(sender)),
 
 			Request::StagingParaBackingState(para, sender) =>
 				query!(staging_para_backing_state(para), sender)
@@ -545,6 +549,9 @@ where
 			ver = Request::KEY_OWNERSHIP_PROOF_RUNTIME_REQUIREMENT,
 			sender
 		),
+		Request::ApprovalVotingParams(sender) => {
+			query!(ApprovalVotingParams, approval_voting_params(), ver = 6, sender)
+		},
 		Request::SubmitReportDisputeLost(dispute_proof, key_ownership_proof, sender) => query!(
 			SubmitReportDisputeLost,
 			submit_report_dispute_lost(dispute_proof, key_ownership_proof),

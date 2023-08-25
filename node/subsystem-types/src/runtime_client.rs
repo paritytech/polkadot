@@ -16,12 +16,13 @@
 
 use async_trait::async_trait;
 use polkadot_primitives::{
-	runtime_api::ParachainHost, vstaging, Block, BlockNumber, CandidateCommitments, CandidateEvent,
-	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams,
-	GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage,
-	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
-	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	runtime_api::ParachainHost,
+	vstaging::{self, ApprovalVotingParams},
+	Block, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
+	Id, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
@@ -247,6 +248,9 @@ pub trait RuntimeApiSubsystemClient {
 		at: Hash,
 		para_id: Id,
 	) -> Result<Option<polkadot_primitives::vstaging::BackingState>, ApiError>;
+
+	/// Approval voting configuration parameters
+	async fn approval_voting_params(&self, at: Hash) -> Result<ApprovalVotingParams, ApiError>;
 }
 
 /// Default implementation of [`RuntimeApiSubsystemClient`] using the client.
@@ -471,6 +475,11 @@ where
 		);
 
 		runtime_api.submit_report_dispute_lost(at, dispute_proof, key_ownership_proof)
+	}
+
+	/// Approval voting configuration parameters
+	async fn approval_voting_params(&self, at: Hash) -> Result<ApprovalVotingParams, ApiError> {
+		self.client.runtime_api().approval_voting_params(at)
 	}
 
 	async fn staging_para_backing_state(

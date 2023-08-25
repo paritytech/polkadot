@@ -2,7 +2,7 @@
 
 Reading the [section on the approval protocol](../../protocol-approval.md) will likely be necessary to understand the aims of this subsystem.
 
-Approval votes are split into two parts: Assignments and Approvals. Validators first broadcast their assignment to indicate intent to check a candidate. Upon successfully checking, they broadcast an approval vote. If a validator doesn't broadcast their approval vote shortly after issuing an assignment, this is an indication that they are being prevented from recovering or validating the block data and that more validators should self-select to check the candidate. This is known as a "no-show".
+Approval votes are split into two parts: Assignments and Approvals. Validators first broadcast their assignment to indicate intent to check a candidate. Upon successfully checking, they don't immediately send the vote instead they queue the check for a short period of time `MAX_APPROVALS_COALESCE_TICKS` to give the opportunity of the validator to vote for more than one candidate. Once MAX_APPROVALS_COALESCE_TICKS have passed or at least `MAX_APPROVAL_COALESCE_COUNT` are ready they broadcast an approval vote for all candidates. If a validator doesn't broadcast their approval vote shortly after issuing an assignment, this is an indication that they are being prevented from recovering or validating the block data and that more validators should self-select to check the candidate. This is known as a "no-show".
 
 The core of this subsystem is a Tick-based timer loop, where Ticks are 500ms. We also reason about time in terms of `DelayTranche`s, which measure the number of ticks elapsed since a block was produced. We track metadata for all un-finalized but included candidates. We compute our local assignments to check each candidate, as well as which `DelayTranche` those assignments may be minimally triggered at. As the same candidate may appear in more than one block, we must produce our potential assignments for each (Block, Candidate) pair. The timing loop is based on waiting for assignments to become no-shows or waiting to broadcast and begin our own assignment to check.
 
@@ -94,6 +94,13 @@ struct BlockEntry {
     // this block. The block can be considered approved has all bits set to 1
     approved_bitfield: Bitfield,
     children: Vec<Hash>,
+    // A list of candidates that has been approved, but we didn't not sign and
+    // advertise the vote yet.
+    candidates_pending_signature: BTreeMap<CandidateIndex, CandidateSigningContext>,
+    // Assignments we already distributed. A 1 bit means the candidate index for which
+    // we already have sent out an assignment. We need this to avoid distributing
+    // multiple core assignments more than once.
+    distributed_assignments: Bitfield,
 }
 
 // slot_duration * 2 + DelayTranche gives the number of delay tranches since the
@@ -224,10 +231,10 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
 
 On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)` message:
   * Fetch the `BlockEntry` from the indirect approval vote's `block_hash`. If none, return `ApprovalCheckResult::Bad`.
-  * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `ApprovalCheckResult::Bad`.
-  * Construct a `SignedApprovalVote` using the candidate hash and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `ApprovalCheckResult::Bad`.
+  * Fetch all `CandidateEntry` from the indirect approval vote's `candidate_indices`. If the block did not trigger inclusion of enough candidates, return `ApprovalCheckResult::Bad`.
+  * Construct a `SignedApprovalVote` using the candidates hashes and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `ApprovalCheckResult::Bad`.
   * Send `ApprovalCheckResult::Accepted`
-  * [Import the checked approval vote](#import-checked-approval)
+  * [Import the checked approval vote](#import-checked-approval) for all candidates
 
 #### `ApprovalVotingMessage::ApprovedAncestor`
 
@@ -295,10 +302,24 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 #### Issue Approval Vote
   * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.
-  * Construct a `SignedApprovalVote` with the validator index for the session.
   * [Import the checked approval vote](#import-checked-approval). It is "checked" as we've just issued the signature.
-  * Construct a `IndirectSignedApprovalVote` using the information about the vote.
-  * Dispatch `ApprovalDistributionMessage::DistributeApproval`.
+  * IF `MAX_APPROVAL_COALESCE_COUNT`  candidates are in the waiting queue
+    * Construct a `SignedApprovalVote` with the validator index for the session and all candidate hashes in the waiting queue.
+    * Construct a `IndirectSignedApprovalVote` using the information about the vote.
+    * Dispatch `ApprovalDistributionMessage::DistributeApproval`.
+  * ELSE
+    * Queue the candidate in the `BlockEntry::candidates_pending_signature`
+    * Arm a per BlockEntry timer with latest tick we can send the vote.
+
+### Delayed vote distribution
+  *  [Issue Approval Vote](#issue-approval-vote) arms once a per block timer if there are no requirements to send the vote immediately.
+  * When the timer wakes up it will either:
+  * IF there is a candidate in the queue past its sending tick:
+    * Construct a `SignedApprovalVote` with the validator index for the session and all candidate hashes in the waiting queue.
+    * Construct a `IndirectSignedApprovalVote` using the information about the vote.
+    * Dispatch `ApprovalDistributionMessage::DistributeApproval`.
+  * ELSE
+    * Re-arm the timer with latest tick we have the send a the vote.
 
 ### Determining Approval of Candidate
 

@@ -170,7 +170,7 @@ impl DisputeMessage {
 		let valid_vote = ValidDisputeVote {
 			validator_index: valid_index,
 			signature: valid_statement.validator_signature().clone(),
-			kind: *valid_kind,
+			kind: valid_kind.clone(),
 		};
 
 		let invalid_vote = InvalidDisputeVote {

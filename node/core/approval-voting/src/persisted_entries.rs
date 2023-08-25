@@ -25,8 +25,8 @@ use polkadot_node_primitives::approval::{
 	v2::{AssignmentCertV2, CandidateBitfield},
 };
 use polkadot_primitives::{
-	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
-	ValidatorIndex, ValidatorSignature,
+	BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex, GroupIndex, Hash,
+	SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 use sp_consensus_slots::Slot;
 
@@ -76,6 +76,39 @@ impl From<TrancheEntry> for crate::approval_db::v2::TrancheEntry {
 	}
 }
 
+impl From<crate::approval_db::v2::OurApproval> for OurApproval {
+	fn from(approval: crate::approval_db::v2::OurApproval) -> Self {
+		Self {
+			signature: approval.signature,
+			signed_candidates_indices: approval.signed_candidates_indices,
+		}
+	}
+}
+impl From<OurApproval> for crate::approval_db::v2::OurApproval {
+	fn from(approval: OurApproval) -> Self {
+		Self {
+			signature: approval.signature,
+			signed_candidates_indices: approval.signed_candidates_indices,
+		}
+	}
+}
+
+impl From<ValidatorSignature> for OurApproval {
+	fn from(value: ValidatorSignature) -> Self {
+		Self { signature: value, signed_candidates_indices: Default::default() }
+	}
+}
+
+/// Metadata about our approval signature
+#[derive(Debug, Clone, PartialEq)]
+pub struct OurApproval {
+	/// The signature for the candidates hashes pointed by indices.
+	pub signature: ValidatorSignature,
+	/// The indices of the candidates signed in this approval, an empty value means only
+	/// the candidate referred by this approval entry was signed.
+	pub signed_candidates_indices: Option<CandidateBitfield>,
+}
+
 /// Metadata regarding approval of a particular candidate within the context of some
 /// particular block.
 #[derive(Debug, Clone, PartialEq)]
@@ -83,7 +116,7 @@ pub struct ApprovalEntry {
 	tranches: Vec<TrancheEntry>,
 	backing_group: GroupIndex,
 	our_assignment: Option<OurAssignment>,
-	our_approval_sig: Option<ValidatorSignature>,
+	our_approval_sig: Option<OurApproval>,
 	// `n_validators` bits.
 	assigned_validators: Bitfield,
 	approved: bool,
@@ -95,7 +128,7 @@ impl ApprovalEntry {
 		tranches: Vec<TrancheEntry>,
 		backing_group: GroupIndex,
 		our_assignment: Option<OurAssignment>,
-		our_approval_sig: Option<ValidatorSignature>,
+		our_approval_sig: Option<OurApproval>,
 		// `n_validators` bits.
 		assigned_validators: Bitfield,
 		approved: bool,
@@ -137,7 +170,7 @@ impl ApprovalEntry {
 	}
 
 	/// Import our local approval vote signature for this candidate.
-	pub fn import_approval_sig(&mut self, approval_sig: ValidatorSignature) {
+	pub fn import_approval_sig(&mut self, approval_sig: OurApproval) {
 		self.our_approval_sig = Some(approval_sig);
 	}
 
@@ -224,7 +257,7 @@ impl ApprovalEntry {
 	/// Get the assignment cert & approval signature.
 	///
 	/// The approval signature will only be `Some` if the assignment is too.
-	pub fn local_statements(&self) -> (Option<OurAssignment>, Option<ValidatorSignature>) {
+	pub fn local_statements(&self) -> (Option<OurAssignment>, Option<OurApproval>) {
 		let approval_sig = self.our_approval_sig.clone();
 		if let Some(our_assignment) = self.our_assignment.as_ref().filter(|a| a.triggered()) {
 			(Some(our_assignment.clone()), approval_sig)
@@ -353,10 +386,19 @@ pub struct BlockEntry {
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
 	pub approved_bitfield: Bitfield,
 	pub children: Vec<Hash>,
+	// A list of candidates that has been approved, but we didn't not sign and
+	// advertise the vote yet.
+	candidates_pending_signature: BTreeMap<CandidateIndex, CandidateSigningContext>,
 	// A list of assignments for which wea already distributed the assignment.
 	// We use this to ensure we don't distribute multiple core assignments twice as we track
 	// individual wakeups for each core.
 	distributed_assignments: Bitfield,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CandidateSigningContext {
+	pub candidate_hash: CandidateHash,
+	pub send_no_later_than_tick: Tick,
 }
 
 impl BlockEntry {
@@ -447,6 +489,54 @@ impl BlockEntry {
 
 		distributed
 	}
+
+	/// Defer signing and issuing an approval for a candidate no later than the specified tick
+	pub fn defer_candidate_signature(
+		&mut self,
+		candidate_index: CandidateIndex,
+		candidate_hash: CandidateHash,
+		send_no_later_than_tick: Tick,
+	) -> Option<CandidateSigningContext> {
+		self.candidates_pending_signature.insert(
+			candidate_index,
+			CandidateSigningContext { candidate_hash, send_no_later_than_tick },
+		)
+	}
+
+	/// Returns the number of candidates waiting for an approval to be issued.
+	pub fn num_candidates_pending_signature(&self) -> usize {
+		self.candidates_pending_signature.len()
+	}
+
+	/// Return if we have candidates waiting for signature to be issued
+	pub fn has_candidates_pending_signature(&self) -> bool {
+		!self.candidates_pending_signature.is_empty()
+	}
+
+	/// Candidate hashes  for candidates pending signatures
+	pub fn candidate_hashes_pending_signature(&self) -> Vec<CandidateHash> {
+		self.candidates_pending_signature
+			.values()
+			.map(|unsigned_approval| unsigned_approval.candidate_hash)
+			.collect()
+	}
+
+	/// Candidate indices for candidates pending signature
+	pub fn candidate_indices_pending_signature(&self) -> Vec<CandidateIndex> {
+		self.candidates_pending_signature.keys().map(|val| *val).collect()
+	}
+
+	/// Returns the candidate that has been longest in the queue.
+	pub fn longest_waiting_candidate_signature(&self) -> Option<&CandidateSigningContext> {
+		self.candidates_pending_signature
+			.values()
+			.min_by(|a, b| a.send_no_later_than_tick.cmp(&b.send_no_later_than_tick))
+	}
+
+	/// Signals the approval was issued for the candidates pending signature
+	pub fn issued_approval(&mut self) {
+		self.candidates_pending_signature.clear();
+	}
 }
 
 impl From<crate::approval_db::v2::BlockEntry> for BlockEntry {
@@ -461,6 +551,11 @@ impl From<crate::approval_db::v2::BlockEntry> for BlockEntry {
 			candidates: entry.candidates,
 			approved_bitfield: entry.approved_bitfield,
 			children: entry.children,
+			candidates_pending_signature: entry
+				.candidates_pending_signature
+				.into_iter()
+				.map(|(candidate_index, signing_context)| (candidate_index, signing_context.into()))
+				.collect(),
 			distributed_assignments: entry.distributed_assignments,
 		}
 	}
@@ -479,6 +574,7 @@ impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
 			approved_bitfield: entry.approved_bitfield,
 			children: entry.children,
 			distributed_assignments: Default::default(),
+			candidates_pending_signature: Default::default(),
 		}
 	}
 }
@@ -495,7 +591,30 @@ impl From<BlockEntry> for crate::approval_db::v2::BlockEntry {
 			candidates: entry.candidates,
 			approved_bitfield: entry.approved_bitfield,
 			children: entry.children,
+			candidates_pending_signature: entry
+				.candidates_pending_signature
+				.into_iter()
+				.map(|(candidate_index, signing_context)| (candidate_index, signing_context.into()))
+				.collect(),
 			distributed_assignments: entry.distributed_assignments,
+		}
+	}
+}
+
+impl From<crate::approval_db::v2::CandidateSigningContext> for CandidateSigningContext {
+	fn from(signing_context: crate::approval_db::v2::CandidateSigningContext) -> Self {
+		Self {
+			candidate_hash: signing_context.candidate_hash,
+			send_no_later_than_tick: signing_context.send_no_later_than_tick.into(),
+		}
+	}
+}
+
+impl From<CandidateSigningContext> for crate::approval_db::v2::CandidateSigningContext {
+	fn from(signing_context: CandidateSigningContext) -> Self {
+		Self {
+			candidate_hash: signing_context.candidate_hash,
+			send_no_later_than_tick: signing_context.send_no_later_than_tick.into(),
 		}
 	}
 }
@@ -522,7 +641,7 @@ impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
 			tranches: value.tranches.into_iter().map(|tranche| tranche.into()).collect(),
 			backing_group: value.backing_group,
 			our_assignment: value.our_assignment.map(|assignment| assignment.into()),
-			our_approval_sig: value.our_approval_sig,
+			our_approval_sig: value.our_approval_sig.map(Into::into),
 			assigned_validators: value.assignments,
 			approved: value.approved,
 		}

@@ -575,7 +575,7 @@ pub fn make_dispute_message(
 				.next()
 				.ok_or(DisputeMessageCreationError::NoOppositeVote)?;
 			let other_vote = SignedDisputeStatement::new_checked(
-				DisputeStatement::Valid(*statement_kind),
+				DisputeStatement::Valid(statement_kind.clone()),
 				*our_vote.candidate_hash(),
 				our_vote.session_index(),
 				validators

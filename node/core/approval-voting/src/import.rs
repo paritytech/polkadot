@@ -513,6 +513,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				.collect(),
 			approved_bitfield,
 			children: Vec::new(),
+			candidates_pending_signature: Default::default(),
 			distributed_assignments: Default::default(),
 		};
 
@@ -639,6 +640,7 @@ pub(crate) mod tests {
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
 			spans: HashMap::new(),
+			approval_voting_params_cache: None,
 		}
 	}
 
@@ -1267,6 +1269,7 @@ pub(crate) mod tests {
 				candidates: Vec::new(),
 				approved_bitfield: Default::default(),
 				children: Vec::new(),
+				candidates_pending_signature: Default::default(),
 				distributed_assignments: Default::default(),
 			}
 			.into(),

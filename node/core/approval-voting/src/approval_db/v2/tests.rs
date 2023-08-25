@@ -56,6 +56,7 @@ fn make_block_entry(
 		approved_bitfield: make_bitvec(candidates.len()),
 		candidates,
 		children: Vec::new(),
+		candidates_pending_signature: Default::default(),
 		distributed_assignments: Default::default(),
 	}
 }

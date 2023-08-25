@@ -5,6 +5,10 @@ timeout = 1000
   max_validators_per_core = 5
   needed_approvals = 8
 
+[relaychain.genesis.runtime.runtime_genesis_config.configuration.config.approval_voting_params]
+  max_approval_coalesce_count = 5
+
+
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "rococo-local"

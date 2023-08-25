@@ -16,6 +16,8 @@
 
 //! Put implementations of functions from staging APIs here.
 
+use primitives::vstaging::ApprovalVotingParams;
+
 use crate::{configuration, dmp, hrmp, inclusion, initializer, paras, shared};
 use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::{
@@ -26,6 +28,11 @@ use primitives::{
 	Id as ParaId,
 };
 use sp_std::prelude::*;
+
+pub fn approval_voting_params<T: initializer::Config>() -> ApprovalVotingParams {
+	let config = <configuration::Pallet<T>>::config();
+	config.approval_voting_params
+}
 
 /// Implementation for `StagingParaBackingState` function from the runtime API
 pub fn backing_state<T: initializer::Config>(

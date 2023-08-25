@@ -312,6 +312,7 @@ fn setting_pending_config_members() {
 			pvf_voting_ttl: 3,
 			minimum_validation_upgrade_delay: 20,
 			executor_params: Default::default(),
+			approval_voting_params: ApprovalVotingParams { max_approval_coalesce_count: 1 },
 			on_demand_queue_max_size: 10_000u32,
 			on_demand_base_fee: 10_000_000u128,
 			on_demand_fee_variability: Perbill::from_percent(3),
@@ -487,7 +488,9 @@ fn verify_externally_accessible() {
 	use primitives::{well_known_keys, AbridgedHostConfiguration};
 
 	new_test_ext(Default::default()).execute_with(|| {
-		let ground_truth = HostConfiguration::default();
+		let mut ground_truth = HostConfiguration::default();
+		ground_truth.async_backing_params =
+			AsyncBackingParams { allowed_ancestry_len: 111, max_candidate_depth: 222 };
 
 		// Make sure that the configuration is stored in the storage.
 		ActiveConfig::<Test>::put(ground_truth.clone());
@@ -511,6 +514,7 @@ fn verify_externally_accessible() {
 				hrmp_max_message_num_per_candidate: ground_truth.hrmp_max_message_num_per_candidate,
 				validation_upgrade_cooldown: ground_truth.validation_upgrade_cooldown,
 				validation_upgrade_delay: ground_truth.validation_upgrade_delay,
+				async_backing_params: ground_truth.async_backing_params,
 			},
 		);
 	});

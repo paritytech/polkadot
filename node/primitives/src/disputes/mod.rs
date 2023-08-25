@@ -46,6 +46,15 @@ pub struct SignedDisputeStatement {
 	session_index: SessionIndex,
 }
 
+/// Errors encountered while signing a dispute statement
+#[derive(Debug)]
+pub enum SignedDisputeStatementError {
+	/// Encountered a keystore error while signing
+	KeyStoreError(KeystoreError),
+	/// Could not generate signing payload
+	PayloadError,
+}
+
 /// Tracked votes on candidates, for the purposes of dispute resolution.
 #[derive(Debug, Clone)]
 pub struct CandidateVotes {
@@ -107,8 +116,9 @@ impl ValidCandidateVotes {
 				ValidDisputeStatementKind::BackingValid(_) |
 				ValidDisputeStatementKind::BackingSeconded(_) => false,
 				ValidDisputeStatementKind::Explicit |
-				ValidDisputeStatementKind::ApprovalChecking => {
-					occupied.insert((kind, sig));
+				ValidDisputeStatementKind::ApprovalChecking |
+				ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(_) => {
+					occupied.insert((kind.clone(), sig));
 					kind != occupied.get().0
 				},
 			},
@@ -213,16 +223,19 @@ impl SignedDisputeStatement {
 		candidate_hash: CandidateHash,
 		session_index: SessionIndex,
 		validator_public: ValidatorId,
-	) -> Result<Option<Self>, KeystoreError> {
+	) -> Result<Option<Self>, SignedDisputeStatementError> {
 		let dispute_statement = if valid {
 			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 		} else {
 			DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
 		};
 
-		let data = dispute_statement.payload_data(candidate_hash, session_index);
+		let data = dispute_statement
+			.payload_data(candidate_hash, session_index)
+			.map_err(|_| SignedDisputeStatementError::PayloadError)?;
 		let signature = keystore
-			.sr25519_sign(ValidatorId::ID, validator_public.as_ref(), &data)?
+			.sr25519_sign(ValidatorId::ID, validator_public.as_ref(), &data)
+			.map_err(SignedDisputeStatementError::KeyStoreError)?
 			.map(|sig| Self {
 				dispute_statement,
 				candidate_hash,

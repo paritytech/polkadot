@@ -599,10 +599,7 @@ pub mod vstaging {
 	};
 
 	use polkadot_node_primitives::{
-		approval::{
-			v1::IndirectSignedApprovalVote,
-			v2::{CandidateBitfield, IndirectAssignmentCertV2},
-		},
+		approval::v2::{CandidateBitfield, IndirectAssignmentCertV2, IndirectSignedApprovalVoteV2},
 		UncheckedSignedFullStatement,
 	};
 
@@ -780,7 +777,7 @@ pub mod vstaging {
 		Assignments(Vec<(IndirectAssignmentCertV2, CandidateBitfield)>),
 		/// Approvals for candidates in some recent, unfinalized block.
 		#[codec(index = 1)]
-		Approvals(Vec<IndirectSignedApprovalVote>),
+		Approvals(Vec<IndirectSignedApprovalVoteV2>),
 	}
 
 	/// Dummy network message type, so we will receive connect/disconnect events.

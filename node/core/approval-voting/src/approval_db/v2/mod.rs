@@ -17,12 +17,15 @@
 //! Version 2 of the DB schema.
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_node_primitives::approval::{v1::DelayTranche, v2::AssignmentCertV2};
+use polkadot_node_primitives::approval::{
+	v1::DelayTranche,
+	v2::{AssignmentCertV2, CandidateBitfield},
+};
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::{
-	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
-	ValidatorIndex, ValidatorSignature,
+	BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex, GroupIndex, Hash,
+	SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 
 use sp_consensus_slots::Slot;
@@ -197,6 +200,16 @@ pub struct TrancheEntry {
 	pub assignments: Vec<(ValidatorIndex, Tick)>,
 }
 
+/// Metadata about our approval signature
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+pub struct OurApproval {
+	/// The signature for the candidates hashes pointed by indices.
+	pub signature: ValidatorSignature,
+	/// The indices of the candidates signed in this approval, an empty value means only
+	/// the candidate referred by this approval entry was signed.
+	pub signed_candidates_indices: Option<CandidateBitfield>,
+}
+
 /// Metadata regarding approval of a particular candidate within the context of some
 /// particular block.
 #[derive(Encode, Decode, Debug, Clone, PartialEq)]
@@ -204,7 +217,7 @@ pub struct ApprovalEntry {
 	pub tranches: Vec<TrancheEntry>,
 	pub backing_group: GroupIndex,
 	pub our_assignment: Option<OurAssignment>,
-	pub our_approval_sig: Option<ValidatorSignature>,
+	pub our_approval_sig: Option<OurApproval>,
 	// `n_validators` bits.
 	pub assigned_validators: Bitfield,
 	pub approved: bool,
@@ -241,10 +254,23 @@ pub struct BlockEntry {
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
 	pub approved_bitfield: Bitfield,
 	pub children: Vec<Hash>,
+	// A list of candidates that has been approved, but we didn't not sign and
+	// advertise the vote yet.
+	pub candidates_pending_signature: BTreeMap<CandidateIndex, CandidateSigningContext>,
 	// Assignments we already distributed. A 1 bit means the candidate index for which
 	// we already have sent out an assignment. We need this to avoid distributing
 	// multiple core assignments more than once.
 	pub distributed_assignments: Bitfield,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+
+/// Context needed for creating an approval signature  for a given candidate.
+pub struct CandidateSigningContext {
+	/// The candidate hash, to be included in the signature.
+	pub candidate_hash: CandidateHash,
+	/// The latest tick we have to create and send the approval.
+	pub send_no_later_than_tick: Tick,
 }
 
 impl From<crate::Tick> for Tick {
