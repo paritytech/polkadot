@@ -21,18 +21,17 @@ use frame_support::{
 	ensure,
 	traits::{Contains, ContainsPair, Get, PalletsInfoAccess},
 };
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use sp_core::defer;
-use sp_io::hashing::blake2_128;
 use sp_std::{marker::PhantomData, prelude::*};
 use sp_weights::Weight;
 use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	validate_export, AssetExchange, AssetLock, CallDispatcher, ClaimAssets, ConvertOrigin,
-	DropAssets, Enact, ExportXcm, FeeManager, FeeReason, OnResponse, Properties, ShouldExecute,
-	TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	channel_from_params, validate_export, AssetExchange, AssetLock, CallDispatcher, ClaimAssets,
+	ConvertOrigin, DropAssets, Enact, ExportXcm, FeeManager, FeeReason, OnResponse, Properties,
+	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -838,11 +837,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let universal_source = Config::UniversalLocation::get()
 					.within_global(origin)
 					.map_err(|()| XcmError::Unanchored)?;
-				let hash = (self.origin_ref(), &destination).using_encoded(blake2_128);
-				let channel = u32::decode(&mut hash.as_ref()).unwrap_or(0);
-				// Hash identifies the lane on the exporter which we use. We use the pairwise
-				// combination of the origin and destination to ensure origin/destination pairs will
-				// generally have their own lanes.
+				let channel = channel_from_params(self.origin_ref(), &network, &destination);
 				let (ticket, fee) = validate_export::<Config::MessageExporter>(
 					network,
 					channel,

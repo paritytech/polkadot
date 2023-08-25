@@ -25,7 +25,7 @@ pub use asset_lock::{AssetLock, Enact, LockError};
 mod asset_exchange;
 pub use asset_exchange::AssetExchange;
 mod export;
-pub use export::{export_xcm, validate_export, ExportXcm};
+pub use export::{channel_from_params, export_xcm, validate_export, Channel, ExportXcm};
 mod fee_manager;
 pub use fee_manager::{FeeManager, FeeReason};
 mod filter_asset_location;

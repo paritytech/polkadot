@@ -16,6 +16,24 @@
 
 use xcm::latest::prelude::*;
 
+/// An identifier for a channel.
+pub type Channel = u32;
+
+/// Generates channel identifier for `origin/(network, destination)` combination to ensure using separated lanes.
+pub fn channel_from_params(
+	origin_ref: Option<&MultiLocation>,
+	network: &NetworkId,
+	destination: &InteriorMultiLocation,
+) -> Channel {
+	use parity_scale_codec::{Decode, Encode};
+	// Hash identifies the lane on the exporter which we use. We use the pairwise
+	// combination of the origin and (network, destination) to ensure origin/(network, destination) pairs will
+	// generally have their own lanes.
+	let hash = (origin_ref, (network, destination)).using_encoded(sp_io::hashing::blake2_256);
+	let channel = u32::decode(&mut hash.as_ref()).unwrap_or(0);
+	channel
+}
+
 /// Utility for delivering a message to a system under a different (non-local) consensus with a
 /// spoofed origin. This essentially defines the behaviour of the `ExportMessage` XCM instruction.
 ///
@@ -50,7 +68,7 @@ pub trait ExportXcm {
 	/// early without trying alternative means of delivery.
 	fn validate(
 		network: NetworkId,
-		channel: u32,
+		channel: Channel,
 		universal_source: &mut Option<InteriorMultiLocation>,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
@@ -70,7 +88,7 @@ impl ExportXcm for Tuple {
 
 	fn validate(
 		network: NetworkId,
-		channel: u32,
+		channel: Channel,
 		universal_source: &mut Option<InteriorMultiLocation>,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
@@ -111,7 +129,7 @@ impl ExportXcm for Tuple {
 /// both in `Some` before passing them as as mutable references into `T::send_xcm`.
 pub fn validate_export<T: ExportXcm>(
 	network: NetworkId,
-	channel: u32,
+	channel: Channel,
 	universal_source: InteriorMultiLocation,
 	dest: InteriorMultiLocation,
 	msg: Xcm<()>,
@@ -129,7 +147,7 @@ pub fn validate_export<T: ExportXcm>(
 /// before actually doing the delivery.
 pub fn export_xcm<T: ExportXcm>(
 	network: NetworkId,
-	channel: u32,
+	channel: Channel,
 	universal_source: InteriorMultiLocation,
 	dest: InteriorMultiLocation,
 	msg: Xcm<()>,
@@ -143,4 +161,40 @@ pub fn export_xcm<T: ExportXcm>(
 	)?;
 	let hash = T::deliver(ticket)?;
 	Ok((hash, price))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::collections::HashSet;
+
+	#[test]
+	fn channel_from_params_works() {
+		let params: Vec<(Option<MultiLocation>, &NetworkId, &InteriorMultiLocation)> = vec![
+			// different interior
+			(None, &ByGenesis([0; 32]), &X1(Parachain(1234))),
+			(None, &ByGenesis([0; 32]), &X1(Parachain(1235))),
+			// different networkId
+			(None, &ByGenesis([0; 32]), &X1(Parachain(1236))),
+			(None, &ByGenesis([1; 32]), &X1(Parachain(1236))),
+			// different origin
+			(None, &ByGenesis([0; 32]), &X1(Parachain(1237))),
+			(Some(MultiLocation::here()), &ByGenesis([0; 32]), &X1(Parachain(1237))),
+			(Some(MultiLocation::parent()), &ByGenesis([0; 32]), &X1(Parachain(1237))),
+		];
+
+		// check unique
+		let channels: HashSet<Channel> =
+			HashSet::from_iter(params.iter().map(|(origin, network, interior)| {
+				channel_from_params(origin.as_ref(), network, interior)
+			}));
+		assert_eq!(params.len(), channels.len());
+
+		// check not random
+		assert_eq!(
+			channel_from_params(None, &ByGenesis([0; 32]), &X1(Parachain(1234))),
+			channel_from_params(None, &ByGenesis([0; 32]), &X1(Parachain(1234)))
+		);
+		assert_eq!(channel_from_params(Some(&Parachain(1).into()), &Polkadot, &Here), 470110423);
+	}
 }
