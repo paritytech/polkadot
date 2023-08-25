@@ -691,6 +691,9 @@ pub enum RuntimeApiRequest {
 		slashing::OpaqueKeyOwnershipProof,
 		RuntimeApiSender<Option<()>>,
 	),
+	/// Returns all disabled validators at a given block height.
+	/// `V6`
+	DisabledValidators(RuntimeApiSender<Vec<ValidatorIndex>>),
 
 	/// Get the backing state of the given para.
 	/// This is a staging API that will not be available on production runtimes.
@@ -718,6 +721,9 @@ impl RuntimeApiRequest {
 
 	/// `SubmitReportDisputeLost`
 	pub const SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT: u32 = 5;
+
+	/// `DisabledValidators`
+	pub const DISABLED_VALIDATORS_RUNTIME_REQUIREMENT: u32 = 6;
 
 	/// Minimum version for backing state, required for async backing.
 	///

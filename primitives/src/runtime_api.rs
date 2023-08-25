@@ -240,6 +240,12 @@ sp_api::decl_runtime_apis! {
 			key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
 		) -> Option<()>;
 
+		/* Staging APIs */
+
+		/// Returns a sorted Vec with the `ValidatorIndex` of all disabled validators.
+		#[api_version(6)]
+		fn disabled_validators() -> Vec<ValidatorIndex>;
+
 		/***** Asynchronous backing *****/
 
 		/// Returns the state of parachain backing for a given para.

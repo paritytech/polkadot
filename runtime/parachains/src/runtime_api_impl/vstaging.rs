@@ -23,7 +23,7 @@ use primitives::{
 		AsyncBackingParams, BackingState, CandidatePendingAvailability, Constraints,
 		InboundHrmpLimitations, OutboundHrmpChannelLimitations,
 	},
-	Id as ParaId,
+	Id as ParaId, ValidatorIndex,
 };
 use sp_std::prelude::*;
 
@@ -117,4 +117,13 @@ pub fn backing_state<T: initializer::Config>(
 /// Implementation for `StagingAsyncBackingParams` function from the runtime API
 pub fn async_backing_params<T: configuration::Config>() -> AsyncBackingParams {
 	<configuration::Pallet<T>>::config().async_backing_params
+}
+
+/// Implementation for `DisabledValidators`
+pub fn disabled_validators<T: pallet_session::Config>() -> Vec<ValidatorIndex> {
+	<pallet_session::Pallet<T>>::disabled_validators()
+		.iter()
+		.cloned()
+		.map(|v| ValidatorIndex(v))
+		.collect()
 }
