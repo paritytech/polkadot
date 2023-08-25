@@ -25,6 +25,7 @@ use std::{collections::HashMap, time::Duration};
 
 /// Default delay for sending reputation changes
 pub const REPUTATION_CHANGE_INTERVAL: Duration = Duration::from_secs(30);
+const LOG_TARGET: &'static str = "parachain::reputation-aggregator";
 
 type BatchReputationChange = HashMap<PeerId, i32>;
 
@@ -75,6 +76,10 @@ impl ReputationAggregator {
 		peer_id: PeerId,
 		rep: UnifiedReputationChange,
 	) {
+		if rep.cost_or_benefit() < 0 {
+			gum::debug!(target: LOG_TARGET, peer = ?peer_id, ?rep, "Modify reputation");
+		}
+
 		if (self.send_immediately_if)(rep) {
 			self.single_send(sender, peer_id, rep).await;
 		} else {

@@ -49,21 +49,26 @@ struct TrancheEntry {
     assignments: Vec<(ValidatorIndex, Tick)>,
 }
 
-struct OurAssignment {
-  cert: AssignmentCert,
-  tranche: DelayTranche,
-  validator_index: ValidatorIndex,
-  triggered: bool,
+pub struct OurAssignment {
+	/// Our assignment certificate.
+	cert: AssignmentCertV2,
+	/// The tranche for which the assignment refers to.
+	tranche: DelayTranche,
+	/// Our validator index for the session in which the candidates were included.
+	validator_index: ValidatorIndex,
+	/// Whether the assignment has been triggered already.
+	triggered: bool,
 }
 
-struct ApprovalEntry {
-    tranches: Vec<TrancheEntry>, // sorted ascending by tranche number.
-    backing_group: GroupIndex,
-    our_assignment: Option<OurAssignment>,
-    our_approval_sig: Option<ValidatorSignature>,
-    assignments: Bitfield, // n_validators bits
-    approved: bool,
+pub struct ApprovalEntry {
+	tranches: Vec<TrancheEntry>, // sorted ascending by tranche number.
+	backing_group: GroupIndex,
+	our_assignment: Option<OurAssignment>,
+	our_approval_sig: Option<ValidatorSignature>,
+	assigned_validators: Bitfield, // `n_validators` bits.
+	approved: bool,
 }
+
 
 struct CandidateEntry {
     candidate: CandidateReceipt,
@@ -200,6 +205,8 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
   * Determine the claimed core index by looking up the candidate with given index in `block_entry.candidates`. Return `AssignmentCheckResult::Bad` if missing.
   * Check the assignment cert
     * If the cert kind is `RelayVRFModulo`, then the certificate is valid as long as `sample < session_info.relay_vrf_samples` and the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ sample.encode()` as described with [the approvals protocol section](../../protocol-approval.md#assignment-criteria). We set `core_index = vrf.make_bytes().to_u32() % session_info.n_cores`. If the `BlockEntry` causes inclusion of a candidate at `core_index`, then this is a valid assignment for the candidate at `core_index` and has delay tranche 0. Otherwise, it can be ignored.
+    * If the cert kind is `RelayVRFModuloCompact`, then the certificate is valid as long as the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ relay_vrf_samples.encode()` as described with [the approvals protocol section](../../protocol-approval.md#assignment-criteria). We enforce that all `core_bitfield` indices are included in the set of the core indices sampled from the VRF Output. The assignment is considered a valid tranche0 assignment for all claimed candidates if all `core_bitfield` indices match the core indices where the claimed candidates were included at.
+
     * If the cert kind is `RelayVRFDelay`, then we check if the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ cert.core_index.encode()` as described in [the approvals protocol section](../../protocol-approval.md#assignment-criteria). The cert can be ignored if the block did not cause inclusion of a candidate on that core index. Otherwise, this is a valid assignment for the included candidate. The delay tranche for the assignment is determined by reducing `(vrf.make_bytes().to_u64() % (session_info.n_delay_tranches + session_info.zeroth_delay_tranche_width)).saturating_sub(session_info.zeroth_delay_tranche_width)`.
     * We also check that the core index derived by the output is covered by the `VRFProof` by means of an auxiliary signature.
     * If the delay tranche is too far in the future, return `AssignmentCheckResult::TooFarInFuture`.

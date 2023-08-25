@@ -20,15 +20,20 @@
 //! Within that context, things are plain-old-data. Within this module,
 //! data and logic are intertwined.
 
-use polkadot_node_primitives::approval::{AssignmentCert, DelayTranche, RelayVRFStory};
+use polkadot_node_primitives::approval::{
+	v1::{DelayTranche, RelayVRFStory},
+	v2::{AssignmentCertV2, CandidateBitfield},
+};
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
 	ValidatorIndex, ValidatorSignature,
 };
 use sp_consensus_slots::Slot;
 
-use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice, vec::BitVec};
+use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice};
 use std::collections::BTreeMap;
+
+use crate::approval_db::v2::Bitfield;
 
 use super::{criteria::OurAssignment, time::Tick};
 
@@ -53,8 +58,8 @@ impl TrancheEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::TrancheEntry> for TrancheEntry {
-	fn from(entry: crate::approval_db::v1::TrancheEntry) -> Self {
+impl From<crate::approval_db::v2::TrancheEntry> for TrancheEntry {
+	fn from(entry: crate::approval_db::v2::TrancheEntry) -> Self {
 		TrancheEntry {
 			tranche: entry.tranche,
 			assignments: entry.assignments.into_iter().map(|(v, t)| (v, t.into())).collect(),
@@ -62,7 +67,7 @@ impl From<crate::approval_db::v1::TrancheEntry> for TrancheEntry {
 	}
 }
 
-impl From<TrancheEntry> for crate::approval_db::v1::TrancheEntry {
+impl From<TrancheEntry> for crate::approval_db::v2::TrancheEntry {
 	fn from(entry: TrancheEntry) -> Self {
 		Self {
 			tranche: entry.tranche,
@@ -80,7 +85,7 @@ pub struct ApprovalEntry {
 	our_assignment: Option<OurAssignment>,
 	our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
-	assignments: BitVec<u8, BitOrderLsb0>,
+	assigned_validators: Bitfield,
 	approved: bool,
 }
 
@@ -92,10 +97,17 @@ impl ApprovalEntry {
 		our_assignment: Option<OurAssignment>,
 		our_approval_sig: Option<ValidatorSignature>,
 		// `n_validators` bits.
-		assignments: BitVec<u8, BitOrderLsb0>,
+		assigned_validators: Bitfield,
 		approved: bool,
 	) -> Self {
-		Self { tranches, backing_group, our_assignment, our_approval_sig, assignments, approved }
+		Self {
+			tranches,
+			backing_group,
+			our_assignment,
+			our_approval_sig,
+			assigned_validators,
+			approved,
+		}
 	}
 
 	// Access our assignment for this approval entry.
@@ -107,7 +119,7 @@ impl ApprovalEntry {
 	pub fn trigger_our_assignment(
 		&mut self,
 		tick_now: Tick,
-	) -> Option<(AssignmentCert, ValidatorIndex, DelayTranche)> {
+	) -> Option<(AssignmentCertV2, ValidatorIndex, DelayTranche)> {
 		let our = self.our_assignment.as_mut().and_then(|a| {
 			if a.triggered() {
 				return None
@@ -131,7 +143,10 @@ impl ApprovalEntry {
 
 	/// Whether a validator is already assigned.
 	pub fn is_assigned(&self, validator_index: ValidatorIndex) -> bool {
-		self.assignments.get(validator_index.0 as usize).map(|b| *b).unwrap_or(false)
+		self.assigned_validators
+			.get(validator_index.0 as usize)
+			.map(|b| *b)
+			.unwrap_or(false)
 	}
 
 	/// Import an assignment. No-op if already assigned on the same tranche.
@@ -158,14 +173,14 @@ impl ApprovalEntry {
 		};
 
 		self.tranches[idx].assignments.push((validator_index, tick_now));
-		self.assignments.set(validator_index.0 as _, true);
+		self.assigned_validators.set(validator_index.0 as _, true);
 	}
 
 	// Produce a bitvec indicating the assignments of all validators up to and
 	// including `tranche`.
-	pub fn assignments_up_to(&self, tranche: DelayTranche) -> BitVec<u8, BitOrderLsb0> {
+	pub fn assignments_up_to(&self, tranche: DelayTranche) -> Bitfield {
 		self.tranches.iter().take_while(|e| e.tranche <= tranche).fold(
-			bitvec::bitvec![u8, BitOrderLsb0; 0; self.assignments.len()],
+			bitvec::bitvec![u8, BitOrderLsb0; 0; self.assigned_validators.len()],
 			|mut a, e| {
 				for &(v, _) in &e.assignments {
 					a.set(v.0 as _, true);
@@ -193,12 +208,12 @@ impl ApprovalEntry {
 
 	/// Get the number of validators in this approval entry.
 	pub fn n_validators(&self) -> usize {
-		self.assignments.len()
+		self.assigned_validators.len()
 	}
 
 	/// Get the number of assignments by validators, including the local validator.
 	pub fn n_assignments(&self) -> usize {
-		self.assignments.count_ones()
+		self.assigned_validators.count_ones()
 	}
 
 	/// Get the backing group index of the approval entry.
@@ -219,27 +234,27 @@ impl ApprovalEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
-	fn from(entry: crate::approval_db::v1::ApprovalEntry) -> Self {
+impl From<crate::approval_db::v2::ApprovalEntry> for ApprovalEntry {
+	fn from(entry: crate::approval_db::v2::ApprovalEntry) -> Self {
 		ApprovalEntry {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
 			backing_group: entry.backing_group,
 			our_assignment: entry.our_assignment.map(Into::into),
 			our_approval_sig: entry.our_approval_sig.map(Into::into),
-			assignments: entry.assignments,
+			assigned_validators: entry.assigned_validators,
 			approved: entry.approved,
 		}
 	}
 }
 
-impl From<ApprovalEntry> for crate::approval_db::v1::ApprovalEntry {
+impl From<ApprovalEntry> for crate::approval_db::v2::ApprovalEntry {
 	fn from(entry: ApprovalEntry) -> Self {
 		Self {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
 			backing_group: entry.backing_group,
 			our_assignment: entry.our_assignment.map(Into::into),
 			our_approval_sig: entry.our_approval_sig.map(Into::into),
-			assignments: entry.assignments,
+			assigned_validators: entry.assigned_validators,
 			approved: entry.approved,
 		}
 	}
@@ -253,7 +268,7 @@ pub struct CandidateEntry {
 	// Assignments are based on blocks, so we need to track assignments separately
 	// based on the block we are looking at.
 	pub block_assignments: BTreeMap<Hash, ApprovalEntry>,
-	pub approvals: BitVec<u8, BitOrderLsb0>,
+	pub approvals: Bitfield,
 }
 
 impl CandidateEntry {
@@ -290,8 +305,8 @@ impl CandidateEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
-	fn from(entry: crate::approval_db::v1::CandidateEntry) -> Self {
+impl From<crate::approval_db::v2::CandidateEntry> for CandidateEntry {
+	fn from(entry: crate::approval_db::v2::CandidateEntry) -> Self {
 		CandidateEntry {
 			candidate: entry.candidate,
 			session: entry.session,
@@ -305,7 +320,7 @@ impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
 	}
 }
 
-impl From<CandidateEntry> for crate::approval_db::v1::CandidateEntry {
+impl From<CandidateEntry> for crate::approval_db::v2::CandidateEntry {
 	fn from(entry: CandidateEntry) -> Self {
 		Self {
 			candidate: entry.candidate,
@@ -336,8 +351,12 @@ pub struct BlockEntry {
 	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
 	// The i'th bit is `true` iff the candidate has been approved in the context of this
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
-	pub approved_bitfield: BitVec<u8, BitOrderLsb0>,
+	pub approved_bitfield: Bitfield,
 	pub children: Vec<Hash>,
+	// A list of assignments for which wea already distributed the assignment.
+	// We use this to ensure we don't distribute multiple core assignments twice as we track
+	// individual wakeups for each core.
+	distributed_assignments: Bitfield,
 }
 
 impl BlockEntry {
@@ -412,6 +431,39 @@ impl BlockEntry {
 	pub fn parent_hash(&self) -> Hash {
 		self.parent_hash
 	}
+
+	/// Mark distributed assignment for many candidate indices.
+	/// Returns `true` if an assignment was already distributed for the `candidates`.
+	pub fn mark_assignment_distributed(&mut self, candidates: CandidateBitfield) -> bool {
+		let bitfield = candidates.into_inner();
+		let total_one_bits = self.distributed_assignments.count_ones();
+
+		let new_len = std::cmp::max(self.distributed_assignments.len(), bitfield.len());
+		self.distributed_assignments.resize(new_len, false);
+		self.distributed_assignments |= bitfield;
+
+		// If the an operation did not change our current bitfied, we return true.
+		let distributed = total_one_bits == self.distributed_assignments.count_ones();
+
+		distributed
+	}
+}
+
+impl From<crate::approval_db::v2::BlockEntry> for BlockEntry {
+	fn from(entry: crate::approval_db::v2::BlockEntry) -> Self {
+		BlockEntry {
+			block_hash: entry.block_hash,
+			parent_hash: entry.parent_hash,
+			block_number: entry.block_number,
+			session: entry.session,
+			slot: entry.slot,
+			relay_vrf_story: RelayVRFStory(entry.relay_vrf_story),
+			candidates: entry.candidates,
+			approved_bitfield: entry.approved_bitfield,
+			children: entry.children,
+			distributed_assignments: entry.distributed_assignments,
+		}
+	}
 }
 
 impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
@@ -426,11 +478,12 @@ impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
 			candidates: entry.candidates,
 			approved_bitfield: entry.approved_bitfield,
 			children: entry.children,
+			distributed_assignments: Default::default(),
 		}
 	}
 }
 
-impl From<BlockEntry> for crate::approval_db::v1::BlockEntry {
+impl From<BlockEntry> for crate::approval_db::v2::BlockEntry {
 	fn from(entry: BlockEntry) -> Self {
 		Self {
 			block_hash: entry.block_hash,
@@ -442,6 +495,36 @@ impl From<BlockEntry> for crate::approval_db::v1::BlockEntry {
 			candidates: entry.candidates,
 			approved_bitfield: entry.approved_bitfield,
 			children: entry.children,
+			distributed_assignments: entry.distributed_assignments,
+		}
+	}
+}
+
+/// Migration helpers.
+impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
+	fn from(value: crate::approval_db::v1::CandidateEntry) -> Self {
+		Self {
+			approvals: value.approvals,
+			block_assignments: value
+				.block_assignments
+				.into_iter()
+				.map(|(h, ae)| (h, ae.into()))
+				.collect(),
+			candidate: value.candidate,
+			session: value.session,
+		}
+	}
+}
+
+impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
+	fn from(value: crate::approval_db::v1::ApprovalEntry) -> Self {
+		ApprovalEntry {
+			tranches: value.tranches.into_iter().map(|tranche| tranche.into()).collect(),
+			backing_group: value.backing_group,
+			our_assignment: value.our_assignment.map(|assignment| assignment.into()),
+			our_approval_sig: value.our_approval_sig,
+			assigned_validators: value.assignments,
+			approved: value.approved,
 		}
 	}
 }

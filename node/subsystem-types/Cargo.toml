@@ -24,3 +24,4 @@ smallvec = "1.8.0"
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.31"
 async-trait = "0.1.57"
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }

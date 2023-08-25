@@ -131,9 +131,9 @@ pub struct PeerData {
 
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
-#[derive(Default, Debug)]
+#[derive(Default)]
 struct ProtocolState {
-	/// Track all active peers and their views
+	/// Track all active peer views and protocol versions
 	/// to determine what is relevant to them.
 	peer_data: HashMap<PeerId, PeerData>,
 
@@ -775,9 +775,11 @@ async fn handle_network_msg<Context>(
 				handle_peer_view_change(ctx, state, new_peer, old_view, rng).await;
 			}
 		},
-		NetworkBridgeEvent::PeerViewChange(peerid, new_view) => {
-			gum::trace!(target: LOG_TARGET, ?peerid, ?new_view, "Peer view change");
-			handle_peer_view_change(ctx, state, peerid, new_view, rng).await;
+		NetworkBridgeEvent::PeerViewChange(peer_id, new_view) => {
+			gum::trace!(target: LOG_TARGET, ?peer_id, ?new_view, "Peer view change");
+			if state.peer_data.get(&peer_id).is_some() {
+				handle_peer_view_change(ctx, state, peer_id, new_view, rng).await;
+			}
 		},
 		NetworkBridgeEvent::OurViewChange(new_view) => {
 			gum::trace!(target: LOG_TARGET, ?new_view, "Our view change");

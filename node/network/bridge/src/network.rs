@@ -28,23 +28,109 @@ use sc_network::{
 };
 
 use polkadot_node_network_protocol::{
-	peer_set::{PeerSet, PeerSetProtocolNames, ProtocolVersion},
+	peer_set::{
+		CollationVersion, PeerSet, PeerSetProtocolNames, ProtocolVersion, ValidationVersion,
+	},
 	request_response::{OutgoingRequest, Recipient, ReqProtocolNames, Requests},
-	PeerId,
+	v1 as protocol_v1, vstaging as protocol_vstaging, PeerId,
 };
 use polkadot_primitives::{AuthorityDiscoveryId, Block, Hash};
 
-use crate::validator_discovery::AuthorityDiscovery;
+use crate::{metrics::Metrics, validator_discovery::AuthorityDiscovery, WireMessage};
 
 // network bridge network abstraction log target
 const LOG_TARGET: &'static str = "parachain::network-bridge-net";
 
-/// Send a message to the network.
+// Helper function to send a validation v1 message to a list of peers.
+// Messages are always sent via the main protocol, even legacy protocol messages.
+pub(crate) fn send_validation_message_v1(
+	net: &mut impl Network,
+	peers: Vec<PeerId>,
+	peerset_protocol_names: &PeerSetProtocolNames,
+	message: WireMessage<protocol_v1::ValidationProtocol>,
+	metrics: &Metrics,
+) {
+	gum::trace!(target: LOG_TARGET, ?peers, ?message, "Sending validation v1 message to peers",);
+
+	send_message(
+		net,
+		peers,
+		PeerSet::Validation,
+		ValidationVersion::V1.into(),
+		peerset_protocol_names,
+		message,
+		metrics,
+	);
+}
+
+// Helper function to send a validation v2 message to a list of peers.
+// Messages are always sent via the main protocol, even legacy protocol messages.
+pub(crate) fn send_validation_message_v2(
+	net: &mut impl Network,
+	peers: Vec<PeerId>,
+	peerset_protocol_names: &PeerSetProtocolNames,
+	message: WireMessage<protocol_vstaging::ValidationProtocol>,
+	metrics: &Metrics,
+) {
+	gum::trace!(target: LOG_TARGET, ?peers, ?message, "Sending validation v2 message to peers",);
+
+	send_message(
+		net,
+		peers,
+		PeerSet::Validation,
+		ValidationVersion::VStaging.into(),
+		peerset_protocol_names,
+		message,
+		metrics,
+	);
+}
+
+// Helper function to send a collation v1 message to a list of peers.
+// Messages are always sent via the main protocol, even legacy protocol messages.
+pub(crate) fn send_collation_message_v1(
+	net: &mut impl Network,
+	peers: Vec<PeerId>,
+	peerset_protocol_names: &PeerSetProtocolNames,
+	message: WireMessage<protocol_v1::CollationProtocol>,
+	metrics: &Metrics,
+) {
+	send_message(
+		net,
+		peers,
+		PeerSet::Collation,
+		CollationVersion::V1.into(),
+		peerset_protocol_names,
+		message,
+		metrics,
+	);
+}
+
+// Helper function to send a collation v2 message to a list of peers.
+// Messages are always sent via the main protocol, even legacy protocol messages.
+pub(crate) fn send_collation_message_v2(
+	net: &mut impl Network,
+	peers: Vec<PeerId>,
+	peerset_protocol_names: &PeerSetProtocolNames,
+	message: WireMessage<protocol_vstaging::CollationProtocol>,
+	metrics: &Metrics,
+) {
+	send_message(
+		net,
+		peers,
+		PeerSet::Collation,
+		CollationVersion::VStaging.into(),
+		peerset_protocol_names,
+		message,
+		metrics,
+	);
+}
+
+/// Lower level function that sends a message to the network using the main protocol version.
 ///
 /// This function is only used internally by the network-bridge, which is responsible to only send
 /// messages that are compatible with the passed peer set, as that is currently not enforced by
 /// this function. These are messages of type `WireMessage` parameterized on the matching type.
-pub(crate) fn send_message<M>(
+fn send_message<M>(
 	net: &mut impl Network,
 	mut peers: Vec<PeerId>,
 	peer_set: PeerSet,
@@ -63,6 +149,17 @@ pub(crate) fn send_message<M>(
 		metrics.on_notification_sent(peer_set, version, encoded.len(), peers.len());
 		encoded
 	};
+
+	// optimization: generate the protocol name once.
+	let protocol_name = protocol_names.get_name(peer_set, version);
+	gum::trace!(
+		target: LOG_TARGET,
+		?peers,
+		?version,
+		?protocol_name,
+		?message,
+		"Sending message to peers",
+	);
 
 	// optimization: avoid cloning the message for the last peer in the
 	// list. The message payload can be quite large. If the underlying
