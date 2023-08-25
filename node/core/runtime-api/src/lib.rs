@@ -101,6 +101,9 @@ where
 				self.requests_cache.cache_authorities(relay_parent, authorities),
 			Validators(relay_parent, validators) =>
 				self.requests_cache.cache_validators(relay_parent, validators),
+			MinimumBackingVotes(relay_parent, minimum_backing_votes) => self
+				.requests_cache
+				.cache_minimum_backing_votes(relay_parent, minimum_backing_votes),
 			ValidatorGroups(relay_parent, groups) =>
 				self.requests_cache.cache_validator_groups(relay_parent, groups),
 			AvailabilityCores(relay_parent, cores) =>
@@ -301,6 +304,8 @@ where
 			Request::StagingAsyncBackingParams(sender) =>
 				query!(staging_async_backing_params(), sender)
 					.map(|sender| Request::StagingAsyncBackingParams(sender)),
+			Request::MinimumBackingVotes(sender) => query!(minimum_backing_votes(), sender)
+				.map(|sender| Request::MinimumBackingVotes(sender)),
 		}
 	}
 
@@ -549,6 +554,12 @@ where
 			SubmitReportDisputeLost,
 			submit_report_dispute_lost(dispute_proof, key_ownership_proof),
 			ver = Request::SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT,
+			sender
+		),
+		Request::MinimumBackingVotes(sender) => query!(
+			MinimumBackingVotes,
+			minimum_backing_votes(),
+			ver = Request::MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT,
 			sender
 		),
 

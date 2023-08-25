@@ -80,6 +80,7 @@ struct TestState {
 	head_data: HashMap<ParaId, HeadData>,
 	signing_context: SigningContext,
 	relay_parent: Hash,
+	minimum_backing_votes: u32,
 }
 
 impl TestState {
@@ -150,6 +151,7 @@ impl Default for TestState {
 			validation_data,
 			signing_context,
 			relay_parent,
+			minimum_backing_votes: 2,
 		}
 	}
 }
@@ -250,9 +252,46 @@ async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 		}
 	);
 
-	// Check that subsystem job issues a request for a validator set.
+	// Check that subsystem job issues a request for the session index for child.
 	assert_matches!(
 		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionIndexForChild(tx))
+		) if parent == test_state.relay_parent => {
+			tx.send(Ok(test_state.signing_context.session_index)).unwrap();
+		}
+	);
+
+	// Check that subsystem job issues a request for the runtime API version.
+	// assert_matches!(
+	// 	virtual_overseer.recv().await,
+	// 	AllMessages::RuntimeApi(
+	// 		RuntimeApiMessage::Request(parent, RuntimeApiRequest::Version(tx))
+	// 	) if parent == test_state.relay_parent => {
+	// 		tx.send(Ok(RuntimeApiRequest::MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT)).unwrap();
+	// 	}
+	// );
+
+	// Check if subsystem job issues a request for the minimum backing votes.
+	// This may or may not happen, depending if the minimum backing votes is already cached in the
+	// RuntimeInfo.
+	let next_message = {
+		let msg = virtual_overseer.recv().await;
+		match msg {
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				parent,
+				RuntimeApiRequest::MinimumBackingVotes(tx),
+			)) if parent == test_state.relay_parent => {
+				tx.send(Ok(test_state.minimum_backing_votes)).unwrap();
+				virtual_overseer.recv().await
+			},
+			_ => msg,
+		}
+	};
+
+	// Check that subsystem job issues a request for a validator set.
+	assert_matches!(
+		next_message,
 		AllMessages::RuntimeApi(
 			RuntimeApiMessage::Request(parent, RuntimeApiRequest::Validators(tx))
 		) if parent == test_state.relay_parent => {
@@ -267,16 +306,6 @@ async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 			RuntimeApiMessage::Request(parent, RuntimeApiRequest::ValidatorGroups(tx))
 		) if parent == test_state.relay_parent => {
 			tx.send(Ok(test_state.validator_groups.clone())).unwrap();
-		}
-	);
-
-	// Check that subsystem job issues a request for the session index for child.
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionIndexForChild(tx))
-		) if parent == test_state.relay_parent => {
-			tx.send(Ok(test_state.signing_context.session_index)).unwrap();
 		}
 	);
 

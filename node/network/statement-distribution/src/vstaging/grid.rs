@@ -1074,7 +1074,7 @@ mod tests {
 	fn dummy_groups(group_size: usize) -> Groups {
 		let groups = vec![(0..(group_size as u32)).map(ValidatorIndex).collect()].into();
 
-		Groups::new(groups)
+		Groups::new(groups, 2)
 	}
 
 	#[test]

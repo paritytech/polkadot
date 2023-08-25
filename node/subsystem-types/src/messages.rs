@@ -606,6 +606,8 @@ pub enum RuntimeApiRequest {
 	Authorities(RuntimeApiSender<Vec<AuthorityDiscoveryId>>),
 	/// Get the current validator set.
 	Validators(RuntimeApiSender<Vec<ValidatorId>>),
+	/// Get the minimum required backing votes.
+	MinimumBackingVotes(RuntimeApiSender<u32>),
 	/// Get the validator groups and group rotation info.
 	ValidatorGroups(RuntimeApiSender<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
 	/// Get information on all availability cores.
@@ -718,6 +720,9 @@ impl RuntimeApiRequest {
 
 	/// `SubmitReportDisputeLost`
 	pub const SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT: u32 = 5;
+
+	/// `MinimumBackingVotes`
+	pub const MINIMUM_BACKING_VOTES_RUNTIME_REQUIREMENT: u32 = 6;
 
 	/// Minimum version for backing state, required for async backing.
 	///

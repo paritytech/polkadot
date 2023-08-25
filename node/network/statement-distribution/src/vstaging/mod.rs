@@ -40,9 +40,12 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActivatedLeaf,
 };
+use polkadot_node_subsystem_types::messages::RuntimeApiRequest;
 use polkadot_node_subsystem_util::{
-	backing_implicit_view::View as ImplicitView, reputation::ReputationAggregator,
-	runtime::ProspectiveParachainsMode,
+	backing_implicit_view::View as ImplicitView,
+	reputation::ReputationAggregator,
+	request_from_runtime,
+	runtime::{recv_runtime, request_min_backing_votes, ProspectiveParachainsMode},
 };
 use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CompactStatement, CoreIndex, CoreState, GroupIndex,
@@ -163,8 +166,8 @@ struct PerSessionState {
 }
 
 impl PerSessionState {
-	fn new(session_info: SessionInfo, keystore: &KeystorePtr) -> Self {
-		let groups = Groups::new(session_info.validator_groups.clone());
+	fn new(session_info: SessionInfo, keystore: &KeystorePtr, backing_threshold: u32) -> Self {
+		let groups = Groups::new(session_info.validator_groups.clone(), backing_threshold);
 		let mut authority_lookup = HashMap::new();
 		for (i, ad) in session_info.discovery_keys.iter().cloned().enumerate() {
 			authority_lookup.insert(ad, ValidatorIndex(i as _));
@@ -504,9 +507,25 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 				Some(s) => s,
 			};
 
-			state
-				.per_session
-				.insert(session_index, PerSessionState::new(session_info, &state.keystore));
+			let minimum_backing_votes = request_min_backing_votes(
+				new_relay_parent,
+				ctx.sender(),
+				|parent, sender| async move {
+					recv_runtime(
+						request_from_runtime(parent, sender, |tx| {
+							RuntimeApiRequest::MinimumBackingVotes(tx)
+						})
+						.await,
+					)
+					.await
+				},
+			)
+			.await?;
+
+			state.per_session.insert(
+				session_index,
+				PerSessionState::new(session_info, &state.keystore, minimum_backing_votes),
+			);
 		}
 
 		let per_session = state
@@ -2502,7 +2521,7 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 		Some(RequestProperties {
 			unwanted_mask,
 			backing_threshold: if require_backing {
-				Some(polkadot_node_primitives::minimum_votes(group.len()))
+				Some(per_session.groups.get_size_and_backing_threshold(group_index)?.1)
 			} else {
 				None
 			},

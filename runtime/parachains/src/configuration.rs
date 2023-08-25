@@ -242,6 +242,9 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// This value should be greater than [`paras_availability_period`].
 	pub minimum_validation_upgrade_delay: BlockNumber,
+	/// The minimum number of valid backing statements required to consider a parachain candidate
+	/// backable.
+	pub minimum_backing_votes: u32,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
@@ -292,6 +295,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			on_demand_fee_variability: Perbill::from_percent(3),
 			on_demand_target_queue_utilization: Perbill::from_percent(25),
 			on_demand_ttl: 5u32.into(),
+			minimum_backing_votes: 2,
 		}
 	}
 }
@@ -474,7 +478,8 @@ pub mod pallet {
 	/// v5-v6: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
 	/// v6-v7: <https://github.com/paritytech/polkadot/pull/7396>
 	/// v7-v8: <https://github.com/paritytech/polkadot/pull/6969>
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(8);
+	/// v8-v9: <https://github.com/paritytech/polkadot/pull/7577>
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(9);
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -1148,6 +1153,18 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.on_demand_ttl = new;
+			})
+		}
+		/// Set the minimum backing votes threshold.
+		#[pallet::call_index(52)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_u32(),
+			DispatchClass::Operational
+		))]
+		pub fn set_minimum_backing_votes(origin: OriginFor<T>, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.minimum_backing_votes = new;
 			})
 		}
 	}

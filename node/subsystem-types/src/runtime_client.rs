@@ -232,6 +232,10 @@ pub trait RuntimeApiSubsystemClient {
 		session_index: SessionIndex,
 	) -> Result<Option<ExecutorParams>, ApiError>;
 
+	// === STAGING v6 ===
+	/// Get the minimum number of backing votes.
+	async fn minimum_backing_votes(&self, at: Hash) -> Result<u32, ApiError>;
+
 	// === Asynchronous backing API ===
 
 	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
@@ -471,6 +475,10 @@ where
 		);
 
 		runtime_api.submit_report_dispute_lost(at, dispute_proof, key_ownership_proof)
+	}
+
+	async fn minimum_backing_votes(&self, at: Hash) -> Result<u32, ApiError> {
+		self.client.runtime_api().minimum_backing_votes(at)
 	}
 
 	async fn staging_para_backing_state(

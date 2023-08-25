@@ -85,6 +85,10 @@ fn default_allowed_relay_parent_tracker() -> AllowedRelayParentsTracker<Hash, Bl
 	allowed
 }
 
+fn minimum_backing_votes(group_len: usize) -> usize {
+	std::cmp::min(group_len, configuration::Pallet::<Test>::config().minimum_backing_votes as usize)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum BackingKind {
 	#[allow(unused)]
@@ -124,7 +128,7 @@ pub(crate) fn back_candidate(
 
 	let signing = match kind {
 		BackingKind::Unanimous => group.len(),
-		BackingKind::Threshold => threshold,
+		BackingKind::Threshold => threshold as usize,
 		BackingKind::Lacking => threshold.saturating_sub(1),
 	};
 

@@ -264,6 +264,10 @@ impl RuntimeApiSubsystemClient for MockSubsystemClient {
 	) -> Result<Option<vstaging::BackingState>, ApiError> {
 		todo!("Not required for tests")
 	}
+
+	async fn minimum_backing_votes(&self, _: Hash) -> Result<u32, ApiError> {
+		todo!("Not required for tests")
+	}
 }
 
 #[test]

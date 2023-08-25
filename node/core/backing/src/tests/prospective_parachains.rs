@@ -138,13 +138,41 @@ async fn activate_leaf(
 	}
 
 	for (hash, number) in ancestry_iter.take(requested_len) {
-		// Check that subsystem job issues a request for a validator set.
 		let msg = match next_overseer_message.take() {
 			Some(msg) => msg,
 			None => virtual_overseer.recv().await,
 		};
+
+		// Check that subsystem job issues a request for the session index for child.
 		assert_matches!(
 			msg,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionIndexForChild(tx))
+			) if parent == hash => {
+				tx.send(Ok(test_state.signing_context.session_index)).unwrap();
+			}
+		);
+
+		// Check if subsystem job issues a request for the minimum backing votes.
+		// This may or may not happen, depending if the minimum backing votes is already cached in
+		// the `RuntimeInfo`.
+		let next_message = {
+			let msg = virtual_overseer.recv().await;
+			match msg {
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					parent,
+					RuntimeApiRequest::MinimumBackingVotes(tx),
+				)) if parent == hash => {
+					tx.send(Ok(test_state.minimum_backing_votes)).unwrap();
+					virtual_overseer.recv().await
+				},
+				_ => msg,
+			}
+		};
+
+		// Check that subsystem job issues a request for a validator set.
+		assert_matches!(
+			next_message,
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::Validators(tx))
 			) if parent == hash => {
@@ -161,16 +189,6 @@ async fn activate_leaf(
 				let (validator_groups, mut group_rotation_info) = test_state.validator_groups.clone();
 				group_rotation_info.now = number;
 				tx.send(Ok((validator_groups, group_rotation_info))).unwrap();
-			}
-		);
-
-		// Check that subsystem job issues a request for the session index for child.
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionIndexForChild(tx))
-			) if parent == hash => {
-				tx.send(Ok(test_state.signing_context.session_index)).unwrap();
 			}
 		);
 
