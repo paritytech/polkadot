@@ -4292,6 +4292,7 @@ dependencies = [
 name = "kusama-runtime"
 version = "0.9.43"
 dependencies = [
+ "binary-merkle-tree",
  "bitvec",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -4310,6 +4311,8 @@ dependencies = [
  "pallet-babe",
  "pallet-bags-list",
  "pallet-balances",
+ "pallet-beefy",
+ "pallet-beefy-mmr",
  "pallet-bounties",
  "pallet-child-bounties",
  "pallet-collective",
@@ -4325,6 +4328,7 @@ dependencies = [
  "pallet-indices",
  "pallet-membership",
  "pallet-message-queue",
+ "pallet-mmr",
  "pallet-multisig",
  "pallet-nis",
  "pallet-nomination-pools",
@@ -4366,6 +4370,7 @@ dependencies = [
  "serde_json",
  "smallvec",
  "sp-api",
+ "sp-application-crypto",
  "sp-arithmetic",
  "sp-authority-discovery",
  "sp-block-builder",
@@ -4382,6 +4387,7 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std",
+ "sp-storage",
  "sp-tracing",
  "sp-transaction-pool",
  "sp-trie",
@@ -8407,6 +8413,7 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std",
+ "sp-storage",
  "sp-tracing",
  "sp-transaction-pool",
  "sp-trie",
@@ -9836,6 +9843,7 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std",
+ "sp-storage",
  "sp-tracing",
  "sp-transaction-pool",
  "sp-trie",
@@ -10060,9 +10068,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.101.2"
+version = "0.101.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "513722fd73ad80a71f72b61009ea1b584bcfa1483ca93949c8f290298837fa59"
+checksum = "7d93931baf2d282fff8d3a532bbfd7653f734643161b87e3e01e59a04439bf0d"
 dependencies = [
  "ring 0.16.20",
  "untrusted",
@@ -14660,6 +14668,7 @@ dependencies = [
 name = "westend-runtime"
 version = "0.9.43"
 dependencies = [
+ "binary-merkle-tree",
  "bitvec",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -14677,6 +14686,8 @@ dependencies = [
  "pallet-babe",
  "pallet-bags-list",
  "pallet-balances",
+ "pallet-beefy",
+ "pallet-beefy-mmr",
  "pallet-collective",
  "pallet-democracy",
  "pallet-election-provider-multi-phase",
@@ -14689,6 +14700,7 @@ dependencies = [
  "pallet-indices",
  "pallet-membership",
  "pallet-message-queue",
+ "pallet-mmr",
  "pallet-multisig",
  "pallet-nomination-pools",
  "pallet-nomination-pools-benchmarking",
@@ -14727,6 +14739,7 @@ dependencies = [
  "serde_json",
  "smallvec",
  "sp-api",
+ "sp-application-crypto",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
@@ -14742,6 +14755,7 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std",
+ "sp-storage",
  "sp-tracing",
  "sp-transaction-pool",
  "sp-version",
@@ -15181,6 +15195,7 @@ dependencies = [
  "frame-system",
  "futures",
  "pallet-xcm",
+ "parity-scale-codec",
  "polkadot-test-client",
  "polkadot-test-runtime",
  "polkadot-test-service",

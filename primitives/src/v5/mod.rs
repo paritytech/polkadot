@@ -1192,6 +1192,8 @@ pub struct AbridgedHostConfiguration {
 	pub validation_upgrade_cooldown: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
+	/// Asynchronous backing parameters.
+	pub async_backing_params: super::vstaging::AsyncBackingParams,
 }
 
 /// Abridged version of `HrmpChannel` (from the `Hrmp` parachains host runtime module) meant to be

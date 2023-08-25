@@ -125,13 +125,13 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// [#4601]: https://github.com/paritytech/polkadot/issues/4601
 	pub validation_upgrade_delay: BlockNumber,
+	/// Asynchronous backing parameters.
+	pub async_backing_params: AsyncBackingParams,
 
 	/**
 	 * The parameters that are not essential, but still may be of interest for parachains.
 	 */
 
-	/// Asynchronous backing parameters.
-	pub async_backing_params: AsyncBackingParams,
 	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.

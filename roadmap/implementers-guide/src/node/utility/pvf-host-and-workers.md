@@ -125,3 +125,10 @@ A basic security mechanism is to make sure that any thread directly interfacing
 with untrusted code does not have access to the file-system. This provides some
 protection against attackers accessing sensitive data or modifying data on the
 host machine.
+
+### Clearing env vars
+
+We clear environment variables before handling untrusted code, because why give
+attackers potentially sensitive data unnecessarily? And even if everything else
+is locked down, env vars can potentially provide a source of randomness (see
+point 1, "Consensus faults" above).
