@@ -7,6 +7,7 @@
   - [Approval Process](protocol-approval.md)
   - [Disputes Process](protocol-disputes.md)
     - [Dispute Flow](disputes-flow.md)
+	- [Slashing](slashing.md)
   - [Chain Selection and Finalization](protocol-chain-selection.md)
 - [Architecture Overview](architecture.md)
   - [Messaging Overview](messaging.md)

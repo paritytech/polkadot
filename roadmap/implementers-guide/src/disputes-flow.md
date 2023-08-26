@@ -117,8 +117,4 @@ If a new active head/chain appears, and the dispute resolution was not recorded 
 
 If a validator votes in two opposing ways, this composes of a double vote like in other cases (backing, approval voting).
 
-If a dispute is not resolved within due time, all validators are to be slashed for a small amount.
-
-If a dispute is not resolved within due time, governance mode shall be entered for manual resolution.
-
 If a validator unexpectedly restarts, the dispute shall be continued with the state based on votes being cast and being present in persistent storage.
