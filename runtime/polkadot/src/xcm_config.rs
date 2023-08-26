@@ -70,6 +70,9 @@ pub type SovereignAccountOf = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	// We can directly alias an `AccountId32` into a local account.
 	AccountId32Aliases<ThisNetwork, AccountId>,
+	// TODO: enable this after https://github.com/paritytech/polkadot/pull/7518 is enacted and battle-tested.
+	// // Allow governance body to be used as a sovereign account.
+	// HashedDescription<AccountId, DescribeFamily<DescribeBodyTerminal>>,
 );
 
 /// Our asset transactor. This is what allows us to interact with the runtime assets from the point

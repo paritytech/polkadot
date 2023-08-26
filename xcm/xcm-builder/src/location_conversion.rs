@@ -86,11 +86,22 @@ impl DescribeLocation for DescribeAccountKey20Terminal {
 
 pub type DescribeAccountIdTerminal = (DescribeAccountId32Terminal, DescribeAccountKey20Terminal);
 
+pub struct DescribeBodyTerminal;
+impl DescribeLocation for DescribeBodyTerminal {
+	fn describe_location(l: &MultiLocation) -> Option<Vec<u8>> {
+		match (l.parents, &l.interior) {
+			(0, X1(Plurality { id, part })) => Some((b"Body", id, part).encode()),
+			_ => return None,
+		}
+	}
+}
+
 pub type DescribeAllTerminal = (
 	DescribeTerminus,
 	DescribePalletTerminal,
 	DescribeAccountId32Terminal,
 	DescribeAccountKey20Terminal,
+	DescribeBodyTerminal,
 );
 
 pub struct DescribeFamily<DescribeInterior>(PhantomData<DescribeInterior>);
