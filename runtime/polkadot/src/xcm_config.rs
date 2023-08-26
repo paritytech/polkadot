@@ -216,6 +216,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_staking::Call::nominate { .. } |
 				pallet_staking::Call::chill { .. } |
 				pallet_staking::Call::set_payee { .. } |
+				pallet_staking::Call::update_payee { .. } |
 				pallet_staking::Call::set_controller { .. } |
 				pallet_staking::Call::set_validator_count { .. } |
 				pallet_staking::Call::increase_validator_count { .. } |

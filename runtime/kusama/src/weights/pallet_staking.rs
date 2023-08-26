@@ -298,19 +298,37 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
-	/// Storage: Staking Ledger (r:1 w:0)
-	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
-	/// Storage: Staking Payee (r:0 w:1)
-	/// Proof: Staking Payee (max_values: None, max_size: Some(73), added: 2548, mode: MaxEncodedLen)
+	/// Storage: `Staking::Ledger` (r:1 w:0)
+	/// Proof: `Staking::Ledger` (`max_values`: None, `max_size`: Some(1091), added: 3566, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::Payees` (r:1 w:1)
+	/// Proof: `Staking::Payees` (`max_values`: None, `max_size`: Some(77), added: 2552, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::Payee` (r:1 w:1)
+	/// Proof: `Staking::Payee` (`max_values`: None, `max_size`: Some(73), added: 2548, mode: `MaxEncodedLen`)
 	fn set_payee() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `735`
+		//  Measured:  `1011`
 		//  Estimated: `4556`
-		// Minimum execution time: 13_578_000 picoseconds.
-		Weight::from_parts(14_266_000, 0)
-			.saturating_add(Weight::from_parts(0, 4556))
-			.saturating_add(T::DbWeight::get().reads(1))
-			.saturating_add(T::DbWeight::get().writes(1))
+		// Minimum execution time: 26_163_000 picoseconds.
+		Weight::from_parts(26_736_000, 4556)
+			.saturating_add(T::DbWeight::get().reads(3_u64))
+			.saturating_add(T::DbWeight::get().writes(2_u64))
+	}
+	/// Storage: `Staking::Ledger` (r:1 w:0)
+	/// Proof: `Staking::Ledger` (`max_values`: None, `max_size`: Some(1091), added: 3566, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::Payees` (r:1 w:1)
+	/// Proof: `Staking::Payees` (`max_values`: None, `max_size`: Some(77), added: 2552, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::Payee` (r:1 w:1)
+	/// Proof: `Staking::Payee` (`max_values`: None, `max_size`: Some(73), added: 2548, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::CounterForPayees` (r:1 w:1)
+	/// Proof: `Staking::CounterForPayees` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
+	fn update_payee() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `989`
+		//  Estimated: `4556`
+		// Minimum execution time: 29_795_000 picoseconds.
+		Weight::from_parts(30_505_000, 4556)
+			.saturating_add(T::DbWeight::get().reads(4_u64))
+			.saturating_add(T::DbWeight::get().writes(3_u64))
 	}
 	/// Storage: Staking Bonded (r:1 w:1)
 	/// Proof: Staking Bonded (max_values: None, max_size: Some(72), added: 2547, mode: MaxEncodedLen)
@@ -442,75 +460,77 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
-	/// Storage: Staking CurrentEra (r:1 w:0)
-	/// Proof: Staking CurrentEra (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
-	/// Storage: Staking ErasValidatorReward (r:1 w:0)
-	/// Proof: Staking ErasValidatorReward (max_values: None, max_size: Some(28), added: 2503, mode: MaxEncodedLen)
-	/// Storage: Staking Bonded (r:513 w:0)
-	/// Proof: Staking Bonded (max_values: None, max_size: Some(72), added: 2547, mode: MaxEncodedLen)
-	/// Storage: Staking Ledger (r:1 w:1)
-	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
-	/// Storage: Staking ErasStakersClipped (r:1 w:0)
-	/// Proof Skipped: Staking ErasStakersClipped (max_values: None, max_size: None, mode: Measured)
-	/// Storage: Staking ErasRewardPoints (r:1 w:0)
-	/// Proof Skipped: Staking ErasRewardPoints (max_values: None, max_size: None, mode: Measured)
-	/// Storage: Staking ErasValidatorPrefs (r:1 w:0)
-	/// Proof: Staking ErasValidatorPrefs (max_values: None, max_size: Some(57), added: 2532, mode: MaxEncodedLen)
-	/// Storage: Staking Payee (r:513 w:0)
-	/// Proof: Staking Payee (max_values: None, max_size: Some(73), added: 2548, mode: MaxEncodedLen)
-	/// Storage: System Account (r:513 w:513)
-	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
-	/// The range of component `n` is `[0, 512]`.
+	/// Storage: `Staking::CurrentEra` (r:1 w:0)
+	/// Proof: `Staking::CurrentEra` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::ErasValidatorReward` (r:1 w:0)
+	/// Proof: `Staking::ErasValidatorReward` (`max_values`: None, `max_size`: Some(28), added: 2503, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::Bonded` (r:257 w:0)
+	/// Proof: `Staking::Bonded` (`max_values`: None, `max_size`: Some(72), added: 2547, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::Ledger` (r:257 w:257)
+	/// Proof: `Staking::Ledger` (`max_values`: None, `max_size`: Some(1091), added: 3566, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::ErasStakersClipped` (r:1 w:0)
+	/// Proof: `Staking::ErasStakersClipped` (`max_values`: None, `max_size`: None, mode: `Measured`)
+	/// Storage: `Staking::ErasRewardPoints` (r:1 w:0)
+	/// Proof: `Staking::ErasRewardPoints` (`max_values`: None, `max_size`: None, mode: `Measured`)
+	/// Storage: `Staking::ErasValidatorPrefs` (r:1 w:0)
+	/// Proof: `Staking::ErasValidatorPrefs` (`max_values`: None, `max_size`: Some(57), added: 2532, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::Payees` (r:257 w:0)
+	/// Proof: `Staking::Payees` (`max_values`: None, `max_size`: Some(77), added: 2552, mode: `MaxEncodedLen`)
+	/// Storage: `System::Account` (r:514 w:514)
+	/// Proof: `System::Account` (`max_values`: None, `max_size`: Some(128), added: 2603, mode: `MaxEncodedLen`)
+	/// Storage: `Balances::Locks` (r:257 w:257)
+	/// Proof: `Balances::Locks` (`max_values`: None, `max_size`: Some(1299), added: 3774, mode: `MaxEncodedLen`)
+	/// Storage: `Balances::Freezes` (r:257 w:0)
+	/// Proof: `Balances::Freezes` (`max_values`: None, `max_size`: Some(49), added: 2524, mode: `MaxEncodedLen`)
+	/// The range of component `n` is `[0, 256]`.
 	fn payout_stakers_dead_controller(n: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `34175 + n * (149 ±0)`
-		//  Estimated: `32387 + n * (2603 ±1)`
-		// Minimum execution time: 121_648_000 picoseconds.
-		Weight::from_parts(145_330_037, 0)
-			.saturating_add(Weight::from_parts(0, 32387))
-			// Standard Error: 30_044
-			.saturating_add(Weight::from_parts(35_396_961, 0).saturating_mul(n.into()))
-			.saturating_add(T::DbWeight::get().reads(9))
-			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(n.into())))
-			.saturating_add(T::DbWeight::get().writes(2))
-			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(n.into())))
-			.saturating_add(Weight::from_parts(0, 2603).saturating_mul(n.into()))
+		//  Measured:  `35615 + n * (408 ±0)`
+		//  Estimated: `32897 + n * (5206 ±0)`
+		// Minimum execution time: 170_530_000 picoseconds.
+		Weight::from_parts(126_452_100, 32897)
+			// Standard Error: 83_193
+			.saturating_add(Weight::from_parts(81_128_879, 0).saturating_mul(n.into()))
+			.saturating_add(T::DbWeight::get().reads(12_u64))
+			.saturating_add(T::DbWeight::get().reads((7_u64).saturating_mul(n.into())))
+			.saturating_add(T::DbWeight::get().writes(4_u64))
+			.saturating_add(T::DbWeight::get().writes((4_u64).saturating_mul(n.into())))
+			.saturating_add(Weight::from_parts(0, 5206).saturating_mul(n.into()))
 	}
-	/// Storage: Staking CurrentEra (r:1 w:0)
-	/// Proof: Staking CurrentEra (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
-	/// Storage: Staking ErasValidatorReward (r:1 w:0)
-	/// Proof: Staking ErasValidatorReward (max_values: None, max_size: Some(28), added: 2503, mode: MaxEncodedLen)
-	/// Storage: Staking Bonded (r:513 w:0)
-	/// Proof: Staking Bonded (max_values: None, max_size: Some(72), added: 2547, mode: MaxEncodedLen)
-	/// Storage: Staking Ledger (r:513 w:513)
-	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
-	/// Storage: Staking ErasStakersClipped (r:1 w:0)
-	/// Proof Skipped: Staking ErasStakersClipped (max_values: None, max_size: None, mode: Measured)
-	/// Storage: Staking ErasRewardPoints (r:1 w:0)
-	/// Proof Skipped: Staking ErasRewardPoints (max_values: None, max_size: None, mode: Measured)
-	/// Storage: Staking ErasValidatorPrefs (r:1 w:0)
-	/// Proof: Staking ErasValidatorPrefs (max_values: None, max_size: Some(57), added: 2532, mode: MaxEncodedLen)
-	/// Storage: Staking Payee (r:513 w:0)
-	/// Proof: Staking Payee (max_values: None, max_size: Some(73), added: 2548, mode: MaxEncodedLen)
-	/// Storage: System Account (r:513 w:513)
-	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
-	/// Storage: Balances Locks (r:513 w:513)
-	/// Proof: Balances Locks (max_values: None, max_size: Some(1299), added: 3774, mode: MaxEncodedLen)
-	/// Storage: Balances Freezes (r:513 w:0)
-	/// Proof: Balances Freezes (max_values: None, max_size: Some(49), added: 2524, mode: MaxEncodedLen)
-	/// The range of component `n` is `[0, 512]`.
+	/// Storage: `Staking::CurrentEra` (r:1 w:0)
+	/// Proof: `Staking::CurrentEra` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::ErasValidatorReward` (r:1 w:0)
+	/// Proof: `Staking::ErasValidatorReward` (`max_values`: None, `max_size`: Some(28), added: 2503, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::Bonded` (r:257 w:0)
+	/// Proof: `Staking::Bonded` (`max_values`: None, `max_size`: Some(72), added: 2547, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::Ledger` (r:257 w:257)
+	/// Proof: `Staking::Ledger` (`max_values`: None, `max_size`: Some(1091), added: 3566, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::ErasStakersClipped` (r:1 w:0)
+	/// Proof: `Staking::ErasStakersClipped` (`max_values`: None, `max_size`: None, mode: `Measured`)
+	/// Storage: `Staking::ErasRewardPoints` (r:1 w:0)
+	/// Proof: `Staking::ErasRewardPoints` (`max_values`: None, `max_size`: None, mode: `Measured`)
+	/// Storage: `Staking::ErasValidatorPrefs` (r:1 w:0)
+	/// Proof: `Staking::ErasValidatorPrefs` (`max_values`: None, `max_size`: Some(57), added: 2532, mode: `MaxEncodedLen`)
+	/// Storage: `Staking::Payees` (r:257 w:0)
+	/// Proof: `Staking::Payees` (`max_values`: None, `max_size`: Some(77), added: 2552, mode: `MaxEncodedLen`)
+	/// Storage: `System::Account` (r:257 w:257)
+	/// Proof: `System::Account` (`max_values`: None, `max_size`: Some(128), added: 2603, mode: `MaxEncodedLen`)
+	/// Storage: `Balances::Locks` (r:257 w:257)
+	/// Proof: `Balances::Locks` (`max_values`: None, `max_size`: Some(1299), added: 3774, mode: `MaxEncodedLen`)
+	/// Storage: `Balances::Freezes` (r:257 w:0)
+	/// Proof: `Balances::Freezes` (`max_values`: None, `max_size`: Some(49), added: 2524, mode: `MaxEncodedLen`)
+	/// The range of component `n` is `[0, 256]`.
 	fn payout_stakers_alive_staked(n: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `58149 + n * (385 ±0)`
-		//  Estimated: `53036 + n * (3774 ±2)`
-		// Minimum execution time: 159_726_000 picoseconds.
-		Weight::from_parts(163_012_000, 0)
-			.saturating_add(Weight::from_parts(0, 53036))
-			// Standard Error: 96_376
-			.saturating_add(Weight::from_parts(59_227_426, 0).saturating_mul(n.into()))
-			.saturating_add(T::DbWeight::get().reads(11))
+		//  Measured:  `33254 + n * (415 ±0)`
+		//  Estimated: `30909 + n * (3774 ±0)`
+		// Minimum execution time: 151_627_000 picoseconds.
+		Weight::from_parts(182_153_785, 30909)
+			// Standard Error: 65_276
+			.saturating_add(Weight::from_parts(68_254_025, 0).saturating_mul(n.into()))
+			.saturating_add(T::DbWeight::get().reads(11_u64))
 			.saturating_add(T::DbWeight::get().reads((6_u64).saturating_mul(n.into())))
-			.saturating_add(T::DbWeight::get().writes(3))
+			.saturating_add(T::DbWeight::get().writes(3_u64))
 			.saturating_add(T::DbWeight::get().writes((3_u64).saturating_mul(n.into())))
 			.saturating_add(Weight::from_parts(0, 3774).saturating_mul(n.into()))
 	}
