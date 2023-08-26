@@ -23,7 +23,7 @@ use frame_support::traits::{MapSuccess, TryMapSuccess};
 use sp_arithmetic::traits::CheckedSub;
 use sp_runtime::{
 	morph_types,
-	traits::{ConstU16, Replace, TypedGet},
+	traits::{ConstU16, Ignore, Replace, TypedGet},
 };
 
 use super::*;
@@ -330,6 +330,16 @@ morph_types! {
 impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime {
 	type WeightInfo = weights::pallet_ranked_collective::WeightInfo<Self>;
 	type RuntimeEvent = RuntimeEvent;
+	// Adding is by any of:
+	// - Root.
+	// - the FellowshipAdmin origin.
+	// - a Fellowship origin.
+	type AddOrigin = MapSuccess<Self::PromoteOrigin, Ignore>;
+	// Removing is by any of:
+	// - Root can remove arbitrarily.
+	// - the FellowshipAdmin origin (i.e. token holder referendum);
+	// - a vote by the rank two above the current rank.
+	type RemoveOrigin = Self::DemoteOrigin;
 	// Promotion is by any of:
 	// - Root can demote arbitrarily.
 	// - the FellowshipAdmin origin (i.e. token holder referendum);
