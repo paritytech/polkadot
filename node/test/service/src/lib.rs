@@ -37,7 +37,7 @@ use polkadot_test_runtime::{
 use sc_chain_spec::ChainSpec;
 use sc_client_api::BlockchainEvents;
 use sc_network::{
-	config::{NetworkConfiguration, TransportConfig},
+	config::{NetworkConfiguration, TransportConfig, WebRTCConfig},
 	multiaddr, NetworkStateInfo,
 };
 use sc_service::{
@@ -141,6 +141,7 @@ pub fn node_config(
 		key_seed.to_string(),
 		"network/test/0.1",
 		Default::default(),
+		WebRTCConfig::Ephemeral,
 		None,
 	);
 
