@@ -38,6 +38,10 @@ pub enum Error {
 	/// We tried fetching a session info which was not available.
 	#[error("There was no session with the given index {0}")]
 	NoSuchSession(SessionIndex),
+
+	/// We tried fetching executor params for a session which were not available.
+	#[error("There was no executor parameters for session with the given index {0}")]
+	NoExecutorParams(SessionIndex),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -50,8 +50,8 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::{
 	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, PvfExecTimeoutKind, SessionIndex, SessionInfo, ValidDisputeStatementKind,
-	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ExecutorParams, GroupIndex, Hash, PvfExecTimeoutKind, SessionIndex, SessionInfo,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -1009,6 +1009,15 @@ async fn handle_actions<Context>(
 					},
 					None => {
 						let ctx = &mut *ctx;
+						// FIXME: Should we request at `block_hash` or `relay_block_hash`?
+						let executor_params = match session_info_provider
+							.get_session_info_by_index(ctx.sender(), block_hash, session)
+							.await
+						{
+							Err(_) => None,
+							Ok(extended_session_info) =>
+								Some(extended_session_info.executor_params.clone()),
+						};
 						currently_checking_set
 							.insert_relay_block_hash(
 								candidate_hash,
@@ -1023,6 +1032,7 @@ async fn handle_actions<Context>(
 										validator_index,
 										block_hash,
 										backing_group,
+										executor_params,
 										&launch_approval_span,
 									)
 									.await
@@ -2467,6 +2477,7 @@ async fn launch_approval<Context>(
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
 	backing_group: GroupIndex,
+	executor_params: Option<ExecutorParams>,
 	span: &jaeger::Span,
 ) -> SubsystemResult<RemoteHandle<ApprovalState>> {
 	let (a_tx, a_rx) = oneshot::channel();
@@ -2536,6 +2547,11 @@ async fn launch_approval<Context>(
 	let background = async move {
 		// Force the move of the timer into the background task.
 		let _timer = timer;
+
+		let executor_params = match executor_params {
+			Some(ep) => ep,
+			None => return ApprovalState::failed(validator_index, candidate_hash),
+		};
 
 		let available_data = match a_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
@@ -2612,6 +2628,7 @@ async fn launch_approval<Context>(
 				validation_code,
 				candidate.clone(),
 				available_data.pov,
+				executor_params,
 				PvfExecTimeoutKind::Approval,
 				val_tx,
 			))

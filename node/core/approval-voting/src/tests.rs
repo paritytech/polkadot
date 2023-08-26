@@ -910,6 +910,19 @@ async fn import_block(
 					si_tx.send(Ok(Some(session_info.clone()))).unwrap();
 				}
 			);
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						req_block_hash,
+						RuntimeApiRequest::SessionExecutorParams(_, si_tx),
+					)
+				) => {
+					// Make sure all SessionExecutorParams calls are not made for the leaf (but for its relay parent)
+					assert_ne!(req_block_hash, hashes[(number-1) as usize].0);
+					si_tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+				}
+			);
 		}
 
 		assert_matches!(
@@ -2376,7 +2389,7 @@ async fn handle_double_assignment_import(
 
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
-		AllMessages::CandidateValidation(CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)) if timeout == PvfExecTimeoutKind::Approval => {
+		AllMessages::CandidateValidation(CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, _, timeout, tx)) if timeout == PvfExecTimeoutKind::Approval => {
 			tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default())))
 				.unwrap();
 		}

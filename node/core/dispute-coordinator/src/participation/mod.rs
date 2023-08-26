@@ -366,6 +366,7 @@ async fn participate(
 			validation_code,
 			req.candidate_receipt().clone(),
 			available_data.pov,
+			req.executor_params(),
 			PvfExecTimeoutKind::Approval,
 			validation_tx,
 		))
