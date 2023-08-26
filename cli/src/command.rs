@@ -259,6 +259,12 @@ where
 		}
 	}
 
+	if cli.run.base.validator && !cli.run.insecure_validator {
+		if let Err(e) = can_run_as_secure_validator() {
+			return Err(Error::InsecureValidator(e))
+		}
+	}
+
 	set_default_ss58_version(chain_spec);
 
 	let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
@@ -564,4 +570,18 @@ pub fn run() -> Result<()> {
 		agent.shutdown();
 	}
 	Ok(())
+}
+
+/// Returns an error if a secure validator cannot be built for the target OS and architecture.
+fn can_run_as_secure_validator() -> std::result::Result<(), String> {
+	#[cfg(not(target_os = "linux"))]
+	let result = Err("Must be on Linux to run a validator securely.".into());
+
+	#[cfg(all(target_os = "linux", not(target_arch = "x86_64")))]
+	let result = Err("Must be on x86_64 to run a validator securely.".into());
+
+	#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+	let result = Ok(());
+
+	result
 }
