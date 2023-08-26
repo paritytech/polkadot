@@ -2622,9 +2622,9 @@ dependencies = [
 
 [[package]]
 name = "expander"
-version = "0.0.6"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3774182a5df13c3d1690311ad32fbe913feef26baba609fa2dd5f72042bd2ab6"
+checksum = "f360349150728553f92e4c997a16af8915f418d3a0f21b440d34c5632f16ed84"
 dependencies = [
  "blake2",
  "fs-err",
@@ -5847,9 +5847,8 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "orchestra"
-version = "0.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "227585216d05ba65c7ab0a0450a3cf2cbd81a98862a54c4df8e14d5ac6adb015"
+version = "0.3.0"
+source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-feature-async-channels#6c125400d31baa732f07615d6553657d03a0acb8"
 dependencies = [
  "async-trait",
  "dyn-clonable",
@@ -5864,11 +5863,11 @@ dependencies = [
 
 [[package]]
 name = "orchestra-proc-macro"
-version = "0.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2871aadd82a2c216ee68a69837a526dfe788ecbe74c4c5038a6acdbff6653066"
+version = "0.3.0"
+source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-feature-async-channels#6c125400d31baa732f07615d6553657d03a0acb8"
 dependencies = [
- "expander 0.0.6",
+ "expander 1.0.0",
+ "indexmap",
  "itertools",
  "petgraph",
  "proc-macro-crate",
@@ -9081,9 +9080,8 @@ dependencies = [
 
 [[package]]
 name = "prioritized-metered-channel"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "382698e48a268c832d0b181ed438374a6bb708a82a8ca273bb0f61c74cf209c4"
+version = "0.5.0"
+source = "git+https://github.com/paritytech/orchestra?branch=vstakhov-feature-async-channels#6c125400d31baa732f07615d6553657d03a0acb8"
 dependencies = [
  "coarsetime",
  "crossbeam-queue",

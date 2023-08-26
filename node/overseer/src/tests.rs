@@ -1047,6 +1047,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 
 #[test]
 fn context_holds_onto_message_until_enough_signals_received() {
+	const CHANNEL_CAPACITY: usize = 1024;
 	let (candidate_validation_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (candidate_backing_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (statement_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);

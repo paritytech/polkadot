@@ -28,7 +28,7 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
-metered = { package = "prioritized-metered-channel", version = "0.2.0" }
+metered = { package = "prioritized-metered-channel", git = "https://github.com/paritytech/orchestra", branch = "vstakhov-feature-async-channels", default-features = false, features=["futures_channel"] }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }

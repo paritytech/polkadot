@@ -61,6 +61,7 @@ pub(crate) fn send_message<M>(
 	let message = {
 		let encoded = message.encode();
 		metrics.on_notification_sent(peer_set, version, encoded.len(), peers.len());
+		metrics.on_message(std::any::type_name::<M>());
 		encoded
 	};
 

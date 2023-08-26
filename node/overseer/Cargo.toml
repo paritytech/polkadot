@@ -16,7 +16,7 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
-orchestra = "0.0.5"
+orchestra = { git = "https://github.com/paritytech/orchestra", branch = "vstakhov-feature-async-channels", default-features = false }
 gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.11.0"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -24,8 +24,7 @@ async-trait = "0.1.57"
 tikv-jemalloc-ctl = { version = "0.5.0", optional = true }
 
 [dev-dependencies]
-metered = { package = "prioritized-metered-channel", version = "0.2.0" }
-
+metered = { package = "prioritized-metered-channel", git = "https://github.com/paritytech/orchestra", branch = "vstakhov-feature-async-channels", default-features = false, features=["futures_channel"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 femme = "2.2.1"
@@ -36,7 +35,8 @@ test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../pri
 tikv-jemalloc-ctl = "0.5.0"
 
 [features]
-default = []
+default = ["futures_channel"]
 expand = ["orchestra/expand"]
 dotgraph = ["orchestra/dotgraph"]
+futures_channel = ["orchestra/futures_channel", "metered/futures_channel"]
 jemalloc-allocator = ["dep:tikv-jemalloc-ctl"]

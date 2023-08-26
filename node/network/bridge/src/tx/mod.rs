@@ -33,6 +33,7 @@ use polkadot_node_subsystem::{
 ///
 /// To be passed to [`FullNetworkConfiguration::add_notification_protocol`]().
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
+use polkadot_node_network_protocol::request_response::Requests;
 use sc_network::ReputationChange;
 
 use crate::validator_discovery;
@@ -290,6 +291,16 @@ where
 			);
 
 			for req in reqs {
+				match req {
+					Requests::ChunkFetchingV1(_) => metrics.on_message("chunk_fetching_v1"),
+					Requests::AvailableDataFetchingV1(_) =>
+						metrics.on_message("available_data_fetching_v1"),
+					Requests::CollationFetchingV1(_) => metrics.on_message("collation_fetching_v1"),
+					Requests::PoVFetchingV1(_) => metrics.on_message("pov_fetching_v1"),
+					Requests::DisputeSendingV1(_) => metrics.on_message("dispute_sending_v1"),
+					Requests::StatementFetchingV1(_) => metrics.on_message("statement_fetching_v1"),
+				}
+
 				network_service
 					.start_request(
 						&mut authority_discovery_service,
