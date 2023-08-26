@@ -20,6 +20,7 @@ use frame_benchmarking::{benchmarks_instance_pallet, BenchmarkError, BenchmarkRe
 use frame_support::{
 	pallet_prelude::Get,
 	traits::fungible::{Inspect, Mutate},
+	weights::Weight,
 };
 use sp_runtime::traits::{Bounded, Zero};
 use sp_std::{prelude::*, vec};
@@ -134,7 +135,7 @@ benchmarks_instance_pallet! {
 	reserve_asset_deposited {
 		let (trusted_reserve, transferable_reserve_asset) = T::TrustedReserve::get()
 			.ok_or(BenchmarkError::Override(
-				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
+				BenchmarkResult::from_weight(Weight::MAX)
 			))?;
 
 		let assets: MultiAssets = vec![ transferable_reserve_asset ].into();
@@ -187,7 +188,7 @@ benchmarks_instance_pallet! {
 	}: {
 		executor.bench_process(xcm).map_err(|_| {
 			BenchmarkError::Override(
-				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
+				BenchmarkResult::from_weight(Weight::MAX)
 			)
 		})?;
 	} verify {
