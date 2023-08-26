@@ -1113,7 +1113,7 @@ pub fn westend_staging_testnet_config() -> Result<WestendChainSpec, String> {
 		),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Some(polkadot_chain_spec_properties()),
 		Default::default(),
 	))
 }
@@ -1864,7 +1864,7 @@ pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Some(polkadot_chain_spec_properties()),
 		Default::default(),
 	))
 }
