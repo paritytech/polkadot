@@ -51,7 +51,7 @@ where
 		use rand::{RngCore, SeedableRng};
 
 		let validator = T::Lookup::lookup(who).unwrap();
-		let controller = pallet_staking::Pallet::<T>::bonded(validator).unwrap();
+		let controller = pallet_staking::Pallet::<T>::bonded(&validator).unwrap();
 
 		let keys = {
 			const SESSION_KEY_LEN: usize = 32;
