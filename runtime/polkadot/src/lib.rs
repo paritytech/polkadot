@@ -20,6 +20,7 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "512"]
 
+use pallet_election_provider_multi_phase::GeometricDepositBase;
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
@@ -75,7 +76,7 @@ use sp_runtime::{
 	generic, impl_opaque_keys,
 	traits::{
 		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT,
-		OpaqueKeys, SaturatedConversion, Verify,
+		OpaqueKeys, SaturatedConversion, Verify, Zero,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill, RuntimeDebug,
@@ -380,7 +381,9 @@ parameter_types! {
 	pub const SignedMaxSubmissions: u32 = 16;
 	pub const SignedMaxRefunds: u32 = 16 / 4;
 	// 40 DOTs fixed deposit..
-	pub const SignedDepositBase: Balance = deposit(2, 0);
+	pub const SignedFixedDeposit: Balance = deposit(2, 0);
+	// Signed deposit base is constant with the number of signed submissions per election.
+	pub SignedDepositIncreaseFactor: Percent = Zero::zero();
 	// 0.01 DOT per KB of solution data.
 	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1 DOT as reward
@@ -453,7 +456,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SignedMaxSubmissions = SignedMaxSubmissions;
 	type SignedMaxRefunds = SignedMaxRefunds;
 	type SignedRewardBase = SignedRewardBase;
-	type SignedDepositBase = SignedDepositBase;
+	type SignedDepositBase =
+		GeometricDepositBase<Balance, SignedFixedDeposit, SignedDepositIncreaseFactor>;
 	type SignedDepositByte = SignedDepositByte;
 	type SignedDepositWeight = ();
 	type SignedMaxWeight =
@@ -2332,7 +2336,7 @@ mod test_fees {
 	fn signed_deposit_is_sensible() {
 		// ensure this number does not change, or that it is checked after each change.
 		// a 1 MB solution should take (40 + 10) DOTs of deposit.
-		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
+		let deposit = SignedFixedDeposit::get() + (SignedDepositByte::get() * 1024 * 1024);
 		assert_eq_error_rate!(deposit, 50 * DOLLARS, DOLLARS);
 	}
 }

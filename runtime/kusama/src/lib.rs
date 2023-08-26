@@ -20,6 +20,7 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit.
 #![recursion_limit = "512"]
 
+use pallet_election_provider_multi_phase::GeometricDepositBase;
 use pallet_nis::WithMaximumOf;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
@@ -507,7 +508,8 @@ parameter_types! {
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
 	pub const SignedMaxRefunds: u32 = 16 / 4;
-	pub const SignedDepositBase: Balance = deposit(2, 0);
+	pub const SignedFixedDeposit: Balance = deposit(2, 0);
+	pub const SignedDepositIncreaseFactor: Percent = Percent::from_percent(10);
 	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1/10 KSM as reward
 	pub SignedRewardBase: Balance =  UNITS / 10;
@@ -580,7 +582,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SignedMaxSubmissions = SignedMaxSubmissions;
 	type SignedMaxRefunds = SignedMaxRefunds;
 	type SignedRewardBase = SignedRewardBase;
-	type SignedDepositBase = SignedDepositBase;
+	type SignedDepositBase =
+		GeometricDepositBase<Balance, SignedFixedDeposit, SignedDepositIncreaseFactor>;
 	type SignedDepositByte = SignedDepositByte;
 	type SignedDepositWeight = ();
 	type SignedMaxWeight =
@@ -2463,7 +2466,7 @@ mod fees_tests {
 	fn signed_deposit_is_sensible() {
 		// ensure this number does not change, or that it is checked after each change.
 		// a 1 MB solution should need around 0.16 KSM deposit
-		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
+		let deposit = SignedFixedDeposit::get() + (SignedDepositByte::get() * 1024 * 1024);
 		assert_eq_error_rate!(deposit, UNITS * 167 / 100, UNITS / 100);
 	}
 }
