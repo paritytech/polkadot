@@ -240,13 +240,20 @@ sp_api::impl_runtime_apis! {
 			unimplemented!()
 		}
 
-		fn submit_report_equivocation_unsigned_extrinsic(
-			_: beefy_primitives::EquivocationProof<
+		fn submit_report_vote_equivocation_unsigned_extrinsic(
+			_: beefy_primitives::VoteEquivocationProof<
 				BlockNumber,
 				BeefyId,
 				BeefySignature,
 			>,
 			_: beefy_primitives::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			unimplemented!()
+		}
+
+		fn submit_report_fork_equivocation_unsigned_extrinsic(
+			_: beefy_primitives::ForkEquivocationProof<BlockNumber, BeefyId, BeefySignature, <Block as BlockT>::Header>,
+			_: Vec<beefy_primitives::OpaqueKeyOwnershipProof>,
 		) -> Option<()> {
 			unimplemented!()
 		}

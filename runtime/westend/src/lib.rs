@@ -1718,6 +1718,13 @@ sp_api::impl_runtime_apis! {
 			)
 		}
 
+		fn submit_report_fork_equivocation_unsigned_extrinsic(
+			_fork_equivocation_proof: beefy_primitives::ForkEquivocationProof<BlockNumber, BeefyId, BeefySignature, Header>,
+			_key_owner_proofs: Vec<beefy_primitives::OpaqueKeyOwnershipProof>,
+		) -> Option<()> {
+			None
+		}
+
 		fn generate_key_ownership_proof(
 			_set_id: beefy_primitives::ValidatorSetId,
 			authority_id: BeefyId,

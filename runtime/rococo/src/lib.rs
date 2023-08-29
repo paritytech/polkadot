@@ -1856,8 +1856,8 @@ sp_api::impl_runtime_apis! {
 			Beefy::validator_set()
 		}
 
-		fn submit_report_equivocation_unsigned_extrinsic(
-			equivocation_proof: beefy_primitives::EquivocationProof<
+		fn submit_report_vote_equivocation_unsigned_extrinsic(
+			vote_equivocation_proof: beefy_primitives::VoteEquivocationProof<
 				BlockNumber,
 				BeefyId,
 				BeefySignature,
@@ -1866,9 +1866,21 @@ sp_api::impl_runtime_apis! {
 		) -> Option<()> {
 			let key_owner_proof = key_owner_proof.decode()?;
 
-			Beefy::submit_unsigned_equivocation_report(
-				equivocation_proof,
+			Beefy::submit_unsigned_vote_equivocation_report(
+				vote_equivocation_proof,
 				key_owner_proof,
+			)
+		}
+
+		fn submit_report_fork_equivocation_unsigned_extrinsic(
+			fork_equivocation_proof: beefy_primitives::ForkEquivocationProof<BlockNumber, BeefyId, BeefySignature, Header>,
+			key_owner_proofs: Vec<beefy_primitives::OpaqueKeyOwnershipProof>,
+		) -> Option<()> {
+			let key_owner_proofs = key_owner_proofs.iter().cloned().map(|p| p.decode()).collect::<Option<Vec<_>>>()?;
+
+			Beefy::submit_unsigned_fork_equivocation_report(
+				fork_equivocation_proof,
+				key_owner_proofs,
 			)
 		}
 

@@ -1833,14 +1833,23 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
-		fn submit_report_equivocation_unsigned_extrinsic(
-			_equivocation_proof: beefy_primitives::EquivocationProof<
+		fn submit_report_vote_equivocation_unsigned_extrinsic(
+			_vote_equivocation_proof: beefy_primitives::VoteEquivocationProof<
 				BlockNumber,
 				BeefyId,
 				BeefySignature,
 			>,
 			_key_owner_proof: beefy_primitives::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
+			// dummy implementation due to lack of BEEFY pallet.
+			None
+		}
+
+		fn submit_report_fork_equivocation_unsigned_extrinsic(
+			_fork_equivocation_proof: beefy_primitives::ForkEquivocationProof<BlockNumber, BeefyId, BeefySignature, Header>,
+			_key_owner_proofs: Vec<beefy_primitives::OpaqueKeyOwnershipProof>,
+		) -> Option<()> {
+			// dummy implementation due to lack of BEEFY pallet.
 			None
 		}
 
@@ -1848,6 +1857,7 @@ sp_api::impl_runtime_apis! {
 			_set_id: beefy_primitives::ValidatorSetId,
 			_authority_id: BeefyId,
 		) -> Option<beefy_primitives::OpaqueKeyOwnershipProof> {
+			// dummy implementation due to lack of BEEFY pallet.
 			None
 		}
 	}
