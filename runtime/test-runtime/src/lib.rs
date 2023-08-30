@@ -287,6 +287,7 @@ impl pallet_session::Config for Runtime {
 	type NextSessionRotation = Babe;
 	type SessionManager = Staking;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+	type SessionChangeListener = Offences;
 	type Keys = SessionKeys;
 	type WeightInfo = ();
 }
@@ -370,6 +371,7 @@ impl pallet_staking::Config for Runtime {
 
 parameter_types! {
 	pub MaxSetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
+	pub MaxSessionReportAge: u32 = BondingDuration::get() * SessionsPerEra::get();
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -433,6 +435,8 @@ impl pallet_offences::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
+	type MaxSessionReportAge = MaxSessionReportAge;
+	type SessionInfoProvider = Session;
 }
 
 impl pallet_authority_discovery::Config for Runtime {

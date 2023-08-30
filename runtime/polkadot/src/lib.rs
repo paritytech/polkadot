@@ -353,6 +353,7 @@ impl pallet_session::Config for Runtime {
 	type NextSessionRotation = Babe;
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+	type SessionChangeListener = Offences;
 	type Keys = SessionKeys;
 	type WeightInfo = weights::pallet_session::WeightInfo<Runtime>;
 }
@@ -703,6 +704,7 @@ impl pallet_bounties::Config for Runtime {
 parameter_types! {
 	pub const MaxActiveChildBountyCount: u32 = 100;
 	pub const ChildBountyValueMinimum: Balance = BountyValueMinimum::get() / 10;
+	pub const MaxSessionReportAge: u32 = BondingDuration::get() * SessionsPerEra::get();
 }
 
 impl pallet_child_bounties::Config for Runtime {
@@ -716,6 +718,8 @@ impl pallet_offences::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
+	type MaxSessionReportAge = MaxSessionReportAge;
+	type SessionInfoProvider = Session;
 }
 
 impl pallet_authority_discovery::Config for Runtime {
