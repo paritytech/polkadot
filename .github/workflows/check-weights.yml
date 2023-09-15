@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check weights files
         shell: bash
         run: |
@@ -34,7 +34,7 @@ jobs:
           LAST_RELEASE=$(curl -s https://api.github.com/repos/paritytech/polkadot/releases/latest | jq -r .tag_name)
           echo "LAST_RELEASE=$LAST_RELEASE" >> $GITHUB_ENV
       - name: Checkout current sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Check weight changes
