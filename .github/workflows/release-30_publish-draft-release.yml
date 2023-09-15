@@ -27,7 +27,7 @@ jobs:
         runtime: ["polkadot", "kusama", "westend", "rococo"]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Cache target dir
         uses: actions/cache@v3
@@ -70,7 +70,7 @@ jobs:
       asset_upload_url: ${{ steps.create-release.outputs.upload_url }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           path: polkadot
@@ -149,7 +149,7 @@ jobs:
         runtime: ["polkadot", "kusama", "westend", "rococo"]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Download artifacts
         uses: actions/download-artifact@v3
       - name: Set up Ruby
