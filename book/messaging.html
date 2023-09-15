@@ -1,0 +1,263 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Messaging Overview - The Polkadot Parachain Host Implementers&#x27; Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="last-changed.css">
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Preamble</a></li><li class="chapter-item expanded "><a href="whence-parachains.html"><strong aria-hidden="true">1.</strong> Whence Parachains</a></li><li class="chapter-item expanded "><a href="protocol-overview.html"><strong aria-hidden="true">2.</strong> Protocol Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="protocol-approval.html"><strong aria-hidden="true">2.1.</strong> Approval Process</a></li><li class="chapter-item expanded "><a href="protocol-disputes.html"><strong aria-hidden="true">2.2.</strong> Disputes Process</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="disputes-flow.html"><strong aria-hidden="true">2.2.1.</strong> Dispute Flow</a></li></ol></li><li class="chapter-item expanded "><a href="protocol-chain-selection.html"><strong aria-hidden="true">2.3.</strong> Chain Selection and Finalization</a></li></ol></li><li class="chapter-item expanded "><a href="architecture.html"><strong aria-hidden="true">3.</strong> Architecture Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="messaging.html" class="active"><strong aria-hidden="true">3.1.</strong> Messaging Overview</a></li><li class="chapter-item expanded "><a href="pvf-prechecking.html"><strong aria-hidden="true">3.2.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="runtime/index.html"><strong aria-hidden="true">4.</strong> Runtime Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="runtime/initializer.html"><strong aria-hidden="true">4.1.</strong> Initializer Pallet</a></li><li class="chapter-item expanded "><a href="runtime/configuration.html"><strong aria-hidden="true">4.2.</strong> Configuration Pallet</a></li><li class="chapter-item expanded "><a href="runtime/shared.html"><strong aria-hidden="true">4.3.</strong> Shared Pallet</a></li><li class="chapter-item expanded "><a href="runtime/disputes.html"><strong aria-hidden="true">4.4.</strong> Disputes Pallet</a></li><li class="chapter-item expanded "><a href="runtime/paras.html"><strong aria-hidden="true">4.5.</strong> Paras Pallet</a></li><li class="chapter-item expanded "><a href="runtime/scheduler.html"><strong aria-hidden="true">4.6.</strong> Scheduler Pallet</a></li><li class="chapter-item expanded "><a href="runtime/inclusion.html"><strong aria-hidden="true">4.7.</strong> Inclusion Pallet</a></li><li class="chapter-item expanded "><a href="runtime/parainherent.html"><strong aria-hidden="true">4.8.</strong> ParaInherent Pallet</a></li><li class="chapter-item expanded "><a href="runtime/dmp.html"><strong aria-hidden="true">4.9.</strong> DMP Pallet</a></li><li class="chapter-item expanded "><a href="runtime/hrmp.html"><strong aria-hidden="true">4.10.</strong> HRMP Pallet</a></li><li class="chapter-item expanded "><a href="runtime/session_info.html"><strong aria-hidden="true">4.11.</strong> Session Info Pallet</a></li></ol></li><li class="chapter-item expanded "><a href="runtime-api/index.html"><strong aria-hidden="true">5.</strong> Runtime APIs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="runtime-api/validators.html"><strong aria-hidden="true">5.1.</strong> Validators</a></li><li class="chapter-item expanded "><a href="runtime-api/validator-groups.html"><strong aria-hidden="true">5.2.</strong> Validator Groups</a></li><li class="chapter-item expanded "><a href="runtime-api/availability-cores.html"><strong aria-hidden="true">5.3.</strong> Availability Cores</a></li><li class="chapter-item expanded "><a href="runtime-api/persisted-validation-data.html"><strong aria-hidden="true">5.4.</strong> Persisted Validation Data</a></li><li class="chapter-item expanded "><a href="runtime-api/session-index.html"><strong aria-hidden="true">5.5.</strong> Session Index</a></li><li class="chapter-item expanded "><a href="runtime-api/validation-code.html"><strong aria-hidden="true">5.6.</strong> Validation Code</a></li><li class="chapter-item expanded "><a href="runtime-api/candidate-pending-availability.html"><strong aria-hidden="true">5.7.</strong> Candidate Pending Availability</a></li><li class="chapter-item expanded "><a href="runtime-api/candidate-events.html"><strong aria-hidden="true">5.8.</strong> Candidate Events</a></li><li class="chapter-item expanded "><a href="runtime-api/disputes-info.html"><strong aria-hidden="true">5.9.</strong> Disputes Info</a></li><li class="chapter-item expanded "><a href="runtime-api/candidates-included.html"><strong aria-hidden="true">5.10.</strong> Candidates Included</a></li><li class="chapter-item expanded "><a href="runtime-api/pvf-prechecking.html"><strong aria-hidden="true">5.11.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="node/index.html"><strong aria-hidden="true">6.</strong> Node Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/subsystems-and-jobs.html"><strong aria-hidden="true">6.1.</strong> Subsystems and Jobs</a></li><li class="chapter-item expanded "><a href="node/overseer.html"><strong aria-hidden="true">6.2.</strong> Overseer</a></li><li class="chapter-item expanded "><a href="node/grandpa-voting-rule.html"><strong aria-hidden="true">6.3.</strong> GRANDPA Voting Rule</a></li><li class="chapter-item expanded "><a href="node/collators/index.html"><strong aria-hidden="true">6.4.</strong> Collator Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/collators/collation-generation.html"><strong aria-hidden="true">6.4.1.</strong> Collation Generation</a></li><li class="chapter-item expanded "><a href="node/collators/collator-protocol.html"><strong aria-hidden="true">6.4.2.</strong> Collator Protocol</a></li></ol></li><li class="chapter-item expanded "><a href="node/backing/index.html"><strong aria-hidden="true">6.5.</strong> Backing Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/backing/candidate-backing.html"><strong aria-hidden="true">6.5.1.</strong> Candidate Backing</a></li><li class="chapter-item expanded "><a href="node/backing/prospective-parachains.html"><strong aria-hidden="true">6.5.2.</strong> Prospective Parachains</a></li><li class="chapter-item expanded "><a href="node/backing/statement-distribution.html"><strong aria-hidden="true">6.5.3.</strong> Statement Distribution</a></li><li class="chapter-item expanded "><a href="node/backing/statement-distribution-legacy.html"><strong aria-hidden="true">6.5.4.</strong> Statement Distribution (Legacy)</a></li></ol></li><li class="chapter-item expanded "><a href="node/availability/index.html"><strong aria-hidden="true">6.6.</strong> Availability Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/availability/availability-distribution.html"><strong aria-hidden="true">6.6.1.</strong> Availability Distribution</a></li><li class="chapter-item expanded "><a href="node/availability/availability-recovery.html"><strong aria-hidden="true">6.6.2.</strong> Availability Recovery</a></li><li class="chapter-item expanded "><a href="node/availability/bitfield-distribution.html"><strong aria-hidden="true">6.6.3.</strong> Bitfield Distribution</a></li><li class="chapter-item expanded "><a href="node/availability/bitfield-signing.html"><strong aria-hidden="true">6.6.4.</strong> Bitfield Signing</a></li></ol></li><li class="chapter-item expanded "><a href="node/approval/index.html"><strong aria-hidden="true">6.7.</strong> Approval Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/approval/approval-voting.html"><strong aria-hidden="true">6.7.1.</strong> Approval Voting</a></li><li class="chapter-item expanded "><a href="node/approval/approval-distribution.html"><strong aria-hidden="true">6.7.2.</strong> Approval Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="node/disputes/index.html"><strong aria-hidden="true">6.8.</strong> Disputes Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/disputes/dispute-coordinator.html"><strong aria-hidden="true">6.8.1.</strong> Dispute Coordinator</a></li><li class="chapter-item expanded "><a href="node/disputes/dispute-distribution.html"><strong aria-hidden="true">6.8.2.</strong> Dispute Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="node/utility/index.html"><strong aria-hidden="true">6.9.</strong> Utility Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/utility/availability-store.html"><strong aria-hidden="true">6.9.1.</strong> Availability Store</a></li><li class="chapter-item expanded "><a href="node/utility/candidate-validation.html"><strong aria-hidden="true">6.9.2.</strong> Candidate Validation</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/utility/pvf-host-and-workers.html"><strong aria-hidden="true">6.9.2.1.</strong> PVF Host and Workers</a></li></ol></li><li class="chapter-item expanded "><a href="node/utility/provisioner.html"><strong aria-hidden="true">6.9.3.</strong> Provisioner</a></li><li class="chapter-item expanded "><a href="node/utility/network-bridge.html"><strong aria-hidden="true">6.9.4.</strong> Network Bridge</a></li><li class="chapter-item expanded "><a href="node/utility/gossip-support.html"><strong aria-hidden="true">6.9.5.</strong> Gossip Support</a></li><li class="chapter-item expanded "><a href="node/utility/peer-set-manager.html"><strong aria-hidden="true">6.9.6.</strong> Peer Set Manager</a></li><li class="chapter-item expanded "><a href="node/utility/runtime-api.html"><strong aria-hidden="true">6.9.7.</strong> Runtime API Requests</a></li><li class="chapter-item expanded "><a href="node/utility/chain-api.html"><strong aria-hidden="true">6.9.8.</strong> Chain API Requests</a></li><li class="chapter-item expanded "><a href="node/utility/chain-selection.html"><strong aria-hidden="true">6.9.9.</strong> Chain Selection Request</a></li><li class="chapter-item expanded "><a href="node/utility/pvf-prechecker.html"><strong aria-hidden="true">6.9.10.</strong> PVF Pre-Checking</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="types/index.html"><strong aria-hidden="true">7.</strong> Data Structures and Types</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="types/candidate.html"><strong aria-hidden="true">7.1.</strong> Candidate</a></li><li class="chapter-item expanded "><a href="types/backing.html"><strong aria-hidden="true">7.2.</strong> Backing</a></li><li class="chapter-item expanded "><a href="types/availability.html"><strong aria-hidden="true">7.3.</strong> Availability</a></li><li class="chapter-item expanded "><a href="types/overseer-protocol.html"><strong aria-hidden="true">7.4.</strong> Overseer and Subsystem Protocol</a></li><li class="chapter-item expanded "><a href="types/runtime.html"><strong aria-hidden="true">7.5.</strong> Runtime</a></li><li class="chapter-item expanded "><a href="types/messages.html"><strong aria-hidden="true">7.6.</strong> Messages</a></li><li class="chapter-item expanded "><a href="types/network.html"><strong aria-hidden="true">7.7.</strong> Network</a></li><li class="chapter-item expanded "><a href="types/approval.html"><strong aria-hidden="true">7.8.</strong> Approvals</a></li><li class="chapter-item expanded "><a href="types/disputes.html"><strong aria-hidden="true">7.9.</strong> Disputes</a></li><li class="chapter-item expanded "><a href="types/pvf-prechecking.html"><strong aria-hidden="true">7.10.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="glossary.html">Glossary</a></li><li class="chapter-item expanded affix "><a href="further-reading.html">Further Reading</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Polkadot Parachain Host Implementers&#x27; Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/paritytech/polkadot" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="messaging-overview"><a class="header" href="#messaging-overview">Messaging Overview</a></h1>
+<p>The Polkadot Host has a few mechanisms that are responsible for message passing. They can be generally divided
+on two categories: Horizontal and Vertical. Horizontal Message Passing (HMP) refers to mechanisms
+that are responsible for exchanging messages between parachains. Vertical Message Passing (VMP) is
+used for communication between the relay chain and parachains.</p>
+<h2 id="vertical-message-passing"><a class="header" href="#vertical-message-passing">Vertical Message Passing</a></h2>
+<div><!-- Generated by graphviz version 2.43.0 (0)
+ --><!-- Title: %3 Pages: 1 --><svg width="196pt" height="131pt"
+ viewBox="0.00 0.00 195.51 131.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 127)"><title>%3</title><polygon fill="white" stroke="transparent" points="-4,4 -4,-127 191.51,-127 191.51,4 -4,4"/><!-- rc --><g id="node1" class="node"><title>rc</title><polygon fill="none" stroke="black" points="93.75,-123 0.25,-105 93.75,-87 187.26,-105 93.75,-123"/><polyline fill="none" stroke="black" points="12.03,-107.27 12.03,-102.73 "/><polyline fill="none" stroke="black" points="81.97,-89.27 105.54,-89.27 "/><polyline fill="none" stroke="black" points="175.48,-102.73 175.48,-107.27 "/><polyline fill="none" stroke="black" points="105.54,-120.73 81.97,-120.73 "/><text text-anchor="middle" x="93.75" y="-101.3" font-family="Times,serif" font-size="14.00">Relay Chain</text></g><!-- p1 --><g id="node2" class="node"><title>p1</title><polygon fill="none" stroke="black" points="137.25,-36 50.25,-36 50.25,0 137.25,0 137.25,-36"/><text text-anchor="middle" x="93.75" y="-14.3" font-family="Times,serif" font-size="14.00">Parachain</text></g><!-- rc&#45;&gt;p1 --><g id="edge1" class="edge"><title>rc&#45;&gt;p1</title><path fill="none" stroke="black" d="M78.7,-89.71C73.56,-83.84 68.43,-76.64 65.75,-69 62.87,-60.77 65.24,-52.31 69.61,-44.74"/><polygon fill="black" stroke="black" points="72.62,-46.55 75.47,-36.34 66.88,-42.55 72.62,-46.55"/><text text-anchor="middle" x="83.75" y="-57.8" font-family="Times,serif" font-size="14.00">DMP</text></g><!-- p1&#45;&gt;rc --><g id="edge2" class="edge"><title>p1&#45;&gt;rc</title><path fill="none" stroke="black" d="M98.81,-36.07C101.08,-45.71 103,-57.99 101.75,-69 101.43,-71.9 100.95,-74.92 100.39,-77.9"/><polygon fill="black" stroke="black" points="96.96,-77.24 98.27,-87.75 103.8,-78.71 96.96,-77.24"/><text text-anchor="middle" x="120.25" y="-57.8" font-family="Times,serif" font-size="14.00">UMP</text></g></g></svg></div>
+<p>Downward Message Passing (DMP) is a mechanism for delivering messages to parachains from the relay chain.</p>
+<p>Each parachain has its own queue that stores all pending inbound downward messages. A parachain
+doesn't have to process all messages at once, however, there are rules as to how the downward message queue
+should be processed. Currently, at least one message must be consumed per candidate if the queue is not empty.
+The downward message queue doesn't have a cap on its size and it is up to the relay-chain to put mechanisms
+that prevent spamming in place.</p>
+<p>Upward Message Passing (UMP) is a mechanism responsible for delivering messages in the opposite direction:
+from a parachain up to the relay chain. Upward messages are essentially byte blobs. However, they are interpreted
+by the relay-chain according to the XCM standard.</p>
+<p>The XCM standard is a common vocabulary of messages. The XCM standard doesn't require a particular interpretation of
+a message. However, the parachains host (e.g. Polkadot) guarantees certain semantics for those.</p>
+<p>Moreover, while most XCM messages are handled by the on-chain XCM interpreter, some of the messages are special
+cased. Specifically, those messages can be checked during the acceptance criteria and thus invalid
+messages would lead to rejecting the candidate itself.</p>
+<p>One kind of such a message is <code>Xcm::Transact</code>. This upward message can be seen as a way for a parachain
+to execute arbitrary entrypoints on the relay-chain. <code>Xcm::Transact</code> messages resemble regular extrinsics with the exception that they
+originate from a parachain.</p>
+<p>The payload of <code>Xcm::Transact</code> messages is referred as to <code>Dispatchable</code>. When a candidate with such a message is enacted
+the dispatchables are put into a queue corresponding to the parachain. There can be only so many dispatchables in that queue at once.
+The weight that processing of the dispatchables can consume is limited by a preconfigured value. Therefore, it is possible
+that some dispatchables will be left for later blocks. To make the dispatching more fair, the queues are processed turn-by-turn
+in a round robin fashion.</p>
+<p>The second category of special cased XCM messages are for horizontal messaging channel management,
+namely messages meant to request opening and closing HRMP channels (HRMP will be described below).</p>
+<h2 id="horizontal-message-passing"><a class="header" href="#horizontal-message-passing">Horizontal Message Passing</a></h2>
+<div><!-- Generated by graphviz version 2.43.0 (0)
+ --><!-- Title: %3 Pages: 1 --><svg width="273pt" height="131pt"
+ viewBox="0.00 0.00 273.00 131.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 127)"><title>%3</title><polygon fill="white" stroke="transparent" points="-4,4 -4,-127 269,-127 269,4 -4,4"/><!-- rc --><g id="node1" class="node"><title>rc</title><polygon fill="none" stroke="gray" points="132.5,-123 38.99,-105 132.5,-87 226.01,-105 132.5,-123"/><polyline fill="none" stroke="gray" points="50.77,-107.27 50.77,-102.73 "/><polyline fill="none" stroke="gray" points="120.72,-89.27 144.28,-89.27 "/><polyline fill="none" stroke="gray" points="214.23,-102.73 214.23,-107.27 "/><polyline fill="none" stroke="gray" points="144.28,-120.73 120.72,-120.73 "/><text text-anchor="middle" x="132.5" y="-101.3" font-family="Times,serif" font-size="14.00" fill="gray">Relay Chain</text></g><!-- p1 --><g id="node2" class="node"><title>p1</title><polygon fill="none" stroke="black" points="265,-36 164,-36 164,0 265,0 265,-36"/><text text-anchor="middle" x="214.5" y="-14.3" font-family="Times,serif" font-size="14.00">Parachain 1</text></g><!-- rc&#45;&gt;p1 --><g id="edge1" class="edge"><title>rc&#45;&gt;p1</title><path fill="none" stroke="gray" d="M139.98,-88.42C145.52,-77.93 153.77,-64.2 163.5,-54 167.54,-49.77 172.17,-45.76 176.95,-42.06"/><polygon fill="gray" stroke="gray" points="179.04,-44.86 185.07,-36.15 174.92,-39.2 179.04,-44.86"/><text text-anchor="middle" x="181.5" y="-57.8" font-family="Times,serif" font-size="14.00" fill="gray">DMP</text></g><!-- p2 --><g id="node3" class="node"><title>p2</title><polygon fill="none" stroke="black" points="101,-36 0,-36 0,0 101,0 101,-36"/><text text-anchor="middle" x="50.5" y="-14.3" font-family="Times,serif" font-size="14.00">Parachain 2</text></g><!-- rc&#45;&gt;p2 --><g id="edge3" class="edge"><title>rc&#45;&gt;p2</title><path fill="none" stroke="gray" d="M84.58,-96.01C69.18,-90.92 53.73,-82.61 44.5,-69 39.94,-62.29 39.48,-53.87 40.74,-45.86"/><polygon fill="gray" stroke="gray" points="44.15,-46.65 43.08,-36.11 37.34,-45.01 44.15,-46.65"/><text text-anchor="middle" x="62.5" y="-57.8" font-family="Times,serif" font-size="14.00" fill="gray">DMP</text></g><!-- p1&#45;&gt;rc --><g id="edge2" class="edge"><title>p1&#45;&gt;rc</title><path fill="none" stroke="gray" d="M212.71,-36.34C210.87,-46.77 207.12,-59.78 199.5,-69 192.72,-77.2 183.52,-83.72 174.1,-88.8"/><polygon fill="gray" stroke="gray" points="172.51,-85.68 165.08,-93.23 175.6,-91.96 172.51,-85.68"/><text text-anchor="middle" x="227" y="-57.8" font-family="Times,serif" font-size="14.00" fill="gray">UMP</text></g><!-- p2&#45;&gt;rc --><g id="edge4" class="edge"><title>p2&#45;&gt;rc</title><path fill="none" stroke="gray" d="M67.03,-36.13C79.8,-49.37 97.58,-67.8 111.38,-82.11"/><polygon fill="gray" stroke="gray" points="109.13,-84.81 118.59,-89.58 114.17,-79.95 109.13,-84.81"/><text text-anchor="middle" x="115" y="-57.8" font-family="Times,serif" font-size="14.00" fill="gray">UMP</text></g><!-- p2&#45;&gt;p1 --><g id="edge5" class="edge"><title>p2&#45;&gt;p1</title><path fill="none" stroke="black" d="M111.07,-18C124.9,-18 139.6,-18 153.45,-18"/><polygon fill="black" stroke="black" points="111.04,-14.5 101.04,-18 111.04,-21.5 111.04,-14.5"/><polygon fill="black" stroke="black" points="153.84,-21.5 163.84,-18 153.84,-14.5 153.84,-21.5"/><text text-anchor="middle" x="132.5" y="-24.8" font-family="Times,serif" font-size="14.00">XCMP</text></g></g></svg></div>
+<h3 id="cross-chain-message-passing"><a class="header" href="#cross-chain-message-passing">Cross-Chain Message Passing</a></h3>
+<p>The most important member of this family is XCMP.</p>
+<blockquote>
+<p>ℹ️ XCMP is currently under construction and details are subject for change.</p>
+</blockquote>
+<p>XCMP is a message passing mechanism between parachains that require minimal involvement of the relay chain.
+The relay chain provides means for sending parachains to authenticate messages sent to recipient parachains.</p>
+<p>Semantically communication occurs through so called channels. A channel is unidirectional and it has
+two endpoints, for sender and for recipient. A channel can be opened only if the both parties agree
+and closed unilaterally.</p>
+<p>Only the channel metadata is stored on the relay-chain in a very compact form: all messages and their
+contents sent by the sender parachain are encoded using only one root hash. This root is referred as
+MQC head.</p>
+<p>The authenticity of the messages must be proven using that root hash to the receiving party at the
+candidate authoring time. The proof stems from the relay parent storage that contains the root hash of the channel.
+Since not all messages are required to be processed by the receiver's candidate, only the processed
+messages are supplied (i.e. preimages), rest are provided as hashes.</p>
+<p>Further details can be found at the official repository for the
+<a href="https://github.com/paritytech/xcm-format/blob/master/README.md">Cross-Consensus Message Format (XCM)</a>, as well as
+at the <a href="https://research.web3.foundation/en/latest/polkadot/XCMP.html">W3F research website</a> and
+<a href="https://medium.com/web3foundation/polkadots-messaging-scheme-b1ec560908b7">this blogpost</a>.</p>
+<p>HRMP (Horizontally Relay-routed Message Passing) is a stop gap that predates XCMP. Semantically, it mimics XCMP's interface.
+The crucial difference from XCMP though is that all the messages are stored in the relay-chain storage. That makes
+things simple but at the same time that makes HRMP more demanding in terms of resources thus making it more expensive.</p>
+<p>Once XCMP is available we expect to retire HRMP.</p>
+<footer id="last-change">Last change: 2020-11-02, commit: <a href="https://github.com/paritytech/polkadot/commit/6447cb5991">6447cb5991</a></footer>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="architecture.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="pvf-prechecking.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="architecture.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="pvf-prechecking.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="mermaid.min.js"></script>
+        <script type="text/javascript" src="mermaid-init.js"></script>
+
+
+    </body>
+</html>

@@ -1,0 +1,565 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Dispute Distribution - The Polkadot Parachain Host Implementers&#x27; Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../../highlight.css">
+        <link rel="stylesheet" href="../../tomorrow-night.css">
+        <link rel="stylesheet" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../last-changed.css">
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../../index.html">Preamble</a></li><li class="chapter-item expanded "><a href="../../whence-parachains.html"><strong aria-hidden="true">1.</strong> Whence Parachains</a></li><li class="chapter-item expanded "><a href="../../protocol-overview.html"><strong aria-hidden="true">2.</strong> Protocol Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../protocol-approval.html"><strong aria-hidden="true">2.1.</strong> Approval Process</a></li><li class="chapter-item expanded "><a href="../../protocol-disputes.html"><strong aria-hidden="true">2.2.</strong> Disputes Process</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../disputes-flow.html"><strong aria-hidden="true">2.2.1.</strong> Dispute Flow</a></li></ol></li><li class="chapter-item expanded "><a href="../../protocol-chain-selection.html"><strong aria-hidden="true">2.3.</strong> Chain Selection and Finalization</a></li></ol></li><li class="chapter-item expanded "><a href="../../architecture.html"><strong aria-hidden="true">3.</strong> Architecture Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../messaging.html"><strong aria-hidden="true">3.1.</strong> Messaging Overview</a></li><li class="chapter-item expanded "><a href="../../pvf-prechecking.html"><strong aria-hidden="true">3.2.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../runtime/index.html"><strong aria-hidden="true">4.</strong> Runtime Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../runtime/initializer.html"><strong aria-hidden="true">4.1.</strong> Initializer Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/configuration.html"><strong aria-hidden="true">4.2.</strong> Configuration Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/shared.html"><strong aria-hidden="true">4.3.</strong> Shared Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/disputes.html"><strong aria-hidden="true">4.4.</strong> Disputes Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/paras.html"><strong aria-hidden="true">4.5.</strong> Paras Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/scheduler.html"><strong aria-hidden="true">4.6.</strong> Scheduler Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/inclusion.html"><strong aria-hidden="true">4.7.</strong> Inclusion Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/parainherent.html"><strong aria-hidden="true">4.8.</strong> ParaInherent Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/dmp.html"><strong aria-hidden="true">4.9.</strong> DMP Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/hrmp.html"><strong aria-hidden="true">4.10.</strong> HRMP Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/session_info.html"><strong aria-hidden="true">4.11.</strong> Session Info Pallet</a></li></ol></li><li class="chapter-item expanded "><a href="../../runtime-api/index.html"><strong aria-hidden="true">5.</strong> Runtime APIs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../runtime-api/validators.html"><strong aria-hidden="true">5.1.</strong> Validators</a></li><li class="chapter-item expanded "><a href="../../runtime-api/validator-groups.html"><strong aria-hidden="true">5.2.</strong> Validator Groups</a></li><li class="chapter-item expanded "><a href="../../runtime-api/availability-cores.html"><strong aria-hidden="true">5.3.</strong> Availability Cores</a></li><li class="chapter-item expanded "><a href="../../runtime-api/persisted-validation-data.html"><strong aria-hidden="true">5.4.</strong> Persisted Validation Data</a></li><li class="chapter-item expanded "><a href="../../runtime-api/session-index.html"><strong aria-hidden="true">5.5.</strong> Session Index</a></li><li class="chapter-item expanded "><a href="../../runtime-api/validation-code.html"><strong aria-hidden="true">5.6.</strong> Validation Code</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidate-pending-availability.html"><strong aria-hidden="true">5.7.</strong> Candidate Pending Availability</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidate-events.html"><strong aria-hidden="true">5.8.</strong> Candidate Events</a></li><li class="chapter-item expanded "><a href="../../runtime-api/disputes-info.html"><strong aria-hidden="true">5.9.</strong> Disputes Info</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidates-included.html"><strong aria-hidden="true">5.10.</strong> Candidates Included</a></li><li class="chapter-item expanded "><a href="../../runtime-api/pvf-prechecking.html"><strong aria-hidden="true">5.11.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/index.html"><strong aria-hidden="true">6.</strong> Node Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/subsystems-and-jobs.html"><strong aria-hidden="true">6.1.</strong> Subsystems and Jobs</a></li><li class="chapter-item expanded "><a href="../../node/overseer.html"><strong aria-hidden="true">6.2.</strong> Overseer</a></li><li class="chapter-item expanded "><a href="../../node/grandpa-voting-rule.html"><strong aria-hidden="true">6.3.</strong> GRANDPA Voting Rule</a></li><li class="chapter-item expanded "><a href="../../node/collators/index.html"><strong aria-hidden="true">6.4.</strong> Collator Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/collators/collation-generation.html"><strong aria-hidden="true">6.4.1.</strong> Collation Generation</a></li><li class="chapter-item expanded "><a href="../../node/collators/collator-protocol.html"><strong aria-hidden="true">6.4.2.</strong> Collator Protocol</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/backing/index.html"><strong aria-hidden="true">6.5.</strong> Backing Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/backing/candidate-backing.html"><strong aria-hidden="true">6.5.1.</strong> Candidate Backing</a></li><li class="chapter-item expanded "><a href="../../node/backing/prospective-parachains.html"><strong aria-hidden="true">6.5.2.</strong> Prospective Parachains</a></li><li class="chapter-item expanded "><a href="../../node/backing/statement-distribution.html"><strong aria-hidden="true">6.5.3.</strong> Statement Distribution</a></li><li class="chapter-item expanded "><a href="../../node/backing/statement-distribution-legacy.html"><strong aria-hidden="true">6.5.4.</strong> Statement Distribution (Legacy)</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/availability/index.html"><strong aria-hidden="true">6.6.</strong> Availability Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/availability/availability-distribution.html"><strong aria-hidden="true">6.6.1.</strong> Availability Distribution</a></li><li class="chapter-item expanded "><a href="../../node/availability/availability-recovery.html"><strong aria-hidden="true">6.6.2.</strong> Availability Recovery</a></li><li class="chapter-item expanded "><a href="../../node/availability/bitfield-distribution.html"><strong aria-hidden="true">6.6.3.</strong> Bitfield Distribution</a></li><li class="chapter-item expanded "><a href="../../node/availability/bitfield-signing.html"><strong aria-hidden="true">6.6.4.</strong> Bitfield Signing</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/approval/index.html"><strong aria-hidden="true">6.7.</strong> Approval Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/approval/approval-voting.html"><strong aria-hidden="true">6.7.1.</strong> Approval Voting</a></li><li class="chapter-item expanded "><a href="../../node/approval/approval-distribution.html"><strong aria-hidden="true">6.7.2.</strong> Approval Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/disputes/index.html"><strong aria-hidden="true">6.8.</strong> Disputes Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/disputes/dispute-coordinator.html"><strong aria-hidden="true">6.8.1.</strong> Dispute Coordinator</a></li><li class="chapter-item expanded "><a href="../../node/disputes/dispute-distribution.html" class="active"><strong aria-hidden="true">6.8.2.</strong> Dispute Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/utility/index.html"><strong aria-hidden="true">6.9.</strong> Utility Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/utility/availability-store.html"><strong aria-hidden="true">6.9.1.</strong> Availability Store</a></li><li class="chapter-item expanded "><a href="../../node/utility/candidate-validation.html"><strong aria-hidden="true">6.9.2.</strong> Candidate Validation</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/utility/pvf-host-and-workers.html"><strong aria-hidden="true">6.9.2.1.</strong> PVF Host and Workers</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/utility/provisioner.html"><strong aria-hidden="true">6.9.3.</strong> Provisioner</a></li><li class="chapter-item expanded "><a href="../../node/utility/network-bridge.html"><strong aria-hidden="true">6.9.4.</strong> Network Bridge</a></li><li class="chapter-item expanded "><a href="../../node/utility/gossip-support.html"><strong aria-hidden="true">6.9.5.</strong> Gossip Support</a></li><li class="chapter-item expanded "><a href="../../node/utility/peer-set-manager.html"><strong aria-hidden="true">6.9.6.</strong> Peer Set Manager</a></li><li class="chapter-item expanded "><a href="../../node/utility/runtime-api.html"><strong aria-hidden="true">6.9.7.</strong> Runtime API Requests</a></li><li class="chapter-item expanded "><a href="../../node/utility/chain-api.html"><strong aria-hidden="true">6.9.8.</strong> Chain API Requests</a></li><li class="chapter-item expanded "><a href="../../node/utility/chain-selection.html"><strong aria-hidden="true">6.9.9.</strong> Chain Selection Request</a></li><li class="chapter-item expanded "><a href="../../node/utility/pvf-prechecker.html"><strong aria-hidden="true">6.9.10.</strong> PVF Pre-Checking</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="../../types/index.html"><strong aria-hidden="true">7.</strong> Data Structures and Types</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../types/candidate.html"><strong aria-hidden="true">7.1.</strong> Candidate</a></li><li class="chapter-item expanded "><a href="../../types/backing.html"><strong aria-hidden="true">7.2.</strong> Backing</a></li><li class="chapter-item expanded "><a href="../../types/availability.html"><strong aria-hidden="true">7.3.</strong> Availability</a></li><li class="chapter-item expanded "><a href="../../types/overseer-protocol.html"><strong aria-hidden="true">7.4.</strong> Overseer and Subsystem Protocol</a></li><li class="chapter-item expanded "><a href="../../types/runtime.html"><strong aria-hidden="true">7.5.</strong> Runtime</a></li><li class="chapter-item expanded "><a href="../../types/messages.html"><strong aria-hidden="true">7.6.</strong> Messages</a></li><li class="chapter-item expanded "><a href="../../types/network.html"><strong aria-hidden="true">7.7.</strong> Network</a></li><li class="chapter-item expanded "><a href="../../types/approval.html"><strong aria-hidden="true">7.8.</strong> Approvals</a></li><li class="chapter-item expanded "><a href="../../types/disputes.html"><strong aria-hidden="true">7.9.</strong> Disputes</a></li><li class="chapter-item expanded "><a href="../../types/pvf-prechecking.html"><strong aria-hidden="true">7.10.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../glossary.html">Glossary</a></li><li class="chapter-item expanded affix "><a href="../../further-reading.html">Further Reading</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Polkadot Parachain Host Implementers&#x27; Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/paritytech/polkadot" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="dispute-distribution"><a class="header" href="#dispute-distribution">Dispute Distribution</a></h1>
+<p>Dispute distribution is responsible for ensuring all concerned validators will
+be aware of a dispute and have the relevant votes.</p>
+<h2 id="design-goals"><a class="header" href="#design-goals">Design Goals</a></h2>
+<p>This design should result in a protocol that is:</p>
+<ul>
+<li>resilient to nodes being temporarily unavailable</li>
+<li>make sure nodes are aware of a dispute quickly</li>
+<li>relatively efficient, should not cause too much stress on the network</li>
+<li>be resilient when it comes to spam</li>
+<li>be simple and boring: We want disputes to work when they happen</li>
+</ul>
+<h2 id="protocol"><a class="header" href="#protocol">Protocol</a></h2>
+<p>Distributing disputes needs to be a reliable protocol. We would like to make as
+sure as possible that our vote got properly delivered to all concerned
+validators. For this to work, this subsystem won't be gossip based, but instead
+will use a request/response protocol for application level confirmations. The
+request will be the payload (the actual votes/statements), the response will
+be the confirmation. See [below][#wire-format].</p>
+<h3 id="input"><a class="header" href="#input">Input</a></h3>
+<p><a href="../../types/overseer-protocol.html#dispute-distribution-message"><code>DisputeDistributionMessage</code></a></p>
+<h3 id="output"><a class="header" href="#output">Output</a></h3>
+<ul>
+<li>[<code>DisputeCoordinatorMessage::ActiveDisputes</code>][DisputeCoordinatorMessage]</li>
+<li>[<code>DisputeCoordinatorMessage::ImportStatements</code>][DisputeCoordinatorMessage]</li>
+<li>[<code>DisputeCoordinatorMessage::QueryCandidateVotes</code>][DisputeCoordinatorMessage]</li>
+<li><a href="../../types/overseer-protocol.html#runtime-api-message"><code>RuntimeApiMessage</code></a></li>
+</ul>
+<h3 id="wire-format"><a class="header" href="#wire-format">Wire format</a></h3>
+<h4 id="disputes"><a class="header" href="#disputes">Disputes</a></h4>
+<p>Protocol: <code>&quot;/&lt;genesis_hash&gt;/&lt;fork_id&gt;/send_dispute/1&quot;</code></p>
+<p>Request:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct DisputeRequest {
+  /// The candidate being disputed.
+  pub candidate_receipt: CandidateReceipt,
+
+  /// The session the candidate appears in.
+  pub session_index: SessionIndex,
+
+  /// The invalid vote data that makes up this dispute.
+  pub invalid_vote: InvalidDisputeVote,
+
+  /// The valid vote that makes this dispute request valid.
+  pub valid_vote: ValidDisputeVote,
+}
+
+/// Any invalid vote (currently only explicit).
+pub struct InvalidDisputeVote {
+  /// The voting validator index.
+  pub validator_index: ValidatorIndex,
+
+  /// The validator signature, that can be verified when constructing a
+  /// `SignedDisputeStatement`.
+  pub signature: ValidatorSignature,
+
+  /// Kind of dispute statement.
+  pub kind: InvalidDisputeStatementKind,
+}
+
+/// Any valid vote (backing, approval, explicit).
+pub struct ValidDisputeVote {
+  /// The voting validator index.
+  pub validator_index: ValidatorIndex,
+
+  /// The validator signature, that can be verified when constructing a
+  /// `SignedDisputeStatement`.
+  pub signature: ValidatorSignature,
+
+  /// Kind of dispute statement.
+  pub kind: ValidDisputeStatementKind,
+}
+<span class="boring">}
+</span></code></pre></pre>
+<p>Response:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum DisputeResponse {
+  Confirmed
+}
+<span class="boring">}
+</span></code></pre></pre>
+<h4 id="vote-recovery"><a class="header" href="#vote-recovery">Vote Recovery</a></h4>
+<p>Protocol: <code>&quot;/&lt;genesis_hash&gt;/&lt;fork_id&gt;/req_votes/1&quot;</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct IHaveVotesRequest {
+  candidate_hash: CandidateHash,
+  session: SessionIndex,
+  valid_votes: Bitfield,
+  invalid_votes: Bitfield,
+}
+
+<span class="boring">}
+</span></code></pre></pre>
+<p>Response:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct VotesResponse {
+  /// All votes we have, but the requester was missing.
+  missing: Vec&lt;(DisputeStatement, ValidatorIndex, ValidatorSignature)&gt;,
+}
+<span class="boring">}
+</span></code></pre></pre>
+<h2 id="starting-a-dispute"><a class="header" href="#starting-a-dispute">Starting a Dispute</a></h2>
+<p>A dispute is initiated once a node sends the first <code>DisputeRequest</code> wire message,
+which must contain an &quot;invalid&quot; vote and a &quot;valid&quot; vote.</p>
+<p>The dispute distribution subsystem can get instructed to send that message out to
+all concerned validators by means of a <code>DisputeDistributionMessage::SendDispute</code>
+message. That message must contain an invalid vote from the local node and some
+valid one, e.g. a backing statement.</p>
+<p>We include a valid vote as well, so any node regardless of whether it is synced
+with the chain or not or has seen backing/approval vote can see that there are
+conflicting votes available, hence we have a valid dispute. Nodes will still
+need to check whether the disputing votes are somewhat current and not some
+stale ones.</p>
+<h2 id="participating-in-a-dispute"><a class="header" href="#participating-in-a-dispute">Participating in a Dispute</a></h2>
+<p>Upon receiving a <code>DisputeRequest</code> message, a dispute distribution will trigger the
+import of the received votes via the dispute coordinator
+(<code>DisputeCoordinatorMessage::ImportStatements</code>). The dispute coordinator will
+take care of participating in that dispute if necessary. Once it is done, the
+coordinator will send a <code>DisputeDistributionMessage::SendDispute</code> message to dispute
+distribution. From here, everything is the same as for starting a dispute,
+except that if the local node deemed the candidate valid, the <code>SendDispute</code>
+message will contain a valid vote signed by our node and will contain the
+initially received <code>Invalid</code> vote.</p>
+<p>Note, that we rely on <code>dispute-coordinator</code> to check validity of a dispute for spam
+protection (see below).</p>
+<h2 id="sending-of-messages"><a class="header" href="#sending-of-messages">Sending of messages</a></h2>
+<p>Starting and participating in a dispute are pretty similar from the perspective
+of dispute distribution. Once we receive a <code>SendDispute</code> message, we try to make
+sure to get the data out. We keep track of all the parachain validators that
+should see the message, which are all the parachain validators of the session
+where the dispute happened as they will want to participate in the dispute.  In
+addition we also need to get the votes out to all authorities of the current
+session (which might be the same or not and may change during the dispute).
+Those authorities will not participate in the dispute, but need to see the
+statements so they can include them in blocks.</p>
+<h3 id="reliability"><a class="header" href="#reliability">Reliability</a></h3>
+<p>We only consider a message transmitted, once we received a confirmation message.
+If not, we will keep retrying getting that message out as long as the dispute is
+deemed alive. To determine whether a dispute is still alive we will ask the
+<code>dispute-coordinator</code> for a list of all still active disputes via a
+<code>DisputeCoordinatorMessage::ActiveDisputes</code> message before each retry run. Once
+a dispute is no longer live, we will clean up the state accordingly.</p>
+<h3 id="order"><a class="header" href="#order">Order</a></h3>
+<p>We assume <code>SendDispute</code> messages are coming in an order of importance, hence
+<code>dispute-distribution</code> will make sure to send out network messages in the same
+order, even on retry.</p>
+<h3 id="rate-limit"><a class="header" href="#rate-limit">Rate Limit</a></h3>
+<p>For spam protection (see below), we employ an artificial rate limiting on sending
+out messages in order to not hit the rate limit at the receiving side, which
+would result in our messages getting dropped and our reputation getting reduced.</p>
+<h2 id="reception"><a class="header" href="#reception">Reception</a></h2>
+<p>As we shall see the receiving side is mostly about handling spam and ensuring
+the dispute-coordinator learns about disputes as fast as possible.</p>
+<p>Goals for the receiving side:</p>
+<ol>
+<li>Get new disputes to the dispute-coordinator as fast as possible, so
+prioritization can happen properly.</li>
+<li>Batch votes per disputes as much as possible for good import performance.</li>
+<li>Prevent malicious nodes exhausting node resources by sending lots of messages.</li>
+<li>Prevent malicious nodes from sending so many messages/(fake) disputes,
+preventing us from concluding good ones.</li>
+<li>Limit ability of malicious nodes of delaying the vote import due to batching
+logic.</li>
+</ol>
+<p>Goal 1 and 2 seem to be conflicting, but an easy compromise is possible: When
+learning about a new dispute, we will import the vote immediately, making the
+dispute coordinator aware and also getting immediate feedback on the validity.
+Then if valid we can batch further incoming votes, with less time constraints as
+the dispute-coordinator already knows about the dispute.</p>
+<p>Goal 3 and 4 are obviously very related and both can easily be solved via rate
+limiting as we shall see below. Rate limits should already be implemented at the
+substrate level, but <a href="https://github.com/paritytech/substrate/issues/7750">are not</a>
+at the time of writing. But even if they were, the enforced substrate limits would
+likely not be configurable and thus would still be to high for our needs as we can
+rely on the following observations:</p>
+<ol>
+<li>Each honest validator will only send one message (apart from duplicates on
+timeout) per candidate/dispute.</li>
+<li>An honest validator needs to fully recover availability and validate the
+candidate for casting a vote.</li>
+</ol>
+<p>With these two observations, we can conclude that honest validators will usually
+not send messages at a high rate. We can therefore enforce conservative rate
+limits and thus minimize harm spamming malicious nodes can have.</p>
+<p>Before we dive into how rate limiting solves all spam issues elegantly, let's
+discuss that honest behaviour further:</p>
+<p>What about session changes? Here we might have to inform a new validator set of
+lots of already existing disputes at once.</p>
+<p>With observation 1) and a rate limit that is per peer, we are still good:</p>
+<p>Let's assume a rate limit of one message per 200ms per sender. This means 5
+messages from each validator per second. 5 messages means 5 disputes!
+Conclusively, we will be able to conclude 5 disputes per second - no matter what
+malicious actors are doing. This is assuming dispute messages are sent ordered,
+but even if not perfectly ordered: On average it will be 5 disputes per second.</p>
+<p>This is good enough! All those disputes are valid ones and will result in
+slashing and disabling of validators. Let's assume all of them conclude <code>valid</code>,
+and we disable validators only after 100 raised concluding valid disputes, we
+would still start disabling misbehaving validators in only 20 seconds.</p>
+<p>One could also think that in addition participation is expected to take longer,
+which means on average we can import/conclude disputes faster than they are
+generated - regardless of dispute spam. Unfortunately this is not necessarily
+true: There might be parachains with very light load where recovery and
+validation can be accomplished very quickly - maybe faster than we can import
+those disputes.</p>
+<p>This is probably an argument for not imposing a too low rate limit, although the
+issue is more general: Even without any rate limit, if an attacker generates
+disputes at a very high rate, nodes will be having trouble keeping participation
+up, hence the problem should be mitigated at a <a href="https://github.com/paritytech/polkadot/issues/5898">more fundamental
+layer</a>.</p>
+<p>For nodes that have been offline for a while, the same argument as for session
+changes holds, but matters even less: We assume 2/3 of nodes to be online, so
+even if the worst case 1/3 offline happens and they could not import votes fast
+enough (as argued above, they in fact can) it would not matter for consensus.</p>
+<h3 id="rate-limiting"><a class="header" href="#rate-limiting">Rate Limiting</a></h3>
+<p>As suggested previously, rate limiting allows to mitigate all threats that come
+from malicious actors trying to overwhelm the system in order to get away without
+a slash, when it comes to dispute-distribution. In this section we will explain
+how in greater detail.</p>
+<p>The idea is to open a queue with limited size for each peer. We will process
+incoming messages as fast as we can by doing the following:</p>
+<ol>
+<li>Check that the sending peer is actually a valid authority - otherwise drop
+message and decrease reputation/disconnect.</li>
+<li>Put message on the peer's queue, if queue is full - drop it.</li>
+</ol>
+<p>Every <code>RATE_LIMIT</code> seconds (or rather milliseconds), we pause processing
+incoming requests to go a full circle and process one message from each queue.
+Processing means <code>Batching</code> as explained in the next section.</p>
+<h3 id="batching"><a class="header" href="#batching">Batching</a></h3>
+<p>To achieve goal 2 we will batch incoming votes/messages together before passing
+them on as a single batch to the <code>dispute-coordinator</code>. To adhere to goal 1 as
+well, we will do the following:</p>
+<ol>
+<li>For an incoming message, we check whether we have an existing batch for that
+candidate, if not we import directly to the dispute-coordinator, as we have
+to assume this is concerning a new dispute.</li>
+<li>We open a batch and start collecting incoming messages for that candidate,
+instead of immediately forwarding.</li>
+<li>We keep collecting votes in the batch until we receive less than
+<code>MIN_KEEP_BATCH_ALIVE_VOTES</code> unique votes in the last <code>BATCH_COLLECTING_INTERVAL</code>. This is
+important to accommodate for goal 5 and also 3.</li>
+<li>We send the whole batch to the dispute-coordinator.</li>
+</ol>
+<p>This together with rate limiting explained above ensures we will be able to
+process valid disputes: We can limit the number of simultaneous existing batches
+to some high value, but can be rather certain that this limit will never be
+reached - hence we won't drop valid disputes:</p>
+<p>Let's assume <code>MIN_KEEP_BATCH_ALIVE_VOTES</code> is 10, <code>BATCH_COLLECTING_INTERVAL</code>
+is <code>500ms</code> and above <code>RATE_LIMIT</code> is <code>100ms</code>. 1/3 of validators are malicious,
+so for 1000 this means around 330 malicious actors worst case.</p>
+<p>All those actors can send a message every <code>100ms</code>, that is 10 per second. This
+means at the begining of an attack they can open up around 3300 batches. Each
+containing two votes. So memory usage is still negligible. In reality it is even
+less, as we also demand 10 new votes to trickle in per batch in order to keep it
+alive, every <code>500ms</code>. Hence for the first second, each batch requires 20 votes
+each. Each message is 2 votes, so this means 10 messages per batch. Hence to
+keep those batches alive 10 attackers are needed for each batch. This reduces
+the number of opened batches by a factor of 10: So we only have 330 batches in 1
+second - each containing 20 votes.</p>
+<p>The next second: In order to further grow memory usage, attackers have to
+maintain 10 messages per batch and second. Number of batches equals the number
+of attackers, each has 10 messages per second, all are needed to maintain the
+batches in memory. Therefore we have a hard cap of around 330 (number of
+malicious nodes) open batches. Each can be filled with number of malicious
+actor's votes. So 330 batches with each 330 votes: Let's assume approximately 100
+bytes per signature/vote. This results in a worst case memory usage of 330 * 330</p>
+<ul>
+<li>100 ~= 10 MiB.</li>
+</ul>
+<p>For 10_000 validators, we are already in the Gigabyte range, which means that
+with a validator set that large we might want to be more strict with the rate limit or
+require a larger rate of incoming votes per batch to keep them alive.</p>
+<p>For a thousand validators a limit on batches of around 1000 should never be
+reached in practice. Hence due to rate limiting we have a very good chance to
+not ever having to drop a potential valid dispute due to some resource limit.</p>
+<p>Further safe guards are possible: The dispute-coordinator actually
+confirms/denies imports. So once we receive a denial by the dispute-coordinator
+for the initial imported votes, we can opt into flushing the batch immediately
+and importing the votes. This swaps memory usage for more CPU usage, but if that
+import is deemed invalid again we can immediately decrease the reputation of the
+sending peers, so this should be a net win. For the time being we punt on this
+for simplicity.</p>
+<p>Instead of filling batches to maximize memory usage, attackers could also try to
+overwhelm the dispute coordinator by only sending votes for new candidates all
+the time. This attack vector is mitigated also by above rate limit and
+decreasing the peer's reputation on denial of the invalid imports by the
+coordinator.</p>
+<h3 id="node-startup"><a class="header" href="#node-startup">Node Startup</a></h3>
+<p>Nothing special happens on node startup. We expect the <code>dispute-coordinator</code> to
+inform us about any ongoing disputes via <code>SendDispute</code> messages.</p>
+<h2 id="backing-and-approval-votes"><a class="header" href="#backing-and-approval-votes">Backing and Approval Votes</a></h2>
+<p>Backing and approval votes get imported when they arrive/are created via the
+dispute coordinator by corresponding subsystems.</p>
+<p>We assume that under normal operation each node will be aware of backing and
+approval votes and optimize for that case. Nevertheless we want disputes to
+conclude fast and reliable, therefore if a node is not aware of backing/approval
+votes it can request the missing votes from the node that informed it about the
+dispute (see <a href="#Resiliency%5D">Resiliency</a></p>
+<h2 id="resiliency"><a class="header" href="#resiliency">Resiliency</a></h2>
+<p>The above protocol should be sufficient for most cases, but there are certain
+cases we also want to have covered:</p>
+<ul>
+<li>Non validator nodes might be interested in ongoing voting, even before it is
+recorded on chain.</li>
+<li>Nodes might have missed votes, especially backing or approval votes.
+Recovering them from chain is difficult and expensive, due to runtime upgrades
+and untyped extrinsics.</li>
+<li>More importantly, on era changes the new authority set, from the perspective
+of approval-voting have no need to see &quot;old&quot; approval votes, hence they might
+not see them, can therefore not import them into the dispute coordinator and
+therefore no authority will put them on chain.</li>
+</ul>
+<p>To cover those cases, we introduce a second request/response protocol, which can
+be handled on a lower priority basis as the one above. It consists of the
+request/response messages as described in the [protocol
+section][#vote-recovery].</p>
+<p>Nodes may send those requests to validators, if they feel they are missing
+votes. E.g. after some timeout, if no majority was reached yet in their point of
+view or if they are not aware of any backing/approval votes for a received
+disputed candidate.</p>
+<p>The receiver of a <code>IHaveVotesRequest</code> message will do the following:</p>
+<ol>
+<li>See if the sender is missing votes we are aware of - if so, respond with
+those votes.</li>
+<li>Check whether the sender knows about any votes, we don't know about and if so
+send a <code>IHaveVotesRequest</code> request back, with our knowledge.</li>
+<li>Record the peer's knowledge.</li>
+</ol>
+<p>When to send <code>IHaveVotesRequest</code> messages:</p>
+<ol>
+<li>Whenever we are asked to do so via
+<code>DisputeDistributionMessage::FetchMissingVotes</code>.</li>
+<li>Approximately once per block to some random validator as long as the dispute
+is active.</li>
+</ol>
+<p>Spam considerations: Nodes want to accept those messages once per validator and
+per slot. They are free to drop more frequent requests or requests for stale
+data. Requests coming from non validator nodes, can be handled on a best effort
+basis.</p>
+<h2 id="considerations"><a class="header" href="#considerations">Considerations</a></h2>
+<p>Dispute distribution is critical. We should keep track of available validator
+connections and issue warnings if we are not connected to a majority of
+validators. We should also keep track of failed sending attempts and log
+warnings accordingly. As disputes are rare and TCP is a reliable protocol,
+probably each failed attempt should trigger a warning in logs and also logged
+into some Prometheus metric.</p>
+<h2 id="disputes-for-non-available-candidates"><a class="header" href="#disputes-for-non-available-candidates">Disputes for non available candidates</a></h2>
+<p>If deemed necessary we can later on also support disputes for non available
+candidates, but disputes for those cases have totally different requirements.</p>
+<p>First of all such disputes are not time critical. We just want to have
+some offender slashed at some point, but we have no risk of finalizing any bad
+data.</p>
+<p>Second, as we won't have availability for such data, the node that initiated the
+dispute will be responsible for providing the disputed data initially. Then
+nodes which did the check already are also providers of the data, hence
+distributing load and making prevention of the dispute from concluding harder
+and harder over time. Assuming an attacker can not DoS a node forever, the
+dispute will succeed eventually, which is all that matters. And again, even if
+an attacker managed to prevent such a dispute from happening somehow, there is
+no real harm done: There was no serious attack to begin with.</p>
+<footer id="last-change">Last change: 2023-01-10, commit: <a href="https://github.com/paritytech/polkadot/commit/30005e6b6e">30005e6b6e</a></footer>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../node/disputes/dispute-coordinator.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="../../node/utility/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../node/disputes/dispute-coordinator.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="../../node/utility/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="../../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="../../mermaid.min.js"></script>
+        <script type="text/javascript" src="../../mermaid-init.js"></script>
+
+
+    </body>
+</html>

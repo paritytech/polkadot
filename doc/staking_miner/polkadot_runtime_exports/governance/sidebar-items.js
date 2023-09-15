@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["pallet_custom_origins"],"struct":["AlarmInterval","AuctionAdmin","FellowsBodyId","FellowshipAdmin","GeneralAdmin","LeaseAdmin","MaxBalance","ReferendumCanceller","ReferendumKiller","Spender","StakingAdmin","SubmissionDeposit","TracksInfo","Treasurer","UndecidingTimeout","VoteLockingPeriod","WhitelistedCaller"],"type":["TreasurySpender"]};

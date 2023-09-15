@@ -1,0 +1,547 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>HRMP Pallet - The Polkadot Parachain Host Implementers&#x27; Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../last-changed.css">
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Preamble</a></li><li class="chapter-item expanded "><a href="../whence-parachains.html"><strong aria-hidden="true">1.</strong> Whence Parachains</a></li><li class="chapter-item expanded "><a href="../protocol-overview.html"><strong aria-hidden="true">2.</strong> Protocol Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../protocol-approval.html"><strong aria-hidden="true">2.1.</strong> Approval Process</a></li><li class="chapter-item expanded "><a href="../protocol-disputes.html"><strong aria-hidden="true">2.2.</strong> Disputes Process</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../disputes-flow.html"><strong aria-hidden="true">2.2.1.</strong> Dispute Flow</a></li></ol></li><li class="chapter-item expanded "><a href="../protocol-chain-selection.html"><strong aria-hidden="true">2.3.</strong> Chain Selection and Finalization</a></li></ol></li><li class="chapter-item expanded "><a href="../architecture.html"><strong aria-hidden="true">3.</strong> Architecture Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../messaging.html"><strong aria-hidden="true">3.1.</strong> Messaging Overview</a></li><li class="chapter-item expanded "><a href="../pvf-prechecking.html"><strong aria-hidden="true">3.2.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../runtime/index.html"><strong aria-hidden="true">4.</strong> Runtime Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../runtime/initializer.html"><strong aria-hidden="true">4.1.</strong> Initializer Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/configuration.html"><strong aria-hidden="true">4.2.</strong> Configuration Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/shared.html"><strong aria-hidden="true">4.3.</strong> Shared Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/disputes.html"><strong aria-hidden="true">4.4.</strong> Disputes Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/paras.html"><strong aria-hidden="true">4.5.</strong> Paras Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/scheduler.html"><strong aria-hidden="true">4.6.</strong> Scheduler Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/inclusion.html"><strong aria-hidden="true">4.7.</strong> Inclusion Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/parainherent.html"><strong aria-hidden="true">4.8.</strong> ParaInherent Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/dmp.html"><strong aria-hidden="true">4.9.</strong> DMP Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/hrmp.html" class="active"><strong aria-hidden="true">4.10.</strong> HRMP Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/session_info.html"><strong aria-hidden="true">4.11.</strong> Session Info Pallet</a></li></ol></li><li class="chapter-item expanded "><a href="../runtime-api/index.html"><strong aria-hidden="true">5.</strong> Runtime APIs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../runtime-api/validators.html"><strong aria-hidden="true">5.1.</strong> Validators</a></li><li class="chapter-item expanded "><a href="../runtime-api/validator-groups.html"><strong aria-hidden="true">5.2.</strong> Validator Groups</a></li><li class="chapter-item expanded "><a href="../runtime-api/availability-cores.html"><strong aria-hidden="true">5.3.</strong> Availability Cores</a></li><li class="chapter-item expanded "><a href="../runtime-api/persisted-validation-data.html"><strong aria-hidden="true">5.4.</strong> Persisted Validation Data</a></li><li class="chapter-item expanded "><a href="../runtime-api/session-index.html"><strong aria-hidden="true">5.5.</strong> Session Index</a></li><li class="chapter-item expanded "><a href="../runtime-api/validation-code.html"><strong aria-hidden="true">5.6.</strong> Validation Code</a></li><li class="chapter-item expanded "><a href="../runtime-api/candidate-pending-availability.html"><strong aria-hidden="true">5.7.</strong> Candidate Pending Availability</a></li><li class="chapter-item expanded "><a href="../runtime-api/candidate-events.html"><strong aria-hidden="true">5.8.</strong> Candidate Events</a></li><li class="chapter-item expanded "><a href="../runtime-api/disputes-info.html"><strong aria-hidden="true">5.9.</strong> Disputes Info</a></li><li class="chapter-item expanded "><a href="../runtime-api/candidates-included.html"><strong aria-hidden="true">5.10.</strong> Candidates Included</a></li><li class="chapter-item expanded "><a href="../runtime-api/pvf-prechecking.html"><strong aria-hidden="true">5.11.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../node/index.html"><strong aria-hidden="true">6.</strong> Node Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/subsystems-and-jobs.html"><strong aria-hidden="true">6.1.</strong> Subsystems and Jobs</a></li><li class="chapter-item expanded "><a href="../node/overseer.html"><strong aria-hidden="true">6.2.</strong> Overseer</a></li><li class="chapter-item expanded "><a href="../node/grandpa-voting-rule.html"><strong aria-hidden="true">6.3.</strong> GRANDPA Voting Rule</a></li><li class="chapter-item expanded "><a href="../node/collators/index.html"><strong aria-hidden="true">6.4.</strong> Collator Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/collators/collation-generation.html"><strong aria-hidden="true">6.4.1.</strong> Collation Generation</a></li><li class="chapter-item expanded "><a href="../node/collators/collator-protocol.html"><strong aria-hidden="true">6.4.2.</strong> Collator Protocol</a></li></ol></li><li class="chapter-item expanded "><a href="../node/backing/index.html"><strong aria-hidden="true">6.5.</strong> Backing Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/backing/candidate-backing.html"><strong aria-hidden="true">6.5.1.</strong> Candidate Backing</a></li><li class="chapter-item expanded "><a href="../node/backing/prospective-parachains.html"><strong aria-hidden="true">6.5.2.</strong> Prospective Parachains</a></li><li class="chapter-item expanded "><a href="../node/backing/statement-distribution.html"><strong aria-hidden="true">6.5.3.</strong> Statement Distribution</a></li><li class="chapter-item expanded "><a href="../node/backing/statement-distribution-legacy.html"><strong aria-hidden="true">6.5.4.</strong> Statement Distribution (Legacy)</a></li></ol></li><li class="chapter-item expanded "><a href="../node/availability/index.html"><strong aria-hidden="true">6.6.</strong> Availability Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/availability/availability-distribution.html"><strong aria-hidden="true">6.6.1.</strong> Availability Distribution</a></li><li class="chapter-item expanded "><a href="../node/availability/availability-recovery.html"><strong aria-hidden="true">6.6.2.</strong> Availability Recovery</a></li><li class="chapter-item expanded "><a href="../node/availability/bitfield-distribution.html"><strong aria-hidden="true">6.6.3.</strong> Bitfield Distribution</a></li><li class="chapter-item expanded "><a href="../node/availability/bitfield-signing.html"><strong aria-hidden="true">6.6.4.</strong> Bitfield Signing</a></li></ol></li><li class="chapter-item expanded "><a href="../node/approval/index.html"><strong aria-hidden="true">6.7.</strong> Approval Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/approval/approval-voting.html"><strong aria-hidden="true">6.7.1.</strong> Approval Voting</a></li><li class="chapter-item expanded "><a href="../node/approval/approval-distribution.html"><strong aria-hidden="true">6.7.2.</strong> Approval Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../node/disputes/index.html"><strong aria-hidden="true">6.8.</strong> Disputes Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/disputes/dispute-coordinator.html"><strong aria-hidden="true">6.8.1.</strong> Dispute Coordinator</a></li><li class="chapter-item expanded "><a href="../node/disputes/dispute-distribution.html"><strong aria-hidden="true">6.8.2.</strong> Dispute Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../node/utility/index.html"><strong aria-hidden="true">6.9.</strong> Utility Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/utility/availability-store.html"><strong aria-hidden="true">6.9.1.</strong> Availability Store</a></li><li class="chapter-item expanded "><a href="../node/utility/candidate-validation.html"><strong aria-hidden="true">6.9.2.</strong> Candidate Validation</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/utility/pvf-host-and-workers.html"><strong aria-hidden="true">6.9.2.1.</strong> PVF Host and Workers</a></li></ol></li><li class="chapter-item expanded "><a href="../node/utility/provisioner.html"><strong aria-hidden="true">6.9.3.</strong> Provisioner</a></li><li class="chapter-item expanded "><a href="../node/utility/network-bridge.html"><strong aria-hidden="true">6.9.4.</strong> Network Bridge</a></li><li class="chapter-item expanded "><a href="../node/utility/gossip-support.html"><strong aria-hidden="true">6.9.5.</strong> Gossip Support</a></li><li class="chapter-item expanded "><a href="../node/utility/peer-set-manager.html"><strong aria-hidden="true">6.9.6.</strong> Peer Set Manager</a></li><li class="chapter-item expanded "><a href="../node/utility/runtime-api.html"><strong aria-hidden="true">6.9.7.</strong> Runtime API Requests</a></li><li class="chapter-item expanded "><a href="../node/utility/chain-api.html"><strong aria-hidden="true">6.9.8.</strong> Chain API Requests</a></li><li class="chapter-item expanded "><a href="../node/utility/chain-selection.html"><strong aria-hidden="true">6.9.9.</strong> Chain Selection Request</a></li><li class="chapter-item expanded "><a href="../node/utility/pvf-prechecker.html"><strong aria-hidden="true">6.9.10.</strong> PVF Pre-Checking</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="../types/index.html"><strong aria-hidden="true">7.</strong> Data Structures and Types</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../types/candidate.html"><strong aria-hidden="true">7.1.</strong> Candidate</a></li><li class="chapter-item expanded "><a href="../types/backing.html"><strong aria-hidden="true">7.2.</strong> Backing</a></li><li class="chapter-item expanded "><a href="../types/availability.html"><strong aria-hidden="true">7.3.</strong> Availability</a></li><li class="chapter-item expanded "><a href="../types/overseer-protocol.html"><strong aria-hidden="true">7.4.</strong> Overseer and Subsystem Protocol</a></li><li class="chapter-item expanded "><a href="../types/runtime.html"><strong aria-hidden="true">7.5.</strong> Runtime</a></li><li class="chapter-item expanded "><a href="../types/messages.html"><strong aria-hidden="true">7.6.</strong> Messages</a></li><li class="chapter-item expanded "><a href="../types/network.html"><strong aria-hidden="true">7.7.</strong> Network</a></li><li class="chapter-item expanded "><a href="../types/approval.html"><strong aria-hidden="true">7.8.</strong> Approvals</a></li><li class="chapter-item expanded "><a href="../types/disputes.html"><strong aria-hidden="true">7.9.</strong> Disputes</a></li><li class="chapter-item expanded "><a href="../types/pvf-prechecking.html"><strong aria-hidden="true">7.10.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../glossary.html">Glossary</a></li><li class="chapter-item expanded affix "><a href="../further-reading.html">Further Reading</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Polkadot Parachain Host Implementers&#x27; Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/paritytech/polkadot" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="hrmp-pallet"><a class="header" href="#hrmp-pallet">HRMP Pallet</a></h1>
+<p>A module responsible for Horizontally Relay-routed Message Passing (HRMP). See <a href="../messaging.html">Messaging Overview</a> for more details.</p>
+<h2 id="storage"><a class="header" href="#storage">Storage</a></h2>
+<p>HRMP related structs:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// A description of a request to open an HRMP channel.
+struct HrmpOpenChannelRequest {
+    /// Indicates if this request was confirmed by the recipient.
+    confirmed: bool,
+    /// The amount that the sender supplied at the time of creation of this request.
+    sender_deposit: Balance,
+    /// The maximum message size that could be put into the channel.
+    max_message_size: u32,
+    /// The maximum number of messages that can be pending in the channel at once.
+    max_capacity: u32,
+    /// The maximum total size of the messages that can be pending in the channel at once.
+    max_total_size: u32,
+}
+
+/// A metadata of an HRMP channel.
+struct HrmpChannel {
+    /// The amount that the sender supplied as a deposit when opening this channel.
+    sender_deposit: Balance,
+    /// The amount that the recipient supplied as a deposit when accepting opening this channel.
+    recipient_deposit: Balance,
+    /// The maximum number of messages that can be pending in the channel at once.
+    max_capacity: u32,
+    /// The maximum total size of the messages that can be pending in the channel at once.
+    max_total_size: u32,
+    /// The maximum message size that could be put into the channel.
+    max_message_size: u32,
+    /// The current number of messages pending in the channel.
+    /// Invariant: should be less or equal to `max_capacity`.
+    msg_count: u32,
+    /// The total size in bytes of all message payloads in the channel.
+    /// Invariant: should be less or equal to `max_total_size`.
+    total_size: u32,
+    /// A head of the Message Queue Chain for this channel. Each link in this chain has a form:
+    /// `(prev_head, B, H(M))`, where
+    /// - `prev_head`: is the previous value of `mqc_head` or zero if none.
+    /// - `B`: is the [relay-chain] block number in which a message was appended
+    /// - `H(M)`: is the hash of the message being appended.
+    /// This value is initialized to a special value that consists of all zeroes which indicates
+    /// that no messages were previously added.
+    mqc_head: Option&lt;Hash&gt;,
+}
+<span class="boring">}
+</span></code></pre></pre>
+<p>HRMP related storage layout</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// The set of pending HRMP open channel requests.
+///
+/// The set is accompanied by a list for iteration.
+///
+/// Invariant:
+/// - There are no channels that exists in list but not in the set and vice versa.
+HrmpOpenChannelRequests: map HrmpChannelId =&gt; Option&lt;HrmpOpenChannelRequest&gt;;
+HrmpOpenChannelRequestsList: Vec&lt;HrmpChannelId&gt;;
+
+/// This mapping tracks how many open channel requests are inititated by a given sender para.
+/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X, _)`
+/// as the number of `HrmpOpenChannelRequestCount` for `X`.
+HrmpOpenChannelRequestCount: map ParaId =&gt; u32;
+/// This mapping tracks how many open channel requests were accepted by a given recipient para.
+/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items `(_, X)` with
+/// `confirmed` set to true, as the number of `HrmpAcceptedChannelRequestCount` for `X`.
+HrmpAcceptedChannelRequestCount: map ParaId =&gt; u32;
+
+/// A set of pending HRMP close channel requests that are going to be closed during the session change.
+/// Used for checking if a given channel is registered for closure.
+///
+/// The set is accompanied by a list for iteration.
+///
+/// Invariant:
+/// - There are no channels that exists in list but not in the set and vice versa.
+HrmpCloseChannelRequests: map HrmpChannelId =&gt; Option&lt;()&gt;;
+HrmpCloseChannelRequestsList: Vec&lt;HrmpChannelId&gt;;
+
+/// The HRMP watermark associated with each para.
+/// Invariant:
+/// - each para `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a session.
+HrmpWatermarks: map ParaId =&gt; Option&lt;BlockNumber&gt;;
+/// HRMP channel data associated with each para.
+/// Invariant:
+/// - each participant in the channel should satisfy `Paras::is_valid_para(P)` within a session.
+HrmpChannels: map HrmpChannelId =&gt; Option&lt;HrmpChannel&gt;;
+/// Ingress/egress indexes allow to find all the senders and receivers given the opposite
+/// side. I.e.
+///
+/// (a) ingress index allows to find all the senders for a given recipient.
+/// (b) egress index allows to find all the recipients for a given sender.
+///
+/// Invariants:
+/// - for each ingress index entry for `P` each item `I` in the index should present in `HrmpChannels`
+///   as `(I, P)`.
+/// - for each egress index entry for `P` each item `E` in the index should present in `HrmpChannels`
+///   as `(P, E)`.
+/// - there should be no other dangling channels in `HrmpChannels`.
+/// - the vectors are sorted.
+HrmpIngressChannelsIndex: map ParaId =&gt; Vec&lt;ParaId&gt;;
+HrmpEgressChannelsIndex: map ParaId =&gt; Vec&lt;ParaId&gt;;
+/// Storage for the messages for each channel.
+/// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
+HrmpChannelContents: map HrmpChannelId =&gt; Vec&lt;InboundHrmpMessage&gt;;
+/// Maintains a mapping that can be used to answer the question:
+/// What paras sent a message at the given block number for a given reciever.
+/// Invariants:
+/// - The inner `Vec&lt;ParaId&gt;` is never empty.
+/// - The inner `Vec&lt;ParaId&gt;` cannot store two same `ParaId`.
+/// - The outer vector is sorted ascending by block number and cannot store two items with the same
+///   block number.
+HrmpChannelDigests: map ParaId =&gt; Vec&lt;(BlockNumber, Vec&lt;ParaId&gt;)&gt;;
+<span class="boring">}
+</span></code></pre></pre>
+<h2 id="initialization"><a class="header" href="#initialization">Initialization</a></h2>
+<p>No initialization routine runs for this module.</p>
+<h2 id="routines"><a class="header" href="#routines">Routines</a></h2>
+<p>Candidate Acceptance Function:</p>
+<ul>
+<li><code>check_hrmp_watermark(P: ParaId, new_hrmp_watermark)</code>:
+<ol>
+<li><code>new_hrmp_watermark</code> should be strictly greater than the value of <code>HrmpWatermarks</code> for <code>P</code> (if any).</li>
+<li><code>new_hrmp_watermark</code> must not be greater than the context's block number.</li>
+<li><code>new_hrmp_watermark</code> should be either
+<ol>
+<li>equal to the context's block number</li>
+<li>or in <code>HrmpChannelDigests</code> for <code>P</code> an entry with the block number should exist</li>
+</ol>
+</li>
+</ol>
+</li>
+<li><code>check_outbound_hrmp(sender: ParaId, Vec&lt;OutboundHrmpMessage&gt;)</code>:
+<ol>
+<li>Checks that there are at most <code>config.hrmp_max_message_num_per_candidate</code> messages.</li>
+<li>Checks that horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.</li>
+<li>For each horizontal message <code>M</code> with the channel <code>C</code> identified by <code>(sender, M.recipient)</code> check:
+<ol>
+<li>exists</li>
+<li><code>M</code>'s payload size doesn't exceed a preconfigured limit <code>C.max_message_size</code></li>
+<li><code>M</code>'s payload size summed with the <code>C.total_size</code> doesn't exceed a preconfigured limit <code>C.max_total_size</code>.</li>
+<li><code>C.msg_count + 1</code> doesn't exceed a preconfigured limit <code>C.max_capacity</code>.</li>
+</ol>
+</li>
+</ol>
+</li>
+</ul>
+<p>Candidate Enactment:</p>
+<ul>
+<li><code>queue_outbound_hrmp(sender: ParaId, Vec&lt;OutboundHrmpMessage&gt;)</code>:
+<ol>
+<li>For each horizontal message <code>HM</code> with the channel <code>C</code> identified by <code>(sender, HM.recipient)</code>:
+<ol>
+<li>Append <code>HM</code> into <code>HrmpChannelContents</code> that corresponds to <code>C</code> with <code>sent_at</code> equals to the current block number.</li>
+<li>Locate or create an entry in <code>HrmpChannelDigests</code> for <code>HM.recipient</code> and append <code>sender</code> into the entry's list.</li>
+<li>Increment <code>C.msg_count</code></li>
+<li>Increment <code>C.total_size</code> by <code>HM</code>'s payload size</li>
+<li>Append a new link to the MQC and save the new head in <code>C.mqc_head</code>. Note that the current block number as of enactment is used for the link.</li>
+</ol>
+</li>
+</ol>
+</li>
+<li><code>prune_hrmp(recipient, new_hrmp_watermark)</code>:
+<ol>
+<li>From <code>HrmpChannelDigests</code> for <code>recipient</code> remove all entries up to an entry with block number equal to <code>new_hrmp_watermark</code>.</li>
+<li>From the removed digests construct a set of paras that sent new messages within the interval between the old and new watermarks.</li>
+<li>For each channel <code>C</code> identified by <code>(sender, recipient)</code> for each <code>sender</code> coming from the set, prune messages up to the <code>new_hrmp_watermark</code>.</li>
+<li>For each pruned message <code>M</code> from channel <code>C</code>:
+<ol>
+<li>Decrement <code>C.msg_count</code></li>
+<li>Decrement <code>C.total_size</code> by <code>M</code>'s payload size.</li>
+</ol>
+</li>
+<li>Set <code>HrmpWatermarks</code> for <code>P</code> to be equal to <code>new_hrmp_watermark</code></li>
+</ol>
+<blockquote>
+<p>NOTE: That collecting digests can be inefficient and the time it takes grows very fast. Thanks to the aggressive
+parameterization this shouldn't be a big of a deal.
+If that becomes a problem consider introducing an extra dictionary which says at what block the given sender
+sent a message to the recipient.</p>
+</blockquote>
+</li>
+</ul>
+<h2 id="entry-points"><a class="header" href="#entry-points">Entry-points</a></h2>
+<p>The following entry-points are meant to be used for HRMP channel management.</p>
+<p>Those entry-points are meant to be called from a parachain. <code>origin</code> is defined as the <code>ParaId</code> of
+the parachain executed the message.</p>
+<ul>
+<li><code>hrmp_init_open_channel(recipient, proposed_max_capacity, proposed_max_message_size)</code>:
+<ol>
+<li>Check that the <code>origin</code> is not <code>recipient</code>.</li>
+<li>Check that <code>proposed_max_capacity</code> is less or equal to <code>config.hrmp_channel_max_capacity</code> and greater than zero.</li>
+<li>Check that <code>proposed_max_message_size</code> is less or equal to <code>config.hrmp_channel_max_message_size</code> and greater than zero.</li>
+<li>Check that <code>recipient</code> is a valid para.</li>
+<li>Check that there is no existing channel for <code>(origin, recipient)</code> in <code>HrmpChannels</code>.</li>
+<li>Check that there is no existing open channel request (<code>origin</code>, <code>recipient</code>) in <code>HrmpOpenChannelRequests</code>.</li>
+<li>Check that the sum of the number of already opened HRMP channels by the <code>origin</code> (the size
+of the set found <code>HrmpEgressChannelsIndex</code> for <code>origin</code>) and the number of open requests by the
+<code>origin</code> (the value from <code>HrmpOpenChannelRequestCount</code> for <code>origin</code>) doesn't exceed the limit of
+channels (<code>config.hrmp_max_parachain_outbound_channels</code> or <code>config.hrmp_max_parathread_outbound_channels</code>) minus 1.</li>
+<li>Check that <code>origin</code>'s balance is more or equal to <code>config.hrmp_sender_deposit</code></li>
+<li>Reserve the deposit for the <code>origin</code> according to <code>config.hrmp_sender_deposit</code></li>
+<li>Increase <code>HrmpOpenChannelRequestCount</code> by 1 for <code>origin</code>.</li>
+<li>Append <code>(origin, recipient)</code> to <code>HrmpOpenChannelRequestsList</code>.</li>
+<li>Add a new entry to <code>HrmpOpenChannelRequests</code> for <code>(origin, recipient)</code>
+<ol>
+<li>Set <code>sender_deposit</code> to <code>config.hrmp_sender_deposit</code></li>
+<li>Set <code>max_capacity</code> to <code>proposed_max_capacity</code></li>
+<li>Set <code>max_message_size</code> to <code>proposed_max_message_size</code></li>
+<li>Set <code>max_total_size</code> to <code>config.hrmp_channel_max_total_size</code></li>
+</ol>
+</li>
+<li>Send a downward message to <code>recipient</code> notifying about an inbound HRMP channel request.
+<ul>
+<li>The DM is sent using <code>queue_downward_message</code>.</li>
+<li>The DM is represented by the <code>HrmpNewChannelOpenRequest</code>  XCM message.
+<ul>
+<li><code>sender</code> is set to <code>origin</code>,</li>
+<li><code>max_message_size</code> is set to <code>proposed_max_message_size</code>,</li>
+<li><code>max_capacity</code> is set to <code>proposed_max_capacity</code>.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+</li>
+<li><code>hrmp_accept_open_channel(sender)</code>:
+<ol>
+<li>Check that there is an existing request between (<code>sender</code>, <code>origin</code>) in <code>HrmpOpenChannelRequests</code>
+<ol>
+<li>Check that it is not confirmed.</li>
+</ol>
+</li>
+<li>Check that the sum of the number of inbound HRMP channels opened to <code>origin</code> (the size of the set
+found in <code>HrmpIngressChannelsIndex</code> for <code>origin</code>) and the number of accepted open requests by the <code>origin</code>
+(the value from <code>HrmpAcceptedChannelRequestCount</code> for <code>origin</code>) doesn't exceed the limit of channels
+(<code>config.hrmp_max_parachain_inbound_channels</code> or <code>config.hrmp_max_parathread_inbound_channels</code>)
+minus 1.</li>
+<li>Check that <code>origin</code>'s balance is more or equal to <code>config.hrmp_recipient_deposit</code>.</li>
+<li>Reserve the deposit for the <code>origin</code> according to <code>config.hrmp_recipient_deposit</code></li>
+<li>For the request in <code>HrmpOpenChannelRequests</code> identified by <code>(sender, P)</code>, set <code>confirmed</code> flag to <code>true</code>.</li>
+<li>Increase <code>HrmpAcceptedChannelRequestCount</code> by 1 for <code>origin</code>.</li>
+<li>Send a downward message to <code>sender</code> notifying that the channel request was accepted.
+<ul>
+<li>The DM is sent using <code>queue_downward_message</code>.</li>
+<li>The DM is represented by the <code>HrmpChannelAccepted</code> XCM message.
+<ul>
+<li><code>recipient</code> is set to <code>origin</code>.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+</li>
+<li><code>hrmp_cancel_open_request(ch)</code>:
+<ol>
+<li>Check that <code>origin</code> is either <code>ch.sender</code> or <code>ch.recipient</code></li>
+<li>Check that the open channel request <code>ch</code> exists.</li>
+<li>Check that the open channel request for <code>ch</code> is not confirmed.</li>
+<li>Remove <code>ch</code> from <code>HrmpOpenChannelRequests</code> and <code>HrmpOpenChannelRequestsList</code></li>
+<li>Decrement <code>HrmpAcceptedChannelRequestCount</code> for <code>ch.recipient</code> by 1.</li>
+<li>Unreserve the deposit of <code>ch.sender</code>.</li>
+</ol>
+</li>
+<li><code>hrmp_close_channel(ch)</code>:
+<ol>
+<li>Check that <code>origin</code> is either <code>ch.sender</code> or <code>ch.recipient</code></li>
+<li>Check that <code>HrmpChannels</code> for <code>ch</code> exists.</li>
+<li>Check that <code>ch</code> is not in the <code>HrmpCloseChannelRequests</code> set.</li>
+<li>If not already there, insert a new entry <code>Some(())</code> to <code>HrmpCloseChannelRequests</code> for <code>ch</code>
+and append <code>ch</code> to <code>HrmpCloseChannelRequestsList</code>.</li>
+<li>Send a downward message to the opposite party notifying about the channel closing.
+<ul>
+<li>The DM is sent using <code>queue_downward_message</code>.</li>
+<li>The DM is represented by the <code>HrmpChannelClosing</code> XCM message with:
+<ul>
+<li><code>initator</code> is set to <code>origin</code>,</li>
+<li><code>sender</code> is set to <code>ch.sender</code>,</li>
+<li><code>recipient</code> is set to <code>ch.recipient</code>.</li>
+</ul>
+</li>
+<li>The opposite party is <code>ch.sender</code> if <code>origin</code> is <code>ch.recipient</code> and <code>ch.recipient</code> if <code>origin</code> is <code>ch.sender</code>.</li>
+</ul>
+</li>
+</ol>
+</li>
+</ul>
+<h2 id="session-change"><a class="header" href="#session-change">Session Change</a></h2>
+<ol>
+<li>For each <code>P</code> in <code>outgoing_paras</code> (generated by <code>Paras::on_new_session</code>):
+<ol>
+<li>Remove all inbound channels of <code>P</code>, i.e. <code>(_, P)</code>,</li>
+<li>Remove all outbound channels of <code>P</code>, i.e. <code>(P, _)</code>,</li>
+<li>Remove <code>HrmpOpenChannelRequestCount</code> for <code>P</code></li>
+<li>Remove <code>HrmpAcceptedChannelRequestCount</code> for <code>P</code>.</li>
+<li>Remove <code>HrmpOpenChannelRequests</code> and <code>HrmpOpenChannelRequestsList</code> for <code>(P, _)</code> and <code>(_, P)</code>.
+<ol>
+<li>For each removed channel request <code>C</code>:
+<ol>
+<li>Unreserve the sender's deposit if the sender is not present in <code>outgoing_paras</code></li>
+<li>Unreserve the recipient's deposit if <code>C</code> is confirmed and the recipient is not present in <code>outgoing_paras</code></li>
+</ol>
+</li>
+</ol>
+</li>
+</ol>
+</li>
+<li>For each channel designator <code>D</code> in <code>HrmpOpenChannelRequestsList</code> we query the request <code>R</code> from <code>HrmpOpenChannelRequests</code>:
+<ol>
+<li>if <code>R.confirmed = true</code>,
+<ol>
+<li>if both <code>D.sender</code> and <code>D.recipient</code> are not offboarded.</li>
+<li>create a new channel <code>C</code> between <code>(D.sender, D.recipient)</code>.
+<ol>
+<li>Initialize the <code>C.sender_deposit</code> with <code>R.sender_deposit</code> and <code>C.recipient_deposit</code>
+with the value found in the configuration <code>config.hrmp_recipient_deposit</code>.</li>
+<li>Insert <code>sender</code> into the set <code>HrmpIngressChannelsIndex</code> for the <code>recipient</code>.</li>
+<li>Insert <code>recipient</code> into the set <code>HrmpEgressChannelsIndex</code> for the <code>sender</code>.</li>
+</ol>
+</li>
+<li>decrement <code>HrmpOpenChannelRequestCount</code> for <code>D.sender</code> by 1.</li>
+<li>decrement <code>HrmpAcceptedChannelRequestCount</code> for <code>D.recipient</code> by 1.</li>
+<li>remove <code>R</code></li>
+<li>remove <code>D</code></li>
+</ol>
+</li>
+</ol>
+</li>
+<li>For each HRMP channel designator <code>D</code> in <code>HrmpCloseChannelRequestsList</code>
+<ol>
+<li>remove the channel identified by <code>D</code>, if exists.</li>
+<li>remove <code>D</code> from <code>HrmpCloseChannelRequests</code>.</li>
+<li>remove <code>D</code> from <code>HrmpCloseChannelRequestsList</code></li>
+</ol>
+</li>
+</ol>
+<p>To remove a HRMP channel <code>C</code> identified with a tuple <code>(sender, recipient)</code>:</p>
+<ol>
+<li>Return <code>C.sender_deposit</code> to the <code>sender</code>.</li>
+<li>Return <code>C.recipient_deposit</code> to the <code>recipient</code>.</li>
+<li>Remove <code>C</code> from <code>HrmpChannels</code>.</li>
+<li>Remove <code>C</code> from <code>HrmpChannelContents</code>.</li>
+<li>Remove <code>recipient</code> from the set <code>HrmpEgressChannelsIndex</code> for <code>sender</code>.</li>
+<li>Remove <code>sender</code> from the set <code>HrmpIngressChannelsIndex</code> for <code>recipient</code>.</li>
+</ol>
+<footer id="last-change">Last change: 2023-08-18, commit: <a href="https://github.com/paritytech/polkadot/commit/4b7822adeb">4b7822adeb</a></footer>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../runtime/dmp.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="../runtime/session_info.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../runtime/dmp.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="../runtime/session_info.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="../mermaid.min.js"></script>
+        <script type="text/javascript" src="../mermaid-init.js"></script>
+
+
+    </body>
+</html>

@@ -1,0 +1,5 @@
+(function() {var implementors = {
+"malus":[["impl ValueEnum for <a class=\"enum\" href=\"malus/variants/common/enum.FakeCandidateValidation.html\" title=\"enum malus::variants::common::FakeCandidateValidation\">FakeCandidateValidation</a>"],["impl ValueEnum for <a class=\"enum\" href=\"malus/variants/common/enum.FakeCandidateValidationError.html\" title=\"enum malus::variants::common::FakeCandidateValidationError\">FakeCandidateValidationError</a>"]],
+"polkadot_voter_bags":[["impl ValueEnum for <a class=\"enum\" href=\"polkadot_voter_bags/enum.Runtime.html\" title=\"enum polkadot_voter_bags::Runtime\">Runtime</a>"]],
+"remote_ext_tests_bags_list":[["impl ValueEnum for <a class=\"enum\" href=\"remote_ext_tests_bags_list/enum.Command.html\" title=\"enum remote_ext_tests_bags_list::Command\">Command</a>"],["impl ValueEnum for <a class=\"enum\" href=\"remote_ext_tests_bags_list/enum.Runtime.html\" title=\"enum remote_ext_tests_bags_list::Runtime\">Runtime</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

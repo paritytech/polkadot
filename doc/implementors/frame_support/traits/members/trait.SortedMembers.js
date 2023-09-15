@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"rococo_runtime":[["impl SortedMembers&lt;&lt;&lt;MultiSignature as Verify&gt;::Signer as IdentifyAccount&gt;::AccountId&gt; for <a class=\"struct\" href=\"rococo_runtime/struct.MigController.html\" title=\"struct rococo_runtime::MigController\">MigController</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

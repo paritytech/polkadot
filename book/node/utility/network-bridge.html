@@ -1,0 +1,301 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Network Bridge - The Polkadot Parachain Host Implementers&#x27; Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../../highlight.css">
+        <link rel="stylesheet" href="../../tomorrow-night.css">
+        <link rel="stylesheet" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../last-changed.css">
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../../index.html">Preamble</a></li><li class="chapter-item expanded "><a href="../../whence-parachains.html"><strong aria-hidden="true">1.</strong> Whence Parachains</a></li><li class="chapter-item expanded "><a href="../../protocol-overview.html"><strong aria-hidden="true">2.</strong> Protocol Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../protocol-approval.html"><strong aria-hidden="true">2.1.</strong> Approval Process</a></li><li class="chapter-item expanded "><a href="../../protocol-disputes.html"><strong aria-hidden="true">2.2.</strong> Disputes Process</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../disputes-flow.html"><strong aria-hidden="true">2.2.1.</strong> Dispute Flow</a></li></ol></li><li class="chapter-item expanded "><a href="../../protocol-chain-selection.html"><strong aria-hidden="true">2.3.</strong> Chain Selection and Finalization</a></li></ol></li><li class="chapter-item expanded "><a href="../../architecture.html"><strong aria-hidden="true">3.</strong> Architecture Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../messaging.html"><strong aria-hidden="true">3.1.</strong> Messaging Overview</a></li><li class="chapter-item expanded "><a href="../../pvf-prechecking.html"><strong aria-hidden="true">3.2.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../runtime/index.html"><strong aria-hidden="true">4.</strong> Runtime Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../runtime/initializer.html"><strong aria-hidden="true">4.1.</strong> Initializer Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/configuration.html"><strong aria-hidden="true">4.2.</strong> Configuration Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/shared.html"><strong aria-hidden="true">4.3.</strong> Shared Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/disputes.html"><strong aria-hidden="true">4.4.</strong> Disputes Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/paras.html"><strong aria-hidden="true">4.5.</strong> Paras Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/scheduler.html"><strong aria-hidden="true">4.6.</strong> Scheduler Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/inclusion.html"><strong aria-hidden="true">4.7.</strong> Inclusion Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/parainherent.html"><strong aria-hidden="true">4.8.</strong> ParaInherent Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/dmp.html"><strong aria-hidden="true">4.9.</strong> DMP Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/hrmp.html"><strong aria-hidden="true">4.10.</strong> HRMP Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/session_info.html"><strong aria-hidden="true">4.11.</strong> Session Info Pallet</a></li></ol></li><li class="chapter-item expanded "><a href="../../runtime-api/index.html"><strong aria-hidden="true">5.</strong> Runtime APIs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../runtime-api/validators.html"><strong aria-hidden="true">5.1.</strong> Validators</a></li><li class="chapter-item expanded "><a href="../../runtime-api/validator-groups.html"><strong aria-hidden="true">5.2.</strong> Validator Groups</a></li><li class="chapter-item expanded "><a href="../../runtime-api/availability-cores.html"><strong aria-hidden="true">5.3.</strong> Availability Cores</a></li><li class="chapter-item expanded "><a href="../../runtime-api/persisted-validation-data.html"><strong aria-hidden="true">5.4.</strong> Persisted Validation Data</a></li><li class="chapter-item expanded "><a href="../../runtime-api/session-index.html"><strong aria-hidden="true">5.5.</strong> Session Index</a></li><li class="chapter-item expanded "><a href="../../runtime-api/validation-code.html"><strong aria-hidden="true">5.6.</strong> Validation Code</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidate-pending-availability.html"><strong aria-hidden="true">5.7.</strong> Candidate Pending Availability</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidate-events.html"><strong aria-hidden="true">5.8.</strong> Candidate Events</a></li><li class="chapter-item expanded "><a href="../../runtime-api/disputes-info.html"><strong aria-hidden="true">5.9.</strong> Disputes Info</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidates-included.html"><strong aria-hidden="true">5.10.</strong> Candidates Included</a></li><li class="chapter-item expanded "><a href="../../runtime-api/pvf-prechecking.html"><strong aria-hidden="true">5.11.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/index.html"><strong aria-hidden="true">6.</strong> Node Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/subsystems-and-jobs.html"><strong aria-hidden="true">6.1.</strong> Subsystems and Jobs</a></li><li class="chapter-item expanded "><a href="../../node/overseer.html"><strong aria-hidden="true">6.2.</strong> Overseer</a></li><li class="chapter-item expanded "><a href="../../node/grandpa-voting-rule.html"><strong aria-hidden="true">6.3.</strong> GRANDPA Voting Rule</a></li><li class="chapter-item expanded "><a href="../../node/collators/index.html"><strong aria-hidden="true">6.4.</strong> Collator Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/collators/collation-generation.html"><strong aria-hidden="true">6.4.1.</strong> Collation Generation</a></li><li class="chapter-item expanded "><a href="../../node/collators/collator-protocol.html"><strong aria-hidden="true">6.4.2.</strong> Collator Protocol</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/backing/index.html"><strong aria-hidden="true">6.5.</strong> Backing Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/backing/candidate-backing.html"><strong aria-hidden="true">6.5.1.</strong> Candidate Backing</a></li><li class="chapter-item expanded "><a href="../../node/backing/prospective-parachains.html"><strong aria-hidden="true">6.5.2.</strong> Prospective Parachains</a></li><li class="chapter-item expanded "><a href="../../node/backing/statement-distribution.html"><strong aria-hidden="true">6.5.3.</strong> Statement Distribution</a></li><li class="chapter-item expanded "><a href="../../node/backing/statement-distribution-legacy.html"><strong aria-hidden="true">6.5.4.</strong> Statement Distribution (Legacy)</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/availability/index.html"><strong aria-hidden="true">6.6.</strong> Availability Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/availability/availability-distribution.html"><strong aria-hidden="true">6.6.1.</strong> Availability Distribution</a></li><li class="chapter-item expanded "><a href="../../node/availability/availability-recovery.html"><strong aria-hidden="true">6.6.2.</strong> Availability Recovery</a></li><li class="chapter-item expanded "><a href="../../node/availability/bitfield-distribution.html"><strong aria-hidden="true">6.6.3.</strong> Bitfield Distribution</a></li><li class="chapter-item expanded "><a href="../../node/availability/bitfield-signing.html"><strong aria-hidden="true">6.6.4.</strong> Bitfield Signing</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/approval/index.html"><strong aria-hidden="true">6.7.</strong> Approval Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/approval/approval-voting.html"><strong aria-hidden="true">6.7.1.</strong> Approval Voting</a></li><li class="chapter-item expanded "><a href="../../node/approval/approval-distribution.html"><strong aria-hidden="true">6.7.2.</strong> Approval Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/disputes/index.html"><strong aria-hidden="true">6.8.</strong> Disputes Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/disputes/dispute-coordinator.html"><strong aria-hidden="true">6.8.1.</strong> Dispute Coordinator</a></li><li class="chapter-item expanded "><a href="../../node/disputes/dispute-distribution.html"><strong aria-hidden="true">6.8.2.</strong> Dispute Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/utility/index.html"><strong aria-hidden="true">6.9.</strong> Utility Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/utility/availability-store.html"><strong aria-hidden="true">6.9.1.</strong> Availability Store</a></li><li class="chapter-item expanded "><a href="../../node/utility/candidate-validation.html"><strong aria-hidden="true">6.9.2.</strong> Candidate Validation</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/utility/pvf-host-and-workers.html"><strong aria-hidden="true">6.9.2.1.</strong> PVF Host and Workers</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/utility/provisioner.html"><strong aria-hidden="true">6.9.3.</strong> Provisioner</a></li><li class="chapter-item expanded "><a href="../../node/utility/network-bridge.html" class="active"><strong aria-hidden="true">6.9.4.</strong> Network Bridge</a></li><li class="chapter-item expanded "><a href="../../node/utility/gossip-support.html"><strong aria-hidden="true">6.9.5.</strong> Gossip Support</a></li><li class="chapter-item expanded "><a href="../../node/utility/peer-set-manager.html"><strong aria-hidden="true">6.9.6.</strong> Peer Set Manager</a></li><li class="chapter-item expanded "><a href="../../node/utility/runtime-api.html"><strong aria-hidden="true">6.9.7.</strong> Runtime API Requests</a></li><li class="chapter-item expanded "><a href="../../node/utility/chain-api.html"><strong aria-hidden="true">6.9.8.</strong> Chain API Requests</a></li><li class="chapter-item expanded "><a href="../../node/utility/chain-selection.html"><strong aria-hidden="true">6.9.9.</strong> Chain Selection Request</a></li><li class="chapter-item expanded "><a href="../../node/utility/pvf-prechecker.html"><strong aria-hidden="true">6.9.10.</strong> PVF Pre-Checking</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="../../types/index.html"><strong aria-hidden="true">7.</strong> Data Structures and Types</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../types/candidate.html"><strong aria-hidden="true">7.1.</strong> Candidate</a></li><li class="chapter-item expanded "><a href="../../types/backing.html"><strong aria-hidden="true">7.2.</strong> Backing</a></li><li class="chapter-item expanded "><a href="../../types/availability.html"><strong aria-hidden="true">7.3.</strong> Availability</a></li><li class="chapter-item expanded "><a href="../../types/overseer-protocol.html"><strong aria-hidden="true">7.4.</strong> Overseer and Subsystem Protocol</a></li><li class="chapter-item expanded "><a href="../../types/runtime.html"><strong aria-hidden="true">7.5.</strong> Runtime</a></li><li class="chapter-item expanded "><a href="../../types/messages.html"><strong aria-hidden="true">7.6.</strong> Messages</a></li><li class="chapter-item expanded "><a href="../../types/network.html"><strong aria-hidden="true">7.7.</strong> Network</a></li><li class="chapter-item expanded "><a href="../../types/approval.html"><strong aria-hidden="true">7.8.</strong> Approvals</a></li><li class="chapter-item expanded "><a href="../../types/disputes.html"><strong aria-hidden="true">7.9.</strong> Disputes</a></li><li class="chapter-item expanded "><a href="../../types/pvf-prechecking.html"><strong aria-hidden="true">7.10.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../glossary.html">Glossary</a></li><li class="chapter-item expanded affix "><a href="../../further-reading.html">Further Reading</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Polkadot Parachain Host Implementers&#x27; Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/paritytech/polkadot" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="network-bridge"><a class="header" href="#network-bridge">Network Bridge</a></h1>
+<p>One of the main features of the overseer/subsystem duality is to avoid shared ownership of resources and to communicate via message-passing. However, implementing each networking subsystem as its own network protocol brings a fair share of challenges.</p>
+<p>The most notable challenge is coordinating and eliminating race conditions of peer connection and disconnection events. If we have many network protocols that peers are supposed to be connected on, it is difficult to enforce that a peer is indeed connected on all of them or the order in which those protocols receive notifications that peers have connected. This becomes especially difficult when attempting to share peer state across protocols. All of the Parachain-Host's gossip protocols eliminate DoS with a data-dependency on current chain heads. However, it is inefficient and confusing to implement the logic for tracking our current chain heads as well as our peers' on each of those subsystems. Having one subsystem for tracking this shared state and distributing it to the others is an improvement in architecture and efficiency.</p>
+<p>One other piece of shared state to track is peer reputation. When peers are found to have provided value or cost, we adjust their reputation accordingly.</p>
+<p>So in short, this Subsystem acts as a bridge between an actual network component and a subsystem's protocol. The implementation of the underlying network component is beyond the scope of this module. We make certain assumptions about the network component:</p>
+<ul>
+<li>The network allows registering of protocols and multiple versions of each protocol.</li>
+<li>The network handles version negotiation of protocols with peers and only connects the peer on the highest version of the protocol.</li>
+<li>Each protocol has its own peer-set, although there may be some overlap.</li>
+<li>The network provides peer-set management utilities for discovering the peer-IDs of validators and a means of dialing peers with given IDs.</li>
+</ul>
+<p>The network bridge makes use of the peer-set feature, but is not generic over peer-set. Instead, it exposes two peer-sets that event producers can attach to: <code>Validation</code> and <code>Collation</code>. More information can be found on the documentation of the <a href="../../types/overseer-protocol.html#network-bridge-message"><code>NetworkBridgeMessage</code></a>.</p>
+<h2 id="protocol"><a class="header" href="#protocol">Protocol</a></h2>
+<p>Input: <a href="../../types/overseer-protocol.html#network-bridge-message"><code>NetworkBridgeMessage</code></a></p>
+<p>Output:</p>
+<ul>
+<li><a href="../../types/overseer-protocol.html#approval-distribution-message"><code>ApprovalDistributionMessage</code></a><code>::NetworkBridgeUpdate</code></li>
+<li><a href="../../types/overseer-protocol.html#bitfield-distribution-message"><code>BitfieldDistributionMessage</code></a><code>::NetworkBridgeUpdate</code></li>
+<li><a href="../../types/overseer-protocol.html#collator-protocol-message"><code>CollatorProtocolMessage</code></a><code>::NetworkBridgeUpdate</code></li>
+<li><a href="../../types/overseer-protocol.html#statement-distribution-message"><code>StatementDistributionMessage</code></a><code>::NetworkBridgeUpdate</code></li>
+</ul>
+<h2 id="functionality"><a class="header" href="#functionality">Functionality</a></h2>
+<p>This network bridge sends messages of these types over the network.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum WireMessage&lt;M&gt; {
+	ProtocolMessage(M),
+	ViewUpdate(View),
+}
+<span class="boring">}
+</span></code></pre></pre>
+<p>and instantiates this type twice, once using the <a href="../../types/network.html#validation-v1"><code>ValidationProtocolV1</code></a> message type, and once with the <a href="../../types/network.html#collation-v1"><code>CollationProtocolV1</code></a> message type.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>type ValidationV1Message = WireMessage&lt;ValidationProtocolV1&gt;;
+type CollationV1Message = WireMessage&lt;CollationProtocolV1&gt;;
+<span class="boring">}
+</span></code></pre></pre>
+<h3 id="startup"><a class="header" href="#startup">Startup</a></h3>
+<p>On startup, we register two protocols with the underlying network utility. One for validation and one for collation. We register only version 1 of each of these protocols.</p>
+<h3 id="main-loop"><a class="header" href="#main-loop">Main Loop</a></h3>
+<p>The bulk of the work done by this subsystem is in responding to network events, signals from the overseer, and messages from other subsystems.</p>
+<p>Each network event is associated with a particular peer-set.</p>
+<h3 id="overseer-signal-activeleavesupdate"><a class="header" href="#overseer-signal-activeleavesupdate">Overseer Signal: <code>ActiveLeavesUpdate</code></a></h3>
+<p>The <code>activated</code> and <code>deactivated</code> lists determine the evolution of our local view over time. A <code>ProtocolMessage::ViewUpdate</code> is issued to each connected peer on each peer-set, and a <code>NetworkBridgeEvent::OurViewChange</code> is issued to each event handler for each protocol.</p>
+<p>We only send view updates if the node has indicated that it has finished major blockchain synchronization.</p>
+<p>If we are connected to the same peer on both peer-sets, we will send the peer two view updates as a result.</p>
+<h3 id="overseer-signal-blockfinalized"><a class="header" href="#overseer-signal-blockfinalized">Overseer Signal: <code>BlockFinalized</code></a></h3>
+<p>We update our view's <code>finalized_number</code> to the provided one and delay <code>ProtocolMessage::ViewUpdate</code> and <code>NetworkBridgeEvent::OurViewChange</code> till the next <code>ActiveLeavesUpdate</code>.</p>
+<h3 id="network-event-peerconnected"><a class="header" href="#network-event-peerconnected">Network Event: <code>PeerConnected</code></a></h3>
+<p>Issue a <code>NetworkBridgeEvent::PeerConnected</code> for each <a href="#event-handlers">Event Handler</a> of the peer-set and negotiated protocol version of the peer. Also issue a <code>NetworkBridgeEvent::PeerViewChange</code> and send the peer our current view, but only if the node has indicated that it has finished major blockchain synchronization. Otherwise, we only send the peer an empty view.</p>
+<h3 id="network-event-peerdisconnected"><a class="header" href="#network-event-peerdisconnected">Network Event: <code>PeerDisconnected</code></a></h3>
+<p>Issue a <code>NetworkBridgeEvent::PeerDisconnected</code> for each <a href="#event-handlers">Event Handler</a> of the peer-set and negotiated protocol version of the peer.</p>
+<h3 id="network-event-protocolmessage"><a class="header" href="#network-event-protocolmessage">Network Event: <code>ProtocolMessage</code></a></h3>
+<p>Map the message onto the corresponding <a href="#event-handlers">Event Handler</a> based on the peer-set this message was received on and dispatch via overseer.</p>
+<h3 id="network-event-viewupdate"><a class="header" href="#network-event-viewupdate">Network Event: <code>ViewUpdate</code></a></h3>
+<ul>
+<li>Check that the new view is valid and note it as the most recent view update of the peer on this peer-set.</li>
+<li>Map a <code>NetworkBridgeEvent::PeerViewChange</code> onto the corresponding <a href="#event-handlers">Event Handler</a> based on the peer-set this message was received on and dispatch  via overseer.</li>
+</ul>
+<h3 id="reportpeer"><a class="header" href="#reportpeer"><code>ReportPeer</code></a></h3>
+<ul>
+<li>Adjust peer reputation according to cost or benefit provided</li>
+</ul>
+<h3 id="disconnectpeer"><a class="header" href="#disconnectpeer"><code>DisconnectPeer</code></a></h3>
+<ul>
+<li>Disconnect the peer from the peer-set requested, if connected.</li>
+</ul>
+<h3 id="sendvalidationmessage--sendvalidationmessages"><a class="header" href="#sendvalidationmessage--sendvalidationmessages"><code>SendValidationMessage</code> / <code>SendValidationMessages</code></a></h3>
+<ul>
+<li>Issue a corresponding <code>ProtocolMessage</code> to each listed peer on the validation peer-set.</li>
+</ul>
+<h3 id="sendcollationmessage--sendcollationmessages"><a class="header" href="#sendcollationmessage--sendcollationmessages"><code>SendCollationMessage</code> / <code>SendCollationMessages</code></a></h3>
+<ul>
+<li>Issue a corresponding <code>ProtocolMessage</code> to each listed peer on the collation peer-set.</li>
+</ul>
+<h3 id="connecttovalidators"><a class="header" href="#connecttovalidators"><code>ConnectToValidators</code></a></h3>
+<ul>
+<li>Determine the DHT keys to use for each validator based on the relay-chain state and Runtime API.</li>
+<li>Recover the Peer IDs of the validators from the DHT. There may be more than one peer ID per validator.</li>
+<li>Send all <code>(ValidatorId, PeerId)</code> pairs on the response channel.</li>
+<li>Feed all Peer IDs to peer set manager the underlying network provides.</li>
+</ul>
+<h3 id="newgossiptopology"><a class="header" href="#newgossiptopology"><code>NewGossipTopology</code></a></h3>
+<ul>
+<li>Map all <code>AuthorityDiscoveryId</code>s to <code>PeerId</code>s and issue a corresponding <code>NetworkBridgeUpdate</code>
+to all validation subsystems.</li>
+</ul>
+<h2 id="event-handlers"><a class="header" href="#event-handlers">Event Handlers</a></h2>
+<p>Network bridge event handlers are the intended recipients of particular network protocol messages. These are each a variant of a message to be sent via the overseer.</p>
+<h3 id="validation-v1"><a class="header" href="#validation-v1">Validation V1</a></h3>
+<ul>
+<li><code>ApprovalDistributionV1Message -&gt; ApprovalDistributionMessage::NetworkBridgeUpdate</code></li>
+<li><code>BitfieldDistributionV1Message -&gt; BitfieldDistributionMessage::NetworkBridgeUpdate</code></li>
+<li><code>StatementDistributionV1Message -&gt; StatementDistributionMessage::NetworkBridgeUpdate</code></li>
+</ul>
+<h3 id="collation-v1"><a class="header" href="#collation-v1">Collation V1</a></h3>
+<ul>
+<li><code>CollatorProtocolV1Message -&gt; CollatorProtocolMessage::NetworkBridgeUpdate</code></li>
+</ul>
+<footer id="last-change">Last change: 2022-04-21, commit: <a href="https://github.com/paritytech/polkadot/commit/55bf03157f">55bf03157f</a></footer>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../node/utility/provisioner.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="../../node/utility/gossip-support.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../node/utility/provisioner.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="../../node/utility/gossip-support.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="../../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="../../mermaid.min.js"></script>
+        <script type="text/javascript" src="../../mermaid-init.js"></script>
+
+
+    </body>
+</html>

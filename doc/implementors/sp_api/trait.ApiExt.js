@@ -1,0 +1,7 @@
+(function() {var implementors = {
+"kusama_runtime":[["impl&lt;Block: BlockT, C: CallApiAt&lt;Block&gt;&gt; ApiExt&lt;Block&gt; for <a class=\"struct\" href=\"kusama_runtime/struct.RuntimeApiImpl.html\" title=\"struct kusama_runtime::RuntimeApiImpl\">RuntimeApiImpl</a>&lt;Block, C&gt;"]],
+"polkadot_runtime":[["impl&lt;Block: BlockT, C: CallApiAt&lt;Block&gt;&gt; ApiExt&lt;Block&gt; for <a class=\"struct\" href=\"polkadot_runtime/struct.RuntimeApiImpl.html\" title=\"struct polkadot_runtime::RuntimeApiImpl\">RuntimeApiImpl</a>&lt;Block, C&gt;"]],
+"polkadot_test_runtime":[["impl&lt;Block: BlockT, C: CallApiAt&lt;Block&gt;&gt; ApiExt&lt;Block&gt; for <a class=\"struct\" href=\"polkadot_test_runtime/struct.RuntimeApiImpl.html\" title=\"struct polkadot_test_runtime::RuntimeApiImpl\">RuntimeApiImpl</a>&lt;Block, C&gt;"]],
+"rococo_runtime":[["impl&lt;Block: BlockT, C: CallApiAt&lt;Block&gt;&gt; ApiExt&lt;Block&gt; for <a class=\"struct\" href=\"rococo_runtime/struct.RuntimeApiImpl.html\" title=\"struct rococo_runtime::RuntimeApiImpl\">RuntimeApiImpl</a>&lt;Block, C&gt;"]],
+"westend_runtime":[["impl&lt;Block: BlockT, C: CallApiAt&lt;Block&gt;&gt; ApiExt&lt;Block&gt; for <a class=\"struct\" href=\"westend_runtime/struct.RuntimeApiImpl.html\" title=\"struct westend_runtime::RuntimeApiImpl\">RuntimeApiImpl</a>&lt;Block, C&gt;"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

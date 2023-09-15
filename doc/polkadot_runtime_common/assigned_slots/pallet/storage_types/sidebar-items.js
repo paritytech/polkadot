@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["ActiveTemporarySlotCount","MaxPermanentSlots","MaxTemporarySlots","PermanentSlotCount","PermanentSlots","TemporarySlotCount","TemporarySlots"]};

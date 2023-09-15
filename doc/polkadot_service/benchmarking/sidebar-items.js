@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["benchmark_inherent_data"],"struct":["RemarkBuilder","TransferKeepAliveBuilder"]};

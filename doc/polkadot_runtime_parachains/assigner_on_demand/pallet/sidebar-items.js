@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Call","Error","Event"],"fn":["__type_value_for_on_demand_queue_on_empty","__type_value_for_spot_traffic_on_empty"],"mod":["dispatchables","storage_types"],"struct":["OnDemandQueueOnEmpty","Pallet","SpotTrafficOnEmpty"],"trait":["Config"],"type":["Module","OnDemandQueue"]};

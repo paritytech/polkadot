@@ -1,0 +1,4 @@
+(function() {var implementors = {
+"polkadot_parachain":[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.70.0/core/ops/arith/trait.Add.html\" title=\"trait core::ops::arith::Add\">Add</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.70.0/std/primitive.u32.html\">u32</a>&gt; for <a class=\"struct\" href=\"polkadot_parachain/primitives/struct.Id.html\" title=\"struct polkadot_parachain::primitives::Id\">Id</a>"]],
+"slot_range_helper":[]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

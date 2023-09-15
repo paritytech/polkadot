@@ -1,0 +1,5 @@
+(function() {var implementors = {
+"kusama_runtime":[["impl BeefyDataProvider&lt;H256&gt; for <a class=\"struct\" href=\"kusama_runtime/struct.ParaHeadsRootProvider.html\" title=\"struct kusama_runtime::ParaHeadsRootProvider\">ParaHeadsRootProvider</a>"]],
+"rococo_runtime":[["impl BeefyDataProvider&lt;H256&gt; for <a class=\"struct\" href=\"rococo_runtime/struct.ParaHeadsRootProvider.html\" title=\"struct rococo_runtime::ParaHeadsRootProvider\">ParaHeadsRootProvider</a>"]],
+"westend_runtime":[["impl BeefyDataProvider&lt;H256&gt; for <a class=\"struct\" href=\"westend_runtime/struct.ParaHeadsRootProvider.html\" title=\"struct westend_runtime::ParaHeadsRootProvider\">ParaHeadsRootProvider</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

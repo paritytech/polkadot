@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["TARGET_BLOCK_FULLNESS"],"struct":["Perbill","WeightToFee"]};

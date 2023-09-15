@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["BACKING_POINTS","DISPUTE_STATEMENT_POINTS"],"struct":["RewardValidatorsWithEraPoints"]};

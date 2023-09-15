@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AccountValidity"],"fn":["remove_pallet"],"mod":["pallet"],"struct":["AccountStatus"]};

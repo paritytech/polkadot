@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Command","Solver","SubmissionStrategy"],"static":["DEFAULT_VALUE"],"struct":["DryRunConfig","EmergencySolutionConfig","InfoOpts","MonitorConfig","Opt"]};

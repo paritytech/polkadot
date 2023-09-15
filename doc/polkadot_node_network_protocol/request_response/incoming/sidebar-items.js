@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Error","FatalError","JfyiError"],"struct":["IncomingRequest","IncomingRequestReceiver","OutgoingResponse","OutgoingResponseSender"],"type":["Result"]};

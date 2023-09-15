@@ -1,0 +1,883 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Dispute Coordinator - The Polkadot Parachain Host Implementers&#x27; Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../../highlight.css">
+        <link rel="stylesheet" href="../../tomorrow-night.css">
+        <link rel="stylesheet" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../last-changed.css">
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../../index.html">Preamble</a></li><li class="chapter-item expanded "><a href="../../whence-parachains.html"><strong aria-hidden="true">1.</strong> Whence Parachains</a></li><li class="chapter-item expanded "><a href="../../protocol-overview.html"><strong aria-hidden="true">2.</strong> Protocol Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../protocol-approval.html"><strong aria-hidden="true">2.1.</strong> Approval Process</a></li><li class="chapter-item expanded "><a href="../../protocol-disputes.html"><strong aria-hidden="true">2.2.</strong> Disputes Process</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../disputes-flow.html"><strong aria-hidden="true">2.2.1.</strong> Dispute Flow</a></li></ol></li><li class="chapter-item expanded "><a href="../../protocol-chain-selection.html"><strong aria-hidden="true">2.3.</strong> Chain Selection and Finalization</a></li></ol></li><li class="chapter-item expanded "><a href="../../architecture.html"><strong aria-hidden="true">3.</strong> Architecture Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../messaging.html"><strong aria-hidden="true">3.1.</strong> Messaging Overview</a></li><li class="chapter-item expanded "><a href="../../pvf-prechecking.html"><strong aria-hidden="true">3.2.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../runtime/index.html"><strong aria-hidden="true">4.</strong> Runtime Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../runtime/initializer.html"><strong aria-hidden="true">4.1.</strong> Initializer Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/configuration.html"><strong aria-hidden="true">4.2.</strong> Configuration Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/shared.html"><strong aria-hidden="true">4.3.</strong> Shared Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/disputes.html"><strong aria-hidden="true">4.4.</strong> Disputes Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/paras.html"><strong aria-hidden="true">4.5.</strong> Paras Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/scheduler.html"><strong aria-hidden="true">4.6.</strong> Scheduler Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/inclusion.html"><strong aria-hidden="true">4.7.</strong> Inclusion Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/parainherent.html"><strong aria-hidden="true">4.8.</strong> ParaInherent Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/dmp.html"><strong aria-hidden="true">4.9.</strong> DMP Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/hrmp.html"><strong aria-hidden="true">4.10.</strong> HRMP Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/session_info.html"><strong aria-hidden="true">4.11.</strong> Session Info Pallet</a></li></ol></li><li class="chapter-item expanded "><a href="../../runtime-api/index.html"><strong aria-hidden="true">5.</strong> Runtime APIs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../runtime-api/validators.html"><strong aria-hidden="true">5.1.</strong> Validators</a></li><li class="chapter-item expanded "><a href="../../runtime-api/validator-groups.html"><strong aria-hidden="true">5.2.</strong> Validator Groups</a></li><li class="chapter-item expanded "><a href="../../runtime-api/availability-cores.html"><strong aria-hidden="true">5.3.</strong> Availability Cores</a></li><li class="chapter-item expanded "><a href="../../runtime-api/persisted-validation-data.html"><strong aria-hidden="true">5.4.</strong> Persisted Validation Data</a></li><li class="chapter-item expanded "><a href="../../runtime-api/session-index.html"><strong aria-hidden="true">5.5.</strong> Session Index</a></li><li class="chapter-item expanded "><a href="../../runtime-api/validation-code.html"><strong aria-hidden="true">5.6.</strong> Validation Code</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidate-pending-availability.html"><strong aria-hidden="true">5.7.</strong> Candidate Pending Availability</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidate-events.html"><strong aria-hidden="true">5.8.</strong> Candidate Events</a></li><li class="chapter-item expanded "><a href="../../runtime-api/disputes-info.html"><strong aria-hidden="true">5.9.</strong> Disputes Info</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidates-included.html"><strong aria-hidden="true">5.10.</strong> Candidates Included</a></li><li class="chapter-item expanded "><a href="../../runtime-api/pvf-prechecking.html"><strong aria-hidden="true">5.11.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/index.html"><strong aria-hidden="true">6.</strong> Node Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/subsystems-and-jobs.html"><strong aria-hidden="true">6.1.</strong> Subsystems and Jobs</a></li><li class="chapter-item expanded "><a href="../../node/overseer.html"><strong aria-hidden="true">6.2.</strong> Overseer</a></li><li class="chapter-item expanded "><a href="../../node/grandpa-voting-rule.html"><strong aria-hidden="true">6.3.</strong> GRANDPA Voting Rule</a></li><li class="chapter-item expanded "><a href="../../node/collators/index.html"><strong aria-hidden="true">6.4.</strong> Collator Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/collators/collation-generation.html"><strong aria-hidden="true">6.4.1.</strong> Collation Generation</a></li><li class="chapter-item expanded "><a href="../../node/collators/collator-protocol.html"><strong aria-hidden="true">6.4.2.</strong> Collator Protocol</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/backing/index.html"><strong aria-hidden="true">6.5.</strong> Backing Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/backing/candidate-backing.html"><strong aria-hidden="true">6.5.1.</strong> Candidate Backing</a></li><li class="chapter-item expanded "><a href="../../node/backing/prospective-parachains.html"><strong aria-hidden="true">6.5.2.</strong> Prospective Parachains</a></li><li class="chapter-item expanded "><a href="../../node/backing/statement-distribution.html"><strong aria-hidden="true">6.5.3.</strong> Statement Distribution</a></li><li class="chapter-item expanded "><a href="../../node/backing/statement-distribution-legacy.html"><strong aria-hidden="true">6.5.4.</strong> Statement Distribution (Legacy)</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/availability/index.html"><strong aria-hidden="true">6.6.</strong> Availability Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/availability/availability-distribution.html"><strong aria-hidden="true">6.6.1.</strong> Availability Distribution</a></li><li class="chapter-item expanded "><a href="../../node/availability/availability-recovery.html"><strong aria-hidden="true">6.6.2.</strong> Availability Recovery</a></li><li class="chapter-item expanded "><a href="../../node/availability/bitfield-distribution.html"><strong aria-hidden="true">6.6.3.</strong> Bitfield Distribution</a></li><li class="chapter-item expanded "><a href="../../node/availability/bitfield-signing.html"><strong aria-hidden="true">6.6.4.</strong> Bitfield Signing</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/approval/index.html"><strong aria-hidden="true">6.7.</strong> Approval Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/approval/approval-voting.html"><strong aria-hidden="true">6.7.1.</strong> Approval Voting</a></li><li class="chapter-item expanded "><a href="../../node/approval/approval-distribution.html"><strong aria-hidden="true">6.7.2.</strong> Approval Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/disputes/index.html"><strong aria-hidden="true">6.8.</strong> Disputes Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/disputes/dispute-coordinator.html" class="active"><strong aria-hidden="true">6.8.1.</strong> Dispute Coordinator</a></li><li class="chapter-item expanded "><a href="../../node/disputes/dispute-distribution.html"><strong aria-hidden="true">6.8.2.</strong> Dispute Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/utility/index.html"><strong aria-hidden="true">6.9.</strong> Utility Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/utility/availability-store.html"><strong aria-hidden="true">6.9.1.</strong> Availability Store</a></li><li class="chapter-item expanded "><a href="../../node/utility/candidate-validation.html"><strong aria-hidden="true">6.9.2.</strong> Candidate Validation</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/utility/pvf-host-and-workers.html"><strong aria-hidden="true">6.9.2.1.</strong> PVF Host and Workers</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/utility/provisioner.html"><strong aria-hidden="true">6.9.3.</strong> Provisioner</a></li><li class="chapter-item expanded "><a href="../../node/utility/network-bridge.html"><strong aria-hidden="true">6.9.4.</strong> Network Bridge</a></li><li class="chapter-item expanded "><a href="../../node/utility/gossip-support.html"><strong aria-hidden="true">6.9.5.</strong> Gossip Support</a></li><li class="chapter-item expanded "><a href="../../node/utility/peer-set-manager.html"><strong aria-hidden="true">6.9.6.</strong> Peer Set Manager</a></li><li class="chapter-item expanded "><a href="../../node/utility/runtime-api.html"><strong aria-hidden="true">6.9.7.</strong> Runtime API Requests</a></li><li class="chapter-item expanded "><a href="../../node/utility/chain-api.html"><strong aria-hidden="true">6.9.8.</strong> Chain API Requests</a></li><li class="chapter-item expanded "><a href="../../node/utility/chain-selection.html"><strong aria-hidden="true">6.9.9.</strong> Chain Selection Request</a></li><li class="chapter-item expanded "><a href="../../node/utility/pvf-prechecker.html"><strong aria-hidden="true">6.9.10.</strong> PVF Pre-Checking</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="../../types/index.html"><strong aria-hidden="true">7.</strong> Data Structures and Types</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../types/candidate.html"><strong aria-hidden="true">7.1.</strong> Candidate</a></li><li class="chapter-item expanded "><a href="../../types/backing.html"><strong aria-hidden="true">7.2.</strong> Backing</a></li><li class="chapter-item expanded "><a href="../../types/availability.html"><strong aria-hidden="true">7.3.</strong> Availability</a></li><li class="chapter-item expanded "><a href="../../types/overseer-protocol.html"><strong aria-hidden="true">7.4.</strong> Overseer and Subsystem Protocol</a></li><li class="chapter-item expanded "><a href="../../types/runtime.html"><strong aria-hidden="true">7.5.</strong> Runtime</a></li><li class="chapter-item expanded "><a href="../../types/messages.html"><strong aria-hidden="true">7.6.</strong> Messages</a></li><li class="chapter-item expanded "><a href="../../types/network.html"><strong aria-hidden="true">7.7.</strong> Network</a></li><li class="chapter-item expanded "><a href="../../types/approval.html"><strong aria-hidden="true">7.8.</strong> Approvals</a></li><li class="chapter-item expanded "><a href="../../types/disputes.html"><strong aria-hidden="true">7.9.</strong> Disputes</a></li><li class="chapter-item expanded "><a href="../../types/pvf-prechecking.html"><strong aria-hidden="true">7.10.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../glossary.html">Glossary</a></li><li class="chapter-item expanded affix "><a href="../../further-reading.html">Further Reading</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Polkadot Parachain Host Implementers&#x27; Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/paritytech/polkadot" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="dispute-coordinator"><a class="header" href="#dispute-coordinator">Dispute Coordinator</a></h1>
+<p>The coordinator is the central subsystem of the node-side components which
+participate in disputes. It wraps a database, which is used to track statements
+observed by <em>all</em> validators over some window of sessions. Votes older than this
+session window are pruned.</p>
+<p>In particular the dispute-coordinator is responsible for:</p>
+<ul>
+<li>Ensuring that the node is able to raise a dispute in case an invalid candidate
+is found during approval checking.</li>
+<li>Ensuring that backing and approval votes will be recorded on chain. With these 
+votes on chain we can be certain that appropriate targets for slashing will be
+available for concluded disputes. Also, scraping these votes during a dispute
+is necessary for critical spam prevention measures.</li>
+<li>Ensuring backing votes will never get overridden by explicit votes.</li>
+<li>Coordinating actual participation in a dispute, ensuring that the node
+participates in any justified dispute in a way that ensures resolution of
+disputes on the network even in the case of many disputes raised (flood/DoS
+scenario).</li>
+<li>Ensuring disputes resolve, even for candidates on abandoned forks as much as
+reasonably possible, to rule out &quot;free tries&quot; and thus guarantee our gambler's
+ruin property.</li>
+<li>Providing an API for chain selection, so we can prevent finalization of any
+chain which has included candidates for which a dispute is either ongoing or
+concluded invalid and avoid building on chains with an included invalid
+candidate.</li>
+<li>Providing an API for retrieving (resolved) disputes, including all votes, both
+implicit (approval, backing) and explicit dispute votes. So validators can get
+rewarded/slashed accordingly.</li>
+</ul>
+<h2 id="ensuring-that-disputes-can-be-raised"><a class="header" href="#ensuring-that-disputes-can-be-raised">Ensuring That Disputes Can Be Raised</a></h2>
+<p>If a candidate turns out invalid in approval checking, the <code>approval-voting</code>
+subsystem will try to issue a dispute. For this, it will send a message
+<code>DisputeCoordinatorMessage::IssueLocalStatement</code> to the dispute coordinator,
+indicating to cast an explicit invalid vote. It is the responsibility of the
+dispute coordinator on reception of such a message to create and sign that
+explicit invalid vote and trigger a dispute if none for that candidate is
+already ongoing.</p>
+<p>In order to raise a dispute, a node has to be able to provide two opposing votes.
+Given that the reason of the backing phase is to have validators with skin in
+the game, the opposing valid vote will very likely be a backing vote. It could
+also be some already cast approval vote, but the significant point here is: As
+long as we have backing votes available, any node will be able to raise a
+dispute.</p>
+<p>Therefore a vital responsibility of the dispute coordinator is to make sure
+backing votes are available for all candidates that might still get disputed. To
+accomplish this task in an efficient way the dispute-coordinator relies on chain
+scraping. Whenever a candidate gets backed on chain, we record in chain storage
+the backing votes imported in that block. This way, given the chain state for a
+given relay chain block, we can retrieve via a provided runtime API the backing
+votes imported by that block. The dispute coordinator makes sure to query those
+votes for any non finalized blocks: In case of missed blocks, it will do chain
+traversal as necessary.</p>
+<p>Relying on chain scraping is very efficient for two reasons:</p>
+<ol>
+<li>Votes are already batched. We import all available backing votes for a
+candidate all at once. If instead we imported votes from candidate-backing as
+they came along, we would import each vote individually which is
+inefficient in the current dispute coordinator implementation (quadratic
+complexity).</li>
+<li>We also import less votes in total, as we avoid importing statements for
+candidates that never got successfully backed on any chain.</li>
+</ol>
+<p>It also is secure, because disputes are only ever raised in the approval voting
+phase. A node only starts the approval process after it has seen a candidate
+included on some chain, for that to happen it must have been backed previously.
+Therefore backing votes are available at that point in time. Signals are
+processed first, so even if a block is skipped and we only start importing
+backing votes on the including block, we will have seen the backing votes by the
+time we process messages from approval voting.</p>
+<p>In summary, for making it possible for a dispute to be raised, recording of
+backing votes from chain is sufficient and efficient. In particular there is no
+need to preemptively import approval votes, which has shown to be a very
+inefficient process. (Quadratic complexity adds up, with 35 votes in total per candidate)</p>
+<p>Approval votes are very relevant nonetheless as we are going to see in the next
+section.</p>
+<h2 id="ensuring-approval-votes-will-be-recorded"><a class="header" href="#ensuring-approval-votes-will-be-recorded">Ensuring approval votes will be recorded</a></h2>
+<h3 id="ensuring-recording"><a class="header" href="#ensuring-recording">Ensuring Recording</a></h3>
+<p>Only votes recorded by the dispute coordinator will be considered for slashing.</p>
+<p>While there is no need to record approval votes in the dispute coordinator
+preemptively, we make some effort to have any in approval-voting received
+approval votes recorded when a dispute actually happens:</p>
+<p>This is not required for concluding the dispute, as nodes send their own vote
+anyway (either explicit valid or their existing approval-vote). What nodes can
+do though, is participating in approval-voting, casting a vote, but later when a
+dispute is raised reconsider their vote and send an explicit invalid vote. If
+they managed to only have that one recorded, then they could avoid a slash.</p>
+<p>This is not a problem for our basic security assumptions: The backers are the
+ones to be supposed to have skin in the game, so we are not too woried about
+colluding approval voters getting away slash free as the gambler's ruin property
+is maintained anyway. There is however a separate problem, from colluding
+approval-voters, that is &quot;lazy&quot; approval voters. If it were easy and reliable
+for approval-voters to reconsider their vote, in case of an actual dispute, then
+they don't have a direct incentive (apart from playing a part in securing the
+network) to properly run the validation function at all - they could just always
+vote &quot;valid&quot; totally risk free. (While they would alwasy risk a slash by voting
+invalid.)</p>
+<p>So we do want to fetch approval votes from approval-voting. Importing votes is
+most efficient when batched. At the same time approval voting and disputes are
+running concurrently so approval votes are expected to trickle in still, when a
+dispute is already ongoing.</p>
+<p>Hence, we have the following requirements for importing approval votes:</p>
+<ol>
+<li>Only import them when there is a dispute, because otherwise we are
+wasting lots of resources <em>always</em> for the exceptional case of a dispute.</li>
+<li>Import votes batched when possible, to avoid quadratic import complexity.</li>
+<li>Take into account that approval voting is still ongoing, while a dispute is
+already running.</li>
+</ol>
+<p>With a design where approval voting sends votes to the dispute-coordinator by
+itself, we would need to make approval voting aware of ongoing disputes and once
+it is aware it could start sending all already existing votes batched and
+trickling in votes as they come. The problem with this is, that it adds some
+unnecessary complexity to approval-voting and also we might still import most of
+the votes unbatched one-by-one, depending on what point in time the dispute was
+raised.</p>
+<p>Instead of the dispute coordinator informing approval-voting of an ongoing
+dispute for it to begin forwarding votes to the dispute coordinator, it makes
+more sense for the dispute-coordinator to just ask approval-voting for votes of
+candidates in dispute. This way, the dispute coordinator can also pick the best
+time for maximizing the number of votes in the batch.</p>
+<p>Now the question remains, when should the dispute coordinator ask
+approval-voting for votes?</p>
+<p>In fact for slashing it is only relevant to have them once the dispute
+concluded, so we can query approval voting the moment the dispute concludes!
+Two concerns that come to mind, are easily addressed:</p>
+<ol>
+<li>
+<p>Timing: We would like to rely as little as possible on implementation details
+of approval voting. In particular, if the dispute is ongoing for a long time,
+do we have any guarantees that approval votes are kept around long enough by
+approval voting? Will approval votes still be present by the time the
+dispute concludes in all cases? The answer is nuanced, but in general we
+cannot rely on it. The problem is first, that finalization and
+approval-voting is an off-chain process so there is no global consensus: As
+soon as at least f+1 honest (f=n/3, where n is the number of
+validators/nodes) nodes have seen the dispute conclude, finalization will
+take place and approval votes will be cleared. This would still be fine, if
+we had some guarantees that those honest nodes will be able to include those
+votes in a block. This guarantee does not exist unfortunately, we will
+discuss the problem and solutions in more detail [below][#Ensuring Chain Import].</p>
+<p>The second problem is that approval-voting will abandon votes as soon as a
+chain can no longer be finalized (some other/better fork already has been).
+This second problem can somehow be mitigated by also importing votes as soon
+as a dispute is detected, but not fully resolved. It is still inherently
+racy. The good thing is, this should be good enough: We are worried about
+lazy approval checkers, the system does not need to be perfect. It should be
+enough if there is some risk of getting caught.</p>
+</li>
+<li>
+<p>We are not worried about the dispute not concluding, as nodes will always
+send their own vote, regardless of it being an explict or an already existing
+approval-vote.</p>
+</li>
+</ol>
+<p>Conclusion: As long as we make sure, if our own approval vote gets imported
+(which would prevent dispute participation) to also distribute it via
+dispute-distribution, disputes can conclude. To mitigate raciness with
+approval-voting deleting votes we will import approval votes twice during a
+dispute: Once when it is raised, to make as sure as possible to see approval
+votes also for abandoned forks and second when the dispute concludes, to
+maximize the amount of potentially malicious approval votes to be recorded. The
+raciness obviously is not fully resolved by this, but this is fine as argued
+above.</p>
+<p>Ensuring vote import on chain is covered in the next section.</p>
+<p>What we don't care about is that honest approval-voters will likely validate
+twice, once in approval voting and once via dispute-participation. Avoiding that
+does not really seem worthwhile though, as disputes are for one exceptional, so
+a little wasted effort won't affect everyday performance - second, even with
+eager importing of approval votes, those doubled work is still present as
+disputes and approvals are racing. Every time participation is faster than
+approval, a node would do double work.</p>
+<h3 id="ensuring-chain-import"><a class="header" href="#ensuring-chain-import">Ensuring Chain Import</a></h3>
+<p>While in the previous section we discussed means for nodes to ensure relevant
+votes are recorded so lazy approval checkers get slashed properly, it is crucial
+to also discuss the actual chain import. Only if we guarantee that recorded votes
+will get imported on chain (on all potential chains really) we will succeed
+in executing slashes. Particularly we need to make sure backing votes end up on
+chain consistently.</p>
+<p>Dispute distribution will make sure all explicit dispute votes get distributed
+among nodes which includes current block producers (current authority set) which
+is an important property: If the dispute carries on across an era change, we
+need to ensure that the new validator set will learn about any disputes and
+their votes, so they can put that information on chain. Dispute-distribution
+luckily has this property and always sends votes to the current authority set.
+The issue is, for dispute-distribution, nodes send only their own explicit (or
+in some cases their approval vote) in addition to some opposing vote. This
+guarantees that at least some backing or approval vote will be present at the
+block producer, but we don't have a 100% guarantee to have votes for all
+backers, even less for approval checkers.</p>
+<p>Reason for backing votes: While backing votes will be present on at least some
+chain, that does not mean that any such chain is still considered for block
+production in the current set - they might only exist on an already abandoned
+fork. This means a block producer that just joined the set, might not have seen
+any of them.</p>
+<p>For approvals it is even more tricky and less necessary: Approval voting together
+with finalization is a completely off-chain process therefore those protocols
+don't care about block production at all. Approval votes only have a guarantee of
+being propagated between the nodes that are responsible for finalizing the
+concerned blocks. This implies that on an era change the current authority set,
+will not necessarily get informed about any approval votes for the previous era.
+Hence even if all validators of the previous era successfully recorded all approval
+votes in the dispute coordinator, they won't get a chance to put them on chain,
+hence they won't be considered for slashing.</p>
+<p>It is important to note, that the essential properties of the system still hold:
+Dispute-distribution will distribute at <em>least one</em> &quot;valid&quot; vote to the current
+authority set, hence at least one node will get slashed in case of outcome
+&quot;invalid&quot;. Also in reality the validator set is rarely exchanged 100%, therefore
+in practice some validators in the current authority set will overlap with the
+ones in the previous set and will be able to record votes on chain.</p>
+<p>Still, for maximum accountability we need to make sure a previous authority set
+can communicate votes to the next one, regardless of any chain: This is yet to
+be implemented see section &quot;Resiliency&quot; in dispute-distribution and
+<a href="https://github.com/paritytech/polkadot/issues/3398">this</a> ticket.</p>
+<h2 id="coordinating-actual-dispute-participation"><a class="header" href="#coordinating-actual-dispute-participation">Coordinating Actual Dispute Participation</a></h2>
+<p>Once the dispute coordinator learns about a dispute, it is its responsibility to
+make sure the local node participates in that dispute.</p>
+<p>The dispute coordinator learns about a dispute by importing votes from either
+chain scraping or from dispute-distribution. If it finds opposing votes (always
+the case when coming from dispute-distribution), it records the presence of a
+dispute. Then, in case it does not find any local vote for that dispute already,
+it needs to trigger participation in the dispute (see previous section for
+considerations when the found local vote is an approval vote).</p>
+<p>Participation means, recovering availability and re-evaluating the POV. The
+result of that validation (either valid or invalid) will be the node's vote on
+that dispute: Either explicit &quot;invalid&quot; or &quot;valid&quot;. The dispute coordinator will
+inform <code>dispute-distribution</code> about our vote and <code>dispute-distribution</code> will make
+sure that our vote gets distributed to all other validators.</p>
+<p>Nothing ever is that easy though. We can not blindly import anything that comes
+along and trigger participation no matter what.</p>
+<h3 id="spam-considerations"><a class="header" href="#spam-considerations">Spam Considerations</a></h3>
+<p>In Polkadot's security model, it is important that attempts to attack the system
+result in a slash of the offenders. Therefore we need to make sure that this
+slash is actually happening. Attackers could try to prevent the slashing from
+taking place, by overwhelming validators with disputes in such a way that no
+single dispute ever concludes, because nodes are busy processing newly incoming
+ones. Other attacks are imaginable as well, like raising disputes for candidates
+that don't exist, just filling up everyone's disk slowly or worse making nodes
+try to participate, which will result in lots of network requests for recovering
+availability.</p>
+<p>The last point brings up a significant consideration in general: Disputes are
+about escalation: Every node will suddenly want to check, instead of only a few.
+A single message will trigger the whole network to start significant amount of
+work and will cause lots of network traffic and messages. Hence the
+dispute system is very susceptible to being a brutal amplifier for DoS attacks,
+resulting in DoS attacks to become very easy and cheap, if we are not careful.</p>
+<p>One counter measure we are taking is making raising of disputes a costly thing:
+If you raise a dispute, because you claim a candidate is invalid, although it is
+in fact valid - you will get slashed, hence you pay for consuming those
+resources. The issue is: This only works if the dispute concerns a candidate
+that actually exists!</p>
+<p>If a node raises a dispute for a candidate that never got included (became
+available) on any chain, then the dispute can never conclude, hence nobody gets
+slashed. It makes sense to point out that this is less bad than it might sound
+at first, as trying to participate in a dispute for a non existing candidate is
+&quot;relatively&quot; cheap. Each node will send out a few hundred tiny request messages
+for availability chunks, which all will end up in a tiny response &quot;NoSuchChunk&quot;
+and then no participation will actually happen as there is nothing to
+participate. Malicious nodes could provide chunks, which would make things more
+costly, but at the full expense of the attackers bandwidth - no amplification
+here. I am bringing that up for completeness only: Triggering a thousand nodes
+to send out a thousand tiny network messages by just sending out a single
+garbage message, is still a significant amplification and is nothing to ignore -
+this could absolutely be used to cause harm!</p>
+<h3 id="participation"><a class="header" href="#participation">Participation</a></h3>
+<p>As explained, just blindly participating in any &quot;dispute&quot; that comes along is
+not a good idea. First we would like to make sure the dispute is actually
+genuine, to prevent cheap DoS attacks. Secondly, in case of genuine disputes, we
+would like to conclude one after the other, in contrast to
+processing all at the same time, slowing down progress on all of them, bringing
+individual processing to a complete halt in the worst case (nodes get overwhelmed
+at some stage in the pipeline).</p>
+<p>To ensure to only spend significant work on genuine disputes, we only trigger
+participation at all on any <em>vote import</em> if any of the following holds true:</p>
+<ul>
+<li>We saw the disputed candidate included in some not yet finalized block on at
+least one fork of the chain.</li>
+<li>We have seen the disputed candidate backed in some not yet finalized block on
+at least one fork of the chain. This ensures the candidate is at least not
+completely made up and there has been some effort already flown into that
+candidate. Generally speaking a dispute shouldn't be raised for a candidate
+which is backed but is not yet included. Disputes are raised during approval
+checking. We participate on such disputes as a precaution - maybe we haven't
+seen the <code>CandidateIncluded</code> event yet?</li>
+<li>The dispute is already confirmed: Meaning that 1/3+1 nodes already
+participated, as this suggests in our threat model that there was at least one
+honest node that already voted, so the dispute must be genuine.</li>
+</ul>
+<p>Note: A node might be out of sync with the chain and we might only learn about a
+block, including a candidate, after we learned about the dispute. This means, we
+have to re-evaluate participation decisions on block import!</p>
+<p>With this, nodes won't waste significant resources on completely made up
+candidates. The next step is to process dispute participation in a (globally)
+ordered fashion. Meaning a majority of validators should arrive at at least
+roughly at the same ordering of participation, for disputes to get resolved one
+after another. This order is only relevant if there are lots of disputes, so we
+obviously only need to worry about order if participations start queuing up.</p>
+<p>We treat participation for candidates that we have seen included with priority
+and put them on a priority queue which sorts participation based on the block
+number of the relay parent of the candidate and for candidates with the same
+relay parent height further by the <code>CandidateHash</code>. This ordering is globally
+unique and also prioritizes older candidates.</p>
+<p>The latter property makes sense, because if an older candidate turns out invalid,
+we can roll back the full chain at once. If we resolved earlier disputes first
+and they turned out invalid as well, we might need to roll back a couple of
+times instead of just once to the oldest offender. This is obviously a good
+idea, in particular it makes it impossible for an attacker to prevent rolling
+back a very old candidate, by keeping raising disputes for newer candidates.</p>
+<p>For candidates we have not seen included, but we know are backed (thanks to
+chain scraping) or we have seen a dispute with 1/3+1 participation (confirmed
+dispute) on them - we put participation on a best-effort queue. It has got the
+same ordering as the priority one - by block heights of the relay parent, older
+blocks are with priority. There is a possibility not to be able to obtain the
+block number of the parent when we are inserting the dispute in the queue. To
+account for races, we will promote any existing participation request to the
+priority queue once we learn about an including block. NOTE: this is still work
+in progress and is tracked by <a href="https://github.com/paritytech/polkadot/issues/5875">this
+issue</a>.</p>
+<h3 id="abandoned-forks"><a class="header" href="#abandoned-forks">Abandoned Forks</a></h3>
+<p>Finalization: As mentioned we care about included and backed candidates on any
+non-finalized chain, given that any disputed chain will not get finalized, we
+don't need to care about finalized blocks, but what about forks that fall behind
+the finalized chain in terms of block number? For those we would still like to
+be able to participate in any raised disputes, otherwise attackers might be able
+to avoid a slash if they manage to create a better fork after they learned about
+the approval checkers. Therefore we do care about those forks even after they
+have fallen behind the finalized chain.</p>
+<p>For simplicity we also care about the actual finalized chain (not just forks) up
+to a certain depth. We do have to limit the depth, because otherwise we open a
+DoS vector again. The depth (into the finalized chain) should be oriented on the
+approval-voting execution timeout, in particular it should be significantly
+larger. Otherwise by the time the execution is allowed to finish, we already
+dropped information about those candidates and the dispute could not conclude.</p>
+<h2 id="import"><a class="header" href="#import">Import</a></h2>
+<h3 id="spam-considerations-1"><a class="header" href="#spam-considerations-1">Spam Considerations</a></h3>
+<p>In the last section we looked at how to treat queuing participations to
+handle heavy dispute load well. This already ensures, that honest nodes won't
+amplify cheap DoS attacks. There is one minor issue remaining: Even if we delay
+participation until we have some confirmation of the authenticity of the
+dispute, we should also not blindly import all votes arriving into the database
+as this might be used to just slowly fill up disk space, until the node is no
+longer functional. This leads to our last protection mechanism at the dispute
+coordinator level (dispute-distribution also has its own), which is spam slots.
+For each import containing an invalid vote, where we don't know whether it might
+be spam or not we increment a counter for each signing participant of explicit
+<code>invalid</code> votes.</p>
+<p>What votes do we treat as a potential spam? A vote will increase a spam slot if
+and only if all of the following conditions are satisfied:</p>
+<ul>
+<li>the candidate under dispute was not seen included nor backed on any chain</li>
+<li>the dispute is not confirmed</li>
+<li>we haven't cast a vote for the dispute</li>
+</ul>
+<p>Whenever any vote on a dispute is imported these conditions are checked. If the
+dispute is found not to be potential spam, then spam slots for the disputed candidate hash are cleared. This decrements the spam count for every validator
+which had voted invalid.</p>
+<p>To keep spam slots from filling up unnecessarily we want to clear spam slots
+whenever a candidate is seen to be backed or included. Fortunately this behavior
+is acheived by clearing slots on vote import as described above. Because on chain
+backing votes are processed when a block backing the disputed candidate is discovered, spam slots are cleared for every backed candidate. Included
+candidates have also been seen as backed on the same fork, so decrementing spam
+slots is handled in that case as well.</p>
+<p>The reason this works is because we only need to worry about actual dispute
+votes. Import of backing votes are already rate limited and concern only real
+candidates. For approval votes a similar argument holds (if they come from
+approval-voting), but we also don't import them until a dispute already
+concluded. For actual dispute votes we need two opposing votes, so there must be
+an explicit <code>invalid</code> vote in the import. Only a third of the validators can be
+malicious, so spam disk usage is limited to <code>2*vote_size*n/3*NUM_SPAM_SLOTS</code>, with
+<code>n</code> being the number of validators.</p>
+<h3 id="backing-votes"><a class="header" href="#backing-votes">Backing Votes</a></h3>
+<p>Backing votes are in some way special. For starters they are the only valid
+votes that are guaranteed to exist for any valid dispute to be raised. Second
+they are the only votes that commit to a shorter execution timeout
+<code>BACKING_EXECUTION_TIMEOUT</code>, compared to a more lenient timeout used in approval
+voting. To account properly for execution time variance across machines,
+slashing might treat backing votes differently (more aggressively) than other
+voting <code>valid</code> votes. Hence in import we shall never override a backing vote
+with another valid vote. They can not be assumed to be interchangeable.</p>
+<h2 id="attacks--considerations"><a class="header" href="#attacks--considerations">Attacks &amp; Considerations</a></h2>
+<p>The following attacks on the priority queue and best-effort queues are
+considered in above design.</p>
+<h3 id="priority-queue"><a class="header" href="#priority-queue">Priority Queue</a></h3>
+<p>On the priority queue, we will only queue participations for candidates we have
+seen included on any chain. Any attack attempt would start with a candidate
+included on some chain, but an attacker could try to only reveal the including
+relay chain blocks to just some honest validators and stop as soon as it learns
+that some honest validator would have a relevant approval assignment.</p>
+<p>Without revealing the including block to any honest validator, we don't really
+have an attack yet. Once the block is revealed though, the above is actually
+very hard. Each honest validator will re-distribute the block it just learned
+about. This means an attacker would need to pull of a targeted DoS attack, which
+allows the validator to send its assignment, but prevents it from forwarding and
+sharing the relay chain block.</p>
+<p>This sounds already hard enough, provided that we also start participation if
+we learned about an including block after the dispute has been raised already
+(we need to update participation queues on new leaves), but to be even safer
+we choose to have an additional best-effort queue.</p>
+<h3 id="best-effort-queue"><a class="header" href="#best-effort-queue">Best-Effort Queue</a></h3>
+<p>While attacking the priority queue is already pretty hard, attacking the
+best-effort queue is even harder. For a candidate to be a threat, it has to be
+included on some chain. For it to be included, it has to have been backed before
+and at least n/3 honest nodes must have seen that block, so availability
+(inclusion) can be reached. Making a full third of the nodes not further
+propagate a block, while at the same time allowing them to fetch chunks, sign
+and distribute bitfields seems almost infeasible and even if accomplished, those
+nodes would be enough to confirm a dispute and we have not even touched the
+above fact that in addition, for an attack, the following including block must
+be shared with honest validators as well.</p>
+<p>It is worth mentioning that a successful attack on the priority queue as
+outlined above is already outside of our threat model, as it assumes n/3
+malicious nodes + additionally malfunctioning/DoSed nodes. Even more so for
+attacks on the best-effort queue, as our threat model only allows for n/3
+malicious <em>or</em> malfunctioning nodes in total. It would therefore be a valid
+decision to ditch the best-effort queue, if it proves to become a burden or
+creates other issues.</p>
+<p>One issue we should not be worried about though is spam. For abusing best-effort
+for spam, the following scenario would be necessary:</p>
+<p>An attacker controls a backing group: The attacker can then have candidates
+backed and choose to not provide chunks. This should come at a cost to miss out
+on rewards for backing, so is not free. At the same time it is rate limited, as
+a backing group can only back so many candidates legitimately. (~ 1 per slot):</p>
+<ol>
+<li>They have to wait until a malicious actor becomes block producer (for causing
+additional forks via equivocation for example).</li>
+<li>Forks are possible, but if caused by equivocation also not free.</li>
+<li>For each fork the attacker has to wait until the candidate times out, for
+backing another one.</li>
+</ol>
+<p>Assuming there can only be a handful of forks, 2) together with 3) the candidate
+timeout restriction, frequency should indeed be in the ballpark of once per
+slot. Scaling linearly in the number of controlled backing groups, so two groups
+would mean 2 backings per slot, ...</p>
+<p>So by this reasoning an attacker could only do very limited harm and at the same
+time will have to pay some price for it (it will miss out on rewards). Overall
+the work done by the network might even be in the same ballpark as if actors
+just behaved honestly:</p>
+<ol>
+<li>Validators would have fetched chunks</li>
+<li>Approval checkers would have done approval checks</li>
+</ol>
+<p>While because of the attack (backing, not providing chunks and afterwards
+disputing the candidate), the work for 1000 validators would be:</p>
+<p>All validators sending out ~ 1000 tiny requests over already established
+connections, with also tiny (byte) responses.</p>
+<p>This means around a million requests, while in the honest case it would be ~
+10000 (30 approval checkers x330) - where each request triggers a response in
+the range of kilobytes. Hence network load alone will likely be higher in the
+honest case than in the DoS attempt case, which would mean the DoS attempt
+actually reduces load, while also costing rewards.</p>
+<p>In the worst case this can happen multiple times, as we would retry that on
+every vote import. The effect would still be in the same ballpark as honest
+behavior though and can also be mitigated by chilling repeated availability
+recovery requests for example.</p>
+<h2 id="out-of-scope"><a class="header" href="#out-of-scope">Out of Scope</a></h2>
+<h3 id="no-disputes-for-non-included-candidates"><a class="header" href="#no-disputes-for-non-included-candidates">No Disputes for Non Included Candidates</a></h3>
+<p>We only ever care about disputes for candidates that have been included on at
+least some chain (became available). This is because the availability system was
+designed for precisely that: Only with inclusion (availability) we have
+guarantees about the candidate to actually be available. Because only then we
+have guarantees that malicious backers can be reliably checked and slashed. Also, by design non included candidates do not pose any threat to the system.</p>
+<p>One could think of an (additional) dispute system to make it possible to dispute
+any candidate that has been proposed by a validator, no matter whether it got
+successfully included or even backed. Unfortunately, it would be very brittle
+(no availability) and also spam protection would be way harder than for the
+disputes handled by the dispute-coordinator. In fact, all the spam handling
+strategies described above would simply be unavailable.</p>
+<p>It is worth thinking about who could actually raise such disputes anyway:
+Approval checkers certainly not, as they will only ever check once availability
+succeeded. The only other nodes that meaningfully could/would are honest backing
+nodes or collators. For collators spam considerations would be even worse as
+there can be an unlimited number of them and we can not charge them for spam, so
+trying to handle disputes raised by collators would be even more complex. For
+honest backers: It actually makes more sense for them to wait until availability
+is reached as well, as only then they have guarantees that other nodes will be
+able to check. If they disputed before, all nodes would need to recover the data
+from them, so they would be an easy DoS target.</p>
+<p>In summary: The availability system was designed for raising disputes in a
+meaningful and secure way after availability was reached. Trying to raise
+disputes before does not meaningfully contribute to the systems security/might
+even weaken it as attackers are warned before availability is reached, while at
+the same time adding signficant amount of complexity. We therefore punt on such
+disputes and concentrate on disputes the system was designed to handle.</p>
+<h3 id="no-disputes-for-already-finalized-blocks"><a class="header" href="#no-disputes-for-already-finalized-blocks">No Disputes for Already Finalized Blocks</a></h3>
+<p>Note that by above rules in the <code>Participation</code> section, we will not participate
+in disputes concerning a candidate in an already finalized block. This is
+because, disputing an already finalized block is simply too late and therefore
+of little value. Once finalized, bridges have already processed the block for
+example, so we have to assume the damage is already done. Governance has to step
+in and fix what can be fixed.</p>
+<p>Making disputes for already finalized blocks possible would only provide two
+features:</p>
+<ol>
+<li>We can at least still slash attackers.</li>
+<li>We can freeze the chain to some governance only mode, in an attempt to
+minimize potential harm done.</li>
+</ol>
+<p>Both seem kind of worthwhile, although as argued above, it is likely that there
+is not too much that can be done in 2 and we would likely only ending up DoSing
+the whole system without much we can do. 1 can also be achieved via governance
+mechanisms.</p>
+<p>In any case, our focus should be making as sure as reasonably possible that any
+potentially invalid block does not get finalized in the first place. Not
+allowing disputing already finalized blocks actually helps a great deal with
+this goal as it massively reduces the amount of candidates that can be disputed.</p>
+<p>This makes attempts to overwhelm the system with disputes significantly harder
+and counter measures way easier. We can limit inclusion for example (as
+suggested <a href="https://github.com/paritytech/polkadot/issues/5898">here</a> in case of
+high dispute load. Another measure we have at our disposal is that on finality
+lag block production will slow down, implicitly reducing the rate of new
+candidates that can be disputed. Hence, the cutting-off of the unlimited
+candidate supply of already finalized blocks, guarantees the necessary DoS
+protection and ensures we can have measures in place to keep up with processing
+of disputes.</p>
+<p>If we allowed participation for disputes for already finalized candidates, the
+above spam protection mechanisms would be insufficient/relying 100% on full and
+quick disabling of spamming validators.</p>
+<h2 id="database-schema"><a class="header" href="#database-schema">Database Schema</a></h2>
+<p>We use an underlying Key-Value database where we assume we have the following operations available:</p>
+<ul>
+<li><code>write(key, value)</code></li>
+<li><code>read(key) -&gt; Option&lt;value&gt;</code></li>
+<li><code>iter_with_prefix(prefix) -&gt; Iterator&lt;(key, value)&gt;</code> - gives all keys and values in
+lexicographical order where the key starts with <code>prefix</code>.</li>
+</ul>
+<p>We use this database to encode the following schema:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>(&quot;candidate-votes&quot;, SessionIndex, CandidateHash) -&gt; Option&lt;CandidateVotes&gt;
+&quot;recent-disputes&quot; -&gt; RecentDisputes
+&quot;earliest-session&quot; -&gt; Option&lt;SessionIndex&gt;
+<span class="boring">}
+</span></code></pre></pre>
+<p>The meta information that we track per-candidate is defined as the <code>CandidateVotes</code> struct.
+This draws on the <a href="../../types/disputes.html">dispute statement types</a></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Tracked votes on candidates, for the purposes of dispute resolution.
+pub struct CandidateVotes {
+  /// The receipt of the candidate itself.
+  pub candidate_receipt: CandidateReceipt,
+  /// Votes of validity, sorted by validator index.
+  pub valid: Vec&lt;(ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature)&gt;,
+  /// Votes of invalidity, sorted by validator index.
+  pub invalid: Vec&lt;(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)&gt;,
+}
+
+/// The mapping for recent disputes; any which have not yet been pruned for being ancient.
+pub type RecentDisputes = std::collections::BTreeMap&lt;(SessionIndex, CandidateHash), DisputeStatus&gt;;
+
+/// The status of dispute. This is a state machine which can be altered by the
+/// helper methods.
+pub enum DisputeStatus {
+  /// The dispute is active and unconcluded.
+  Active,
+  /// The dispute has been concluded in favor of the candidate
+  /// since the given timestamp.
+  ConcludedFor(Timestamp),
+  /// The dispute has been concluded against the candidate
+  /// since the given timestamp.
+  ///
+  /// This takes precedence over `ConcludedFor` in the case that
+  /// both are true, which is impossible unless a large amount of
+  /// validators are participating on both sides.
+  ConcludedAgainst(Timestamp),
+  /// Dispute has been confirmed (more than `byzantine_threshold` have already participated/ or
+  /// we have seen the candidate included already/participated successfully ourselves).
+  Confirmed,
+}
+<span class="boring">}
+</span></code></pre></pre>
+<h2 id="protocol"><a class="header" href="#protocol">Protocol</a></h2>
+<p>Input: <a href="../../types/overseer-protocol.html#dispute-coordinator-message"><code>DisputeCoordinatorMessage</code></a></p>
+<p>Output:</p>
+<ul>
+<li><a href="../../types/overseer-protocol.html#runtime-api-message"><code>RuntimeApiMessage</code></a></li>
+</ul>
+<h2 id="functionality"><a class="header" href="#functionality">Functionality</a></h2>
+<p>This assumes a constant <code>DISPUTE_WINDOW: SessionWindowSize</code>. This should correspond to at least 1
+day.</p>
+<p>Ephemeral in-memory state:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct State {
+  keystore: Arc&lt;LocalKeystore&gt;,
+  rolling_session_window: RollingSessionWindow,
+  highest_session: SessionIndex,
+  spam_slots: SpamSlots,
+  participation: Participation,
+  ordering_provider: OrderingProvider,
+  participation_receiver: WorkerMessageReceiver,
+  metrics: Metrics,
+  // This tracks only rolling session window failures.
+  // It can be a `Vec` if the need to track more arises.
+  error: Option&lt;SessionsUnavailable&gt;,
+  /// Latest relay blocks that have been successfully scraped.
+  last_scraped_blocks: LruCache&lt;Hash, ()&gt;,
+}
+<span class="boring">}
+</span></code></pre></pre>
+<h3 id="on-startup"><a class="header" href="#on-startup">On startup</a></h3>
+<p>When the subsystem is initialised it waits for a new leaf (message
+<code>OverseerSignal::ActiveLeaves</code>). The leaf is used to initialise a
+<code>RollingSessionWindow</code> instance (contains leaf hash and <code>DISPUTE_WINDOW</code> which
+is a constant).</p>
+<p>Next the active disputes are loaded from the DB and initialize spam slots
+accordingly, then for each loaded dispute, we either send a
+<code>DisputeDistribution::SendDispute</code> if there is a local vote from us available or
+if there is none and participation is in order, we push the dispute to
+participation.</p>
+<h3 id="the-main-loop"><a class="header" href="#the-main-loop">The main loop</a></h3>
+<p>Just after the subsystem initialisation the main loop (<code>fn run_until_error()</code>) runs until
+<code>OverseerSignal::Conclude</code> signal is received. Before executing the actual main loop the leaf and
+the participations, obtained during startup are enqueued for processing. If there is capacity (the
+number of running participations is less than <code>MAX_PARALLEL_PARTICIPATIONS</code>) participation jobs are
+started (<code>func participate</code>). Finally the component waits for messages from Overseer. The behaviour
+on each message is described in the following subsections.</p>
+<h3 id="on-overseersignalactiveleaves"><a class="header" href="#on-overseersignalactiveleaves">On <code>OverseerSignal::ActiveLeaves</code></a></h3>
+<p>Initiates processing via the <code>Participation</code> module and updates the internal state of the subsystem.
+More concretely:</p>
+<ul>
+<li>Passes the <code>ActiveLeavesUpdate</code> message to the ordering provider.</li>
+<li>Updates the session info cache.</li>
+<li>Updates <code>self.highest_session</code>.</li>
+<li>Prunes old spam slots in case the session window has advanced.</li>
+<li>Scrapes on chain votes.</li>
+</ul>
+<h3 id="on-muxedmessageparticipation"><a class="header" href="#on-muxedmessageparticipation">On <code>MuxedMessage::Participation</code></a></h3>
+<p>This message is sent from <code>Participatuion</code> module and indicates a processed dispute participation.
+It's the result of the processing job initiated with <code>OverseerSignal::ActiveLeaves</code>. The subsystem
+issues a <code>DisputeMessage</code> with the result.</p>
+<h3 id="on-overseersignalconclude"><a class="header" href="#on-overseersignalconclude">On <code>OverseerSignal::Conclude</code></a></h3>
+<p>Exit gracefully.</p>
+<h3 id="on-overseersignalblockfinalized"><a class="header" href="#on-overseersignalblockfinalized">On <code>OverseerSignal::BlockFinalized</code></a></h3>
+<p>Performs cleanup of the finalized candidate.</p>
+<h3 id="on-disputecoordinatormessageimportstatements"><a class="header" href="#on-disputecoordinatormessageimportstatements">On <code>DisputeCoordinatorMessage::ImportStatements</code></a></h3>
+<p>Import statements by validators are processed in <code>fn handle_import_statements()</code>. The function has
+got three main responsibilities:</p>
+<ul>
+<li>Initiate participation in disputes and sending out of any existing own
+approval vote in case of a raised dispute.</li>
+<li>Persist all fresh votes in the database. Fresh votes in this context means votes that are not
+already processed by the node.</li>
+<li>Spam protection on all invalid (<code>DisputeStatement::Invalid</code>) votes. Please check the SpamSlots
+section for details on how spam protection works.</li>
+</ul>
+<h3 id="on-disputecoordinatormessagerecentdisputes"><a class="header" href="#on-disputecoordinatormessagerecentdisputes">On <code>DisputeCoordinatorMessage::RecentDisputes</code></a></h3>
+<p>Returns all recent disputes saved in the DB.</p>
+<h3 id="on-disputecoordinatormessageactivedisputes"><a class="header" href="#on-disputecoordinatormessageactivedisputes">On <code>DisputeCoordinatorMessage::ActiveDisputes</code></a></h3>
+<p>Returns all recent disputes concluded within the last <code>ACTIVE_DURATION_SECS</code> .</p>
+<h3 id="on-disputecoordinatormessagequerycandidatevotes"><a class="header" href="#on-disputecoordinatormessagequerycandidatevotes">On <code>DisputeCoordinatorMessage::QueryCandidateVotes</code></a></h3>
+<p>Loads <code>candidate-votes</code> for every <code>(SessionIndex, CandidateHash)</code> in the input query and returns
+data within each <code>CandidateVote</code>. If a particular <code>candidate-vote</code> is missing, that particular
+request is omitted from the response.</p>
+<h3 id="on-disputecoordinatormessageissuelocalstatement"><a class="header" href="#on-disputecoordinatormessageissuelocalstatement">On <code>DisputeCoordinatorMessage::IssueLocalStatement</code></a></h3>
+<p>Executes <code>fn issue_local_statement()</code> which performs the following operations:</p>
+<ul>
+<li>Deconstruct into parts <code>{ session_index, candidate_hash, candidate_receipt, is_valid }</code>.</li>
+<li>Construct a <a href="../../types/disputes.html#disputestatement"><code>DisputeStatement</code></a> based on <code>Valid</code> or <code>Invalid</code>, depending on the
+parameterization of this routine.</li>
+<li>Sign the statement with each key in the <code>SessionInfo</code>'s list of parachain validation keys which is
+present in the keystore, except those whose indices appear in <code>voted_indices</code>. This will typically
+just be one key, but this does provide some future-proofing for situations where the same node may
+run on behalf multiple validators. At the time of writing, this is not a use-case we support as
+other subsystems do not invariably   provide this guarantee.</li>
+<li>Write statement to DB.</li>
+<li>Send a <code>DisputeDistributionMessage::SendDispute</code> message to get the vote distributed to other
+validators.</li>
+</ul>
+<h3 id="on-disputecoordinatormessagedetermineundisputedchain"><a class="header" href="#on-disputecoordinatormessagedetermineundisputedchain">On <code>DisputeCoordinatorMessage::DetermineUndisputedChain</code></a></h3>
+<p>Executes <code>fn determine_undisputed_chain()</code> which performs the following:</p>
+<ul>
+<li>Load <code>&quot;recent-disputes&quot;</code>.</li>
+<li>Deconstruct into parts <code>{ base_number, block_descriptions, rx }</code></li>
+<li>Starting from the beginning of <code>block_descriptions</code>:
+<ol>
+<li>Check the <code>RecentDisputes</code> for a dispute of each candidate in the block description.</li>
+<li>If there is a dispute which is active or concluded negative, exit the loop.</li>
+</ol>
+</li>
+<li>For the highest index <code>i</code> reached in the <code>block_descriptions</code>, send <code>(base_number + i + 1, block_hash)</code> on the channel, unless <code>i</code> is 0, in which case <code>None</code> should be sent. The
+<code>block_hash</code> is determined by inspecting <code>block_descriptions[i]</code>.</li>
+</ul>
+<footer id="last-change">Last change: 2023-01-19, commit: <a href="https://github.com/paritytech/polkadot/commit/b4b57fe865">b4b57fe865</a></footer>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../node/disputes/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="../../node/disputes/dispute-distribution.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../node/disputes/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="../../node/disputes/dispute-distribution.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="../../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="../../mermaid.min.js"></script>
+        <script type="text/javascript" src="../../mermaid-init.js"></script>
+
+
+    </body>
+</html>

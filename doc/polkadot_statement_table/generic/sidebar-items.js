@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DoubleSign","Misbehavior","Statement","ValidityAttestation","ValidityDoubleVote"],"struct":["AttestedCandidate","CandidateData","Config","DrainMisbehaviors","MultipleCandidates","SignedStatement","Summary","Table","UnauthorizedStatement"],"trait":["Context"],"type":["ImportResult","MisbehaviorFor"]};

@@ -1,0 +1,264 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Protocol Overview - The Polkadot Parachain Host Implementers&#x27; Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="last-changed.css">
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Preamble</a></li><li class="chapter-item expanded "><a href="whence-parachains.html"><strong aria-hidden="true">1.</strong> Whence Parachains</a></li><li class="chapter-item expanded "><a href="protocol-overview.html" class="active"><strong aria-hidden="true">2.</strong> Protocol Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="protocol-approval.html"><strong aria-hidden="true">2.1.</strong> Approval Process</a></li><li class="chapter-item expanded "><a href="protocol-disputes.html"><strong aria-hidden="true">2.2.</strong> Disputes Process</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="disputes-flow.html"><strong aria-hidden="true">2.2.1.</strong> Dispute Flow</a></li></ol></li><li class="chapter-item expanded "><a href="protocol-chain-selection.html"><strong aria-hidden="true">2.3.</strong> Chain Selection and Finalization</a></li></ol></li><li class="chapter-item expanded "><a href="architecture.html"><strong aria-hidden="true">3.</strong> Architecture Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="messaging.html"><strong aria-hidden="true">3.1.</strong> Messaging Overview</a></li><li class="chapter-item expanded "><a href="pvf-prechecking.html"><strong aria-hidden="true">3.2.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="runtime/index.html"><strong aria-hidden="true">4.</strong> Runtime Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="runtime/initializer.html"><strong aria-hidden="true">4.1.</strong> Initializer Pallet</a></li><li class="chapter-item expanded "><a href="runtime/configuration.html"><strong aria-hidden="true">4.2.</strong> Configuration Pallet</a></li><li class="chapter-item expanded "><a href="runtime/shared.html"><strong aria-hidden="true">4.3.</strong> Shared Pallet</a></li><li class="chapter-item expanded "><a href="runtime/disputes.html"><strong aria-hidden="true">4.4.</strong> Disputes Pallet</a></li><li class="chapter-item expanded "><a href="runtime/paras.html"><strong aria-hidden="true">4.5.</strong> Paras Pallet</a></li><li class="chapter-item expanded "><a href="runtime/scheduler.html"><strong aria-hidden="true">4.6.</strong> Scheduler Pallet</a></li><li class="chapter-item expanded "><a href="runtime/inclusion.html"><strong aria-hidden="true">4.7.</strong> Inclusion Pallet</a></li><li class="chapter-item expanded "><a href="runtime/parainherent.html"><strong aria-hidden="true">4.8.</strong> ParaInherent Pallet</a></li><li class="chapter-item expanded "><a href="runtime/dmp.html"><strong aria-hidden="true">4.9.</strong> DMP Pallet</a></li><li class="chapter-item expanded "><a href="runtime/hrmp.html"><strong aria-hidden="true">4.10.</strong> HRMP Pallet</a></li><li class="chapter-item expanded "><a href="runtime/session_info.html"><strong aria-hidden="true">4.11.</strong> Session Info Pallet</a></li></ol></li><li class="chapter-item expanded "><a href="runtime-api/index.html"><strong aria-hidden="true">5.</strong> Runtime APIs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="runtime-api/validators.html"><strong aria-hidden="true">5.1.</strong> Validators</a></li><li class="chapter-item expanded "><a href="runtime-api/validator-groups.html"><strong aria-hidden="true">5.2.</strong> Validator Groups</a></li><li class="chapter-item expanded "><a href="runtime-api/availability-cores.html"><strong aria-hidden="true">5.3.</strong> Availability Cores</a></li><li class="chapter-item expanded "><a href="runtime-api/persisted-validation-data.html"><strong aria-hidden="true">5.4.</strong> Persisted Validation Data</a></li><li class="chapter-item expanded "><a href="runtime-api/session-index.html"><strong aria-hidden="true">5.5.</strong> Session Index</a></li><li class="chapter-item expanded "><a href="runtime-api/validation-code.html"><strong aria-hidden="true">5.6.</strong> Validation Code</a></li><li class="chapter-item expanded "><a href="runtime-api/candidate-pending-availability.html"><strong aria-hidden="true">5.7.</strong> Candidate Pending Availability</a></li><li class="chapter-item expanded "><a href="runtime-api/candidate-events.html"><strong aria-hidden="true">5.8.</strong> Candidate Events</a></li><li class="chapter-item expanded "><a href="runtime-api/disputes-info.html"><strong aria-hidden="true">5.9.</strong> Disputes Info</a></li><li class="chapter-item expanded "><a href="runtime-api/candidates-included.html"><strong aria-hidden="true">5.10.</strong> Candidates Included</a></li><li class="chapter-item expanded "><a href="runtime-api/pvf-prechecking.html"><strong aria-hidden="true">5.11.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="node/index.html"><strong aria-hidden="true">6.</strong> Node Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/subsystems-and-jobs.html"><strong aria-hidden="true">6.1.</strong> Subsystems and Jobs</a></li><li class="chapter-item expanded "><a href="node/overseer.html"><strong aria-hidden="true">6.2.</strong> Overseer</a></li><li class="chapter-item expanded "><a href="node/grandpa-voting-rule.html"><strong aria-hidden="true">6.3.</strong> GRANDPA Voting Rule</a></li><li class="chapter-item expanded "><a href="node/collators/index.html"><strong aria-hidden="true">6.4.</strong> Collator Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/collators/collation-generation.html"><strong aria-hidden="true">6.4.1.</strong> Collation Generation</a></li><li class="chapter-item expanded "><a href="node/collators/collator-protocol.html"><strong aria-hidden="true">6.4.2.</strong> Collator Protocol</a></li></ol></li><li class="chapter-item expanded "><a href="node/backing/index.html"><strong aria-hidden="true">6.5.</strong> Backing Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/backing/candidate-backing.html"><strong aria-hidden="true">6.5.1.</strong> Candidate Backing</a></li><li class="chapter-item expanded "><a href="node/backing/prospective-parachains.html"><strong aria-hidden="true">6.5.2.</strong> Prospective Parachains</a></li><li class="chapter-item expanded "><a href="node/backing/statement-distribution.html"><strong aria-hidden="true">6.5.3.</strong> Statement Distribution</a></li><li class="chapter-item expanded "><a href="node/backing/statement-distribution-legacy.html"><strong aria-hidden="true">6.5.4.</strong> Statement Distribution (Legacy)</a></li></ol></li><li class="chapter-item expanded "><a href="node/availability/index.html"><strong aria-hidden="true">6.6.</strong> Availability Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/availability/availability-distribution.html"><strong aria-hidden="true">6.6.1.</strong> Availability Distribution</a></li><li class="chapter-item expanded "><a href="node/availability/availability-recovery.html"><strong aria-hidden="true">6.6.2.</strong> Availability Recovery</a></li><li class="chapter-item expanded "><a href="node/availability/bitfield-distribution.html"><strong aria-hidden="true">6.6.3.</strong> Bitfield Distribution</a></li><li class="chapter-item expanded "><a href="node/availability/bitfield-signing.html"><strong aria-hidden="true">6.6.4.</strong> Bitfield Signing</a></li></ol></li><li class="chapter-item expanded "><a href="node/approval/index.html"><strong aria-hidden="true">6.7.</strong> Approval Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/approval/approval-voting.html"><strong aria-hidden="true">6.7.1.</strong> Approval Voting</a></li><li class="chapter-item expanded "><a href="node/approval/approval-distribution.html"><strong aria-hidden="true">6.7.2.</strong> Approval Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="node/disputes/index.html"><strong aria-hidden="true">6.8.</strong> Disputes Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/disputes/dispute-coordinator.html"><strong aria-hidden="true">6.8.1.</strong> Dispute Coordinator</a></li><li class="chapter-item expanded "><a href="node/disputes/dispute-distribution.html"><strong aria-hidden="true">6.8.2.</strong> Dispute Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="node/utility/index.html"><strong aria-hidden="true">6.9.</strong> Utility Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/utility/availability-store.html"><strong aria-hidden="true">6.9.1.</strong> Availability Store</a></li><li class="chapter-item expanded "><a href="node/utility/candidate-validation.html"><strong aria-hidden="true">6.9.2.</strong> Candidate Validation</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/utility/pvf-host-and-workers.html"><strong aria-hidden="true">6.9.2.1.</strong> PVF Host and Workers</a></li></ol></li><li class="chapter-item expanded "><a href="node/utility/provisioner.html"><strong aria-hidden="true">6.9.3.</strong> Provisioner</a></li><li class="chapter-item expanded "><a href="node/utility/network-bridge.html"><strong aria-hidden="true">6.9.4.</strong> Network Bridge</a></li><li class="chapter-item expanded "><a href="node/utility/gossip-support.html"><strong aria-hidden="true">6.9.5.</strong> Gossip Support</a></li><li class="chapter-item expanded "><a href="node/utility/peer-set-manager.html"><strong aria-hidden="true">6.9.6.</strong> Peer Set Manager</a></li><li class="chapter-item expanded "><a href="node/utility/runtime-api.html"><strong aria-hidden="true">6.9.7.</strong> Runtime API Requests</a></li><li class="chapter-item expanded "><a href="node/utility/chain-api.html"><strong aria-hidden="true">6.9.8.</strong> Chain API Requests</a></li><li class="chapter-item expanded "><a href="node/utility/chain-selection.html"><strong aria-hidden="true">6.9.9.</strong> Chain Selection Request</a></li><li class="chapter-item expanded "><a href="node/utility/pvf-prechecker.html"><strong aria-hidden="true">6.9.10.</strong> PVF Pre-Checking</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="types/index.html"><strong aria-hidden="true">7.</strong> Data Structures and Types</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="types/candidate.html"><strong aria-hidden="true">7.1.</strong> Candidate</a></li><li class="chapter-item expanded "><a href="types/backing.html"><strong aria-hidden="true">7.2.</strong> Backing</a></li><li class="chapter-item expanded "><a href="types/availability.html"><strong aria-hidden="true">7.3.</strong> Availability</a></li><li class="chapter-item expanded "><a href="types/overseer-protocol.html"><strong aria-hidden="true">7.4.</strong> Overseer and Subsystem Protocol</a></li><li class="chapter-item expanded "><a href="types/runtime.html"><strong aria-hidden="true">7.5.</strong> Runtime</a></li><li class="chapter-item expanded "><a href="types/messages.html"><strong aria-hidden="true">7.6.</strong> Messages</a></li><li class="chapter-item expanded "><a href="types/network.html"><strong aria-hidden="true">7.7.</strong> Network</a></li><li class="chapter-item expanded "><a href="types/approval.html"><strong aria-hidden="true">7.8.</strong> Approvals</a></li><li class="chapter-item expanded "><a href="types/disputes.html"><strong aria-hidden="true">7.9.</strong> Disputes</a></li><li class="chapter-item expanded "><a href="types/pvf-prechecking.html"><strong aria-hidden="true">7.10.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="glossary.html">Glossary</a></li><li class="chapter-item expanded affix "><a href="further-reading.html">Further Reading</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Polkadot Parachain Host Implementers&#x27; Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/paritytech/polkadot" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="protocol-overview"><a class="header" href="#protocol-overview">Protocol Overview</a></h1>
+<p>This section aims to describe, at a high level, the actors and protocols involved in running parachains in Polkadot. Specifically, we describe how different actors communicate with each other, what data structures they keep both individually and collectively, and the high-level purpose on why they do these things.</p>
+<p>Our top-level goal is to carry a parachain block from authoring to secure inclusion, and define a process which can be carried out repeatedly and in parallel for many different parachains to extend them over time. Understanding of the high-level approach taken here is important to provide context for the proposed architecture further on. The key parts of Polkadot relevant to this are the main Polkadot blockchain, known as the relay-chain, and the actors which provide security and inputs to this blockchain.</p>
+<p>First, it's important to go over the main actors we have involved in this protocol.</p>
+<ol>
+<li>Validators. These nodes are responsible for validating proposed parachain blocks. They do so by checking a Proof-of-Validity (PoV) of the block and ensuring that the PoV remains available. They put financial capital down as &quot;skin in the game&quot; which can be slashed (destroyed) if they are proven to have misvalidated.</li>
+<li>Collators. These nodes are responsible for creating the Proofs-of-Validity that validators know how to check. Creating a PoV typically requires familiarity with the transaction format and block authoring rules of the parachain, as well as having access to the full state of the parachain.</li>
+</ol>
+<p>This implies a simple pipeline where collators send validators parachain blocks and their requisite PoV to check. Then, validators validate the block using the PoV, signing statements which describe either the positive or negative outcome, and with enough positive statements, the block can be noted on the relay-chain. Negative statements are not a veto but will lead to a dispute, with those on the wrong side being slashed. If another validator later detects that a validator or group of validators incorrectly signed a statement claiming a block was valid, then those validators will be <em>slashed</em>, with the checker receiving a bounty.</p>
+<p>However, there is a problem with this formulation. In order for another validator to check the previous group of validators' work after the fact, the PoV must remain <em>available</em> so the other validator can fetch it in order to check the work. The PoVs are expected to be too large to include in the blockchain directly, so we require an alternate <em>data availability</em> scheme which requires validators to prove that the inputs to their work will remain available, and so their work can be checked. Empirical tests tell us that many PoVs may be between 1 and 10MB during periods of heavy load.</p>
+<p>Here is a description of the Inclusion Pipeline: the path a parachain block (or parablock, for short) takes from creation to inclusion:</p>
+<ol>
+<li>Validators are selected and assigned to parachains by the Validator Assignment routine.</li>
+<li>A collator produces the parachain block, which is known as a parachain candidate or candidate, along with a PoV for the candidate.</li>
+<li>The collator forwards the candidate and PoV to validators assigned to the same parachain via the <a href="node/collators/collator-protocol.html">Collator Protocol</a>.</li>
+<li>The validators assigned to a parachain at a given point in time participate in the <a href="node/backing/candidate-backing.html">Candidate Backing subsystem</a> to validate candidates that were put forward for validation. Candidates which gather enough signed validity statements from validators are considered &quot;backable&quot;. Their backing is the set of signed validity statements.</li>
+<li>A relay-chain block author, selected by BABE, can note up to one (1) backable candidate for each parachain to include in the relay-chain block alongside its backing. A backable candidate once included in the relay-chain is considered backed in that fork of the relay-chain.</li>
+<li>Once backed in the relay-chain, the parachain candidate is considered to be &quot;pending availability&quot;. It is not considered to be included as part of the parachain until it is proven available.</li>
+<li>In the following relay-chain blocks, validators will participate in the <a href="node/availability/availability-distribution.html">Availability Distribution subsystem</a> to ensure availability of the candidate. Information regarding the availability of the candidate will be noted in the subsequent relay-chain blocks.</li>
+<li>Once the relay-chain state machine has enough information to consider the candidate's PoV as being available, the candidate is considered to be part of the parachain and is graduated to being a full parachain block, or parablock for short.</li>
+</ol>
+<p>Note that the candidate can fail to be included in any of the following ways:</p>
+<ul>
+<li>The collator is not able to propagate the candidate to any validators assigned to the parachain.</li>
+<li>The candidate is not backed by validators participating in the Candidate Backing Subsystem.</li>
+<li>The candidate is not selected by a relay-chain block author to be included in the relay chain</li>
+<li>The candidate's PoV is not considered as available within a timeout and is discarded from the relay chain.</li>
+</ul>
+<p>This process can be divided further down. Steps 2 &amp; 3 relate to the work of the collator in collating and distributing the candidate to validators via the Collation Distribution Subsystem. Steps 3 &amp; 4 relate to the work of the validators in the Candidate Backing Subsystem and the block author (itself a validator) to include the block into the relay chain. Steps 6, 7, and 8 correspond to the logic of the relay-chain state-machine (otherwise known as the Runtime) used to fully incorporate the block into the chain. Step 7 requires further work on the validators' parts to participate in the Availability Distribution Subsystem and include that information into the relay chain for step 8 to be fully realized.</p>
+<p>This brings us to the second part of the process. Once a parablock is considered available and part of the parachain, it is still &quot;pending approval&quot;. At this stage in the pipeline, the parablock has been backed by a majority of validators in the group assigned to that parachain, and its data has been guaranteed available by the set of validators as a whole. Once it's considered available, the host will even begin to accept children of that block. At this point, we can consider the parablock as having been tentatively included in the parachain, although more confirmations are desired. However, the validators in the parachain-group (known as the &quot;Parachain Validators&quot; for that parachain) are sampled from a validator set which contains some proportion of byzantine, or arbitrarily malicious members. This implies that the Parachain Validators for some parachain may be majority-dishonest, which means that (secondary) approval checks must be done on the block before it can be considered approved. This is necessary only because the Parachain Validators for a given parachain are sampled from an overall validator set which is assumed to be up to &lt;1/3 dishonest - meaning that there is a chance to randomly sample Parachain Validators for a parachain that are majority or fully dishonest and can back a candidate wrongly. The Approval Process allows us to detect such misbehavior after-the-fact without allocating more Parachain Validators and reducing the throughput of the system. A parablock's failure to pass the approval process will invalidate the block as well as all of its descendants. However, only the validators who backed the block in question will be slashed, not the validators who backed the descendants.</p>
+<p>The Approval Process, at a glance, looks like this:</p>
+<ol>
+<li>Parablocks that have been included by the Inclusion Pipeline are pending approval for a time-window known as the secondary checking window.</li>
+<li>During the secondary-checking window, validators randomly self-select to perform secondary checks on the parablock.</li>
+<li>These validators, known in this context as secondary checkers, acquire the parablock and its PoV, and re-run the validation function.</li>
+<li>The secondary checkers gossip the result of their checks. Contradictory results lead to escalation, where all validators are required to check the block. The validators on the losing side of the dispute are slashed.</li>
+<li>At the end of the Approval Process, the parablock is either Approved or it is rejected. More on the rejection process later.</li>
+</ol>
+<p>More information on the Approval Process can be found in the dedicated section on <a href="protocol-approval.html">Approval</a>. More information on Disputes can be found in the dedicated section on <a href="protocol-disputes.html">Disputes</a>.</p>
+<p>These two pipelines sum up the sequence of events necessary to extend and acquire full security on a Parablock. Note that the Inclusion Pipeline must conclude for a specific parachain before a new block can be accepted on that parachain. After inclusion, the Approval Process kicks off, and can be running for many parachain blocks at once.</p>
+<p>Reiterating the lifecycle of a candidate:</p>
+<ol>
+<li>Candidate: put forward by a collator to a validator.</li>
+<li>Seconded: put forward by a validator to other validators</li>
+<li>Backable: validity attested to by a majority of assigned validators</li>
+<li>Backed: Backable &amp; noted in a fork of the relay-chain.</li>
+<li>Pending availability: Backed but not yet considered available.</li>
+<li>Included: Backed and considered available.</li>
+<li>Accepted: Backed, available, and undisputed</li>
+</ol>
+<div><!-- Generated by graphviz version 2.43.0 (0)
+ --><!-- Title: %3 Pages: 1 --><svg width="446pt" height="779pt"
+ viewBox="0.00 0.00 446.00 779.25" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 775.25)"><title>%3</title><polygon fill="white" stroke="transparent" points="-4,4 -4,-775.25 442,-775.25 442,4 -4,4"/><g id="clust1" class="cluster"><title>cluster_vg</title><polygon fill="lightgrey" stroke="lightgrey" points="8,-444.25 8,-694.25 309,-694.25 309,-444.25 8,-444.25"/><text text-anchor="start" x="16" y="-679.05" font-family="Times,serif" font-size="14.00">Parachain Validators</text><text text-anchor="start" x="41" y="-664.05" font-family="Times,serif" font-size="14.00">(subset of all)</text></g><g id="clust2" class="cluster"><title>cluster_approval</title><polygon fill="lightgrey" stroke="lightgrey" points="8,-79 8,-169 430,-169 430,-79 8,-79"/><text text-anchor="start" x="16" y="-153.8" font-family="Times,serif" font-size="14.00">Secondary Checkers</text><text text-anchor="start" x="40" y="-138.8" font-family="Times,serif" font-size="14.00">(subset of all)</text></g><!-- v1 --><g id="node1" class="node"><title>v1</title><ellipse fill="white" stroke="white" cx="200" cy="-630.25" rx="61.99" ry="18"/><text text-anchor="middle" x="200" y="-626.55" font-family="Times,serif" font-size="14.00">Validator 1</text></g><!-- v2 --><g id="node2" class="node"><title>v2</title><ellipse fill="white" stroke="white" cx="78" cy="-543.25" rx="61.99" ry="18"/><text text-anchor="middle" x="78" y="-539.55" font-family="Times,serif" font-size="14.00">Validator 2</text></g><!-- v1&#45;&gt;v2 --><g id="edge1" class="edge"><title>v1&#45;&gt;v2</title><path fill="none" stroke="black" d="M148.9,-620.02C131.72,-614.82 113.5,-606.75 100,-594.25 93.29,-588.05 88.52,-579.44 85.17,-571.11"/><polygon fill="black" stroke="black" points="88.46,-569.91 81.87,-561.62 81.85,-572.21 88.46,-569.91"/><text text-anchor="middle" x="147" y="-583.05" font-family="Times,serif" font-size="14.00">(2) Seconded</text></g><!-- v3 --><g id="node3" class="node"><title>v3</title><ellipse fill="white" stroke="white" cx="219" cy="-543.25" rx="61.99" ry="18"/><text text-anchor="middle" x="219" y="-539.55" font-family="Times,serif" font-size="14.00">Validator 3</text></g><!-- v1&#45;&gt;v3 --><g id="edge2" class="edge"><title>v1&#45;&gt;v3</title><path fill="none" stroke="black" d="M198.44,-611.87C198.04,-602.14 198.32,-589.86 201,-579.25 201.76,-576.24 202.82,-573.19 204.05,-570.21"/><polygon fill="black" stroke="black" points="207.26,-571.62 208.39,-561.08 200.94,-568.61 207.26,-571.62"/><text text-anchor="middle" x="248" y="-583.05" font-family="Times,serif" font-size="14.00">(2) Seconded</text></g><!-- b --><g id="node4" class="node"><title>b</title><polygon fill="white" stroke="white" points="271.5,-488.25 166.5,-488.25 166.5,-452.25 271.5,-452.25 271.5,-488.25"/><text text-anchor="middle" x="219" y="-466.55" font-family="Times,serif" font-size="14.00">(3) Backable</text></g><!-- v1&#45;&gt;b --><g id="edge5" class="edge"><title>v1&#45;&gt;b</title><path fill="none" stroke="black" stroke-dasharray="5,2" d="M254.13,-621.39C269.9,-616.3 285.45,-607.95 295,-594.25 303.03,-582.74 311.74,-564.45 290,-525.25 281.44,-509.82 266.42,-497.42 252.4,-488.42"/></g><!-- v2&#45;&gt;b --><g id="edge3" class="edge"><title>v2&#45;&gt;b</title><path fill="none" stroke="black" stroke-dasharray="5,2" d="M107.56,-527.37C130.17,-515.99 161.38,-500.27 185.02,-488.37"/></g><!-- v3&#45;&gt;b --><g id="edge4" class="edge"><title>v3&#45;&gt;b</title><path fill="none" stroke="black" stroke-dasharray="5,2" d="M219,-525.07C219,-513.9 219,-499.42 219,-488.28"/></g><!-- v4 --><g id="node5" class="node"><title>v4</title><ellipse fill="none" stroke="black" cx="219" cy="-378.63" rx="138.69" ry="22.76"/><text text-anchor="start" x="129" y="-380.43" font-family="Times,serif" font-weight="bold" font-size="14.00">Validator 4</text><text text-anchor="start" x="215" y="-380.43" font-family="Times,serif" font-size="14.00"> (relay chain)</text><text text-anchor="start" x="169.5" y="-369.63" font-family="Times,serif" font-size="10.00">(selected by BABE)</text></g><!-- b&#45;&gt;v4 --><g id="edge6" class="edge"><title>b&#45;&gt;v4</title><path fill="none" stroke="black" d="M219,-451.97C219,-440.46 219,-424.99 219,-411.31"/><polygon fill="black" stroke="black" points="222.5,-411.3 219,-401.3 215.5,-411.3 222.5,-411.3"/><text text-anchor="middle" x="257" y="-423.05" font-family="Times,serif" font-size="14.00">(4) Backed</text></g><!-- pa --><g id="node7" class="node"><title>pa</title><polygon fill="none" stroke="black" points="359.5,-319 78.5,-319 78.5,-283 359.5,-283 359.5,-319"/><text text-anchor="middle" x="219" y="-297.3" font-family="Times,serif" font-size="14.00">(5) Relay Block (Pending Availability)</text></g><!-- v4&#45;&gt;pa --><g id="edge8" class="edge"><title>v4&#45;&gt;pa</title><path fill="none" stroke="black" d="M219,-355.75C219,-347.44 219,-337.87 219,-329.13"/><polygon fill="black" stroke="black" points="222.5,-329.02 219,-319.02 215.5,-329.02 222.5,-329.02"/></g><!-- col --><g id="node6" class="node"><title>col</title><ellipse fill="none" stroke="black" cx="200" cy="-753.25" rx="48.19" ry="18"/><text text-anchor="middle" x="200" y="-749.55" font-family="Times,serif" font-size="14.00">Collator</text></g><!-- col&#45;&gt;v1 --><g id="edge7" class="edge"><title>col&#45;&gt;v1</title><path fill="none" stroke="black" d="M200,-735.18C200,-715.29 200,-682.18 200,-658.68"/><polygon fill="black" stroke="black" points="203.5,-658.64 200,-648.64 196.5,-658.64 203.5,-658.64"/><text text-anchor="middle" x="248.5" y="-706.05" font-family="Times,serif" font-size="14.00">(1) Candidate</text></g><!-- pb --><g id="node8" class="node"><title>pb</title><polygon fill="none" stroke="black" points="262,-232 176,-232 176,-196 262,-196 262,-232"/><text text-anchor="middle" x="219" y="-210.3" font-family="Times,serif" font-size="14.00">Parablock</text></g><!-- pa&#45;&gt;pb --><g id="edge9" class="edge"><title>pa&#45;&gt;pb</title><path fill="none" stroke="black" d="M219,-282.8C219,-268.05 219,-246.92 219,-232.18"/><text text-anchor="middle" x="300.5" y="-253.8" font-family="Times,serif" font-size="14.00">(6) a few blocks later...</text></g><!-- a5 --><g id="node10" class="node"><title>a5</title><ellipse fill="white" stroke="white" cx="78" cy="-105" rx="61.99" ry="18"/><text text-anchor="middle" x="78" y="-101.3" font-family="Times,serif" font-size="14.00">Validator 5</text></g><!-- pb&#45;&gt;a5 --><g id="edge10" class="edge"><title>pb&#45;&gt;a5</title><path fill="none" stroke="black" d="M188.86,-195.94C175.93,-188.22 160.87,-178.66 148,-169 131.82,-156.86 114.93,-141.74 101.8,-129.35"/><polygon fill="black" stroke="black" points="104.18,-126.79 94.53,-122.42 99.35,-131.86 104.18,-126.79"/></g><!-- a6 --><g id="node11" class="node"><title>a6</title><ellipse fill="white" stroke="white" cx="219" cy="-105" rx="61.99" ry="18"/><text text-anchor="middle" x="219" y="-101.3" font-family="Times,serif" font-size="14.00">Validator 6</text></g><!-- pb&#45;&gt;a6 --><g id="edge11" class="edge"><title>pb&#45;&gt;a6</title><path fill="none" stroke="black" d="M219,-195.81C219,-178.96 219,-153.02 219,-133.34"/><polygon fill="black" stroke="black" points="222.5,-133.15 219,-123.15 215.5,-133.15 222.5,-133.15"/></g><!-- a7 --><g id="node12" class="node"><title>a7</title><ellipse fill="white" stroke="white" cx="360" cy="-105" rx="61.99" ry="18"/><text text-anchor="middle" x="360" y="-101.3" font-family="Times,serif" font-size="14.00">Validator 7</text></g><!-- pb&#45;&gt;a7 --><g id="edge12" class="edge"><title>pb&#45;&gt;a7</title><path fill="none" stroke="black" d="M249.14,-195.94C262.07,-188.22 277.13,-178.66 290,-169 306.18,-156.86 323.07,-141.74 336.2,-129.35"/><polygon fill="black" stroke="black" points="338.65,-131.86 343.47,-122.42 333.82,-126.79 338.65,-131.86"/></g><!-- rc --><g id="node9" class="node"><title>rc</title><ellipse fill="none" stroke="black" cx="219" cy="-18" rx="116.18" ry="18"/><text text-anchor="middle" x="219" y="-14.3" font-family="Times,serif" font-size="14.00">Relay Chain Validators</text></g><!-- a5&#45;&gt;rc --><g id="edge13" class="edge"><title>a5&#45;&gt;rc</title><path fill="none" stroke="black" d="M89.37,-87.17C97.4,-76.41 109,-62.85 122,-54 131.56,-47.49 142.47,-42.04 153.44,-37.53"/><polygon fill="black" stroke="black" points="155,-40.68 163.06,-33.8 152.47,-34.15 155,-40.68"/><text text-anchor="middle" x="168.5" y="-57.8" font-family="Times,serif" font-size="14.00">(7) Approved</text></g><!-- a6&#45;&gt;rc --><g id="edge14" class="edge"><title>a6&#45;&gt;rc</title><path fill="none" stroke="black" d="M219,-86.8C219,-75.16 219,-59.55 219,-46.24"/><polygon fill="black" stroke="black" points="222.5,-46.18 219,-36.18 215.5,-46.18 222.5,-46.18"/><text text-anchor="middle" x="265.5" y="-57.8" font-family="Times,serif" font-size="14.00">(7) Approved</text></g><!-- a7&#45;&gt;rc --><g id="edge15" class="edge"><title>a7&#45;&gt;rc</title><path fill="none" stroke="black" d="M348.63,-87.17C340.6,-76.41 329,-62.85 316,-54 306.44,-47.49 295.53,-42.04 284.56,-37.53"/><polygon fill="black" stroke="black" points="285.53,-34.15 274.94,-33.8 283,-40.68 285.53,-34.15"/><text text-anchor="middle" x="378.5" y="-57.8" font-family="Times,serif" font-size="14.00">(7) Approved</text></g></g></svg></div>
+<p>The diagram above shows the happy path of a block from (1) Candidate to the (7) Approved state.</p>
+<p>It is also important to take note of the fact that the relay-chain is extended by BABE, which is a forkful algorithm. That means that different block authors can be chosen at the same time, and may not be building on the same block parent. Furthermore, the set of validators is not fixed, nor is the set of parachains. And even with the same set of validators and parachains, the validators' assignments to parachains is flexible. This means that the architecture proposed in the next chapters must deal with the variability and multiplicity of the network state.</p>
+<div><!-- Generated by graphviz version 2.43.0 (0)
+ --><!-- Title: %3 Pages: 1 --><svg width="412pt" height="392pt"
+ viewBox="0.00 0.00 412.20 391.53" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 387.53)"><title>%3</title><polygon fill="white" stroke="transparent" points="-4,4 -4,-387.53 408.2,-387.53 408.2,4 -4,4"/><!-- rca --><g id="node1" class="node"><title>rca</title><polygon fill="none" stroke="black" points="304.6,-36 190.6,-36 190.6,0 304.6,0 304.6,-36"/><text text-anchor="middle" x="247.6" y="-14.3" font-family="Times,serif" font-size="14.00">Relay Block A</text></g><!-- rcb --><g id="node2" class="node"><title>rcb</title><polygon fill="none" stroke="black" points="305.1,-109 190.1,-109 190.1,-73 305.1,-73 305.1,-109"/><text text-anchor="middle" x="247.6" y="-87.3" font-family="Times,serif" font-size="14.00">Relay Block B</text></g><!-- rcb&#45;&gt;rca --><g id="edge1" class="edge"><title>rcb&#45;&gt;rca</title><path fill="none" stroke="black" d="M247.6,-72.81C247.6,-64.79 247.6,-55.05 247.6,-46.07"/><polygon fill="black" stroke="black" points="251.1,-46.03 247.6,-36.03 244.1,-46.03 251.1,-46.03"/></g><!-- rcc --><g id="node3" class="node"><title>rcc</title><polygon fill="none" stroke="black" points="167.1,-217.6 52.1,-217.6 52.1,-181.6 167.1,-181.6 167.1,-217.6"/><text text-anchor="middle" x="109.6" y="-195.9" font-family="Times,serif" font-size="14.00">Relay Block C</text></g><!-- rcc&#45;&gt;rcb --><g id="edge2" class="edge"><title>rcc&#45;&gt;rcb</title><path fill="none" stroke="black" d="M131.77,-181.47C155.01,-163.52 191.66,-135.21 217.51,-115.25"/><polygon fill="black" stroke="black" points="219.71,-117.97 225.48,-109.08 215.43,-112.43 219.71,-117.97"/></g><!-- vg1 --><g id="node4" class="node"><title>vg1</title><ellipse fill="none" stroke="black" cx="109.6" cy="-336.87" rx="109.7" ry="46.84"/><text text-anchor="start" x="40.1" y="-355.67" font-family="Times,serif" font-weight="bold" font-size="14.00">Validator Group 1</text><text text-anchor="start" x="78.6" y="-330.87" font-family="Times,serif" font-size="10.00">(Validator 4)</text><text text-anchor="start" x="46.1" y="-320.87" font-family="Times,serif" font-size="10.00">(Validator 1) (Validator 2)</text><text text-anchor="start" x="78.6" y="-310.87" font-family="Times,serif" font-size="10.00">(Validator 5)</text></g><!-- vg1&#45;&gt;rcc --><g id="edge3" class="edge"><title>vg1&#45;&gt;rcc</title><path fill="none" stroke="black" stroke-dasharray="5,2" d="M109.6,-290.07C109.6,-265.24 109.6,-236 109.6,-217.88"/><text text-anchor="middle" x="158.1" y="-261" font-family="Times,serif" font-size="14.00">Building on C</text></g><!-- vg2 --><g id="node5" class="node"><title>vg2</title><ellipse fill="none" stroke="black" cx="294.6" cy="-199.6" rx="109.7" ry="39.7"/><text text-anchor="start" x="225.1" y="-213.4" font-family="Times,serif" font-weight="bold" font-size="14.00">Validator Group 2</text><text text-anchor="start" x="263.6" y="-188.6" font-family="Times,serif" font-size="10.00">(Validator 7)</text><text text-anchor="start" x="231.1" y="-178.6" font-family="Times,serif" font-size="10.00">(Validator 3) (Validator 6)</text></g><!-- vg2&#45;&gt;rcb --><g id="edge4" class="edge"><title>vg2&#45;&gt;rcb</title><path fill="none" stroke="black" stroke-dasharray="5,2" d="M277.77,-160.41C270.02,-142.85 261.23,-122.9 255.14,-109.09"/><text text-anchor="middle" x="316.1" y="-130.8" font-family="Times,serif" font-size="14.00">Building on B</text></g></g></svg></div>
+<p>In this example, group 1 has received block C while the others have not due to network asynchrony. Now, a validator from group 2 may be able to build another block on top of B, called <code>C'</code>. Assume that afterwards, some validators become aware of both C and <code>C'</code>, while others remain only aware of one.</p>
+<div><!-- Generated by graphviz version 2.43.0 (0)
+ --><!-- Title: %3 Pages: 1 --><svg width="701pt" height="303pt"
+ viewBox="0.00 0.00 701.20 303.20" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 299.2)"><title>%3</title><polygon fill="white" stroke="transparent" points="-4,4 -4,-299.2 697.2,-299.2 697.2,4 -4,4"/><!-- rca --><g id="node1" class="node"><title>rca</title><polygon fill="none" stroke="black" points="402.6,-36 288.6,-36 288.6,0 402.6,0 402.6,-36"/><text text-anchor="middle" x="345.6" y="-14.3" font-family="Times,serif" font-size="14.00">Relay Block A</text></g><!-- rcb --><g id="node2" class="node"><title>rcb</title><polygon fill="none" stroke="black" points="403.1,-108 288.1,-108 288.1,-72 403.1,-72 403.1,-108"/><text text-anchor="middle" x="345.6" y="-86.3" font-family="Times,serif" font-size="14.00">Relay Block B</text></g><!-- rcb&#45;&gt;rca --><g id="edge1" class="edge"><title>rcb&#45;&gt;rca</title><path fill="none" stroke="black" d="M345.6,-71.7C345.6,-63.98 345.6,-54.71 345.6,-46.11"/><polygon fill="black" stroke="black" points="349.1,-46.1 345.6,-36.1 342.1,-46.1 349.1,-46.1"/></g><!-- rcc --><g id="node3" class="node"><title>rcc</title><polygon fill="none" stroke="black" points="336.1,-180 221.1,-180 221.1,-144 336.1,-144 336.1,-180"/><text text-anchor="middle" x="278.6" y="-158.3" font-family="Times,serif" font-size="14.00">Relay Block C</text></g><!-- rcc&#45;&gt;rcb --><g id="edge2" class="edge"><title>rcc&#45;&gt;rcb</title><path fill="none" stroke="black" d="M295.16,-143.7C303.28,-135.22 313.19,-124.86 322.07,-115.58"/><polygon fill="black" stroke="black" points="324.84,-117.75 329.23,-108.1 319.79,-112.91 324.84,-117.75"/></g><!-- rcc_prime --><g id="node4" class="node"><title>rcc_prime</title><polygon fill="none" stroke="black" points="473.1,-180 354.1,-180 354.1,-144 473.1,-144 473.1,-180"/><text text-anchor="middle" x="413.6" y="-158.3" font-family="Times,serif" font-size="14.00">Relay Block C&#39;</text></g><!-- rcc_prime&#45;&gt;rcb --><g id="edge3" class="edge"><title>rcc_prime&#45;&gt;rcb</title><path fill="none" stroke="black" d="M396.79,-143.7C388.48,-135.14 378.3,-124.66 369.21,-115.3"/><polygon fill="black" stroke="black" points="371.7,-112.84 362.22,-108.1 366.67,-117.72 371.7,-112.84"/></g><!-- vg1 --><g id="node5" class="node"><title>vg1</title><ellipse fill="none" stroke="black" cx="109.6" cy="-255.6" rx="109.7" ry="32.55"/><text text-anchor="start" x="40.1" y="-264.4" font-family="Times,serif" font-weight="bold" font-size="14.00">Validator Group 1</text><text text-anchor="start" x="46.1" y="-239.6" font-family="Times,serif" font-size="10.00">(Validator 4) (Validator 1)</text></g><!-- vg1&#45;&gt;rcc --><g id="edge4" class="edge"><title>vg1&#45;&gt;rcc</title><path fill="none" stroke="black" stroke-dasharray="5,2" d="M161.23,-226.62C189.18,-211.47 222.83,-193.23 246.91,-180.18"/></g><!-- vg2 --><g id="node6" class="node"><title>vg2</title><ellipse fill="none" stroke="black" cx="583.6" cy="-255.6" rx="109.7" ry="32.55"/><text text-anchor="start" x="514.1" y="-264.4" font-family="Times,serif" font-weight="bold" font-size="14.00">Validator Group 2</text><text text-anchor="start" x="520.1" y="-239.6" font-family="Times,serif" font-size="10.00">(Validator 7) (Validator 6)</text></g><!-- vg2&#45;&gt;rcc_prime --><g id="edge5" class="edge"><title>vg2&#45;&gt;rcc_prime</title><path fill="none" stroke="black" stroke-dasharray="5,2" d="M532.13,-226.87C503.89,-211.65 469.77,-193.26 445.4,-180.13"/></g><!-- vg3 --><g id="node7" class="node"><title>vg3</title><ellipse fill="none" stroke="black" cx="346.6" cy="-255.6" rx="109.7" ry="39.7"/><text text-anchor="start" x="277.1" y="-269.4" font-family="Times,serif" font-weight="bold" font-size="14.00">Validator Group 3</text><text text-anchor="start" x="283.1" y="-244.6" font-family="Times,serif" font-size="10.00">(Validator 2) (Validator 3)</text><text text-anchor="start" x="315.6" y="-234.6" font-family="Times,serif" font-size="10.00">(Validator 5)</text></g><!-- vg3&#45;&gt;rcc --><g id="edge7" class="edge"><title>vg3&#45;&gt;rcc</title><path fill="none" stroke="black" stroke-dasharray="5,2" d="M318.75,-217.08C309.21,-204.23 299.01,-190.49 291.27,-180.07"/></g><!-- vg3&#45;&gt;rcc_prime --><g id="edge6" class="edge"><title>vg3&#45;&gt;rcc_prime</title><path fill="none" stroke="black" stroke-dasharray="5,2" d="M374.05,-217.08C383.44,-204.23 393.5,-190.49 401.12,-180.07"/></g></g></svg></div>
+<p>Those validators that are aware of many competing heads must be aware of the work happening on each one. They may contribute to some or a full extent on both. It is possible that due to network asynchrony two forks may grow in parallel for some time, although in the absence of an adversarial network this is unlikely in the case where there are validators who are aware of both chain heads.</p>
+<footer id="last-change">Last change: 2022-11-30, commit: <a href="https://github.com/paritytech/polkadot/commit/6343ae7774">6343ae7774</a></footer>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="whence-parachains.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="protocol-approval.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="whence-parachains.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="protocol-approval.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="mermaid.min.js"></script>
+        <script type="text/javascript" src="mermaid-init.js"></script>
+
+
+    </body>
+</html>

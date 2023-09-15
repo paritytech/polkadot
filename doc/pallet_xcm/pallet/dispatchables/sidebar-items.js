@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["execute","force_default_xcm_version","force_subscribe_version_notify","force_suspension","force_unsubscribe_version_notify","force_xcm_version","limited_reserve_transfer_assets","limited_teleport_assets","reserve_transfer_assets","send","teleport_assets"]};

@@ -1,0 +1,56 @@
+<!DOCTYPE html><html lang="en"><head><link rel="canonical" href="https://paritytech.github.io/polkadot-sdk/master/polkadot_node_subsystem_util/nesting_sender/index.html"><meta http-equiv="refresh" content="0;URL='https://paritytech.github.io/polkadot-sdk/master/polkadot_node_subsystem_util/nesting_sender/index.html'"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Nested message sending"><title>polkadot_node_subsystem_util::nesting_sender - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ba5701c5741a7b69.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="polkadot_node_subsystem_util" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0 (90c541806 2023-05-31)" data-search-js="search-e077946657036a58.js" data-settings-js="settings-298e1ea74db45b39.js" data-settings-css="settings-7bfb4c59cc6bc502.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../static.files/main-f61008743c98d196.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../../polkadot_node_subsystem_util/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2></h2></nav><nav class="sidebar"><a class="logo-container" href="../../polkadot_node_subsystem_util/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2 class="location"><a href="#">Module nesting_sender</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#structs">Structs</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../index.html">polkadot_node_subsystem_util</a>::<wbr><a class="mod" href="#">nesting_sender</a><button id="copy-path" title="Copy item path to clipboard"><img src="../../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../../src/polkadot_node_subsystem_util/nesting_sender.rs.html#17-208">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Nested message sending</p>
+<p>Useful for having mostly synchronous code, with submodules spawning short lived asynchronous
+tasks, sending messages back.</p>
+<h3 id="background"><a href="#background">Background</a></h3>
+<p>Writing concurrent and even multithreaded by default is inconvenient and slow: No references
+hence lots of needless cloning and data duplication, locks, mutexes, … We should reach
+for concurrency and parallelism when there is an actual need, not just because we can and it is
+reasonably safe in Rust.</p>
+<p>I very much agree with many points in this blog post for example:</p>
+<p><a href="https://maciej.codes/2022-06-09-local-async.html">https://maciej.codes/2022-06-09-local-async.html</a></p>
+<p>Another very good post by Pierre (Tomaka):</p>
+<p><a href="https://tomaka.medium.com/a-look-back-at-asynchronous-rust-d54d63934a1c">https://tomaka.medium.com/a-look-back-at-asynchronous-rust-d54d63934a1c</a></p>
+<h3 id="architecture"><a href="#architecture">Architecture</a></h3>
+<p>This module helps with this in part. It does not break the multithreaded by default approach,
+but it breaks the <code>spawn everything</code> approach. So once you <code>spawn</code> you will still be
+multithreaded by default, despite that for most tasks we spawn (which just wait for network or
+some message to arrive), that is very much pointless and needless overhead. You will just spawn
+less in the first place.</p>
+<p>By default your code is single threaded, except when actually needed:
+- need to wait for long running synchronous IO (a threaded runtime is actually useful here)
+- need to wait for some async event (message to arrive)
+- need to do some hefty CPU bound processing (a thread is required here as well)</p>
+<p>and it is not acceptable to block the main task for waiting for the result, because we actually
+really have other things to do or at least need to stay responsive just in case.</p>
+<p>With the types and traits in this module you can achieve exactly that: You write modules which
+just execute logic and can call into the functions of other modules - yes we are calling normal
+functions. For the case a module you are calling into requires an occasional background task,
+you provide it with a <code>NestingSender&lt;M, ChildModuleMessage&gt;</code> that it can pass to any spawned
+tasks.</p>
+<p>This way you don’t have to spawn a task for each module just for it to be able to handle
+asynchronous events. The module relies on the using/enclosing code/module to forward it any
+asynchronous messages in a structured way.</p>
+<p>What makes this architecture nice is the separation of concerns - at the top you only have to
+provide a sender and dispatch received messages to the root module - it is completely
+irrelevant how complex that module is, it might consist of child modules also having the need
+to spawn and receive messages, which in turn do the same, still the root logic stays unchanged.
+Everything is isolated to the level where it belongs, while we still keep a single task scope
+in all non blocking/not CPU intensive parts, which allows us to share data via references for
+example.</p>
+<p>Because the wrapping is optional and transparent to the lower modules, each module can also be
+used at the top directly without any wrapping, e.g. for standalone use or for testing purposes.</p>
+<p>Checkout the documentation of <a href="struct.NestingSender.html" title="struct polkadot_node_subsystem_util::nesting_sender::NestingSender"><code>NestingSender</code></a> below for a basic
+usage example. For a real world usage I would like to point you to the dispute-distribution
+subsystem which makes use of this architecture.</p>
+<h3 id="limitations"><a href="#limitations">Limitations</a></h3>
+<p>Nothing is ever for free of course: Each level adds an indirect function call to message
+sending. which should be cheap enough for most applications, but something to keep in mind. In
+particular we avoided the use of of async traits, which would have required memory allocations
+on each send. Also cloning of <a href="struct.NestingSender.html" title="struct polkadot_node_subsystem_util::nesting_sender::NestingSender"><code>NestingSender</code></a> is more
+expensive than cloning a plain mpsc::Sender, the overhead should be negligible though.</p>
+<p>Further limitations: Because everything is routed to the same channel, it is not possible with
+this approach to put back pressure on only a single source (as all are the same). If a module
+has a task that requires this, it indeed has to spawn a long running task which can do the
+back-pressure on that message source or we make it its own subsystem. This is just one of the
+situations that justifies the complexity of asynchrony.</p>
+</div></details><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.NestingSender.html" title="struct polkadot_node_subsystem_util::nesting_sender::NestingSender">NestingSender</a></div><div class="desc docblock-short">A message sender that supports sending nested messages.</div></li></ul></section></div></main></body></html>

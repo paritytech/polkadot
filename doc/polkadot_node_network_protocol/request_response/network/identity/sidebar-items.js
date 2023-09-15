@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["KeyType","Keypair","ParseError","PublicKey"],"mod":["ed25519"],"struct":["DecodingError","OtherVariantError","PeerId","SigningError"]};

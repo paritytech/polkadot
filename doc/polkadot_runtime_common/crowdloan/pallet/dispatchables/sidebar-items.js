@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_memo","contribute","contribute_all","create","dissolve","edit","poke","refund","withdraw"]};

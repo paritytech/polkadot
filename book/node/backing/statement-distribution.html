@@ -1,0 +1,743 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Statement Distribution - The Polkadot Parachain Host Implementers&#x27; Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../../highlight.css">
+        <link rel="stylesheet" href="../../tomorrow-night.css">
+        <link rel="stylesheet" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../last-changed.css">
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../../index.html">Preamble</a></li><li class="chapter-item expanded "><a href="../../whence-parachains.html"><strong aria-hidden="true">1.</strong> Whence Parachains</a></li><li class="chapter-item expanded "><a href="../../protocol-overview.html"><strong aria-hidden="true">2.</strong> Protocol Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../protocol-approval.html"><strong aria-hidden="true">2.1.</strong> Approval Process</a></li><li class="chapter-item expanded "><a href="../../protocol-disputes.html"><strong aria-hidden="true">2.2.</strong> Disputes Process</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../disputes-flow.html"><strong aria-hidden="true">2.2.1.</strong> Dispute Flow</a></li></ol></li><li class="chapter-item expanded "><a href="../../protocol-chain-selection.html"><strong aria-hidden="true">2.3.</strong> Chain Selection and Finalization</a></li></ol></li><li class="chapter-item expanded "><a href="../../architecture.html"><strong aria-hidden="true">3.</strong> Architecture Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../messaging.html"><strong aria-hidden="true">3.1.</strong> Messaging Overview</a></li><li class="chapter-item expanded "><a href="../../pvf-prechecking.html"><strong aria-hidden="true">3.2.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../runtime/index.html"><strong aria-hidden="true">4.</strong> Runtime Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../runtime/initializer.html"><strong aria-hidden="true">4.1.</strong> Initializer Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/configuration.html"><strong aria-hidden="true">4.2.</strong> Configuration Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/shared.html"><strong aria-hidden="true">4.3.</strong> Shared Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/disputes.html"><strong aria-hidden="true">4.4.</strong> Disputes Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/paras.html"><strong aria-hidden="true">4.5.</strong> Paras Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/scheduler.html"><strong aria-hidden="true">4.6.</strong> Scheduler Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/inclusion.html"><strong aria-hidden="true">4.7.</strong> Inclusion Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/parainherent.html"><strong aria-hidden="true">4.8.</strong> ParaInherent Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/dmp.html"><strong aria-hidden="true">4.9.</strong> DMP Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/hrmp.html"><strong aria-hidden="true">4.10.</strong> HRMP Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/session_info.html"><strong aria-hidden="true">4.11.</strong> Session Info Pallet</a></li></ol></li><li class="chapter-item expanded "><a href="../../runtime-api/index.html"><strong aria-hidden="true">5.</strong> Runtime APIs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../runtime-api/validators.html"><strong aria-hidden="true">5.1.</strong> Validators</a></li><li class="chapter-item expanded "><a href="../../runtime-api/validator-groups.html"><strong aria-hidden="true">5.2.</strong> Validator Groups</a></li><li class="chapter-item expanded "><a href="../../runtime-api/availability-cores.html"><strong aria-hidden="true">5.3.</strong> Availability Cores</a></li><li class="chapter-item expanded "><a href="../../runtime-api/persisted-validation-data.html"><strong aria-hidden="true">5.4.</strong> Persisted Validation Data</a></li><li class="chapter-item expanded "><a href="../../runtime-api/session-index.html"><strong aria-hidden="true">5.5.</strong> Session Index</a></li><li class="chapter-item expanded "><a href="../../runtime-api/validation-code.html"><strong aria-hidden="true">5.6.</strong> Validation Code</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidate-pending-availability.html"><strong aria-hidden="true">5.7.</strong> Candidate Pending Availability</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidate-events.html"><strong aria-hidden="true">5.8.</strong> Candidate Events</a></li><li class="chapter-item expanded "><a href="../../runtime-api/disputes-info.html"><strong aria-hidden="true">5.9.</strong> Disputes Info</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidates-included.html"><strong aria-hidden="true">5.10.</strong> Candidates Included</a></li><li class="chapter-item expanded "><a href="../../runtime-api/pvf-prechecking.html"><strong aria-hidden="true">5.11.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/index.html"><strong aria-hidden="true">6.</strong> Node Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/subsystems-and-jobs.html"><strong aria-hidden="true">6.1.</strong> Subsystems and Jobs</a></li><li class="chapter-item expanded "><a href="../../node/overseer.html"><strong aria-hidden="true">6.2.</strong> Overseer</a></li><li class="chapter-item expanded "><a href="../../node/grandpa-voting-rule.html"><strong aria-hidden="true">6.3.</strong> GRANDPA Voting Rule</a></li><li class="chapter-item expanded "><a href="../../node/collators/index.html"><strong aria-hidden="true">6.4.</strong> Collator Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/collators/collation-generation.html"><strong aria-hidden="true">6.4.1.</strong> Collation Generation</a></li><li class="chapter-item expanded "><a href="../../node/collators/collator-protocol.html"><strong aria-hidden="true">6.4.2.</strong> Collator Protocol</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/backing/index.html"><strong aria-hidden="true">6.5.</strong> Backing Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/backing/candidate-backing.html"><strong aria-hidden="true">6.5.1.</strong> Candidate Backing</a></li><li class="chapter-item expanded "><a href="../../node/backing/prospective-parachains.html"><strong aria-hidden="true">6.5.2.</strong> Prospective Parachains</a></li><li class="chapter-item expanded "><a href="../../node/backing/statement-distribution.html" class="active"><strong aria-hidden="true">6.5.3.</strong> Statement Distribution</a></li><li class="chapter-item expanded "><a href="../../node/backing/statement-distribution-legacy.html"><strong aria-hidden="true">6.5.4.</strong> Statement Distribution (Legacy)</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/availability/index.html"><strong aria-hidden="true">6.6.</strong> Availability Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/availability/availability-distribution.html"><strong aria-hidden="true">6.6.1.</strong> Availability Distribution</a></li><li class="chapter-item expanded "><a href="../../node/availability/availability-recovery.html"><strong aria-hidden="true">6.6.2.</strong> Availability Recovery</a></li><li class="chapter-item expanded "><a href="../../node/availability/bitfield-distribution.html"><strong aria-hidden="true">6.6.3.</strong> Bitfield Distribution</a></li><li class="chapter-item expanded "><a href="../../node/availability/bitfield-signing.html"><strong aria-hidden="true">6.6.4.</strong> Bitfield Signing</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/approval/index.html"><strong aria-hidden="true">6.7.</strong> Approval Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/approval/approval-voting.html"><strong aria-hidden="true">6.7.1.</strong> Approval Voting</a></li><li class="chapter-item expanded "><a href="../../node/approval/approval-distribution.html"><strong aria-hidden="true">6.7.2.</strong> Approval Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/disputes/index.html"><strong aria-hidden="true">6.8.</strong> Disputes Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/disputes/dispute-coordinator.html"><strong aria-hidden="true">6.8.1.</strong> Dispute Coordinator</a></li><li class="chapter-item expanded "><a href="../../node/disputes/dispute-distribution.html"><strong aria-hidden="true">6.8.2.</strong> Dispute Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/utility/index.html"><strong aria-hidden="true">6.9.</strong> Utility Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/utility/availability-store.html"><strong aria-hidden="true">6.9.1.</strong> Availability Store</a></li><li class="chapter-item expanded "><a href="../../node/utility/candidate-validation.html"><strong aria-hidden="true">6.9.2.</strong> Candidate Validation</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/utility/pvf-host-and-workers.html"><strong aria-hidden="true">6.9.2.1.</strong> PVF Host and Workers</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/utility/provisioner.html"><strong aria-hidden="true">6.9.3.</strong> Provisioner</a></li><li class="chapter-item expanded "><a href="../../node/utility/network-bridge.html"><strong aria-hidden="true">6.9.4.</strong> Network Bridge</a></li><li class="chapter-item expanded "><a href="../../node/utility/gossip-support.html"><strong aria-hidden="true">6.9.5.</strong> Gossip Support</a></li><li class="chapter-item expanded "><a href="../../node/utility/peer-set-manager.html"><strong aria-hidden="true">6.9.6.</strong> Peer Set Manager</a></li><li class="chapter-item expanded "><a href="../../node/utility/runtime-api.html"><strong aria-hidden="true">6.9.7.</strong> Runtime API Requests</a></li><li class="chapter-item expanded "><a href="../../node/utility/chain-api.html"><strong aria-hidden="true">6.9.8.</strong> Chain API Requests</a></li><li class="chapter-item expanded "><a href="../../node/utility/chain-selection.html"><strong aria-hidden="true">6.9.9.</strong> Chain Selection Request</a></li><li class="chapter-item expanded "><a href="../../node/utility/pvf-prechecker.html"><strong aria-hidden="true">6.9.10.</strong> PVF Pre-Checking</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="../../types/index.html"><strong aria-hidden="true">7.</strong> Data Structures and Types</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../types/candidate.html"><strong aria-hidden="true">7.1.</strong> Candidate</a></li><li class="chapter-item expanded "><a href="../../types/backing.html"><strong aria-hidden="true">7.2.</strong> Backing</a></li><li class="chapter-item expanded "><a href="../../types/availability.html"><strong aria-hidden="true">7.3.</strong> Availability</a></li><li class="chapter-item expanded "><a href="../../types/overseer-protocol.html"><strong aria-hidden="true">7.4.</strong> Overseer and Subsystem Protocol</a></li><li class="chapter-item expanded "><a href="../../types/runtime.html"><strong aria-hidden="true">7.5.</strong> Runtime</a></li><li class="chapter-item expanded "><a href="../../types/messages.html"><strong aria-hidden="true">7.6.</strong> Messages</a></li><li class="chapter-item expanded "><a href="../../types/network.html"><strong aria-hidden="true">7.7.</strong> Network</a></li><li class="chapter-item expanded "><a href="../../types/approval.html"><strong aria-hidden="true">7.8.</strong> Approvals</a></li><li class="chapter-item expanded "><a href="../../types/disputes.html"><strong aria-hidden="true">7.9.</strong> Disputes</a></li><li class="chapter-item expanded "><a href="../../types/pvf-prechecking.html"><strong aria-hidden="true">7.10.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../glossary.html">Glossary</a></li><li class="chapter-item expanded affix "><a href="../../further-reading.html">Further Reading</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Polkadot Parachain Host Implementers&#x27; Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/paritytech/polkadot" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="statement-distribution"><a class="header" href="#statement-distribution">Statement Distribution</a></h1>
+<p>This subsystem is responsible for distributing signed statements that we have generated and forwarding statements generated by our peers. Received candidate receipts and statements are passed to the <a href="candidate-backing.html">Candidate Backing subsystem</a> to handle producing local statements. On receiving <code>StatementDistributionMessage::Share</code>, this subsystem distributes the message across the network with redundency to ensure a fast backing process.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p><strong>Goal:</strong> every well-connected node is aware of every next potential parachain
+block.</p>
+<p>Validators can either:</p>
+<ul>
+<li>receive parachain block from collator, check block, and gossip statement.</li>
+<li>receive statements from other validators, check the parachain block if it
+originated within their own group, gossip forward statement if valid.</li>
+</ul>
+<p>Validators must have statements, candidates, and persisted validation from all
+other validators. This is because we need to store statements from validators
+who've checked the candidate on the relay chain, so we know who to hold
+accountable in case of disputes. Any validator can be selected as the next
+relay-chain block author, and this is not revealed in advance for security
+reasons. As a result, all validators must have a up to date view of all possible
+parachain candidates + backing statements that could be placed on-chain in the
+next block.</p>
+<p><a href="https://polkadot.network/blog/polkadot-v1-0-sharding-and-economic-security">This blog post</a>
+puts it another way: &quot;Validators who aren't assigned to the parachain still
+listen for the attestations [statements] because whichever validator ends up
+being the author of the relay-chain block needs to bundle up attested parachain
+blocks for several parachains and place them into the relay-chain block.&quot;</p>
+<p>Backing-group quorum (that is, enough backing group votes) must be reached
+before the block author will consider the candidate. Therefore, validators need
+to consider <em>all</em> seconded candidates within their own group, because that's
+what they're assigned to work on. Validators only need to consider <em>backable</em>
+candidates from other groups. This informs the design of the statement
+distribution protocol to have separate phases for in-group and out-group
+distribution, respectively called &quot;cluster&quot; and &quot;grid&quot; mode (see below).</p>
+<h3 id="with-async-backing"><a class="header" href="#with-async-backing">With Async Backing</a></h3>
+<p>Asynchronous backing changes the runtime to accept parachain candidates from a
+certain allowed range of historic relay-parents. These candidates must be backed
+by the group assigned to the parachain as-of their corresponding relay parents.</p>
+<h2 id="protocol"><a class="header" href="#protocol">Protocol</a></h2>
+<p>To address the concern of dealing with large numbers of spam candidates or
+statements, the overall design approach is to combine a focused &quot;clustering&quot;
+protocol for legitimate fresh candidates with a broad-distribution &quot;grid&quot;
+protocol to quickly get backed candidates into the hands of many validators.
+Validators do not eagerly send each other heavy <code>CommittedCandidateReceipt</code>,
+but instead request these lazily through request/response protocols.</p>
+<p>A high-level description of the protocol follows:</p>
+<h3 id="messages"><a class="header" href="#messages">Messages</a></h3>
+<p>Nodes can send each other a few kinds of messages: <code>Statement</code>,
+<code>BackedCandidateManifest</code>, <code>BackedCandidateAcknowledgement</code>.</p>
+<ul>
+<li><code>Statement</code> messages contain only a signed compact statement, without full
+candidate info.</li>
+<li><code>BackedCandidateManifest</code> messages advertise a description of a backed
+candidate and stored statements.</li>
+<li><code>BackedCandidateAcknowledgement</code> messages acknowledge that a backed candidate
+is fully known.</li>
+</ul>
+<h3 id="requestresponse-protocol"><a class="header" href="#requestresponse-protocol">Request/response protocol</a></h3>
+<p>Nodes can request the full <code>CommittedCandidateReceipt</code> and
+<code>PersistedValidationData</code>, along with statements, over a request/response
+protocol. This is the <code>AttestedCandidateRequest</code>; the response is
+<code>AttestedCandidateResponse</code>.</p>
+<h3 id="importability-and-the-hypothetical-frontier"><a class="header" href="#importability-and-the-hypothetical-frontier">Importability and the Hypothetical Frontier</a></h3>
+<p>The <strong>prospective parachains</strong> subsystem maintains prospective &quot;fragment trees&quot;
+which can be used to determine whether a particular parachain candidate could
+possibly be included in the future. Candidates which either are within a
+fragment tree or <em>would be</em> part of a fragment tree if accepted are said to be
+in the &quot;hypothetical frontier&quot;.</p>
+<p>The <strong>statement-distribution</strong> subsystem keeps track of all candidates, and
+updates its knowledge of the hypothetical frontier based on events such as new
+relay parents, new confirmed candidates, and newly backed candidates.</p>
+<p>We only consider statements as &quot;importable&quot; when the corresponding candidate is
+part of the hypothetical frontier, and only send &quot;importable&quot; statements to the
+backing subsystem itself.</p>
+<h3 id="cluster-mode"><a class="header" href="#cluster-mode">Cluster Mode</a></h3>
+<ul>
+<li>Validator nodes are partitioned into groups (with some exceptions), and
+validators within a group at a relay-parent can send each other <code>Statement</code>
+messages for any candidates within that group and based on that relay-parent.</li>
+<li>This is referred to as the &quot;cluster&quot; mode.
+<ul>
+<li>Right now these are the same as backing groups, though &quot;cluster&quot;
+specifically refers to the set of nodes communicating with each other in the
+first phase of distribution.</li>
+</ul>
+</li>
+<li><code>Seconded</code> statements must be sent before <code>Valid</code> statements.</li>
+<li><code>Seconded</code> statements may only be sent to other members of the group when the
+candidate is fully known by the local validator.
+<ul>
+<li>&quot;Fully known&quot; means the validator has the full <code>CommittedCandidateReceipt</code>
+and <code>PersistedValidationData</code>, which it receives on request from other
+validators or from a collator.</li>
+<li>The reason for this is that sending a statement (which is always a
+<code>CompactStatement</code> carrying nothing but a hash and signature) to the
+cluster, is also a signal that the sending node is available to request the
+candidate from.</li>
+<li>This makes the protocol easier to reason about, while also reducing network
+messages about candidates that don't really exist.</li>
+</ul>
+</li>
+<li>Validators in a cluster receiving messages about unknown candidates request
+the candidate (and statements) from other cluster members which have it.</li>
+<li>Spam considerations
+<ul>
+<li>The maximum depth of candidates allowed in asynchronous backing determines
+the maximum amount of <code>Seconded</code> statements originating from a validator V
+which each validator in a cluster may send to others. This bounds the number
+of candidates.</li>
+<li>There is a small number of validators in each group, which further limits
+the amount of candidates.</li>
+</ul>
+</li>
+<li>We accept candidates which don't fit in the fragment trees of any relay
+parents.
+<ul>
+<li>&quot;Accept&quot; means &quot;attempt to request and store in memory until useful or
+expired&quot;.</li>
+<li>We listen to prospective parachains subsystem to learn of new additions to
+the fragment trees.</li>
+<li>Use this to attempt to import the candidate later.</li>
+</ul>
+</li>
+</ul>
+<h3 id="grid-mode"><a class="header" href="#grid-mode">Grid Mode</a></h3>
+<ul>
+<li>Every consensus session provides randomness and a fixed validator set, which
+is used to build a redundant grid topology.
+<ul>
+<li>It's redundant in the sense that there are 2 paths from every node to every
+other node. See &quot;Grid Topology&quot; section for more details.</li>
+</ul>
+</li>
+<li>This grid topology is used to create a sending path from each validator group
+to every validator.</li>
+<li>When a node observes a candidate as backed, it sends a
+<code>BackedCandidateManifest</code> to their &quot;receiving&quot; nodes.</li>
+<li>If receiving nodes don't yet know the candidate, they request it.</li>
+<li>Once they know the candidate, they respond with a
+<code>BackedCandidateAcknowledgement</code>.</li>
+<li>Once two nodes perform a manifest/acknowledgement exchange, they can send
+<code>Statement</code> messages directly to each other for any new statements they might
+need.
+<ul>
+<li>This limits the amount of statements we'd have to deal with w.r.t.
+candidates that don't really exist. See &quot;Manifest Exchange&quot; section.</li>
+</ul>
+</li>
+<li>There are limitations on the number of candidates that can be advertised by
+each peer, similar to those in the cluster. Validators do not request
+candidates which exceed these limitations.</li>
+<li>Validators request candidates as soon as they are advertised, but do not
+import the statements until the candidate is part of the hypothetical
+frontier, and do not re-advertise or acknowledge until the candidate is
+considered both backable and part of the hypothetical frontier.</li>
+<li>Note that requesting is not an implicit acknowledgement, and an explicit
+acknowledgement must be sent upon receipt.</li>
+</ul>
+<h2 id="messages-1"><a class="header" href="#messages-1">Messages</a></h2>
+<h3 id="incoming"><a class="header" href="#incoming">Incoming</a></h3>
+<ul>
+<li><code>ActiveLeaves</code>
+<ul>
+<li>Notification of a change in the set of active leaves.</li>
+</ul>
+</li>
+<li><code>StatementDistributionMessage::Share</code>
+<ul>
+<li>Notification of a locally-originating statement. That is, this statement
+comes from our node and should be distributed to other nodes.</li>
+<li>Sent by the Backing Subsystem after it successfully imports a
+locally-originating statement.</li>
+</ul>
+</li>
+<li><code>StatementDistributionMessage::Backed</code>
+<ul>
+<li>Notification of a candidate being backed (received enough validity votes
+from the backing group).</li>
+<li>Sent by the Backing Subsystem after it successfully imports a statement for
+the first time and after sending ~Share~.</li>
+</ul>
+</li>
+<li><code>StatementDistributionMessage::NetworkBridgeUpdate</code>
+<ul>
+<li>See next section.</li>
+</ul>
+</li>
+</ul>
+<h4 id="network-bridge-events"><a class="header" href="#network-bridge-events">Network bridge events</a></h4>
+<ul>
+<li>v1 compatibility
+<ul>
+<li>Messages for the v1 protocol are routed to the legacy statement
+distribution.</li>
+</ul>
+</li>
+<li><code>Statement</code>
+<ul>
+<li>Notification of a signed statement.</li>
+<li>Sent by a peer's Statement Distribution subsystem when circulating
+statements.</li>
+</ul>
+</li>
+<li><code>BackedCandidateManifest</code>
+<ul>
+<li>Notification of a backed candidate being known by the sending node.</li>
+<li>For the candidate being requested by the receiving node if needed.</li>
+<li>Announcement.</li>
+<li>Sent by a peer's Statement Distribution subsystem.</li>
+</ul>
+</li>
+<li><code>BackedCandidateKnown</code>
+<ul>
+<li>Notification of a backed candidate being known by the sending node.</li>
+<li>For informing a receiving node which already has the candidate.</li>
+<li>Acknowledgement.</li>
+<li>Sent by a peer's Statement Distribution subsystem.</li>
+</ul>
+</li>
+</ul>
+<h3 id="outgoing"><a class="header" href="#outgoing">Outgoing</a></h3>
+<ul>
+<li><code>NetworkBridgeTxMessage::SendValidationMessages</code>
+<ul>
+<li>Sends a peer all pending messages / acknowledgements / statements for a
+relay parent, either through the cluster or the grid.</li>
+</ul>
+</li>
+<li><code>NetworkBridgeTxMessage::SendValidationMessage</code>
+<ul>
+<li>Circulates a compact statement to all peers who need it, either through the
+cluster or the grid.</li>
+</ul>
+</li>
+<li><code>NetworkBridgeTxMessage::ReportPeer</code>
+<ul>
+<li>Reports a peer (either good or bad).</li>
+</ul>
+</li>
+<li><code>CandidateBackingMessage::Statement</code>
+<ul>
+<li>Note a validator's statement about a particular candidate.</li>
+</ul>
+</li>
+<li><code>ProspectiveParachainsMessage::GetHypotheticalFrontier</code>
+<ul>
+<li>Gets the hypothetical frontier membership of candidates under active leaves'
+fragment trees.</li>
+</ul>
+</li>
+<li><code>NetworkBridgeTxMessage::SendRequests</code>
+<ul>
+<li>Sends requests, initiating the request/response protocol.</li>
+</ul>
+</li>
+</ul>
+<h2 id="requestresponse"><a class="header" href="#requestresponse">Request/Response</a></h2>
+<p>We also have a request/response protocol because validators do not eagerly send
+each other heavy <code>CommittedCandidateReceipt</code>, but instead need to request these
+lazily.</p>
+<h3 id="protocol-1"><a class="header" href="#protocol-1">Protocol</a></h3>
+<ol>
+<li>
+<p>Requesting Validator</p>
+<ul>
+<li>Requests are queued up with <code>RequestManager::get_or_insert</code>.
+<ul>
+<li>Done as needed, when handling incoming manifests/statements.</li>
+</ul>
+</li>
+<li><code>RequestManager::dispatch_requests</code> sends any queued-up requests.
+<ul>
+<li>Calls <code>RequestManager::next_request</code> to completion.
+<ul>
+<li>Creates the <code>OutgoingRequest</code>, saves the receiver in
+<code>RequestManager::pending_responses</code>.</li>
+</ul>
+</li>
+<li>Does nothing if we have more responses pending than the limit of parallel
+requests.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p>Peer</p>
+<ul>
+<li>Requests come in on a peer on the <code>IncomingRequestReceiver</code>.
+<ul>
+<li>Runs in a background responder task which feeds requests to <code>answer_request</code>
+through <code>MuxedMessage</code>.</li>
+<li>This responder task has a limit on the number of parallel requests.</li>
+</ul>
+</li>
+<li><code>answer_request</code> on the peer takes the request and sends a response.
+<ul>
+<li>Does this using the response sender on the request.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p>Requesting Validator</p>
+<ul>
+<li><code>receive_response</code> on the original validator yields a response.
+<ul>
+<li>Response was sent on the request's response sender.</li>
+<li>Uses <code>RequestManager::await_incoming</code> to await on pending responses in an
+unordered fashion.</li>
+<li>Runs on the <code>MuxedMessage</code> receiver.</li>
+</ul>
+</li>
+<li><code>handle_response</code> handles the response.</li>
+</ul>
+</li>
+</ol>
+<h3 id="api"><a class="header" href="#api">API</a></h3>
+<ul>
+<li><code>dispatch_requests</code>
+<ul>
+<li>Dispatches pending requests for candidate data &amp; statements.</li>
+</ul>
+</li>
+<li><code>answer_request</code>
+<ul>
+<li>Answers an incoming request for a candidate.</li>
+<li>Takes an incoming <code>AttestedCandidateRequest</code>.</li>
+</ul>
+</li>
+<li><code>receive_response</code>
+<ul>
+<li>Wait on the next incoming response.</li>
+<li>If there are no requests pending, this future never resolves.</li>
+<li>Returns <code>UnhandledResponse</code></li>
+</ul>
+</li>
+<li><code>handle_response</code>
+<ul>
+<li>Handles an incoming response.</li>
+<li>Takes <code>UnhandledResponse</code></li>
+</ul>
+</li>
+</ul>
+<h2 id="manifests"><a class="header" href="#manifests">Manifests</a></h2>
+<p>A manifest is a message about a known backed candidate, along with a description
+of the statements backing it. It can be one of two kinds:</p>
+<ul>
+<li><code>Full</code>: Contains information about the candidate and should be sent to peers
+who may not have the candidate yet. This is also called an <code>Announcement</code>.</li>
+<li><code>Acknowledgement</code>: Omits information implicit in the candidate, and should be
+sent to peers which are guaranteed to have the candidate already.</li>
+</ul>
+<h3 id="manifest-exchange"><a class="header" href="#manifest-exchange">Manifest Exchange</a></h3>
+<p>Manifest exchange is when a receiving node received a <code>Full</code> manifest and
+replied with an <code>Acknowledgement</code>. It indicates that both nodes know the
+candidate as valid and backed. This allows the nodes to send <code>Statement</code>
+messages directly to each other for any new statements.</p>
+<p>Why? This limits the amount of statements we'd have to deal with w.r.t.
+candidates that don't really exist. Limiting out-of-group statement distribution
+between peers to only candidates that both peers agree are backed and exist
+ensures we only have to store statements about real candidates.</p>
+<p>In practice, manifest exchange means that one of three things have happened:</p>
+<ul>
+<li>They announced, we acknowledged.</li>
+<li>We announced, they acknowledged.</li>
+<li>We announced, they announced.</li>
+</ul>
+<p>Concerning the last case, note that it is possible for two nodes to have each
+other in their sending set. Consider:</p>
+<pre><code>1 2
+3 4
+</code></pre>
+<p>If validators 2 and 4 are in group B, then there is a path <code>2-&gt;1-&gt;3</code> and
+<code>4-&gt;3-&gt;1</code>. Therefore, 1 and 3 might send each other manifests for the same
+candidate at the same time, without having seen the other's yet. This also
+counts as a manifest exchange, but is only allowed to occur in this way.</p>
+<p>After the exchange is complete, we update pending statements. Pending statements
+are those we know locally that the remote node does not.</p>
+<h4 id="alternative-paths-through-the-topology"><a class="header" href="#alternative-paths-through-the-topology">Alternative Paths Through The Topology</a></h4>
+<p>Nodes should send a <code>BackedCandidateAcknowledgement(CandidateHash, StatementFilter)</code> notification to any peer which has sent a manifest, and the
+candidate has been acquired by other means. This keeps alternative paths through
+the topology open, which allows nodes to receive additional statements that come
+later, but not after the candidate has been posted on-chain.</p>
+<p>This is mostly about the limitation that the runtime has no way for block
+authors to post statements that come after the parablock is posted on-chain and
+ensure those validators still get rewarded. Technically, we only need enough
+statements to back the candidate and the manifest + request will provide that.
+But more statements might come shortly afterwards, and we want those to end up
+on-chain as well to ensure all validators in the group are rewarded.</p>
+<p>For clarity, here is the full timeline:</p>
+<ol>
+<li>candidate seconded</li>
+<li>backable in cluster</li>
+<li>distributed along grid</li>
+<li>latecomers issue statements</li>
+<li>candidate posted on chain</li>
+<li>really latecomers issue statements</li>
+</ol>
+<h2 id="cluster-module"><a class="header" href="#cluster-module">Cluster Module</a></h2>
+<p>The cluster module provides direct distribution of unbacked candidates within a
+group. By utilizing this initial phase of propagating only within
+clusters/groups, we bound the number of <code>Seconded</code> messages per validator per
+relay-parent, helping us prevent spam. Validators can try to circumvent this,
+but they would only consume a few KB of memory and it is trivially slashable on
+chain.</p>
+<p>The cluster module determines whether to accept/reject messages from other
+validators in the same group. It keeps track of what we have sent to other
+validators in the group, and pending statements. For the full protocol, see
+&quot;Protocol&quot;.</p>
+<h2 id="grid-module"><a class="header" href="#grid-module">Grid Module</a></h2>
+<p>The grid module provides distribution of backed candidates and late statements
+outside the backing group. For the full protocol, see the &quot;Protocol&quot; section.</p>
+<h3 id="grid-topology"><a class="header" href="#grid-topology">Grid Topology</a></h3>
+<p>For distributing outside our cluster (aka backing group) we use a 2D grid 
+topology. This limits the amount of peers we send messages to, and handles 
+view updates.</p>
+<p>The basic operation of the grid topology is that:</p>
+<ul>
+<li>A validator producing a message sends it to its row-neighbors and its
+column-neighbors.</li>
+<li>A validator receiving a message originating from one of its row-neighbors
+sends it to its column-neighbors.</li>
+<li>A validator receiving a message originating from one of its column-neighbors
+sends it to its row-neighbors.</li>
+</ul>
+<p>This grid approach defines 2 unique paths for every validator to reach every
+other validator in at most 2 hops, providing redundancy.</p>
+<p>Propagation follows these rules:</p>
+<ul>
+<li>Each node has a receiving set and a sending set. These are different for each
+group. That is, if a node receives a candidate from group A, it checks if it
+is allowed to receive from that node for candidates from group A.</li>
+<li>For groups that we are in, receive from nobody and send to our X/Y peers.</li>
+<li>For groups that we are not part of:
+<ul>
+<li>We receive from any validator in the group we share a slice with and send to
+the corresponding X/Y slice in the other dimension.</li>
+<li>For any validators we don't share a slice with, we receive from the nodes
+which share a slice with them.</li>
+</ul>
+</li>
+</ul>
+<h3 id="example"><a class="header" href="#example">Example</a></h3>
+<p>For size 11, the matrix would be:</p>
+<pre><code>0  1  2
+3  4  5
+6  7  8
+9 10
+</code></pre>
+<p>e.g. for index 10, the neighbors would be 1, 4, 7, 9 -- these are the nodes we
+could directly communicate with (e.g. either send to or receive from).</p>
+<p>Now, which of these neighbors can 10 receive from? Recall that the
+sending/receiving sets for 10 would be different for different groups. Here are
+some hypothetical scenarios:</p>
+<ul>
+<li><strong>Scenario 1:</strong> 9 belongs to group A but not 10. Here, 10 can directly receive
+candidates from group A from 9. 10 would propagate them to the nodes in {1, 4,
+7} that are not in A.</li>
+<li><strong>Scenario 2:</strong> 6 is in group A instead of 9, and 7 is not in group A. 10 can
+receive group A messages from 7 or 9. 10 will try to relay these messages, but
+7 and 9 together should have already propagated the message to all x/y 
+peers of 10. If so, then 10 will just receive acknowledgements in reply rather 
+than requests.</li>
+<li><strong>Scenario 3:</strong> 10 itself is in group A. 10 would not receive candidates from
+this group from any other nodes through the grid. It would itself send such
+candidates to all its neighbors that are not in A.</li>
+</ul>
+<h3 id="seconding-limit"><a class="header" href="#seconding-limit">Seconding Limit</a></h3>
+<p>The seconding limit is a per-validator limit. Before asynchronous backing, we
+had a rule that every validator was only allowed to second one candidate per
+relay parent. With asynchronous backing, we have a 'maximum depth' which makes
+it possible to second multiple candidates per relay parent. The seconding limit
+is set to <code>max depth + 1</code> to set an upper bound on candidates entering the
+system.</p>
+<h2 id="candidates-module"><a class="header" href="#candidates-module">Candidates Module</a></h2>
+<p>The candidates module provides a tracker for all known candidates in the view,
+whether they are confirmed or not, and how peers have advertised the candidates.
+What is a confirmed candidate? It is a candidate for which we have the full
+receipt and the persisted validation data. This module gets confirmed candidates
+from two sources:</p>
+<ul>
+<li>It can be that a validator fetched a collation directly from the collator and
+validated it.</li>
+<li>The first time a validator gets an announcement for an unknown candidate, it
+will send a request for the candidate. Upon receiving a response and
+validating it (see <code>UnhandledResponse::validate_response</code>), it will mark the
+candidate as confirmed.</li>
+</ul>
+<h2 id="requests-module"><a class="header" href="#requests-module">Requests Module</a></h2>
+<p>The requests module provides a manager for pending requests for candidate data,
+as well as pending responses. See &quot;Request/Response Protocol&quot; for a high-level
+description of the flow. See module-docs for full details.</p>
+<h2 id="glossary"><a class="header" href="#glossary">Glossary</a></h2>
+<ul>
+<li><strong>Acknowledgement:</strong> A partial manifest sent to a validator that already has the 
+candidate to inform them that the sending node also knows the candidate. 
+Concludes a manifest exchange.</li>
+<li><strong>Announcement:</strong> A full manifest indicating that a backed candidate is known by 
+the sending node. Initiates a manifest exchange.</li>
+<li><strong>Attestation:</strong> See &quot;Statement&quot;.</li>
+<li><strong>Backable vs. Backed:</strong>
+<ul>
+<li>Note that we sometimes use &quot;backed&quot; to refer to candidates that are
+&quot;backable&quot;, but not yet backed on chain.</li>
+<li><strong>Backed</strong> should technically mean that the parablock candidate and its
+backing statements have been added to a relay chain block.</li>
+<li><strong>Backable</strong> is when the necessary backing statements have been acquired but
+those statements and the parablock candidate haven't been backed in a relay
+chain block yet.</li>
+</ul>
+</li>
+<li><strong>Fragment tree:</strong> A parachain fragment not referenced by the relay-chain.
+It is a tree of prospective parachain blocks.</li>
+<li><strong>Manifest:</strong> A message about a known backed candidate, along with a
+description of the statements backing it. There are two kinds of manifest, 
+<code>Acknowledgement</code> and <code>Announcement</code>. See &quot;Manifests&quot; section.</li>
+<li><strong>Peer:</strong> Another validator that a validator is connected to.</li>
+<li><strong>Request/response:</strong> A protocol used to lazily request and receive heavy
+candidate data when needed.</li>
+<li><strong>Reputation:</strong> Tracks reputation of peers. Applies annoyance cost and good
+behavior benefits.</li>
+<li><strong>Statement:</strong> Signed statements that can be made about parachain candidates.
+<ul>
+<li><strong>Seconded:</strong> Proposal of a parachain candidate. Implicit validity vote.</li>
+<li><strong>Valid:</strong> States that a parachain candidate is valid.</li>
+</ul>
+</li>
+<li><strong>Target:</strong> Target validator to send a statement to.</li>
+<li><strong>View:</strong> Current knowledge of the chain state.
+<ul>
+<li><strong>Explicit view</strong> / <strong>immediate view</strong>
+<ul>
+<li>The view a peer has of the relay chain heads and highest finalized block.</li>
+</ul>
+</li>
+<li><strong>Implicit view</strong>
+<ul>
+<li>Derived from the immediate view. Composed of active leaves and minimum
+relay-parents allowed for candidates of various parachains at those
+leaves.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<footer id="last-change">Last change: 2023-08-18, commit: <a href="https://github.com/paritytech/polkadot/commit/4b7822adeb">4b7822adeb</a></footer>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../node/backing/prospective-parachains.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="../../node/backing/statement-distribution-legacy.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../node/backing/prospective-parachains.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="../../node/backing/statement-distribution-legacy.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="../../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="../../mermaid.min.js"></script>
+        <script type="text/javascript" src="../../mermaid-init.js"></script>
+
+
+    </body>
+</html>

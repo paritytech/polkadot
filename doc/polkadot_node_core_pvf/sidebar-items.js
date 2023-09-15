@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["EXECUTE_BINARY_NAME","JOB_TIMEOUT_WALL_CLOCK_FACTOR","LOG_TARGET","PREPARE_BINARY_NAME"],"enum":["InternalValidationError","InvalidCandidate","PrepareError","PrepareJobKind","Priority","ValidationError"],"fn":["framed_recv","framed_send","start"],"struct":["Config","Metrics","PrepareStats","PvfPrepData","ValidationHost"]};

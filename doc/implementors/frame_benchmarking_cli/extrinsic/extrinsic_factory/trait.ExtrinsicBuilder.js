@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"polkadot_service":[["impl ExtrinsicBuilder for <a class=\"struct\" href=\"polkadot_service/benchmarking/struct.TransferKeepAliveBuilder.html\" title=\"struct polkadot_service::benchmarking::TransferKeepAliveBuilder\">TransferKeepAliveBuilder</a>"],["impl ExtrinsicBuilder for <a class=\"struct\" href=\"polkadot_service/benchmarking/struct.RemarkBuilder.html\" title=\"struct polkadot_service::benchmarking::RemarkBuilder\">RemarkBuilder</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

@@ -1,0 +1,83 @@
+<!DOCTYPE html><html lang="en"><head><link rel="canonical" href="https://paritytech.github.io/polkadot-sdk/master/polkadot_node_subsystem_util/inclusion_emulator/staging/index.html"><meta http-equiv="refresh" content="0;URL='https://paritytech.github.io/polkadot-sdk/master/polkadot_node_subsystem_util/inclusion_emulator/staging/index.html'"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The implementation of the inclusion emulator for the ‘staging’ runtime version."><title>polkadot_node_subsystem_util::inclusion_emulator::staging - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ba5701c5741a7b69.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="polkadot_node_subsystem_util" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0 (90c541806 2023-05-31)" data-search-js="search-e077946657036a58.js" data-settings-js="settings-298e1ea74db45b39.js" data-settings-css="settings-7bfb4c59cc6bc502.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../../static.files/main-f61008743c98d196.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../../../polkadot_node_subsystem_util/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2></h2></nav><nav class="sidebar"><a class="logo-container" href="../../../polkadot_node_subsystem_util/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2 class="location"><a href="#">Module staging</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../../index.html">polkadot_node_subsystem_util</a>::<wbr><a href="../index.html">inclusion_emulator</a>::<wbr><a class="mod" href="#">staging</a><button id="copy-path" title="Copy item path to clipboard"><img src="../../../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../../../src/polkadot_node_subsystem_util/inclusion_emulator/staging.rs.html#14-1450">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The implementation of the inclusion emulator for the ‘staging’ runtime version.</p>
+<h2 id="overview"><a href="#overview">Overview</a></h2>
+<p>A set of utilities for node-side code to emulate the logic the runtime uses for checking
+parachain blocks in order to build prospective parachains that are produced ahead of the
+relay chain. These utilities allow the node-side to predict, with high accuracy, what
+the relay-chain will accept in the near future.</p>
+<p>This module has 2 key data types: <a href="struct.Constraints.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::Constraints"><code>Constraints</code></a> and <a href="struct.Fragment.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::Fragment"><code>Fragment</code></a>s. <a href="struct.Constraints.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::Constraints"><code>Constraints</code></a>
+exhaustively define the set of valid inputs and outputs to parachain execution. A <a href="struct.Fragment.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::Fragment"><code>Fragment</code></a>
+indicates a parachain block, anchored to the relay-chain at a particular relay-chain block,
+known as the relay-parent.</p>
+<h3 id="fragment-validity"><a href="#fragment-validity">Fragment Validity</a></h3>
+<p>Every relay-parent is implicitly associated with a unique set of <a href="struct.Constraints.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::Constraints"><code>Constraints</code></a> that describe
+the properties that must be true for a block to be included in a direct child of that block,
+assuming there is no intermediate parachain block pending availability.</p>
+<p>However, the key factor that makes asynchronously-grown prospective chains
+possible is the fact that the relay-chain accepts candidate blocks based on whether they
+are valid under the constraints of the present moment, not based on whether they were
+valid at the time of construction.</p>
+<p>As such, <a href="struct.Fragment.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::Fragment"><code>Fragment</code></a>s are often, but not always constructed in such a way that they are
+invalid at first and become valid later on, as the relay chain grows.</p>
+<h2 id="usage"><a href="#usage">Usage</a></h2>
+<p>It’s expected that the users of this module will be building up trees of
+<a href="struct.Fragment.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::Fragment"><code>Fragment</code></a>s and consistently pruning and adding to the tree.</p>
+<h3 id="operating-constraints"><a href="#operating-constraints">Operating Constraints</a></h3>
+<p>The <em>operating constraints</em> of a <code>Fragment</code> are the constraints with which that fragment
+was intended to comply. The operating constraints are defined as the base constraints
+of the relay-parent of the fragment modified by the cumulative modifications of all
+fragments between the relay-parent and the current fragment.</p>
+<p>What the operating constraints are, in practice, is a prediction about the state of the
+relay-chain in the future. The relay-chain is aware of some current state, and we want to
+make an intelligent prediction about what might be accepted in the future based on
+prior fragments that also exist off-chain.</p>
+<h3 id="fragment-trees"><a href="#fragment-trees">Fragment Trees</a></h3>
+<p>As the relay-chain grows, some predictions come true and others come false.
+And new predictions get made. These three changes correspond distinctly to the
+3 primary operations on fragment trees.</p>
+<p>A fragment tree is a mental model for thinking about a forking series of predictions
+about a single parachain. There may be one or more fragment trees per parachain.</p>
+<p>In expectation, most parachains will have a plausibly-unique authorship method which means that
+they should really be much closer to fragment-chains, maybe with an occasional fork.</p>
+<p>Avoiding fragment-tree blowup is beyond the scope of this module.</p>
+<h4 id="pruning-fragment-trees"><a href="#pruning-fragment-trees">Pruning Fragment Trees</a></h4>
+<p>When the relay-chain advances, we want to compare the new constraints of that relay-parent to
+the roots of the fragment trees we have. There are 3 cases:</p>
+<ol>
+<li>
+<p>The root fragment is still valid under the new constraints. In this case, we do nothing. This
+is the “prediction still uncertain” case.</p>
+</li>
+<li>
+<p>The root fragment is invalid under the new constraints because it has been subsumed by the
+relay-chain. In this case, we can discard the root and split &amp; re-root the fragment tree under
+its descendents and compare to the new constraints again. This is the “prediction came true”
+case.</p>
+</li>
+<li>
+<p>The root fragment is invalid under the new constraints because a competing parachain block
+has been included or it would never be accepted for some other reason. In this case we can
+discard the entire fragment tree. This is the “prediction came false” case.</p>
+</li>
+</ol>
+<p>This is all a bit of a simplification because it assumes that the relay-chain advances without
+forks and is finalized instantly. In practice, the set of fragment-trees needs to be observable
+from the perspective of a few different possible forks of the relay-chain and not pruned
+too eagerly.</p>
+<p>Note that the fragments themselves don’t need to change and the only thing we care about
+is whether the predictions they represent are still valid.</p>
+<h4 id="extending-fragment-trees"><a href="#extending-fragment-trees">Extending Fragment Trees</a></h4>
+<p>As predictions fade into the past, new ones should be stacked on top.</p>
+<p>Every new relay-chain block is an opportunity to make a new prediction about the future.
+Higher-level logic should select the leaves of the fragment-trees to build upon or whether
+to create a new fragment-tree.</p>
+<h4 id="code-upgrades"><a href="#code-upgrades">Code Upgrades</a></h4>
+<p>Code upgrades are the main place where this emulation fails. The on-chain PVF upgrade scheduling
+logic is very path-dependent and intricate so we just assume that code upgrades
+can’t be initiated and applied within a single fragment-tree. Fragment-trees aren’t deep,
+in practice and code upgrades are fairly rare. So what’s likely to happen around code
+upgrades is that the entire fragment-tree has to get discarded at some point.</p>
+<p>That means a few blocks of execution time lost, which is not a big deal for code upgrades
+in practice at most once every few weeks.</p>
+</div></details><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.ConstraintModifications.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::ConstraintModifications">ConstraintModifications</a></div><div class="desc docblock-short">Modifications to constraints as a result of prospective candidates.</div></li><li><div class="item-name"><a class="struct" href="struct.Constraints.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::Constraints">Constraints</a></div><div class="desc docblock-short">Constraints on the actions that can be taken by a new parachain
+block. These limitations are implicitly associated with some particular
+parachain, which should be apparent from usage.</div></li><li><div class="item-name"><a class="struct" href="struct.Fragment.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::Fragment">Fragment</a></div><div class="desc docblock-short">A parachain fragment, representing another prospective parachain block.</div></li><li><div class="item-name"><a class="struct" href="struct.InboundHrmpLimitations.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::InboundHrmpLimitations">InboundHrmpLimitations</a></div><div class="desc docblock-short">Constraints on inbound HRMP channels.</div></li><li><div class="item-name"><a class="struct" href="struct.OutboundHrmpChannelLimitations.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::OutboundHrmpChannelLimitations">OutboundHrmpChannelLimitations</a></div><div class="desc docblock-short">Constraints on outbound HRMP channels.</div></li><li><div class="item-name"><a class="struct" href="struct.OutboundHrmpChannelModification.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::OutboundHrmpChannelModification">OutboundHrmpChannelModification</a></div><div class="desc docblock-short">An update to outbound HRMP channels.</div></li><li><div class="item-name"><a class="struct" href="struct.ProspectiveCandidate.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::ProspectiveCandidate">ProspectiveCandidate</a></div><div class="desc docblock-short">The prospective candidate.</div></li><li><div class="item-name"><a class="struct" href="struct.RelayChainBlockInfo.html" title="struct polkadot_node_subsystem_util::inclusion_emulator::staging::RelayChainBlockInfo">RelayChainBlockInfo</a></div><div class="desc docblock-short">Information about a relay-chain block.</div></li></ul><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.FragmentValidityError.html" title="enum polkadot_node_subsystem_util::inclusion_emulator::staging::FragmentValidityError">FragmentValidityError</a></div><div class="desc docblock-short">Kinds of errors with the validity of a fragment.</div></li><li><div class="item-name"><a class="enum" href="enum.HrmpWatermarkUpdate.html" title="enum polkadot_node_subsystem_util::inclusion_emulator::staging::HrmpWatermarkUpdate">HrmpWatermarkUpdate</a></div><div class="desc docblock-short">An update to the HRMP Watermark.</div></li><li><div class="item-name"><a class="enum" href="enum.ModificationError.html" title="enum polkadot_node_subsystem_util::inclusion_emulator::staging::ModificationError">ModificationError</a></div><div class="desc docblock-short">Kinds of errors that can occur when modifying constraints.</div></li></ul></section></div></main></body></html>

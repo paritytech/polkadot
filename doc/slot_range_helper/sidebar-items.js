@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"derive":["Decode","Encode","N"],"macro":["generate_slot_range"],"mod":["result"],"trait":["Add","CheckedSub","Decode","Encode"]};

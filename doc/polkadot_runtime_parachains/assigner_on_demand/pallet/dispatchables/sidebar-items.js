@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["place_order_allow_death","place_order_keep_alive"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["slots_crowdloan_index_migration"]};

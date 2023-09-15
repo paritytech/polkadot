@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["notification_received","prepare_new_notify_query","prepare_new_query"]};

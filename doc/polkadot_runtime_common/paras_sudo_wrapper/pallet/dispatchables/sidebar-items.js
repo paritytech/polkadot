@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["sudo_establish_hrmp_channel","sudo_queue_downward_xcm","sudo_schedule_para_cleanup","sudo_schedule_para_initialize","sudo_schedule_parachain_downgrade","sudo_schedule_parathread_upgrade"]};

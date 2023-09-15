@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["v2"],"struct":["BlakeTwo256","CandidateHash","InboundDownwardMessage","InboundHrmpMessage","OutboundHrmpMessage","UncheckedExtrinsic"],"trait":["HashT"],"type":["AccountId","AccountIndex","AccountPublic","Balance","Block","BlockId","BlockNumber","ChainId","DownwardMessage","Hash","Header","Moment","Nonce","Remark","Signature"]};

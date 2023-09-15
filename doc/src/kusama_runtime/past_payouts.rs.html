@@ -1,0 +1,625 @@
+<!DOCTYPE html><html lang="en"><head><link rel="canonical" href="https://paritytech.github.io/polkadot-sdk/master/src/kusama_runtime/past_payouts.rs.html"><meta http-equiv="refresh" content="0;URL='https://paritytech.github.io/polkadot-sdk/master/src/kusama_runtime/past_payouts.rs.html'"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `runtime/kusama/src/past_payouts.rs`."><title>past_payouts.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ba5701c5741a7b69.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kusama_runtime" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0 (90c541806 2023-05-31)" data-search-js="search-e077946657036a58.js" data-settings-js="settings-298e1ea74db45b39.js" data-settings-css="settings-7bfb4c59cc6bc502.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../static.files/source-script-905937fbbdc8e9ea.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-f61008743c98d196.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../kusama_runtime/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<a href="#2" id="2">2</a>
+<a href="#3" id="3">3</a>
+<a href="#4" id="4">4</a>
+<a href="#5" id="5">5</a>
+<a href="#6" id="6">6</a>
+<a href="#7" id="7">7</a>
+<a href="#8" id="8">8</a>
+<a href="#9" id="9">9</a>
+<a href="#10" id="10">10</a>
+<a href="#11" id="11">11</a>
+<a href="#12" id="12">12</a>
+<a href="#13" id="13">13</a>
+<a href="#14" id="14">14</a>
+<a href="#15" id="15">15</a>
+<a href="#16" id="16">16</a>
+<a href="#17" id="17">17</a>
+<a href="#18" id="18">18</a>
+<a href="#19" id="19">19</a>
+<a href="#20" id="20">20</a>
+<a href="#21" id="21">21</a>
+<a href="#22" id="22">22</a>
+<a href="#23" id="23">23</a>
+<a href="#24" id="24">24</a>
+<a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
+<a href="#41" id="41">41</a>
+<a href="#42" id="42">42</a>
+<a href="#43" id="43">43</a>
+<a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
+<a href="#46" id="46">46</a>
+<a href="#47" id="47">47</a>
+<a href="#48" id="48">48</a>
+<a href="#49" id="49">49</a>
+<a href="#50" id="50">50</a>
+<a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+</pre></div><pre class="rust"><code><span class="comment">// This file is part of Polkadot.
+
+// Copyright (C) Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: Apache-2.0
+
+// Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// 	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+</span><span class="kw">use super</span>::<span class="kw-2">*</span>;
+<span class="kw">use </span>hex_literal::hex;
+<span class="kw">use </span>pallet_society::migrations::from_raw_past_payouts;
+
+<span class="macro">parameter_types! </span>{
+	<span class="kw">pub </span>PastPayouts: Vec&lt;(AccountId, Balance)&gt; = from_raw_past_payouts::&lt;Runtime, ()&gt;(<span class="macro">vec!</span>[
+		(<span class="macro">hex!</span>[<span class="string">&quot;04152389a92e4356ed03ed30625afba062b9c4496116cba888e89f347834a31e&quot;</span>], <span class="number">89000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;0483de2b96cd3756f05301eb1bca875166ae5be67a81f86a1dad152bccad6909&quot;</span>], <span class="number">54666600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;048a62b89589f7573c5f80584de850b9c8bcd4cb7a8766948d3db713d8a57204&quot;</span>], <span class="number">83000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;060e1eacd9f4460ae43b28d39e472078784482139e483307436344019a48f26e&quot;</span>], <span class="number">15513300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;0ab0b61984dfcfe2fcb82147f0a2f00f992fa8a6b5ee81490387f8210a1ab678&quot;</span>], <span class="number">6766666600u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;0c6e31c65ee1e82129879a145eb0c0d4de45e60c3dcab1d2219628cd70673a6b&quot;</span>], <span class="number">69000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;10e9e630de91310a60b0bc7a4a2303a60b703afde9239750921514deb2655a0d&quot;</span>], <span class="number">54333200000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;162eb21266fef25e25eb8286994264450b8c80ccf2911967cc42ee4cc55c2061&quot;</span>], <span class="number">14223300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;183f8c4d5084d96816ae7d82d44373b99bb134a16845d1589df4467671e3b56a&quot;</span>], <span class="number">23333300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;18b2624ddf0eca6c9698496801dcda614580367a4d54833fe75bbf54a9a09966&quot;</span>], <span class="number">52999900000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;18b44d4c64c3aa3fb20d88b016a412d8f27000912fa7b350ed270ac8f55b3a27&quot;</span>], <span class="number">5135000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;1aa23df47ab442adc15f6c923cfd0f6c4255b2cacc19538028685e37410a691f&quot;</span>], <span class="number">54000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;1ce0527c225ce227c1cceed0317eae0817bd600be3aa87489a704678c95a5451&quot;</span>], <span class="number">41166600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;1e20318bd5c0bc44576955b7205354b8ed9c8e4a783ba9da70d5cee0e11b4740&quot;</span>], <span class="number">11000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;1e6fa8ff46b01fe3b8c52ea50a5ab61313ffac31393a28f621625840a6b3776d&quot;</span>], <span class="number">11556600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;20243c6b74a5f83b89ec202a337bd06ebc985fe7b1557184bfd012dc9bc97873&quot;</span>], <span class="number">13000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;22cabf36e0954f0c013af666e27e46cb9a41f7a0db46ccec245f43b5ba438452&quot;</span>], <span class="number">31000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;24172a563943291c97d252def71e17abf467a1626bca358728a90a82b3de3118&quot;</span>], <span class="number">200000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;247f22a3073d04a85ab417505bb7667a5941ed74cfa596dfc7402813198a0560&quot;</span>], <span class="number">68999000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;28250c422851313e923c89cc0a41fec2af80cc124290343ae250f77ff60d767d&quot;</span>], <span class="number">6993300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;2c709012f807af8fc3f0d2abb0c51ca9a88d4ef24d1a092bf89dacf5ce63ea1d&quot;</span>], <span class="number">333333333332u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;305b27652a4dc8038c587df4cf1d7758b413fe18a97b3a3a5c7d609f50092e11&quot;</span>], <span class="number">39000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;3063796fb70f0bcde597bb7ed4d50f6ec7755686c894c7dbaa1ea2e33103876e&quot;</span>], <span class="number">11650000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;325c848b9000d5430844bd5486d34d844acd89e11964ed1b535bf45557e1c87f&quot;</span>], <span class="number">10666600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;3a632ab63a0ec92f1b67af756a49c8849f5722a345e54ef51cb294bef569070b&quot;</span>], <span class="number">14993300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;3c97e1879015dfb64a367e0f0eb32f16968fb6be6a48da7de7776bc8953c854d&quot;</span>], <span class="number">18149900000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;3e8eb90cd422b7d72f166f135ed3db2137d0d9216e14cfdbd0ca75d2a18e2235&quot;</span>], <span class="number">83000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;3ea89a71ac11ea023bf42d9d6215a9d8c775e626a2ee38d574b297f42c58a622&quot;</span>], <span class="number">15056500000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;402d95c5f6d37ab03ecbec4628d290b2cc7571ff790ee5757b21bbcba4108924&quot;</span>], <span class="number">12666600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;40300fe00bcfb90f3ded42dc082b775dd9a8a8ea491261a262a78155a069a268&quot;</span>], <span class="number">112000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;406855a4bb07710384d3876cf37cacbd66f2f1dab2346ebea130b00f63d0d317&quot;</span>], <span class="number">83500000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;40c6e021d4d80b9b38d850b1c5334ea88b2bcc148d07e83f5be1b45b8ceb3740&quot;</span>], <span class="number">9893300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;40f8a816b07bd23e166d2e479cfd5a3e5118f3937230ca5088eff9e33c84b552&quot;</span>], <span class="number">12790000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;422286e0da2fb826f04e46d2f6ef1319a43412261d0f8d91274a81eee21af24e&quot;</span>], <span class="number">69000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;484a648ebe737d7dbee39d8e169d5ded94d29f70100e4d3ee87162c4a8bbdf73&quot;</span>], <span class="number">2483300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;4c4a2f66cd9f5000968f0913f01ac1181ccd2db137d6af152252ee3de689450b&quot;</span>], <span class="number">2000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;505eb7820f60d0949697617b2f3366bd616d8c7e96724aa681e0113f6bf45c46&quot;</span>], <span class="number">898900000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;569f5ab70b93bb40ecb5a8888bbbc781c785ac3709863e9866422f0fd62f2477&quot;</span>], <span class="number">8000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;5c1be3d517926a6c194d42131d996140f3e8d7398764423cab176341b882ee7b&quot;</span>], <span class="number">8490000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;5c32313c22eebc15ecf28ebb75ed8e264d53e50429a5ce09ed3a86e72732c56d&quot;</span>], <span class="number">5000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;5c436629095023be4d2ed2120002497bc18295fb485a11e83e529e617412626f&quot;</span>], <span class="number">6999900000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;5c81f3afd924f4cdd7c151d539c7abc3cd3de33eebd59403b81b568b8efa2d3b&quot;</span>], <span class="number">15000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;602d798e4d6f076cb28719b4bc757645ff0894a591173bd923bc8cb631fdeb0c&quot;</span>], <span class="number">201660000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;621014fccda62dbd21d32b3628691f68cecafa887a62d641ba8876e3e7e4c068&quot;</span>], <span class="number">8000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;6613962cf897114a56ba84bbad47f52c46dc56960aae8ccfc71805cfc3fced19&quot;</span>], <span class="number">32666600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;662ef2fa0d3a90f1f9691d05daee187d35fb17482cc72b3e03922358d0bdcc6f&quot;</span>], <span class="number">10000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;687b7e0289f5d116a2b68cf9d0496f62de37e579ea777ce39d81471c09ec142b&quot;</span>], <span class="number">275000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;688de40f61eb6ecc19b4c3702267c0bbf052ed9ee843ff6d346d765f89ed6067&quot;</span>], <span class="number">7000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;68fae6be10c90d572388d42129e074005005baf68d116a993073c5648ec78865&quot;</span>], <span class="number">6356600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;6a8cafed3a670189545d5b242aec4d52bb4fe90f5af2f5984d8a14eb44713a70&quot;</span>], <span class="number">12780000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;6c64f0ac3b73174aa0b0cd935b5576611e405c8485ef13a0be8bf2ea3a48da6f&quot;</span>], <span class="number">8000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;6eb31a06ff9d943b174f683f8327e3b4847a02e197e951f01ac7759b4c102f10&quot;</span>], <span class="number">52333300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;6ed537e76f1ef68764d7544cd7a8be19cbaba2ef8af181090d281d80105fd963&quot;</span>], <span class="number">175000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;7241b3a590243df346a79a2d0ebf79dc990f07c1c499145d0424f3769ca4c826&quot;</span>], <span class="number">81000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;728ea7cd638962b92ec6405e7b5572b67cfbc96c7c2fc7becf4cddb22b50b02c&quot;</span>], <span class="number">11890000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;7a91a646fd4d7592aabed6ad7f3c1d9f12371f200ae3d644454c80272b8e8c14&quot;</span>], <span class="number">44000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;7c9ae158bf660dbd429592d055efe4897fad8a07c4ed61accd1861380c5c3843&quot;</span>], <span class="number">24666600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;7cb95b196a81bb0b7952e94ff0624b9b1429e81bee0f03c8bf2f3cea5213c611&quot;</span>], <span class="number">5805000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;7ec0c61a682519e78e65026c51ceea52273870636814605a33518f02ad543317&quot;</span>], <span class="number">6969600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;802c32932fca84ba9c80d57e4b0ebccc8404ee75a346ae0b50a17666bb38c01c&quot;</span>], <span class="number">4986600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;806369b4f04792b7bd1a0d8586b7aa528591ba732362e3fb3d52d7b01e741b18&quot;</span>], <span class="number">8660866667000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;80a551df4b4b67586a512356fc0e513d641e39f62172d185465dfee61e67143a&quot;</span>], <span class="number">15160000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;821e24cd21f1da627bea7b7077d591b9c8a48f93dd87eb7f3f1ac4ec512f7b5f&quot;</span>], <span class="number">7500000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;84c62d27805ac9c7a62086e31dfae23703ac9dfb37fbd31bec95aa611c5d2c33&quot;</span>], <span class="number">999666600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;865facd74193d96f1b35a702efe05116e7be752d77f46c7fe4720905728ccb36&quot;</span>], <span class="number">6993300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;88077737732044369dc52dd7f7bf400cfb493a219f013fbfdd46f7cd52673d6f&quot;</span>], <span class="number">67666600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;8865278958eaaba42406d1ae16545267c944113c216fffc386edb4d6a8cffd36&quot;</span>], <span class="number">5000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;8ad06fa44a5669702a29b394424560714a1af90ad9efb57f3864b93b1ff7961c&quot;</span>], <span class="number">100000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;8e7215d5218f170d0865fcbe16b2ceb752db7e7bfce3f3d487ecb60e776a2c36&quot;</span>], <span class="number">39333200000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;8ef7167c4d50be846c6a03591e13005fa68ef858d87321bb79428b121e105a11&quot;</span>], <span class="number">9166600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;90bc6fc1133c3df447222e89b5ceaa028b69348ee381385239377b31df275248&quot;</span>], <span class="number">15000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;90da58a51d922ae69f27d8020d52e2fc71a5e5af1b63571bae81ddb87f8ff424&quot;</span>], <span class="number">6696900000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;92af8236baeef25f6e85ed30d85b758f5604c5c4c4c3637657fea1946a3da61b&quot;</span>], <span class="number">13000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;969fe4cba88544e8d3d71f31790cc1d377cf85a89e1b3d03e7a8b932aed1d312&quot;</span>], <span class="number">84000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;96be4635aeb775be58f3c0843bd8bc1832d257e56905525dcb3d38126d8f855e&quot;</span>], <span class="number">12166600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;9822df7da6d3c119f5118587b29eaa30aaf00839e2a03161c2df4222a0d8744e&quot;</span>], <span class="number">8999900000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;9cb774a6051717a844657f0c037a93173f70afc000babd2f7f0be7d1e8475436&quot;</span>], <span class="number">9000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;9eb27cde65b09610cbe8a3d3b82c6730f5a5dd51aeb082fdd74236c4765a040a&quot;</span>], <span class="number">8890000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;a0c6e8d74992d1ea3e43081624b2cddbd98b50d7a75998662ce6adbb2290aa64&quot;</span>], <span class="number">175000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;a2b8bfb3c0c1f04346134e7b27cb5b63de8a7af0d57c502d09c05ba7b3dd1e28&quot;</span>], <span class="number">9326600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;a415a980463876c54b503c358613b5c02d8ac9781c13378797c54ab37fc07c05&quot;</span>], <span class="number">8666600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;a48539457aa2e54048493ccaf980be18253d8cabd6eecd295e6b62e6a357352f&quot;</span>], <span class="number">8879900000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;a60b82ce304c28aad744e2a95924b3e1e560803a75e5a39fc91300556e9a9538&quot;</span>], <span class="number">83499000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;a673009c77c4734fbc09f3bf505e3414282f714e89688ca3fa9292921cb7e51d&quot;</span>], <span class="number">93000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;a69f19b16dfdfb01b1d480c59512b0d589e600538cd9102de9619ef419211f1b&quot;</span>], <span class="number">11993300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;aa17e09d3e9685a53d52d5123cc7f4f6f9fc7f3ab34f268a6f8860de68f2b612&quot;</span>], <span class="number">15000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;aa893ab408a0c0b8bb175ed7fa2b042e0fd30915e6ab8f66a9ac524e552d167f&quot;</span>], <span class="number">11480000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;accd5106f4794d9052617617a993556b15c6e62859282bad7edb24592d728a69&quot;</span>], <span class="number">94999000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;ae4bada5af908d3bddd0cb7e250d38da99cf9d6508a6b1118a89dc59fb372a4a&quot;</span>], <span class="number">17000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;b2012e8078883fdd9693d75c90bb669834f7b2c302def049e6eb486e56dc7365&quot;</span>], <span class="number">13500000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;b2fa9763f56890cabe29a1ea971851a3234aecd03584c44f822e036fbd9c5156&quot;</span>], <span class="number">8554600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;b8a750597d770430e4f9771829cf964825ea6750a6229deb06dc515371c7033f&quot;</span>], <span class="number">96600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;ba8a15ff06ff808a77b93ad335884ac66e3744a5cea908f8b8a865d98a934541&quot;</span>], <span class="number">21333300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;baf98d06056833e2e887c85c938aeb1c31dff74a91d35d9863327abc8ec93f4a&quot;</span>], <span class="number">7500000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;c2487c00d0e309fdb96d1e0ed7bb2da173d777b3ae26b25c1369992add25972d&quot;</span>], <span class="number">21000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;c2fc6a3cc910e05c508c8b252f32c6df760858d12c6a636b256135e966edcf7e&quot;</span>], <span class="number">9715500000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;c443922426297f4ded0e635f0a92b8e31823b2e6893398b1e8351c34a728fe34&quot;</span>], <span class="number">6493300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;c4f4760edf86fffa05380f31bf047c72837cccfc684d9dd9b1d7fa4e3503ce51&quot;</span>], <span class="number">14500000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;c676a26c89e3be0451afa1126516b8f88b3da99511aba215ec99707ac5f08e3c&quot;</span>], <span class="number">14833300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;d25af2fedd4eb672f218932fde44f97f10c1d7788efd0079957ffad4f186ae78&quot;</span>], <span class="number">100000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;d4610b986b4e4cb505ce0003142df98f803b7c3413acc9f7805992dc2a00483c&quot;</span>], <span class="number">110000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;d80cb19a68fb4ae325cd0209e8563cf3d5ff0368e2ede5530940f29371a02a25&quot;</span>], <span class="number">19000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;dc8f45881886ba4d2e2409ea49661b14a29a72e64d7a59d98465a9cee8084107&quot;</span>], <span class="number">34666600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;de3898d3824e41435b6519f2095d25af51954af6be4a946d5d2df46df3ea264f&quot;</span>], <span class="number">110000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;e2094a5bcc479f2e6c83bfdbc88fe3658b817522ba1fb240f804b131ffa81600&quot;</span>], <span class="number">41000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;e27bc8259449251380d0b6c848cd607b12a09b0fa8fd8875ae3f6eea70c3fd69&quot;</span>], <span class="number">1993300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;e45c09f0387a72f3a1eeb9e1a8f23feb738bc48d56d99ab88c8a910807c48a0c&quot;</span>], <span class="number">18646600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;e62321ed84ec54791122f2ec72e9e36d3cb336ed358d6848a65b8410b405650a&quot;</span>], <span class="number">9216100000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;e80d8a511c20f08d8abbd69f1258fa27c28181ffa8fbee0989f706e7b6c48b21&quot;</span>], <span class="number">9000000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;ea53405eb9054ddf0b6b82de940a4646c70cb815ba4c4616394fe0488030bb32&quot;</span>], <span class="number">72333300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;eedfb6337bed7b15d7a0338820e8a4981d96fe7284e444885c7f478fe649012f&quot;</span>], <span class="number">14566600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;f20f603b0314b04a4c3b295cbfc7b53c11370cc0349ddb3cd32c91c5b416fc51&quot;</span>], <span class="number">7493300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;f4fa6e013f0a33b809b8c1dc8d73c1461407a474106f5def66c109a3d7c4f556&quot;</span>], <span class="number">56666600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;faaede0e8cfb95d55e325e29a4737decb4a20960a525384003248c5610405b7d&quot;</span>], <span class="number">1893300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;fae2f8b2e08e32c333e0332b4254119241c2f15421846b76b693eba714b3e571&quot;</span>], <span class="number">20333300000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;44152e29de73d969a8d5bc6d0b3497f31ee7e7f6e01722a5a91fccadd6bcce76&quot;</span>], <span class="number">14900000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;4adb5df8ae7001c508d3e630deda167bce1760aa0e7c8544a1e3b70358ac3b45&quot;</span>], <span class="number">15900000000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;f04581f47bc54daf59437fe8a8e7e76ab3f034d8b30f3629652a6a013f7e0b38&quot;</span>], <span class="number">13986600000000u128</span>),
+		(<span class="macro">hex!</span>[<span class="string">&quot;9c107fbcac10f60dc1910e27210283c39f8d5951816f8d7c8f5f96d0c71dbb29&quot;</span>], <span class="number">26666666400u128</span>),
+	].into_iter());
+}
+
+<span class="attr">#[test]
+</span><span class="kw">fn </span>check_addresses() {
+	<span class="kw">use </span>sp_core::{
+		crypto::{AccountId32, Ss58Codec},
+		hexdisplay::HexDisplay,
+	};
+
+	<span class="kw">let </span>payouts: Vec&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str, f64)&gt; = <span class="macro">vec!</span>[
+		(<span class="string">&quot;CffzJo8UPWwvwPF73VcbEv4jSG4ckvGwNePL9V52hYh743X&quot;</span>, <span class="number">89f64</span>),
+		(<span class="string">&quot;CgEt8AwW9SThQXpLBAZy3MpKgNG7ZHaEDGeV5MLqHVPVoJg&quot;</span>, <span class="number">54.6666f64</span>),
+		(<span class="string">&quot;CgGpRVgE8WXd2hjc3GBVxGpnG9KpjkvEGNkM6AAaCBmhQY9&quot;</span>, <span class="number">83f64</span>),
+		(<span class="string">&quot;CiFzvmP1wyXB8nUHh6rA1j7tFQFBx2akg57TwdTGjRAXicm&quot;</span>, <span class="number">15.5133f64</span>),
+		(<span class="string">&quot;CpLVRWcUd7PxDPSmtXwQC3628dwEYiMd3GbqZTnqvphMN3B&quot;</span>, <span class="number">0.0067666666f64</span>),
+		(<span class="string">&quot;CrcpvEZP2Z82iYFUPConih1t46VFwttrX7Tv19NW6hoCzKG&quot;</span>, <span class="number">69f64</span>),
+		(<span class="string">&quot;CxVmQoEyZKimVp3eMgtNHSwiFrEU3gwF1NGNPBo2gUNSr1g&quot;</span>, <span class="number">54.3332f64</span>),
+		(<span class="string">&quot;D5QSdd589pFWeJm9bz1j3RTyy14ejKpnUKyEa4GBW9kYkVC&quot;</span>, <span class="number">14.2233f64</span>),
+		(<span class="string">&quot;D87YYjk4agajQXHr1VyiW1qpzfm5QV4L8bk7XduhimVVS7H&quot;</span>, <span class="number">23.3333f64</span>),
+		(<span class="string">&quot;D8hf8DjZ2eb8X6cyNAYx14fRa7hVUqB52ejx5YNc2ed81gC&quot;</span>, <span class="number">52.9999f64</span>),
+		(<span class="string">&quot;D8iEArcApNbkH9BxEvc2AfLLWMD1sWS9F2XdRXyY9J6QDpi&quot;</span>, <span class="number">5.135f64</span>),
+		(<span class="string">&quot;DBExZRq4qoK8xiZaHTR7iP9tWmQ8FL9JSQG8DLyLL8yV2J8&quot;</span>, <span class="number">54f64</span>),
+		(<span class="string">&quot;DEBVjNhPic2eVBw2y42xJpTJfCSvDXXA6ibs7MzpXp2s2hj&quot;</span>, <span class="number">41.1666f64</span>),
+		(<span class="string">&quot;DFpWz9jGga5ZKcRghQGchhMhSHURUcUc2TaT7dMB4pQhkeB&quot;</span>, <span class="number">11f64</span>),
+		(<span class="string">&quot;DGE8ATd2NaitqX4jdvZNXFNMmY9Qui6swnfoheCiz7efWGG&quot;</span>, <span class="number">11.5566f64</span>),
+		(<span class="string">&quot;DJTpC2pbDJeoJ2CTHSQBurbkbd9ZgkD2WYNDtCmJhem3swh&quot;</span>, <span class="number">13f64</span>),
+		(<span class="string">&quot;DMwNfM1mwrraAoSG3LSnZcwGzuUcKipqYmRsFeCuvTvrdgL&quot;</span>, <span class="number">31f64</span>),
+		(<span class="string">&quot;DPe86fQfixDTfejAiEJbRt2mvbtcGkWdGXsyCFDu37iKYVu&quot;</span>, <span class="number">200f64</span>),
+		(<span class="string">&quot;DQB1TYcr7dw4UsHaNbNhM2jtyYaoQQrBoWS7jLb95D39XGb&quot;</span>, <span class="number">68.999f64</span>),
+		(<span class="string">&quot;DUxSQ29BxeZWDXin4jZN7ogArgxJDohyeuKsqY83WqPhT4h&quot;</span>, <span class="number">6.9933f64</span>),
+		(<span class="string">&quot;DaViizibrmJZwyUchRMRebv5YMXadS4PbYBLuZhbfMTtxPm&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;Dab4bfYTZRUDMWjYAUQuFbDreQ9mt7nULWu3Dw7jodbzVe9&quot;</span>, <span class="number">0.333333333332f64</span>),
+		(<span class="string">&quot;DfitqjAjNxJykJYaigWQmSRw7T847hfytxwVRuAwscdtYUh&quot;</span>, <span class="number">39f64</span>),
+		(<span class="string">&quot;DfmNCWtsVSG9D8KWazZ84VdkSVgxot6989W1qL7bHEAP7SF&quot;</span>, <span class="number">11.65f64</span>),
+		(<span class="string">&quot;DiMPtqB6HeYpYkjJJKNR6btJjmUNeG8yyhSg1N8UL3st5Um&quot;</span>, <span class="number">10.6666f64</span>),
+		(<span class="string">&quot;Dikw9VJqJ4fJFcXuKaSqu3eSwBQM6zC8ja9rdAP3RbfeK1Y&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;Dtskg3rQsxSpxxBG4pJYjTujm9fo48Q7qnEYtBfJ6UDqtSS&quot;</span>, <span class="number">14.9933f64</span>),
+		(<span class="string">&quot;DwmWULE1g84ZMYyM4du8SmcQCkuz7VL7C6GmaWKoRXSG6vJ&quot;</span>, <span class="number">18.1499f64</span>),
+		(<span class="string">&quot;DzLtEdo7ScPi1o3izPETynSm9kdXJF8H1Y68b3eFbsQUgm6&quot;</span>, <span class="number">83f64</span>),
+		(<span class="string">&quot;DzUa9PynyTKBEJ9Yjk27o44aav9XaJG8p57YHKVNaorxbZu&quot;</span>, <span class="number">15.0565f64</span>),
+		(<span class="string">&quot;E2U89NfSnVCmY3hBQHEdJ9KV6shd6B8h4EWkNLcSJCPRAk8&quot;</span>, <span class="number">12.6666f64</span>),
+		(<span class="string">&quot;E2UrpeDCGs2mb9SZLzAk8E89yWaZncAvjFD5VnbYbDp44Xo&quot;</span>, <span class="number">112f64</span>),
+		(<span class="string">&quot;E2maNj3d7YZZhpeUwCGGeThD7JX2zk1W8AUQ1Rqb2K9oDBR&quot;</span>, <span class="number">83.5f64</span>),
+		(<span class="string">&quot;E3FfH6nbxCwQ9bg3oHAmBFpS3qEtWLbQ4QV8XUqn6qQaaab&quot;</span>, <span class="number">9.8933f64</span>),
+		(<span class="string">&quot;E3WSzAdgZtu3o8NjTJdwweJjpmSGwcf42pZAFDR7CsNTrrr&quot;</span>, <span class="number">12.79f64</span>),
+		(<span class="string">&quot;E52wAv1fTdLGUNR4CNSbeCmj1yNUeSFnj1CPKbRzTubt3YU&quot;</span>, <span class="number">69f64</span>),
+		(<span class="string">&quot;ED74i7eA79DtKFu5WXbcLXLWT2E1XSDEdJSAEkU3ePN7LE4&quot;</span>, <span class="number">2.4833f64</span>),
+		(<span class="string">&quot;EDQWMYr6a9aLjTbsMtKFAcoUsVA6qvm66RJsyJsNgbpxCFx&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;EJ4FuvmVpU7Ri2GRMtQVhhfHsHzGLYngbKJzJ58RkmRrzJm&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;EJMCExEPNyuq6EofbvwD2ErZKwuZCJVTFhiDcDwuW12c187&quot;</span>, <span class="number">2f64</span>),
+		(<span class="string">&quot;EPhV6vifCet2sJPPCNGnUZdRhsQpfcsbxRvDkjsMPPCCvwR&quot;</span>, <span class="number">0.8989f64</span>),
+		(<span class="string">&quot;EQ12pCgs4H3XHgDTc5n44xfXo6WNNkAg33b4aDFv3eUSgZd&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;EXtySo37DkJUdQb5425KGzUCG8ecYL4nVkcNB5XZpDQPH73&quot;</span>, <span class="number">8f64</span>),
+		(<span class="string">&quot;Ef6D2jpq92FoX8wSKihodFCg8juMjFu9CBnMwwBQDbYi4XU&quot;</span>, <span class="number">8.49f64</span>),
+		(<span class="string">&quot;EfCqHrWEwRnRq2ekmTmWvKzYwKtcgD4uaJAm3T92wx3ekUx&quot;</span>, <span class="number">5f64</span>),
+		(<span class="string">&quot;EfHwkqXCDup8Hi7DVWsPTDQoGiaW55HXgbQV3XzVSCEu1ii&quot;</span>, <span class="number">6.9999f64</span>),
+		(<span class="string">&quot;EfcXWwDMt9UoYhj6KRfEA4NLccsZK2eQ2AFpGw4EGatNwcj&quot;</span>, <span class="number">15f64</span>),
+		(<span class="string">&quot;EkRd7vCKiDZi6BM6tHKs5YAeGmE3MmQgChrrbtkRkf6SBwW&quot;</span>, <span class="number">201.66f64</span>),
+		(<span class="string">&quot;EntzFKky1rX9oYWzEiv4K4D997XGtCH9BHCmairrXhrW2gb&quot;</span>, <span class="number">8f64</span>),
+		(<span class="string">&quot;EtADjuauj4ETanscktz4jpejZdkCMVPnRxKos6AwgpzLdHM&quot;</span>, <span class="number">32.6666f64</span>),
+		(<span class="string">&quot;EtJMBiUVsHm3bwfMhWksQ14mv1P69BHjp7ELYDWdqXynR6K&quot;</span>, <span class="number">10f64</span>),
+		(<span class="string">&quot;EwKBYgaaELEEB5Vm9QAgArinAtps3dRUmb9bwBVTg5HqvxJ&quot;</span>, <span class="number">275f64</span>),
+		(<span class="string">&quot;EwQeYkCGQtBHMgKvNZ7NZ9Dy9tqKJDqN3DknJm5XF8czbYB&quot;</span>, <span class="number">7f64</span>),
+		(<span class="string">&quot;Ewy2kju7jdqBFbp95Nw1go31KyiMHS9rRVaevGkM62F1btd&quot;</span>, <span class="number">6.3566f64</span>),
+		(<span class="string">&quot;Ez2PN6BKn31byeQTrTBqP6MAv4WF7eKF3J8UXXxaaAd1Kuv&quot;</span>, <span class="number">12.78f64</span>),
+		(<span class="string">&quot;F2Sg6L8dTASXBz4rn9Rv4xsfaCKPn21pDzAX9HSAR8krMzR&quot;</span>, <span class="number">8f64</span>),
+		(<span class="string">&quot;F5TzLdntQpfz5RXcqCqJM4NKrjS7jVnAcNRKhu5FpLLWm2i&quot;</span>, <span class="number">52.3333f64</span>),
+		(<span class="string">&quot;F5e8A2i3XZvA5jZTYmwcUiHzVsoTAhJDgMxZEnsFe8dq2VA&quot;</span>, <span class="number">175f64</span>),
+		(<span class="string">&quot;FA8VcXg8Yzg9RvVrTdhcKk5JLSH1hcwrS9fr7pjFraCRWcm&quot;</span>, <span class="number">81f64</span>),
+		(<span class="string">&quot;FAXMVgYUWh6s2SFaX9h33mrjXXeq8HTcNwFHEy9D1eimrLK&quot;</span>, <span class="number">11.89f64</span>),
+		(<span class="string">&quot;FM2dJMRnBkbJDbdtqhRpLfgRbwJBkiw6iKT8u6UJ7pojypt&quot;</span>, <span class="number">44f64</span>),
+		(<span class="string">&quot;FPhTtxHSTKZM4fTndfgBSSXyTpdMkpEnqojAvGTS1c8hv9S&quot;</span>, <span class="number">24.6666f64</span>),
+		(<span class="string">&quot;FPrWyj8aDy3dofjmXZE5mx4o6Kf82MnEGGpjVEHjH7khReo&quot;</span>, <span class="number">5.805f64</span>),
+		(<span class="string">&quot;FSWpLozBJnXdVhE8t7LXYEpBybwse3S795WYFKiobhZWKVE&quot;</span>, <span class="number">6.9696f64</span>),
+		(<span class="string">&quot;FUNmzDNdzWtXK51EZmwbDJXQALhcYGCQUeo8E4rtcx9QBX7&quot;</span>, <span class="number">4.9866f64</span>),
+		(<span class="string">&quot;FUfBKr2pDxKrxmExGp4hjU6St4BDgffzKcyAqv6pruGnez1&quot;</span>, <span class="number">8.660866667f64</span>),
+		(<span class="string">&quot;FUzksiAhxzSvvPqiYvUEwK32rFf6Fmyug9GZEdbMaoLmwh5&quot;</span>, <span class="number">15.16f64</span>),
+		(<span class="string">&quot;FWvhQBV91wrvaqWiqDZfq4QPYYPFS28UV8zNgeJYyUexxXm&quot;</span>, <span class="number">7.5f64</span>),
+		(<span class="string">&quot;FaQi6AhM49SdjBd7oZJftAPE6tt9mrH8AdySztpYUU1B6Vq&quot;</span>, <span class="number">999.6666f64</span>),
+		(<span class="string">&quot;FcWMb9VtQutzQ5hxguyQrWKtN28zaXKuXLbL3D9oX6AJbiC&quot;</span>, <span class="number">6.9933f64</span>),
+		(<span class="string">&quot;FcxNWVy5RESDsErjwyZmPCW6Z8Y3fbfLzmou34YZTrbcraL&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;FegFL7hjGtjwRWvDMabMuPFGTzToioEWu4BLxjRxYPfvCpn&quot;</span>, <span class="number">67.6666f64</span>),
+		(<span class="string">&quot;FfA5YrMeaPzBYB4rE4JBuauXua6BEAQoJPTd8dRCLCdRdhM&quot;</span>, <span class="number">5f64</span>),
+		(<span class="string">&quot;FiL3XNxVpx5Cgnh4WPpPWms5Ed9tGqA44YEtHVDyPacHVGt&quot;</span>, <span class="number">0.1f64</span>),
+		(<span class="string">&quot;Fo6D1N9EjneyZYYPGxiW1WNKsj1S9Gx1nxcrMCkKGQ1bwDM&quot;</span>, <span class="number">39.3332f64</span>),
+		(<span class="string">&quot;Fomib3HNL24Cv6CbLJUf59yDF5shGFyDg8Wx7eGtmDdwrRF&quot;</span>, <span class="number">9.1666f64</span>),
+		(<span class="string">&quot;Fr6PbzHWKrTvmFJmiYy7MD1iaUpTKHN91VS5iQZZgo7BWCw&quot;</span>, <span class="number">15f64</span>),
+		(<span class="string">&quot;FrFGwHJKqLTyGDwqWfLgGYFDkjP12yAATQuh4oNpZMhpFzM&quot;</span>, <span class="number">6.6969f64</span>),
+		(<span class="string">&quot;Ft2cSCw4V47d2S7V9nN2S6V5ByGmAnkfbkFbWUVuHVuaMvW&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;FtG8FbxJXfDj6fcGp3eTL9tKJzkfqT9k8PREKXDgKmbnSDR&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;FteeR6d11cvmoRUmvoBeYYHNpMd5onPnpGy5PUcR6Vo7dJX&quot;</span>, <span class="number">13f64</span>),
+		(<span class="string">&quot;FypCVBt2MU61ZVL3N6mePXaUXrFX9nvGK6h5yqR89jc6JeW&quot;</span>, <span class="number">84f64</span>),
+		(<span class="string">&quot;FyyDvxKBmKr81HwQWtbugiFRiu2P1JpSqBDid56AfFevuTV&quot;</span>, <span class="number">12.1666f64</span>),
+		(<span class="string">&quot;G1o9z4HVf2pW7bbyKKNRP9MnmGEN4n7Ada3yJRpNzaiPoKd&quot;</span>, <span class="number">8.9999f64</span>),
+		(<span class="string">&quot;G7oV7X7FzJJ2g8TetMvAaC4GvM1ZCzPCnfSk5KcnVy2PJEF&quot;</span>, <span class="number">9f64</span>),
+		(<span class="string">&quot;GAQ75C8zHzVjWJLDH5PqFbLxfyck89wLJkhCzMZTXBFV5L7&quot;</span>, <span class="number">8.89f64</span>),
+		(<span class="string">&quot;GD8GVB4Ai4uCSzMCiX6C4vuY4DVkBctQRT6QMqD6y5mJfr9&quot;</span>, <span class="number">175f64</span>),
+		(<span class="string">&quot;GFgA4KV6Mm2TsHwEYtXfXZCf6QzebuN7c69UJGcRF2vCDTD&quot;</span>, <span class="number">9.3266f64</span>),
+		(<span class="string">&quot;GHTohCLUcLyB8w4xMr4TyDkvUzDnim6fadWfJ7edPke971d&quot;</span>, <span class="number">8.6666f64</span>),
+		(<span class="string">&quot;GJ2wraBjTtXH3m2TUxsVEc1bQdiuo6yiZUfczsws19uioX9&quot;</span>, <span class="number">8.8799f64</span>),
+		(<span class="string">&quot;GL2tM9Q6KL6XxMEWBg5jdjLezP4EzYsh3bqR1pjTmwDY1Mf&quot;</span>, <span class="number">83.499f64</span>),
+		(<span class="string">&quot;GLZdTryDdiHe3gVwFdncm2a6pKN6EiMxTGJQFHq5RxcNJZt&quot;</span>, <span class="number">93f64</span>),
+		(<span class="string">&quot;GLnjFi1U2jk6hDs7HCL1Y8XHsVLPHd2UAQh3AqRgpcUAUcn&quot;</span>, <span class="number">11.9933f64</span>),
+		(<span class="string">&quot;GRLkXUQUNqQMxKnNH1cM5TvWmu2H3yxGx9ohvJXSxRHUyJq&quot;</span>, <span class="number">15f64</span>),
+		(<span class="string">&quot;GRvRXw8jB2H9EGojmmjM4vZCeofuu91W2Zpbtr2QC5f7iLb&quot;</span>, <span class="number">11.48f64</span>),
+		(<span class="string">&quot;GUtkCnQKsVXzjqJvSZkiHtvdwZoEyukZrDE1iLTyV8F7tH6&quot;</span>, <span class="number">94.999f64</span>),
+		(<span class="string">&quot;GWrL9KsayVkniG2GmkYoTRDaFHhpTTSf6fL25e623bHVkRt&quot;</span>, <span class="number">17f64</span>),
+		(<span class="string">&quot;GbiPhuH4m4BCYiiLpqo2S2TyFxvgpfdSKWMdp9ZrbKdtXeM&quot;</span>, <span class="number">13.5f64</span>),
+		(<span class="string">&quot;GczUwD9zRdzJnTCr9kyREURmVeYpZAg1wNWrZMjqqimHcds&quot;</span>, <span class="number">8.5546f64</span>),
+		(<span class="string">&quot;GkS2m7UK6RSUkFiCHYPRtp8GCKdPtrBwP1wj7448gWoiut8&quot;</span>, <span class="number">0.0966f64</span>),
+		(<span class="string">&quot;Gnh63rW5fy3FAbnZQPkajyrQXxQGkg56Waoe2Ede1RjRjrJ&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;GnkMTVovNUith3JMaN5yvpuuwPzVeFbjM15wzg6LrAQSN6P&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;GnuSjJqE7VWMUGYsEEqsMioXwzNXfhu7FPMvdfKCiVazJwD&quot;</span>, <span class="number">21.3333f64</span>),
+		(<span class="string">&quot;GoUZE6g169BskxYVFV6prDUN4siKxa6Mr8VZD8B6TU9MEtX&quot;</span>, <span class="number">7.5f64</span>),
+		(<span class="string">&quot;Gy4LfGahVbR4eM8Sj2aCC4hHFk4fbUWGZCWQV5pjSGwJRZb&quot;</span>, <span class="number">21f64</span>),
+		(<span class="string">&quot;GyynnvzZzcJt24FQ6DNNg77Mgbfe8ddLdUiQG6nssoBVpmE&quot;</span>, <span class="number">9.7155f64</span>),
+		(<span class="string">&quot;H1eyZGi1DKxTGdtM8UQRA1RGEe6kGhvKC4onRpy97qKqiPE&quot;</span>, <span class="number">6.4933f64</span>),
+		(<span class="string">&quot;H2ZXJi5QAVB29d48oWgM1oBAmg2ngiofft4yEeyq58pViwt&quot;</span>, <span class="number">14.5f64</span>),
+		(<span class="string">&quot;H4YEv9v4DzU6WJsF2pxSHGcVxZEZDS761XWYsnRKX7P3aMQ&quot;</span>, <span class="number">14.8333f64</span>),
+		(<span class="string">&quot;H9eSvWe34vQDJAWckeTHWSqSChRat8bgKHG39GC1fjvEm7y&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;HJHs8fpzT916HTQgdGf6s69qp5zwNmZpTTnGXmm6qNqaQyW&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;HL8bEp8YicBdrUmJocCAWVLKUaR2dd1y6jnD934pbre3un1&quot;</span>, <span class="number">100f64</span>),
+		(<span class="string">&quot;HNnVpuhqgXRRDL8h4H39EgvvXtVYEtFSPi1XBWHcEW4cEYc&quot;</span>, <span class="number">110f64</span>),
+		(<span class="string">&quot;HTbdbMAMsFkUVeoMQ6pbH341DgQ1a4MpdCcaBu5N6uShJBq&quot;</span>, <span class="number">19f64</span>),
+		(<span class="string">&quot;HZWcWK1Px51bWgu1BD5d9M6A1djczFsdRWVwhVpRrU6VUJH&quot;</span>, <span class="number">34.6666f64</span>),
+		(<span class="string">&quot;Hbgxh54N33ApEZrpnYGhhvPJNYWD5LNprZodPVnSHq7QDDh&quot;</span>, <span class="number">110f64</span>),
+		(<span class="string">&quot;Hgh6jDVF9SXHs5pw6TfAXMWj4qHXpU6Q4dXh7h8zpx26cdw&quot;</span>, <span class="number">41f64</span>),
+		(<span class="string">&quot;HhH7NMA7FEkj327ZktSzkthknuQU591tLr1vX8zuc4E4JkB&quot;</span>, <span class="number">1.9933f64</span>),
+		(<span class="string">&quot;Hjjn1CmyGWKCswCmVZJFTFMJkruTtgeycEmvR4rWJYU7izQ&quot;</span>, <span class="number">18.6466f64</span>),
+		(<span class="string">&quot;HkRdC1w5XDvQQadAS2nL58mPRBCLyUCZAAiaV7DUWJgj7P8&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;Hn4y5xom4rBD49e2eMTpsEbqAJgE7uSR62VGLVv78ZqCuxT&quot;</span>, <span class="number">9.2161f64</span>),
+		(<span class="string">&quot;Hpaecetm5cBAJYDVqN9VeFUgVNQh3AAJAqUKAFW8PZGRst6&quot;</span>, <span class="number">9f64</span>),
+		(<span class="string">&quot;HsZTGLU5foma6bWoC7BGAs51aRu9TNc2RKRQBcfaHhJES1z&quot;</span>, <span class="number">72.3333f64</span>),
+		(<span class="string">&quot;HyXNSykBLZFMK8eAdys5L97ncetUhnStnLKMpuSp7kM9bCU&quot;</span>, <span class="number">14.5666f64</span>),
+		(<span class="string">&quot;J3hg1qmm6VeU6WWcxGQnKaMnD8wYAxnFQwaysE7RhVXbNvs&quot;</span>, <span class="number">7.4933f64</span>),
+		(<span class="string">&quot;J7XbTDFU4SRUaW6t6mYiK4tzDXtguhwa5ZK13EVCE5F2qak&quot;</span>, <span class="number">56.6666f64</span>),
+		(<span class="string">&quot;J9c2fcmRhhNaJAxA8yLMkxap7PEWuYc1UaaTqxunfKscjG3&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;JBfNxpntp7DaRM7pzg4XEm9TYX3gCaAVZvwgZW25ZzwXjy2&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;JEzQAbxmotcDNAXFFgcDcjgEF9gbuxaxer4bhGdKEfQqyRw&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;JF1SD3o1qZFdLBWmKTRHcHgBsXZRGGJhkwLeStYNoHs7ep1&quot;</span>, <span class="number">1.8933f64</span>),
+		(<span class="string">&quot;JFGuwWzqiyJZ3MPM8NRy7kK75MdxwSkh7GNZcsVd6BpZq2h&quot;</span>, <span class="number">20.3333f64</span>),
+		(<span class="string">&quot;D5WYdgC7f4W6jGCkQaQ3Lfe5P5F7JvfhYBAX9G6CBToMYe4&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;EJgdRddcYSd6XWnwr8oZkkzxJJX8SLwig38d5yxZSRgJGQZ&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;FXRK8xzufVJ45bCXuCCRr6FuS1dCfx9VjiuwqZDSqzEWgLm&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;Gt8ferkwFEX9jLbxpuhLYqKdNzP9KtjZcGYVN2mMbuCwhAP&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;HHCd33jjDBJJDZic7rbQZMuMaoe5ddYaRkaLf7tDURHpE56&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;E7b4mfFEhpnbw7iKdhvnBw7fXoQ1QFQE4TtTRhseWMU1H2E&quot;</span>, <span class="number">14.9000f64</span>),
+		(<span class="string">&quot;EGUE7VyrVLVSoaG43XVrEf3eKcgzJC8p3mFRtPUTMNLhdYs&quot;</span>, <span class="number">15.9000f64</span>),
+		(<span class="string">&quot;EtommijqrHDFWFvBxP515oUbkXx9vK2qohzrmwpCXbU7Yx2&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;GxzBsXcxZXXaKcLXj4CWGDdoCaXRVmcRkyiUAHFc1AfTMEV&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;H1heyw8DdkexFHAJ85GhuJr5om72Kx2DdK6sHsmb2f9ebUJ&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;J1Mf8RWcRWpuCRBAQVq6yRgb9exuHdKJdfV2NymtbXdkTF4&quot;</span>, <span class="number">13.9866f64</span>),
+		(<span class="string">&quot;FX6PCBQr4gtejvdR5dCdstrxmS3oFrzjZHtAKXSBumEse96&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;EdE26hU1nVmmVoteHWGKX8BuayykEg84iz7x3MCmzfocn2u&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;DzN3bMAAKKam6DBr9co4r1TBSj5X6Looh3JvNmfegiVrUgy&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;Dx2p54FSAxrqvFVN4ptvjV9LoUHkKQirM8SbLjD9PVnAonv&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;G6wtWujSHgT24UxXhDHVaVbnY5fBkUJLsjykyWBvtNs2aGQ&quot;</span>, <span class="number">0.0266666664f64</span>),
+		(<span class="string">&quot;DMrWWv31QiiDDESjGjyVcGhoCYMkPvrSTHHUDK5mR1riV2A&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;EkahQVDKRCe97ZT9TgS1YyfTzLgPah5PHa8NsfGFLsPKpjo&quot;</span>, <span class="number">0f64</span>),
+		(<span class="string">&quot;GhQ3gB8oaLZfjSd6gyeYZgymnJ2LEmvaUrSELBbva9342Y6&quot;</span>, <span class="number">0f64</span>),
+	];
+	<span class="kw">for </span>(who, amount) <span class="kw">in </span>payouts.into_iter().filter(|<span class="kw-2">&amp;</span>(<span class="kw">_</span>, amount)| amount &gt; <span class="number">0f64</span>) {
+		<span class="macro">println!</span>(
+			<span class="string">&quot;(hex![\&quot;{}\&quot;], {}u128),&quot;</span>,
+			HexDisplay::from(AsRef::&lt;[u8; <span class="number">32</span>]&gt;::as_ref(<span class="kw-2">&amp;</span>AccountId32::from_string(who).unwrap())),
+			(amount * <span class="number">1_000_000_000_000f64</span>).round() <span class="kw">as </span>u128,
+		)
+	}
+}
+</code></pre></div></section></main></body></html>

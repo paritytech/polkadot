@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"polkadot_node_core_parachains_inherent":[["impl&lt;C: HeaderBackend&lt;<a class=\"type\" href=\"polkadot_core_primitives/type.Block.html\" title=\"type polkadot_core_primitives::Block\">Block</a>&gt;&gt; InherentDataProvider for <a class=\"struct\" href=\"polkadot_node_core_parachains_inherent/struct.ParachainsInherentDataProvider.html\" title=\"struct polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider\">ParachainsInherentDataProvider</a>&lt;C&gt;"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

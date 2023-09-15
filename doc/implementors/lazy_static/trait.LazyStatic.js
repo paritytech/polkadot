@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"zombienet_backchannel":[["impl <a class=\"trait\" href=\"https://docs.rs/lazy_static/1.4.0/lazy_static/trait.LazyStatic.html\" title=\"trait lazy_static::LazyStatic\">LazyStatic</a> for <a class=\"struct\" href=\"zombienet_backchannel/struct.ZOMBIENET_BACKCHANNEL.html\" title=\"struct zombienet_backchannel::ZOMBIENET_BACKCHANNEL\">ZOMBIENET_BACKCHANNEL</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

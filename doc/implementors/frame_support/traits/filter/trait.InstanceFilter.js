@@ -1,0 +1,6 @@
+(function() {var implementors = {
+"kusama_runtime":[["impl InstanceFilter&lt;<a class=\"enum\" href=\"kusama_runtime/enum.RuntimeCall.html\" title=\"enum kusama_runtime::RuntimeCall\">RuntimeCall</a>&gt; for <a class=\"enum\" href=\"kusama_runtime/enum.ProxyType.html\" title=\"enum kusama_runtime::ProxyType\">ProxyType</a>"]],
+"polkadot_runtime":[["impl InstanceFilter&lt;<a class=\"enum\" href=\"polkadot_runtime/enum.RuntimeCall.html\" title=\"enum polkadot_runtime::RuntimeCall\">RuntimeCall</a>&gt; for <a class=\"enum\" href=\"polkadot_runtime/enum.ProxyType.html\" title=\"enum polkadot_runtime::ProxyType\">ProxyType</a>"]],
+"rococo_runtime":[["impl InstanceFilter&lt;<a class=\"enum\" href=\"rococo_runtime/enum.RuntimeCall.html\" title=\"enum rococo_runtime::RuntimeCall\">RuntimeCall</a>&gt; for <a class=\"enum\" href=\"rococo_runtime/enum.ProxyType.html\" title=\"enum rococo_runtime::ProxyType\">ProxyType</a>"]],
+"westend_runtime":[["impl InstanceFilter&lt;<a class=\"enum\" href=\"westend_runtime/enum.RuntimeCall.html\" title=\"enum westend_runtime::RuntimeCall\">RuntimeCall</a>&gt; for <a class=\"enum\" href=\"westend_runtime/enum.ProxyType.html\" title=\"enum westend_runtime::ProxyType\">ProxyType</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

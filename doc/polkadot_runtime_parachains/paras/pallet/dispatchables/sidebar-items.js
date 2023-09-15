@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_trusted_validation_code","force_note_new_head","force_queue_action","force_schedule_code_upgrade","force_set_current_code","force_set_current_head","force_set_most_recent_context","include_pvf_check_statement","poke_unused_validation_code"]};

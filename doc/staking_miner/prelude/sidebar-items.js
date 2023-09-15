@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_URI","LOG_TARGET"],"trait":["BlockT","HeaderT"],"type":["AccountId","Balance","Block","BlockNumber","Ext","Hash","Header","Nonce","Pair","Token"]};

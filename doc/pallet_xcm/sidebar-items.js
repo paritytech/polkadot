@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["ensure_response","ensure_xcm"],"mod":["migration","pallet"],"struct":["EnsureResponse","EnsureXcm","IsMajorityOfBody","IsVoiceOfBody","LockTicket","ReduceTicket","TestWeightInfo","UnlockTicket","XcmPassthrough"],"trait":["WeightInfo"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["ChildParachainRouter","ConstantPrice","ExponentialPrice"],"trait":["PriceForParachainDelivery"]};

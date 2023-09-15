@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["FELLOWSHIP_ADMIN_INDEX"]};

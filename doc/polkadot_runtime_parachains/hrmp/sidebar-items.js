@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["HRMP_MAX_INBOUND_CHANNELS_BOUND","HRMP_MAX_OUTBOUND_CHANNELS_BOUND"],"enum":["HrmpWatermarkAcceptanceErr","OutboundHrmpAcceptanceErr"],"mod":["pallet"],"struct":["HrmpChannel","HrmpOpenChannelRequest","TestWeightInfo"],"trait":["WeightInfo"]};

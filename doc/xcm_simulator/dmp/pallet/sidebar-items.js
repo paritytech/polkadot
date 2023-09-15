@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Call"],"fn":["__type_value_for_initial_factor"],"struct":["InitialFactor","Pallet"],"trait":["Config"],"type":["Module"]};

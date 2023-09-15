@@ -1,0 +1,390 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Scheduler Pallet - The Polkadot Parachain Host Implementers&#x27; Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../last-changed.css">
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Preamble</a></li><li class="chapter-item expanded "><a href="../whence-parachains.html"><strong aria-hidden="true">1.</strong> Whence Parachains</a></li><li class="chapter-item expanded "><a href="../protocol-overview.html"><strong aria-hidden="true">2.</strong> Protocol Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../protocol-approval.html"><strong aria-hidden="true">2.1.</strong> Approval Process</a></li><li class="chapter-item expanded "><a href="../protocol-disputes.html"><strong aria-hidden="true">2.2.</strong> Disputes Process</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../disputes-flow.html"><strong aria-hidden="true">2.2.1.</strong> Dispute Flow</a></li></ol></li><li class="chapter-item expanded "><a href="../protocol-chain-selection.html"><strong aria-hidden="true">2.3.</strong> Chain Selection and Finalization</a></li></ol></li><li class="chapter-item expanded "><a href="../architecture.html"><strong aria-hidden="true">3.</strong> Architecture Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../messaging.html"><strong aria-hidden="true">3.1.</strong> Messaging Overview</a></li><li class="chapter-item expanded "><a href="../pvf-prechecking.html"><strong aria-hidden="true">3.2.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../runtime/index.html"><strong aria-hidden="true">4.</strong> Runtime Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../runtime/initializer.html"><strong aria-hidden="true">4.1.</strong> Initializer Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/configuration.html"><strong aria-hidden="true">4.2.</strong> Configuration Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/shared.html"><strong aria-hidden="true">4.3.</strong> Shared Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/disputes.html"><strong aria-hidden="true">4.4.</strong> Disputes Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/paras.html"><strong aria-hidden="true">4.5.</strong> Paras Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/scheduler.html" class="active"><strong aria-hidden="true">4.6.</strong> Scheduler Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/inclusion.html"><strong aria-hidden="true">4.7.</strong> Inclusion Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/parainherent.html"><strong aria-hidden="true">4.8.</strong> ParaInherent Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/dmp.html"><strong aria-hidden="true">4.9.</strong> DMP Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/hrmp.html"><strong aria-hidden="true">4.10.</strong> HRMP Pallet</a></li><li class="chapter-item expanded "><a href="../runtime/session_info.html"><strong aria-hidden="true">4.11.</strong> Session Info Pallet</a></li></ol></li><li class="chapter-item expanded "><a href="../runtime-api/index.html"><strong aria-hidden="true">5.</strong> Runtime APIs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../runtime-api/validators.html"><strong aria-hidden="true">5.1.</strong> Validators</a></li><li class="chapter-item expanded "><a href="../runtime-api/validator-groups.html"><strong aria-hidden="true">5.2.</strong> Validator Groups</a></li><li class="chapter-item expanded "><a href="../runtime-api/availability-cores.html"><strong aria-hidden="true">5.3.</strong> Availability Cores</a></li><li class="chapter-item expanded "><a href="../runtime-api/persisted-validation-data.html"><strong aria-hidden="true">5.4.</strong> Persisted Validation Data</a></li><li class="chapter-item expanded "><a href="../runtime-api/session-index.html"><strong aria-hidden="true">5.5.</strong> Session Index</a></li><li class="chapter-item expanded "><a href="../runtime-api/validation-code.html"><strong aria-hidden="true">5.6.</strong> Validation Code</a></li><li class="chapter-item expanded "><a href="../runtime-api/candidate-pending-availability.html"><strong aria-hidden="true">5.7.</strong> Candidate Pending Availability</a></li><li class="chapter-item expanded "><a href="../runtime-api/candidate-events.html"><strong aria-hidden="true">5.8.</strong> Candidate Events</a></li><li class="chapter-item expanded "><a href="../runtime-api/disputes-info.html"><strong aria-hidden="true">5.9.</strong> Disputes Info</a></li><li class="chapter-item expanded "><a href="../runtime-api/candidates-included.html"><strong aria-hidden="true">5.10.</strong> Candidates Included</a></li><li class="chapter-item expanded "><a href="../runtime-api/pvf-prechecking.html"><strong aria-hidden="true">5.11.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../node/index.html"><strong aria-hidden="true">6.</strong> Node Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/subsystems-and-jobs.html"><strong aria-hidden="true">6.1.</strong> Subsystems and Jobs</a></li><li class="chapter-item expanded "><a href="../node/overseer.html"><strong aria-hidden="true">6.2.</strong> Overseer</a></li><li class="chapter-item expanded "><a href="../node/grandpa-voting-rule.html"><strong aria-hidden="true">6.3.</strong> GRANDPA Voting Rule</a></li><li class="chapter-item expanded "><a href="../node/collators/index.html"><strong aria-hidden="true">6.4.</strong> Collator Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/collators/collation-generation.html"><strong aria-hidden="true">6.4.1.</strong> Collation Generation</a></li><li class="chapter-item expanded "><a href="../node/collators/collator-protocol.html"><strong aria-hidden="true">6.4.2.</strong> Collator Protocol</a></li></ol></li><li class="chapter-item expanded "><a href="../node/backing/index.html"><strong aria-hidden="true">6.5.</strong> Backing Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/backing/candidate-backing.html"><strong aria-hidden="true">6.5.1.</strong> Candidate Backing</a></li><li class="chapter-item expanded "><a href="../node/backing/prospective-parachains.html"><strong aria-hidden="true">6.5.2.</strong> Prospective Parachains</a></li><li class="chapter-item expanded "><a href="../node/backing/statement-distribution.html"><strong aria-hidden="true">6.5.3.</strong> Statement Distribution</a></li><li class="chapter-item expanded "><a href="../node/backing/statement-distribution-legacy.html"><strong aria-hidden="true">6.5.4.</strong> Statement Distribution (Legacy)</a></li></ol></li><li class="chapter-item expanded "><a href="../node/availability/index.html"><strong aria-hidden="true">6.6.</strong> Availability Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/availability/availability-distribution.html"><strong aria-hidden="true">6.6.1.</strong> Availability Distribution</a></li><li class="chapter-item expanded "><a href="../node/availability/availability-recovery.html"><strong aria-hidden="true">6.6.2.</strong> Availability Recovery</a></li><li class="chapter-item expanded "><a href="../node/availability/bitfield-distribution.html"><strong aria-hidden="true">6.6.3.</strong> Bitfield Distribution</a></li><li class="chapter-item expanded "><a href="../node/availability/bitfield-signing.html"><strong aria-hidden="true">6.6.4.</strong> Bitfield Signing</a></li></ol></li><li class="chapter-item expanded "><a href="../node/approval/index.html"><strong aria-hidden="true">6.7.</strong> Approval Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/approval/approval-voting.html"><strong aria-hidden="true">6.7.1.</strong> Approval Voting</a></li><li class="chapter-item expanded "><a href="../node/approval/approval-distribution.html"><strong aria-hidden="true">6.7.2.</strong> Approval Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../node/disputes/index.html"><strong aria-hidden="true">6.8.</strong> Disputes Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/disputes/dispute-coordinator.html"><strong aria-hidden="true">6.8.1.</strong> Dispute Coordinator</a></li><li class="chapter-item expanded "><a href="../node/disputes/dispute-distribution.html"><strong aria-hidden="true">6.8.2.</strong> Dispute Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../node/utility/index.html"><strong aria-hidden="true">6.9.</strong> Utility Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/utility/availability-store.html"><strong aria-hidden="true">6.9.1.</strong> Availability Store</a></li><li class="chapter-item expanded "><a href="../node/utility/candidate-validation.html"><strong aria-hidden="true">6.9.2.</strong> Candidate Validation</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../node/utility/pvf-host-and-workers.html"><strong aria-hidden="true">6.9.2.1.</strong> PVF Host and Workers</a></li></ol></li><li class="chapter-item expanded "><a href="../node/utility/provisioner.html"><strong aria-hidden="true">6.9.3.</strong> Provisioner</a></li><li class="chapter-item expanded "><a href="../node/utility/network-bridge.html"><strong aria-hidden="true">6.9.4.</strong> Network Bridge</a></li><li class="chapter-item expanded "><a href="../node/utility/gossip-support.html"><strong aria-hidden="true">6.9.5.</strong> Gossip Support</a></li><li class="chapter-item expanded "><a href="../node/utility/peer-set-manager.html"><strong aria-hidden="true">6.9.6.</strong> Peer Set Manager</a></li><li class="chapter-item expanded "><a href="../node/utility/runtime-api.html"><strong aria-hidden="true">6.9.7.</strong> Runtime API Requests</a></li><li class="chapter-item expanded "><a href="../node/utility/chain-api.html"><strong aria-hidden="true">6.9.8.</strong> Chain API Requests</a></li><li class="chapter-item expanded "><a href="../node/utility/chain-selection.html"><strong aria-hidden="true">6.9.9.</strong> Chain Selection Request</a></li><li class="chapter-item expanded "><a href="../node/utility/pvf-prechecker.html"><strong aria-hidden="true">6.9.10.</strong> PVF Pre-Checking</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="../types/index.html"><strong aria-hidden="true">7.</strong> Data Structures and Types</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../types/candidate.html"><strong aria-hidden="true">7.1.</strong> Candidate</a></li><li class="chapter-item expanded "><a href="../types/backing.html"><strong aria-hidden="true">7.2.</strong> Backing</a></li><li class="chapter-item expanded "><a href="../types/availability.html"><strong aria-hidden="true">7.3.</strong> Availability</a></li><li class="chapter-item expanded "><a href="../types/overseer-protocol.html"><strong aria-hidden="true">7.4.</strong> Overseer and Subsystem Protocol</a></li><li class="chapter-item expanded "><a href="../types/runtime.html"><strong aria-hidden="true">7.5.</strong> Runtime</a></li><li class="chapter-item expanded "><a href="../types/messages.html"><strong aria-hidden="true">7.6.</strong> Messages</a></li><li class="chapter-item expanded "><a href="../types/network.html"><strong aria-hidden="true">7.7.</strong> Network</a></li><li class="chapter-item expanded "><a href="../types/approval.html"><strong aria-hidden="true">7.8.</strong> Approvals</a></li><li class="chapter-item expanded "><a href="../types/disputes.html"><strong aria-hidden="true">7.9.</strong> Disputes</a></li><li class="chapter-item expanded "><a href="../types/pvf-prechecking.html"><strong aria-hidden="true">7.10.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../glossary.html">Glossary</a></li><li class="chapter-item expanded affix "><a href="../further-reading.html">Further Reading</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Polkadot Parachain Host Implementers&#x27; Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/paritytech/polkadot" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="scheduler-pallet"><a class="header" href="#scheduler-pallet">Scheduler Pallet</a></h1>
+<blockquote>
+<p>TODO: this section is still heavily under construction. key questions about availability cores and validator assignment are still open and the flow of the the section may be contradictory or inconsistent</p>
+</blockquote>
+<p>The Scheduler module is responsible for two main tasks:</p>
+<ul>
+<li>Partitioning validators into groups and assigning groups to parachains.</li>
+<li>Scheduling parachains for each block</li>
+</ul>
+<p>It aims to achieve these tasks with these goals in mind:</p>
+<ul>
+<li>It should be possible to know at least a block ahead-of-time, ideally more, which validators are going to be assigned to which parachains.</li>
+<li>Parachains that have a candidate pending availability in this fork of the chain should not be assigned.</li>
+<li>Validator assignments should not be gameable. Malicious cartels should not be able to manipulate the scheduler to assign themselves as desired.</li>
+<li>High or close to optimal throughput of parachains. Work among validator groups should be balanced.</li>
+</ul>
+<h2 id="availability-cores"><a class="header" href="#availability-cores">Availability Cores</a></h2>
+<p>The Scheduler manages resource allocation using the concept of &quot;Availability Cores&quot;. There will be one availability core for each lease holding parachain, and a fixed number of cores used for multiplexing on-demand parachains. Validators will be partitioned into groups, with the same number of groups as availability cores. Validator groups will be assigned to different availability cores over time.</p>
+<p>An availability core can exist in either one of two states at the beginning or end of a block: free or occupied. A free availability core can have a lease holding or on-demand parachain assigned to it for the potential to have a backed candidate included. After backing, the core enters the occupied state as the backed candidate is pending availability. There is an important distinction: a core is not considered occupied until it is in charge of a block pending availability, although the implementation may treat scheduled cores the same as occupied ones for brevity. A core exits the occupied state when the candidate is no longer pending availability - either on timeout or on availability. A core starting in the occupied state can move to the free state and back to occupied all within a single block, as availability bitfields are processed before backed candidates. At the end of the block, there is a possible timeout on availability which can move the core back to the free state if occupied.</p>
+<p>Cores are treated as an ordered list and are typically referred to by their index in that list.</p>
+<div><!-- Generated by graphviz version 2.43.0 (0)
+ --><!-- Title: %3 Pages: 1 --><svg width="326pt" height="104pt"
+ viewBox="0.00 0.00 325.50 104.22" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 100.22)"><title>%3</title><polygon fill="white" stroke="transparent" points="-4,4 -4,-100.22 321.5,-100.22 321.5,4 -4,4"/><text text-anchor="middle" x="158.75" y="-81.02" font-family="Times,serif" font-size="14.00">Availability Core State Machine</text><!-- vg1 --><g id="node1" class="node"><title>vg1</title><polygon fill="none" stroke="black" points="54,-41.22 0,-41.22 0,-5.22 54,-5.22 54,-41.22"/><text text-anchor="middle" x="27" y="-19.52" font-family="Times,serif" font-size="14.00">Free</text></g><!-- vg2 --><g id="node2" class="node"><title>vg2</title><polygon fill="none" stroke="black" points="317.5,-41.22 234.5,-41.22 234.5,-5.22 317.5,-5.22 317.5,-41.22"/><text text-anchor="middle" x="276" y="-19.52" font-family="Times,serif" font-size="14.00">Occupied</text></g><!-- vg1&#45;&gt;vg2 --><g id="edge1" class="edge"><title>vg1&#45;&gt;vg2</title><path fill="none" stroke="black" d="M54.12,-23.22C94.8,-23.22 172.37,-23.22 224.15,-23.22"/><polygon fill="black" stroke="black" points="224.46,-26.72 234.46,-23.22 224.46,-19.72 224.46,-26.72"/><text text-anchor="middle" x="144.25" y="-30.02" font-family="Times,serif" font-size="14.00">Assignment &amp; Backing</text></g><!-- vg2&#45;&gt;vg1 --><g id="edge2" class="edge"><title>vg2&#45;&gt;vg1</title><path fill="none" stroke="black" d="M234.34,-7.08C231.46,-6.34 228.58,-5.71 225.75,-5.22 192.57,0.55 110.66,2.83 64.14,-5.78"/><polygon fill="black" stroke="black" points="63.26,-2.39 54.23,-7.92 64.74,-9.23 63.26,-2.39"/><text text-anchor="middle" x="144.25" y="-9.02" font-family="Times,serif" font-size="14.00">Availability or Timeout</text></g></g></svg></div>
+<div><!-- Generated by graphviz version 2.43.0 (0)
+ --><!-- Title: %3 Pages: 1 --><svg width="563pt" height="305pt"
+ viewBox="0.00 0.00 563.00 305.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 301)"><title>%3</title><polygon fill="white" stroke="transparent" points="-4,4 -4,-301 559,-301 559,4 -4,4"/><text text-anchor="middle" x="277.5" y="-281.8" font-family="Times,serif" font-size="14.00">Availability Core Transitions within Block</text><g id="clust1" class="cluster"><title>cluster_left</title><polygon fill="none" stroke="black" points="8,-95 8,-234 205,-234 205,-95 8,-95"/></g><g id="clust3" class="cluster"><title>cluster_right</title><polygon fill="none" stroke="black" points="213,-8 213,-234 540,-234 540,-8 213,-8"/></g><!-- fr1 --><g id="node1" class="node"><title>fr1</title><polygon fill="none" stroke="black" points="118,-226 64,-226 64,-190 118,-190 118,-226"/><text text-anchor="middle" x="91" y="-204.3" font-family="Times,serif" font-size="14.00">Free</text></g><!-- fr2 --><g id="node2" class="node"><title>fr2</title><polygon fill="none" stroke="black" points="70,-139 16,-139 16,-103 70,-103 70,-139"/><text text-anchor="middle" x="43" y="-117.3" font-family="Times,serif" font-size="14.00">Free</text></g><!-- fr1&#45;&gt;fr2 --><g id="edge1" class="edge"><title>fr1&#45;&gt;fr2</title><path fill="none" stroke="black" d="M81.29,-189.8C74.52,-177.82 65.37,-161.62 57.71,-148.06"/><polygon fill="black" stroke="black" points="60.66,-146.16 52.7,-139.18 54.57,-149.6 60.66,-146.16"/><text text-anchor="middle" x="76" y="-160.8" font-family="Times,serif" font-size="14.00">No Backing</text></g><!-- occ --><g id="node3" class="node"><title>occ</title><polygon fill="none" stroke="black" points="180.5,-139 97.5,-139 97.5,-103 180.5,-103 180.5,-139"/><text text-anchor="middle" x="139" y="-117.3" font-family="Times,serif" font-size="14.00">Occupied</text></g><!-- fr1&#45;&gt;occ --><g id="edge2" class="edge"><title>fr1&#45;&gt;occ</title><path fill="none" stroke="black" d="M100.71,-189.8C107.48,-177.82 116.63,-161.62 124.29,-148.06"/><polygon fill="black" stroke="black" points="127.43,-149.6 129.3,-139.18 121.34,-146.16 127.43,-149.6"/><text text-anchor="middle" x="152" y="-160.8" font-family="Times,serif" font-size="14.00">Backing</text></g><!-- occ2 --><g id="node4" class="node"><title>occ2</title><polygon fill="none" stroke="black" points="367.5,-226 284.5,-226 284.5,-190 367.5,-190 367.5,-226"/><text text-anchor="middle" x="326" y="-204.3" font-family="Times,serif" font-size="14.00">Occupied</text></g><!-- fr3 --><g id="node5" class="node"><title>fr3</title><polygon fill="none" stroke="black" points="520,-139 466,-139 466,-103 520,-103 520,-139"/><text text-anchor="middle" x="493" y="-117.3" font-family="Times,serif" font-size="14.00">Free</text></g><!-- occ2&#45;&gt;fr3 --><g id="edge3" class="edge"><title>occ2&#45;&gt;fr3</title><path fill="none" stroke="black" d="M359.79,-189.8C388,-175.44 428.11,-155.03 456.93,-140.36"/><polygon fill="black" stroke="black" points="458.54,-143.47 465.87,-135.81 455.37,-137.23 458.54,-143.47"/><text text-anchor="middle" x="471.5" y="-160.8" font-family="Times,serif" font-size="14.00">Availability</text></g><!-- occ3 --><g id="node7" class="node"><title>occ3</title><polygon fill="none" stroke="black" points="304.5,-139 221.5,-139 221.5,-103 304.5,-103 304.5,-139"/><text text-anchor="middle" x="263" y="-117.3" font-family="Times,serif" font-size="14.00">Occupied</text></g><!-- occ2&#45;&gt;occ3 --><g id="edge4" class="edge"><title>occ2&#45;&gt;occ3</title><path fill="none" stroke="black" d="M313.25,-189.8C304.2,-177.59 291.9,-160.99 281.74,-147.28"/><polygon fill="black" stroke="black" points="284.5,-145.13 275.73,-139.18 278.87,-149.29 284.5,-145.13"/><text text-anchor="middle" x="350" y="-160.8" font-family="Times,serif" font-size="14.00">No availability</text></g><!-- fr4 --><g id="node6" class="node"><title>fr4</title><polygon fill="none" stroke="black" points="478,-52 424,-52 424,-16 478,-16 478,-52"/><text text-anchor="middle" x="451" y="-30.3" font-family="Times,serif" font-size="14.00">Free</text></g><!-- fr3&#45;&gt;fr4 --><g id="edge5" class="edge"><title>fr3&#45;&gt;fr4</title><path fill="none" stroke="black" d="M484.5,-102.8C478.64,-90.93 470.73,-74.93 464.07,-61.45"/><polygon fill="black" stroke="black" points="467.05,-59.59 459.49,-52.18 460.78,-62.69 467.05,-59.59"/><text text-anchor="middle" x="514.5" y="-73.8" font-family="Times,serif" font-size="14.00">No backing</text></g><!-- occ4 --><g id="node8" class="node"><title>occ4</title><polygon fill="none" stroke="black" points="304.5,-52 221.5,-52 221.5,-16 304.5,-16 304.5,-52"/><text text-anchor="middle" x="263" y="-30.3" font-family="Times,serif" font-size="14.00">Occupied</text></g><!-- fr3&#45;&gt;occ4 --><g id="edge6" class="edge"><title>fr3&#45;&gt;occ4</title><path fill="none" stroke="black" d="M465.71,-109.92C428.5,-96.16 361.11,-71.26 314.3,-53.96"/><polygon fill="black" stroke="black" points="315.23,-50.57 304.64,-50.39 312.8,-57.14 315.23,-50.57"/><text text-anchor="middle" x="420" y="-73.8" font-family="Times,serif" font-size="14.00">Backing</text></g><!-- occ3&#45;&gt;fr3 --><g id="edge8" class="edge"><title>occ3&#45;&gt;fr3</title><path fill="none" stroke="black" d="M304.65,-121C347.64,-121 414.1,-121 455.5,-121"/><polygon fill="black" stroke="black" points="455.71,-124.5 465.71,-121 455.71,-117.5 455.71,-124.5"/><text text-anchor="middle" x="385.25" y="-127.8" font-family="Times,serif" font-size="14.00">Availability Timeout</text></g><!-- occ3&#45;&gt;occ4 --><g id="edge7" class="edge"><title>occ3&#45;&gt;occ4</title><path fill="none" stroke="black" d="M263,-102.8C263,-91.16 263,-75.55 263,-62.24"/><polygon fill="black" stroke="black" points="266.5,-62.18 263,-52.18 259.5,-62.18 266.5,-62.18"/><text text-anchor="middle" x="305" y="-73.8" font-family="Times,serif" font-size="14.00">(no change)</text></g></g></svg></div>
+<h2 id="validator-groups"><a class="header" href="#validator-groups">Validator Groups</a></h2>
+<p>Validator group assignments do not need to change very quickly. The security benefits of fast rotation are redundant with the challenge mechanism in the <a href="../protocol-approval.html">Approval process</a>. Because of this, we only divide validators into groups at the beginning of the session and do not shuffle membership during the session. However, we do take steps to ensure that no particular validator group has dominance over a single lease holding parachain or on-demand parachain-multiplexer for an entire session to provide better guarantees of live-ness.</p>
+<p>Validator groups rotate across availability cores in a round-robin fashion, with rotation occurring at fixed intervals. The i'th group will be assigned to the <code>(i+k)%n</code>'th core at any point in time, where <code>k</code> is the number of rotations that have occurred in the session, and <code>n</code> is the number of cores. This makes upcoming rotations within the same session predictable.</p>
+<p>When a rotation occurs, validator groups are still responsible for distributing availability chunks for any previous cores that are still occupied and pending availability. In practice, rotation and availability-timeout frequencies should be set so this will only be the core they have just been rotated from. It is possible that a validator group is rotated onto a core which is currently occupied. In this case, the validator group will have nothing to do until the previously-assigned group finishes their availability work and frees the core or the availability process times out. Depending on if the core is for a lease holding parachain or on-demand parachain, a different timeout <code>t</code> from the <a href="../types/runtime.html#host-configuration"><code>HostConfiguration</code></a> will apply. Availability timeouts should only be triggered in the first <code>t-1</code> blocks after the beginning of a rotation.</p>
+<h2 id="claims"><a class="header" href="#claims">Claims</a></h2>
+<p>On-demand parachains operate on a system of claims. Collators purchase claims on authoring the next block of an on-demand parachain, although the purchase mechanism is beyond the scope of the scheduler. The scheduler guarantees that they'll be given at least a certain number of attempts to author a candidate that is backed. Attempts that fail during the availability phase are not counted, since ensuring availability at that stage is the responsibility of the backing validators, not of the collator. When a claim is accepted, it is placed into a queue of claims, and each claim is assigned to a particular on-demand parachain-multiplexing core in advance. Given that the current assignments of validator groups to cores are known, and the upcoming assignments are predictable, it is possible for on-demand parachain collators to know who they should be talking to now and how they should begin establishing connections with as a fallback.</p>
+<p>With this information, the Node-side can be aware of which on-demand parachains have a good chance of being includable within the relay-chain block and can focus any additional resources on backing candidates from those on-demand parachains. Furthermore, Node-side code is aware of which validator group will be responsible for that thread. If the necessary conditions are reached for core reassignment, those candidates can be backed within the same block as the core being freed.</p>
+<p>On-demand claims, when scheduled onto a free core, may not result in a block pending availability. This may be due to collator error, networking timeout, or censorship by the validator group. In this case, the claims should be retried a certain number of times to give the collator a fair shot.</p>
+<h2 id="storage"><a class="header" href="#storage">Storage</a></h2>
+<p>Utility structs:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// A claim on authoring the next block for a given parathread (on-demand parachain).
+struct ParathreadClaim(ParaId, CollatorId);
+
+// An entry tracking a parathread (on-demand parachain) claim to ensure it does not 
+// pass the maximum number of retries.
+struct ParathreadEntry {
+  claim: ParathreadClaim,
+  retries: u32,
+}
+
+// A queued parathread (on-demand parachain) entry, pre-assigned to a core.
+struct QueuedParathread {
+  claim: ParathreadEntry,
+  /// offset within the set of parathreads (on-demand parachains) ranged `0..config.parathread_cores`.
+  core_offset: u32,
+}
+
+struct ParathreadQueue {
+  queue: Vec&lt;QueuedParathread&gt;,
+  /// offset within the set of parathreads (on-demand parachains) ranged `0..config.parathread_cores`.
+  next_core_offset: u32,
+}
+
+enum CoreOccupied {
+  // On-demand parachain
+  Parathread(ParathreadEntry), // claim &amp; retries
+  Parachain,
+}
+
+enum AssignmentKind {
+  Parachain,
+  // On-demand parachain
+  Parathread(CollatorId, u32),
+}
+
+struct CoreAssignment {
+  core: CoreIndex,
+  para_id: ParaId,
+  kind: AssignmentKind,
+}
+// reasons a core might be freed.
+enum FreedReason {
+  Concluded,
+  TimedOut,
+}
+<span class="boring">}
+</span></code></pre></pre>
+<p>Storage layout:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// All the validator groups. One for each core. Indices are into the `ActiveValidators` storage.
+ValidatorGroups: Vec&lt;Vec&lt;ValidatorIndex&gt;&gt;;
+/// A queue of upcoming parathread (on-demand parachain) claims and which core they should be mapped onto.
+ParathreadQueue: ParathreadQueue;
+/// One entry for each availability core. Entries are `None` if the core is not currently occupied.
+/// The i'th parachain lease belongs to the i'th core, with the remaining cores all being
+/// on-demand parachain-multiplexers.
+AvailabilityCores: Vec&lt;Option&lt;CoreOccupied&gt;&gt;;
+/// An index used to ensure that only one claim on a parathread (on-demand parachain) exists in the queue or is
+/// currently being handled by an occupied core.
+ParathreadClaimIndex: Vec&lt;ParaId&gt;;
+/// The block number where the session start occurred. Used to track how many group rotations have occurred.
+SessionStartBlock: BlockNumber;
+/// Currently scheduled cores - free but up to be occupied.
+/// The value contained here will not be valid after the end of a block. 
+/// Runtime APIs should be used to determine scheduled cores
+/// for the upcoming block.
+Scheduled: Vec&lt;CoreAssignment&gt;, // sorted ascending by CoreIndex.
+<span class="boring">}
+</span></code></pre></pre>
+<h2 id="session-change"><a class="header" href="#session-change">Session Change</a></h2>
+<p>Session changes are the only time that configuration can change, and the <a href="configuration.html">Configuration module</a>'s session-change logic is handled before this module's. We also lean on the behavior of the <a href="inclusion.html">Inclusion module</a> which clears all its occupied cores on session change. Thus we don't have to worry about cores being occupied across session boundaries and it is safe to re-size the <code>AvailabilityCores</code> bitfield.</p>
+<p>Actions:</p>
+<ol>
+<li>Set <code>SessionStartBlock</code> to current block number + 1, as session changes are applied at the end of the block.</li>
+<li>Clear all <code>Some</code> members of <code>AvailabilityCores</code>. Return all parathread claims to queue with retries un-incremented.</li>
+<li>Set <code>configuration = Configuration::configuration()</code> (see <a href="../types/runtime.html#host-configuration"><code>HostConfiguration</code></a>)</li>
+<li>Fetch <code>Shared::ActiveValidators</code> as AV.</li>
+<li>Determine the number of cores &amp; validator groups as <code>n_cores</code>. This is the maximum of
+<ol>
+<li><code>Paras::parachains().len() + configuration.parathread_cores</code></li>
+<li><code>n_validators / max_validators_per_core</code> if <code>configuration.max_validators_per_core</code> is <code>Some</code> and non-zero.</li>
+</ol>
+</li>
+<li>Resize <code>AvailabilityCores</code> to have length <code>n_cores</code> with all <code>None</code> entries.</li>
+<li>Compute new validator groups by shuffling using a secure randomness beacon
+<ul>
+<li>Note that the total number of validators <code>V</code> in AV may not be evenly divided by <code>n_cores</code>.</li>
+<li>The groups are selected by partitioning AV.  The first <code>V % N</code> groups will have <code>(V / n_cores) + 1</code> members, while the remaining groups will have <code>(V / N)</code> members each.</li>
+<li>Instead of using the indices within AV, which point to the broader set, indices <em>into</em> AV should be used. This implies that groups should have simply ascending validator indices.</li>
+</ul>
+</li>
+<li>Prune the parathread (on-demand parachain) queue to remove all retries beyond <code>configuration.parathread_retries</code>.
+<ul>
+<li>Also prune all on-demand claims corresponding to de-registered parachains.</li>
+<li>all pruned claims should have their entry removed from the parathread (on-demand parachain) index.</li>
+<li>assign all non-pruned claims to new cores if the number of on-demand parachain cores has changed between the <code>new_config</code> and <code>old_config</code> of the <code>SessionChangeNotification</code>.</li>
+<li>Assign claims in equal balance across all cores if rebalancing, and set the <code>next_core</code> of the <code>ParathreadQueue</code> (on-demand queue) by incrementing the relative index of the last assigned core and taking it modulo the number of on-demand cores. </li>
+</ul>
+</li>
+</ol>
+<h2 id="initialization"><a class="header" href="#initialization">Initialization</a></h2>
+<p>No initialization routine runs for this module.</p>
+<h2 id="finalization"><a class="header" href="#finalization">Finalization</a></h2>
+<p>No finalization routine runs for this module.</p>
+<h2 id="routines"><a class="header" href="#routines">Routines</a></h2>
+<ul>
+<li><code>add_parathread_claim(ParathreadClaim)</code>: Add a parathread (on-demand parachain) claim to the queue.
+<ul>
+<li>Fails if any on-demand claim on the same parachain is currently indexed.</li>
+<li>Fails if the queue length is &gt;= <code>config.scheduling_lookahead * config.parathread_cores</code>.</li>
+<li>The core used for the on-demand claim is the <code>next_core</code> field of the <code>ParathreadQueue</code> (on-demand queue) and adding <code>Paras::parachains().len()</code> to it.</li>
+<li><code>next_core</code> is then updated by adding 1 and taking it modulo <code>config.parathread_cores</code>.</li>
+<li>The claim is then added to the claim index.</li>
+</ul>
+</li>
+<li><code>free_cores(Vec&lt;(CoreIndex, FreedReason)&gt;)</code>: indicate previosuly-occupied cores which are to be considered returned and why they are being returned.
+<ul>
+<li>All freed lease holding parachain cores should be assigned to their respective parachain</li>
+<li>All freed on-demand parachain cores whose reason for freeing was <code>FreedReason::Concluded</code> should have the claim removed from the claim index.</li>
+<li>All freed on-demand cores whose reason for freeing was <code>FreedReason::TimedOut</code> should have the claim added to the parathread queue (on-demand queue) again without retries incremented</li>
+<li>All freed on-demand cores should take the next on-demand parachain entry from the queue.</li>
+</ul>
+</li>
+<li><code>schedule(Vec&lt;(CoreIndex, FreedReason)&gt;, now: BlockNumber)</code>: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned and why they are being returned.
+<ul>
+<li>Invoke <code>free_cores(freed_cores)</code></li>
+<li>The i'th validator group will be assigned to the <code>(i+k)%n</code>'th core at any point in time, where <code>k</code> is the number of rotations that have occurred in the session, and <code>n</code> is the total number of cores. This makes upcoming rotations within the same session predictable. Rotations are based off of <code>now</code>.</li>
+</ul>
+</li>
+<li><code>scheduled() -&gt; Vec&lt;CoreAssignment&gt;</code>: Get currently scheduled core assignments.</li>
+<li><code>occupied(Vec&lt;CoreIndex&gt;)</code>. Note that the given cores have become occupied.
+<ul>
+<li>Behavior undefined if any given cores were not scheduled.</li>
+<li>Behavior undefined if the given cores are not sorted ascending by core index</li>
+<li>This clears them from <code>Scheduled</code> and marks each corresponding <code>core</code> in the <code>AvailabilityCores</code> as occupied.</li>
+<li>Since both the availability cores and the newly-occupied cores lists are sorted ascending, this method can be implemented efficiently.</li>
+</ul>
+</li>
+<li><code>core_para(CoreIndex) -&gt; ParaId</code>: return the currently-scheduled or occupied ParaId for the given core.</li>
+<li><code>group_validators(GroupIndex) -&gt; Option&lt;Vec&lt;ValidatorIndex&gt;&gt;</code>: return all validators in a given group, if the group index is valid for this session.</li>
+<li><code>availability_timeout_predicate() -&gt; Option&lt;impl Fn(CoreIndex, BlockNumber) -&gt; bool&gt;</code>: returns an optional predicate that should be used for timing out occupied cores. if <code>None</code>, no timing-out should be done. The predicate accepts the index of the core, and the block number since which it has been occupied. The predicate should be implemented based on the time since the last validator group rotation, and the respective parachain timeouts, i.e. only within <code>max(config.chain_availability_period, config.thread_availability_period)</code> of the last rotation would this return <code>Some</code>.</li>
+<li><code>group_rotation_info(now: BlockNumber) -&gt; GroupRotationInfo</code>: Returns a helper for determining group rotation.</li>
+<li><code>next_up_on_available(CoreIndex) -&gt; Option&lt;ScheduledCore&gt;</code>: Return the next thing that will be scheduled on this core assuming it is currently occupied and the candidate occupying it became available. Returns in <code>ScheduledCore</code> format (todo: link to Runtime APIs page; linkcheck doesn't allow this right now). For lease holding parachains, this is always the ID of the parachain and no specified collator. For on-demand parachains, this is based on the next item in the <code>ParathreadQueue</code> (on-demand queue) assigned to that core, and is <code>None</code> if there isn't one.</li>
+<li><code>next_up_on_time_out(CoreIndex) -&gt; Option&lt;ScheduledCore&gt;</code>: Return the next thing that will be scheduled on this core assuming it is currently occupied and the candidate occupying it timed out. Returns in <code>ScheduledCore</code> format (todo: link to Runtime APIs page; linkcheck doesn't allow this right now). For parachains, this is always the ID of the parachain and no specified collator. For on-demand parachains, this is based on the next item in the <code>ParathreadQueue</code> (on-demand queue) assigned to that core, or if there isn't one, the claim that is currently occupying the core. Otherwise <code>None</code>.</li>
+<li><code>clear()</code>:
+<ul>
+<li>Free all scheduled cores and return on-demand claims to queue, with retries incremented. Skip on-demand parachains which no longer exist under paras.</li>
+</ul>
+</li>
+</ul>
+<footer id="last-change">Last change: 2023-08-18, commit: <a href="https://github.com/paritytech/polkadot/commit/4b7822adeb">4b7822adeb</a></footer>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../runtime/paras.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="../runtime/inclusion.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../runtime/paras.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="../runtime/inclusion.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="../mermaid.min.js"></script>
+        <script type="text/javascript" src="../mermaid-init.js"></script>
+
+
+    </body>
+</html>

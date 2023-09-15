@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["HrmpAcceptedChannelRequestCount","HrmpChannelContents","HrmpChannelDigests","HrmpChannels","HrmpCloseChannelRequests","HrmpCloseChannelRequestsList","HrmpEgressChannelsIndex","HrmpIngressChannelsIndex","HrmpOpenChannelRequestCount","HrmpOpenChannelRequests","HrmpOpenChannelRequestsList","HrmpWatermarks"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ParaKind","ParaLifecycle"],"mod":["pallet"],"struct":["ParaGenesisArgs","ParaPastCodeMeta","ReplacementTimes","TestWeightInfo"],"trait":["WeightInfo"]};

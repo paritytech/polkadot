@@ -1,0 +1,8 @@
+(function() {var implementors = {
+"kusama_runtime":[["impl OriginTrait for <a class=\"struct\" href=\"kusama_runtime/struct.RuntimeOrigin.html\" title=\"struct kusama_runtime::RuntimeOrigin\">RuntimeOrigin</a>"]],
+"polkadot_runtime":[["impl OriginTrait for <a class=\"struct\" href=\"polkadot_runtime/struct.RuntimeOrigin.html\" title=\"struct polkadot_runtime::RuntimeOrigin\">RuntimeOrigin</a>"]],
+"polkadot_test_runtime":[["impl OriginTrait for <a class=\"struct\" href=\"polkadot_test_runtime/struct.RuntimeOrigin.html\" title=\"struct polkadot_test_runtime::RuntimeOrigin\">RuntimeOrigin</a>"]],
+"rococo_runtime":[["impl OriginTrait for <a class=\"struct\" href=\"rococo_runtime/struct.RuntimeOrigin.html\" title=\"struct rococo_runtime::RuntimeOrigin\">RuntimeOrigin</a>"]],
+"westend_runtime":[["impl OriginTrait for <a class=\"struct\" href=\"westend_runtime/struct.RuntimeOrigin.html\" title=\"struct westend_runtime::RuntimeOrigin\">RuntimeOrigin</a>"]],
+"xcm_fuzzer":[["impl OriginTrait for <a class=\"struct\" href=\"xcm_fuzzer/parachain/struct.RuntimeOrigin.html\" title=\"struct xcm_fuzzer::parachain::RuntimeOrigin\">RuntimeOrigin</a>"],["impl OriginTrait for <a class=\"struct\" href=\"xcm_fuzzer/relay_chain/struct.RuntimeOrigin.html\" title=\"struct xcm_fuzzer::relay_chain::RuntimeOrigin\">RuntimeOrigin</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

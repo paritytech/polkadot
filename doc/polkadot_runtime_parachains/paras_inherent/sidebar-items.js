@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ProcessInherentDataContext"],"fn":["backed_candidate_weight","backed_candidates_weight","dispute_statement_set_weight","multi_dispute_statement_sets_weight","paras_inherent_total_weight","signed_bitfield_weight","signed_bitfields_weight"],"mod":["pallet"],"struct":["TestWeightInfo"],"trait":["IndexedRetain","IsSortedBy","WeightInfo"]};

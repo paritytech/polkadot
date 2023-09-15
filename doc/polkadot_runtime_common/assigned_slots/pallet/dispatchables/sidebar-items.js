@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["assign_perm_parachain_slot","assign_temp_parachain_slot","set_max_permanent_slots","set_max_temporary_slots","unassign_parachain_slot"]};

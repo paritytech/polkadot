@@ -1,0 +1,260 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Collator Protocol - The Polkadot Parachain Host Implementers&#x27; Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../../highlight.css">
+        <link rel="stylesheet" href="../../tomorrow-night.css">
+        <link rel="stylesheet" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../last-changed.css">
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../../index.html">Preamble</a></li><li class="chapter-item expanded "><a href="../../whence-parachains.html"><strong aria-hidden="true">1.</strong> Whence Parachains</a></li><li class="chapter-item expanded "><a href="../../protocol-overview.html"><strong aria-hidden="true">2.</strong> Protocol Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../protocol-approval.html"><strong aria-hidden="true">2.1.</strong> Approval Process</a></li><li class="chapter-item expanded "><a href="../../protocol-disputes.html"><strong aria-hidden="true">2.2.</strong> Disputes Process</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../disputes-flow.html"><strong aria-hidden="true">2.2.1.</strong> Dispute Flow</a></li></ol></li><li class="chapter-item expanded "><a href="../../protocol-chain-selection.html"><strong aria-hidden="true">2.3.</strong> Chain Selection and Finalization</a></li></ol></li><li class="chapter-item expanded "><a href="../../architecture.html"><strong aria-hidden="true">3.</strong> Architecture Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../messaging.html"><strong aria-hidden="true">3.1.</strong> Messaging Overview</a></li><li class="chapter-item expanded "><a href="../../pvf-prechecking.html"><strong aria-hidden="true">3.2.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../runtime/index.html"><strong aria-hidden="true">4.</strong> Runtime Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../runtime/initializer.html"><strong aria-hidden="true">4.1.</strong> Initializer Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/configuration.html"><strong aria-hidden="true">4.2.</strong> Configuration Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/shared.html"><strong aria-hidden="true">4.3.</strong> Shared Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/disputes.html"><strong aria-hidden="true">4.4.</strong> Disputes Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/paras.html"><strong aria-hidden="true">4.5.</strong> Paras Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/scheduler.html"><strong aria-hidden="true">4.6.</strong> Scheduler Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/inclusion.html"><strong aria-hidden="true">4.7.</strong> Inclusion Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/parainherent.html"><strong aria-hidden="true">4.8.</strong> ParaInherent Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/dmp.html"><strong aria-hidden="true">4.9.</strong> DMP Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/hrmp.html"><strong aria-hidden="true">4.10.</strong> HRMP Pallet</a></li><li class="chapter-item expanded "><a href="../../runtime/session_info.html"><strong aria-hidden="true">4.11.</strong> Session Info Pallet</a></li></ol></li><li class="chapter-item expanded "><a href="../../runtime-api/index.html"><strong aria-hidden="true">5.</strong> Runtime APIs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../runtime-api/validators.html"><strong aria-hidden="true">5.1.</strong> Validators</a></li><li class="chapter-item expanded "><a href="../../runtime-api/validator-groups.html"><strong aria-hidden="true">5.2.</strong> Validator Groups</a></li><li class="chapter-item expanded "><a href="../../runtime-api/availability-cores.html"><strong aria-hidden="true">5.3.</strong> Availability Cores</a></li><li class="chapter-item expanded "><a href="../../runtime-api/persisted-validation-data.html"><strong aria-hidden="true">5.4.</strong> Persisted Validation Data</a></li><li class="chapter-item expanded "><a href="../../runtime-api/session-index.html"><strong aria-hidden="true">5.5.</strong> Session Index</a></li><li class="chapter-item expanded "><a href="../../runtime-api/validation-code.html"><strong aria-hidden="true">5.6.</strong> Validation Code</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidate-pending-availability.html"><strong aria-hidden="true">5.7.</strong> Candidate Pending Availability</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidate-events.html"><strong aria-hidden="true">5.8.</strong> Candidate Events</a></li><li class="chapter-item expanded "><a href="../../runtime-api/disputes-info.html"><strong aria-hidden="true">5.9.</strong> Disputes Info</a></li><li class="chapter-item expanded "><a href="../../runtime-api/candidates-included.html"><strong aria-hidden="true">5.10.</strong> Candidates Included</a></li><li class="chapter-item expanded "><a href="../../runtime-api/pvf-prechecking.html"><strong aria-hidden="true">5.11.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/index.html"><strong aria-hidden="true">6.</strong> Node Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/subsystems-and-jobs.html"><strong aria-hidden="true">6.1.</strong> Subsystems and Jobs</a></li><li class="chapter-item expanded "><a href="../../node/overseer.html"><strong aria-hidden="true">6.2.</strong> Overseer</a></li><li class="chapter-item expanded "><a href="../../node/grandpa-voting-rule.html"><strong aria-hidden="true">6.3.</strong> GRANDPA Voting Rule</a></li><li class="chapter-item expanded "><a href="../../node/collators/index.html"><strong aria-hidden="true">6.4.</strong> Collator Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/collators/collation-generation.html"><strong aria-hidden="true">6.4.1.</strong> Collation Generation</a></li><li class="chapter-item expanded "><a href="../../node/collators/collator-protocol.html" class="active"><strong aria-hidden="true">6.4.2.</strong> Collator Protocol</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/backing/index.html"><strong aria-hidden="true">6.5.</strong> Backing Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/backing/candidate-backing.html"><strong aria-hidden="true">6.5.1.</strong> Candidate Backing</a></li><li class="chapter-item expanded "><a href="../../node/backing/prospective-parachains.html"><strong aria-hidden="true">6.5.2.</strong> Prospective Parachains</a></li><li class="chapter-item expanded "><a href="../../node/backing/statement-distribution.html"><strong aria-hidden="true">6.5.3.</strong> Statement Distribution</a></li><li class="chapter-item expanded "><a href="../../node/backing/statement-distribution-legacy.html"><strong aria-hidden="true">6.5.4.</strong> Statement Distribution (Legacy)</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/availability/index.html"><strong aria-hidden="true">6.6.</strong> Availability Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/availability/availability-distribution.html"><strong aria-hidden="true">6.6.1.</strong> Availability Distribution</a></li><li class="chapter-item expanded "><a href="../../node/availability/availability-recovery.html"><strong aria-hidden="true">6.6.2.</strong> Availability Recovery</a></li><li class="chapter-item expanded "><a href="../../node/availability/bitfield-distribution.html"><strong aria-hidden="true">6.6.3.</strong> Bitfield Distribution</a></li><li class="chapter-item expanded "><a href="../../node/availability/bitfield-signing.html"><strong aria-hidden="true">6.6.4.</strong> Bitfield Signing</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/approval/index.html"><strong aria-hidden="true">6.7.</strong> Approval Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/approval/approval-voting.html"><strong aria-hidden="true">6.7.1.</strong> Approval Voting</a></li><li class="chapter-item expanded "><a href="../../node/approval/approval-distribution.html"><strong aria-hidden="true">6.7.2.</strong> Approval Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/disputes/index.html"><strong aria-hidden="true">6.8.</strong> Disputes Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/disputes/dispute-coordinator.html"><strong aria-hidden="true">6.8.1.</strong> Dispute Coordinator</a></li><li class="chapter-item expanded "><a href="../../node/disputes/dispute-distribution.html"><strong aria-hidden="true">6.8.2.</strong> Dispute Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/utility/index.html"><strong aria-hidden="true">6.9.</strong> Utility Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/utility/availability-store.html"><strong aria-hidden="true">6.9.1.</strong> Availability Store</a></li><li class="chapter-item expanded "><a href="../../node/utility/candidate-validation.html"><strong aria-hidden="true">6.9.2.</strong> Candidate Validation</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../node/utility/pvf-host-and-workers.html"><strong aria-hidden="true">6.9.2.1.</strong> PVF Host and Workers</a></li></ol></li><li class="chapter-item expanded "><a href="../../node/utility/provisioner.html"><strong aria-hidden="true">6.9.3.</strong> Provisioner</a></li><li class="chapter-item expanded "><a href="../../node/utility/network-bridge.html"><strong aria-hidden="true">6.9.4.</strong> Network Bridge</a></li><li class="chapter-item expanded "><a href="../../node/utility/gossip-support.html"><strong aria-hidden="true">6.9.5.</strong> Gossip Support</a></li><li class="chapter-item expanded "><a href="../../node/utility/peer-set-manager.html"><strong aria-hidden="true">6.9.6.</strong> Peer Set Manager</a></li><li class="chapter-item expanded "><a href="../../node/utility/runtime-api.html"><strong aria-hidden="true">6.9.7.</strong> Runtime API Requests</a></li><li class="chapter-item expanded "><a href="../../node/utility/chain-api.html"><strong aria-hidden="true">6.9.8.</strong> Chain API Requests</a></li><li class="chapter-item expanded "><a href="../../node/utility/chain-selection.html"><strong aria-hidden="true">6.9.9.</strong> Chain Selection Request</a></li><li class="chapter-item expanded "><a href="../../node/utility/pvf-prechecker.html"><strong aria-hidden="true">6.9.10.</strong> PVF Pre-Checking</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="../../types/index.html"><strong aria-hidden="true">7.</strong> Data Structures and Types</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../../types/candidate.html"><strong aria-hidden="true">7.1.</strong> Candidate</a></li><li class="chapter-item expanded "><a href="../../types/backing.html"><strong aria-hidden="true">7.2.</strong> Backing</a></li><li class="chapter-item expanded "><a href="../../types/availability.html"><strong aria-hidden="true">7.3.</strong> Availability</a></li><li class="chapter-item expanded "><a href="../../types/overseer-protocol.html"><strong aria-hidden="true">7.4.</strong> Overseer and Subsystem Protocol</a></li><li class="chapter-item expanded "><a href="../../types/runtime.html"><strong aria-hidden="true">7.5.</strong> Runtime</a></li><li class="chapter-item expanded "><a href="../../types/messages.html"><strong aria-hidden="true">7.6.</strong> Messages</a></li><li class="chapter-item expanded "><a href="../../types/network.html"><strong aria-hidden="true">7.7.</strong> Network</a></li><li class="chapter-item expanded "><a href="../../types/approval.html"><strong aria-hidden="true">7.8.</strong> Approvals</a></li><li class="chapter-item expanded "><a href="../../types/disputes.html"><strong aria-hidden="true">7.9.</strong> Disputes</a></li><li class="chapter-item expanded "><a href="../../types/pvf-prechecking.html"><strong aria-hidden="true">7.10.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="../../glossary.html">Glossary</a></li><li class="chapter-item expanded affix "><a href="../../further-reading.html">Further Reading</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Polkadot Parachain Host Implementers&#x27; Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/paritytech/polkadot" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="collator-protocol"><a class="header" href="#collator-protocol">Collator Protocol</a></h1>
+<p>The Collator Protocol implements the network protocol by which collators and validators communicate. It is used by collators to distribute collations to validators and used by validators to accept collations by collators.</p>
+<p>Collator-to-Validator networking is more difficult than Validator-to-Validator networking because the set of possible collators for any given para is unbounded, unlike the validator set. Validator-to-Validator networking protocols can easily be implemented as gossip because the data can be bounded, and validators can authenticate each other by their <code>PeerId</code>s for the purposes of instantiating and accepting connections.</p>
+<p>Since, at least at the level of the para abstraction, the collator-set for any given para is unbounded, validators need to make sure that they are receiving connections from capable and honest collators and that their bandwidth and time are not being wasted by attackers. Communicating across this trust-boundary is the most difficult part of this subsystem.</p>
+<p>Validation of candidates is a heavy task, and furthermore, the <a href="../../types/availability.html#proofofvalidity"><code>PoV</code></a> itself is a large piece of data. Empirically, <code>PoV</code>s are on the order of 10MB.</p>
+<blockquote>
+<p>TODO: note the incremental validation function Ximin proposes at https://github.com/paritytech/polkadot/issues/1348</p>
+</blockquote>
+<p>As this network protocol serves as a bridge between collators and validators, it communicates primarily with one subsystem on behalf of each. As a collator, this will receive messages from the <a href="collation-generation.html"><code>CollationGeneration</code></a> subsystem. As a validator, this will communicate only with the <a href="../backing/candidate-backing.html"><code>CandidateBacking</code></a>.</p>
+<h2 id="protocol"><a class="header" href="#protocol">Protocol</a></h2>
+<p>Input: <a href="../../types/overseer-protocol.html#collator-protocol-message"><code>CollatorProtocolMessage</code></a></p>
+<p>Output:</p>
+<ul>
+<li><a href="../../types/overseer-protocol.html#runtime-api-message"><code>RuntimeApiMessage</code></a></li>
+<li><a href="../../types/overseer-protocol.html#network-bridge-message"><code>NetworkBridgeMessage</code></a></li>
+<li><a href="../../types/overseer-protocol.html#candidate-backing-mesage"><code>CandidateBackingMessage</code></a></li>
+</ul>
+<h2 id="functionality"><a class="header" href="#functionality">Functionality</a></h2>
+<p>This network protocol uses the <code>Collation</code> peer-set of the <a href="../utility/network-bridge.html"><code>NetworkBridge</code></a>.</p>
+<p>It uses the <a href="../../types/network.html#collator-protocol"><code>CollatorProtocolV1Message</code></a> as its <code>WireMessage</code></p>
+<p>Since this protocol functions both for validators and collators, it is easiest to go through the protocol actions for each of them separately.</p>
+<p>Validators and collators.</p>
+<div><!-- Generated by graphviz version 2.43.0 (0)
+ --><!-- Title: %3 Pages: 1 --><svg width="216pt" height="116pt"
+ viewBox="0.00 0.00 216.00 116.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 112)"><title>%3</title><polygon fill="white" stroke="transparent" points="-4,4 -4,-112 212,-112 212,4 -4,4"/><!-- c1 --><g id="node1" class="node"><title>c1</title><polygon fill="none" stroke="black" points="95,-108 8,-108 8,-72 95,-72 95,-108"/><text text-anchor="middle" x="51.5" y="-86.3" font-family="Times,serif" font-size="14.00">Collator 1</text></g><!-- v1 --><g id="node3" class="node"><title>v1</title><polygon fill="none" stroke="black" points="95,-36 0,-36 0,0 95,0 95,-36"/><text text-anchor="middle" x="47.5" y="-14.3" font-family="Times,serif" font-size="14.00">Validator 1</text></g><!-- c1&#45;&gt;v1 --><g id="edge1" class="edge"><title>c1&#45;&gt;v1</title><path fill="none" stroke="black" d="M50.51,-71.7C50.07,-63.98 49.54,-54.71 49.05,-46.11"/><polygon fill="black" stroke="black" points="52.54,-45.89 48.48,-36.1 45.55,-46.29 52.54,-45.89"/></g><!-- v2 --><g id="node4" class="node"><title>v2</title><polygon fill="none" stroke="black" points="208,-36 113,-36 113,0 208,0 208,-36"/><text text-anchor="middle" x="160.5" y="-14.3" font-family="Times,serif" font-size="14.00">Validator 2</text></g><!-- c1&#45;&gt;v2 --><g id="edge2" class="edge"><title>c1&#45;&gt;v2</title><path fill="none" stroke="black" d="M78.16,-71.88C92.28,-62.81 109.81,-51.55 125.06,-41.76"/><polygon fill="black" stroke="black" points="127.21,-44.54 133.73,-36.19 123.43,-38.65 127.21,-44.54"/></g><!-- c2 --><g id="node2" class="node"><title>c2</title><polygon fill="none" stroke="black" points="204,-108 117,-108 117,-72 204,-72 204,-108"/><text text-anchor="middle" x="160.5" y="-86.3" font-family="Times,serif" font-size="14.00">Collator 2</text></g><!-- c2&#45;&gt;v2 --><g id="edge3" class="edge"><title>c2&#45;&gt;v2</title><path fill="none" stroke="black" d="M160.5,-71.7C160.5,-63.98 160.5,-54.71 160.5,-46.11"/><polygon fill="black" stroke="black" points="164,-46.1 160.5,-36.1 157,-46.1 164,-46.1"/></g></g></svg></div>
+<h3 id="collators"><a class="header" href="#collators">Collators</a></h3>
+<p>It is assumed that collators are only collating on a single parachain. Collations are generated by the <a href="collation-generation.html">Collation Generation</a> subsystem. We will keep up to one local collation per relay-parent, based on <code>DistributeCollation</code> messages. If the para is not scheduled on any core, at the relay-parent, or the relay-parent isn't in the active-leaves set, we ignore the message as it must be invalid in that case - although this indicates a logic error elsewhere in the node.</p>
+<p>We keep track of the Para ID we are collating on as a collator. This starts as <code>None</code>, and is updated with each <code>CollateOn</code> message received. If the <code>ParaId</code> of a collation requested to be distributed does not match the one we expect, we ignore the message.</p>
+<p>As with most other subsystems, we track the active leaves set by following <code>ActiveLeavesUpdate</code> signals.</p>
+<p>For the purposes of actually distributing a collation, we need to be connected to the validators who are interested in collations on that <code>ParaId</code> at this point in time. We assume that there is a discovery API for connecting to a set of validators.</p>
+<p>As seen in the <a href="../../runtime/scheduler.html">Scheduler Module</a> of the runtime, validator groups are fixed for an entire session and their rotations across cores are predictable. Collators will want to do these things when attempting to distribute collations at a given relay-parent:</p>
+<ul>
+<li>Determine which core the para collated-on is assigned to.</li>
+<li>Determine the group on that core.</li>
+<li>Issue a discovery request for the validators of the current group with<a href="../../types/overseer-protocol.html#network-bridge-message"><code>NetworkBridgeMessage</code></a><code>::ConnectToValidators</code>.</li>
+</ul>
+<p>Once connected to the relevant peers for the current group assigned to the core (transitively, the para), advertise the collation to any of them which advertise the relay-parent in their view (as provided by the <a href="../utility/network-bridge.html">Network Bridge</a>). If any respond with a request for the full collation, provide it. However, we only send one collation at a time per relay parent, other requests need to wait. This is done to reduce the bandwidth requirements of a collator and also increases the chance to fully send the collation to at least one validator. From the point where one validator has received the collation and seconded it, it will also start to share this collation with other validators in its backing group. Upon receiving a view update from any of these peers which includes a relay-parent for which we have a collation that they will find relevant, advertise the collation to them if we haven't already.</p>
+<h3 id="validators"><a class="header" href="#validators">Validators</a></h3>
+<p>On the validator side of the protocol, validators need to accept incoming connections from collators. They should keep some peer slots open for accepting new speculative connections from collators and should disconnect from collators who are not relevant.</p>
+<div><!-- Generated by graphviz version 2.43.0 (0)
+ --><!-- Title: G Pages: 1 --><svg width="364pt" height="209pt"
+ viewBox="0.00 0.00 364.00 209.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 205)"><title>G</title><polygon fill="white" stroke="transparent" points="-4,4 -4,-205 360,-205 360,4 -4,4"/><text text-anchor="middle" x="178" y="-185.8" font-family="Times,serif" font-size="14.00">Declaring, advertising, and providing collations</text><g id="clust1" class="cluster"><title>cluster_collator</title><polygon fill="none" stroke="black" points="8.25,-41 8.25,-170 82.25,-170 82.25,-41 8.25,-41"/><text text-anchor="middle" x="45.25" y="-154.8" font-family="Times,serif" font-size="14.00">Collator</text></g><g id="clust2" class="cluster"><title>cluster_validator</title><polygon fill="none" stroke="black" points="259.25,-8 259.25,-170 340.25,-170 340.25,-8 259.25,-8"/><text text-anchor="middle" x="299.75" y="-154.8" font-family="Times,serif" font-size="14.00">Validator</text></g><!-- c1 --><g id="node1" class="node"><title>c1</title><ellipse fill="none" stroke="black" cx="45.25" cy="-121" rx="27" ry="18"/></g><!-- v1 --><g id="node3" class="node"><title>v1</title><ellipse fill="none" stroke="black" cx="299.25" cy="-121" rx="27" ry="18"/></g><!-- c1&#45;&gt;v1 --><g id="edge1" class="edge"><title>c1&#45;&gt;v1</title><path fill="none" stroke="black" d="M72.27,-121C117.45,-121 210.48,-121 261.97,-121"/><polygon fill="black" stroke="black" points="261.99,-124.5 271.99,-121 261.99,-117.5 261.99,-124.5"/><text text-anchor="middle" x="170.75" y="-124.8" font-family="Times,serif" font-size="14.00">Declare and advertise</text></g><!-- c2 --><g id="node2" class="node"><title>c2</title><ellipse fill="none" stroke="black" cx="45.25" cy="-67" rx="27" ry="18"/></g><!-- v2 --><g id="node4" class="node"><title>v2</title><ellipse fill="none" stroke="black" cx="299.25" cy="-34" rx="27" ry="18"/></g><!-- c2&#45;&gt;v2 --><g id="edge3" class="edge"><title>c2&#45;&gt;v2</title><path fill="none" stroke="black" d="M65.18,-54.74C73.2,-50.19 82.85,-45.52 92.25,-43 150.14,-27.46 220.42,-28.4 262.12,-30.91"/><polygon fill="black" stroke="black" points="262.13,-34.41 272.34,-31.59 262.59,-27.43 262.13,-34.41"/><text text-anchor="middle" x="170.75" y="-46.8" font-family="Times,serif" font-size="14.00">Provide</text></g><!-- v1&#45;&gt;c2 --><g id="edge2" class="edge"><title>v1&#45;&gt;c2</title><path fill="none" stroke="black" d="M276.12,-111.34C267.82,-108.01 258.22,-104.49 249.25,-102 191.86,-86.1 123.25,-76.08 82.29,-71.01"/><polygon fill="black" stroke="black" points="82.6,-67.52 72.25,-69.8 81.76,-74.47 82.6,-67.52"/><text text-anchor="middle" x="170.75" y="-105.8" font-family="Times,serif" font-size="14.00">Request</text></g><!-- v2&#45;&gt;v2 --><g id="edge4" class="edge"><title>v2&#45;&gt;v2</title><path fill="none" stroke="black" d="M279.52,-46.54C269.92,-57.87 276.5,-70 299.25,-70 315.78,-70 323.77,-63.6 323.22,-55.75"/><polygon fill="black" stroke="black" points="326.34,-54.16 318.98,-46.54 319.99,-57.09 326.34,-54.16"/><text text-anchor="middle" x="299.25" y="-73.8" font-family="Times,serif" font-size="14.00">Note Good/Bad</text></g></g></svg></div>
+<p>When peers connect to us, they can <code>Declare</code> that they represent a collator with given public key and intend to collate on a specific para ID. Once they've declared that, and we checked their signature, they can begin to send advertisements of collations. The peers should not send us any advertisements for collations that are on a relay-parent outside of our view or for a para outside of the one they've declared.</p>
+<p>The protocol tracks advertisements received and the source of the advertisement. The advertisement source is the <code>PeerId</code> of the peer who sent the message. We accept one advertisement per collator per source per relay-parent.</p>
+<p>As a validator, we will handle requests from other subsystems to fetch a collation on a specific <code>ParaId</code> and relay-parent. These requests are made with the request response protocol <code>CollationFetchingRequest</code> request. To do so, we need to first check if we have already gathered a collation on that <code>ParaId</code> and relay-parent. If not, we need to select one of the advertisements and issue a request for it. If we've already issued a request, we shouldn't issue another one until the first has returned.</p>
+<p>When acting on an advertisement, we issue a <code>Requests::CollationFetchingV1</code>. However, we only request one collation at a time per relay parent. This reduces the bandwidth requirements and as we can second only one candidate per relay parent, the others are probably not required anyway. If the request times out, we need to note the collator as being unreliable and reduce its priority relative to other collators.</p>
+<p>As a validator, once the collation has been fetched some other subsystem will inspect and do deeper validation of the collation. The subsystem will report to this subsystem with a <a href="../../types/overseer-protocol.html#collator-protocol-message"><code>CollatorProtocolMessage</code></a><code>::ReportCollator</code>. In that case, if we are connected directly to the collator, we apply a cost to the <code>PeerId</code> associated with the collator and potentially disconnect or blacklist it. If the collation is seconded, we notify the collator and apply a benefit to the <code>PeerId</code> associated with the collator.</p>
+<h3 id="interaction-with-candidate-backing"><a class="header" href="#interaction-with-candidate-backing">Interaction with <a href="../backing/candidate-backing.html">Candidate Backing</a></a></h3>
+<p>As collators advertise the availability, a validator will simply second the first valid parablock candidate per relay head by sending a <a href="../../types/overseer-protocol.html#candidate-backing-mesage"><code>CandidateBackingMessage</code></a><code>::Second</code>. Note that this message contains the relay parent of the advertised collation, the candidate receipt and the <a href="../../types/availability.html#proofofvalidity">PoV</a>.</p>
+<p>Subsequently, once a valid parablock candidate has been seconded, the <a href="../backing/candidate-backing.html"><code>CandidateBacking</code></a> subsystem will send a <a href="../../types/overseer-protocol.html#collator-protocol-message"><code>CollatorProtocolMessage</code></a><code>::Seconded</code>, which will trigger this subsystem to notify the collator at the <code>PeerId</code> that first advertised the parablock on the seconded relay head of their successful seconding.</p>
+<h2 id="future-work"><a class="header" href="#future-work">Future Work</a></h2>
+<p>Several approaches have been discussed, but all have some issues:</p>
+<ul>
+<li>The current approach is very straightforward. However, that protocol is vulnerable to a single collator which, as an attack or simply through chance, gets its block candidate to the node more often than its fair share of the time.</li>
+<li>If collators produce blocks via Aura, BABE or in future Sassafras, it may be possible to choose an &quot;Official&quot; collator for the round, but it may be tricky to ensure that the PVF logic is enforced at collator leader election.</li>
+<li>We could use relay-chain BABE randomness to generate some delay <code>D</code> on the order of 1 second, +- 1 second. The collator would then second the first valid parablock which arrives after <code>D</code>, or in case none has arrived by <code>2*D</code>, the last valid parablock which has arrived. This makes it very hard for a collator to game the system to always get its block nominated, but it reduces the maximum throughput of the system by introducing delay into an already tight schedule.</li>
+<li>A variation of that scheme would be to have a fixed acceptance window <code>D</code> for parablock candidates and keep track of count <code>C</code>: the number of parablock candidates received. At the end of the period <code>D</code>, we choose a random number I in the range <code>[0, C)</code> and second the block at Index I. Its drawback is the same: it must wait the full <code>D</code> period before seconding any of its received candidates, reducing throughput.</li>
+<li>In order to protect against DoS attacks, it may be prudent to run throw out collations from collators that have behaved poorly (whether recently or historically) and subsequently only verify the PoV for the most suitable of collations.</li>
+</ul>
+<footer id="last-change">Last change: 2022-04-21, commit: <a href="https://github.com/paritytech/polkadot/commit/55bf03157f">55bf03157f</a></footer>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../node/collators/collation-generation.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="../../node/backing/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../node/collators/collation-generation.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="../../node/backing/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="../../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="../../mermaid.min.js"></script>
+        <script type="text/javascript" src="../../mermaid-init.js"></script>
+
+
+    </body>
+</html>

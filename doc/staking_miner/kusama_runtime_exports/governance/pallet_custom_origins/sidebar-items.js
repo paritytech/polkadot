@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Call","Origin"],"struct":["AuctionAdmin","EnsureFellowship","Fellows","FellowshipAdmin","FellowshipExperts","FellowshipInitiates","FellowshipMasters","GeneralAdmin","LeaseAdmin","Pallet","ReferendumCanceller","ReferendumKiller","Spender","StakingAdmin","Treasurer","WhitelistedCaller"],"trait":["Config"],"type":["Module"]};

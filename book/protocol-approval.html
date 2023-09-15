@@ -1,0 +1,321 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Approval Process - The Polkadot Parachain Host Implementers&#x27; Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="last-changed.css">
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Preamble</a></li><li class="chapter-item expanded "><a href="whence-parachains.html"><strong aria-hidden="true">1.</strong> Whence Parachains</a></li><li class="chapter-item expanded "><a href="protocol-overview.html"><strong aria-hidden="true">2.</strong> Protocol Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="protocol-approval.html" class="active"><strong aria-hidden="true">2.1.</strong> Approval Process</a></li><li class="chapter-item expanded "><a href="protocol-disputes.html"><strong aria-hidden="true">2.2.</strong> Disputes Process</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="disputes-flow.html"><strong aria-hidden="true">2.2.1.</strong> Dispute Flow</a></li></ol></li><li class="chapter-item expanded "><a href="protocol-chain-selection.html"><strong aria-hidden="true">2.3.</strong> Chain Selection and Finalization</a></li></ol></li><li class="chapter-item expanded "><a href="architecture.html"><strong aria-hidden="true">3.</strong> Architecture Overview</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="messaging.html"><strong aria-hidden="true">3.1.</strong> Messaging Overview</a></li><li class="chapter-item expanded "><a href="pvf-prechecking.html"><strong aria-hidden="true">3.2.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="runtime/index.html"><strong aria-hidden="true">4.</strong> Runtime Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="runtime/initializer.html"><strong aria-hidden="true">4.1.</strong> Initializer Pallet</a></li><li class="chapter-item expanded "><a href="runtime/configuration.html"><strong aria-hidden="true">4.2.</strong> Configuration Pallet</a></li><li class="chapter-item expanded "><a href="runtime/shared.html"><strong aria-hidden="true">4.3.</strong> Shared Pallet</a></li><li class="chapter-item expanded "><a href="runtime/disputes.html"><strong aria-hidden="true">4.4.</strong> Disputes Pallet</a></li><li class="chapter-item expanded "><a href="runtime/paras.html"><strong aria-hidden="true">4.5.</strong> Paras Pallet</a></li><li class="chapter-item expanded "><a href="runtime/scheduler.html"><strong aria-hidden="true">4.6.</strong> Scheduler Pallet</a></li><li class="chapter-item expanded "><a href="runtime/inclusion.html"><strong aria-hidden="true">4.7.</strong> Inclusion Pallet</a></li><li class="chapter-item expanded "><a href="runtime/parainherent.html"><strong aria-hidden="true">4.8.</strong> ParaInherent Pallet</a></li><li class="chapter-item expanded "><a href="runtime/dmp.html"><strong aria-hidden="true">4.9.</strong> DMP Pallet</a></li><li class="chapter-item expanded "><a href="runtime/hrmp.html"><strong aria-hidden="true">4.10.</strong> HRMP Pallet</a></li><li class="chapter-item expanded "><a href="runtime/session_info.html"><strong aria-hidden="true">4.11.</strong> Session Info Pallet</a></li></ol></li><li class="chapter-item expanded "><a href="runtime-api/index.html"><strong aria-hidden="true">5.</strong> Runtime APIs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="runtime-api/validators.html"><strong aria-hidden="true">5.1.</strong> Validators</a></li><li class="chapter-item expanded "><a href="runtime-api/validator-groups.html"><strong aria-hidden="true">5.2.</strong> Validator Groups</a></li><li class="chapter-item expanded "><a href="runtime-api/availability-cores.html"><strong aria-hidden="true">5.3.</strong> Availability Cores</a></li><li class="chapter-item expanded "><a href="runtime-api/persisted-validation-data.html"><strong aria-hidden="true">5.4.</strong> Persisted Validation Data</a></li><li class="chapter-item expanded "><a href="runtime-api/session-index.html"><strong aria-hidden="true">5.5.</strong> Session Index</a></li><li class="chapter-item expanded "><a href="runtime-api/validation-code.html"><strong aria-hidden="true">5.6.</strong> Validation Code</a></li><li class="chapter-item expanded "><a href="runtime-api/candidate-pending-availability.html"><strong aria-hidden="true">5.7.</strong> Candidate Pending Availability</a></li><li class="chapter-item expanded "><a href="runtime-api/candidate-events.html"><strong aria-hidden="true">5.8.</strong> Candidate Events</a></li><li class="chapter-item expanded "><a href="runtime-api/disputes-info.html"><strong aria-hidden="true">5.9.</strong> Disputes Info</a></li><li class="chapter-item expanded "><a href="runtime-api/candidates-included.html"><strong aria-hidden="true">5.10.</strong> Candidates Included</a></li><li class="chapter-item expanded "><a href="runtime-api/pvf-prechecking.html"><strong aria-hidden="true">5.11.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="node/index.html"><strong aria-hidden="true">6.</strong> Node Architecture</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/subsystems-and-jobs.html"><strong aria-hidden="true">6.1.</strong> Subsystems and Jobs</a></li><li class="chapter-item expanded "><a href="node/overseer.html"><strong aria-hidden="true">6.2.</strong> Overseer</a></li><li class="chapter-item expanded "><a href="node/grandpa-voting-rule.html"><strong aria-hidden="true">6.3.</strong> GRANDPA Voting Rule</a></li><li class="chapter-item expanded "><a href="node/collators/index.html"><strong aria-hidden="true">6.4.</strong> Collator Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/collators/collation-generation.html"><strong aria-hidden="true">6.4.1.</strong> Collation Generation</a></li><li class="chapter-item expanded "><a href="node/collators/collator-protocol.html"><strong aria-hidden="true">6.4.2.</strong> Collator Protocol</a></li></ol></li><li class="chapter-item expanded "><a href="node/backing/index.html"><strong aria-hidden="true">6.5.</strong> Backing Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/backing/candidate-backing.html"><strong aria-hidden="true">6.5.1.</strong> Candidate Backing</a></li><li class="chapter-item expanded "><a href="node/backing/prospective-parachains.html"><strong aria-hidden="true">6.5.2.</strong> Prospective Parachains</a></li><li class="chapter-item expanded "><a href="node/backing/statement-distribution.html"><strong aria-hidden="true">6.5.3.</strong> Statement Distribution</a></li><li class="chapter-item expanded "><a href="node/backing/statement-distribution-legacy.html"><strong aria-hidden="true">6.5.4.</strong> Statement Distribution (Legacy)</a></li></ol></li><li class="chapter-item expanded "><a href="node/availability/index.html"><strong aria-hidden="true">6.6.</strong> Availability Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/availability/availability-distribution.html"><strong aria-hidden="true">6.6.1.</strong> Availability Distribution</a></li><li class="chapter-item expanded "><a href="node/availability/availability-recovery.html"><strong aria-hidden="true">6.6.2.</strong> Availability Recovery</a></li><li class="chapter-item expanded "><a href="node/availability/bitfield-distribution.html"><strong aria-hidden="true">6.6.3.</strong> Bitfield Distribution</a></li><li class="chapter-item expanded "><a href="node/availability/bitfield-signing.html"><strong aria-hidden="true">6.6.4.</strong> Bitfield Signing</a></li></ol></li><li class="chapter-item expanded "><a href="node/approval/index.html"><strong aria-hidden="true">6.7.</strong> Approval Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/approval/approval-voting.html"><strong aria-hidden="true">6.7.1.</strong> Approval Voting</a></li><li class="chapter-item expanded "><a href="node/approval/approval-distribution.html"><strong aria-hidden="true">6.7.2.</strong> Approval Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="node/disputes/index.html"><strong aria-hidden="true">6.8.</strong> Disputes Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/disputes/dispute-coordinator.html"><strong aria-hidden="true">6.8.1.</strong> Dispute Coordinator</a></li><li class="chapter-item expanded "><a href="node/disputes/dispute-distribution.html"><strong aria-hidden="true">6.8.2.</strong> Dispute Distribution</a></li></ol></li><li class="chapter-item expanded "><a href="node/utility/index.html"><strong aria-hidden="true">6.9.</strong> Utility Subsystems</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/utility/availability-store.html"><strong aria-hidden="true">6.9.1.</strong> Availability Store</a></li><li class="chapter-item expanded "><a href="node/utility/candidate-validation.html"><strong aria-hidden="true">6.9.2.</strong> Candidate Validation</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="node/utility/pvf-host-and-workers.html"><strong aria-hidden="true">6.9.2.1.</strong> PVF Host and Workers</a></li></ol></li><li class="chapter-item expanded "><a href="node/utility/provisioner.html"><strong aria-hidden="true">6.9.3.</strong> Provisioner</a></li><li class="chapter-item expanded "><a href="node/utility/network-bridge.html"><strong aria-hidden="true">6.9.4.</strong> Network Bridge</a></li><li class="chapter-item expanded "><a href="node/utility/gossip-support.html"><strong aria-hidden="true">6.9.5.</strong> Gossip Support</a></li><li class="chapter-item expanded "><a href="node/utility/peer-set-manager.html"><strong aria-hidden="true">6.9.6.</strong> Peer Set Manager</a></li><li class="chapter-item expanded "><a href="node/utility/runtime-api.html"><strong aria-hidden="true">6.9.7.</strong> Runtime API Requests</a></li><li class="chapter-item expanded "><a href="node/utility/chain-api.html"><strong aria-hidden="true">6.9.8.</strong> Chain API Requests</a></li><li class="chapter-item expanded "><a href="node/utility/chain-selection.html"><strong aria-hidden="true">6.9.9.</strong> Chain Selection Request</a></li><li class="chapter-item expanded "><a href="node/utility/pvf-prechecker.html"><strong aria-hidden="true">6.9.10.</strong> PVF Pre-Checking</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="types/index.html"><strong aria-hidden="true">7.</strong> Data Structures and Types</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="types/candidate.html"><strong aria-hidden="true">7.1.</strong> Candidate</a></li><li class="chapter-item expanded "><a href="types/backing.html"><strong aria-hidden="true">7.2.</strong> Backing</a></li><li class="chapter-item expanded "><a href="types/availability.html"><strong aria-hidden="true">7.3.</strong> Availability</a></li><li class="chapter-item expanded "><a href="types/overseer-protocol.html"><strong aria-hidden="true">7.4.</strong> Overseer and Subsystem Protocol</a></li><li class="chapter-item expanded "><a href="types/runtime.html"><strong aria-hidden="true">7.5.</strong> Runtime</a></li><li class="chapter-item expanded "><a href="types/messages.html"><strong aria-hidden="true">7.6.</strong> Messages</a></li><li class="chapter-item expanded "><a href="types/network.html"><strong aria-hidden="true">7.7.</strong> Network</a></li><li class="chapter-item expanded "><a href="types/approval.html"><strong aria-hidden="true">7.8.</strong> Approvals</a></li><li class="chapter-item expanded "><a href="types/disputes.html"><strong aria-hidden="true">7.9.</strong> Disputes</a></li><li class="chapter-item expanded "><a href="types/pvf-prechecking.html"><strong aria-hidden="true">7.10.</strong> PVF Pre-checking</a></li></ol></li><li class="chapter-item expanded "><a href="glossary.html">Glossary</a></li><li class="chapter-item expanded affix "><a href="further-reading.html">Further Reading</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Polkadot Parachain Host Implementers&#x27; Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/paritytech/polkadot" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="approval-process"><a class="header" href="#approval-process">Approval Process</a></h1>
+<p>The Approval Process is the mechanism by which the relay-chain ensures that only valid parablocks are finalized and that backing validators are held accountable for managing to get bad blocks included into the relay chain.</p>
+<p>Having a parachain include a bad block into a fork of the relay-chain is not catastrophic as long as the block isn't finalized by the relay-chain's finality gadget, GRANDPA. If the block isn't finalized, that means that the fork of the relay-chain can be reverted in favor of another by means of a dynamic fork-choice rule which leads honest validators to ignore any forks containing that parablock.</p>
+<p>Dealing with a bad parablock proceeds in these stages:</p>
+<ol>
+<li>Detection</li>
+<li>Escalation</li>
+<li>Consequences</li>
+</ol>
+<p>First, the bad block must be detected by an honest party. Second, the honest party must escalate the bad block to be checked by all validators. And last, the correct consequences of a bad block must occur. The first consequence, as mentioned above, is to revert the chain so what full nodes perceive to be best no longer contains the bad parablock. The second consequence is to slash all malicious validators. Note that, if the chain containing the bad block is reverted, that the result of the dispute needs to be transplanted or at least transplantable to all other forks of the chain so that malicious validators are slashed in all possible histories. Phrased alternatively, there needs to be no possible relay-chain in which malicious validators get away cost-free.</p>
+<p>Accepting a parablock is the end result of having passed through the detection stage without dispute, or having passed through the escalation/dispute stage with a positive outcome. For this to work, we need the detection procedure to have the properties that enough honest validators are always selected to check the parablock and that they cannot be interfered with by an adversary. This needs to be balanced with the scaling concern of parachains in general: the easiest way to get the first property is to have everyone check everything, but that is clearly too heavy. So we also have a desired constraint on the other property that we have as few validators as possible check any particular parablock. Our assignment function is the method by which we select validators to do approval checks on parablocks.</p>
+<p>It often makes more sense to think of relay-chain blocks as having been approved or not as opposed to thinking about whether parablocks have been approved. A relay-chain block containing a single bad parablock needs to be reverted, and a relay-chain block that contains only approved parablocks can be called approved, as long as its parent relay-chain block is also approved. It is important that the validity of any particular relay-chain block depend on the validity of its ancestry, so we do not finalize a block which has a bad block in its ancestry.</p>
+<div><!-- Generated by graphviz version 2.43.0 (0)
+ --><!-- Title: %3 Pages: 1 --><svg width="275pt" height="260pt"
+ viewBox="0.00 0.00 275.34 260.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 256)"><title>%3</title><polygon fill="white" stroke="transparent" points="-4,4 -4,-256 271.34,-256 271.34,4 -4,4"/><!-- Included --><g id="node1" class="node"><title>Included</title><ellipse fill="none" stroke="black" cx="119" cy="-234" rx="50.89" ry="18"/><text text-anchor="middle" x="119" y="-230.3" font-family="Times,serif" font-size="14.00">Included</text></g><!-- Assignments --><g id="node2" class="node"><title>Assignments</title><ellipse fill="none" stroke="black" cx="119" cy="-162" rx="70.39" ry="18"/><text text-anchor="middle" x="119" y="-158.3" font-family="Times,serif" font-size="14.00">Assignments</text></g><!-- Included&#45;&gt;Assignments --><g id="edge1" class="edge"><title>Included&#45;&gt;Assignments</title><path fill="none" stroke="black" d="M119,-215.7C119,-207.98 119,-198.71 119,-190.11"/><polygon fill="black" stroke="black" points="122.5,-190.1 119,-180.1 115.5,-190.1 122.5,-190.1"/></g><!-- Approval --><g id="node3" class="node"><title>Approval</title><ellipse fill="none" stroke="black" cx="52" cy="-90" rx="51.99" ry="18"/><text text-anchor="middle" x="52" y="-86.3" font-family="Times,serif" font-size="14.00">Approval</text></g><!-- Assignments&#45;&gt;Approval --><g id="edge2" class="edge"><title>Assignments&#45;&gt;Approval</title><path fill="none" stroke="black" d="M103.12,-144.41C94.69,-135.61 84.18,-124.63 74.89,-114.92"/><polygon fill="black" stroke="black" points="77.2,-112.27 67.76,-107.47 72.15,-117.11 77.2,-112.27"/></g><!-- Escalation --><g id="node5" class="node"><title>Escalation</title><ellipse fill="none" stroke="black" cx="187" cy="-90" rx="59.29" ry="18"/><text text-anchor="middle" x="187" y="-86.3" font-family="Times,serif" font-size="14.00">Escalation</text></g><!-- Assignments&#45;&gt;Escalation --><g id="edge4" class="edge"><title>Assignments&#45;&gt;Escalation</title><path fill="none" stroke="black" d="M135.11,-144.41C143.66,-135.61 154.33,-124.63 163.76,-114.92"/><polygon fill="black" stroke="black" points="166.54,-117.08 171,-107.47 161.52,-112.2 166.54,-117.08"/></g><!-- Finality --><g id="node4" class="node"><title>Finality</title><ellipse fill="none" stroke="black" cx="49" cy="-18" rx="46.29" ry="18"/><text text-anchor="middle" x="49" y="-14.3" font-family="Times,serif" font-size="14.00">Finality</text></g><!-- Approval&#45;&gt;Finality --><g id="edge3" class="edge"><title>Approval&#45;&gt;Finality</title><path fill="none" stroke="black" d="M51.25,-71.7C50.92,-63.98 50.53,-54.71 50.16,-46.11"/><polygon fill="black" stroke="black" points="53.65,-45.95 49.73,-36.1 46.66,-46.25 53.65,-45.95"/></g><!-- Consequences --><g id="node6" class="node"><title>Consequences</title><ellipse fill="none" stroke="black" cx="190" cy="-18" rx="77.19" ry="18"/><text text-anchor="middle" x="190" y="-14.3" font-family="Times,serif" font-size="14.00">Consequences</text></g><!-- Escalation&#45;&gt;Consequences --><g id="edge5" class="edge"><title>Escalation&#45;&gt;Consequences</title><path fill="none" stroke="black" d="M187.74,-71.7C188.07,-63.98 188.46,-54.71 188.83,-46.11"/><polygon fill="black" stroke="black" points="192.33,-46.25 189.26,-36.1 185.34,-45.95 192.33,-46.25"/></g></g></svg></div>
+<p>Approval has roughly two parts:</p>
+<ul>
+<li>
+<p><strong>Assignments</strong> determines which validators performs approval checks on which candidates.  It ensures that each candidate receives enough random checkers, while reducing adversaries' odds for obtaining enough checkers, and limiting adversaries' foreknowledge.  It tracks approval votes to identify when &quot;no show&quot; approval check takes suspiciously long, perhaps indicating the node being under attack, and assigns more checks in this case.  It tracks relay chain equivocations to determine when adversaries possibly gained foreknowledge about assignments, and adds additional checks in this case.</p>
+</li>
+<li>
+<p><strong>Approval checks</strong> listens to the assignments subsystem for outgoing assignment notices that we shall check specific candidates.  It then performs these checks by first invoking the reconstruction subsystem to obtain the candidate, second invoking the candidate validity utility subsystem upon the candidate, and finally sending out an approval vote, or perhaps initiating a dispute.</p>
+</li>
+</ul>
+<p>These both run first as off-chain consensus protocols using messages gossiped among all validators, and second as an on-chain record of this off-chain protocols' progress after the fact.  We need the on-chain protocol to provide rewards for the off-chain protocol.</p>
+<p>Approval requires two gossiped message types, assignment notices created by its assignments subsystem, and approval votes sent by our approval checks subsystem when authorized by the candidate validity utility subsystem.</p>
+<h3 id="approval-keys"><a class="header" href="#approval-keys">Approval keys</a></h3>
+<p>We need two separate keys for the approval subsystem:</p>
+<ul>
+<li>
+<p><strong>Approval assignment keys</strong> are sr25519/schnorrkel keys used only for the assignment criteria VRFs.  We implicitly sign assignment notices with approval assignment keys by including their relay chain context and additional data in the VRF's extra message, but exclude these from its VRF input.</p>
+</li>
+<li>
+<p><strong>Approval vote keys</strong> would only sign off on candidate parablock validity and has no natural key type restrictions. There's no need for this to actually embody a new session key type. We just want to make a distinction between assignments and approvals, although distant future node configurations might favor separate roles. We re-use the same keys as are used for parachain backing in practice.</p>
+</li>
+</ul>
+<p>Approval vote keys could relatively easily be handled by some hardened signer tooling, perhaps even HSMs assuming we select ed25519 for approval vote keys.  Approval assignment keys might or might not support hardened signer tooling, but doing so sounds far more complex.  In fact, assignment keys determine only VRF outputs that determine approval checker assignments, for which they can only act or not act, so they cannot equivocate, lie, etc. and represent little if any slashing risk for validator operators.</p>
+<p>In future, we shall determine which among the several hardening techniques best benefits the network as a whole.  We could provide a multi-process multi-machine architecture for validators, perhaps even reminiscent of GNUNet, or perhaps more resembling smart HSM tooling.  We might instead design a system that more resembled full systems, like like Cosmos' sentry nodes.  In either case, approval assignments might be handled by a slightly hardened machine, but not necessarily nearly as hardened as approval votes, but approval votes machines must similarly run foreign WASM code, which increases their risk, so assignments being separate sounds helpful.</p>
+<h2 id="assignments"><a class="header" href="#assignments">Assignments</a></h2>
+<p>Approval assignment determines on which candidate parachain blocks each validator performs approval checks.  An approval session considers only one relay chain block and assigns only those candidates that relay chain block declares available.</p>
+<p>Assignment balances several concerns:</p>
+<ul>
+<li>limits adversaries' foreknowledge about assignments,</li>
+<li>ensures enough checkers, and</li>
+<li>distributes assignments relatively equitably.</li>
+</ul>
+<p>Assignees determine their own assignments to check specific candidates using two or three assignment criteria.  Assignees never reveal their assignments until relevant, and gossip delays assignments sent early, which limits others' foreknowledge.  Assignees learn their assignment only with the relay chain block.</p>
+<p>All criteria require the validator evaluate a verifiable random function (VRF) using their VRF secret key.  All criteria input specific data called &quot;stories&quot; about the session's relay chain block, and output candidates to check and a precedence called a <code>DelayTranche</code>.</p>
+<p>We liberate availability cores when their candidate becomes available of course, but one approval assignment criteria continues associating each candidate with the core number it occupied when it became available.</p>
+<p>Assignment operates in loosely timed rounds determined by this <code>DelayTranche</code>s, which proceed roughly 12 times faster than six second block production assuming half second gossip times.  If a candidate <code>C</code> needs more approval checkers by the time we reach round <code>t</code> then any validators with an assignment to <code>C</code> in delay tranche <code>t</code> gossip their send assignment notice for <code>C</code>.  We continue until all candidates have enough approval checkers assigned.  We take entire tranches together if we do not yet have enough, so we expect strictly more than enough checkers.  We also take later tranches if some checkers return their approval votes too slow (see no shows below).</p>
+<p>Assignment ensures validators check those relay chain blocks for which they have delay tranche zero aka the highest precedence, so that adversaries always face honest checkers equal to the expected number of assignments with delay tranche zero.</p>
+<p>Among these criteria, the BABE VRF output provides the story for two, which reduces how frequently adversaries could position their own checkers.  We have one criterion whose story consists of the candidate's block hash plus external knowledge that a relay chain equivocation exists with a conflicting candidate.  It provides unforeseeable assignments when adversaries gain foreknowledge about the other two by committing an equivocation in relay chain block production.</p>
+<h2 id="announcements--notices"><a class="header" href="#announcements--notices">Announcements / Notices</a></h2>
+<p>We gossip assignment notices among nodes so that all validators know which validators should check each candidate, and if any candidate requires more checkers.</p>
+<p>Assignment notices consist of a relay chain context given by a block hash, an assignment criteria, consisting of the criteria identifier and optionally a criteria specific field, an assignee identifier, and a VRF signature by the assignee, which itself consists of a VRF pre-output and a DLEQ proof.  Its VRF input consists of the criteria, usually including a criteria specific field, and a &quot;story&quot; about its relay chain context block.</p>
+<p>We never include stories inside the gossip messages containing assignment notices, but require each validator reconstruct them.  We never care about assignments in the disputes process, so this does not complicate remote disputes.</p>
+<p>In a Schnorr VRF, there is an extra signed message distinct from this input, which we set to the relay chain block hash.  As a result, assignment notices are self signing and can be &quot;politely&quot; gossiped without additional signatures, meaning between nodes who can compute the story from the relay chain context.  In other words, if we cannot compute the story required by an assignment notice's VRF part then our self signing property fails and we cannot verify its origin.  We could fix this with either another signature layer (64 bytes) or by including the VRF input point computed from the story (32 bytes), but doing so appears unhelpful.</p>
+<p>Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes early because they represent a major commitment by the validator.  We delay gossiping the assignment notices until they agree with our local clock however.  We also impose a politeness condition that the recipient knows the relay chain context used by the assignment notice.</p>
+<h2 id="stories"><a class="header" href="#stories">Stories</a></h2>
+<p>We based assignment criteria upon two possible &quot;stories&quot; about the relay chain block <code>R</code> that included the candidate aka declared the candidate available.  All stories have an output that attempts to minimize adversarial influence, which then acts as the VRF input for an assignment criteria.</p>
+<p>We first have a <code>RelayVRFStory</code> that outputs the randomness from another VRF output produced by the relay chain block producer when creating <code>R</code>.  Among honest nodes, only this one relay chain block producer who creates <code>R</code> knew the story in advance, and even they knew nothing two epochs previously.</p>
+<p>In BABE, we create this value calling <code>schnorrkel::vrf::VRFInOut::make_bytes</code> with a context &quot;A&amp;V RC-VRF&quot;, with the <code>VRFInOut</code> coming from either the VRF that authorized block production for primary blocks, or else from the secondary block VRF for the secondary block type.</p>
+<p>In Sassafras, we shall always use the non-anonymized recycling VRF output, never the anonymized ring VRF that authorizes block production.  We do not currently know if Sassafras shall have a separate schnorrkel key, but if it reuses its ring VRF key there is an equivalent <code>ring_vrf::VRFInOut::make_bytes</code>.</p>
+<p>We like that <code>RelayVRFStory</code> admits relatively few choices, but an adversary who equivocates in relay chain block production could learn assignments that depend upon the <code>RelayVRFStory</code> too early because the same relay chain VRF appears in multiple blocks.</p>
+<p>We therefore provide a secondary <code>RelayEquivocationStory</code> that outputs the candidate's block hash, but only for candidate equivocations.  We say a candidate <code>C</code> in <code>R</code> is an equivocation when there exists another relay chain block <code>R1</code> that equivocates for <code>R</code> in the sense that <code>R</code> and <code>R1</code> have the same <code>RelayVRFStory</code>, but <code>R</code> contains <code>C</code> and <code>R1</code> does not contain <code>C</code>.</p>
+<p>We want checkers for candidate equivocations that lie outside our preferred relay chain as well, which represents a slightly different usage for the assignments module, and might require more information in the gossip messages.</p>
+<h2 id="assignment-criteria"><a class="header" href="#assignment-criteria">Assignment criteria</a></h2>
+<p>Assignment criteria compute actual assignments using stories and the validators' secret approval assignment key.  Assignment criteria output a <code>Position</code> consisting of both a <code>ParaId</code> to be checked, as well as a precedence <code>DelayTranche</code> for when the assignment becomes valid.</p>
+<p>Assignment criteria come in three flavors, <code>RelayVRFModulo</code>, <code>RelayVRFDelay</code> and <code>RelayEquivocation</code>.  Among these, both <code>RelayVRFModulo</code> and <code>RelayVRFDelay</code> run a VRF whose input is the output of a <code>RelayVRFStory</code>, while <code>RelayEquivocation</code> runs a VRF whose input is the output of a <code>RelayEquivocationStory</code>.</p>
+<p>Among these, we have two distinct VRF output computations:</p>
+<p><code>RelayVRFModulo</code> runs several distinct samples whose VRF input is the <code>RelayVRFStory</code> and the sample number.  It computes the VRF output with <code>schnorrkel::vrf::VRFInOut::make_bytes</code> using the context &quot;A&amp;V Core&quot;, reduces this number modulo the number of availability cores, and outputs the candidate just declared available by, and included by aka leaving, that availability core.  We drop any samples that return no candidate because no candidate was leaving the sampled availability core in this relay chain block.  We choose three samples initially, but we could make polkadot more secure and efficient by increasing this to four or five, and reducing the backing checks accordingly.  All successful <code>RelayVRFModulo</code> samples are assigned delay tranche zero.</p>
+<p>There is no sampling process for <code>RelayVRFDelay</code> and <code>RelayEquivocation</code>.  We instead run them on specific candidates and they compute a delay from their VRF output.  <code>RelayVRFDelay</code> runs for all candidates included under, aka declared available by, a relay chain block, and inputs the associated VRF output via <code>RelayVRFStory</code>.  <code>RelayEquivocation</code> runs only on candidate block equivocations, and inputs their block hashes via the <code>RelayEquivocation</code> story.</p>
+<p><code>RelayVRFDelay</code> and <code>RelayEquivocation</code> both compute their output with <code>schnorrkel::vrf::VRFInOut::make_bytes</code> using the context &quot;A&amp;V Tranche&quot; and reduce the result modulo <code>num_delay_tranches + zeroth_delay_tranche_width</code>, and consolidate results 0 through <code>zeroth_delay_tranche_width</code> to be 0.  In this way, they ensure the zeroth delay tranche has <code>zeroth_delay_tranche_width+1</code> times as many assignments as any other tranche.</p>
+<p>As future work (or TODO?), we should merge assignment notices with the same delay and story using <code>vrf_merge</code>.  We cannot merge those with the same delay and different stories because <code>RelayEquivocationStory</code>s could change but <code>RelayVRFStory</code> never changes.</p>
+<h2 id="announcer-and-watchertracker"><a class="header" href="#announcer-and-watchertracker">Announcer and Watcher/Tracker</a></h2>
+<p>We track all validators' announced approval assignments for each candidate associated to each relay chain block, which tells us which validators were assigned to which candidates.</p>
+<p>We permit at most one assignment per candidate per story per validator, so one validator could be assigned under both the <code>RelayVRFDelay</code> and <code>RelayEquivocation</code> criteria, but not under both <code>RelayVRFModulo</code> and <code>RelayVRFDelay</code> criteria, since those both use the same story.  We permit only one approval vote per candidate per validator, which counts for any applicable criteria.</p>
+<p>We announce, and start checking for, our own assignments when the delay of their tranche is reached, but only if the tracker says the assignee candidate requires more approval checkers.  We never announce an assignment we believe unnecessary because early announcements gives an adversary information.  All delay tranche zero assignments always get announced, which includes all <code>RelayVRFModulo</code> assignments.</p>
+<p>In other words, if some candidate <code>C</code> needs more approval checkers by the time we reach round <code>t</code> then any validators with an assignment to <code>C</code> in delay tranche <code>t</code> gossip their send assignment notice for <code>C</code>, and begin reconstruction and validation for 'C.  If however <code>C</code> reached enough assignments, then validators with later assignments skip announcing their assignments.</p>
+<p>We continue until all candidates have enough approval checkers assigned.  We never prioritize assignments within tranches and count all or no assignments for a given tranche together, so we often overshoot the target number of assigned approval checkers.</p>
+<h3 id="no-shows"><a class="header" href="#no-shows">No shows</a></h3>
+<p>We have a &quot;no show&quot; timeout longer than one relay chain slot, so at least 6 seconds, during which we expect approval checks should succeed in reconstructing the candidate block, in redoing its erasure coding to check the candidate receipt, and finally in rechecking the candidate block itself.</p>
+<p>We consider a validator a &quot;no show&quot; if they do not approve or dispute within this &quot;no show&quot; timeout from our receiving their assignment notice.  We time this from our receipt of their assignment notice instead of our imagined real time for their tranche because otherwise receiving late assignment notices creates immediate &quot;no shows&quot; and unnecessary work.</p>
+<p>We worry &quot;no shows&quot; represent a validator under denial of service attack, presumably to prevent it from reconstructing the candidate, but perhaps delaying it form gossiping a dispute too.  We therefore always replace &quot;no shows&quot; by adding one entire extra delay tranche worth of validators, so such attacks always result in additional checkers.</p>
+<p>As an example, imagine we need 20 checkers, but tranche zero produces only 14, and tranche one only 4, then we take all 5 from tranche two, and thus require 23 checkers for that candidate.  If one checker Charlie from tranche one or two does not respond within say 8 seconds, then we add all 7 checkers from tranche three.  If again one checker Cindy from tranche three does not respond within 8 seconds then we take all 3 checkers from tranche four.  We now have 33 checkers working on the candidate, so this escalated quickly.</p>
+<p>We escalated so quickly because we worried that Charlie and Cindy might be the only honest checkers assigned to that candidate.  If therefore either Charlie or Cindy finally return an approval, then we can conclude approval, and abandon the checkers from tranche four.</p>
+<p>We therefore require the &quot;no show&quot; timeout to be longer than a relay chain slot so that we can witness &quot;no shows&quot; on-chain.  We discuss below how this helps reward validators who replace &quot;no shows&quot;.</p>
+<p>We avoid slashing for &quot;no shows&quot; by itself, although being &quot;no show&quot; could enter into some computation that punishes repeated poor performance, presumably replaces <code>ImOnline</code>, and we could reduce their rewards and further rewards those who filled in.</p>
+<p>As future work, we foresee expanding the &quot;no show&quot; scheme to anonymize the additional checkers, like by using assignment noticed with a new criteria that employs a ring VRF and then all validators providing cover by requesting a couple erasure coded pieces, but such anonymity scheme sound extremely complex and lie far beyond our initial functionality.</p>
+<h2 id="assignment-postponement"><a class="header" href="#assignment-postponement">Assignment postponement</a></h2>
+<p>We expect validators could occasionally overloaded when they randomly acquire too many assignments.  All these fluctuations amortize over multiple blocks fairly well, but this slows down finality.</p>
+<p>We therefore permit validators to delay sending their assignment noticed intentionally.  If nobody knows about their assignment then they avoid creating &quot;no shows&quot; and the workload progresses normally.</p>
+<p>We strongly prefer if postponements come from tranches higher aka less important than zero because tranche zero checks provide somewhat more security.</p>
+<p>TODO: When?  Is this optimal for the network?  etc.</p>
+<h2 id="on-chain-verification"><a class="header" href="#on-chain-verification">On-chain verification</a></h2>
+<p>We should verify approval on-chain to reward approval checkers. We therefore require the &quot;no show&quot; timeout to be longer than a relay chain slot so that we can witness &quot;no shows&quot; on-chain, which helps with this goal. The major challenge with an on-chain record of the off-chain process is adversarial block producers who may either censor votes or publish votes to the chain which cause other votes to be ignored and unrewarded (reward stealing).</p>
+<p>In principle, all validators have some &quot;tranche&quot; at which they're assigned to the parachain candidate, which ensures we reach enough validators eventually.  As noted above, we often retract &quot;no shows&quot; when the slow validator eventually shows up, so witnessing their initially being a &quot;no show&quot; helps manage rewards.</p>
+<p>We expect on-chain verification should work in two phases:  We first record assignments notices and approval votes on-chain in relay chain block, doing the VRF or regular signature verification again in block verification, and inserting chain authenticated unsigned notes into the relay chain state that contain the checker, tranche, paraid, and relay block height for each assignment notice.  We then later have another relay chain block that runs some &quot;approved&quot; intrinsic, which extract all these notes from the state and feeds them into our approval code.</p>
+<p>We now encounter one niche concern in the interaction between postponement and on-chain verification:  Any validator with a tranche zero (or other low) assignment could delay sending an assignment notice, like because they postponed their assigned tranche (which is allowed).  If they later send this assignment notices right around finality time, then they race with this approved. intrinsic:  If their announcement gets on-chain (also allowed), then yes it delays finality. If it does not get on-chain, then yes we've one announcement that the off-chain consensus system says is valid, but the chain ignores for being too slow.</p>
+<p>We need the chain to win in this case, but doing this requires imposing an annoyingly long overarching delay upon finality.  We might explore limits on postponement too, but this sounds much harder.</p>
+<h2 id="parameters"><a class="header" href="#parameters">Parameters</a></h2>
+<p>We prefer doing approval checkers assignments under <code>RelayVRFModulo</code> as opposed to <code>RelayVRFDelay</code> because <code>RelayVRFModulo</code> avoids giving individual checkers too many assignments and tranche zero assignments benefit security the most.  We suggest assigning at least 16 checkers under <code>RelayVRFModulo</code> although assignment levels have never been properly analyzed.</p>
+<p>Our delay criteria <code>RelayVRFDelay</code> and <code>RelayEquivocation</code> both have two primary paramaters, expected checkers per tranche and the zeroth delay tranche width.</p>
+<p>We require expected checkers per tranche to be less than three because otherwise an adversary with 1/3 stake could force all nodes into checking all blocks.  We strongly recommend expected checkers per tranche to be less than two, which helps avoid both accidental and intentional explosions.  We also suggest expected checkers per tranche be larger than one, which helps prevent adversaries from predicting than advancing one tranche adds only their own validators.</p>
+<p>We improve security more with tranche zero assignments, so <code>RelayEquivocation</code> should consolidates its first several tranches into tranche zero.  We describe this as the zeroth delay tranche width, which initially we set to 12 for <code>RelayEquivocation</code> and <code>1</code> for <code>RelayVRFDelay</code>.</p>
+<h2 id="why-vrfs"><a class="header" href="#why-vrfs">Why VRFs?</a></h2>
+<p>We do assignments with VRFs to give &quot;enough&quot; checkers some meaning beyond merely &quot;expected&quot; checkers:</p>
+<p>We could specify a protocol that used only system randomness, which works because our strongest defense is the expected number of honest checkers who assign themselves.  In this, adversaries could trivially flood their own blocks with their own checkers, so this strong defense becomes our only defense, and delay tranches become useless, so some blocks actually have zero approval checkers and possibly only one checker overall.</p>
+<p>VRFs though require adversaries wait far longer between such attacks, which also helps against adversaries with little at stake because they compromised validators.  VRFs raise user confidence that no such &quot;drive by&quot; attacks occurred because the delay tranche system ensure at least some minimum number of approval checkers.  In this vein, VRFs permit reducing backing checks and increasing approval checks, which makes polkadot more efficient.</p>
+<h2 id="gossip"><a class="header" href="#gossip">Gossip</a></h2>
+<p>Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We retain but delay gossiping the assignment notices until they agree with our local clock.</p>
+<p>Assignment notices being gossiped too early might create a denial of service vector.  If so, we might exploit the relative time scheme that synchronizes our clocks, which conceivably permits just dropping excessively early assignments.</p>
+<h2 id="finality-grandpa-voting-rule"><a class="header" href="#finality-grandpa-voting-rule">Finality GRANDPA Voting Rule</a></h2>
+<p>The relay-chain requires validators to participate in GRANDPA. In GRANDPA, validators submit off-chain votes on what they believe to be the best block of the chain, and GRANDPA determines the common block contained by a supermajority of sub-chains. There are also additional constraints on what can be submitted based on results of previous rounds of voting.</p>
+<p>In order to avoid finalizing anything which has not received enough approval votes or is disputed, we will pair the approval protocol with an alteration to the GRANDPA voting strategy for honest nodes which causes them to vote only on chains where every parachain candidate within has been approved.  Furthermore, the voting rule prevents voting for chains where there is any live dispute or any dispute has resolved to a candidate being invalid.</p>
+<p>Thus, the finalized relay-chain should contain only relay-chain blocks where a majority believe that every block within has been sufficiently approved.</p>
+<h3 id="future-work"><a class="header" href="#future-work">Future work</a></h3>
+<p>We could consider additional gossip messages with which nodes claims &quot;slow availability&quot; and/or &quot;slow candidate&quot; to fine tune the assignments &quot;no show&quot; system, but long enough &quot;no show&quot; delays suffice probably.</p>
+<p>We shall develop more practical experience with UDP once the availability system works using direct UDP connections.  In this, we should discover if reconstruction performs adequately with a complete graphs or
+benefits from topology restrictions.  At this point, an assignment notices could implicitly request pieces from a random 1/3rd, perhaps topology restricted, which saves one gossip round.  If this preliminary fast reconstruction fails, then nodes' request alternative pieces directly.  There is an interesting design space in how this overlaps with &quot;slow availability&quot; claims.</p>
+<footer id="last-change">Last change: 2021-08-02, commit: <a href="https://github.com/paritytech/polkadot/commit/d5f651c18b">d5f651c18b</a></footer>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="protocol-overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="protocol-disputes.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="protocol-overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="protocol-disputes.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="mermaid.min.js"></script>
+        <script type="text/javascript" src="mermaid-init.js"></script>
+
+
+    </body>
+</html>

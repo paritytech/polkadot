@@ -1,0 +1,509 @@
+<!DOCTYPE html><html lang="en"><head><link rel="canonical" href="https://paritytech.github.io/polkadot-sdk/master/src/polkadot_primitives/runtime_api.rs.html"><meta http-equiv="refresh" content="0;URL='https://paritytech.github.io/polkadot-sdk/master/src/polkadot_primitives/runtime_api.rs.html'"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `primitives/src/runtime_api.rs`."><title>runtime_api.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ba5701c5741a7b69.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="polkadot_primitives" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0 (90c541806 2023-05-31)" data-search-js="search-e077946657036a58.js" data-settings-js="settings-298e1ea74db45b39.js" data-settings-css="settings-7bfb4c59cc6bc502.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../static.files/source-script-905937fbbdc8e9ea.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-f61008743c98d196.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../polkadot_primitives/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<a href="#2" id="2">2</a>
+<a href="#3" id="3">3</a>
+<a href="#4" id="4">4</a>
+<a href="#5" id="5">5</a>
+<a href="#6" id="6">6</a>
+<a href="#7" id="7">7</a>
+<a href="#8" id="8">8</a>
+<a href="#9" id="9">9</a>
+<a href="#10" id="10">10</a>
+<a href="#11" id="11">11</a>
+<a href="#12" id="12">12</a>
+<a href="#13" id="13">13</a>
+<a href="#14" id="14">14</a>
+<a href="#15" id="15">15</a>
+<a href="#16" id="16">16</a>
+<a href="#17" id="17">17</a>
+<a href="#18" id="18">18</a>
+<a href="#19" id="19">19</a>
+<a href="#20" id="20">20</a>
+<a href="#21" id="21">21</a>
+<a href="#22" id="22">22</a>
+<a href="#23" id="23">23</a>
+<a href="#24" id="24">24</a>
+<a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
+<a href="#41" id="41">41</a>
+<a href="#42" id="42">42</a>
+<a href="#43" id="43">43</a>
+<a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
+<a href="#46" id="46">46</a>
+<a href="#47" id="47">47</a>
+<a href="#48" id="48">48</a>
+<a href="#49" id="49">49</a>
+<a href="#50" id="50">50</a>
+<a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+</pre></div><pre class="rust"><code><span class="comment">// Copyright (C) Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see &lt;http://www.gnu.org/licenses/&gt;.
+
+</span><span class="doccomment">//! Runtime API module declares the `trait ParachainHost` which is part
+//! of the Runtime API exposed from the Runtime to the Host.
+//!
+//! The functions in trait ParachainHost` can be part of the stable API
+//! (which is versioned) or they can be staging (aka unstable/testing
+//! functions).
+//!
+//! The separation outlined above is achieved with the versioned API feature
+//! of `decl_runtime_apis!` and `impl_runtime_apis!`. Before moving on let&#39;s
+//! see a quick example about how API versioning works.
+//!
+//! # Runtime API versioning crash course
+//!
+//! The versioning is achieved with the `api_version` attribute. It can be
+//! placed on:
+//! * trait declaration - represents the base version of the API.
+//! * method declaration (inside a trait declaration) - represents a versioned method, which is not
+//!   available in the base version.
+//! * trait implementation - represents which version of the API is being implemented.
+//!
+//! Let&#39;s see a quick example:
+//!
+//! ```rust(ignore)
+//! sp_api::decl_runtime_apis! {
+//! 	#[api_version(2)]
+//! 	pub trait MyApi {
+//! 		fn fn1();
+//! 		fn fn2();
+//! 		#[api_version(3)]
+//! 		fn fn3();
+//! 		#[api_version(4)]
+//! 		fn fn4();
+//! 	}
+//! }
+//!
+//! struct Runtime {}
+//!
+//! sp_api::impl_runtime_apis! {
+//!     #[api_version(3)]
+//!     impl self::MyApi&lt;Block&gt; for Runtime {
+//!         fn fn1() {}
+//!         fn fn2() {}
+//!         fn fn3() {}
+//!     }
+//! }
+//! ```
+//! A new API named `MyApi` is declared with `decl_runtime_apis!`. The trait declaration
+//! has got an `api_version` attribute which represents its base version - 2 in this case.
+//!
+//! The API has got three methods - `fn1`, `fn2`, `fn3` and `fn4`. `fn3` and `fn4` has got
+//! an `api_version` attribute which makes them versioned methods. These methods do not exist
+//! in the base version of the API. Behind the scenes the declaration above creates three
+//! runtime APIs:
+//! * `MyApiV2` with `fn1` and `fn2`
+//! * `MyApiV3` with `fn1`, `fn2` and `fn3`.
+//! * `MyApiV4` with `fn1`, `fn2`, `fn3` and `fn4`.
+//!
+//! Please note that `v4` contains all methods from `v3`, `v3` all methods from `v2` and so on.
+//!
+//! Back to our example. At the end runtime API is implemented for `struct Runtime` with
+//! `impl_runtime_apis` macro. `api_version` attribute is attached to the `impl` block which
+//! means that a version different from the base one is being implemented - in our case this
+//! is `v3`.
+//!
+//! This version of the API contains three methods so the `impl` block has got definitions
+//! for them. Note that `fn4` is not implemented as it is not part of this version of the API.
+//! `impl_runtime_apis` generates a default implementation for it calling `unimplemented!()`.
+//!
+//! Hopefully this should be all you need to know in order to use versioned methods in the node.
+//! For more details about how the API versioning works refer to `spi_api`
+//! documentation [here](https://docs.substrate.io/rustdocs/latest/sp_api/macro.decl_runtime_apis.html).
+//!
+//! # How versioned methods are used for `ParachainHost`
+//!
+//! Let&#39;s introduce two types of `ParachainHost` API implementation:
+//! * stable - used on stable production networks like Polkadot and Kusama. There is only one stable
+//!   API at a single point in time.
+//! * staging - methods that are ready for production, but will be released on Rococo first. We can
+//!   batch together multiple changes and then release all of them to production, by making staging
+//!   production (bump base version). We can not change or remove any method in staging after a
+//!   release, as this would break Rococo. It should be ok to keep adding methods to staging across
+//!   several releases. For experimental methods, you have to keep them on a separate branch until
+//!   ready.
+//!
+//! The stable version of `ParachainHost` is indicated by the base version of the API. Any staging
+//! method must use `api_version` attribute so that it is assigned to a specific version of a
+//! staging API. This way in a single declaration one can see what&#39;s the stable version of
+//! `ParachainHost` and what staging versions/functions are available.
+//!
+//! All stable API functions should use primitives from the latest version.
+//! In the time of writing of this document - this is `v2`. So for example:
+//! ```ignore
+//! fn validators() -&gt; Vec&lt;v2::ValidatorId&gt;;
+//! ```
+//! indicates a function from the stable `v2` API.
+//!
+//! All staging API functions should use primitives from `vstaging`. They should be clearly
+//! separated from the stable primitives.
+
+</span><span class="kw">use crate</span>::{
+	vstaging, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex, ValidatorSignature,
+};
+<span class="kw">use </span>parity_scale_codec::{Decode, Encode};
+<span class="kw">use </span>polkadot_core_primitives <span class="kw">as </span>pcp;
+<span class="kw">use </span>polkadot_parachain::primitives <span class="kw">as </span>ppp;
+<span class="kw">use </span>sp_std::{collections::btree_map::BTreeMap, prelude::<span class="kw-2">*</span>};
+
+<span class="macro">sp_api::decl_runtime_apis! </span>{
+	<span class="doccomment">/// The API for querying the state of parachains on-chain.
+	</span><span class="attr">#[api_version(<span class="number">5</span>)]
+	</span><span class="kw">pub trait </span>ParachainHost&lt;H: Encode + Decode = pcp::v2::Hash, N: Encode + Decode = pcp::v2::BlockNumber&gt; {
+		<span class="doccomment">/// Get the current validators.
+		</span><span class="kw">fn </span>validators() -&gt; Vec&lt;ValidatorId&gt;;
+
+		<span class="doccomment">/// Returns the validator groups and rotation info localized based on the hypothetical child
+		///  of a block whose state  this is invoked on. Note that `now` in the `GroupRotationInfo`
+		/// should be the successor of the number of the block.
+		</span><span class="kw">fn </span>validator_groups() -&gt; (Vec&lt;Vec&lt;ValidatorIndex&gt;&gt;, GroupRotationInfo&lt;N&gt;);
+
+		<span class="doccomment">/// Yields information on all availability cores as relevant to the child block.
+		/// Cores are either free or occupied. Free cores can have paras assigned to them.
+		</span><span class="kw">fn </span>availability_cores() -&gt; Vec&lt;CoreState&lt;H, N&gt;&gt;;
+
+		<span class="doccomment">/// Yields the persisted validation data for the given `ParaId` along with an assumption that
+		/// should be used if the para currently occupies a core.
+		///
+		/// Returns `None` if either the para is not registered or the assumption is `Freed`
+		/// and the para already occupies a core.
+		</span><span class="kw">fn </span>persisted_validation_data(para_id: ppp::Id, assumption: OccupiedCoreAssumption)
+			-&gt; <span class="prelude-ty">Option</span>&lt;PersistedValidationData&lt;H, N&gt;&gt;;
+
+		<span class="doccomment">/// Returns the persisted validation data for the given `ParaId` along with the corresponding
+		/// validation code hash. Instead of accepting assumption about the para, matches the validation
+		/// data hash against an expected one and yields `None` if they&#39;re not equal.
+		</span><span class="kw">fn </span>assumed_validation_data(
+			para_id: ppp::Id,
+			expected_persisted_validation_data_hash: pcp::v2::Hash,
+		) -&gt; <span class="prelude-ty">Option</span>&lt;(PersistedValidationData&lt;H, N&gt;, ppp::ValidationCodeHash)&gt;;
+
+		<span class="doccomment">/// Checks if the given validation outputs pass the acceptance criteria.
+		</span><span class="kw">fn </span>check_validation_outputs(para_id: ppp::Id, outputs: CandidateCommitments) -&gt; bool;
+
+		<span class="doccomment">/// Returns the session index expected at a child of the block.
+		///
+		/// This can be used to instantiate a `SigningContext`.
+		</span><span class="kw">fn </span>session_index_for_child() -&gt; SessionIndex;
+
+		<span class="doccomment">/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
+		///
+		/// Returns `None` if either the para is not registered or the assumption is `Freed`
+		/// and the para already occupies a core.
+		</span><span class="kw">fn </span>validation_code(para_id: ppp::Id, assumption: OccupiedCoreAssumption)
+			-&gt; <span class="prelude-ty">Option</span>&lt;ppp::ValidationCode&gt;;
+
+		<span class="doccomment">/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
+		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
+		</span><span class="kw">fn </span>candidate_pending_availability(para_id: ppp::Id) -&gt; <span class="prelude-ty">Option</span>&lt;CommittedCandidateReceipt&lt;H&gt;&gt;;
+
+		<span class="doccomment">/// Get a vector of events concerning candidates that occurred within a block.
+		</span><span class="kw">fn </span>candidate_events() -&gt; Vec&lt;CandidateEvent&lt;H&gt;&gt;;
+
+		<span class="doccomment">/// Get all the pending inbound messages in the downward message queue for a para.
+		</span><span class="kw">fn </span>dmq_contents(
+			recipient: ppp::Id,
+		) -&gt; Vec&lt;pcp::v2::InboundDownwardMessage&lt;N&gt;&gt;;
+
+		<span class="doccomment">/// Get the contents of all channels addressed to the given recipient. Channels that have no
+		/// messages in them are also included.
+		</span><span class="kw">fn </span>inbound_hrmp_channels_contents(recipient: ppp::Id) -&gt; BTreeMap&lt;ppp::Id, Vec&lt;pcp::v2::InboundHrmpMessage&lt;N&gt;&gt;&gt;;
+
+		<span class="doccomment">/// Get the validation code from its hash.
+		</span><span class="kw">fn </span>validation_code_by_hash(hash: ppp::ValidationCodeHash) -&gt; <span class="prelude-ty">Option</span>&lt;ppp::ValidationCode&gt;;
+
+		<span class="doccomment">/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
+		</span><span class="kw">fn </span>on_chain_votes() -&gt; <span class="prelude-ty">Option</span>&lt;ScrapedOnChainVotes&lt;H&gt;&gt;;
+
+		<span class="comment">/***** Added in v2 *****/
+
+		</span><span class="doccomment">/// Get the session info for the given session, if stored.
+		///
+		/// NOTE: This function is only available since parachain host version 2.
+		</span><span class="kw">fn </span>session_info(index: SessionIndex) -&gt; <span class="prelude-ty">Option</span>&lt;SessionInfo&gt;;
+
+		<span class="doccomment">/// Submits a PVF pre-checking statement into the transaction pool.
+		///
+		/// NOTE: This function is only available since parachain host version 2.
+		</span><span class="kw">fn </span>submit_pvf_check_statement(stmt: PvfCheckStatement, signature: ValidatorSignature);
+
+		<span class="doccomment">/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
+		///
+		/// NOTE: This function is only available since parachain host version 2.
+		</span><span class="kw">fn </span>pvfs_require_precheck() -&gt; Vec&lt;ppp::ValidationCodeHash&gt;;
+
+		<span class="doccomment">/// Fetch the hash of the validation code used by a para, making the given `OccupiedCoreAssumption`.
+		///
+		/// NOTE: This function is only available since parachain host version 2.
+		</span><span class="kw">fn </span>validation_code_hash(para_id: ppp::Id, assumption: OccupiedCoreAssumption)
+			-&gt; <span class="prelude-ty">Option</span>&lt;ppp::ValidationCodeHash&gt;;
+
+		<span class="doccomment">/// Returns all onchain disputes.
+		</span><span class="kw">fn </span>disputes() -&gt; Vec&lt;(SessionIndex, CandidateHash, DisputeState&lt;BlockNumber&gt;)&gt;;
+
+		<span class="doccomment">/// Returns execution parameters for the session.
+		</span><span class="kw">fn </span>session_executor_params(session_index: SessionIndex) -&gt; <span class="prelude-ty">Option</span>&lt;ExecutorParams&gt;;
+
+		<span class="doccomment">/// Returns a list of validators that lost a past session dispute and need to be slashed.
+		/// NOTE: This function is only available since parachain host version 5.
+		</span><span class="kw">fn </span>unapplied_slashes() -&gt; Vec&lt;(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)&gt;;
+
+		<span class="doccomment">/// Returns a merkle proof of a validator session key.
+		/// NOTE: This function is only available since parachain host version 5.
+		</span><span class="kw">fn </span>key_ownership_proof(
+			validator_id: ValidatorId,
+		) -&gt; <span class="prelude-ty">Option</span>&lt;vstaging::slashing::OpaqueKeyOwnershipProof&gt;;
+
+		<span class="doccomment">/// Submit an unsigned extrinsic to slash validators who lost a dispute about
+		/// a candidate of a past session.
+		/// NOTE: This function is only available since parachain host version 5.
+		</span><span class="kw">fn </span>submit_report_dispute_lost(
+			dispute_proof: vstaging::slashing::DisputeProof,
+			key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+		) -&gt; <span class="prelude-ty">Option</span>&lt;()&gt;;
+
+		<span class="comment">/***** Asynchronous backing *****/
+
+		</span><span class="doccomment">/// Returns the state of parachain backing for a given para.
+		/// This is a staging method! Do not use on production runtimes!
+		</span><span class="attr">#[api_version(<span class="number">99</span>)]
+		</span><span class="kw">fn </span>staging_para_backing_state(<span class="kw">_</span>: ppp::Id) -&gt; <span class="prelude-ty">Option</span>&lt;vstaging::BackingState&lt;H, N&gt;&gt;;
+
+		<span class="doccomment">/// Returns candidate&#39;s acceptance limitations for asynchronous backing for a relay parent.
+		</span><span class="attr">#[api_version(<span class="number">99</span>)]
+		</span><span class="kw">fn </span>staging_async_backing_params() -&gt; vstaging::AsyncBackingParams;
+	}
+}
+</code></pre></div></section></main></body></html>

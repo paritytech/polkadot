@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["force_clean_hrmp","force_open_hrmp_channel","force_process_hrmp_close","force_process_hrmp_open","hrmp_accept_open_channel","hrmp_cancel_open_request","hrmp_close_channel","hrmp_init_open_channel"]};

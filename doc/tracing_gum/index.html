@@ -1,0 +1,58 @@
+<!DOCTYPE html><html lang="en"><head><link rel="canonical" href="https://paritytech.github.io/polkadot-sdk/master/tracing_gum/index.html"><meta http-equiv="refresh" content="0;URL='https://paritytech.github.io/polkadot-sdk/master/tracing_gum/index.html'"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A wrapper around `tracing` macros, to provide semi automatic `traceID` annotation without codebase turnover."><title>tracing_gum - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-ba5701c5741a7b69.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="tracing_gum" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0 (90c541806 2023-05-31)" data-search-js="search-e077946657036a58.js" data-settings-js="settings-298e1ea74db45b39.js" data-settings-css="settings-7bfb4c59cc6bc502.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-f61008743c98d196.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../tracing_gum/index.html"><img class="rust-logo" src="../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2></h2></nav><nav class="sidebar"><a class="logo-container" href="../tracing_gum/index.html"><img class="rust-logo" src="../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2 class="location"><a href="#">Crate tracing_gum</a></h2><div class="sidebar-elems"><ul class="block"><li class="version">Version 0.9.43</li><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">tracing_gum</a><button id="copy-path" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../src/tracing_gum/lib.rs.html#17-194">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A wrapper around <code>tracing</code> macros, to provide semi automatic
+<code>traceID</code> annotation without codebase turnover.</p>
+<h2 id="usage"><a href="#usage">Usage</a></h2>
+<p>The API follows the <a href="https://docs.rs/tracing/latest/tracing/index.html"><code>tracing</code>
+API</a>, but the docs contain
+more detail than you probably need to know, so here’s the quick version.</p>
+<p>Most common usage is of the form:</p>
+<div class="example-wrap"><pre class="language-rs"><code>gum::warn!(
+    target: LOG_TARGET,
+    worker_pid = %idle_worker.pid,
+    ?error,
+    &quot;failed to send a handshake to the spawned worker&quot;,
+);
+</code></pre></div><h4 id="log-levels"><a href="#log-levels">Log levels</a></h4>
+<p>All of the the <a href="https://docs.rs/tracing/latest/tracing/index.html#macros"><code>tracing</code> macros</a> are available.
+In decreasing order of priority they are:</p>
+<ul>
+<li><code>error!</code></li>
+<li><code>warn!</code></li>
+<li><code>info!</code></li>
+<li><code>debug!</code></li>
+<li><code>trace!</code></li>
+</ul>
+<h4 id="target"><a href="#target"><code>target</code></a></h4>
+<p>The <code>LOG_TARGET</code> should be defined once per crate, e.g.:</p>
+<div class="example-wrap"><pre class="language-rs"><code>const LOG_TARGET: &amp;str = &quot;parachain::pvf&quot;;
+</code></pre></div>
+<p>This should be of the form <code>&lt;target&gt;::&lt;subtarget&gt;</code>, where the <code>::&lt;subtarget&gt;</code> is optional.</p>
+<p>The target and subtarget are used when debugging by specializing the Grafana Loki query to
+filter specific subsystem logs. The more specific the query is the better when approaching the
+query response limit.</p>
+<h4 id="fields-1"><a href="#fields-1">Fields</a></h4>
+<p>Here’s the rundown on how fields work:</p>
+<ul>
+<li>Fields on spans and events are specified using the <code>syntax field_name = field_value</code>.</li>
+<li>Local variables may be used as field values without an assignment, similar to struct
+initializers.</li>
+<li>The <code>?</code> sigil is shorthand that specifies a field should be recorded using its <code>fmt::Debug</code>
+implementation.</li>
+<li>The <code>%</code> sigil operates similarly, but indicates that the value should be recorded using its
+<code>fmt::Display</code> implementation.</li>
+</ul>
+<p>For full details, again see <a href="https://docs.rs/tracing/latest/tracing/index.html#recording-fields">the tracing
+docs</a>.</p>
+<h4 id="viewing-traces"><a href="#viewing-traces">Viewing traces</a></h4>
+<p>When testing,</p>
+<div class="example-wrap"><pre class="language-rs"><code>sp_tracing::init_for_tests();
+</code></pre></div>
+<p>should enable all trace logs.</p>
+<p>Alternatively, you can do:</p>
+<div class="example-wrap"><pre class="language-rs"><code>sp_tracing::try_init_simple();
+</code></pre></div>
+<p>On the command line you specify <code>RUST_LOG</code> with the desired target and trace level:</p>
+<div class="example-wrap"><pre class="language-sh"><code>RUST_LOG=parachain::pvf=trace cargo test
+</code></pre></div>
+<p>On the other hand if you want all <code>parachain</code> logs, specify <code>parachain=trace</code>, which will also
+include logs from <code>parachain::pvf</code> and other subtargets.</p>
+</div></details><h2 id="modules" class="small-section-header"><a href="#modules">Modules</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="event/index.html" title="mod tracing_gum::event">event</a></div><div class="desc docblock-short">Events represent single points in time during the execution of a program.</div></li></ul><h2 id="macros" class="small-section-header"><a href="#macros">Macros</a></h2><ul class="item-table"><li><div class="item-name"><a class="macro" href="macro.debug.html" title="macro tracing_gum::debug">debug</a></div><div class="desc docblock-short">Print a debug level message.</div></li><li><div class="item-name"><a class="macro" href="macro.enabled.html" title="macro tracing_gum::enabled">enabled</a></div><div class="desc docblock-short">Checks whether a span or event is <a href="crate::Subscriber::enabled">enabled</a> based on the provided <a href="crate::Metadata">metadata</a>.</div></li><li><div class="item-name"><a class="macro" href="macro.error.html" title="macro tracing_gum::error">error</a></div><div class="desc docblock-short">Print an error message.</div></li><li><div class="item-name"><a class="macro" href="macro.event.html" title="macro tracing_gum::event">event</a></div><div class="desc docblock-short">Constructs a new <code>Event</code>.</div></li><li><div class="item-name"><a class="macro" href="macro.info.html" title="macro tracing_gum::info">info</a></div><div class="desc docblock-short">Print a info level message.</div></li><li><div class="item-name"><a class="macro" href="macro.trace.html" title="macro tracing_gum::trace">trace</a></div><div class="desc docblock-short">Print a trace level message.</div></li><li><div class="item-name"><a class="macro" href="macro.warn.html" title="macro tracing_gum::warn">warn</a></div><div class="desc docblock-short">Print a warning level message.</div></li><li><div class="item-name"><a class="macro" href="macro.warn_if_frequent.html" title="macro tracing_gum::warn_if_frequent">warn_if_frequent</a></div><div class="desc docblock-short">Print a warning or debug level message depending on their frequency</div></li></ul><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.Freq.html" title="struct tracing_gum::Freq">Freq</a></div><div class="desc docblock-short">Utility struct to compare the rate of its own calls.</div></li><li><div class="item-name"><a class="struct" href="struct.Level.html" title="struct tracing_gum::Level">Level</a></div><div class="desc docblock-short">Describes the level of verbosity of a span or event.</div></li></ul><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.Times.html" title="enum tracing_gum::Times">Times</a></div><div class="desc docblock-short">Represents frequency per second, minute, hour and day</div></li></ul></section></div></main></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_NOTIFICATION_SIZE"],"enum":["CollationVersion","IsAuthority","PeerSet","ValidationVersion"],"fn":["peer_sets_info"],"struct":["CollationVersionIter","PeerSetIter","PeerSetProtocolNames","PerPeerSet","ProtocolVersion","UnknownVersion","ValidationVersionIter"]};
