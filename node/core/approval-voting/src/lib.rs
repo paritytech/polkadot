@@ -1656,22 +1656,15 @@ async fn handle_approved_ancestor<Context>(
 			// formatting to divide bits by groups of 10.
 			// when comparing logs on multiple machines where the exact vote
 			// targets may differ, this grouping is useful.
-			let mut s = String::with_capacity(bits.len());
-			for (i, bit) in bits.iter().enumerate().take(MAX_TRACING_WINDOW) {
-				s.push(if *bit { '1' } else { '0' });
-				if (target_number - i as u32) % 10 == 0 && i != bits.len() - 1 {
-					s.push(' ');
-				}
+			let mut unapproved: i32 = 0;
+			for (i, bit) in bits.iter().enumerate() {
+				if *bit { continue; } else { unapproved += 1; }
 			}
+			let s: String = format!("Unapproved parachains: {}", unapproved.to_string());
 
 			s
 		},
-		if bits.len() > MAX_TRACING_WINDOW {
-			format!(
-				"{}... (truncated due to large window)",
-				target_number - MAX_TRACING_WINDOW as u32 + 1,
-			)
-		} else {
+		{
 			format!("{}", lower_bound + 1)
 		},
 	);
