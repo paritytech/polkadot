@@ -19,7 +19,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@95cb08cb2672c73d4ffd2f422e6d11953d2a9c70 # v2.1.0
+        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325 # v2.2.1
       - name: Cache Docker layers
         uses: actions/cache@v3
         with:
