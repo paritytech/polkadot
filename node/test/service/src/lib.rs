@@ -196,6 +196,7 @@ pub fn node_config(
 		data_path: root,
 		base_path,
 		informant_output_format: Default::default(),
+		delayed_canonicalization: Some(32),
 	}
 }
 
